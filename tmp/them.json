@@ -1,0 +1,581 @@
+{
+  "pubkey": "DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech",
+  "uid": "Fred",
+  "sigDate": "99133-000001461AF65A4C1F9027FE7D4ED5F74991C4D4111647AEAF6DB84B42540CF0",
+  "isMember": true,
+  "certifications": [
+    {
+      "pubkey": "6tqLV1vQtQCmzw856hz77FaP39DQoHEMhAzZJRWsswF",
+      "uid": "CORBIERESchristine",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 558461,
+        "medianTime": 1662975426
+      },
+      "sigDate": "352635-000000069BDF350213B6AF750C7B2FC374864921570D31E9D9AAEBAC6C93C847",
+      "written": {
+        "number": 558469,
+        "hash": "000000022B7D68DC35EEB5C18500B1CE3AD089E83EE1E774C87BC55E28342F25"
+      },
+      "signature": "Uk1TQU9CTNL28MLHg9h4+XegDXm5QGG7Ly2i+nDy7S9wI/fAjNXih2rA6evHQfXXmAB1jVrYXKTGE0xPqgaODg=="
+    },
+    {
+      "pubkey": "F9JEPzo3sE9LtVNx6u2EcriPzzgnbXtUnvUtjQRDcTeu",
+      "uid": "SyoulAnuanua",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 560078,
+        "medianTime": 1663478807
+      },
+      "sigDate": "341685-00000037F173B35508E125CF8E74BE615265F8EF965F8A3C2B8A77AA99B6B13E",
+      "written": {
+        "number": 563294,
+        "hash": "00000006DA961AB2515C1095906E219E64E4FF153615D32F8AD5FE94692A71F0"
+      },
+      "signature": "I8YjXOe1lCuhm/gyMH9Mkzb0B3elnNxVax2AUCsbxSYR+L59qdjyNNp+LKKcrdDiLTnquHF/jz3aApNnlnnGDQ=="
+    },
+    {
+      "pubkey": "B33QfqBdtu4jiquzvgxm9EBtwvj6XRdAcDCt88FnHaTN",
+      "uid": "FredTahiti",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 560409,
+        "medianTime": 1663581223
+      },
+      "sigDate": "360163-000000246B5748A2845210F223490CF74B8BA742BECD6225F3D0100F64BD0D57",
+      "written": {
+        "number": 563238,
+        "hash": "0000000B5C4A154CF790814870510AC3F76A4EF480F864E407C7D61DE1466D80"
+      },
+      "signature": "aqW/ZgMPwDJd5ki4X//KZUINAikFCNQzrCX+NEn0y/NdukEHouwStOPhwDZBPOpW+GirAPW/Z3vO+9oBG8okCw=="
+    },
+    {
+      "pubkey": "375znBjXFsLsG4gSkNkQ5xfPQRBQDiCv43NbwGt3174i",
+      "uid": "GUL40_Fr1",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 568814,
+        "medianTime": 1666182159
+      },
+      "sigDate": "490133-0000002C7750A255D884FA58451BE672305E747C70C5BDAB3A714949FB4CD806",
+      "written": {
+        "number": 570216,
+        "hash": "0000001D9D30571726C671741B99E9F012A4D50EBE2A3554C1B4FD18F14F347A"
+      },
+      "signature": "YkHUysRVSp2rAiL2vYjlgf6o1PRnUYCNzjJ9yWxubpePB0KYSvOedrqa4UrJPNNRuPyXvmQ1rJuoXm/Y2ky7Bw=="
+    },
+    {
+      "pubkey": "8zzMobt7aSu3DND7cLyrJJ1UeRW7vbntrT7kxKHdpeBW",
+      "uid": "darben87",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 586928,
+        "medianTime": 1671821724
+      },
+      "sigDate": "338403-0000003666FF0952E38D0DB0C6D5E81B3583BCFEAFF5E2F2A0F0B0BC7D50805C",
+      "written": {
+        "number": 589714,
+        "hash": "000000094FDF8DDD86DA65D62436B9B0309E8D64186512D3CA21A9EA31E8AD52"
+      },
+      "signature": "sA1hLG0ioENuonxQuYRK5kQMioL+0RHF7qRFQyqIRcqsvckEciMOC3PDt+4ZEst57pOovYKZK00QXW2vdF11Aw=="
+    },
+    {
+      "pubkey": "BJXnups88wJNwUZowjmikRMPFQLxN2gm3jh9VzXcSnoy",
+      "uid": "scanlegentil",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 598778,
+        "medianTime": 1675509389
+      },
+      "sigDate": "98881-000005F4DD6578273D0D552CCAD6E3730453CB4CBC170DD57ACB7C5392F61252",
+      "written": {
+        "number": 599616,
+        "hash": "00000022619EB53D6D0F12EC8136529094B885870BFD6AF324C70D70F4CFA7A4"
+      },
+      "signature": "9Q5Hrio1HlmHP67BVlm5ycke0R9AlcZCywdnRaZoGra9DQ/B/MmXTl+Ar6GOL6UnPAGFN9bAwxsD1OUjtSyACQ=="
+    },
+    {
+      "pubkey": "EN7gCZ4HGi4NzEQb4Gv23sCZesNZ2DjMDg1eqS8i9EQW",
+      "uid": "Demosthene",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 603014,
+        "medianTime": 1676824169
+      },
+      "sigDate": "280836-000000BEA6948426FC72AB406D9FED4A231845A96C61E394267892476C33D880",
+      "written": {
+        "number": 603022,
+        "hash": "0000000124350B3B4A8EFAF59CAFD3BA0FBE757B5013798D17282E2710F2804D"
+      },
+      "signature": "E9EIArRyK7hzaO+jRs3C99vP+QcyeVuBJVVlYCy2WYVJMagiffXTrA5MVE3JVWHQ9Wj86qLpheF6p/IEZ2DsDg=="
+    },
+    {
+      "pubkey": "FPzX8UEHSGFXN8NeQVXpJjuSCQL1EbjCUb9A5TJR4bJu",
+      "uid": "Tiffany",
+      "isMember": false,
+      "wasMember": true,
+      "cert_time": {
+        "block": 603016,
+        "medianTime": 1676825108
+      },
+      "sigDate": "525269-0000000CDBAB3F930E84CFFA097E2B446724BE07EB10369BC04A5D20D96D6112",
+      "written": {
+        "number": 604441,
+        "hash": "000000118C6F85A8E9876BE9E0460CE0C7D90215681D4BFECFDC386966283497"
+      },
+      "signature": "Is2sri3QbcU3l1dXI+bteX8gsHeIRGC93tUQsd0Yl5POHFSblGifGYQt4n55Xoem8crB8lW7B71W6kwll+QIAw=="
+    },
+    {
+      "pubkey": "DwMyQYKdGhYfJkT5b8fG6hQtfLk3dRRgScdtB5Nq57EY",
+      "uid": "Maxhans",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 606976,
+        "medianTime": 1678050223
+      },
+      "sigDate": "444429-0000002D97C390FC44FFECCD67327509474BA1E29635F70983B12C95FF564CDB",
+      "written": {
+        "number": 606978,
+        "hash": "0000000A25C4242C4A9BF9A223CA99AB516CFF568E1F5FC5A619BE06217564A6"
+      },
+      "signature": "SCY++GRfdbt0vxW1lRaRQat241dLINIj50hcne0C0ggOIQt52FB5FSU9naa+y6kDhVa7joZM4EtgUn2vAO/oCA=="
+    },
+    {
+      "pubkey": "GHEKgZkVyauseVcQpBRuihTMaiYNJG1qcpH8xmCtnrX2",
+      "uid": "VitoAndersen",
+      "isMember": false,
+      "wasMember": true,
+      "cert_time": {
+        "block": 622485,
+        "medianTime": 1682823447
+      },
+      "sigDate": "97241-000009C0D48C830D7E5D78B5F8F8B7BCE00ABEA010202B883EB3246049929511",
+      "written": {
+        "number": 625293,
+        "hash": "000000261934571A1F5DF5E596E1D37D9B1F16BC9548941B0E63A7FCD6F0E055"
+      },
+      "signature": "UEVSq2v697VGui7BmPLRAc5vEHawLdpvCgyGhdvs5yUeCoc1iF/lIuemR8fFRSM9uksnszT8qPqXxmpMUYc8DA=="
+    },
+    {
+      "pubkey": "5osHShb4bwZ9WJSjCEpxJiAYWPaQh57jsff1zH7gEvfb",
+      "uid": "nathanaelf",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 626998,
+        "medianTime": 1684216319
+      },
+      "sigDate": "554022-0000003E416D42BD1EE786CADB21531C3461FDBED8DDF28E23D3AA33207664E3",
+      "written": {
+        "number": 631223,
+        "hash": "00000008A3052CA93D8B44B5EF5BA94083427D45E3170DF7F66E0A523C0A31F7"
+      },
+      "signature": "cvafgh7KUHOKzL8mitZcK83rZiFH52SG5QLNg5oieIYR3x5L5Ih4+Z60s/ZVX+1SvXRaVZJjtop8gil5csQAAQ=="
+    },
+    {
+      "pubkey": "9Um5qEo96ofSCdA1YHpYWdy296mDmfub71thwpVmQqe8",
+      "uid": "CharlesCros",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 630365,
+        "medianTime": 1685254408
+      },
+      "sigDate": "570585-00000014791FE0348B216BB6AFDEF2D0E621B50E8CED633D85DCE2BB91816021",
+      "written": {
+        "number": 630373,
+        "hash": "00000028062765C5B4074764DE2C1FAABDB1B28848126F5770F9F95234F01075"
+      },
+      "signature": "7pAlrq1Fcbw2pSYCoog6/k3E2gRd0KIEMC3mY8RetHLEXzEuY/mFmlxnE/LGSfr1Su9IiEQwAh1RUfpItgOQCg=="
+    },
+    {
+      "pubkey": "DZ5pVyR3RFEoo9JZoYxDiH8hgXHjutSYiVfcS6treQZL",
+      "uid": "Kaya971Wolf",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 634088,
+        "medianTime": 1686399821
+      },
+      "sigDate": "533572-00000010CC4B6BF122076ACB56699360B931C81D89A6C1BE83EADBFBD5F1E18F",
+      "written": {
+        "number": 639268,
+        "hash": "000000229AFEC1143F3258BF36C58B3DD542C6BE8631CD9184ECEA73038AA2B3"
+      },
+      "signature": "Hvn/eqqkbG+TGpTSScC+eSW51d2e8p3hn05YchXf8XgWztAVzLujkZQD6tPswvm3zH9xybRbSqZnSDuVg1VaBw=="
+    },
+    {
+      "pubkey": "CziEgFsmiuGWvhU7gHUfifDphjHYLH9wYBwKodDcuySA",
+      "uid": "s00999",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 635812,
+        "medianTime": 1686925049
+      },
+      "sigDate": "321461-000000E5F19FDA681E288D67F76106D20065C950036C0ECEC051EC2022710FB0",
+      "written": {
+        "number": 636390,
+        "hash": "00000008F86CDD3C61E5088B1D75A21324774E240FFFE2EFDFA7CCEEF8033A6B"
+      },
+      "signature": "xXefWfmmpVofu/OqHTKqu54pu6fAlKQnzFvTKAYIe5XiypA/4ZORJUNXcCju/VeXF/J2KajjrfwXnfYv4wsTDg=="
+    },
+    {
+      "pubkey": "8Dy5S4KwQ5SWXucEoRw41aRzBxxzXQk3EAYy9CFxSWA2",
+      "uid": "Pini",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 639475,
+        "medianTime": 1688051798
+      },
+      "sigDate": "636686-000000335D0B93B128A71823C3300CDCDBC8EE4D0C276FA5330EC8FB1C40C0FA",
+      "written": {
+        "number": 639483,
+        "hash": "0000000A1AC8711EA97814CA1077D2C0182D0273DF9985C0C7CF429EDB276E71"
+      },
+      "signature": "7ywzi5/EAxql/OgrocDgc/qGwp02XT2lxuOcFn7LIUl/FdEIbk4ojq6oy0FDpoMIDnJ7V9WlDyC9a7yVtuJ5CQ=="
+    },
+    {
+      "pubkey": "EMYkH5MEZYN44cqCM8QVAySVmBYMKXrq4pZQYvrUgH61",
+      "uid": "Celuiquicrelamehaute",
+      "isMember": false,
+      "wasMember": true,
+      "cert_time": {
+        "block": 644161,
+        "medianTime": 1689503135
+      },
+      "sigDate": "462288-0000002E743AB8812AFA06CD26BE2F40D8B9D1D65635602FB68356B71A5CDCAC",
+      "written": {
+        "number": 645549,
+        "hash": "0000001D6D6A0643AB8066D49C6D90B859EFBD0890EC6A46294AB98B69321EF9"
+      },
+      "signature": "wGuiaF2fD3lOXy62V0d7a7XoczsELef1yAcjYMUcebzRTSTHqbW6szYDqUqW4BKnhB3zpzMs4+YhWSNBHCV0BQ=="
+    },
+    {
+      "pubkey": "5mz5xaugdfG4SaLBYT3yNBx1qnXsb5X4j8EHueB5o68K",
+      "uid": "LionLDouNIo",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 644198,
+        "medianTime": 1689515216
+      },
+      "sigDate": "552524-000000110101882F756B5CFF27BEE208EC4C52E6B00CA4117BDADC87ECE06CD5",
+      "written": {
+        "number": 644201,
+        "hash": "0000001AF972EA5AA30D732FB7F17D9C1381125DA030AF7D7C605393381CAD10"
+      },
+      "signature": "4eOCPqAMcLOO6YrYtbSyn533qFT63+EuSooS4OIFIOlqANdoon/WrqtapqVDgc6A4o+Qhj+dLJosv//g3uRKBg=="
+    },
+    {
+      "pubkey": "EhRy1Zvq6DzEfGpnRLp5FQxUQ2C88sJC9GfSjsUoXjua",
+      "uid": "Marionrosa",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 649702,
+        "medianTime": 1691217925
+      },
+      "sigDate": "507960-00000003DB3037FE8886F96490CDB0C9E3FF741969029BDF005252450D49ABD5",
+      "written": {
+        "number": 649710,
+        "hash": "00000015DA58E3128078FE56D5EDB644DAF0E82F420B1C60C1F3843AEA8E96D8"
+      },
+      "signature": "S/WrV54L3ClWgbA8b/WLLXrOpxb3942SvlJK/mbioBpiBB8C+quEyqQas4DopvnOrkmxYobItm3TaNr/toWLAg=="
+    },
+    {
+      "pubkey": "FNiPNV5Exu65L15jxUDQWfqU9pWgeF8P8hf3ecSEKNme",
+      "uid": "ofontes",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 653656,
+        "medianTime": 1692434687
+      },
+      "sigDate": "100253-000005251A8BD1CE7F323F0801694ACAB76D7A686148FFC522B3F8441D72E2C8",
+      "written": {
+        "number": 655874,
+        "hash": "00000011006AE8FE6416C28BDA1578B9AA251A57C83F25CB796CB3B6C05D8BE7"
+      },
+      "signature": "5/+RdTUCad82j5MqgAZ7cAucJqlw2dEep+D8aoWMZBHtoLB/Kz1tIX4QeqwI3kSAYsDcFXbT516FfPOwPFSoBw=="
+    },
+    {
+      "pubkey": "DWwYVy8J2N3wtRRq2p3RNt5MqunvEiJKmpR3XHsE5exW",
+      "uid": "BAYAmudra",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 654586,
+        "medianTime": 1692724080
+      },
+      "sigDate": "584051-0000001E211287C2E7872ED46865A816AEDE30533AB447B2D54C4262158D2315",
+      "written": {
+        "number": 654594,
+        "hash": "00000024D09F71B905F2D9061B61C1351DDDEE00B78678DA1E1952E6F2C527B5"
+      },
+      "signature": "Li5ZRNKYnP/OyGtIkVtAKmgKGcQk1E2Xlilmw1TJPZUaLGTk2nuuf2+O4GtwvB+Heq5YjPCS19PuAAi9TpPoAA=="
+    },
+    {
+      "pubkey": "97XkbAwfseD8mFJmHG3FjUzW85v4gscK7b6KAJKtbGqb",
+      "uid": "Pascale72",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 657958,
+        "medianTime": 1693769155
+      },
+      "sigDate": "418949-0000000B7E94BDFFA2071A2484FCC61FEDAF89341761386046A717553DF0565F",
+      "written": {
+        "number": 659334,
+        "hash": "00000038977934B72FBA1276627BA74C1497A46352AACB6DAB01D7949D059ABF"
+      },
+      "signature": "ut6dqfTHVjOZqD2L4XY6DMnLbc52dryBRiDwgUnpibZ8NPPSIvNZI1bgfj/OrDZCVKTp6VOK5bMLO5KnAR2lDQ=="
+    },
+    {
+      "pubkey": "55oM6F9ZE2MGi642GGjhCzHhdDdWwU6KchTjPzW7g3bp",
+      "uid": "HugoTrentesaux",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 658645,
+        "medianTime": 1693978170
+      },
+      "sigDate": "57619-0000078285CE43A2DE2D3460257036420BBE0245DDD7E0ABCAD0CE2BC5CDE8E9",
+      "written": {
+        "number": 658653,
+        "hash": "00000019226837C5E3DC6307C8CF517221640F201609C8686AECAD3C9A4D663C"
+      },
+      "signature": "H4QTW4+4N9ono4LzXDKvDp8QFSNjuz2A7M3zIWP1woc4Q3q8iPgeVjZEN6Zkim+BI8kwPqHN9PGqH1GrB4y6CA=="
+    },
+    {
+      "pubkey": "9e2F2aJmQsESq45SuQ8JkP8x5bBJyYA3RgqxJvBGqpGy",
+      "uid": "boilloszekfamily",
+      "isMember": false,
+      "wasMember": true,
+      "cert_time": {
+        "block": 667373,
+        "medianTime": 1696671980
+      },
+      "sigDate": "391949-0000000A0AD049D0E508C7DBA0F5BDD2F7010C9FC7F2F75326A2F5DB6FB89A43",
+      "written": {
+        "number": 667381,
+        "hash": "0000001E3274D10CDB12744ADCA5C9F9F5C91B44297223060248CF00F1BBEE86"
+      },
+      "signature": "PKa/BctMkcUuVoRIjiSx3FhwCw3v0w6f83JurtQ0OtpsR8E2GTS6JLgkAN/vga7L+HuXR5Tm2O+jRR10CJr1BA=="
+    },
+    {
+      "pubkey": "J1XJ7jZcBXyggkY7ptRvitekzj2oNYgmAgZUqDgKEJH5",
+      "uid": "LaurentLC",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 683402,
+        "medianTime": 1701628524
+      },
+      "sigDate": "671922-00000001106FE46B999102074589E73542EFF1C05EE927A3F782E7448B492E69",
+      "written": {
+        "number": 686155,
+        "hash": "0000002CB6194C575EF61C5149D655D9F656A52CD853E7B2D5AB2B3B0B727559"
+      },
+      "signature": "8iIZSUDI/njAiTicPm3wX2+ORxm4J2qYnZCmhWY11NsnBMoZfeXwk1C9Q75AU2QNfdDmRTh3XhK3HxUeRE+ABQ=="
+    },
+    {
+      "pubkey": "7tkuL87FWdfSWDHDao197TG4yQNCe4kXHPEvdL4qjYV3",
+      "uid": "Pac",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 685006,
+        "medianTime": 1702132914
+      },
+      "sigDate": "190821-000002344CB266260F4EA53F3F14D2173D7ECC24A5F66D967212E784B40A9AA0",
+      "written": {
+        "number": 685014,
+        "hash": "00000020F127765B8D999A3356028054E44207392C24B406CBE41917E44FD7F8"
+      },
+      "signature": "JZkX0cMAO35GvC8NrN9WTi8rb7J6Wrt8JTApmY3vmRuwlLEaBJN9iWV4rOTgQSqvYJ7lmcLVF8ThkSUwKY69DA=="
+    },
+    {
+      "pubkey": "233H1FnW58RnbJyfoRPRgUvYE2oXxfxB6ULAFQTr1Rht",
+      "uid": "Eiutim",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 685457,
+        "medianTime": 1702277007
+      },
+      "sigDate": "457894-0000003E22C3A4F59F045B154A9AB5D835D0BA9E8A08FE3F7D8D757F2DBED9CE",
+      "written": {
+        "number": 685465,
+        "hash": "0000002602ABF8A37F7EC3197C96163BDCD38E93366A6C31D1C6C156BD9ED797"
+      },
+      "signature": "tzikdauZvOkIqDGn5ZtqeObO8sKtTvBCaFx2HE98S3nJfMFcn9BBRdy65HTpW5Q8eFpLIXadeyh8E8bm6vFWDg=="
+    },
+    {
+      "pubkey": "DrQaLNYy99mmQ1dsBQtK39TDHYFt5BSTmNc5GR1jKWow",
+      "uid": "MovingPT",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 698964,
+        "medianTime": 1706454490
+      },
+      "sigDate": "634424-0000002977888F42E6B30BD30F694EE05CA45823104AFD3DDA6A11131CB92066",
+      "written": {
+        "number": 698972,
+        "hash": "0000002E379D49FD84BE37711ADCE25E0A121A35E5156CA6656B89C13519E9FF"
+      },
+      "signature": "EZGdHrwsfMPa8beaZQCcPAlbXUUq+x2rwv/d6yYwDx7oToZCalpObtvv82lE1XcK65XGlerzKqUN01ySlhFwBg=="
+    },
+    {
+      "pubkey": "87D8KuyfX5Gop1ro7gXCzJfWY7Q7dvnPiQmVB4RdrhM9",
+      "uid": "JerryBB",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 718692,
+        "medianTime": 1712604778
+      },
+      "sigDate": "348622-000000174F0B301C0F30A37D890636935DE51D143FF7229339464AF80F9EEF0A",
+      "written": {
+        "number": 719886,
+        "hash": "00000018DEB53EA0756EA543140EBF220CB6F11BF3F14331D21CCCCC84C87FBE"
+      },
+      "signature": "7Ifqpqbhe9PIrca1VfxcnpUhbJmvQFpe1p0N+Qga0dh4c/KY1+UTXhGlzGJ9jEARLBl3bQhgPI88sMrs6JdLDA=="
+    },
+    {
+      "pubkey": "4pfG4vU5MWCADvo7Khddp5zte7iB9h48KruijLPsQXqP",
+      "uid": "Junouille",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 734910,
+        "medianTime": 1717650649
+      },
+      "sigDate": "533210-000000167D1947B591CFFB1C561D9E227A15ED43195CC4350A32CAD7131EDA30",
+      "written": {
+        "number": 734918,
+        "hash": "00000017E7B7F0B58D1BB53728EF0EDB3BDF0CE91FC5950398792975F67F39CA"
+      },
+      "signature": "Viv9CcI5BuvN5f0q62FfIUjJhrZEFsiIbIAHAW2KoVjO7h3gFmBu30kC4sc1HOPa/U5eNZbd8c3EtRqHYGYPCA=="
+    },
+    {
+      "pubkey": "F6AmVLgjCh6tBWX8FiKx6B26zVfdNC9ncWA2WKDRkCzR",
+      "uid": "aya",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 735599,
+        "medianTime": 1717858730
+      },
+      "sigDate": "535996-000000258716C8A2F841C8D04CC811AFD24A9A3D6ADCEB56B06050C3B968E6DD",
+      "written": {
+        "number": 745343,
+        "hash": "0000002AD699375002EF7E9301EE440E0C08857652A3E9744F0509DA57358B23"
+      },
+      "signature": "paPdwLyUpsAusJ2TwZ7/AFaeyyQ20Cne43RIozYHxeCIevFFtTUiz3PN8GnzUPWqwb31LMQtVFCtehDZ9fYfBA=="
+    },
+    {
+      "pubkey": "9afSLgdH6sEjyKde2rjtUD7DhqFWtUyVsidV1S2XEXH5",
+      "uid": "Aneuf",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 745190,
+        "medianTime": 1720846318
+      },
+      "sigDate": "199078-000003D90ABCF6A43E4EC5AD823578A7007F044B32946F83FF5D3E717975085A",
+      "written": {
+        "number": 745198,
+        "hash": "000000070B32B6E003C2B9725E3A56C0EB650BEAD38D2A97138EE7ACA972CF4E"
+      },
+      "signature": "bg+Rj6pHiXvpFoRx6vOtD4Zc0LrkLIaP06tqMX2Fx5L0WjRhYB1Hd8xV/pLuHeOajQjgfPPN6CEJoHcZL1cqBg=="
+    },
+    {
+      "pubkey": "BCeKMYPYv41VA8m7d4oxc2PZ3y7PjjQnanMmPm5CZRzH",
+      "uid": "ChristopheRobine",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 757155,
+        "medianTime": 1724520370
+      },
+      "sigDate": "210940-00000010FB0A75E5EFDC7A4BFC11018BD84B287D3FC76EB16AB422A16E5F7EF7",
+      "written": {
+        "number": 757163,
+        "hash": "00000020B9A74FD0DD0EC7B8BF7A58F9B868B0B54D18E038AAC4B36B448B1D37"
+      },
+      "signature": "OdOJVgTmsLzmghkCI2f5uD5ik4t4aLhYzvjE6zTRmsB29jkdtmoggSduk1k/eDWKm+oPRgUD5kMB5Ou4L7GGAg=="
+    },
+    {
+      "pubkey": "4uJFzRoDTnqEaTDCmBdq3teAtrUhiw8tbqv2SCo6a48P",
+      "uid": "MisterLuix",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 758978,
+        "medianTime": 1725082607
+      },
+      "sigDate": "596606-00000003F91E89A3F98210FE112F1017EBD4550D5C8ECC1A5B70A56827BD44B2",
+      "written": {
+        "number": 758986,
+        "hash": "00000001EBCB125ED822D042A99EA0A59BA5119FA1DFDF8B50F4A2DB8DFBEA3D"
+      },
+      "signature": "jLGrntULqt8VdQJQ36rHl+vlA7PCQTAgX5CZUEG3vsYY8iBbRQtu6G2jKv3ut+bW1tdmy+yp1UQMLmkX3dBIAA=="
+    },
+    {
+      "pubkey": "6DrGg8cftpkgffv4Y4Lse9HSjgc8coEQor3yvMPHAnVH",
+      "uid": "vjrj",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 759010,
+        "medianTime": 1725095028
+      },
+      "sigDate": "621577-0000000DBC5CA1979A2227CB2A4D53AF5AFA46EF673F20F418F3EFD7C04C231C",
+      "written": {
+        "number": 759018,
+        "hash": "000000083FBA2584DE3BB96F4DCA9CBA037D695BA3ACC196D443749B5A8ACA6A"
+      },
+      "signature": "WuGjOdD4Vdqvr+8djFtmMOQfSCd0T5yfqVGH8CqD64fbTAL7kY8i2iJlQ1SCMOsM+g1xRBEyzmcBc/CHztrHDg=="
+    },
+    {
+      "pubkey": "EbAej4PrCHGNd62bzqGxLquHvg7mZ3AemC4675E1eXnc",
+      "uid": "Anaagua",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 759109,
+        "medianTime": 1725127081
+      },
+      "sigDate": "581444-00000008B2FD527F6A34AA80E47D573DE553550BCA221DCA74F7B38BD7CD2FA4",
+      "written": {
+        "number": 759117,
+        "hash": "0000000D00E0D77DCA66FF5F75AD76966A22B76C1EC7BF40F869EBFA3CAFE7E7"
+      },
+      "signature": "1a9+elpqWiSR0JQS7RdXXrgQjQmJv2/RWf8cxjeu2rivCcRakWjiiIU2K3C0ca4Ckti9IsotIfaoGMy45P9pAw=="
+    },
+    {
+      "pubkey": "6zo7sCWd3ceKyzGYuDe6Qz8mgZ8GZW3cQrvefcigPa2S",
+      "uid": "Jerryz",
+      "isMember": true,
+      "wasMember": true,
+      "cert_time": {
+        "block": 759109,
+        "medianTime": 1725127081
+      },
+      "sigDate": "538460-00000004FE09B9B6BE97313B887076096518C8E02263F67C490CBBD87F878299",
+      "written": null,
+      "signature": "YbKrLJj1iG8NTVKIzm0lIwKPLridm6OtfRZsUsXiK6QNBtWlc9CKqo4Vym2/sUoZ7eV4IBa9XB3Y1uNjrFNfBA=="
+    }
+  ]
+}
