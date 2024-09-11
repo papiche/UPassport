@@ -99,9 +99,25 @@ generate_qr_with_uid() {
     fi
 }
 
+## PERFORM PUBKEY TX HISTORY
+./tools/timeout.sh -t 20 ${MY_PATH}/tools/jaklis/jaklis.py history -n 40 -p ${PUBKEY} -j > ./tmp/$PUBKEY.TX.json
+## VERIFY TX FOR "MEMBERUID" IN COMMENT
+## FIND PAYMENT DESTINATION...
+## FIND RX FROM PD EXTRACT COMMENT
+## GET IPNS+
+
+
+## CHECK IF IPNS KEY WITH PUBKEY EXISTS
+WIPNS=$(ipfs key list -l | grep ${PUBKEY} | cut -f 1 -d ' ')
+if [ ! -z $WIPNS ]; then
+    echo "EXISTING PASSPORT: /ipns/$WIPNS"
+    echo "CANCEL : Ctrl+C / OK : Enter"
+    read
+fi
+
 # Call the function with PUBKEY and MEMBERUID
 generate_qr_with_uid "$PUBKEY" "$MEMBERUID"
-mv ./tmp/${PUBKEY}.UID.png ./pdf/${PUBKEY}/N1/0.${PUBKEY}.UID.png
+mv ./tmp/${PUBKEY}.UID.png ./pdf/${PUBKEY}/${PUBKEY}.UID.png
 
 ########################################"
 # Extract the uids and pubkeys into a bash array
@@ -227,6 +243,7 @@ ipfs key rm ${PUBKEY} > /dev/null 2>&1
 WALLETNS=$(ipfs key import ${PUBKEY} -f pem-pkcs8-cleartext ./tmp/${PUBKEY}.zwallet.ipns)
 echo "_WALLET STORAGE: /ipns/$WALLETNS"
 
+#######################################################################
 ## PREPARE DISCO SECRET
 DISCO="/?${prime}=${SALT}&${second}=${PEPPER}"
 echo "SOURCE : "$DISCO
@@ -234,15 +251,23 @@ echo "SOURCE : "$DISCO
 ## ssss-split : Keep 2 needed over 3
 echo "$DISCO" | ssss-split -t 2 -n 3 -q > ./tmp/${G1PUB}.ssss
 HEAD=$(cat ./tmp/${G1PUB}.ssss | head -n 1) && echo "$HEAD"
+MIDDLE=$(cat ./tmp/${G1PUB}.ssss | head -n 2 | tail -n 1) && echo "$MIDDLE"
 TAIL=$(cat ./tmp/${G1PUB}.ssss | tail -n 1) && echo "$TAIL"
 echo "TEST DECODING..."
 echo "$HEAD
 $TAIL" | ssss-combine -t 2 -q
+
+${MY_PATH}/tools/natools.py encrypt -p $PUBKEY -i ./tmp/${G1PUB}.ssss -o ./pdf/${PUBKEY}/ssss.enc
+
 rm ./tmp/${G1PUB}.ssss
+
 echo
-###############################################################################
+
+#######################################################################
 echo "Create Zine Passport"
-MEMBERQRIPFS=$(ipfs add -q ./pdf/${PUBKEY}/N1/0.${PUBKEY}.UID.png)
+
+## Add Images to ipfs
+MEMBERQRIPFS=$(ipfs add -q ./pdf/${PUBKEY}/${PUBKEY}.UID.png)
 FULLCERT=$(ipfs add -q ./pdf/${PUBKEY}/P2P.png)
 [ -s ./pdf/${PUBKEY}/P21.png ] \
     && CERTIN=$(ipfs add -q ./pdf/${PUBKEY}/P21.png) \
