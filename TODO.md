@@ -26,6 +26,6 @@ Envoyer messages N1 / N2
 
 
 
-https://g1.cgeek.fr/wot/lookup/DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech
-https://g1.cgeek.fr/wot/certifiers-of/DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech?pubkey=true
-https://g1.data.e-is.pro/user/profile/DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech
+* https://g1.cgeek.fr/wot/lookup/DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech
+* https://g1.cgeek.fr/wot/certifiers-of/DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech?pubkey=true
+* https://g1.data.e-is.pro/user/profile/DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech
