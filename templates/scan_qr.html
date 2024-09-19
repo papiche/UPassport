@@ -141,11 +141,12 @@ a {
             </div>
             <div id="form-container">
                 <div id="container">
-                <h1>Scan QR Code</h1>
-                <form action="/process_qr" method="post">
-                    <input type="hidden" name="pubkey" id="pubkey" />
+                <h1>Scan QR CODE</h1>
+                <form action="/upassport" method="post">
+                    <label for="parametre">CLEF PUBLIQUE MEMBRE :</label><br>
+                    <input type="text" id="parametre" name="parametre"><br>
+                    <input type="submit" value="ENVOYER">
                     <video id="preview" style="width:300px;height:300px;"></video>
-                    <button type="submit">Submit</button>
                 </form>
                 </div>
             </div>
@@ -160,7 +161,7 @@ a {
     <script type="text/javascript">
         let scanner = new Instascan.Scanner({ video: document.getElementById('preview') });
         scanner.addListener('scan', function (content) {
-            document.getElementById("pubkey").value = content;
+            document.getElementById("parametre").value = content;
             alert("Scanned: " + content);
         });
         Instascan.Camera.getCameras().then(function (cameras) {

@@ -4,8 +4,6 @@
 # Version: 1.0
 # License: AGPL-3.0 (https://choosealicense.com/licenses/agpl-3.0/)
 ################################################################################
-MY_PATH="`dirname \"$0\"`"              # relative
-MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 if [ $# -ne 1 ]; then
     echo "Usage: $0 <pubkey>"
     exit 1
@@ -14,25 +12,20 @@ fi
 myDUNITER="https://g1.cgeek.fr"
 myCESIUM="https://g1.data.e-is.pro"
 
-PUBKEY=$1
+## PUBKEY SHOULD BE A MEMBER PUBLIC KEY
+PUBKEY="$1"
+ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # "PUBKEY" ChK or ZEN
+[[ $ZCHK == $PUBKEY ]] && ZCHK=""
+PUBKEY="$(echo $PUBKEY | cut -d ':' -f 1)" # Cleaning
 
-mkdir -p $MY_PATH/tmp
-# Delete older than 1 day cache
-find $MY_PATH/tmp -mtime +1 -type f -exec rm '{}' \;
+[ ! -s $HOME/.zen/Astroport.ONE/tools/my.sh ] \
+    && echo "ERROR/ Missing Astroport.ONE. Please install..." \
+    && exit 1
 
-[[ ! -s ./tmp/$PUBKEY.me.json ]] \
-&& wget -q -O ./tmp/$PUBKEY.me.json ${myDUNITER}/wot/lookup/$PUBKEY
-
-if [ ! -s "./tmp/$PUBKEY.me.json" ]; then
-    echo "Invalid PUBKEY: $PUBKEY.me.json"
-    exit 1
-fi
-
-# GET MEMBER UID
-G1PUB=${PUBKEY}
-MEMBERUID=$(cat ./tmp/$PUBKEY.me.json | jq -r '.results[].uids[].uid')
-mkdir -p $MY_PATH/pdf/${PUBKEY}/N1
-
+. "$HOME/.zen/Astroport.ONE/tools/my.sh"
+########################################################################
+### FUNCTIONS
+########################################################################
 function makecoord() {
     local input="$1"
 
@@ -59,7 +52,7 @@ generate_qr_with_uid() {
 
         echo "GET CESIUM+ PROFILE ${pubkey} ${member_uid}"
         [[ ! -s ./tmp/$pubkey.cesium.json ]] \
-        && ${MY_PATH}/tools/timeout.sh -t 20 \
+        && ./tools/timeout.sh -t 20 \
         curl -s ${myCESIUM}/user/profile/${pubkey} > ./tmp/${pubkey}.cesium.json 2>/dev/null
 
         [ ! -s "./tmp/$pubkey.cesium.json" ] && echo "xxxxx ERROR PROBLEM WITH CESIUM+ NODE ${myCESIUM} xxxxx"
@@ -85,41 +78,77 @@ generate_qr_with_uid() {
         [ -s ./tmp/${pubkey}.small.png ] \
             && amzqr "${pubkey}" -l H -p ./tmp/${pubkey}.small.png -c -n ${pubkey}.QR.png -d ./tmp/ 2>/dev/null
         [ ! -s ./tmp/${pubkey}.QR.png ] \
-            && amzqr "${pubkey}" -l H -n ${pubkey}.QR.png -d ./tmp/
+            && amzqr "${pubkey}" -l H -p ./static/img/g1ticket.png -n ${pubkey}.QR.png -d ./tmp/
 
         # Write UID at the bottom
         convert ./tmp/${pubkey}.QR.png \
           -gravity SouthWest \
           -pointsize 25 \
           -fill black \
-          -annotate +5+5 "${member_uid} : $ulat / $ulon" \
+          -annotate +2+2 "($ulat/$ulon) ${member_uid}" \
+          -annotate +3+1 "($ulat/$ulon) ${member_uid}" \
           ./tmp/${pubkey}.UID.png
 
         [[ -s ./tmp/${pubkey}.UID.png ]] && rm ./tmp/${pubkey}.QR.png
     fi
 }
+########################################################################
+########################################################################
+########################################################################
+### RUN TIME ######
+########################################################################
+## MANAGING CACHE
+mkdir -p ./tmp
+# Delete older than 1 day cache
+find ./tmp -mtime +1 -type f -exec rm '{}' \;
 
-## PERFORM PUBKEY TX HISTORY
-./tools/timeout.sh -t 20 ${MY_PATH}/tools/jaklis/jaklis.py history -n 40 -p ${PUBKEY} -j > ./tmp/$PUBKEY.TX.json
-## VERIFY TX FOR "MEMBERUID" IN COMMENT
-## FIND PAYMENT DESTINATION...
-## FIND RX FROM PD EXTRACT COMMENT
-## GET IPNS+
+## GET PUBKEY TX HISTORY
+echo "LOADING WALLET HISTORY"
+./tools/timeout.sh -t 20 ./tools/jaklis/jaklis.py history -n 40 -p ${PUBKEY} -j > ./tmp/$PUBKEY.TX.json
+if [[ -s ./tmp/$PUBKEY.TX.json ]]; then
+    SOLDE=$(./tools/timeout.sh -t 20 ./tools/jaklis/jaklis.py balance -p ${PUBKEY})
+    ZEN=$(echo "($SOLDE - 1) * 10" | bc | cut -d '.' -f 1)
+    AMOUNT="$SOLDE G1"
+    [[ $ZCHK == "ZEN" || "$ZCHK" == "" ]] && AMOUNT="$ZEN ẐEN<br>($SOLDE G1)"
+else
+    AMOUNT="EMPTY"
+fi
+echo "$AMOUNT ($ZCHK)"
 
+## GETTING CESIUM+ PROFILE
+[[ ! -s ./tmp/$PUBKEY.me.json ]] \
+&& wget -q -O ./tmp/$PUBKEY.me.json ${myDUNITER}/wot/lookup/$PUBKEY
+
+# GET MEMBER UID
+MEMBERUID=$(cat ./tmp/$PUBKEY.me.json | jq -r '.results[].uids[].uid')
+## NO MEMBER
+if [[ -z $MEMBERUID ]]; then
+    cat ./templates/wallet.html \
+        | sed -e "s~_WALLET_~${PUBKEY}~g" \
+             -e "s~_AMOUNT_~${AMOUNT}~g" \
+            > ./tmp/${PUBKEY}.out.html
+    xdg-open "./tmp/${PUBKEY}.out.html"
+    echo "./tmp/${PUBKEY}.out.html"
+    exit 0
+fi
+### ============================================
+
+### MEMBER N1 SCAN : PASSPORT CREATION
+mkdir -p ./pdf/${PUBKEY}/N1
 
 ## CHECK IF IPNS KEY WITH PUBKEY EXISTS
 WIPNS=$(ipfs key list -l | grep ${PUBKEY} | cut -f 1 -d ' ')
 if [ ! -z $WIPNS ]; then
-    echo "EXISTING PASSPORT: /ipns/$WIPNS"
-    echo "CANCEL : Ctrl+C / OK : Enter"
-    read
+    echo "EXISTING IPFS KEY : /ipns/$WIPNS"
 fi
 
 # Call the function with PUBKEY and MEMBERUID
 generate_qr_with_uid "$PUBKEY" "$MEMBERUID"
-mv ./tmp/${PUBKEY}.UID.png ./pdf/${PUBKEY}/${PUBKEY}.UID.png
+cp ./tmp/${PUBKEY}.UID.png ./pdf/${PUBKEY}/${PUBKEY}.UID.png
 
-########################################"
+##################################################"
+### ANALYSE RELATIONS FROM ./tmp/$PUBKEY.me.json
+##################################################"
 # Extract the uids and pubkeys into a bash array
 certbyme=$(jq -r '.results[].signed[] | [.uid, .pubkey] | @tsv' ./tmp/$PUBKEY.me.json)
 # Initialize a bash array
@@ -164,9 +193,9 @@ for uid in "${!certin[@]}"; do
     echo "UID: $uid, PubKey certifié: ${certout[$uid]}, PubKey certifiant: ${certin[$uid]}"
 
     # make friends QR
-    [[ ! -s ./pdf/${PUBKEY}/N1/${certout[$uid]}.UID.png ]] \
+    [[ ! -s ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.p2p.png ]] \
         && generate_qr_with_uid "${certout[$uid]}" "$uid" \
-        && mv ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/ \
+        && cp ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.p2p.png \
         && sleep 3
   fi
 done
@@ -178,9 +207,9 @@ for uid in "${!certin[@]}"; do
     echo "UID: $uid, PubKey certifiant: ${certin[$uid]}"
 
     # make certin only QR
-    [[ ! -s ./pdf/${PUBKEY}/N1/${certin[$uid]}.certin.png ]] \
+    [[ ! -s ./pdf/${PUBKEY}/N1/${certin[$uid]}.${uid}.certin.png ]] \
         && generate_qr_with_uid "${certin[$uid]}" "$uid" \
-        && mv ./tmp/${certin[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certin[$uid]}.certin.png \
+        && cp ./tmp/${certin[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certin[$uid]}.${uid}.certin.png \
         && sleep 3
   fi
 done
@@ -191,57 +220,65 @@ for uid in "${!certout[@]}"; do
   if [[ -z "${certin[$uid]}" ]]; then
     echo "UID: $uid, PubKey certifié: ${certout[$uid]}"
     # make certout only QR
-    [[ ! -s ./pdf/${PUBKEY}/N1/${certout[$uid]}.certout.png ]] \
+    [[ ! -s ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.certout.png ]] \
         && generate_qr_with_uid "${certout[$uid]}" "$uid" \
-        && mv ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certout[$uid]}.certout.png \
+        && cp ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.certout.png \
         && sleep 3
   fi
 done
 
 
-
+########################################"
+# CREATE FRIENDS PAGES INTO PDF
 ## Moving Related UID into ./pdf/${PUBKEY}/N1/
-nb_fichiers=$(ls ./pdf/${PUBKEY}/N1/*.UID.png | wc -l)
-montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ./pdf/${PUBKEY}/N1/*.UID.png ./pdf/${PUBKEY}/P2P.${PUBKEY}.pdf
+## Peer to Peer
+nb_fichiers=$(ls ./pdf/${PUBKEY}/N1/*.p2p.png | wc -l)
+montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ./pdf/${PUBKEY}/N1/*.p2p.png ./pdf/${PUBKEY}/P2P.${PUBKEY}.pdf
 convert -density 300 ./pdf/${PUBKEY}/P2P.${PUBKEY}.pdf -resize 375x550 ./pdf/${PUBKEY}/P2P.png
-
+## Peer to One
 nb_fichiers=$(ls ./pdf/${PUBKEY}/N1/*.certin.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ./pdf/${PUBKEY}/N1/*.certin.png ./pdf/${PUBKEY}/P21.${PUBKEY}.pdf
 convert -density 300 ./pdf/${PUBKEY}/P21.${PUBKEY}.pdf -resize 375x550 ./pdf/${PUBKEY}/P21.png
-
+## One to Peer
 nb_fichiers=$(ls ./pdf/${PUBKEY}/N1/*.certout.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ./pdf/${PUBKEY}/N1/*.certout.png ./pdf/${PUBKEY}/12P.${PUBKEY}.pdf
 convert -density 300 ./pdf/${PUBKEY}/12P.${PUBKEY}.pdf -resize 375x550 ./pdf/${PUBKEY}/12P.png
 
 ################################################################################
-# CREATE SHAMIR KEY
+echo "# CREATE SHAMIR KEY ................"
 
-prime=$(${MY_PATH}/tools/diceware.sh 1 | xargs)
+prime=$(./tools/diceware.sh 1 | xargs)
 SALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
 
-second=$(${MY_PATH}/tools/diceware.sh 1 | xargs)
+second=$(./tools/diceware.sh 1 | xargs)
 PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
 
-${MY_PATH}/tools/keygen -t duniter -o ./tmp/${PUBKEY}.zwallet.dunikey "${SALT}" "${PEPPER}"
-G1PUB=$(cat ./tmp/${PUBKEY}.zwallet.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
-rm -f ./pdf/${PUBKEY}/zwallet.dunikey.enc
-${MY_PATH}/tools/natools.py encrypt -p $PUBKEY -i ./tmp/${PUBKEY}.zwallet.dunikey -o ./pdf/${PUBKEY}/zwallet.dunikey.enc
-echo "G1 _WALLET: $G1PUB"
+./tools/keygen -t duniter -o ./tmp/${PUBKEY}.zwallet.dunikey "${SALT}" "${PEPPER}"
+ZENWALLET=$(cat ./tmp/${PUBKEY}.zwallet.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
 
-amzqr "${G1PUB}" -l H -p ./static/img/zenticket.png -c -n _${G1PUB}.QR.png -d ./tmp/ 2>/dev/null
-        # Write G1PUB at the bottom
-        convert ./tmp/_${G1PUB}.QR.png \
+rm -f ./pdf/${PUBKEY}/zwallet.dunikey.enc
+./tools/natools.py encrypt -p $PUBKEY -i ./tmp/${PUBKEY}.zwallet.dunikey -o ./pdf/${PUBKEY}/zwallet.dunikey.enc
+echo "ZEN _WALLET: $ZENWALLET"
+
+rm -f ./pdf/${PUBKEY}/ZEROCARD_*.QR.jpg
+echo "${ZENWALLET}" > ./pdf/${PUBKEY}/ZEROCARD
+echo "$(date -u)" > ./pdf/${PUBKEY}/DATE
+
+amzqr "${ZENWALLET}" -l H -p ./static/img/zenticket.png -c -n ZEROCARD_${ZENWALLET}.QR.png -d ./tmp/ 2>/dev/null
+        # Write ZENWALLET at the bottom
+        convert ./tmp/ZEROCARD_${ZENWALLET}.QR.png \
           -gravity SouthWest \
           -pointsize 18 \
           -fill black \
-          -annotate +5+5 "${G1PUB}" \
-          ./pdf/${PUBKEY}/_${G1PUB}.QR.png
+          -annotate +5+5 "${ZENWALLET}" \
+          ./pdf/${PUBKEY}/ZEROCARD_${ZENWALLET}.QR.jpg
 
-## CREATE IPNS KEY
-${MY_PATH}/tools/keygen -t ipfs -o ./tmp/${PUBKEY}.zwallet.ipns "${SALT}" "${PEPPER}"
-ipfs key rm ${PUBKEY} > /dev/null 2>&1
-WALLETNS=$(ipfs key import ${PUBKEY} -f pem-pkcs8-cleartext ./tmp/${PUBKEY}.zwallet.ipns)
-echo "_WALLET STORAGE: /ipns/$WALLETNS"
+#######################################################################
+#~ ## CREATE IPNS KEY
+#~ ./tools/keygen -t ipfs -o ./tmp/${PUBKEY}.zwallet.ipns "${SALT}" "${PEPPER}"
+#~ ipfs key rm ${PUBKEY} > /dev/null 2>&1
+#~ WALLETNS=$(ipfs key import ${PUBKEY} -f pem-pkcs8-cleartext ./tmp/${PUBKEY}.zwallet.ipns)
+#~ echo "_WALLET STORAGE: /ipns/$WALLETNS"
 
 #######################################################################
 ## PREPARE DISCO SECRET
@@ -249,25 +286,46 @@ DISCO="/?${prime}=${SALT}&${second}=${PEPPER}"
 echo "SOURCE : "$DISCO
 
 ## ssss-split : Keep 2 needed over 3
-echo "$DISCO" | ssss-split -t 2 -n 3 -q > ./tmp/${G1PUB}.ssss
-HEAD=$(cat ./tmp/${G1PUB}.ssss | head -n 1) && echo "$HEAD"
-MIDDLE=$(cat ./tmp/${G1PUB}.ssss | head -n 2 | tail -n 1) && echo "$MIDDLE"
-TAIL=$(cat ./tmp/${G1PUB}.ssss | tail -n 1) && echo "$TAIL"
+echo "$DISCO" | ssss-split -t 2 -n 3 -q > ./tmp/${ZENWALLET}.ssss
+HEAD=$(cat ./tmp/${ZENWALLET}.ssss | head -n 1) && echo "$HEAD"
+MIDDLE=$(cat ./tmp/${ZENWALLET}.ssss | head -n 2 | tail -n 1) && echo "$MIDDLE"
+TAIL=$(cat ./tmp/${ZENWALLET}.ssss | tail -n 1) && echo "$TAIL"
 echo "TEST DECODING..."
 echo "$HEAD
 $TAIL" | ssss-combine -t 2 -q
+[ ! $? -eq 0 ] && echo "ERROR! SSSSKEY DECODING FAILED" && exit 1
 
-${MY_PATH}/tools/natools.py encrypt -p $PUBKEY -i ./tmp/${G1PUB}.ssss -o ./pdf/${PUBKEY}/ssss.enc
+## ENCODE SSSS SECRETS WITH MEMBER PUBKEY
+./tools/natools.py encrypt -p $PUBKEY -i ./tmp/${ZENWALLET}.ssss -o ./pdf/${PUBKEY}/ssss.enc
 
-rm ./tmp/${G1PUB}.ssss
+## ENCRYPT WITH UPLANETNAME
+if [[ ! -z ${UPLANETNAME} ]]; then
+    cat ./tmp/${ZENWALLET}.ssss | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/ssss.asc
+    cat ./pdf/${PUBKEY}/ssss.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${ZENWALLET}.ssss.test
+    [[ $(diff -q ./tmp/${ZENWALLET}.ssss.test ./tmp/${ZENWALLET}.ssss) != "" ]] && echo "ERROR: GPG ENCRYPTION FAILED "
+    rm ./tmp/${ZENWALLET}.ssss.test
+fi
+rm ./tmp/${ZENWALLET}.ssss
 
-echo
+#### INITIALISE IPFS STORAGE (ZENCARD BLOCK 0)
+### add html page for next step...
+rm -f ./pdf/${PUBKEY}/index.html
+echo "CREATION IPFS PORTAIL"
+##
+IPFSPORTAL=$(ipfs add -qrw ./pdf/${PUBKEY}/ | tail -n 1)
+ipfs pin rm ${IPFSPORTAL}
+echo "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
+
+amzqr "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}" -l H -p ./static/img/moa_net.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
+
+IPFSPORTALQR=$(ipfs add -q ./tmp/${PUBKEY}.ipfs.png)
 
 #######################################################################
 echo "Create Zine Passport"
 
 ## Add Images to ipfs
-MEMBERQRIPFS=$(ipfs add -q ./pdf/${PUBKEY}/${PUBKEY}.UID.png)
+MEMBERPUBQR=$(ipfs add -q ./pdf/${PUBKEY}/${PUBKEY}.UID.png)
+ZWALLET=$(ipfs add -q ./pdf/${PUBKEY}/ZEROCARD_${ZENWALLET}.QR.jpg)
 FULLCERT=$(ipfs add -q ./pdf/${PUBKEY}/P2P.png)
 [ -s ./pdf/${PUBKEY}/P21.png ] \
     && CERTIN=$(ipfs add -q ./pdf/${PUBKEY}/P21.png) \
@@ -276,26 +334,32 @@ FULLCERT=$(ipfs add -q ./pdf/${PUBKEY}/P2P.png)
     && CERTOUT=$(ipfs add -q ./pdf/${PUBKEY}/12P.png) \
     || CERTOUT="QmReCfHszucv2Ra9zbKjKwmgoJ4krWpqB12TDK5AR9PKCQ/page4.png"
 
-ZWALLET=$(ipfs add -q ./pdf/${PUBKEY}/_${G1PUB}.QR.png)
-
 LAT=$(cat ./tmp/${PUBKEY}.cesium.json | jq -r '._source.geoPoint.lat')
 LAT=$(makecoord $LAT)
 LON=$(cat ./tmp/${PUBKEY}.cesium.json | jq -r '._source.geoPoint.lon')
 LON=$(makecoord $LON)
 
 cat ./zine/index.html \
-    | sed -e "s~QmTL7VDgkYjpYC2qiiFCfah2pSqDMkTANMeMtjMndwXq9y~${MEMBERQRIPFS}~g" \
-            -e "s~QmReCfHszucv2Ra9zbKjKwmgoJ4krWpqB12TDK5AR9PKCQ/page2.png~${FULLCERT}~g" \
-            -e "s~QmReCfHszucv2Ra9zbKjKwmgoJ4krWpqB12TDK5AR9PKCQ/page3.png~${CERTIN}~g" \
-            -e "s~QmReCfHszucv2Ra9zbKjKwmgoJ4krWpqB12TDK5AR9PKCQ/page4.png~${CERTOUT}~g" \
+    | sed -e "s~QmU43PSABthVtM8nWEWVDN1ojBBx36KLV5ZSYzkW97NKC3/page1.png~QmdEPc4Toy1vth7MZtpRSjgMtAWRFihZp3G72Di1vMhf1J~g" \
+            -e "s~QmNRLtAqrrPg7Rw6ain3ADKnUmyxaRsZ8F16eqsRcTvPRs/page2.png~${FULLCERT}~g" \
+            -e "s~QmTL7VDgkYjpYC2qiiFCfah2pSqDMkTANMeMtjMndwXq9y~QmNRLtAqrrPg7Rw6ain3ADKnUmyxaRsZ8F16eqsRcTvPRs/page2.png~g" \
+            -e "s~QmexZHwUuZdFLZuHt1PZunjC7c7rTFKRWJDASGPTyrqysP/page3.png~${CERTIN}~g" \
+            -e "s~QmNNTCYNSHS3iKZsBHXC1tiP2eyFqgLT4n3AXdcK7GywVc/page4.png~${CERTOUT}~g" \
+            -e "s~QmZHV5QppQX9N7MS1GFMqzmnRU5vLbpmQ1UkSRY5K5LfA9/page_.png~${IPFSPORTALQR}~g" \
+            -e "s~QmNSck9ygXYG6YHu19DfuJnH2B8yS9RRkEwP1tD35sjUgE/pageZ.png~${MEMBERPUBQR}~g" \
             -e "s~QmdmeZhD8ncBFptmD5VSJoszmu41edtT265Xq3HVh8PhZP~${ZWALLET}~g" \
-            -e "s~_WALLETNS_~${WALLETNS}~g" \
+            -e "s~_IPFS_~ipfs/${IPFSPORTAL}~g" \
             -e "s~_PLAYER_~${MEMBERUID}~g" \
+            -e "s~_DATE_~$(date -u)~g" \
             -e "s~_PUBKEY_~${PUBKEY}~g" \
-            -e "s~_G1PUB_~${G1PUB}~g" \
+            -e "s~_G1PUB_~${ZENWALLET}~g" \
+            -e "s~_ZENWALLET_~${ZENWALLET}~g" \
             -e "s~_LAT_~${LAT}~g" \
             -e "s~_LON_~${LON}~g" \
-            -e "s~https://ipfs.copylaradio.com~http://127.0.0.1:8080~g" \
-        > ./pdf/${PUBKEY}/PASSPORT.${MEMBERUID}.html
+            -e "s~https://ipfs.copylaradio.com~https://ipfs.astroport.com~g" \
+        > ./pdf/${PUBKEY}/index.html
 
-xdg-open ./pdf/${PUBKEY}/PASSPORT.${MEMBERUID}.html
+echo "./pdf/${PUBKEY}/index.html"
+xdg-open ./pdf/${PUBKEY}/index.html ## OPEN PASSPORT ON DESKTOP
+[[ ! -s ./pdf/${PUBKEY}/index.html ]] && echo "./tmp/54321.log" ## SEND LOG TO USER
+exit 0
