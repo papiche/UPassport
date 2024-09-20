@@ -118,14 +118,14 @@ echo "$AMOUNT ($ZCHK)"
 ##################################### 2ND SCAN IN A DAY
 ## CHECK LAST TX IF ZEROCARD EXISTING
 if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
-    jq '.[-1]' ./tmp/$PUBKEY.TX.json
     ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
+    jq '.[-1]' ./tmp/$PUBKEY.TX.json
     LASTX=$(jq '.[-1] | .amount' ./tmp/$PUBKEY.TX.json)
     if [ "$(echo "$LASTX < 0" | bc)" -eq 1 ]; then
       echo "TX"
       DEST=$(jq '.[-1] | .pubkey' ./tmp/$PUBKEY.TX.json)
       COMM=$(jq '.[-1] | .comment' ./tmp/$PUBKEY.TX.json)
-      if [[ $ZEROCARD = $DEST ]]; then
+      if [[ "$ZEROCARD" == "$DEST" ]]; then
         echo "MATCHING !! ZEROCARD INIT : $COMM"
         UBQR=$(ipfs add -q ./pdf/${PUBKEY}/IPNS.QR.png)
 
@@ -139,7 +139,13 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ipfs key rm ${ZEROCARD} > /dev/null 2>&1
         WALLETNS=$(ipfs key import ${ZEROCARD} -f pem-pkcs8-cleartext ./tmp/${MOATS}.ipns)
 
-        ASTATE=$(echo "$AMOUNT" | ipfs add -q)
+        cat ./templates/wallet.html \
+        | sed -e "s~_WALLET_~$(date -u) : ${PUBKEY}~g" \
+             -e "s~_AMOUNT_~${AMOUNT}~g" \
+            > ./tmp/${ZEROCARD}.out.html
+
+        ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
+        echo "/ipfs/${ASTATE}" > ./pdf/${PUBKEY}/ASTATE
         ipfs name publish --key ${ZEROCARD} /ipfs/${ASTATE}
 
         echo "./pdf/${PUBKEY}/index.html"
@@ -147,7 +153,19 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
 
       fi
     else
-      echo "RX..."
+        if [[ -s ./pdf/${PUBKEY}/ASTATE ]]; then
+            cat ./templates/wallet.html \
+            | sed -e "s~_WALLET_~$(date -u) : ${PUBKEY}~g" \
+                 -e "s~_AMOUNT_~${AMOUNT}~g" \
+                > ./tmp/${ZEROCARD}.out.html
+
+            ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
+            echo "/ipfs/${ASTATE}" > ./pdf/${PUBKEY}/ASTATE
+            ipfs name publish --key ${ZEROCARD} /ipfs/${ASTATE}
+            echo "./pdf/${PUBKEY}/index.html"
+            exit 0
+        fi
+        echo "RX..."
     fi
 fi
 
