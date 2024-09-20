@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPassport Generator - Ğ1 public key scanner -</title>
+    <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/jquery-3.6.3.min.js"></script>
+    <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/instascan.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .scanner-container {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-around;
+            width: 100%;
+            max-width: 800px;
+            margin-top: 20px;
+        }
+        #preview {
+            width: 300px;
+            height: 300px;
+            border: 2px solid #333;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        input[type="text"] {
+            width: 100%;
+            max-width: 350px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        input[type="submit"] {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        #result {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .scanner-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            #preview {
+                width: 100%;
+                max-width: 300px;
+                height: auto;
+                aspect-ratio: 1 / 1;
+            }
+            form {
+                width: 100%;
+                max-width: 300px;
+                margin-top: 20px;
+            }
+        }
+
+        #show-result-button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+        }
+
+        #show-result-button:hover {
+            background-color: #45a049;
+        }
+
+        .result-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .result-frame {
+            width: 90%;
+            height: 90%;
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #result-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .result-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .result-button {
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .result-button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ğ1 QRCode Scanner</h1>
+    <div class="scanner-container">
+        <video id="preview"></video>
+        <form id="qr-form">
+            <label for="parametre">Public Key:</label>
+            <input type="text" id="parametre" name="parametre" required>
+            <input type="submit" id="submitButton" value="Submit">
+        </form>
+    </div>
+    <div class="spinner"></div>
+    <div id="result"></div>
+    <button id="show-result-button">Show Result</button>
+    <div class="result-container">
+        <div class="result-frame">
+            <iframe id="result-iframe"></iframe>
+            <div class="result-controls">
+                <button class="result-button" id="close-result">Close</button>
+                <button class="result-button" id="open-new-tab">Open in New Tab</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let scanner = new Instascan.Scanner({ video: document.getElementById('preview') });
+        scanner.addListener('scan', function (content) {
+            document.getElementById("parametre").value = content;
+            // Change the color of the Submit button to blue
+            $('#submitButton').css('background-color', '#0000FF');
+        });
+        Instascan.Camera.getCameras().then(function (cameras) {
+            if (cameras.length > 0) {
+                scanner.start(cameras[0]);
+            } else {
+                console.error('No cameras found.');
+            }
+        }).catch(function (e) {
+            console.error(e);
+        });
+
+        $(document).ready(function() {
+            $('#qr-form').submit(function(e) {
+                e.preventDefault();
+                $('.spinner').show();
+                $('#result').html('');
+                $('.result-container').hide();
+                $('#show-result-button').hide();
+
+                $.ajax({
+                    url: '/upassport',
+                    type: 'POST',
+                    data: $(this).serialize(),
+                    success: function(response) {
+                        $('.spinner').hide();
+
+                        // Set iframe content
+                        $('#result-iframe').attr('srcdoc', response);
+
+                        // Show the button to display the result
+                        $('#show-result-button').show();
+                        $('.result-container').css('display', 'flex');
+                        // Store response for opening in new tab
+                        localStorage.setItem('lastResponse', response);
+                    },
+                    error: function() {
+                        $('.spinner').hide();
+                        $('#result').text('An error occurred. Please try again.');
+                        // Reset the Submit button color to its original state
+                        $('#submitButton').css('background-color', '');
+                    }
+                });
+            });
+
+            // Show result when button is clicked
+            $('#show-result-button').click(function() {
+                $('.result-container').css('display', 'flex');
+            });
+
+            // Close result
+            $('#close-result').click(function() {
+                $('.result-container').hide();
+            });
+
+            // Open in new tab
+            $('#open-new-tab').click(function() {
+                var response = localStorage.getItem('lastResponse');
+                if (response) {
+                    var newTab = window.open();
+                    newTab.document.write(response);
+                    newTab.document.close();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
