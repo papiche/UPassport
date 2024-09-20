@@ -36,12 +36,12 @@ echo ${second} > ./cards/CHK
 ./tools/keygen -t duniter -o ./tmp/${MOATS}.zwallet.dunikey "${SALT}" "${PEPPER}"
 G1PUB=$(cat ./tmp/${MOATS}.zwallet.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
 
-echo "./tools/natools.py encrypt -p $NODEG1PUB -i ./tmp/${MOATS}.zwallet.dunikey -o ./cards/zwallet.dunikey.enc"
+echo "./tools/natools.py encrypt -p $CAPTAING1PUB -i ./tmp/${MOATS}.zwallet.dunikey -o ./cards/zwallet.dunikey.enc"
 rm ./cards/zwallet.dunikey.enc
-./tools/natools.py encrypt -p $NODEG1PUB -i ./tmp/${MOATS}.zwallet.dunikey -o ./cards/zwallet.dunikey.enc
+./tools/natools.py encrypt -p $CAPTAING1PUB -i ./tmp/${MOATS}.zwallet.dunikey -o ./cards/zwallet.dunikey.enc
 
 echo "SECURED G1 _WALLET: $G1PUB"
-echo "./cards/zwallet.dunikey.enc (NODEG1PUB)*"
+echo "./cards/zwallet.dunikey.enc (CAPTAING1PUB)*"
 
 amzqr "${G1PUB}" -l H -p ./static/img/zen1.png -c -n _${G1PUB}.QR.png -d ./tmp/ 2>/dev/null
 # Write G1PUB at the bottom
@@ -59,7 +59,7 @@ WALLETNS=$(ipfs key import "SSSS_${EMAIL}" -f pem-pkcs8-cleartext ./tmp/${MOATS}
 echo "SSSS_${EMAIL} STORAGE: /ipns/$WALLETNS"
 
 ## Create /ipns/$WALLETNS QR Code
-amzqr "/ipns/$WALLETNS" -l H -p ./static/img/astroport.png -c -n _${WALLETNS}.QR.png -d ./cards/ 2>/dev/null
+amzqr "https://ipfs.astroport.com/ipns/$WALLETNS" -l H -p ./static/img/astroport.png -c -n _${WALLETNS}.QR.png -d ./cards/ 2>/dev/null
 
 #######################################################################
 ## PREPARE DISCO SECRET
@@ -75,8 +75,8 @@ echo "TEST DECODING..."
 echo "$HEAD
 $TAIL" | ssss-combine -t 2 -q
 
-echo "./tools/natools.py encrypt -p ${NODEG1PUB} -i ./tmp/${G1PUB}.ssss -o ./cards/ssss.enc"
-./tools/natools.py encrypt -p ${NODEG1PUB} -i ./tmp/${G1PUB}.ssss -o ./cards/ssss.enc
+echo "./tools/natools.py encrypt -p ${CAPTAING1PUB} -i ./tmp/${G1PUB}.ssss -o ./cards/ssss.enc"
+./tools/natools.py encrypt -p ${CAPTAING1PUB} -i ./tmp/${G1PUB}.ssss -o ./cards/ssss.enc
 
 ## ENCRYPT WITH UPLANETNAME
 if [[ ! -z ${UPLANETNAME} ]]; then
@@ -113,8 +113,8 @@ cat ./zine/index.html \
             -e "s~QmdmeZhD8ncBFptmD5VSJoszmu41edtT265Xq3HVh8PhZP~${ZWALLET}~g" \
             -e "s~_WALLETNS_~${WALLETNS}~g" \
             -e "s~_PLAYER_~${EMAIL}~g" \
-            -e "s~_NODEG1PUB_~${NODEG1PUB}~g" \
             -e "s~_G1PUB_~${G1PUB}~g" \
+            -e "s~_PUBKEY_~${G1PUB}~g" \
             -e "s~_LAT_~${LAT}~g" \
             -e "s~_LON_~${LON}~g" \
             -e "s~https://ipfs.copylaradio.com~http://127.0.0.1:8080~g" \

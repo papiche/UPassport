@@ -52,7 +52,7 @@ generate_qr_with_uid() {
 
         echo "GET CESIUM+ PROFILE ${pubkey} ${member_uid}"
         [[ ! -s ./tmp/$pubkey.cesium.json ]] \
-        && ./tools/timeout.sh -t 20 \
+        && ./tools/timeout.sh -t 12 \
         curl -s ${myCESIUM}/user/profile/${pubkey} > ./tmp/${pubkey}.cesium.json 2>/dev/null
 
         [ ! -s "./tmp/$pubkey.cesium.json" ] && echo "xxxxx ERROR PROBLEM WITH CESIUM+ NODE ${myCESIUM} xxxxx"
@@ -104,7 +104,7 @@ find ./tmp -mtime +1 -type f -exec rm '{}' \;
 
 ## GET PUBKEY TX HISTORY
 echo "LOADING WALLET HISTORY"
-./tools/timeout.sh -t 20 ./tools/jaklis/jaklis.py history -n 40 -p ${PUBKEY} -j > ./tmp/$PUBKEY.TX.json
+./tools/timeout.sh -t 12 ./tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ./tmp/$PUBKEY.TX.json
 if [[ -s ./tmp/$PUBKEY.TX.json ]]; then
     SOLDE=$(./tools/timeout.sh -t 20 ./tools/jaklis/jaklis.py balance -p ${PUBKEY})
     ZEN=$(echo "($SOLDE - 1) * 10" | bc | cut -d '.' -f 1)
@@ -114,6 +114,29 @@ else
     AMOUNT="EMPTY"
 fi
 echo "$AMOUNT ($ZCHK)"
+
+##################################### 2ND SCAN IN A DAY
+## CHECK LAST TX IF ZEROCARD EXISTING
+if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
+    jq '.[-1]' ./tmp/$PUBKEY.TX.json
+    ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
+    LASTX=$(jq '.[-1] | .amount' ./tmp/$PUBKEY.TX.json)
+    if [ "$(echo "$LASTX < 0" | bc)" -eq 1 ]; then
+      echo "TX"
+      DEST=$(jq '.[-1] | .pubkey' ./tmp/$PUBKEY.TX.json)
+      COMM=$(jq '.[-1] | .comment' ./tmp/$PUBKEY.TX.json)
+      if [[ $ZEROCARD = $DEST ]]; then
+        echo "MATCHING !! ZEROCARD INIT : $COMM"
+        UBQR=$(ipfs add -q ./pdf/${PUBKEY}/IPNS.QR.png)
+
+        ZWALL=$(cat ./pdf/${PUBKEY}/ZWALL)
+        sed -i "s~${ZWALL}~${UBQR}~g" ./pdf/${PUBKEY}/index.html
+
+      fi
+    else
+      echo "RX..."
+    fi
+fi
 
 ## GETTING CESIUM+ PROFILE
 [[ ! -s ./tmp/$PUBKEY.me.json ]] \
@@ -136,11 +159,8 @@ fi
 ### MEMBER N1 SCAN : PASSPORT CREATION
 mkdir -p ./pdf/${PUBKEY}/N1
 
-## CHECK IF IPNS KEY WITH PUBKEY EXISTS
-WIPNS=$(ipfs key list -l | grep ${PUBKEY} | cut -f 1 -d ' ')
-if [ ! -z $WIPNS ]; then
-    echo "EXISTING IPFS KEY : /ipns/$WIPNS"
-fi
+cp ./tmp/$PUBKEY.me.json ./pdf/${PUBKEY}/CESIUM.json
+cp ./tmp/$PUBKEY.TX.json ./pdf/${PUBKEY}/TX.json
 
 # Call the function with PUBKEY and MEMBERUID
 generate_qr_with_uid "$PUBKEY" "$MEMBERUID"
@@ -273,12 +293,26 @@ amzqr "${ZENWALLET}" -l H -p ./static/img/zenticket.png -c -n ZEROCARD_${ZENWALL
           -annotate +5+5 "${ZENWALLET}" \
           ./pdf/${PUBKEY}/ZEROCARD_${ZENWALLET}.QR.jpg
 
-#######################################################################
+############################################################
+################################################################# IPNS
 #~ ## CREATE IPNS KEY
-#~ ./tools/keygen -t ipfs -o ./tmp/${PUBKEY}.zwallet.ipns "${SALT}" "${PEPPER}"
-#~ ipfs key rm ${PUBKEY} > /dev/null 2>&1
-#~ WALLETNS=$(ipfs key import ${PUBKEY} -f pem-pkcs8-cleartext ./tmp/${PUBKEY}.zwallet.ipns)
-#~ echo "_WALLET STORAGE: /ipns/$WALLETNS"
+./tools/keygen -t ipfs -o ./tmp/${ZENWALLET}.IPNS.key "${SALT}" "${PEPPER}"
+ipfs key rm ${ZENWALLET} > /dev/null 2>&1
+WALLETNS=$(ipfs key import ${ZENWALLET} -f pem-pkcs8-cleartext ./tmp/${ZENWALLET}.IPNS.key)
+
+## ENCODE IPNS KEY WITH CAPTAING1PUB
+echo "./tools/natools.py encrypt -p $CAPTAING1PUB -i ./tmp/${ZENWALLET}.IPNS.key -o ./pdf/${PUBKEY}/IPNS.captain.enc"
+./tools/natools.py encrypt -p $CAPTAING1PUB -i ./tmp/${ZENWALLET}.IPNS.key -o ./pdf/${PUBKEY}/IPNS.captain.enc
+
+## ENCRYPT WITH UPLANETNAME PASSWORD
+if [[ ! -z ${UPLANETNAME} ]]; then
+    cat ./tmp/${ZENWALLET}.IPNS.key | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/IPNS.uplanet.asc
+fi
+
+# rm ./tmp/${ZENWALLET}.IPNS.key
+ipfs key rm ${ZENWALLET} > /dev/null 2>&1
+echo "_WALLET IPNS STORAGE: /ipns/$WALLETNS"
+amzqr "https://ipfs.astroport.com/ipns/$WALLETNS" -l H -p ./static/img/astroport.png -c -n IPNS.QR.png -d ./pdf/${PUBKEY}/ 2>/dev/null
 
 #######################################################################
 ## PREPARE DISCO SECRET
@@ -287,25 +321,30 @@ echo "SOURCE : "$DISCO
 
 ## ssss-split : Keep 2 needed over 3
 echo "$DISCO" | ssss-split -t 2 -n 3 -q > ./tmp/${ZENWALLET}.ssss
-HEAD=$(cat ./tmp/${ZENWALLET}.ssss | head -n 1) && echo "$HEAD"
-MIDDLE=$(cat ./tmp/${ZENWALLET}.ssss | head -n 2 | tail -n 1) && echo "$MIDDLE"
-TAIL=$(cat ./tmp/${ZENWALLET}.ssss | tail -n 1) && echo "$TAIL"
+HEAD=$(cat ./tmp/${ZENWALLET}.ssss | head -n 1) && echo "$HEAD" > ./tmp/${ZENWALLET}.ssss.head
+MIDDLE=$(cat ./tmp/${ZENWALLET}.ssss | head -n 2 | tail -n 1) && echo "$MIDDLE" > ./tmp/${ZENWALLET}.ssss.mid
+TAIL=$(cat ./tmp/${ZENWALLET}.ssss | tail -n 1) && echo "$TAIL" > ./tmp/${ZENWALLET}.ssss.tail
 echo "TEST DECODING..."
 echo "$HEAD
 $TAIL" | ssss-combine -t 2 -q
 [ ! $? -eq 0 ] && echo "ERROR! SSSSKEY DECODING FAILED" && exit 1
 
-## ENCODE SSSS SECRETS WITH MEMBER PUBKEY
-./tools/natools.py encrypt -p $PUBKEY -i ./tmp/${ZENWALLET}.ssss -o ./pdf/${PUBKEY}/ssss.enc
+## ENCODE HEAD SSSS SECRET WITH MEMBER PUBKEY
+echo "./tools/natools.py encrypt -p $PUBKEY -i ./tmp/${ZENWALLET}.ssss.head -o ./pdf/${PUBKEY}/ssss.member.enc"
+./tools/natools.py encrypt -p $PUBKEY -i ./tmp/${ZENWALLET}.ssss.head -o ./pdf/${PUBKEY}/ssss.head.member.enc
 
-## ENCRYPT WITH UPLANETNAME
+## MIDDLE ENCRYPT WITH UPLANETNAME
 if [[ ! -z ${UPLANETNAME} ]]; then
-    cat ./tmp/${ZENWALLET}.ssss | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/ssss.asc
-    cat ./pdf/${PUBKEY}/ssss.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${ZENWALLET}.ssss.test
-    [[ $(diff -q ./tmp/${ZENWALLET}.ssss.test ./tmp/${ZENWALLET}.ssss) != "" ]] && echo "ERROR: GPG ENCRYPTION FAILED "
+    cat ./tmp/${ZENWALLET}.ssss.mid | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/ssss.mid.uplanet.asc
+    cat ./pdf/${PUBKEY}/ssss.mid.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${ZENWALLET}.ssss.test
+    [[ $(diff -q ./tmp/${ZENWALLET}.ssss.test ./tmp/${ZENWALLET}.ssss.mid) != "" ]] && echo "ERROR: GPG ENCRYPTION FAILED "
     rm ./tmp/${ZENWALLET}.ssss.test
 fi
-rm ./tmp/${ZENWALLET}.ssss
+
+## ENCODE TAIL SSSS SECRET WITH CAPTAING1PUB
+./tools/natools.py encrypt -p $CAPTAING1PUB -i ./tmp/${ZENWALLET}.ssss.tail -o ./pdf/${PUBKEY}/ssss.tail.captain.enc
+
+#~ rm ./tmp/${ZENWALLET}.ssss*
 
 #### INITIALISE IPFS STORAGE (ZENCARD BLOCK 0)
 ### add html page for next step...
@@ -326,6 +365,8 @@ echo "Create Zine Passport"
 ## Add Images to ipfs
 MEMBERPUBQR=$(ipfs add -q ./pdf/${PUBKEY}/${PUBKEY}.UID.png)
 ZWALLET=$(ipfs add -q ./pdf/${PUBKEY}/ZEROCARD_${ZENWALLET}.QR.jpg)
+echo "$ZWALLET" > ./pdf/${PUBKEY}/ZWALL ## CHANGED AFTER PRIMAL TX
+
 FULLCERT=$(ipfs add -q ./pdf/${PUBKEY}/P2P.png)
 [ -s ./pdf/${PUBKEY}/P21.png ] \
     && CERTIN=$(ipfs add -q ./pdf/${PUBKEY}/P21.png) \
