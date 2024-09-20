@@ -155,16 +155,18 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
 
         ZWALL=$(cat ./pdf/${PUBKEY}/ZWALL)
         ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
+        ## Change ẐeroCard G1/Cesium link to ZEROCARD /IPNS link
         sed -i "s~${ZWALL}~${UBQR}~g" ./pdf/${PUBKEY}/index.html
+        sed -i "s~/ipfs/QmXex8PTnQehx4dELrDYuZ2t5ag85crYCBxm3fcTjVWo2k/#/app/wot/${ZEROCARD}/~/ipns/$(cat ./pdf/${PUBKEY}/IPNS)~g" ./pdf/${PUBKEY}/index.html
 
-        ZEROIPFS=$(cat ./pdf/${PUBKEY}/IPFSPORTALQR)
         IPFSPORTAL=$(ipfs add -qrw ./pdf/${PUBKEY}/ | tail -n 1)
         ipfs pin rm ${IPFSPORTAL}
         echo "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
         amzqr "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}" -l H -p ./static/img/moa_net.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
         IPFSPORTALQR=$(ipfs add -q ./tmp/${PUBKEY}.ipfs.png)
         echo $IPFSPORTALQR > ./pdf/${PUBKEY}/IPFSPORTALQR
-        sed -i "s~${ZEROIPFS}~${IPFSPORTALQR}~g" ./pdf/${PUBKEY}/index.html
+        sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTALQR)~${IPFSPORTALQR}~g" ./pdf/${PUBKEY}/index.html
+        sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTAL)~${IPFSPORTAL}~g" ./pdf/${PUBKEY}/index.html
 
         ## Décodage clef IPNS
         cat ./pdf/${PUBKEY}/IPNS.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${MOATS}.ipns
@@ -364,6 +366,7 @@ rm ./tmp/${ZENWALLET}.IPNS.key
 ipfs key rm ${ZENWALLET} > /dev/null 2>&1
 echo "_WALLET IPNS STORAGE: /ipns/$WALLETNS"
 amzqr "https://ipfs.astroport.com/ipns/$WALLETNS" -l H -p ./static/img/no_cloud.png -c -n IPNS.QR.png -d ./pdf/${PUBKEY}/ 2>/dev/null
+echo "https://ipfs.astroport.com/ipns/$WALLETNS" > ./pdf/${PUBKEY}/IPNS
 
 #######################################################################
 ## PREPARE DISCO SECRET
@@ -409,6 +412,8 @@ ZWALLET=$(ipfs add -q ./pdf/${PUBKEY}/ZEROCARD_${ZENWALLET}.QR.jpg)
 echo "$ZWALLET" > ./pdf/${PUBKEY}/ZWALL ## CHANGED AFTER PRIMAL TX
 
 IPFSPORTAL=$(ipfs add -qrw ./pdf/${PUBKEY}/ | tail -n 1)
+echo $IPFSPORTAL > ./pdf/${PUBKEY}/IPFSPORTAL
+
 ipfs pin rm ${IPFSPORTAL}
 echo "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
 
