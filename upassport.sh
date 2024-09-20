@@ -130,7 +130,20 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         UBQR=$(ipfs add -q ./pdf/${PUBKEY}/IPNS.QR.png)
 
         ZWALL=$(cat ./pdf/${PUBKEY}/ZWALL)
+        ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
         sed -i "s~${ZWALL}~${UBQR}~g" ./pdf/${PUBKEY}/index.html
+
+        ## Décodage clef IPNS
+        cat ./pdf/${PUBKEY}/IPNS.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${MOATS}.ipns
+
+        ipfs key rm ${ZEROCARD} > /dev/null 2>&1
+        WALLETNS=$(ipfs key import ${ZEROCARD} -f pem-pkcs8-cleartext ./tmp/${MOATS}.ipns)
+
+        ASTATE=$(echo "$AMOUNT" | ipfs add -q)
+        ipfs name publish --key ${ZEROCARD} /ipfs/${ASTATE}
+
+        echo "./pdf/${PUBKEY}/index.html"
+        exit 0
 
       fi
     else
@@ -306,6 +319,7 @@ echo "./tools/natools.py encrypt -p $CAPTAING1PUB -i ./tmp/${ZENWALLET}.IPNS.key
 
 ## ENCRYPT WITH UPLANETNAME PASSWORD
 if [[ ! -z ${UPLANETNAME} ]]; then
+    rm -f ./pdf/${PUBKEY}/IPNS.uplanet.asc
     cat ./tmp/${ZENWALLET}.IPNS.key | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/IPNS.uplanet.asc
 fi
 
@@ -335,6 +349,7 @@ echo "./tools/natools.py encrypt -p $PUBKEY -i ./tmp/${ZENWALLET}.ssss.head -o .
 
 ## MIDDLE ENCRYPT WITH UPLANETNAME
 if [[ ! -z ${UPLANETNAME} ]]; then
+    rm -f ./pdf/${PUBKEY}/ssss.mid.uplanet.asc
     cat ./tmp/${ZENWALLET}.ssss.mid | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/ssss.mid.uplanet.asc
     cat ./pdf/${PUBKEY}/ssss.mid.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${ZENWALLET}.ssss.test
     [[ $(diff -q ./tmp/${ZENWALLET}.ssss.test ./tmp/${ZENWALLET}.ssss.mid) != "" ]] && echo "ERROR: GPG ENCRYPTION FAILED "
