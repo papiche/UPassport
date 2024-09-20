@@ -18,6 +18,7 @@ PUBKEY=$(echo "$PUBKEY" | tr -d ' ')
 ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # "PUBKEY" ChK or ZEN
 [[ $ZCHK == $PUBKEY ]] && ZCHK=""
 PUBKEY="$(echo $PUBKEY | cut -d ':' -f 1)" # Cleaning
+echo "PUBKEY: $PUBKEY"
 
 [ ! -s $HOME/.zen/Astroport.ONE/tools/my.sh ] \
     && echo "ERROR/ Missing Astroport.ONE. Please install..." \
@@ -122,7 +123,7 @@ echo "$AMOUNT ($ZCHK)"
 ## CHECK LAST TX IF ZEROCARD EXISTING
 if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
     ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
-    echo "ZEROCARD FOUND: ${ZEROCARD}"
+    echo "G1 ZEROCARD FOUND: ${ZEROCARD}"
 
     if [[ -s ./pdf/${PUBKEY}/ASTATE ]]; then
         cat ./templates/wallet.html \
@@ -156,6 +157,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
         sed -i "s~${ZWALL}~${UBQR}~g" ./pdf/${PUBKEY}/index.html
 
+        ZEROIPFS=$(cat ./pdf/${PUBKEY}/IPFSPORTALQR)
         IPFSPORTAL=$(ipfs add -qrw ./pdf/${PUBKEY}/ | tail -n 1)
         ipfs pin rm ${IPFSPORTAL}
         echo "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
@@ -358,10 +360,10 @@ if [[ ! -z ${UPLANETNAME} ]]; then
     cat ./tmp/${ZENWALLET}.IPNS.key | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/IPNS.uplanet.asc
 fi
 
-# rm ./tmp/${ZENWALLET}.IPNS.key
+rm ./tmp/${ZENWALLET}.IPNS.key
 ipfs key rm ${ZENWALLET} > /dev/null 2>&1
 echo "_WALLET IPNS STORAGE: /ipns/$WALLETNS"
-amzqr "https://ipfs.astroport.com/ipns/$WALLETNS" -l H -p ./static/img/money_coins.png -c -n IPNS.QR.png -d ./pdf/${PUBKEY}/ 2>/dev/null
+amzqr "https://ipfs.astroport.com/ipns/$WALLETNS" -l H -p ./static/img/no_cloud.png -c -n IPNS.QR.png -d ./pdf/${PUBKEY}/ 2>/dev/null
 
 #######################################################################
 ## PREPARE DISCO SECRET
