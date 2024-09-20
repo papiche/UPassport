@@ -119,8 +119,23 @@ echo "$AMOUNT ($ZCHK)"
 ## CHECK LAST TX IF ZEROCARD EXISTING
 if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
     ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
+
+    if [[ -s ./pdf/${PUBKEY}/ASTATE ]]; then
+        cat ./templates/wallet.html \
+        | sed -e "s~_WALLET_~$(date -u) : ${PUBKEY}~g" \
+             -e "s~_AMOUNT_~${AMOUNT}~g" \
+            > ./tmp/${ZEROCARD}.out.html
+
+        ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
+        echo "/ipfs/${ASTATE}" > ./pdf/${PUBKEY}/ASTATE
+        ipfs name publish --key ${ZEROCARD} /ipfs/${ASTATE}
+        echo "./pdf/${PUBKEY}/index.html"
+        exit 0
+    fi
+
     jq '.[-1]' ./tmp/$PUBKEY.TX.json
     LASTX=$(jq '.[-1] | .amount' ./tmp/$PUBKEY.TX.json)
+
     if [ "$(echo "$LASTX < 0" | bc)" -eq 1 ]; then
       echo "TX"
       DEST=$(jq '.[-1] | .pubkey' ./tmp/$PUBKEY.TX.json)
@@ -153,18 +168,6 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
 
       fi
     else
-        if [[ -s ./pdf/${PUBKEY}/ASTATE ]]; then
-            cat ./templates/wallet.html \
-            | sed -e "s~_WALLET_~$(date -u) : ${PUBKEY}~g" \
-                 -e "s~_AMOUNT_~${AMOUNT}~g" \
-                > ./tmp/${ZEROCARD}.out.html
-
-            ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
-            echo "/ipfs/${ASTATE}" > ./pdf/${PUBKEY}/ASTATE
-            ipfs name publish --key ${ZEROCARD} /ipfs/${ASTATE}
-            echo "./pdf/${PUBKEY}/index.html"
-            exit 0
-        fi
         echo "RX..."
     fi
 fi
