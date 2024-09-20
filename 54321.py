@@ -8,7 +8,7 @@ templates = Jinja2Templates(directory="templates")
 
 @app.get("/")
 async def get_root(request: Request):
-    return templates.TemplateResponse("scan_qr.html", {"request": request})
+    return templates.TemplateResponse("scan_new.html", {"request": request})
 
 @app.post("/upassport")
 async def scan_qr(parametre: str = Form(...)):

@@ -106,7 +106,7 @@ ZKEY1=$(ipfs add -q ./cards/_KEY1.QR.png)
 LAT=""
 LON=""
 
-cat ./zine/index.html \
+cat ./static/zine/index.html \
     | sed -e "s~QmTL7VDgkYjpYC2qiiFCfah2pSqDMkTANMeMtjMndwXq9y~${ZIPNS}~g" \
             -e "s~QmU43PSABthVtM8nWEWVDN1ojBBx36KLV5ZSYzkW97NKC3/page1.png~QmV45AUVq8SexwiEt66iGZyZSTbz6gE5xaWjj9wF7qnEpa/sagittarius_page1.jpg~g" \
             -e "s~QmexZHwUuZdFLZuHt1PZunjC7c7rTFKRWJDASGPTyrqysP/page3.png~${ZKEY1}~g" \

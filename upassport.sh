@@ -14,6 +14,7 @@ myCESIUM="https://g1.data.e-is.pro"
 
 ## PUBKEY SHOULD BE A MEMBER PUBLIC KEY
 PUBKEY="$1"
+PUBKEY=$(echo "$PUBKEY" | tr -d ' ')
 ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # "PUBKEY" ChK or ZEN
 [[ $ZCHK == $PUBKEY ]] && ZCHK=""
 PUBKEY="$(echo $PUBKEY | cut -d ':' -f 1)" # Cleaning
@@ -108,10 +109,12 @@ echo "LOADING WALLET HISTORY"
 if [[ -s ./tmp/$PUBKEY.TX.json ]]; then
     SOLDE=$(./tools/timeout.sh -t 20 ./tools/jaklis/jaklis.py balance -p ${PUBKEY})
     ZEN=$(echo "($SOLDE - 1) * 10" | bc | cut -d '.' -f 1)
-    AMOUNT="$SOLDE G1"
-    [[ $ZCHK == "ZEN" || "$ZCHK" == "" ]] && AMOUNT="$ZEN ẐEN<br>($SOLDE G1)"
+    AMOUNT="$SOLDE Ğ1"
+    [[ $SOLDE == "null" ]] && AMOUNT = "VIDE"
+    [[ $SOLDE == "" ]] && AMOUNT = "TIMEOUT"
+    #~ [[ $ZCHK == "ZEN" || "$ZCHK" == "" ]] && AMOUNT="$ZEN ẐEN<br>($SOLDE G1)"
 else
-    AMOUNT="EMPTY"
+    AMOUNT="ERROR"
 fi
 echo "$AMOUNT ($ZCHK)"
 
@@ -119,6 +122,7 @@ echo "$AMOUNT ($ZCHK)"
 ## CHECK LAST TX IF ZEROCARD EXISTING
 if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
     ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
+    echo "ZEROCARD FOUND: ${ZEROCARD}"
 
     if [[ -s ./pdf/${PUBKEY}/ASTATE ]]; then
         cat ./templates/wallet.html \
@@ -131,41 +135,51 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ipfs name publish --key ${ZEROCARD} /ipfs/${ASTATE}
         echo "./pdf/${PUBKEY}/index.html"
         exit 0
+    else
+        echo "NOT ACTIVATED YET"
     fi
 
+    ## CHECK IF MEMBER SENT TX TO ZEROCARD
     jq '.[-1]' ./tmp/$PUBKEY.TX.json
     LASTX=$(jq '.[-1] | .amount' ./tmp/$PUBKEY.TX.json)
 
     if [ "$(echo "$LASTX < 0" | bc)" -eq 1 ]; then
-      echo "TX"
-      DEST=$(jq '.[-1] | .pubkey' ./tmp/$PUBKEY.TX.json)
-      COMM=$(jq '.[-1] | .comment' ./tmp/$PUBKEY.TX.json)
+      DEST=$(jq -r '.[-1] | .pubkey' ./tmp/$PUBKEY.TX.json)
+      COMM=$(jq -r '.[-1] | .comment' ./tmp/$PUBKEY.TX.json)
+      echo "TX: $DEST ($COMM)"
       if [[ "$ZEROCARD" == "$DEST" ]]; then
-        echo "MATCHING !! ZEROCARD INIT : $COMM"
+        echo "MATCHING !! ZEROCARD INITITIALISATION..."
+
         UBQR=$(ipfs add -q ./pdf/${PUBKEY}/IPNS.QR.png)
 
         ZWALL=$(cat ./pdf/${PUBKEY}/ZWALL)
         ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
         sed -i "s~${ZWALL}~${UBQR}~g" ./pdf/${PUBKEY}/index.html
 
+        IPFSPORTAL=$(ipfs add -qrw ./pdf/${PUBKEY}/ | tail -n 1)
+        ipfs pin rm ${IPFSPORTAL}
+        echo "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
+        amzqr "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}" -l H -p ./static/img/moa_net.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
+        IPFSPORTALQR=$(ipfs add -q ./tmp/${PUBKEY}.ipfs.png)
+        echo $IPFSPORTALQR > ./pdf/${PUBKEY}/IPFSPORTALQR
+        sed -i "s~${ZEROIPFS}~${IPFSPORTALQR}~g" ./pdf/${PUBKEY}/index.html
+
         ## Décodage clef IPNS
         cat ./pdf/${PUBKEY}/IPNS.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${MOATS}.ipns
-
         ipfs key rm ${ZEROCARD} > /dev/null 2>&1
         WALLETNS=$(ipfs key import ${ZEROCARD} -f pem-pkcs8-cleartext ./tmp/${MOATS}.ipns)
-
         cat ./templates/wallet.html \
         | sed -e "s~_WALLET_~$(date -u) : ${PUBKEY}~g" \
              -e "s~_AMOUNT_~${AMOUNT}~g" \
             > ./tmp/${ZEROCARD}.out.html
-
         ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
         echo "/ipfs/${ASTATE}" > ./pdf/${PUBKEY}/ASTATE
         ipfs name publish --key ${ZEROCARD} /ipfs/${ASTATE}
 
         echo "./pdf/${PUBKEY}/index.html"
         exit 0
-
+      else
+        echo "TX NOT FOR ZEROCARD"
       fi
     else
         echo "RX..."
@@ -184,7 +198,7 @@ if [[ -z $MEMBERUID ]]; then
         | sed -e "s~_WALLET_~${PUBKEY}~g" \
              -e "s~_AMOUNT_~${AMOUNT}~g" \
             > ./tmp/${PUBKEY}.out.html
-    xdg-open "./tmp/${PUBKEY}.out.html"
+    #~ xdg-open "./tmp/${PUBKEY}.out.html"
     echo "./tmp/${PUBKEY}.out.html"
     exit 0
 fi
@@ -347,7 +361,7 @@ fi
 # rm ./tmp/${ZENWALLET}.IPNS.key
 ipfs key rm ${ZENWALLET} > /dev/null 2>&1
 echo "_WALLET IPNS STORAGE: /ipns/$WALLETNS"
-amzqr "https://ipfs.astroport.com/ipns/$WALLETNS" -l H -p ./static/img/astroport.png -c -n IPNS.QR.png -d ./pdf/${PUBKEY}/ 2>/dev/null
+amzqr "https://ipfs.astroport.com/ipns/$WALLETNS" -l H -p ./static/img/money_coins.png -c -n IPNS.QR.png -d ./pdf/${PUBKEY}/ 2>/dev/null
 
 #######################################################################
 ## PREPARE DISCO SECRET
@@ -386,7 +400,12 @@ fi
 ### add html page for next step...
 rm -f ./pdf/${PUBKEY}/index.html
 echo "CREATION IPFS PORTAIL"
-##
+
+## Add Images to ipfs
+MEMBERPUBQR=$(ipfs add -q ./pdf/${PUBKEY}/${PUBKEY}.UID.png)
+ZWALLET=$(ipfs add -q ./pdf/${PUBKEY}/ZEROCARD_${ZENWALLET}.QR.jpg)
+echo "$ZWALLET" > ./pdf/${PUBKEY}/ZWALL ## CHANGED AFTER PRIMAL TX
+
 IPFSPORTAL=$(ipfs add -qrw ./pdf/${PUBKEY}/ | tail -n 1)
 ipfs pin rm ${IPFSPORTAL}
 echo "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
@@ -394,14 +413,9 @@ echo "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
 amzqr "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}" -l H -p ./static/img/moa_net.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
 
 IPFSPORTALQR=$(ipfs add -q ./tmp/${PUBKEY}.ipfs.png)
-
+echo $IPFSPORTALQR > ./pdf/${PUBKEY}/IPFSPORTALQR
 #######################################################################
 echo "Create Zine Passport"
-
-## Add Images to ipfs
-MEMBERPUBQR=$(ipfs add -q ./pdf/${PUBKEY}/${PUBKEY}.UID.png)
-ZWALLET=$(ipfs add -q ./pdf/${PUBKEY}/ZEROCARD_${ZENWALLET}.QR.jpg)
-echo "$ZWALLET" > ./pdf/${PUBKEY}/ZWALL ## CHANGED AFTER PRIMAL TX
 
 FULLCERT=$(ipfs add -q ./pdf/${PUBKEY}/P2P.png)
 [ -s ./pdf/${PUBKEY}/P21.png ] \
@@ -416,10 +430,10 @@ LAT=$(makecoord $LAT)
 LON=$(cat ./tmp/${PUBKEY}.cesium.json | jq -r '._source.geoPoint.lon')
 LON=$(makecoord $LON)
 
-cat ./zine/index.html \
+cat ./static/zine/index.html \
     | sed -e "s~QmU43PSABthVtM8nWEWVDN1ojBBx36KLV5ZSYzkW97NKC3/page1.png~QmdEPc4Toy1vth7MZtpRSjgMtAWRFihZp3G72Di1vMhf1J~g" \
-            -e "s~QmNRLtAqrrPg7Rw6ain3ADKnUmyxaRsZ8F16eqsRcTvPRs/page2.png~${FULLCERT}~g" \
-            -e "s~QmTL7VDgkYjpYC2qiiFCfah2pSqDMkTANMeMtjMndwXq9y~QmNRLtAqrrPg7Rw6ain3ADKnUmyxaRsZ8F16eqsRcTvPRs/page2.png~g" \
+            -e "s~QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png~${FULLCERT}~g" \
+            -e "s~QmTL7VDgkYjpYC2qiiFCfah2pSqDMkTANMeMtjMndwXq9y~QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png~g" \
             -e "s~QmexZHwUuZdFLZuHt1PZunjC7c7rTFKRWJDASGPTyrqysP/page3.png~${CERTIN}~g" \
             -e "s~QmNNTCYNSHS3iKZsBHXC1tiP2eyFqgLT4n3AXdcK7GywVc/page4.png~${CERTOUT}~g" \
             -e "s~QmZHV5QppQX9N7MS1GFMqzmnRU5vLbpmQ1UkSRY5K5LfA9/page_.png~${IPFSPORTALQR}~g" \
@@ -437,6 +451,6 @@ cat ./zine/index.html \
         > ./pdf/${PUBKEY}/index.html
 
 echo "./pdf/${PUBKEY}/index.html"
-xdg-open ./pdf/${PUBKEY}/index.html ## OPEN PASSPORT ON DESKTOP
+#~ xdg-open ./pdf/${PUBKEY}/index.html ## OPEN PASSPORT ON DESKTOP
 [[ ! -s ./pdf/${PUBKEY}/index.html ]] && echo "./tmp/54321.log" ## SEND LOG TO USER
 exit 0
