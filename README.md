@@ -18,15 +18,17 @@ UPassport est un générateur de passeports numériques pour la monnaie libre Ğ
    cd UPassport
    ```
 
-2. Installez les dépendances :
+2. Installez les dépendances Astroport.ONE :
+
    ```
-   pip install -r requirements.txt
+   bash <(wget -qO- https://raw.githubusercontent.com/papiche/Astroport.ONE/master/install.sh)
    ```
 
-3. Assurez-vous d'avoir les outils suivants installés :
+3. Ceci devrait vous assurer d'avoir les outils suivants installés :
    - ImageMagick
    - IPFS
    - GPG
+   - NaCl ...
 
 ## Utilisation
 

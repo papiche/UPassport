@@ -9,8 +9,10 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
-myDUNITER="https://g1.cgeek.fr"
-myCESIUM="https://g1.data.e-is.pro"
+source ./.env
+[[ -z $myDUNITER ]] && myDUNITER="https://g1.cgeek.fr" # DUNITER
+[[ -z $myCESIUM ]] && myCESIUM="https://g1.data.e-is.pro" # CESIUM+
+[[ -z $ipfsNODE ]] && ipfsNODE="https://ipfs.astroport.com" # IPFS
 
 ## PUBKEY SHOULD BE A MEMBER PUBLIC KEY
 PUBKEY="$1"
@@ -57,7 +59,8 @@ generate_qr_with_uid() {
         && ./tools/timeout.sh -t 12 \
         curl -s ${myCESIUM}/user/profile/${pubkey} > ./tmp/${pubkey}.cesium.json 2>/dev/null
 
-        [ ! -s "./tmp/$pubkey.cesium.json" ] && echo "xxxxx ERROR PROBLEM WITH CESIUM+ NODE ${myCESIUM} xxxxx"
+        [ ! -s "./tmp/$pubkey.cesium.json" ] \
+            && echo "xxxxx ERROR PROBLEM WITH CESIUM+ NODE ${myCESIUM} xxxxx"
 
         # Extract png from json
         zlat=$(cat ./tmp/${pubkey}.cesium.json | jq -r '._source.geoPoint.lat')
@@ -115,7 +118,8 @@ if [[ -s ./tmp/$PUBKEY.TX.json ]]; then
     [[ $SOLDE == "" ]] && AMOUNT = "TIMEOUT"
     #~ [[ $ZCHK == "ZEN" || "$ZCHK" == "" ]] && AMOUNT="$ZEN ẐEN<br>($SOLDE G1)"
 else
-    AMOUNT="ERROR"
+    echo "WALLET ERROR"
+    exit 1
 fi
 echo "$AMOUNT ($ZCHK)"
 
@@ -149,7 +153,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
       COMM=$(jq -r '.[-1] | .comment' ./tmp/$PUBKEY.TX.json)
       echo "TX: $DEST ($COMM)"
       if [[ "$ZEROCARD" == "$DEST" ]]; then
-        echo "MATCHING !! ZEROCARD INITITIALISATION..."
+        echo "MATCHING !! ZEROCARD INITIALISATION..."
 
         UBQR=$(ipfs add -q ./pdf/${PUBKEY}/IPNS.QR.png)
 
@@ -157,16 +161,17 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
         ## Change ẐeroCard G1/Cesium link to ZEROCARD /IPNS link
         sed -i "s~${ZWALL}~${UBQR}~g" ./pdf/${PUBKEY}/index.html
-        sed -i "s~/ipfs/QmXex8PTnQehx4dELrDYuZ2t5ag85crYCBxm3fcTjVWo2k/#/app/wot/${ZEROCARD}/~/ipns/$(cat ./pdf/${PUBKEY}/IPNS)~g" ./pdf/${PUBKEY}/index.html
+        sed -i "s~${ipfsNODE}/ipfs/QmXex8PTnQehx4dELrDYuZ2t5ag85crYCBxm3fcTjVWo2k/#/app/wot/${ZEROCARD}/~$(cat ./pdf/${PUBKEY}/IPNS)~g" ./pdf/${PUBKEY}/index.html
 
         IPFSPORTAL=$(ipfs add -qrw ./pdf/${PUBKEY}/ | tail -n 1)
         ipfs pin rm ${IPFSPORTAL}
-        echo "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
-        amzqr "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}" -l H -p ./static/img/moa_net.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
+        amzqr "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}" -l H -p ./static/img/server.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
         IPFSPORTALQR=$(ipfs add -q ./tmp/${PUBKEY}.ipfs.png)
-        echo $IPFSPORTALQR > ./pdf/${PUBKEY}/IPFSPORTALQR
         sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTALQR)~${IPFSPORTALQR}~g" ./pdf/${PUBKEY}/index.html
         sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTAL)~${IPFSPORTAL}~g" ./pdf/${PUBKEY}/index.html
+        echo $IPFSPORTALQR > ./pdf/${PUBKEY}/IPFSPORTALQR
+        echo $IPFSPORTAL > ./pdf/${PUBKEY}/IPFSPORTAL
+        echo "NEW IPFSPORTAL : https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
 
         ## Décodage clef IPNS
         cat ./pdf/${PUBKEY}/IPNS.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${MOATS}.ipns
@@ -190,11 +195,11 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
     fi
 fi
 
-## GETTING CESIUM+ PROFILE
+echo "## GETTING CESIUM+ PROFILE"
 [[ ! -s ./tmp/$PUBKEY.me.json ]] \
 && wget -q -O ./tmp/$PUBKEY.me.json ${myDUNITER}/wot/lookup/$PUBKEY
 
-# GET MEMBER UID
+echo "# GET MEMBER UID"
 MEMBERUID=$(cat ./tmp/$PUBKEY.me.json | jq -r '.results[].uids[].uid')
 ## NO MEMBER
 if [[ -z $MEMBERUID ]]; then
@@ -209,7 +214,7 @@ fi
 ### ============================================
 
 ### MEMBER N1 SCAN : PASSPORT CREATION
-mkdir -p ./pdf/${PUBKEY}/N1
+mkdir -p ./pdf/${PUBKEY}/N1/
 
 cp ./tmp/$PUBKEY.me.json ./pdf/${PUBKEY}/CESIUM.json
 cp ./tmp/$PUBKEY.TX.json ./pdf/${PUBKEY}/TX.json
@@ -365,8 +370,8 @@ fi
 rm ./tmp/${ZENWALLET}.IPNS.key
 ipfs key rm ${ZENWALLET} > /dev/null 2>&1
 echo "_WALLET IPNS STORAGE: /ipns/$WALLETNS"
-amzqr "https://ipfs.astroport.com/ipns/$WALLETNS" -l H -p ./static/img/no_cloud.png -c -n IPNS.QR.png -d ./pdf/${PUBKEY}/ 2>/dev/null
-echo "https://ipfs.astroport.com/ipns/$WALLETNS" > ./pdf/${PUBKEY}/IPNS
+amzqr "${ipfsNODE}/ipns/$WALLETNS" -l H -p ./static/img/moa_net.png -c -n IPNS.QR.png -d ./pdf/${PUBKEY}/ 2>/dev/null
+echo "${ipfsNODE}/ipns/$WALLETNS" > ./pdf/${PUBKEY}/IPNS
 
 #######################################################################
 ## PREPARE DISCO SECRET
@@ -425,10 +430,11 @@ echo $IPFSPORTALQR > ./pdf/${PUBKEY}/IPFSPORTALQR
 echo "Create Zine Passport"
 
 FULLCERT=$(ipfs add -q ./pdf/${PUBKEY}/P2P.png)
+
 [ -s ./pdf/${PUBKEY}/P21.png ] \
     && CERTIN=$(ipfs add -q ./pdf/${PUBKEY}/P21.png) \
     || CERTIN="QmReCfHszucv2Ra9zbKjKwmgoJ4krWpqB12TDK5AR9PKCQ/page3.png"
-[ -s ./pdf/${PUBKEY}/P21.png ] \
+[ -s ./pdf/${PUBKEY}/12P.png ] \
     && CERTOUT=$(ipfs add -q ./pdf/${PUBKEY}/12P.png) \
     || CERTOUT="QmReCfHszucv2Ra9zbKjKwmgoJ4krWpqB12TDK5AR9PKCQ/page4.png"
 
@@ -454,7 +460,7 @@ cat ./static/zine/index.html \
             -e "s~_ZENWALLET_~${ZENWALLET}~g" \
             -e "s~_LAT_~${LAT}~g" \
             -e "s~_LON_~${LON}~g" \
-            -e "s~https://ipfs.copylaradio.com~https://ipfs.astroport.com~g" \
+            -e "s~https://ipfs.copylaradio.com~${ipfsNODE}~g" \
         > ./pdf/${PUBKEY}/index.html
 
 echo "./pdf/${PUBKEY}/index.html"
