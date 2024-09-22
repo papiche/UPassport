@@ -49,7 +49,7 @@ def convert_to_wav(input_file, output_file):
 async def get_root(request: Request):
     return templates.TemplateResponse("scan_new.html", {"request": request})
 
-@app.get("/vosk")
+@app.get("/voice")
 async def get_vosk(request: Request):
     return templates.TemplateResponse("vosk.html", {"request": request})
 

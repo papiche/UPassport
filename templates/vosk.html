@@ -70,11 +70,19 @@
             margin: 10px 0;
             text-align: center;
         }
+        .recording {
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Reconnaissance vocale avec Vosk</h1>
+        <h1>Reconnaissance vocale (STT)</h1>
         <div style="text-align: center;">
             <button id="startRecording">Commencer l'enregistrement</button>
             <button id="stopRecording" disabled>Arrêter l'enregistrement</button>
@@ -94,6 +102,14 @@
         let timerInterval;
         let startTime;
         let realtimeTranscription = false;
+        let isRecording = false;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("Votre navigateur ne supporte pas l'enregistrement audio. Veuillez utiliser un navigateur moderne.");
+                $("#startRecording").prop("disabled", true);
+            }
+        });
 
         function updateTimer() {
             const elapsedTime = Date.now() - startTime;
@@ -111,10 +127,12 @@
         });
 
         $("#startRecording").click(function() {
+            if (isRecording) return;
+            isRecording = true;
             navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(stream => {
                     mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-                    mediaRecorder.start(2000); // Envoyer des données toutes les 2 secondes
+                    mediaRecorder.start(3000); // Envoyer des données toutes les 3 secondes
 
                     mediaRecorder.addEventListener("dataavailable", event => {
                         console.log("Chunk received, type:", event.data.type);
@@ -130,6 +148,7 @@
                     startTime = Date.now();
                     timerInterval = setInterval(updateTimer, 1000);
                 });
+            $("#startRecording").addClass("recording");
         });
 
         function sendAudioChunk(audioChunk) {
@@ -155,7 +174,10 @@
         }
 
         $("#stopRecording").click(function() {
+            if (!isRecording) return;
+            isRecording = false;
             mediaRecorder.stop();
+            mediaRecorder.stream.getTracks().forEach(track => track.stop());
             $("#startRecording").prop("disabled", false);
             $("#stopRecording").prop("disabled", true);
             $("#spinner").show();
@@ -185,6 +207,7 @@
                     }
                 });
             });
+            $("#startRecording").removeClass("recording");
         });
     </script>
 </body>

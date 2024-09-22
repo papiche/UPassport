@@ -174,23 +174,34 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ## Change ẐeroCard G1/Cesium link to ZEROCARD /IPNS link
         sed -i "s~${ZWALL}~${UBQR}~g" ./pdf/${PUBKEY}/_index.html
         sed -i "s~${ipfsNODE}/ipfs/QmXex8PTnQehx4dELrDYuZ2t5ag85crYCBxm3fcTjVWo2k/#/app/wot/${ZEROCARD}/~$(cat ./pdf/${PUBKEY}/IPNS)~g" ./pdf/${PUBKEY}/_index.html
+        rm ./pdf/${PUBKEY}/ZWALL
 
-        ## break auto load
+        ## NEW IPFSPORTAL (./pdf/${PUBKEY}/)
         mv ./pdf/${PUBKEY}/_index.html ./pdf/${PUBKEY}/_index.html
         IPFSPORTAL=$(ipfs add -qrw ./pdf/${PUBKEY}/ | tail -n 1)
         ipfs pin rm ${IPFSPORTAL}
-        amzqr "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}" -l H -p ./static/img/server.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
-        IPFSPORTALQR=$(ipfs add -q ./tmp/${PUBKEY}.ipfs.png)
+
+        amzqr "${ipfsNODE}/ipfs/${IPFSPORTAL}" -l H -p ./static/img/server.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
+        convert ./tmp/${PUBKEY}.ipfs.png \
+        -gravity SouthWest \
+        -pointsize 18 \
+        -fill black \
+        -annotate +2+2 "DATA : ${ipfsNODE}/ipfs/${IPFSPORTAL}" \
+        -annotate +1+3 "DATA : ${ipfsNODE}/ipfs/${IPFSPORTAL}" \
+        ./pdf/${PUBKEY}/IPFSPORTAL.QR.png
+
+        IPFSPORTALQR=$(ipfs add -q ./pdf/${PUBKEY}/IPFSPORTAL.QR.png)
         sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTALQR)~${IPFSPORTALQR}~g" ./pdf/${PUBKEY}/_index.html
         sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTAL)~${IPFSPORTAL}~g" ./pdf/${PUBKEY}/_index.html
         echo $IPFSPORTALQR > ./pdf/${PUBKEY}/IPFSPORTALQR
         echo $IPFSPORTAL > ./pdf/${PUBKEY}/IPFSPORTAL
         echo "NEW IPFSPORTAL : https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
 
-        ## Décodage clef IPNS
+        ## Décodage clef IPNS par secret UPlanet (PROD = swarm.key)
         cat ./pdf/${PUBKEY}/IPNS.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${MOATS}.ipns
         ipfs key rm ${ZEROCARD} > /dev/null 2>&1
         WALLETNS=$(ipfs key import ${ZEROCARD} -f pem-pkcs8-cleartext ./tmp/${MOATS}.ipns)
+        ## ASTATE FIRST DApp = Wallet Ammout :
         cat ./templates/wallet.html \
         | sed -e "s~_WALLET_~$(date -u) : ${PUBKEY}~g" \
              -e "s~_AMOUNT_~${AMOUNT}~g" \
@@ -361,7 +372,8 @@ amzqr "${ZENWALLET}" -l H -p ./static/img/zenticket.png -c -n ZEROCARD_${ZENWALL
           -gravity SouthWest \
           -pointsize 18 \
           -fill black \
-          -annotate +5+5 "${ZENWALLET}" \
+          -annotate +2+2 "ACTIVATE ${ZENWALLET}" \
+          -annotate +1+3 "ACTIVATE ${ZENWALLET}" \
           ./pdf/${PUBKEY}/ZEROCARD_${ZENWALLET}.QR.jpg
 
 ############################################################
@@ -384,7 +396,15 @@ fi
 rm ./tmp/${ZENWALLET}.IPNS.key
 ipfs key rm ${ZENWALLET} > /dev/null 2>&1
 echo "_WALLET IPNS STORAGE: /ipns/$WALLETNS"
-amzqr "${ipfsNODE}/ipns/$WALLETNS" -l H -p ./static/img/moa_net.png -c -n IPNS.QR.png -d ./pdf/${PUBKEY}/ 2>/dev/null
+amzqr "${ipfsNODE}/ipns/$WALLETNS" -l H -p ./static/img/moa_net.png -c -n ${PUBKEY}.IPNS.QR.png -d ./tmp/ 2>/dev/null
+convert ./tmp/${PUBKEY}.IPNS.QR.png \
+        -gravity SouthWest \
+        -pointsize 18 \
+        -fill black \
+        -annotate +2+2 "APP : ${ipfsNODE}/ipns/$WALLETNS" \
+        -annotate +1+3 "APP : ${ipfsNODE}/ipns/$WALLETNS" \
+        ./pdf/${PUBKEY}/IPNS.QR.png
+
 echo "${ipfsNODE}/ipns/$WALLETNS" > ./pdf/${PUBKEY}/IPNS
 
 #######################################################################
@@ -428,17 +448,24 @@ echo "CREATION IPFS PORTAIL"
 ## Add Images to ipfs
 MEMBERPUBQR=$(ipfs add -q ./pdf/${PUBKEY}/${PUBKEY}.UID.png)
 ZWALLET=$(ipfs add -q ./pdf/${PUBKEY}/ZEROCARD_${ZENWALLET}.QR.jpg)
-echo "$ZWALLET" > ./pdf/${PUBKEY}/ZWALL ## CHANGED AFTER PRIMAL TX
+echo "$ZWALLET" > ./pdf/${PUBKEY}/ZWALL ## USED & DELETED AFTER CONFIRMED PRIMAL TX
 
 IPFSPORTAL=$(ipfs add -qrw ./pdf/${PUBKEY}/ | tail -n 1)
 echo $IPFSPORTAL > ./pdf/${PUBKEY}/IPFSPORTAL
 
 ipfs pin rm ${IPFSPORTAL}
-echo "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
+echo "${ipfsNODE}/ipfs/${IPFSPORTAL}"
 
-amzqr "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}" -l H -p ./static/img/moa_net.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
+amzqr "${ipfsNODE}/ipfs/${IPFSPORTAL}" -l H -p ./static/img/moa_net.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
+convert ./tmp/${PUBKEY}.ipfs.png \
+        -gravity SouthWest \
+        -pointsize 18 \
+        -fill black \
+        -annotate +2+2 "DATA : ${ipfsNODE}/ipfs/${IPFSPORTAL}" \
+        -annotate +1+3 "DATA : ${ipfsNODE}/ipfs/${IPFSPORTAL}" \
+        ./pdf/${PUBKEY}/IPFSPORTAL.QR.png
 
-IPFSPORTALQR=$(ipfs add -q ./tmp/${PUBKEY}.ipfs.png)
+IPFSPORTALQR=$(ipfs add -q ./pdf/${PUBKEY}/IPFSPORTAL.QR.png)
 echo $IPFSPORTALQR > ./pdf/${PUBKEY}/IPFSPORTALQR
 #######################################################################
 echo "Create Zine Passport"
