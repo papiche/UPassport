@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Reconnaissance vocale avec Vosk</title>
+    <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/jquery-3.6.3.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .spinner {
+            display: none;
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(0,0,0,.1);
+            border-radius: 50%;
+            border-top-color: #4CAF50;
+            animation: spin 1s ease-in-out infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        #timer {
+            display: none;
+            font-size: 24px;
+            margin: 20px 0;
+            text-align: center;
+            color: #4CAF50;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e9e9e9;
+            border-radius: 4px;
+            min-height: 100px;
+        }
+        .checkbox-container {
+            margin: 10px 0;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Reconnaissance vocale avec Vosk</h1>
+        <div style="text-align: center;">
+            <button id="startRecording">Commencer l'enregistrement</button>
+            <button id="stopRecording" disabled>Arrêter l'enregistrement</button>
+        </div>
+        <div class="checkbox-container">
+            <input type="checkbox" id="realtimeTranscription" name="realtimeTranscription">
+            <label for="realtimeTranscription">Transcription en temps réel</label>
+        </div>
+        <div id="timer">00:00</div>
+        <div class="spinner" id="spinner"></div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let timerInterval;
+        let startTime;
+        let realtimeTranscription = false;
+
+        function updateTimer() {
+            const elapsedTime = Date.now() - startTime;
+            const seconds = Math.floor(elapsedTime / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const formattedTime =
+                (minutes < 10 ? "0" : "") + minutes + ":" +
+                (seconds % 60 < 10 ? "0" : "") + (seconds % 60);
+            $("#timer").text(formattedTime);
+        }
+
+        $("#realtimeTranscription").change(function() {
+            realtimeTranscription = this.checked;
+            console.log("Transcription en temps réel:", realtimeTranscription);
+        });
+
+        $("#startRecording").click(function() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                    mediaRecorder.start(2000); // Envoyer des données toutes les 2 secondes
+
+                    mediaRecorder.addEventListener("dataavailable", event => {
+                        console.log("Chunk received, type:", event.data.type);
+                        audioChunks.push(event.data);
+                        if (realtimeTranscription) {
+                            sendAudioChunk(event.data);
+                        }
+                    });
+
+                    $("#startRecording").prop("disabled", true);
+                    $("#stopRecording").prop("disabled", false);
+                    $("#timer").show();
+                    startTime = Date.now();
+                    timerInterval = setInterval(updateTimer, 1000);
+                });
+        });
+
+        function sendAudioChunk(audioChunk) {
+            const formData = new FormData();
+            formData.append("file", new Blob([audioChunk], { type: 'audio/webm' }), "chunk.webm");
+
+            $.ajax({
+                url: "/transcribe_chunk",
+                type: "POST",
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    console.log("Transcription chunk response:", response);
+                    if (response.transcription) {
+                        $("#result").append(response.transcription + " ");
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Erreur lors de la transcription en temps réel :", error);
+                }
+            });
+        }
+
+        $("#stopRecording").click(function() {
+            mediaRecorder.stop();
+            $("#startRecording").prop("disabled", false);
+            $("#stopRecording").prop("disabled", true);
+            $("#spinner").show();
+            $("#timer").hide();
+            clearInterval(timerInterval);
+
+            mediaRecorder.addEventListener("stop", () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                audioChunks = [];
+
+                const formData = new FormData();
+                formData.append("file", audioBlob, "audio.webm");
+
+                $.ajax({
+                    url: "/transcribe",
+                    type: "POST",
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        $("#spinner").hide();
+                        $("#result").text(response.transcription);
+                    },
+                    error: function(xhr, status, error) {
+                        $("#spinner").hide();
+                        $("#result").text("Erreur lors de la transcription : " + error);
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>
