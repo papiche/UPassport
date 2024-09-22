@@ -372,8 +372,8 @@ amzqr "${ZENWALLET}" -l H -p ./static/img/zenticket.png -c -n ZEROCARD_${ZENWALL
           -gravity SouthWest \
           -pointsize 18 \
           -fill black \
-          -annotate +2+2 "ACTIVATE ${ZENWALLET}" \
-          -annotate +1+3 "ACTIVATE ${ZENWALLET}" \
+          -annotate +2+2 "ZEROCARD : ${ZENWALLET}" \
+          -annotate +1+3 "ZEROCARD : ${ZENWALLET}" \
           ./pdf/${PUBKEY}/ZEROCARD_${ZENWALLET}.QR.jpg
 
 ############################################################
@@ -456,7 +456,7 @@ echo $IPFSPORTAL > ./pdf/${PUBKEY}/IPFSPORTAL
 ipfs pin rm ${IPFSPORTAL}
 echo "${ipfsNODE}/ipfs/${IPFSPORTAL}"
 
-amzqr "${ipfsNODE}/ipfs/${IPFSPORTAL}" -l H -p ./static/img/moa_net.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
+amzqr "${ipfsNODE}/ipfs/${IPFSPORTAL}" -l H -p ./static/img/server.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
 convert ./tmp/${PUBKEY}.ipfs.png \
         -gravity SouthWest \
         -pointsize 18 \

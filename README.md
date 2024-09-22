@@ -1,16 +1,35 @@
 # UPassport
 
-UPassport est un générateur de passeports numériques pour la monnaie libre Ğ1, conçu pour créer des identités visuelles uniques basées sur les clés publiques des utilisateurs.
+UPassport est un générateur innovant de passeports numériques pour la monnaie libre Ğ1. Il crée des identités visuelles uniques basées sur les clés publiques des utilisateurs, tout en intégrant des fonctionnalités avancées de reconnaissance vocale et de stockage décentralisé.
 
-## Fonctionnalités
+## 🌟 Fonctionnalités Principales
 
-- Scan de QR codes contenant des clés publiques Ğ1
-- Génération de passeports numériques personnalisés
-- Intégration avec le réseau Duniter et Cesium+
-- Création de QR codes pour les relations entre membres (certifications)
-- Interface web responsive pour une utilisation sur mobile et desktop
+- 🔐 Génération de passeports numériques personnalisés
+- 📱 Interface web responsive (mobile et desktop)
+- 🔗 Intégration avec le réseau Duniter et Cesium+
+- 🗣️ Reconnaissance vocale pour la transcription audio
+- 📊 Création de QR codes pour les relations entre membres
+- 🌐 Stockage décentralisé via IPFS
 
-## Installation
+## 🚀 Pourquoi UPassport ?
+
+1. **Innovation Monétaire** : Soutient l'écosystème de la monnaie libre Ğ1.
+2. **Identité Numérique Sécurisée** : Crée des identités uniques et vérifiables.
+3. **Décentralisation** : Utilise IPFS pour un stockage distribué et résilient.
+4. **Accessibilité** : Interface conviviale et support multiplateforme.
+5. **Open Source** : Favorise la collaboration et l'amélioration continue.
+
+## 📋 Prérequis
+
+- Python 3.7+
+- Node.js et npm
+- FFmpeg
+- ImageMagick
+- IPFS
+- GPG
+- NaCl
+
+## 🛠️ Installation
 
 1. Clonez le dépôt :
    ```
@@ -19,122 +38,62 @@ UPassport est un générateur de passeports numériques pour la monnaie libre Ğ
    ```
 
 2. Installez les dépendances Astroport.ONE :
-
    ```
    bash <(wget -qO- https://raw.githubusercontent.com/papiche/Astroport.ONE/master/install.sh)
    ```
 
-3. Ceci devrait vous assurer d'avoir les outils suivants installés :
-   - ImageMagick
-   - IPFS
-   - GPG
-   - NaCl ...
+3. Installez les dépendances Python :
+   ```
+   pip3 install fastapi uvicorn vosk sounddevice
+   ```
 
-## Utilisation
+## 🖥️ Utilisation
 
-1. Lancez l'application FastAPI :
+1. Lancez l'application :
    ```
    uvicorn main:app --host 0.0.0.0 --port 54321
    ```
 
-2. Ouvrez votre navigateur et accédez à `http://localhost:54321`
+2. Accédez à `http://localhost:54321` dans votre navigateur.
 
-3. Utilisez l'interface pour scanner un QR code ou entrer manuellement une clé publique Ğ1
+3. Utilisez l'interface pour :
+   - Scanner un QR code
+   - Entrer une clé publique Ğ1
+   - Utiliser la reconnaissance vocale (/voice)
 
-4. Le passeport généré sera affiché et pourra être sauvegardé ou partagé
+## 🛠️ Configuration
 
-## Configuration
+- Modifiez les URLs des nœuds dans le fichier `.env`
+- Personnalisez les templates HTML dans `templates/`
 
-- Modifiez les URLs des nœuds Duniter et Cesium+ dans le fichier `upassport.sh`
-- Personnalisez les templates HTML dans le dossier `templates/`
+## 🤝 Comment Contribuer
 
-## Contribution
+Nous accueillons chaleureusement toutes les contributions ! Voici comment vous pouvez participer :
 
-Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou à soumettre une pull request.
+1. 🐛 Signalez des bugs ou suggérez des améliorations via les issues GitHub.
+2. 💡 Proposez de nouvelles fonctionnalités ou des améliorations de code.
+3. 🔧 Soumettez des pull requests pour corriger des bugs ou ajouter des fonctionnalités.
+4. 📚 Améliorez la documentation ou ajoutez des traductions.
+5. 🧪 Participez aux tests et à l'assurance qualité.
 
-## Licence
+Consultez notre [guide de contribution](CONTRIBUTING.md) pour plus de détails.
+
+## 📄 Licence
 
 Ce projet est sous licence AGPL-3.0. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
 
-## Auteur
+## 👤 Auteur
 
 Fred (DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech)
 
-## Remerciements
+## 🙏 Remerciements
 
 - Communauté Ğ1 et Duniter
-- Contributeurs des bibliothèques utilisées dans ce projet
+- Contributeurs des bibliothèques utilisées
+- Équipe Vosk pour la reconnaissance vocale
 
-Citations:
-[1] https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/22988433/408ffeac-6c8b-4f18-b2cb-1ae099fdb046/paste.txt
-[2] https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/22988433/d34a8481-b715-4b4b-b781-d727f7ec87b1/paste.txt
-[3] https://github.com/papiche/UPassport/
-[4] https://h2020-passport.eu
-[5] https://dev.to/joshuajee/nodejs-github-authentication-using-passportjs-and-mongodb-2lfd
-[6] https://resource.pass-port.com/PBSHelpHTM/1206/pbsdocs/V1206Release.pdf
-[7] https://www.passportjs.org/packages/passport-github/
-[8] https://www.youtube.com/watch?v=SBC9na-dadE
-[9] https://www.globaleducation.vt.edu/Homepage/Passport_Project.html
-[10] https://www.thalesgroup.com/en/markets/digital-identity-and-security/government/passport/passport-security-design
-[11] https://lepetitmagicien.com/tour-de-cartes/9534-passport-project-yoan-tanuji-.html
+## 📚 Documentation
 
-```markdown
-# Zine Passport Generator
+Pour une documentation complète, visitez notre [wiki](https://github.com/papiche/UPassport/wiki).
 
-## Overview
-
-This upassport.sh automates the creation of a digital Zine Passport using the Duniter blockchain and Cesium+ profiles. It fetches information from public nodes, generates QR codes, creates a PDF passport, and encrypts data for secure storage. The process includes:
-
-- Fetching blockchain data from Duniter and Cesium+ nodes.
-- Generating user-specific QR codes (with UID and geographic coordinates).
-- Encrypting sensitive data using Shamir's Secret Sharing scheme.
-- Adding images and data to IPFS for decentralized storage.
-
-## Requirements
-
-- **Duniter and Cesium+ nodes**: Ensure the Duniter node (`https://g1.cgeek.fr`) and Cesium+ node (`https://g1.data.e-is.pro`) are accessible.
-- **Dependencies**:
-  - `jq` for processing JSON.
-  - `wget`, `curl` for fetching data.
-  - `convert` (ImageMagick) for image manipulation.
-  - `amzqr` for QR code generation.
-  - `ssss` for Shamir Secret Sharing.
-  - `ipfs` for decentralized storage.
-  - Custom upassport.shs (`timeout.sh`, `diceware.sh`, `jaklis.py`, `keygen`, `natools.py`).
-
-## Usage
-
-```bash
-./upassport.sh.sh <pubkey>
-```
-
-- **Argument**: `<pubkey>` is the public key of the member for whom the passport is generated.
-
-### Steps Performed:
-1. **Cache management**: Fetches and caches data from Duniter and Cesium+ nodes.
-2. **QR code generation**: Creates a personalized QR code containing the user's UID, Cesium+ profile image, and coordinates.
-3. **Certification data**: Compares certifications received and given by the user.
-4. **IPNS key creation**: Generates IPNS keys for secure decentralized storage.
-5. **Zine Passport generation**: Merges images and data into a Zine Passport HTML file and opens it.
-
-### Output Files:
-- **PDFs** and **QR codes** stored in `./pdf/<pubkey>/`.
-- An HTML file (`PASSPORT.<uid>.html`) displaying the passport.
-
-## Encryption
-
-- **Shamir's Secret Sharing**: The upassport.sh uses this method to split a secret (such as a password or a key) into parts, only a subset of which is required to reconstruct the secret.
-
-## Example
-
-```bash
-./upassport.sh.sh DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech
-```
-
-## License
-
-This project is licensed under the AGPL-3.0 License. See the [LICENSE](https://choosealicense.com/licenses/agpl-3.0/) for more details.
-```
-
-Let me know if you need any specific details added!
-
+Rejoignez-nous dans cette aventure passionnante pour façonner l'avenir de l'identité numérique et de la monnaie libre !
