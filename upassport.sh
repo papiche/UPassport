@@ -20,7 +20,16 @@ PUBKEY=$(echo "$PUBKEY" | tr -d ' ')
 ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # "PUBKEY" ChK or ZEN
 [[ $ZCHK == $PUBKEY ]] && ZCHK=""
 PUBKEY="$(echo $PUBKEY | cut -d ':' -f 1)" # Cleaning
-echo "PUBKEY: $PUBKEY"
+echo "PUBKEY ? $PUBKEY"
+
+if [[ -z $(./tools/g1_to_ipfs.py ${PUBKEY} 2>/dev/null) ]]; then
+    cat ./templates/wallet.html \
+    | sed -e "s~_WALLET_~$(date -u) : ${PUBKEY}~g" \
+         -e "s~_AMOUNT_~Pubkey Error<br><a target=_new href=https://cesium.app>Install CESIUM</a>~g" \
+        > ./tmp/${PUBKEY}.out.html
+    echo "./tmp/${PUBKEY}.out.html"
+    exit 0
+fi
 
 [ ! -s $HOME/.zen/Astroport.ONE/tools/my.sh ] \
     && echo "ERROR/ Missing Astroport.ONE. Please install..." \
@@ -116,7 +125,7 @@ if [[ -s ./tmp/$PUBKEY.TX.json ]]; then
     AMOUNT="$SOLDE Ğ1"
     [[ $SOLDE == "null" ]] && AMOUNT = "VIDE"
     [[ $SOLDE == "" ]] && AMOUNT = "TIMEOUT"
-    #~ [[ $ZCHK == "ZEN" || "$ZCHK" == "" ]] && AMOUNT="$ZEN ẐEN<br>($SOLDE G1)"
+    [[ $ZCHK == "ZEN" ]] && AMOUNT="$ZEN Ẑ€N"
 else
     echo "WALLET ERROR"
     exit 1
@@ -138,7 +147,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
         echo "/ipfs/${ASTATE}" > ./pdf/${PUBKEY}/ASTATE
         ipfs name publish --key ${ZEROCARD} /ipfs/${ASTATE}
-        echo "./pdf/${PUBKEY}/index.html"
+        echo "./pdf/${PUBKEY}/_index.html"
         exit 0
     else
         echo "NOT ACTIVATED YET"
@@ -155,20 +164,25 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
       if [[ "$ZEROCARD" == "$DEST" ]]; then
         echo "MATCHING !! ZEROCARD INITIALISATION..."
 
+        ## FAC SIMILE to PAGE2
+        sed -i "s~${QmRJuGqHsruaV14ZHEjk9Gxog2B9GafC35QYrJtaAU2Pry}~QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png~g" ./pdf/${PUBKEY}/_index.html
+
         UBQR=$(ipfs add -q ./pdf/${PUBKEY}/IPNS.QR.png)
 
         ZWALL=$(cat ./pdf/${PUBKEY}/ZWALL)
         ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
         ## Change ẐeroCard G1/Cesium link to ZEROCARD /IPNS link
-        sed -i "s~${ZWALL}~${UBQR}~g" ./pdf/${PUBKEY}/index.html
-        sed -i "s~${ipfsNODE}/ipfs/QmXex8PTnQehx4dELrDYuZ2t5ag85crYCBxm3fcTjVWo2k/#/app/wot/${ZEROCARD}/~$(cat ./pdf/${PUBKEY}/IPNS)~g" ./pdf/${PUBKEY}/index.html
+        sed -i "s~${ZWALL}~${UBQR}~g" ./pdf/${PUBKEY}/_index.html
+        sed -i "s~${ipfsNODE}/ipfs/QmXex8PTnQehx4dELrDYuZ2t5ag85crYCBxm3fcTjVWo2k/#/app/wot/${ZEROCARD}/~$(cat ./pdf/${PUBKEY}/IPNS)~g" ./pdf/${PUBKEY}/_index.html
 
+        ## break auto load
+        mv ./pdf/${PUBKEY}/_index.html ./pdf/${PUBKEY}/_index.html
         IPFSPORTAL=$(ipfs add -qrw ./pdf/${PUBKEY}/ | tail -n 1)
         ipfs pin rm ${IPFSPORTAL}
         amzqr "https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}" -l H -p ./static/img/server.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
         IPFSPORTALQR=$(ipfs add -q ./tmp/${PUBKEY}.ipfs.png)
-        sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTALQR)~${IPFSPORTALQR}~g" ./pdf/${PUBKEY}/index.html
-        sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTAL)~${IPFSPORTAL}~g" ./pdf/${PUBKEY}/index.html
+        sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTALQR)~${IPFSPORTALQR}~g" ./pdf/${PUBKEY}/_index.html
+        sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTAL)~${IPFSPORTAL}~g" ./pdf/${PUBKEY}/_index.html
         echo $IPFSPORTALQR > ./pdf/${PUBKEY}/IPFSPORTALQR
         echo $IPFSPORTAL > ./pdf/${PUBKEY}/IPFSPORTAL
         echo "NEW IPFSPORTAL : https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
@@ -185,7 +199,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         echo "/ipfs/${ASTATE}" > ./pdf/${PUBKEY}/ASTATE
         ipfs name publish --key ${ZEROCARD} /ipfs/${ASTATE}
 
-        echo "./pdf/${PUBKEY}/index.html"
+        echo "./pdf/${PUBKEY}/_index.html"
         exit 0
       else
         echo "TX NOT FOR ZEROCARD"
@@ -408,7 +422,7 @@ fi
 
 #### INITIALISE IPFS STORAGE (ZENCARD BLOCK 0)
 ### add html page for next step...
-rm -f ./pdf/${PUBKEY}/index.html
+rm -f ./pdf/${PUBKEY}/_index.html
 echo "CREATION IPFS PORTAIL"
 
 ## Add Images to ipfs
@@ -429,11 +443,14 @@ echo $IPFSPORTALQR > ./pdf/${PUBKEY}/IPFSPORTALQR
 #######################################################################
 echo "Create Zine Passport"
 
-FULLCERT=$(ipfs add -q ./pdf/${PUBKEY}/P2P.png)
+[ -s ./pdf/${PUBKEY}/P2P.png ] \
+    && FULLCERT=$(ipfs add -q ./pdf/${PUBKEY}/P2P.png) \
+    || FULLCERT="QmReCfHszucv2Ra9zbKjKwmgoJ4krWpqB12TDK5AR9PKCQ/page3.png"
 
 [ -s ./pdf/${PUBKEY}/P21.png ] \
     && CERTIN=$(ipfs add -q ./pdf/${PUBKEY}/P21.png) \
-    || CERTIN="QmReCfHszucv2Ra9zbKjKwmgoJ4krWpqB12TDK5AR9PKCQ/page3.png"
+    || CERTIN="QmReCfHszucv2Ra9zbKjKwmgoJ4krWpqB12TDK5AR9PKCQ/page4.png"
+
 [ -s ./pdf/${PUBKEY}/12P.png ] \
     && CERTOUT=$(ipfs add -q ./pdf/${PUBKEY}/12P.png) \
     || CERTOUT="QmReCfHszucv2Ra9zbKjKwmgoJ4krWpqB12TDK5AR9PKCQ/page4.png"
@@ -443,10 +460,12 @@ LAT=$(makecoord $LAT)
 LON=$(cat ./tmp/${PUBKEY}.cesium.json | jq -r '._source.geoPoint.lon')
 LON=$(makecoord $LON)
 
+# QmRJuGqHsruaV14ZHEjk9Gxog2B9GafC35QYrJtaAU2Pry Fac Similé
+# QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png
 cat ./static/zine/index.html \
     | sed -e "s~QmU43PSABthVtM8nWEWVDN1ojBBx36KLV5ZSYzkW97NKC3/page1.png~QmdEPc4Toy1vth7MZtpRSjgMtAWRFihZp3G72Di1vMhf1J~g" \
             -e "s~QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png~${FULLCERT}~g" \
-            -e "s~QmTL7VDgkYjpYC2qiiFCfah2pSqDMkTANMeMtjMndwXq9y~QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png~g" \
+            -e "s~QmTL7VDgkYjpYC2qiiFCfah2pSqDMkTANMeMtjMndwXq9y~QmRJuGqHsruaV14ZHEjk9Gxog2B9GafC35QYrJtaAU2Pry~g" \
             -e "s~QmexZHwUuZdFLZuHt1PZunjC7c7rTFKRWJDASGPTyrqysP/page3.png~${CERTIN}~g" \
             -e "s~QmNNTCYNSHS3iKZsBHXC1tiP2eyFqgLT4n3AXdcK7GywVc/page4.png~${CERTOUT}~g" \
             -e "s~QmZHV5QppQX9N7MS1GFMqzmnRU5vLbpmQ1UkSRY5K5LfA9/page_.png~${IPFSPORTALQR}~g" \
@@ -461,9 +480,9 @@ cat ./static/zine/index.html \
             -e "s~_LAT_~${LAT}~g" \
             -e "s~_LON_~${LON}~g" \
             -e "s~https://ipfs.copylaradio.com~${ipfsNODE}~g" \
-        > ./pdf/${PUBKEY}/index.html
+        > ./pdf/${PUBKEY}/_index.html
 
-echo "./pdf/${PUBKEY}/index.html"
-#~ xdg-open ./pdf/${PUBKEY}/index.html ## OPEN PASSPORT ON DESKTOP
-[[ ! -s ./pdf/${PUBKEY}/index.html ]] && echo "./tmp/54321.log" ## SEND LOG TO USER
+echo "./pdf/${PUBKEY}/_index.html"
+#~ xdg-open ./pdf/${PUBKEY}/_index.html ## OPEN PASSPORT ON DESKTOP
+[[ ! -s ./pdf/${PUBKEY}/_index.html ]] && echo "./tmp/54321.log" ## SEND LOG TO USER
 exit 0
