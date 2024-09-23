@@ -79,6 +79,9 @@ generate_qr_with_uid() {
 
         cat ./tmp/${pubkey}.cesium.json | jq -r '._source.avatar._content' | base64 -d > ./tmp/${pubkey}.png
 
+        solde=$(./tools/timeout.sh -t 6 ./tools/jaklis/jaklis.py balance -p ${pubkey})
+        zen=$(echo "($solde - 1) * 10" | bc | cut -d '.' -f 1)
+
         # Resize avatar picure & add transparent canvas
         convert ./tmp/${pubkey}.png \
           -resize 120x120 \
@@ -99,8 +102,8 @@ generate_qr_with_uid() {
           -gravity SouthWest \
           -pointsize 25 \
           -fill black \
-          -annotate +2+2 "($ulat/$ulon) ${member_uid}" \
-          -annotate +3+1 "($ulat/$ulon) ${member_uid}" \
+          -annotate +2+2 "($ulat/$ulon) ${member_uid} ${zen} ẑ" \
+          -annotate +3+1 "($ulat/$ulon) ${member_uid} ${zen} ẑ" \
           ./tmp/${pubkey}.UID.png
 
         [[ -s ./tmp/${pubkey}.UID.png ]] && rm ./tmp/${pubkey}.QR.png
@@ -122,6 +125,7 @@ echo "LOADING WALLET HISTORY"
 if [[ -s ./tmp/$PUBKEY.TX.json ]]; then
     SOLDE=$(./tools/timeout.sh -t 20 ./tools/jaklis/jaklis.py balance -p ${PUBKEY})
     ZEN=$(echo "($SOLDE - 1) * 10" | bc | cut -d '.' -f 1)
+    [[ -z $ZEN ]] && ZEN="240" ## used as wallet circle dimension
     AMOUNT="$SOLDE Ğ1"
     [[ $SOLDE == "null" ]] && AMOUNT = "VIDE"
     [[ $SOLDE == "" ]] && AMOUNT = "TIMEOUT"
@@ -131,7 +135,7 @@ else
     exit 1
 fi
 echo "$AMOUNT ($ZCHK)"
-
+echo "------------------------------------------"
 ##################################### 2ND SCAN IN A DAY
 ## CHECK LAST TX IF ZEROCARD EXISTING
 if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
@@ -139,18 +143,20 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
     echo "G1 ZEROCARD FOUND: ${ZEROCARD}"
 
     if [[ -s ./pdf/${PUBKEY}/ASTATE ]]; then
+        ## ACTIVATED ZENCARD... SHOW APP
         cat ./templates/wallet.html \
         | sed -e "s~_WALLET_~$(date -u) : ${PUBKEY}~g" \
              -e "s~_AMOUNT_~${AMOUNT}~g" \
+             -e "s~300px~${ZEN}px~g" \
             > ./tmp/${ZEROCARD}.out.html
 
         ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
         echo "/ipfs/${ASTATE}" > ./pdf/${PUBKEY}/ASTATE
         ipfs name publish --key ${ZEROCARD} /ipfs/${ASTATE}
-        echo "./pdf/${PUBKEY}/_index.html"
+        echo "./tmp/${ZEROCARD}.out.html"
         exit 0
     else
-        echo "NOT ACTIVATED YET"
+        echo "........... ZEROCARD NOT ACTIVATED YET"
     fi
 
     ## CHECK IF MEMBER SENT TX TO ZEROCARD
@@ -180,7 +186,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         mv ./pdf/${PUBKEY}/_index.html ./pdf/${PUBKEY}/_index.html
         IPFSPORTAL=$(ipfs add -qrw ./pdf/${PUBKEY}/ | tail -n 1)
         ipfs pin rm ${IPFSPORTAL}
-
+        ## IPFSPORTAL = DATA ipfs link
         amzqr "${ipfsNODE}/ipfs/${IPFSPORTAL}" -l H -p ./static/img/server.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
         convert ./tmp/${PUBKEY}.ipfs.png \
         -gravity SouthWest \
@@ -197,6 +203,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         echo $IPFSPORTAL > ./pdf/${PUBKEY}/IPFSPORTAL
         echo "NEW IPFSPORTAL : https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
 
+        ## IMPORT ZEROCARD into IPFS KEYS & REVEAL its QR CODE on UPassport
         ## Décodage clef IPNS par secret UPlanet (PROD = swarm.key)
         cat ./pdf/${PUBKEY}/IPNS.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${MOATS}.ipns
         ipfs key rm ${ZEROCARD} > /dev/null 2>&1
@@ -213,24 +220,33 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         echo "./pdf/${PUBKEY}/_index.html"
         exit 0
       else
+        ## RESEND FAC SIMILE
         echo "TX NOT FOR ZEROCARD"
+        echo "./tmp/$PUBKEY.TX.json"
+        exit 0
       fi
     else
+        ## RESEND FAC SIMILE
         echo "RX..."
+        echo "./tmp/$PUBKEY.TX.json"
+        exit 0
     fi
 fi
 
+### FIRST TRY. NO ZEROCARD MADE YET.
+### FRESH PUBKEY... IS IT A MEMBER 0R A WALLET ?
 echo "## GETTING CESIUM+ PROFILE"
 [[ ! -s ./tmp/$PUBKEY.me.json ]] \
 && wget -q -O ./tmp/$PUBKEY.me.json ${myDUNITER}/wot/lookup/$PUBKEY
 
 echo "# GET MEMBER UID"
 MEMBERUID=$(cat ./tmp/$PUBKEY.me.json | jq -r '.results[].uids[].uid')
-## NO MEMBER
+## NO MEMBERUID : THIS IS A WALLET
 if [[ -z $MEMBERUID ]]; then
     cat ./templates/wallet.html \
         | sed -e "s~_WALLET_~${PUBKEY}~g" \
              -e "s~_AMOUNT_~${AMOUNT}~g" \
+             -e "s~300px~${ZEN}px~g" \
             > ./tmp/${PUBKEY}.out.html
     #~ xdg-open "./tmp/${PUBKEY}.out.html"
     echo "./tmp/${PUBKEY}.out.html"
@@ -238,13 +254,15 @@ if [[ -z $MEMBERUID ]]; then
 fi
 ### ============================================
 
-### MEMBER N1 SCAN : PASSPORT CREATION
+### MEMBER N1 SCAN & UPASSPORT CREATION
+## N1 DESTINATION PATH
 mkdir -p ./pdf/${PUBKEY}/N1/
 
+## CESIUM & DUNITER extract
 cp ./tmp/$PUBKEY.me.json ./pdf/${PUBKEY}/CESIUM.json
 cp ./tmp/$PUBKEY.TX.json ./pdf/${PUBKEY}/TX.json
 
-# Call the function with PUBKEY and MEMBERUID
+# Create PUBKEY and MEMBERUID QR CODE
 generate_qr_with_uid "$PUBKEY" "$MEMBERUID"
 cp ./tmp/${PUBKEY}.UID.png ./pdf/${PUBKEY}/${PUBKEY}.UID.png
 
@@ -267,6 +285,7 @@ for uid in "${!certout[@]}"; do
   echo "UID: $uid, PubKey: ${certout[$uid]}"
 done
 
+## GET certifiers-of
 [[ ! -s ./tmp/$PUBKEY.them.json ]] \
 && wget -q -O ./tmp/$PUBKEY.them.json "${myDUNITER}/wot/certifiers-of/$PUBKEY?pubkey=true"
 
@@ -298,7 +317,7 @@ for uid in "${!certin[@]}"; do
     [[ ! -s ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.p2p.png ]] \
         && generate_qr_with_uid "${certout[$uid]}" "$uid" \
         && cp ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.p2p.png \
-        && sleep 3
+        && sleep 2
   fi
 done
 
@@ -312,7 +331,7 @@ for uid in "${!certin[@]}"; do
     [[ ! -s ./pdf/${PUBKEY}/N1/${certin[$uid]}.${uid}.certin.png ]] \
         && generate_qr_with_uid "${certin[$uid]}" "$uid" \
         && cp ./tmp/${certin[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certin[$uid]}.${uid}.certin.png \
-        && sleep 3
+        && sleep 2
   fi
 done
 
@@ -325,7 +344,7 @@ for uid in "${!certout[@]}"; do
     [[ ! -s ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.certout.png ]] \
         && generate_qr_with_uid "${certout[$uid]}" "$uid" \
         && cp ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.certout.png \
-        && sleep 3
+        && sleep 2
   fi
 done
 
@@ -333,6 +352,7 @@ done
 ########################################"
 # CREATE FRIENDS PAGES INTO PDF
 ## Moving Related UID into ./pdf/${PUBKEY}/N1/
+#~ find ./pdf/${PUBKEY}/N1/ -mtime +30 -type f -exec rm '{}' \;
 ## Peer to Peer
 nb_fichiers=$(ls ./pdf/${PUBKEY}/N1/*.p2p.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ./pdf/${PUBKEY}/N1/*.p2p.png ./pdf/${PUBKEY}/P2P.${PUBKEY}.pdf
@@ -347,7 +367,8 @@ montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers /
 convert -density 300 ./pdf/${PUBKEY}/12P.${PUBKEY}.pdf -resize 375x550 ./pdf/${PUBKEY}/12P.png
 
 ################################################################################
-echo "# CREATE SHAMIR KEY ................"
+echo "############################################################"
+echo "# CREATE SHAMIR KEY ......... "
 
 prime=$(./tools/diceware.sh 1 | xargs)
 SALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
