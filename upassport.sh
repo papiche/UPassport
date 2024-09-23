@@ -9,6 +9,8 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
+################################################################### INIT
+#######################################################################
 source ./.env
 [[ -z $myDUNITER ]] && myDUNITER="https://g1.cgeek.fr" # DUNITER
 [[ -z $myCESIUM ]] && myCESIUM="https://g1.data.e-is.pro" # CESIUM+
@@ -22,20 +24,22 @@ ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # "PUBKEY" ChK or ZEN
 PUBKEY="$(echo $PUBKEY | cut -d ':' -f 1)" # Cleaning
 echo "PUBKEY ? $PUBKEY"
 
+# CHECK PUBKEY FORMAT
 if [[ -z $(./tools/g1_to_ipfs.py ${PUBKEY} 2>/dev/null) ]]; then
     cat ./templates/wallet.html \
-    | sed -e "s~_WALLET_~$(date -u) : ${PUBKEY}~g" \
+    | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
          -e "s~_AMOUNT_~Pubkey Error<br><a target=_new href=https://cesium.app>Install CESIUM</a>~g" \
         > ./tmp/${PUBKEY}.out.html
     echo "./tmp/${PUBKEY}.out.html"
     exit 0
 fi
 
+## LOAD ASTROPORT ENVIRONMENT
 [ ! -s $HOME/.zen/Astroport.ONE/tools/my.sh ] \
     && echo "ERROR/ Missing Astroport.ONE. Please install..." \
     && exit 1
-
 . "$HOME/.zen/Astroport.ONE/tools/my.sh"
+
 ########################################################################
 ### FUNCTIONS
 ########################################################################
@@ -55,7 +59,7 @@ function makecoord() {
     fi
     echo "${input}"
 }
-
+########################################################################
 # Function to get Cesium+ profile, generate QR code, and annotate with UID
 generate_qr_with_uid() {
     local pubkey=$1
@@ -111,6 +115,8 @@ generate_qr_with_uid() {
 }
 ########################################################################
 ########################################################################
+
+
 ########################################################################
 ### RUN TIME ######
 ########################################################################
@@ -121,21 +127,25 @@ find ./tmp -mtime +1 -type f -exec rm '{}' \;
 
 ## GET PUBKEY TX HISTORY
 echo "LOADING WALLET HISTORY"
-./tools/timeout.sh -t 12 ./tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ./tmp/$PUBKEY.TX.json
+./tools/timeout.sh -t 6 ./tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ./tmp/$PUBKEY.TX.json
 if [[ -s ./tmp/$PUBKEY.TX.json ]]; then
     SOLDE=$(./tools/timeout.sh -t 20 ./tools/jaklis/jaklis.py balance -p ${PUBKEY})
+    ROUND=$(echo "$SOLDE" | cut -d '.' -f 1)
     ZEN=$(echo "($SOLDE - 1) * 10" | bc | cut -d '.' -f 1)
-    [[ -z $ZEN ]] && ZEN="240" ## used as wallet circle dimension
+
+    [[ "$(echo "$ROUND < 100" | bc)" == 1 ]] && ROUND=100
+
     AMOUNT="$SOLDE Ğ1"
-    [[ $SOLDE == "null" ]] && AMOUNT = "VIDE"
-    [[ $SOLDE == "" ]] && AMOUNT = "TIMEOUT"
-    [[ $ZCHK == "ZEN" ]] && AMOUNT="$ZEN Ẑ€N"
+    [[ $SOLDE == "null" ]] && AMOUNT = "EMPTY" && ROUND=200
+    [[ $SOLDE == "" ]] && AMOUNT = "TIMEOUT" && ROUND=200
+    [[ $ZCHK == "ZEN" ]] && AMOUNT="$ZEN ẑ€N"
 else
     echo "WALLET ERROR"
+    echo "./templates/wallet.html"
     exit 1
 fi
-echo "$AMOUNT ($ZCHK)"
-echo "------------------------------------------"
+echo "$AMOUNT G1 ($ZCHK) $ZEN ẑ€N"
+echo "------------------------------------- $ROUND -"
 ##################################### 2ND SCAN IN A DAY
 ## CHECK LAST TX IF ZEROCARD EXISTING
 if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
@@ -145,9 +155,9 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
     if [[ -s ./pdf/${PUBKEY}/ASTATE ]]; then
         ## ACTIVATED ZENCARD... SHOW APP
         cat ./templates/wallet.html \
-        | sed -e "s~_WALLET_~$(date -u) : ${PUBKEY}~g" \
+        | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
              -e "s~_AMOUNT_~${AMOUNT}~g" \
-             -e "s~300px~${ZEN}px~g" \
+             -e "s~300px~${ROUND}px~g" \
             > ./tmp/${ZEROCARD}.out.html
 
         ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
@@ -210,7 +220,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         WALLETNS=$(ipfs key import ${ZEROCARD} -f pem-pkcs8-cleartext ./tmp/${MOATS}.ipns)
         ## ASTATE FIRST DApp = Wallet Ammout :
         cat ./templates/wallet.html \
-        | sed -e "s~_WALLET_~$(date -u) : ${PUBKEY}~g" \
+        | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
              -e "s~_AMOUNT_~${AMOUNT}~g" \
             > ./tmp/${ZEROCARD}.out.html
         ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
@@ -222,31 +232,35 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
       else
         ## RESEND FAC SIMILE
         echo "TX NOT FOR ZEROCARD"
-        echo "./tmp/$PUBKEY.TX.json"
+        echo "./pdf/${PUBKEY}/_index.html"
         exit 0
       fi
     else
         ## RESEND FAC SIMILE
         echo "RX..."
-        echo "./tmp/$PUBKEY.TX.json"
+        echo "./pdf/${PUBKEY}/_index.html"
         exit 0
     fi
 fi
 
+#######################################################################
+#######################################################################
+#######################################################################
 ### FIRST TRY. NO ZEROCARD MADE YET.
 ### FRESH PUBKEY... IS IT A MEMBER 0R A WALLET ?
 echo "## GETTING CESIUM+ PROFILE"
 [[ ! -s ./tmp/$PUBKEY.me.json ]] \
-&& wget -q -O ./tmp/$PUBKEY.me.json ${myDUNITER}/wot/lookup/$PUBKEY
+&& ./tools/timeout.sh -t 8 \
+wget -q -O ./tmp/$PUBKEY.me.json ${myDUNITER}/wot/lookup/$PUBKEY
 
 echo "# GET MEMBER UID"
 MEMBERUID=$(cat ./tmp/$PUBKEY.me.json | jq -r '.results[].uids[].uid')
 ## NO MEMBERUID : THIS IS A WALLET
 if [[ -z $MEMBERUID ]]; then
     cat ./templates/wallet.html \
-        | sed -e "s~_WALLET_~${PUBKEY}~g" \
+        | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
              -e "s~_AMOUNT_~${AMOUNT}~g" \
-             -e "s~300px~${ZEN}px~g" \
+             -e "s~300px~${ROUND}px~g" \
             > ./tmp/${PUBKEY}.out.html
     #~ xdg-open "./tmp/${PUBKEY}.out.html"
     echo "./tmp/${PUBKEY}.out.html"
@@ -441,7 +455,7 @@ TAIL=$(cat ./tmp/${ZENWALLET}.ssss | tail -n 1) && echo "$TAIL" > ./tmp/${ZENWAL
 echo "TEST DECODING..."
 echo "$HEAD
 $TAIL" | ssss-combine -t 2 -q
-[ ! $? -eq 0 ] && echo "ERROR! SSSSKEY DECODING FAILED" && exit 1
+[ ! $? -eq 0 ] && echo "ERROR! SSSSKEY DECODING FAILED" && echo "./templates/wallet.html" && exit 1
 
 ## ENCODE HEAD SSSS SECRET WITH MEMBER PUBKEY
 echo "./tools/natools.py encrypt -p $PUBKEY -i ./tmp/${ZENWALLET}.ssss.head -o ./pdf/${PUBKEY}/ssss.member.enc"

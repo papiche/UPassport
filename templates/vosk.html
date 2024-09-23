@@ -78,6 +78,13 @@
             70% { box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); }
             100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
         }
+        .copy-button {
+            background-color: #007bff; /* Blue color for the copy button */
+            color: white;
+            border-radius: 4px;
+            padding: 5px;
+            cursor:pointer;
+        }
     </style>
 </head>
 <body>
@@ -88,8 +95,11 @@
             <button id="stopRecording" disabled>Arrêter l'enregistrement</button>
         </div>
         <div class="checkbox-container">
+            <button class="copy-button" id="copyText">📋 Copier</button>
+<!-- // REAL TIME TRANSCRIPTION IS NOT WORKING ... need to be fixed...
             <input type="checkbox" id="realtimeTranscription" name="realtimeTranscription">
             <label for="realtimeTranscription">Transcription en temps réel</label>
+-->
         </div>
         <div id="timer">00:00</div>
         <div class="spinner" id="spinner"></div>
@@ -150,6 +160,20 @@
                 });
             $("#startRecording").addClass("recording");
         });
+
+          document.getElementById('copyText').addEventListener('click', function() {
+              const resultText = document.getElementById('result').innerText;
+
+              if (navigator.clipboard) {
+                  navigator.clipboard.writeText(resultText).then(() => {
+                      console.log("Texte copié dans le presse-papiers !");
+                  }).catch(err => {
+                      console.error("Erreur lors de la copie :", err);
+                  });
+              } else {
+                  console.error("L'API Clipboard n'est pas disponible.");
+              }
+          });
 
         function sendAudioChunk(audioChunk) {
             const formData = new FormData();
