@@ -62,4 +62,51 @@ _PUBKEY_
 </main>
 
 <script src="https://ipfs.copylaradio.com/ipfs/QmdVAm49eURSGa4ipHFXkCrN8BVX5qWGAjNov7gPVFpuu4/script.js" async defer></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const images = document.querySelectorAll('img');
+    let totalImages = images.length;
+    let loadedImages = 0;
+    const counterElement = document.createElement('div');
+    counterElement.id = 'image-counter';
+    counterElement.style.position = 'fixed';
+    counterElement.style.top = '10px';
+    counterElement.style.left = '10px';
+    counterElement.style.background = 'rgba(0, 0, 0, 0.7)';
+    counterElement.style.color = 'white';
+    counterElement.style.padding = '5px 10px';
+    counterElement.style.borderRadius = '5px';
+    counterElement.style.zIndex = '1000'; // Ensure it's on top of other elements
+    document.body.appendChild(counterElement);
+
+    function updateCounter() {
+      const remainingImages = totalImages - loadedImages;
+      counterElement.textContent = `Wait: ${remainingImages}`;
+      // Hide the counter if all images are loaded
+      if (remainingImages === 0) {
+        counterElement.style.display = 'none';
+      }
+    }
+
+    updateCounter();
+
+    images.forEach(img => {
+      if (img.complete) {
+        loadedImages++;
+        updateCounter();
+      } else {
+        img.addEventListener('load', function() {
+          loadedImages++;
+          updateCounter();
+        });
+        img.addEventListener('error', function() {
+          console.error('Failed to load image:', img.src);
+          loadedImages++;
+          updateCounter();
+        });
+      }
+    });
+  });
+</script>
+
 <!-- I know it says you need a closing </html> tag, but you actually don't! Feel free to add one though if it seems cleaner -->

@@ -67,12 +67,13 @@ generate_qr_with_uid() {
     local member_uid=$2
     ## Extract wallet balance
     if [[ ! -s ./tmp/${pubkey}.solde ]]; then
-        solde=$(./tools/timeout.sh -t 6 ./tools/jaklis/jaklis.py balance -p ${pubkey})
+        solde=$(./tools/timeout.sh -t 5 ./tools/jaklis/jaklis.py balance -p ${pubkey})
         [ ! $? -eq 0 ] \
             && sort -u -o ./tools/jaklis/.env ./tools/jaklis/.env \
             && GVA=$(~/.zen/Astroport.ONE/tools/duniter_getnode.sh | tail -n 1) \
             && [[ ! -z $GVA ]] && echo "NODE=$GVA" >> ./tools/jaklis/.env && echo "GVA RELAY: $GVA"
         echo "$solde" > ./tmp/${pubkey}.solde
+        sleep 2
     else
         solde=$(cat ./tmp/${pubkey}.solde)
     fi
@@ -122,6 +123,7 @@ generate_qr_with_uid() {
           ./tmp/${pubkey}.UID.png
 
         [[ -s ./tmp/${pubkey}.UID.png ]] && rm ./tmp/${pubkey}.QR.png
+        sleep 2
     fi
 }
 ########################################################################
@@ -142,7 +144,10 @@ echo "LOADING WALLET HISTORY"
 [ ! $? -eq 0 ] \
     && sort -u -o ./tools/jaklis/.env ./tools/jaklis/.env \
     && GVA=$(~/.zen/Astroport.ONE/tools/duniter_getnode.sh | tail -n 1) \
-    && [[ ! -z $GVA ]] && echo "NODE=$GVA" >> ./tools/jaklis/.env ### CHANGE DUNITER GVA RELAY
+    && [[ ! -z $GVA ]] && echo "NODE=$GVA" >> ./tools/jaklis/.env \
+    && ./tools/timeout.sh -t 6 ./tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ./tmp/$PUBKEY.TX.json
+    ## SWITCH GVA SERVER
+
 
 ## EXTRACT SOLDE & ZEN & ROUND
 if [[ -s ./tmp/$PUBKEY.TX.json ]]; then
@@ -179,6 +184,11 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
     DEST=$(jq -r '.[-1] | .pubkey' ./tmp/$PUBKEY.TX.json)
     COMM=$(jq -r '.[-1] | .comment' ./tmp/$PUBKEY.TX.json)
     TXDATE=$(jq -r '.[-1] | .date' ./tmp/$PUBKEY.TX.json)
+
+    ## which ASTROPORT is UPASSPORT ambassy
+    [[ -s ./pdf/${PUBKEY}/ASTROPORT ]] \
+        && echo "ASTROPORT Web3 Ambassy : $(cat ./pdf/${PUBKEY}/ASTROPORT)" \
+        || echo $IPFSNODEID > ./pdf/${PUBKEY}/ASTROPORT
 
     ##################################### 3RD SCAN
     if [ -L "./pdf/${PUBKEY}" ]; then
@@ -224,30 +234,30 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ################# ACTIVATION ###############
         ## Replace FAC SIMILE with page2
         sed -i "s~QmRJuGqHsruaV14ZHEjk9Gxog2B9GafC35QYrJtaAU2Pry~QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png~g" ./pdf/${PUBKEY}/_index.html
-        OIPNSQR=$(ipfs add -q ./pdf/${PUBKEY}/IPNS.QR.png)
         ## Collect previous data
+        OIPNSQR=$(ipfs add -q ./pdf/${PUBKEY}/IPNS.QR.png)
         ZWALL=$(cat ./pdf/${PUBKEY}/ZWALL)
         ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
         ## Change ẐeroCard G1/Cesium link to ZEROCARD /IPNS link
         sed -i "s~${ZWALL}~${OIPNSQR}~g" ./pdf/${PUBKEY}/_index.html
-        sed -i "s~${ipfsNODE}/ipfs/QmXex8PTnQehx4dELrDYuZ2t5ag85crYCBxm3fcTjVWo2k/#/app/wot/${ZEROCARD}/~$(cat ./pdf/${PUBKEY}/IPNS)~g" ./pdf/${PUBKEY}/_index.html
+        sed -i "s~${ipfsNODE}/ipfs/QmXex8PTnQehx4dELrDYuZ2t5ag85crYCBxm3fcTjVWo2k/#/app/wot/${ZEROCARD}/~${ipfsNODE}/ipns/$(cat ./pdf/${PUBKEY}/IPNS)~g" ./pdf/${PUBKEY}/_index.html
         ## NEW IPFSPORTAL (DATA : ./pdf/${PUBKEY}/*)
         IPFSPORTAL=$(ipfs add -qrw ./pdf/${PUBKEY}/ | tail -n 1)
         ipfs pin rm ${IPFSPORTAL}
 
-        ### EXTEND IPNS QR with CAPTAIN middle key part
-            ./tools/natools.py decrypt -i ./pdf/${PUBKEY}/IPNS.captain.enc -k ~/.zen/game/players/.current/secret.dunikey -o ./tmp/${PUBKEY}.middle
-            amzqr "$(cat ./tmp/${PUBKEY}.middle)" -l H -n middle_qr.png -d ./tmp/ 2>/dev/null
-            convert ./pdf/${PUBKEY}/IPNS.QR.png ./tmp/middle_qr.png -append ./pdf/${PUBKEY}/combined_qr.png
-            APPIPNSQRSEC=$(ipfs add -q ./pdf/${PUBKEY}/combined_qr.png)
-            ipfs pin remove $APPIPNSQRSEC
-            # Clean up temporary files
-            rm ./tmp/middle_qr.png
-            rm ./pdf/${PUBKEY}/combined_qr.png
-            rm ./tmp/${PUBKEY}.middle
-            ## INSERT APPIPNSQRSEC
-            [ ! -z $APPIPNSQRSEC ] \
-            && sed -i "s~${OIPNSQR}~${APPIPNSQRSEC}~g" ./pdf/${PUBKEY}/_index.html
+        ### EXTEND IPNS QR with CAPTAIN ssss key part - NO READ -
+            echo "./tools/natools.py decrypt -i ./pdf/${PUBKEY}/ssss.tail.captain.enc -k ~/.zen/game/players/.current/secret.dunikey -o ./tmp/${PUBKEY}.captain"
+            #~ amzqr "$(cat ./tmp/${PUBKEY}.captain)" -l H -n captain.png -d ./tmp/ 2>/dev/null
+            #~ convert ./pdf/${PUBKEY}/IPNS.QR.png ./tmp/captain.png -append ./pdf/${PUBKEY}/combined_qr.png
+            #~ APPIPNSQRSEC=$(ipfs add -q ./pdf/${PUBKEY}/combined_qr.png)
+            #~ ipfs pin remove $APPIPNSQRSEC
+            #~ # Clean up temporary files
+            #~ rm ./tmp/captain.png
+            #~ rm ./pdf/${PUBKEY}/combined_qr.png
+            #~ rm ./tmp/${PUBKEY}.captain
+            #~ ## INSERT APPIPNSQRSEC
+            #~ [ ! -z $APPIPNSQRSEC ] \
+            #~ && sed -i "s~${OIPNSQR}~${APPIPNSQRSEC}~g" ./pdf/${PUBKEY}/_index.html
 
         ## IPFSPORTAL = DATA ipfs link
         amzqr "${ipfsNODE}/ipfs/${IPFSPORTAL}" -l H -p ./static/img/server.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
@@ -255,8 +265,8 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         -gravity SouthWest \
         -pointsize 18 \
         -fill black \
-        -annotate +2+2 "[DATA] ${ipfsNODE}/ipfs/${IPFSPORTAL}" \
-        -annotate +1+3 "[DATA] ${ipfsNODE}/ipfs/${IPFSPORTAL}" \
+        -annotate +2+2 "[DATA1] ${IPFSPORTAL}" \
+        -annotate +1+3 "[DATA1] ${IPFSPORTAL}" \
         ./pdf/${PUBKEY}/IPFSPORTAL.QR.png
 
         IPFSPORTALQR=$(ipfs add -q ./pdf/${PUBKEY}/IPFSPORTAL.QR.png)
@@ -264,7 +274,9 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTAL)~${IPFSPORTAL}~g" ./pdf/${PUBKEY}/_index.html
         echo $IPFSPORTALQR > ./pdf/${PUBKEY}/IPFSPORTALQR
         echo $IPFSPORTAL > ./pdf/${PUBKEY}/IPFSPORTAL
-        echo "NEW IPFSPORTAL : https://ipfs.copylaradio.com/ipfs/${IPFSPORTAL}"
+        echo "$(date -u)" > ./pdf/${PUBKEY}/DATE
+        echo $IPFSNODEID > ./pdf/${PUBKEY}/IPFSNODEID
+        echo "NEW IPFSPORTAL : ${ipfsNODE}/ipfs/${IPFSPORTAL} $(cat ./pdf/${PUBKEY}/DATE)"
 
         ## IMPORT ZEROCARD into LOCAL IPFS KEYS
         ## Décodage clef IPNS par secret UPlanet (PROD = swarm.key)
@@ -274,7 +286,8 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ## ASTATE FIRST DApp = Wallet ZEROCARD QR :
         cat ./templates/wallet.html \
         | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-             -e "s~_AMOUNT_~<img src=${ipfsNODE}/ipfs/${ZWALL} />~g" \
+             -e "s~_AMOUNT_~<a target=N1 href=${ipfsNODE}/ipfs/${ZWALL}/${PUBKEY}/N1/_index.html><img src=${ipfsNODE}/ipfs/${ZWALL} /></a>~g" \
+             -e "s~300px~540px~g" \
             > ./tmp/${ZEROCARD}.out.html
         ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
         echo "/ipfs/${ASTATE}" > ./pdf/${PUBKEY}/ASTATE
@@ -384,8 +397,7 @@ for uid in "${!certin[@]}"; do
     # make friends QR
     [[ ! -s ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.p2p.png ]] \
         && generate_qr_with_uid "${certout[$uid]}" "$uid" \
-        && cp ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.p2p.png \
-        && sleep 2
+        && cp ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.p2p.png
   fi
 done
 TOTP2P=$TOT
@@ -401,8 +413,7 @@ for uid in "${!certin[@]}"; do
     # make certin only QR
     [[ ! -s ./pdf/${PUBKEY}/N1/${certin[$uid]}.${uid}.certin.png ]] \
         && generate_qr_with_uid "${certin[$uid]}" "$uid" \
-        && cp ./tmp/${certin[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certin[$uid]}.${uid}.certin.png \
-        && sleep 2
+        && cp ./tmp/${certin[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certin[$uid]}.${uid}.certin.png
   fi
 done
 TOT12P=$TOT
@@ -417,8 +428,7 @@ for uid in "${!certout[@]}"; do
     # make certout only QR
     [[ ! -s ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.certout.png ]] \
         && generate_qr_with_uid "${certout[$uid]}" "$uid" \
-        && cp ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.certout.png \
-        && sleep 2
+        && cp ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.certout.png
   fi
 done
 TOTP21=$TOT
@@ -426,6 +436,10 @@ TOT=0
 echo "TOTP_21=$TOTP21"
 
 TOTAL=$((TOTP2P + TOT12P + TOTP21))
+
+# Create manifest.json add App for N1 level
+./tools/createN1json.sh ./pdf/${PUBKEY}/N1/
+cp ./static/N1/index.html ./pdf/${PUBKEY}/N1/_index.html
 
 # Generate PUBKEY and MEMBERUID "QRCODE" add TOTAL
 generate_qr_with_uid "$PUBKEY" "$MEMBERUID"
@@ -504,7 +518,7 @@ fi
 rm ./tmp/${G1PUBZERO}.IPNS.key
 ipfs key rm ${G1PUBZERO} > /dev/null 2>&1
 echo "IPNS APP KEY : $IPNS12D /ipns/ $WALLETNS"
-amzqr "$IPNS12D" -l H -p ./static/img/moa_net.png -c -n ${PUBKEY}.IPNS.QR.png -d ./tmp/ 2>/dev/null
+amzqr "${ipfsNODE}/ipns/$IPNS12D" -l H -p ./static/img/moa_net.png -c -n ${PUBKEY}.IPNS.QR.png -d ./tmp/ 2>/dev/null
 convert ./tmp/${PUBKEY}.IPNS.QR.png \
         -gravity SouthWest \
         -pointsize 18 \
@@ -514,7 +528,7 @@ convert ./tmp/${PUBKEY}.IPNS.QR.png \
         ./pdf/${PUBKEY}/IPNS.QR.png
 
 ## Record for url linking during validation
-echo "${ipfsNODE}/ipns/$WALLETNS" > ./pdf/${PUBKEY}/IPNS
+echo "$WALLETNS" > ./pdf/${PUBKEY}/IPNS
 echo "$IPNS12D" > ./pdf/${PUBKEY}/IPNS12D
 
 #######################################################################
@@ -543,10 +557,10 @@ echo "./tools/natools.py encrypt -p $PUBKEY -i ./tmp/${G1PUBZERO}.ssss.head -o .
 
 ## MIDDLE ENCRYPT WITH UPLANETNAME
 if [[ ! -z ${UPLANETNAME} ]]; then
-    rm -f ./pdf/${PUBKEY}/ssss.mid.uplanet.asc
-    cat ./tmp/${G1PUBZERO}.ssss.mid | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/ssss.mid.uplanet.asc
-    cat ./pdf/${PUBKEY}/ssss.mid.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${G1PUBZERO}.ssss.test
-    [[ $(diff -q ./tmp/${G1PUBZERO}.ssss.test ./tmp/${G1PUBZERO}.ssss.mid) != "" ]] && echo "ERROR: GPG ENCRYPTION FAILED "
+    rm -f ./pdf/${PUBKEY}/ssss.uplanet.asc
+    cat ./tmp/${G1PUBZERO}.ssss | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/ssss.uplanet.asc
+    cat ./pdf/${PUBKEY}/ssss.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${G1PUBZERO}.ssss.test
+    [[ $(diff -q ./tmp/${G1PUBZERO}.ssss.test ./tmp/${G1PUBZERO}.ssss) != "" ]] && echo "ERROR: GPG ENCRYPTION FAILED "
     rm ./tmp/${G1PUBZERO}.ssss.test
 fi
 
@@ -579,8 +593,8 @@ convert ./tmp/${PUBKEY}.ipfs.png \
         -gravity SouthWest \
         -pointsize 18 \
         -fill black \
-        -annotate +2+2 "[DATA] ${ipfsNODE}/ipfs/${IPFSPORTAL}" \
-        -annotate +1+3 "[DATA] ${ipfsNODE}/ipfs/${IPFSPORTAL}" \
+        -annotate +2+2 "[DATA0] ${IPFSPORTAL}" \
+        -annotate +1+3 "[DATA0] ${IPFSPORTAL}" \
         ./pdf/${PUBKEY}/IPFSPORTAL.QR.png
 
 IPFSPORTALQR=$(ipfs add -q ./pdf/${PUBKEY}/IPFSPORTAL.QR.png)
