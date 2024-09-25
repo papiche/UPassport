@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPassport N1 LEVEL</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    .container {
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 15px;
+    }
+        .carousel {
+        border: 10px solid transparent;
+        border-image: linear-gradient(to bottom right, #b827fc 0%, #2c90fc 25%, #b8fd33 50%, #fec837 75%, #fd1892 100%);
+        border-image-slice: 1;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+        padding: 10px;
+    }
+
+    .carousel-main {
+        position: relative;
+        padding: 10px;
+        background: linear-gradient(to right, #f6d365 0%, #fda085 100%);
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        height: 300px; /* Set a fixed height */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .carousel-main img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain; /* This will ensure the image fits within the container */
+        position: relative;
+        z-index: 1;
+        border-radius: 5px;
+        transition: all 0.3s ease;
+    }
+
+.carousel-thumbnails {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    padding: 0 40px; /* Augmentez le padding pour laisser de la place aux chevrons */
+    margin-top: 10px;
+}
+
+.thumbnail-container {
+    display: flex;
+    transition: transform 0.3s ease;
+    max-width: calc(100% - 80px); /* Réduisez la largeur maximale pour laisser de la place aux chevrons */
+}
+    .thumbnail {
+        position: relative;
+        overflow: hidden;
+        border-radius: 5px;
+        transition: all 0.3s ease;
+        width: 60px;
+        height: 60px;
+        flex-shrink: 0; /* Prevent thumbnails from shrinking */
+        margin: 0 5px;
+    }
+
+    .thumbnail img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: all 0.3s ease;
+    }
+
+
+.thumbnail.selected {
+    transform: scale(1.1);
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+}
+
+.thumbnail.selected::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
+    border: 3px solid #fda085;
+    border-radius: 5px;
+    box-shadow: 0 0 0 3px rgba(253, 160, 133, 0.5);
+}
+
+.thumbnail img {
+    transition: all 0.3s ease;
+}
+
+.thumbnail:hover img {
+    transform: scale(1.1);
+}
+
+.chevron {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 24px;
+    cursor: pointer;
+    user-select: none;
+    background-color: rgba(255, 255, 255, 0.7);
+    padding: 10px;
+    border-radius: 50%;
+    z-index: 10;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.chevron.left {
+    left: 5px;
+}
+
+.chevron.right {
+    right: 5px;
+}
+    .overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.7);
+        z-index: 1000;
+        overflow-y: auto;
+    }
+    .overlay-content {
+        position: relative;
+        background-color: white;
+        padding: 20px;
+        border-radius: 5px;
+        width: 90%;
+        max-width: 800px;
+        margin: 20px auto;
+    }
+    .close-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        cursor: pointer;
+        font-size: 24px;
+    }
+    form {
+        display: flex;
+        flex-direction: column;
+    }
+    input, button, textarea {
+        margin: 5px 0;
+        padding: 10px;
+        font-size: 16px;
+    }
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+
+    .form-group input,
+    .form-group textarea {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .form-group input[readonly] {
+        background-color: #f0f0f0;
+    }
+
+    button[type="submit"] {
+        background-color: #4CAF50;
+        color: white;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 18px;
+    }
+
+    button[type="submit"]:hover {
+        background-color: #45a049;
+    }
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        grid-gap: 20px;
+    }
+
+    .form-group.form-submit {
+        grid-column: 1 / -1;
+        text-align: right;
+    }
+
+    @media (max-width: 768px) {
+        .carousel-main {
+            height: 250px;
+        }
+
+        .thumbnail {
+            width: 50px;
+            height: 50px;
+        }
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .form-group.form-submit {
+            grid-column: auto;
+        }
+
+        .overlay-content {
+            width: 95%;
+            padding: 15px;
+        }
+
+        h1, h2 {
+            font-size: 1.5em;
+        }
+
+        .chevron {
+            font-size: 20px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .carousel-main {
+            height: 200;
+        }
+
+        .thumbnail {
+            width: 40px;
+            height: 40px;
+        }
+
+        input, button, textarea {
+            font-size: 14px;
+        }
+
+        .close-btn {
+            font-size: 20px;
+        }
+    }
+</style>
+
+</head>
+<body>
+    <h1>UPassport N1 LEVEL</h1>
+
+    <h2> <---> P2P <---> </h2>
+    <div id="p2pCarousel" class="carousel"></div>
+
+    <h2> ----> 12P <---- </h2>
+    <div id="certinCarousel" class="carousel"></div>
+
+    <h2> <---- P21 ----> </h2>
+    <div id="certoutCarousel" class="carousel"></div>
+
+    <div id="logs"></div>
+<div id="overlay" class="overlay">
+    <div class="overlay-content">
+        <span class="close-btn" onclick="closeOverlay()">&times;</span>
+        <h3>MESSAGE</h3>
+        <form id="dataForm" class="form-grid">
+            <div class="form-group">
+                <label for="pubkey">Clé publique :</label>
+                <input type="text" id="pubkey" name="pubkey" readonly>
+            </div>
+            <div class="form-group">
+                <label for="uid">UID :</label>
+                <input type="text" id="uid" name="uid" readonly>
+            </div>
+            <div class="form-group">
+                <label for="relation">Relation :</label>
+                <input type="text" id="relation" name="relation" readonly>
+            </div>
+            <div class="form-group">
+                <label for="pubkeyUpassport">Upassport :</label>
+                <input type="text" id="pubkeyUpassport" name="pubkeyUpassport" readonly>
+            </div>
+            <div class="form-group">
+                <label for="email">Email :</label>
+                <input type="email" id="email" name="email">
+            </div>
+            <div class="form-group">
+                <label for="message">Message :</label>
+                <textarea id="message" name="message" rows="4"></textarea>
+            </div>
+            <div class="form-group form-submit">
+                <button type="submit">Envoyer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+
+    <div id="logs"></div>
+
+    <script>
+        function log(message) {
+            console.log(message);
+            const logsDiv = document.getElementById('logs');
+            logsDiv.innerHTML += message + '<br>';
+        }
+
+        async function fetchManifest() {
+            log('Fetching manifest...');
+            try {
+                const response = await fetch('manifest.json');
+                const manifest = await response.json();
+                log('Manifest fetched successfully');
+                return manifest;
+            } catch (error) {
+                log(`Error fetching manifest: ${error.message}`);
+                return {};
+            }
+        }
+
+        function extractImageInfo(imageName) {
+            log(`Extracting info from image: ${imageName}`);
+            // Extrait le nom du fichier de l'URL complète
+            const fileName = imageName.split('/').pop();
+            log(`Extracted file name: ${fileName}`);
+            const parts = fileName.split('.');
+            log(`Parts: ${JSON.stringify(parts)}`);
+            const info = {
+                pubkey: parts[0],
+                uid: parts[1],
+                relation: parts[2]
+            };
+            log(`Extracted info: ${JSON.stringify(info)}`);
+            return info;
+        }
+
+        function openOverlay(info) {
+            const pubkeyUpassport = extractPubkeyUpassportFromUrl();
+            document.getElementById('pubkey').value = info.pubkey;
+            document.getElementById('uid').value = info.uid;
+            document.getElementById('relation').value = info.relation;
+            document.getElementById('pubkeyUpassport').value = pubkeyUpassport;
+            document.getElementById('overlay').style.display = 'block';
+            log(`Overlay opened with PUBKEYUPASSPORT: ${pubkeyUpassport}`);
+        }
+
+        function closeOverlay() {
+            document.getElementById('overlay').style.display = 'none';
+        }
+        let currentIndex = 0;
+
+        function updateSelectedThumbnail() {
+            thumbnailsContainer.querySelectorAll('.thumbnail').forEach((thumb, index) => {
+                if (index === currentIndex) {
+                    thumb.classList.add('selected');
+                } else {
+                    thumb.classList.remove('selected');
+                }
+            });
+        }
+function createCarousel(images, containerId) {
+    log(`Creating carousel for ${containerId} with ${images.length} images`);
+    const container = document.getElementById(containerId);
+
+    // Main image display
+    const mainDisplay = document.createElement('div');
+    mainDisplay.className = 'carousel-main';
+    const mainImg = document.createElement('img');
+    mainDisplay.appendChild(mainImg);
+    container.appendChild(mainDisplay);
+
+    // Thumbnails
+    const thumbnailsContainer = document.createElement('div');
+    thumbnailsContainer.className = 'carousel-thumbnails';
+    const thumbnailContainer = document.createElement('div');
+    thumbnailContainer.className = 'thumbnail-container';
+
+    const leftChevron = document.createElement('span');
+    leftChevron.className = 'chevron left';
+    leftChevron.innerHTML = '&lsaquo;';
+    thumbnailsContainer.appendChild(leftChevron);
+
+    let currentIndex = 0;
+    let scrollPosition = 0;
+
+    function updateSelectedThumbnail() {
+        thumbnailContainer.querySelectorAll('.thumbnail').forEach((thumb, index) => {
+            if (index === currentIndex) {
+                thumb.classList.add('selected');
+            } else {
+                thumb.classList.remove('selected');
+            }
+        });
+    }
+
+    images.forEach((imageName, index) => {
+        const thumbnail = document.createElement('div');
+        thumbnail.className = 'thumbnail';
+        const img = document.createElement('img');
+        img.src = imageName;
+        img.alt = `Thumbnail ${index + 1}`;
+        thumbnail.appendChild(img);
+        thumbnailContainer.appendChild(thumbnail);
+
+        thumbnail.onclick = () => {
+            currentIndex = index;
+            mainImg.src = imageName;
+            mainImg.alt = `Image ${index + 1}`;
+            const info = extractImageInfo(imageName);
+            updateSelectedThumbnail();
+        };
+
+        img.onerror = () => log(`Failed to load image: ${imageName}`);
+        img.onload = () => log(`Successfully loaded image: ${imageName}`);
+    });
+
+    thumbnailsContainer.appendChild(thumbnailContainer);
+
+    const rightChevron = document.createElement('span');
+    rightChevron.className = 'chevron right';
+    rightChevron.innerHTML = '&rsaquo;';
+    thumbnailsContainer.appendChild(rightChevron);
+
+    container.appendChild(thumbnailsContainer);
+
+    if (images.length > 0) {
+        mainImg.src = images[0];
+        const info = extractImageInfo(images[0]);
+        const titleText = `Pubkey: ${info.pubkey}, UID: ${info.uid}, Relation: ${info.relation}`;
+        mainImg.alt = titleText;
+        mainImg.title = titleText;
+        log(`Initial image set with title: ${titleText}`);
+    }
+
+    // Main image click event
+    mainImg.onclick = () => {
+        const info = extractImageInfo(mainImg.src);
+        openOverlay(info);
+    };
+
+    // Fonction pour faire défiler les vignettes
+    function scrollThumbnails(direction) {
+        const containerWidth = thumbnailsContainer.offsetWidth;
+        const scrollAmount = direction === 'left' ? -100 : 100;
+        scrollPosition += scrollAmount;
+
+        // Limiter le défilement
+        const maxScroll = thumbnailContainer.scrollWidth - containerWidth;
+        scrollPosition = Math.max(Math.min(scrollPosition, maxScroll), 0);
+
+        thumbnailContainer.style.transform = `translateX(-${scrollPosition}px)`;
+    }
+
+    // Chevron functionality
+    leftChevron.onclick = (e) => {
+        e.stopPropagation();
+        scrollThumbnails('left');
+    };
+    rightChevron.onclick = (e) => {
+        e.stopPropagation();
+        scrollThumbnails('right');
+    };
+
+    // Initialize selected thumbnail
+    updateSelectedThumbnail();
+}
+
+        function extractPubkeyUpassportFromUrl() {
+            const path = window.location.pathname;
+            const parts = path.split('/');
+            const pubkeyUpassportIndex = parts.findIndex(part => part === 'ipfs') + 2;
+            return parts[pubkeyUpassportIndex] || '';
+        }
+
+        function getModifiedServerUrl() {
+            const currentUrl = window.location.href;
+            if (currentUrl.startsWith('https://ipfs.')) {
+                return currentUrl.replace('https://ipfs.', 'https://u.');
+            } else if (currentUrl.includes(':8080')) {
+                return currentUrl.replace(':8080', ':54321');
+            }
+            return currentUrl;
+        }
+
+        async function init() {
+            log('Initializing application...');
+            const manifest = await fetchManifest();
+
+            createCarousel(manifest.p2p || [], 'p2pCarousel');
+            createCarousel(manifest.certin || [], 'certinCarousel');
+            createCarousel(manifest.certout || [], 'certoutCarousel');
+
+            const form = document.getElementById('dataForm');
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(form);
+                const serverUrl = getModifiedServerUrl() + '/sendmsg';
+                try {
+                    const response = await fetch(serverUrl, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (response.ok) {
+                        log('Data sent successfully');
+                        closeOverlay();
+                    } else {
+                        log('Failed to send data');
+                    }
+                } catch (error) {
+                    log(`Error sending data: ${error.message}`);
+                }
+            });
+
+            log('Application initialized');
+        }
+
+        init();
+    </script>
+    <script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const images = document.querySelectorAll('img');
+    let totalImages = images.length;
+    let loadedImages = 0;
+    const counterElement = document.createElement('div');
+    counterElement.id = 'image-counter';
+    counterElement.style.position = 'fixed';
+    counterElement.style.top = '10px';
+    counterElement.style.left = '10px';
+    counterElement.style.background = 'rgba(0, 0, 0, 0.7)';
+    counterElement.style.color = 'white';
+    counterElement.style.padding = '5px 10px';
+    counterElement.style.borderRadius = '5px';
+    counterElement.style.zIndex = '1000'; // Ensure it's on top of other elements
+    document.body.appendChild(counterElement);
+
+    function updateCounter() {
+      const remainingImages = totalImages - loadedImages;
+      counterElement.textContent = `Wait: ${remainingImages}`;
+      // Hide the counter if all images are loaded
+      if (remainingImages === 0) {
+        counterElement.style.display = 'none';
+      }
+    }
+
+    updateCounter();
+
+    images.forEach(img => {
+      if (img.complete) {
+        loadedImages++;
+        updateCounter();
+      } else {
+        img.addEventListener('load', function() {
+          loadedImages++;
+          updateCounter();
+        });
+        img.addEventListener('error', function() {
+          console.error('Failed to load image:', img.src);
+          loadedImages++;
+          updateCounter();
+        });
+      }
+    });
+  });
+</script>
+</body>
+</html>
