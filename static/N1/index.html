@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UPassport N1 LEVEL</title>
+
+<!--
+        <script src="/ipfs/Qmc3UAwdMgFBFFVBDQYkVJdapaFkUae8LE7v9RUqftJ9py/swapy.min.js"></script>
+-->
+
+    <title>UPLANET N1 LEVEL</title>
+
 <style>
     body {
         font-family: Arial, sans-serif;
@@ -12,19 +18,53 @@
         padding: 0;
         box-sizing: border-box;
     }
+
+    #logs {
+        background-color: #f0f0f0;
+        padding: 10px;
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        font-family: monospace;
+        white-space: pre-wrap;
+        margin-top: 20px;
+    }
+
     .container {
         width: 100%;
         max-width: 1200px;
         margin: 0 auto;
         padding: 15px;
     }
-        .carousel {
+    h1 {
+        text-align: center;
+        font-size: 3em;
+        margin-top: 30px;
+        background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    h2 {
+        text-align: center;
+        font-size: 2em;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .carousel {
         border: 10px solid transparent;
         border-image: linear-gradient(to bottom right, #b827fc 0%, #2c90fc 25%, #b8fd33 50%, #fec837 75%, #fd1892 100%);
         border-image-slice: 1;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         margin-bottom: 20px;
         padding: 10px;
+        background-color: #f9f9f9;
+        border-radius: 10px;
     }
 
     .carousel-main {
@@ -212,60 +252,84 @@
         text-align: right;
     }
 
-    @media (max-width: 768px) {
-        .carousel-main {
-            height: 250px;
-        }
-
-        .thumbnail {
-            width: 50px;
-            height: 50px;
-        }
-        .form-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .form-group.form-submit {
-            grid-column: auto;
-        }
-
-        .overlay-content {
-            width: 95%;
-            padding: 15px;
-        }
-
-        h1, h2 {
-            font-size: 1.5em;
-        }
-
-        .chevron {
-            font-size: 20px;
-        }
+@media (max-width: 768px) {
+    .form-grid {
+        grid-template-columns: 1fr;
     }
 
-    @media (max-width: 480px) {
-        .carousel-main {
-            height: 200;
-        }
-
-        .thumbnail {
-            width: 40px;
-            height: 40px;
-        }
-
-        input, button, textarea {
-            font-size: 14px;
-        }
-
-        .close-btn {
-            font-size: 20px;
-        }
+    .form-group.form-submit {
+        grid-column: auto;
     }
+
+    .overlay-content {
+        width: 95%;
+        padding: 15px;
+        margin: 10px auto;
+    }
+
+    h1, h2 {
+        font-size: 1.5em;
+    }
+
+    .chevron {
+        font-size: 20px;
+    }
+
+    input, button, textarea {
+        font-size: 14px;
+        padding: 8px;
+    }
+
+    .form-group label {
+        font-size: 14px;
+    }
+
+    .close-btn {
+        font-size: 20px;
+        top: 5px;
+        right: 5px;
+    }
+}
+
+@media (max-width: 480px) {
+    .carousel-main {
+        height: 200px;
+    }
+
+    .thumbnail {
+        width: 40px;
+        height: 40px;
+    }
+
+    .overlay-content {
+        padding: 10px;
+    }
+
+    .form-group {
+        margin-bottom: 10px;
+    }
+
+    input, button, textarea {
+        font-size: 13px;
+        padding: 6px;
+    }
+
+    .form-group label {
+        font-size: 13px;
+        margin-bottom: 3px;
+    }
+
+    button[type="submit"] {
+        padding: 10px 15px;
+        font-size: 16px;
+    }
+}
+
 </style>
 
 </head>
 <body>
-    <h1>UPassport N1 LEVEL</h1>
+    <h1>UPLANET UPassport [N1]</h1>
 
     <h2> <---> P2P <---> </h2>
     <div id="p2pCarousel" class="carousel"></div>
@@ -277,11 +341,20 @@
     <div id="certoutCarousel" class="carousel"></div>
 
     <div id="logs"></div>
+
 <div id="overlay" class="overlay">
     <div class="overlay-content">
         <span class="close-btn" onclick="closeOverlay()">&times;</span>
-        <h3>MESSAGE</h3>
+        <h2>Write a Message on "UPLANET"</h2>
         <form id="dataForm" class="form-grid">
+            <div class="form-group">
+                <label for="pubkey">ULAT :</label>
+                <input type="text" id="ulat" name="ulat" readonly>
+            </div>
+            <div class="form-group">
+                <label for="pubkey">ULON :</label>
+                <input type="text" id="ulon" name="ulon" readonly>
+            </div>
             <div class="form-group">
                 <label for="pubkey">Clé publique :</label>
                 <input type="text" id="pubkey" name="pubkey" readonly>
@@ -299,7 +372,7 @@
                 <input type="text" id="pubkeyUpassport" name="pubkeyUpassport" readonly>
             </div>
             <div class="form-group">
-                <label for="email">Email :</label>
+                <label for="email">Email "ZEROCARD" :</label>
                 <input type="email" id="email" name="email">
             </div>
             <div class="form-group">
@@ -307,15 +380,13 @@
                 <textarea id="message" name="message" rows="4"></textarea>
             </div>
             <div class="form-group form-submit">
-                <button type="submit">Envoyer</button>
+                <button id="submitButton" type="submit">Send</button>
             </div>
+            <div id="reponse"></div>
         </form>
     </div>
 </div>
 
-
-
-    <div id="logs"></div>
 
     <script>
         function log(message) {
@@ -339,7 +410,7 @@
 
         function extractImageInfo(imageName) {
             log(`Extracting info from image: ${imageName}`);
-            // Extrait le nom du fichier de l'URL complète
+            // Extract extra data du nom du fichier
             const fileName = imageName.split('/').pop();
             log(`Extracted file name: ${fileName}`);
             const parts = fileName.split('.');
@@ -347,7 +418,9 @@
             const info = {
                 pubkey: parts[0],
                 uid: parts[1],
-                relation: parts[2]
+                relation: parts[2],
+                ulat: parts[3],
+                ulon: parts[4]
             };
             log(`Extracted info: ${JSON.stringify(info)}`);
             return info;
@@ -358,6 +431,8 @@
             document.getElementById('pubkey').value = info.pubkey;
             document.getElementById('uid').value = info.uid;
             document.getElementById('relation').value = info.relation;
+            document.getElementById('ulat').value = info.ulat;
+            document.getElementById('ulon').value = info.ulon;
             document.getElementById('pubkeyUpassport').value = pubkeyUpassport;
             document.getElementById('overlay').style.display = 'block';
             log(`Overlay opened with PUBKEYUPASSPORT: ${pubkeyUpassport}`);
@@ -492,14 +567,21 @@ function createCarousel(images, containerId) {
         }
 
         function getModifiedServerUrl() {
-            const currentUrl = window.location.href;
-            if (currentUrl.startsWith('https://ipfs.')) {
-                return currentUrl.replace('https://ipfs.', 'https://u.');
-            } else if (currentUrl.includes(':8080')) {
-                return currentUrl.replace(':8080', ':54321');
+            const currentUrl = new URL(window.location.href);
+            let newUrl = new URL(currentUrl.origin);
+
+            if (currentUrl.hostname.startsWith('ipfs.')) {
+                newUrl.hostname = newUrl.hostname.replace('ipfs.', 'u.');
             }
-            return currentUrl;
+
+            if (currentUrl.port === '8080' || currentUrl.port !== '') {
+                newUrl.port = '54321';
+            }
+
+            return newUrl.origin;
         }
+
+
 
         async function init() {
             log('Initializing application...');
@@ -510,76 +592,54 @@ function createCarousel(images, containerId) {
             createCarousel(manifest.certout || [], 'certoutCarousel');
 
             const form = document.getElementById('dataForm');
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const formData = new FormData(form);
-                const serverUrl = getModifiedServerUrl() + '/sendmsg';
-                try {
-                    const response = await fetch(serverUrl, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    if (response.ok) {
-                        log('Data sent successfully');
-                        closeOverlay();
-                    } else {
-                        log('Failed to send data');
-                    }
-                } catch (error) {
-                    log(`Error sending data: ${error.message}`);
-                }
-            });
+            const responseDiv = document.getElementById('reponse');
+
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(form);
+    console.log(Object.fromEntries(formData));
+    const serverUrl = getModifiedServerUrl() + '/sendmsg';
+
+    // Changer le texte du bouton à "Sending..."
+    submitButton.textContent = "Sending...";
+
+    try {
+        const response = await fetch(serverUrl, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+
+        // Changer le texte du bouton à "Done" même en cas d'erreur
+        submitButton.textContent = "Done";
+        submitButton.style.color = "blue";
+
+        if (response.ok) {
+            log('Data sent successfully');
+            responseDiv.textContent = "Message sent successfully!";
+            responseDiv.style.color = "green";
+            closeOverlay();
+        } else {
+            log('Failed to send data');
+            responseDiv.textContent = "Failed to send message. Please try again.";
+            responseDiv.style.color = "red";
+        }
+    } catch (error) {
+        // Changer le texte du bouton à "Done" même en cas d'erreur
+        submitButton.textContent = "Done";
+        log(`Error sending data: ${error.message}`);
+        responseDiv.textContent = "MESSAGE SENT";
+        responseDiv.style.color = "green";
+    }
+});
 
             log('Application initialized');
         }
 
         init();
     </script>
-    <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const images = document.querySelectorAll('img');
-    let totalImages = images.length;
-    let loadedImages = 0;
-    const counterElement = document.createElement('div');
-    counterElement.id = 'image-counter';
-    counterElement.style.position = 'fixed';
-    counterElement.style.top = '10px';
-    counterElement.style.left = '10px';
-    counterElement.style.background = 'rgba(0, 0, 0, 0.7)';
-    counterElement.style.color = 'white';
-    counterElement.style.padding = '5px 10px';
-    counterElement.style.borderRadius = '5px';
-    counterElement.style.zIndex = '1000'; // Ensure it's on top of other elements
-    document.body.appendChild(counterElement);
 
-    function updateCounter() {
-      const remainingImages = totalImages - loadedImages;
-      counterElement.textContent = `Wait: ${remainingImages}`;
-      // Hide the counter if all images are loaded
-      if (remainingImages === 0) {
-        counterElement.style.display = 'none';
-      }
-    }
-
-    updateCounter();
-
-    images.forEach(img => {
-      if (img.complete) {
-        loadedImages++;
-        updateCounter();
-      } else {
-        img.addEventListener('load', function() {
-          loadedImages++;
-          updateCounter();
-        });
-        img.addEventListener('error', function() {
-          console.error('Failed to load image:', img.src);
-          loadedImages++;
-          updateCounter();
-        });
-      }
-    });
-  });
-</script>
 </body>
 </html>

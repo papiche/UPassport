@@ -49,7 +49,7 @@ UPassport est un générateur innovant de passeports numériques pour la monnaie
 
 3. Installez les dépendances Python :
    ```
-   pip3 install fastapi uvicorn vosk sounddevice
+   pip3 install fastapi uvicorn vosk sounddevice pydantic[email]
    ```
 
 ## 🖥️ Utilisation

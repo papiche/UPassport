@@ -1,4 +1,7 @@
-from fastapi import FastAPI, Request, Form, UploadFile, File
+from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
+# ~ from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, EmailStr, ValidationError
+from typing import Optional
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import asyncio
@@ -12,18 +15,37 @@ import subprocess
 import magic
 
 # Configure le logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-# Assurez-vous que le chemin vers votre modèle Vosk est correct
-model = Model("./model/vosk-model-small-fr-0.22")
+# ~ # Configurer CORS
+# ~ app.add_middleware(
+    # ~ CORSMiddleware,
+    # ~ allow_origins=["*"],  # Permet toutes les origines
+    # ~ allow_credentials=True,
+    # ~ allow_methods=["*"],  # Permet toutes les méthodes
+    # ~ allow_headers=["*"],  # Permet tous les headers
+# ~ )
+
+class MessageData(BaseModel):
+    ulat: str
+    ulon: str
+    pubkey: str
+    uid: str
+    relation: str
+    pubkeyUpassport: str
+    email: str
+    message: str
+
+# chemin vers votre modèle Vosk
+model = Model("./static/vosk/model/vosk-model-small-fr-0.22")
 logging.info(f"Vosk model loaded")
 
-# Créez le dossier 'files' s'il n'existe pas
-if not os.path.exists('files'):
-    os.makedirs('files')
+# Créez le dossier 'tmp' s'il n'existe pas
+if not os.path.exists('tmp'):
+    os.makedirs('tmp')
 
 def convert_to_wav(input_file, output_file):
     command = [
@@ -49,14 +71,74 @@ def convert_to_wav(input_file, output_file):
 async def get_root(request: Request):
     return templates.TemplateResponse("scan_new.html", {"request": request})
 
+@app.post("/sendmsg")
+async def send_message(
+    ulat: str = Form(...),
+    ulon: str = Form(...),
+    pubkey: str = Form(...),
+    uid: str = Form(...),
+    relation: str = Form(...),
+    pubkeyUpassport: str = Form(...),
+    email: str = Form(default=""),
+    message: str = Form(...)
+):
+    try:
+        # Validation des données avec Pydantic
+        message_data = MessageData(
+            ulat=ulat,
+            ulon=ulon,
+            pubkey=pubkey,
+            uid=uid,
+            relation=relation,
+            pubkeyUpassport=pubkeyUpassport,
+            email=email,
+            message=message
+        )
+
+        # Traitement
+        process_message(message_data)
+
+        # Retourner une réponse de succès
+        return JSONResponse(
+            status_code=200,
+            content={"status": "success", "message": "Message sent successfully"}
+        )
+
+    except ValidationError as ve:
+        # Gestion des erreurs de validation Pydantic
+        logging.error(f"Validation error: {str(ve)}")
+        return JSONResponse(
+            status_code=422,
+            content={"status": "error", "message": "Invalid input data", "details": ve.errors()}
+        )
+
+    except Exception as e:
+        # Gestion des autres erreurs
+        logging.error(f"Error processing message: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": "An unexpected error occurred"}
+        )
+
+def process_message(message_data: MessageData):
+    logging.info(f"Message from pubkeyUpassport: {message_data.pubkeyUpassport}")
+    logging.info(f"To [N1] UID: {message_data.uid}")
+    logging.info(f"Pubkey: {message_data.pubkey}")
+    logging.info(f"Record to UPlanet GEOKEY : {message_data.ulat}:{message_data.ulon}")
+    logging.info(f"Message: {message_data.message}")
+    if message_data.email:
+        logging.info(f"ZEROCARD+ : {message_data.email}")
+    else:
+        logging.info(f"No PLAYER email")
+
 @app.get("/voice")
 async def get_vosk(request: Request):
     return templates.TemplateResponse("vosk.html", {"request": request})
 
 @app.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
-    file_location = f"files/{file.filename}"
-    wav_file_location = f"files/converted_{file.filename}.wav"
+    file_location = f"tmp/{file.filename}"
+    wav_file_location = f"tmp/converted_{file.filename}.wav"
     try:
         logging.info(f"Début de la transcription pour le fichier: {file.filename}")
 
@@ -109,72 +191,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
 
 @app.post("/transcribe_chunk")
 async def transcribe_chunk(file: UploadFile = File(...)):
-    chunk_location = f"files/chunk_{file.filename}"
-    wav_chunk_location = f"{chunk_location}_converted.wav"
-    try:
-        logging.info(f"Received chunk: {file.filename}")
-
-        # Sauvegarder le chunk audio
-        async with aiofiles.open(chunk_location, 'wb') as out_file:
-            content = await file.read()
-            await out_file.write(content)
-        logging.debug(f"Chunk saved: {chunk_location}")
-
-        # Afficher les premiers octets du fichier
-        with open(chunk_location, 'rb') as f:
-            header = f.read(32)
-        logging.info(f"File header (hex): {header.hex()}")
-
-        # Vérifier la taille du fichier
-        file_size = os.path.getsize(chunk_location)
-        if file_size == 0:
-            raise ValueError("Received empty file")
-        logging.info(f"File size: {file_size} bytes")
-
-        # Vérifier le format du fichier
-        mime = magic.Magic(mime=True)
-        file_type = mime.from_file(chunk_location)
-        logging.info(f"Detected file type: {file_type}")
-
-        # Convertir le chunk en WAV mono 16 bits 16kHz
-        try:
-            convert_to_wav(chunk_location, wav_chunk_location)
-        except subprocess.CalledProcessError:
-            return JSONResponse(content={"error": "Failed to convert audio chunk"}, status_code=500)
-
-        # Transcrire le chunk
-        with wave.open(wav_chunk_location, "rb") as wf:
-            logging.debug(f"Opened WAV file for transcription: {wav_chunk_location}")
-            rec = KaldiRecognizer(model, wf.getframerate())
-
-            while True:
-                data = wf.readframes(4000)
-                if len(data) == 0:
-                    break
-                if rec.AcceptWaveform(data):
-                    result = json.loads(rec.Result())
-                    logging.info(f"Transcription result: {result.get('text', '')}")
-                    return JSONResponse(content={"transcription": result.get('text', '')})
-
-            result = json.loads(rec.FinalResult())
-            logging.info(f"Final transcription result: {result.get('text', '')}")
-            return JSONResponse(content={"transcription": result.get('text', '')})
-
-    except Exception as e:
-        logging.error(f"Error during chunk transcription: {str(e)}", exc_info=True)
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-    finally:
-        # Supprimer les fichiers temporaires
-        if os.path.exists(chunk_location):
-            os.remove(chunk_location)
-            logging.debug(f"Temporary file removed: {chunk_location}")
-        if os.path.exists(wav_chunk_location):
-            os.remove(wav_chunk_location)
-            logging.debug(f"Temporary WAV file removed: {wav_chunk_location}")
-
-@app.post("/transcribe_chunk")
-async def transcribe_chunk(file: UploadFile = File(...)):
-    chunk_location = f"files/chunk_{file.filename}"
+    chunk_location = f"tmp/chunk_{file.filename}"
     wav_chunk_location = f"{chunk_location}_converted.wav"
     try:
         logging.info(f"Received chunk: {file.filename}")

@@ -39,11 +39,11 @@ add_files_to_json() {
 }
 
 # Ajout des fichiers pour chaque type
-add_files_to_json "p2p" ".p2p.png"
+add_files_to_json "p2p" ".p2p*.png"
 json+=",\n"
-add_files_to_json "certin" ".certin.png"
+add_files_to_json "certin" ".certin*.png"
 json+=",\n"
-add_files_to_json "certout" ".certout.png"
+add_files_to_json "certout" ".certout*.png"
 
 # Fermeture du JSON
 json+="\n}"

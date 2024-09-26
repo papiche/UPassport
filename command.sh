@@ -60,7 +60,7 @@ case "$COMMENT" in
         echo "Initialisation détectée"
         # Ajouter ici le code pour l'initialisation
         ;;
-    "UPDATE")
+    "SOLDE")
         echo "Mise à jour wallet détectée"
         SOLDE=$(./tools/timeout.sh -t 6 ./tools/jaklis/jaklis.py balance -p ${PUBKEY})
         AMOUNT="$SOLDE Ğ1"

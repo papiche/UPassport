@@ -75,26 +75,35 @@ generate_qr_with_uid() {
         echo "$solde" > ./tmp/${pubkey}.solde
         sleep 2
     else
+        if [[ -s ./tmp/$pubkey.cesium.json ]];then
+            zlat=$(cat ./tmp/${pubkey}.cesium.json | jq -r '._source.geoPoint.lat')
+            ulat=$(makecoord $zlat)
+            zlon=$(cat ./tmp/${pubkey}.cesium.json | jq -r '._source.geoPoint.lon')
+            ulon=$(makecoord $zlon)
+            echo "ulat=$ulat; ulon=$ulon" > ./tmp/${pubkey}.GPS
+        fi
         solde=$(cat ./tmp/${pubkey}.solde)
     fi
     zen=$(echo "($solde - 1) * 10" | bc | cut -d '.' -f 1)
     TOT=$((TOT + zen))
 
     if [ ! -s ./tmp/${pubkey}.UID.png ]; then
-        echo "GET ${member_uid} CESIUM+ [${zen}ẑ] : ${pubkey} "
+        echo "___________ CESIUM+ ${member_uid} [${zen} ẑ] : ${pubkey} "
         [[ ! -s ./tmp/$pubkey.cesium.json ]] \
         && ./tools/timeout.sh -t 6 \
         curl -s ${myCESIUM}/user/profile/${pubkey} > ./tmp/${pubkey}.cesium.json 2>/dev/null
 
         if [ ! -s "./tmp/$pubkey.cesium.json" ]; then
-            echo "xxxxx ERROR PROBLEM WITH CESIUM+ NODE ${myCESIUM} xxxxx"
+            echo "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            echo "xxxxx No profil found CESIUM+ ${myCESIUM} xxxxx"
+            echo "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
         else
-            # Extract png from json
             zlat=$(cat ./tmp/${pubkey}.cesium.json | jq -r '._source.geoPoint.lat')
             ulat=$(makecoord $zlat)
             zlon=$(cat ./tmp/${pubkey}.cesium.json | jq -r '._source.geoPoint.lon')
             ulon=$(makecoord $zlon)
-
+            echo "ulat=$ulat; ulon=$ulon" > ./tmp/${pubkey}.GPS
+            # Extract avatar.png from json
             cat ./tmp/${pubkey}.cesium.json | jq -r '._source.avatar._content' | base64 -d > ./tmp/${pubkey}.png
 
             # Resize avatar picure & add transparent canvas
@@ -111,7 +120,8 @@ generate_qr_with_uid() {
         [ -s ./tmp/${pubkey}.small.png ] \
             && amzqr "${pubkey}" -l H -p ./tmp/${pubkey}.small.png -c -n ${pubkey}.QR.png -d ./tmp/ 2>/dev/null
         [ ! -s ./tmp/${pubkey}.QR.png ] \
-            && amzqr "${pubkey}" -l H -p ./static/img/g1ticket.png -n ${pubkey}.QR.png -d ./tmp/
+            && amzqr "${pubkey}" -l H -p ./static/img/g1ticket.png -n ${pubkey}.QR.png -d ./tmp/ \
+            && cp -f ./static/img/g1ticket.png ./tmp/${pubkey}.png
 
         # Write UID at the bottom
         convert ./tmp/${pubkey}.QR.png \
@@ -206,11 +216,16 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
             echo "./tmp/${ZEROCARD}.out.html"
             exit 0
         else
-            ## ACTIVATE ZENCARD 1ST APP ##### 2ND SCAN
+            ## ZENCARD 1ST APP ##### 2ND SCAN
+            ### PROPOSE IMPORT ZENCARD TO UPLANET...
+            $(source ./pdf/${PUBKEY}/GPS)
+            ## NO LOCATION. UPASSPORT IPFS PORTAL
+            CODEINJECT='<a target=_new href='${ipfsNODE}'/ipfs/'$(cat ./pdf/${PUBKEY}/IPFSPORTAL)'/${PUBKEY}/N1/_index.html>'${AMOUNT}'</a>'
+
             cat ./templates/wallet.html \
             | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-                 -e "s~_AMOUNT_~<a target=_new href=${ipfsNODE}/ipfs/$(cat ./pdf/${PUBKEY}/IPFSPORTAL)/${PUBKEY}/_index.html>${AMOUNT}</a>~g" \
-                 -e "s~300px~301px~g" \
+                 -e "s~_AMOUNT_~${CODEINJECT}~g" \
+                 -e "s~300px~501px~g" \
                 > ./tmp/${ZEROCARD}.out.html
 
             ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
@@ -233,7 +248,19 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         echo "$TXDATE" > ./pdf/${PUBKEY}/COMMANDTIME
         ################# ACTIVATION ###############
         ## Replace FAC SIMILE with page2
-        sed -i "s~QmRJuGqHsruaV14ZHEjk9Gxog2B9GafC35QYrJtaAU2Pry~QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png~g" ./pdf/${PUBKEY}/_index.html
+        ## Add AVATAR.png to onPAPERIPFS
+        [[ -s ./pdf/${PUBKEY}/AVATAR.png ]] \
+            && convert ./pdf/${PUBKEY}/AVATAR.png -rotate -90 ./tmp/${PUBKEY}.AVATAR_rotated.png \
+            && composite -gravity NorthEast -geometry +5+5 \
+                ./tmp/${PUBKEY}.AVATAR_rotated.png ./static/zine/page2.png \
+                ./tmp/${PUBKEY}.onPAPER.png \
+            && onPAPERIPFS="$(ipfs add -wq ./tmp/${PUBKEY}.onPAPER.png | tail -n 1)/${PUBKEY}.onPAPER.png"
+
+        [[ -z $onPAPERIPFS ]] \
+            && onPAPERIPFS="QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png"
+
+        sed -i "s~QmRJuGqHsruaV14ZHEjk9Gxog2B9GafC35QYrJtaAU2Pry~${onPAPERIPFS}~g" ./pdf/${PUBKEY}/_index.html
+
         ## Collect previous data
         OIPNSQR=$(ipfs add -q ./pdf/${PUBKEY}/IPNS.QR.png)
         ZWALL=$(cat ./pdf/${PUBKEY}/ZWALL)
@@ -397,7 +424,8 @@ for uid in "${!certin[@]}"; do
     # make friends QR
     [[ ! -s ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.p2p.png ]] \
         && generate_qr_with_uid "${certout[$uid]}" "$uid" \
-        && cp ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.p2p.png
+        && $(source ./tmp/${certout[$uid]}.GPS) \
+        && cp ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.p2p.$ulat.$ulon.png
   fi
 done
 TOTP2P=$TOT
@@ -413,7 +441,8 @@ for uid in "${!certin[@]}"; do
     # make certin only QR
     [[ ! -s ./pdf/${PUBKEY}/N1/${certin[$uid]}.${uid}.certin.png ]] \
         && generate_qr_with_uid "${certin[$uid]}" "$uid" \
-        && cp ./tmp/${certin[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certin[$uid]}.${uid}.certin.png
+        && $(source ./tmp/${certin[$uid]}.GPS) \
+        && cp ./tmp/${certin[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certin[$uid]}.${uid}.certin.$ulat.$ulon.png
   fi
 done
 TOT12P=$TOT
@@ -428,7 +457,8 @@ for uid in "${!certout[@]}"; do
     # make certout only QR
     [[ ! -s ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.certout.png ]] \
         && generate_qr_with_uid "${certout[$uid]}" "$uid" \
-        && cp ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.certout.png
+        && $(source ./tmp/${certout[$uid]}.GPS) \
+        && cp ./tmp/${certout[$uid]}.UID.png ./pdf/${PUBKEY}/N1/${certout[$uid]}.${uid}.certout.$ulat.$ulon.png
   fi
 done
 TOTP21=$TOT
@@ -436,6 +466,7 @@ TOT=0
 echo "TOTP_21=$TOTP21"
 
 TOTAL=$((TOTP2P + TOT12P + TOTP21))
+echo $TOTAL > ./pdf/${PUBKEY}/TOTAL
 
 # Create manifest.json add App for N1 level
 ./tools/createN1json.sh ./pdf/${PUBKEY}/N1/
@@ -443,6 +474,8 @@ cp ./static/N1/index.html ./pdf/${PUBKEY}/N1/_index.html
 
 # Generate PUBKEY and MEMBERUID "QRCODE" add TOTAL
 generate_qr_with_uid "$PUBKEY" "$MEMBERUID"
+cp ./tmp/${PUBKEY}.png ./pdf/${PUBKEY}/AVATAR.png
+cp ./tmp/${PUBKEY}.png ./pdf/${PUBKEY}/N1/favicon.ico
 cp ./tmp/${PUBKEY}.UID.png ./pdf/${PUBKEY}/${PUBKEY}.UID.png
     convert ./tmp/${PUBKEY}.UID.png \
           -gravity NorthEast \
@@ -456,16 +489,16 @@ cp ./tmp/${PUBKEY}.UID.png ./pdf/${PUBKEY}/${PUBKEY}.UID.png
 ## Moving Related UID into ./pdf/${PUBKEY}/N1/
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Peer to Peer
-nb_fichiers=$(ls ./pdf/${PUBKEY}/N1/*.p2p.png | wc -l)
-montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ./pdf/${PUBKEY}/N1/*.p2p.png ./pdf/${PUBKEY}/P2P.${PUBKEY}.pdf
+nb_fichiers=$(ls ./pdf/${PUBKEY}/N1/*.p2p*.png | wc -l)
+montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ./pdf/${PUBKEY}/N1/*.p2p*.png ./pdf/${PUBKEY}/P2P.${PUBKEY}.pdf
 convert -density 300 ./pdf/${PUBKEY}/P2P.${PUBKEY}.pdf -resize 375x550 ./pdf/${PUBKEY}/P2P.png
 ## Peer to One
-nb_fichiers=$(ls ./pdf/${PUBKEY}/N1/*.certin.png | wc -l)
-montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ./pdf/${PUBKEY}/N1/*.certin.png ./pdf/${PUBKEY}/P21.${PUBKEY}.pdf
+nb_fichiers=$(ls ./pdf/${PUBKEY}/N1/*.certin*.png | wc -l)
+montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ./pdf/${PUBKEY}/N1/*.certin*.png ./pdf/${PUBKEY}/P21.${PUBKEY}.pdf
 convert -density 300 ./pdf/${PUBKEY}/P21.${PUBKEY}.pdf -resize 375x550 ./pdf/${PUBKEY}/P21.png
 ## One to Peer
-nb_fichiers=$(ls ./pdf/${PUBKEY}/N1/*.certout.png | wc -l)
-montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ./pdf/${PUBKEY}/N1/*.certout.png ./pdf/${PUBKEY}/12P.${PUBKEY}.pdf
+nb_fichiers=$(ls ./pdf/${PUBKEY}/N1/*.certout*.png | wc -l)
+montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ./pdf/${PUBKEY}/N1/*.certout*.png ./pdf/${PUBKEY}/12P.${PUBKEY}.pdf
 convert -density 300 ./pdf/${PUBKEY}/12P.${PUBKEY}.pdf -resize 375x550 ./pdf/${PUBKEY}/12P.png
 
 ################################################################################
@@ -593,8 +626,8 @@ convert ./tmp/${PUBKEY}.ipfs.png \
         -gravity SouthWest \
         -pointsize 18 \
         -fill black \
-        -annotate +2+2 "[DATA0] ${IPFSPORTAL}" \
-        -annotate +1+3 "[DATA0] ${IPFSPORTAL}" \
+        -annotate +2+2 "[N1] ${IPFSPORTAL}" \
+        -annotate +1+3 "[N1] ${IPFSPORTAL}" \
         ./pdf/${PUBKEY}/IPFSPORTAL.QR.png
 
 IPFSPORTALQR=$(ipfs add -q ./pdf/${PUBKEY}/IPFSPORTAL.QR.png)
@@ -631,7 +664,7 @@ cat ./static/zine/index.html \
             -e "s~QmZHV5QppQX9N7MS1GFMqzmnRU5vLbpmQ1UkSRY5K5LfA9/page_.png~${IPFSPORTALQR}~g" \
             -e "s~QmNSck9ygXYG6YHu19DfuJnH2B8yS9RRkEwP1tD35sjUgE/pageZ.png~${MEMBERPUBQR}~g" \
             -e "s~QmdmeZhD8ncBFptmD5VSJoszmu41edtT265Xq3HVh8PhZP~${ZWALLET}~g" \
-            -e "s~_IPFS_~ipfs/${IPFSPORTAL}~g" \
+            -e "s~_IPFS_~ipfs/${IPFSPORTAL}/${PUBKEY}/N1/_index.html~g" \
             -e "s~_PLAYER_~${MEMBERUID}~g" \
             -e "s~_DATE_~$(date -u)~g" \
             -e "s~_PUBKEY_~${PUBKEY}~g" \
