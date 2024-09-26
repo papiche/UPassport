@@ -273,7 +273,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ipfs pin rm ${IPFSPORTAL}
 
         ### EXTEND IPNS QR with CAPTAIN ssss key part - NO READ -
-            echo "./tools/natools.py decrypt -i ./pdf/${PUBKEY}/ssss.tail.captain.enc -k ~/.zen/game/players/.current/secret.dunikey -o ./tmp/${PUBKEY}.captain"
+            echo "TODO TEST : ./tools/natools.py decrypt -i ./pdf/${PUBKEY}/ssss.tail.captain.enc -k ~/.zen/game/players/.current/secret.dunikey -o ./tmp/${PUBKEY}.captain"
             #~ amzqr "$(cat ./tmp/${PUBKEY}.captain)" -l H -n captain.png -d ./tmp/ 2>/dev/null
             #~ convert ./pdf/${PUBKEY}/IPNS.QR.png ./tmp/captain.png -append ./pdf/${PUBKEY}/combined_qr.png
             #~ APPIPNSQRSEC=$(ipfs add -q ./pdf/${PUBKEY}/combined_qr.png)
@@ -292,8 +292,8 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         -gravity SouthWest \
         -pointsize 18 \
         -fill black \
-        -annotate +2+2 "[DATA1] ${IPFSPORTAL}" \
-        -annotate +1+3 "[DATA1] ${IPFSPORTAL}" \
+        -annotate +2+2 "[DRIVE] ${IPFSPORTAL}" \
+        -annotate +1+3 "[DRIVE] ${IPFSPORTAL}" \
         ./pdf/${PUBKEY}/IPFSPORTAL.QR.png
 
         IPFSPORTALQR=$(ipfs add -q ./pdf/${PUBKEY}/IPFSPORTAL.QR.png)
@@ -306,14 +306,17 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         echo "NEW IPFSPORTAL : ${ipfsNODE}/ipfs/${IPFSPORTAL} $(cat ./pdf/${PUBKEY}/DATE)"
 
         ## IMPORT ZEROCARD into LOCAL IPFS KEYS
-        ## Décodage clef IPNS par secret UPlanet (PROD = swarm.key)
+        ## Décodage clef IPNS par secret UPLANETNAME
         cat ./pdf/${PUBKEY}/IPNS.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${MOATS}.ipns
         ipfs key rm ${ZEROCARD} > /dev/null 2>&1
         WALLETNS=$(ipfs key import ${ZEROCARD} -f pem-pkcs8-cleartext ./tmp/${MOATS}.ipns)
         ## ASTATE FIRST DApp = Wallet ZEROCARD QR :
+        CODEINJECT="<a target=N1 href=${ipfsNODE}/ipfs/${ZWALL}/${PUBKEY}/N1/_index.html>
+                    <img src=${ipfsNODE}/ipfs/${ZWALL} />
+                    </a>"
         cat ./templates/wallet.html \
         | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-             -e "s~_AMOUNT_~<a target=N1 href=${ipfsNODE}/ipfs/${ZWALL}/${PUBKEY}/N1/_index.html><img src=${ipfsNODE}/ipfs/${ZWALL} /></a>~g" \
+             -e "s~_AMOUNT_~${CODEINJECT}~g" \
              -e "s~300px~540px~g" \
             > ./tmp/${ZEROCARD}.out.html
         ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)

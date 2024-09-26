@@ -629,6 +629,8 @@ form.addEventListener('submit', async (e) => {
     } catch (error) {
         // Changer le texte du bouton à "Done" même en cas d'erreur
         submitButton.textContent = "Done";
+        submitButton.style.color = "blue";
+
         log(`Error sending data: ${error.message}`);
         responseDiv.textContent = "MESSAGE SENT";
         responseDiv.style.color = "green";
