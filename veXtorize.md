@@ -1,85 +1,68 @@
-Voici un README détaillé pour le projet :
+# Multi-Format Document Vectorizer
 
-# Créateur de Base de Données Vectorielle pour Documents
-
-## Description
-
-Ce projet est un outil Python conçu pour créer une base de données vectorielle à partir de divers types de documents (PDF, images, HTML, markdown, texte). Il utilise des techniques avancées de traitement du langage naturel et de vision par ordinateur pour extraire et analyser le contenu des documents, puis crée des embeddings vectoriels pour une recherche et une récupération efficaces.
+Ce script Python crée une base de données vectorielle à partir de divers types de documents, y compris des fichiers texte, PDF, images, HTML, audio et vidéo. Il utilise des techniques avancées de traitement du langage naturel et de reconnaissance vocale pour extraire le contenu de ces documents et les convertir en embeddings vectoriels.
 
 ## Fonctionnalités
 
-- Traitement de plusieurs types de fichiers : PDF, images (JPG, PNG), HTML, markdown, et texte brut
-- Analyse d'images utilisant le modèle Moondream via Ollama
-- OCR (Reconnaissance Optique de Caractères) pour les images contenant du texte
-- Génération d'embeddings vectoriels pour chaque document
-- Stockage efficace des embeddings dans une base de données FAISS
-- Sauvegarde des métadonnées associées à chaque document
+- Traitement de multiples formats de fichiers : PDF, images (JPG, PNG, GIF), HTML, texte brut, audio (MP3, WAV, FLAC) et vidéo (MP4, AVI, MOV)
+- Extraction de texte à partir de PDF et d'images à l'aide d'OCR
+- Analyse d'images avec le modèle Moondream via l'API Ollama
+- Transcription audio et vidéo utilisant Vosk et FFmpeg
+- Génération d'embeddings vectoriels à l'aide de modèles de transformers
+- Stockage efficace des embeddings avec FAISS
 
 ## Prérequis
 
 - Python 3.7+
-- CUDA-compatible GPU (recommandé pour de meilleures performances)
+- FFmpeg installé sur le système
+- Un modèle Vosk pour la reconnaissance vocale (à télécharger séparément)
+- GPU recommandé pour de meilleures performances (mais non obligatoire)
 
 ## Installation
 
-1. Clonez ce dépôt :
-   ```
-   git clone https://github.com/votre-nom/createur-base-vectorielle.git
-   cd createur-base-vectorielle
-   ```
+1. Clonez ce dépôt...
 
-2. Installez les dépendances :
-   ```
-   pip install -r requirements.txt
-   ```
-
-3. Assurez-vous que Ollama est installé et en cours d'exécution sur votre machine avec le modèle Moondream disponible.
+2. Téléchargez un modèle Vosk approprié pour votre langue depuis le [site officiel de Vosk](https://alphacephei.com/vosk/models).
 
 ## Utilisation
 
-Pour créer une base de données vectorielle à partir d'un répertoire de documents :
+Exécutez le script en spécifiant le répertoire contenant vos documents, le répertoire de sortie pour la base de données vectorielle, et le chemin vers le modèle Vosk :
 
 ```
-python main.py /chemin/vers/documents /chemin/vers/sortie
+python veXtorize.py /chemin/vers/documents /chemin/vers/sortie --vosk_model /chemin/vers/modele_vosk --lang fr-fr
 ```
 
-Où :
-- `/chemin/vers/documents` est le chemin du répertoire contenant vos documents
-- `/chemin/vers/sortie` est le répertoire où la base de données vectorielle et les métadonnées seront sauvegardées
+Options :
+- `directory` : Répertoire contenant les documents à traiter
+- `output_dir` : Répertoire où seront stockés l'index FAISS et les métadonnées
+- `--vosk_model` : Chemin vers le modèle Vosk pour la reconnaissance vocale
+- `--lang` : Code de langue pour la reconnaissance vocale (par défaut : en-us)
+- `--log` : Niveau de logging (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 
-## Structure du Projet
-
-- `main.py` : Script principal pour exécuter le processus de création de la base de données
-- `requirements.txt` : Liste des dépendances Python
-- `README.md` : Ce fichier
-
-## Fonctionnement
-
-1. Le script parcourt récursivement le répertoire spécifié.
-2. Pour chaque fichier :
-   - Le type de fichier est détecté automatiquement.
-   - Le contenu est extrait en fonction du type de fichier.
-   - Pour les images, une analyse avec Moondream est effectuée avant de décider d'appliquer l'OCR.
-3. Les embeddings sont générés pour chaque document.
-4. Les embeddings sont stockés dans un index FAISS.
-5. Les métadonnées sont sauvegardées dans un fichier JSON.
-
-## Sortie
+## Structure de sortie
 
 Le script génère deux fichiers dans le répertoire de sortie :
-- `vector_index.faiss` : L'index FAISS contenant les embeddings vectoriels
-- `metadata.json` : Un fichier JSON contenant les métadonnées associées à chaque document
+1. `vector_index.faiss` : L'index FAISS contenant les embeddings vectoriels
+2. `metadata.json` : Un fichier JSON contenant les métadonnées pour chaque document traité
 
-## Dépendances Principales
+## Dépendances principales
 
-- PyMuPDF (fitz) : Pour le traitement des PDF
+- transformers : Pour les modèles de langage et la génération d'embeddings
+- faiss-cpu : Pour le stockage et la recherche efficace des vecteurs
+- vosk : Pour la reconnaissance vocale
+- PyMuPDF : Pour l'extraction de texte à partir de PDF
+- pytesseract : Pour l'OCR sur les images
 - Pillow : Pour le traitement d'images
-- pytesseract : Pour l'OCR
-- BeautifulSoup : Pour le parsing HTML
-- Transformers : Pour les modèles de langage et d'image
-- SentenceTransformers : Pour la génération d'embeddings
-- FAISS : Pour le stockage et la recherche d'embeddings vectoriels
+- BeautifulSoup : Pour l'analyse HTML
+- requests : Pour les appels API à Ollama
+
+## Remarques
+
+- Assurez-vous que l'API Ollama est en cours d'exécution localement pour l'analyse d'images avec Moondream.
+- Le traitement de grands volumes de données peut prendre du temps. Utilisez un GPU si possible pour de meilleures performances.
+- Ajustez les paramètres de logging selon vos besoins de débogage.
+
 
 ## Contribution
 
-Les contributions à ce projet sont les bienvenues. N'hésitez pas à ouvrir une issue ou à soumettre une pull request.
+Les contributions à ce projet sont les bienvenues. Veuillez ouvrir une issue pour discuter des changements majeurs avant de soumettre un pull request.
