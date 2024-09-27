@@ -8,6 +8,7 @@ if [ $# -ne 1 ]; then
     echo "Usage: $0 <pubkey>"
     exit 1
 fi
+MOATS=$(date -u +"%Y%m%d%H%M%S%4N")
 
 ################################################################### INIT
 #######################################################################
@@ -36,7 +37,7 @@ fi
 
 ## LOAD ASTROPORT ENVIRONMENT
 [ ! -s $HOME/.zen/Astroport.ONE/tools/my.sh ] \
-    && echo "ERROR/ Missing Astroport.ONE. Please install..." \
+    && echo "<h1>ERROR/ Missing Astroport.ONE. Please install...<h1>"
     && exit 1
 . "$HOME/.zen/Astroport.ONE/tools/my.sh"
 
@@ -204,7 +205,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
     if [ -L "./pdf/${PUBKEY}" ]; then
         ############################ TRANSMIT COMMAND
         if [[ $COMM != "" && "$DEST" == "$ZEROCARD" ]]; then
-            ./command.sh "$PUBKEY" "$COMM" "$LASTX" "$TXDATE"
+            ./command.sh "$PUBKEY" "$COMM" "$LASTX" "$TXDATE" "$ZEROCARD"
             [ ! $? -eq 0 ] && echo ">>>>>>>>>>>> ERROR"
         fi
         ##################################### 4TH SCAN
@@ -217,10 +218,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
             exit 0
         else
             ## ZENCARD 1ST APP ##### 2ND SCAN
-            ### PROPOSE IMPORT ZENCARD TO UPLANET...
-            $(source ./pdf/${PUBKEY}/GPS)
-            ## NO LOCATION. UPASSPORT IPFS PORTAL
-            CODEINJECT='<a target=_new href='${ipfsNODE}'/ipfs/'$(cat ./pdf/${PUBKEY}/IPFSPORTAL)'/${PUBKEY}/N1/_index.html>'${AMOUNT}'</a>'
+            CODEINJECT='<a target=_new href='${ipfsNODE}'/ipfs/'$(cat ./pdf/${PUBKEY}/IPFSPORTAL)'/${PUBKEY}/>'${AMOUNT}'</a>'
 
             cat ./templates/wallet.html \
             | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
@@ -234,6 +232,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
             echo "./tmp/${ZEROCARD}.out.html"
             exit 0
         fi
+
     else
         ##### NO GOOD BACK TO 1ST SCAN
         echo "........... ZEROCARD NOT ACTIVATED YET"
@@ -250,15 +249,15 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ## Replace FAC SIMILE with page2
         ## Add AVATAR.png to onPAPERIPFS
         [[ -s ./pdf/${PUBKEY}/AVATAR.png ]] \
-            && convert ./pdf/${PUBKEY}/AVATAR.png -rotate -90 ./tmp/${PUBKEY}.AVATAR_rotated.png \
-            && composite -gravity NorthEast -geometry +5+5 \
+            && convert ./pdf/${PUBKEY}/AVATAR.png -rotate +90 -resize 120x120 ./tmp/${PUBKEY}.AVATAR_rotated.png \
+            && composite -gravity NorthEast -geometry +160+20 \
                 ./tmp/${PUBKEY}.AVATAR_rotated.png ./static/zine/page2.png \
                 ./tmp/${PUBKEY}.onPAPER.png \
             && onPAPERIPFS="$(ipfs add -wq ./tmp/${PUBKEY}.onPAPER.png | tail -n 1)/${PUBKEY}.onPAPER.png"
 
         [[ -z $onPAPERIPFS ]] \
             && onPAPERIPFS="QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png"
-
+        echo "AVATAR is on PAPER"
         sed -i "s~QmRJuGqHsruaV14ZHEjk9Gxog2B9GafC35QYrJtaAU2Pry~${onPAPERIPFS}~g" ./pdf/${PUBKEY}/_index.html
 
         ## Collect previous data
@@ -272,19 +271,15 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         IPFSPORTAL=$(ipfs add -qrw ./pdf/${PUBKEY}/ | tail -n 1)
         ipfs pin rm ${IPFSPORTAL}
 
-        ### EXTEND IPNS QR with CAPTAIN ssss key part - NO READ -
-            echo "TODO TEST : ./tools/natools.py decrypt -i ./pdf/${PUBKEY}/ssss.tail.captain.enc -k ~/.zen/game/players/.current/secret.dunikey -o ./tmp/${PUBKEY}.captain"
-            #~ amzqr "$(cat ./tmp/${PUBKEY}.captain)" -l H -n captain.png -d ./tmp/ 2>/dev/null
-            #~ convert ./pdf/${PUBKEY}/IPNS.QR.png ./tmp/captain.png -append ./pdf/${PUBKEY}/combined_qr.png
-            #~ APPIPNSQRSEC=$(ipfs add -q ./pdf/${PUBKEY}/combined_qr.png)
-            #~ ipfs pin remove $APPIPNSQRSEC
-            #~ # Clean up temporary files
-            #~ rm ./tmp/captain.png
-            #~ rm ./pdf/${PUBKEY}/combined_qr.png
-            #~ rm ./tmp/${PUBKEY}.captain
-            #~ ## INSERT APPIPNSQRSEC
-            #~ [ ! -z $APPIPNSQRSEC ] \
-            #~ && sed -i "s~${OIPNSQR}~${APPIPNSQRSEC}~g" ./pdf/${PUBKEY}/_index.html
+        ### EXTEND IPNS QR with CAPTAIN ssss key part
+        ./tools/natools.py decrypt -f pubsec -i ./pdf/${PUBKEY}/ssss.tail.captain.enc -k ~/.zen/game/players/.current/secret.dunikey -o ./tmp/${PUBKEY}.captain
+            amzqr "$(cat ./tmp/${PUBKEY}.captain)" -l H -n ${PUBKEY}.captain.png -d ./tmp/ 2>/dev/null
+
+            CAPTAINTAIL=$(ipfs add -q ./tmp/${PUBKEY}.captain.png)
+            ipfs pin rm $CAPTAINTAIL
+            # Clean up temporary files
+            rm ./tmp/${PUBKEY}.captain.png
+            rm ./tmp/${PUBKEY}.captain
 
         ## IPFSPORTAL = DATA ipfs link
         amzqr "${ipfsNODE}/ipfs/${IPFSPORTAL}" -l H -p ./static/img/server.png -c -n ${PUBKEY}.ipfs.png -d ./tmp/
@@ -297,7 +292,8 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ./pdf/${PUBKEY}/IPFSPORTAL.QR.png
 
         IPFSPORTALQR=$(ipfs add -q ./pdf/${PUBKEY}/IPFSPORTAL.QR.png)
-        sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTALQR)~${IPFSPORTALQR}~g" ./pdf/${PUBKEY}/_index.html
+        ipfs pin rm $IPFSPORTALQR
+        sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTALQR)~${CAPTAINTAIL}~g" ./pdf/${PUBKEY}/_index.html
         sed -i "s~$(cat ./pdf/${PUBKEY}/IPFSPORTAL)~${IPFSPORTAL}~g" ./pdf/${PUBKEY}/_index.html
         echo $IPFSPORTALQR > ./pdf/${PUBKEY}/IPFSPORTALQR
         echo $IPFSPORTAL > ./pdf/${PUBKEY}/IPFSPORTAL
@@ -311,9 +307,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ipfs key rm ${ZEROCARD} > /dev/null 2>&1
         WALLETNS=$(ipfs key import ${ZEROCARD} -f pem-pkcs8-cleartext ./tmp/${MOATS}.ipns)
         ## ASTATE FIRST DApp = Wallet ZEROCARD QR :
-        CODEINJECT="<a target=N1 href=${ipfsNODE}/ipfs/${ZWALL}/${PUBKEY}/N1/_index.html>
-                    <img src=${ipfsNODE}/ipfs/${ZWALL} />
-                    </a>"
+        CODEINJECT="<a target=N1 href=${ipfsNODE}/ipfs/${IPFSPORTAL}/${PUBKEY}/N1/_index.html><img src=${ipfsNODE}/ipfs/${ZWALL} /></a>"
         cat ./templates/wallet.html \
         | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
              -e "s~_AMOUNT_~${CODEINJECT}~g" \
@@ -327,9 +321,13 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         mkdir -p ~/.zen/game/passport
         mv ./pdf/${PUBKEY} ~/.zen/game/passport/
         ln -s ~/.zen/game/passport/${PUBKEY} ./pdf/${PUBKEY}
-
+        ## UPLANETNAME UPASSPORT.asc
+        rm -f ./pdf/${PUBKEY}/UPASSPORT.asc
+        cat ./pdf/${PUBKEY}/_index.html | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/UPASSPORT.asc
+        ## REMOVE FROM PORTAL DIRECTORY
+        mv ./pdf/${PUBKEY}/_index.html ./tmp/${PUBKEY}_index.html
         #### UPASSPORT READY #####
-        echo "./pdf/${PUBKEY}/_index.html"
+        echo "./tmp/${PUBKEY}_index.html"
         exit 0
       else
         ## RESEND FAC SIMILE
@@ -477,8 +475,9 @@ cp ./static/N1/index.html ./pdf/${PUBKEY}/N1/_index.html
 
 # Generate PUBKEY and MEMBERUID "QRCODE" add TOTAL
 generate_qr_with_uid "$PUBKEY" "$MEMBERUID"
+cp ./tmp/${PUBKEY}.GPS ./pdf/${PUBKEY}/GPS
 cp ./tmp/${PUBKEY}.png ./pdf/${PUBKEY}/AVATAR.png
-cp ./tmp/${PUBKEY}.png ./pdf/${PUBKEY}/N1/favicon.ico
+convert ./tmp/${PUBKEY}.png -resize 32x32! ./pdf/${PUBKEY}/N1/favicon.ico
 cp ./tmp/${PUBKEY}.UID.png ./pdf/${PUBKEY}/${PUBKEY}.UID.png
     convert ./tmp/${PUBKEY}.UID.png \
           -gravity NorthEast \
@@ -515,6 +514,11 @@ PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
 ################################################################# DUNITER
 ./tools/keygen -t duniter -o ./tmp/${PUBKEY}.zwallet.dunikey "${SALT}" "${PEPPER}"
 G1PUBZERO=$(cat ./tmp/${PUBKEY}.zwallet.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
+## ENCRYPT WITH UPLANETNAME PASSWORD
+if [[ ! -z ${UPLANETNAME} ]]; then
+    rm -f ./pdf/${PUBKEY}/zwallet.planet.asc
+    cat ./tmp/${PUBKEY}.zwallet.dunikey | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/zwallet.planet.asc
+fi
 
 rm -f ./pdf/${PUBKEY}/zwallet.member.enc
 ## zwallet.dunikey PUBKEY encryption
@@ -601,7 +605,7 @@ if [[ ! -z ${UPLANETNAME} ]]; then
 fi
 
 ## ENCODE TAIL SSSS SECRET WITH CAPTAING1PUB
-./tools/natools.py encrypt -p $CAPTAING1PUB -i ./tmp/${G1PUBZERO}.ssss.tail -o ./pdf/${PUBKEY}/ssss.tail.captain.enc
+./tools/natools.py encrypt -p ${CAPTAING1PUB} -i ./tmp/${G1PUBZERO}.ssss.tail -o ./pdf/${PUBKEY}/ssss.tail.captain.enc
 
 ## REMOVE SENSIBLE DATA FROM CACHE
 # DEEPER SECURITY CONCERN ? mount ./tmp as encrypted RAM disk

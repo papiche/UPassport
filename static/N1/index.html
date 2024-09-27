@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="./favicon.ico" />
 
 <!--
         <script src="/ipfs/Qmc3UAwdMgFBFFVBDQYkVJdapaFkUae8LE7v9RUqftJ9py/swapy.min.js"></script>
@@ -379,10 +380,10 @@
                 <label for="message">Message :</label>
                 <textarea id="message" name="message" rows="4"></textarea>
             </div>
+            <div id="reponse"></div>
             <div class="form-group form-submit">
                 <button id="submitButton" type="submit">Send</button>
             </div>
-            <div id="reponse"></div>
         </form>
     </div>
 </div>
@@ -594,48 +595,48 @@ function createCarousel(images, containerId) {
             const form = document.getElementById('dataForm');
             const responseDiv = document.getElementById('reponse');
 
-form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(form);
-    console.log(Object.fromEntries(formData));
-    const serverUrl = getModifiedServerUrl() + '/sendmsg';
+            form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            console.log(Object.fromEntries(formData));
+            const serverUrl = getModifiedServerUrl() + '/sendmsg';
 
-    // Changer le texte du bouton à "Sending..."
-    submitButton.textContent = "Sending...";
+            // Changer le texte du bouton à "Sending..."
+            submitButton.textContent = "Sending...";
+            responseDiv.textContent = "";
+            try {
+                const response = await fetch(serverUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
 
-    try {
-        const response = await fetch(serverUrl, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'Accept': 'application/json'
+                // Changer le texte du bouton à "Done" même en cas d'erreur
+                submitButton.textContent = "Done";
+                submitButton.style.color = "blue";
+
+                if (response.ok) {
+                    log('Data sent successfully');
+                    responseDiv.textContent = "Message sent successfully!";
+                    responseDiv.style.color = "green";
+                    closeOverlay();
+                } else {
+                    log('Failed to send data');
+                    responseDiv.textContent = "Failed to send message. Please try again.";
+                    responseDiv.style.color = "red";
+                }
+            } catch (error) {
+                // Changer le texte du bouton à "Done" même en cas d'erreur
+                submitButton.textContent = "Done";
+                submitButton.style.color = "orange";
+
+                log(`Error sending data: ${error.message}`);
+                responseDiv.textContent = "MESSAGE SENT";
+                responseDiv.style.color = "green";
             }
-        });
-
-        // Changer le texte du bouton à "Done" même en cas d'erreur
-        submitButton.textContent = "Done";
-        submitButton.style.color = "blue";
-
-        if (response.ok) {
-            log('Data sent successfully');
-            responseDiv.textContent = "Message sent successfully!";
-            responseDiv.style.color = "green";
-            closeOverlay();
-        } else {
-            log('Failed to send data');
-            responseDiv.textContent = "Failed to send message. Please try again.";
-            responseDiv.style.color = "red";
-        }
-    } catch (error) {
-        // Changer le texte du bouton à "Done" même en cas d'erreur
-        submitButton.textContent = "Done";
-        submitButton.style.color = "blue";
-
-        log(`Error sending data: ${error.message}`);
-        responseDiv.textContent = "MESSAGE SENT";
-        responseDiv.style.color = "green";
-    }
-});
+            });
 
             log('Application initialized');
         }
