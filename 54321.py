@@ -13,6 +13,11 @@ import os
 import logging
 import subprocess
 import magic
+import time
+from datetime import datetime
+
+# Obtenir le timestamp Unix actuel
+unix_timestamp = int(time.time())
 
 # Configure le logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -70,66 +75,6 @@ def convert_to_wav(input_file, output_file):
 @app.get("/")
 async def get_root(request: Request):
     return templates.TemplateResponse("scan_new.html", {"request": request})
-
-@app.post("/sendmsg")
-async def send_message(
-    ulat: str = Form(...),
-    ulon: str = Form(...),
-    pubkey: str = Form(...),
-    uid: str = Form(...),
-    relation: str = Form(...),
-    pubkeyUpassport: str = Form(...),
-    email: str = Form(default=""),
-    message: str = Form(...)
-):
-    try:
-        # Validation des données avec Pydantic
-        message_data = MessageData(
-            ulat=ulat,
-            ulon=ulon,
-            pubkey=pubkey,
-            uid=uid,
-            relation=relation,
-            pubkeyUpassport=pubkeyUpassport,
-            email=email,
-            message=message
-        )
-
-        # Traitement
-        process_message(message_data)
-
-        # Retourner une réponse de succès
-        return JSONResponse(
-            status_code=200,
-            content={"status": "success", "message": "Message sent successfully"}
-        )
-
-    except ValidationError as ve:
-        # Gestion des erreurs de validation Pydantic
-        logging.error(f"Validation error: {str(ve)}")
-        return JSONResponse(
-            status_code=422,
-            content={"status": "error", "message": "Invalid input data", "details": ve.errors()}
-        )
-
-    except Exception as e:
-        # Gestion des autres erreurs
-        logging.error(f"Error processing message: {str(e)}")
-        return JSONResponse(
-            status_code=500,
-            content={"status": "error", "message": "An unexpected error occurred"}
-        )
-
-def process_message(message_data: MessageData):
-    logging.info(f"Message from pubkeyUpassport: {message_data.pubkeyUpassport}")
-    logging.info(f"To [N1] UID: {message_data.uid}")
-    logging.info(f"Pubkey: {message_data.pubkey}")
-    logging.info(f"Record to UPlanet GEOKEY : {message_data.ulat}:{message_data.ulon}")
-    logging.info(f"Message: {message_data.message}")
-    if message_data.email:
-        logging.info(f"ZEROCARD+ : {message_data.email}")
-    else:
-        logging.info(f"No PLAYER email")
 
 @app.get("/voice")
 async def get_vosk(request: Request):
@@ -268,6 +213,114 @@ async def scan_qr(parametre: str = Form(...)):
         return FileResponse(html_file_path)
     else:
         return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
+
+@app.post("/sendmsg")
+async def send_message(
+    ulat: str = Form(...),
+    ulon: str = Form(...),
+    pubkey: str = Form(...),
+    uid: str = Form(...),
+    relation: str = Form(...),
+    pubkeyUpassport: str = Form(...),
+    email: str = Form(default=""),
+    message: str = Form(...)
+):
+    try:
+        # Validation des données avec Pydantic
+        message_data = MessageData(
+            ulat=ulat,
+            ulon=ulon,
+            pubkey=pubkey,
+            uid=uid,
+            relation=relation,
+            pubkeyUpassport=pubkeyUpassport,
+            email=email,
+            message=message
+        )
+
+        # Traitement
+        result = await process_message(message_data)  # Utilisez await ici
+
+        # Vérifiez le type de résultat retourné par process_message
+        if isinstance(result, FileResponse):
+            return result
+        elif isinstance(result, dict) and "error" in result:
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "message": result["error"]}
+            )
+        else:
+            # Retourner une réponse de succès
+            return JSONResponse(
+                status_code=200,
+                content={"status": "success", "message": "Message sent successfully"}
+            )
+
+    except ValidationError as ve:
+        # Gestion des erreurs de validation Pydantic
+        logging.error(f"Validation error: {str(ve)}")
+        return JSONResponse(
+            status_code=422,
+            content={"status": "error", "message": "Invalid input data", "details": ve.errors()}
+        )
+
+    except Exception as e:
+        # Gestion des autres erreurs
+        logging.error(f"Error processing message: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": "An unexpected error occurred"}
+        )
+
+async def process_message(message_data: MessageData):
+    logging.info(f"Message from pubkeyUpassport: {message_data.pubkeyUpassport}")
+    logging.info(f"To [N1] UID: {message_data.uid}")
+    logging.info(f"Pubkey: {message_data.pubkey}")
+    logging.info(f"Record to UPlanet GEOKEY : {message_data.ulat}:{message_data.ulon}")
+
+    logging.info(f"Message: {message_data.message}")
+
+    if message_data.email:
+        logging.info(f"ZEROCARD+ : {message_data.email}")
+    else:
+        logging.info(f"No PLAYER email")
+
+    script_path = "./command.sh"
+    log_file_path = "./tmp/54321.log"
+
+    # Préparer les arguments pour le script
+    pubkey = message_data.pubkeyUpassport
+    comment = message_data.message
+    amount = "-1"  # API command
+    date = str(unix_timestamp)  #  timestamp Unix
+    zerocard = message_data.email if message_data.email else f"MEMBER:{message_data.pubkey}"
+
+    async def run_script():
+        process = await asyncio.create_subprocess_exec(
+            script_path, pubkey, comment, amount, date, zerocard,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT
+        )
+
+        last_line = ""
+        async with aiofiles.open(log_file_path, "a") as log_file:
+            async for line in process.stdout:
+                line = line.decode().strip()
+                last_line = line
+                await log_file.write(line + "\n")
+                print(line)
+
+        return_code = await process.wait()
+        return return_code, last_line
+
+    return_code, last_line = await run_script()
+
+    if return_code == 0:
+        html_file_path = last_line.strip()
+        return FileResponse(html_file_path)
+    else:
+        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
+
 
 if __name__ == "__main__":
     import uvicorn
