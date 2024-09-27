@@ -31,6 +31,8 @@ UPassport est un générateur innovant de passeports numériques pour la monnaie
 
 ## 🛠️ Installation
 
+Si c'est votre machine personnelle (Linux), créez un nouveau compte utilisateur pour y installer "UPassport" et "Astroport.ONE"
+
 1. Clonez le dépôt UPassport :
    ```
    git clone https://github.com/papiche/UPassport.git
@@ -47,10 +49,18 @@ UPassport est un générateur innovant de passeports numériques pour la monnaie
    OPTION : rejoindre la toile de confiance "Dragons", suivre la procédure http://pad.p2p.legal/s/keygen pour relier votre clef PGP (ou SSH) à la balise IPFS de votre Station AstroportONE
 
 
-3. Installez les dépendances Python :
+3. Installez les dépendances Python (il peut en manquer, signaler celles qui manquent) :
+
+Vous devriez vous trouver dans l'environnement python ".astro", sinon créer et activer le
+    ```
+    python -m venv .astro
+    . ~/.astro/bin/activate
+    ```
+
    ```
    pip3 install fastapi uvicorn vosk sounddevice pydantic[email]
    ```
+
 
 ## 🖥️ Utilisation
 
