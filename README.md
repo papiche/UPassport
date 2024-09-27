@@ -10,6 +10,7 @@ UPassport est un générateur innovant de passeports numériques pour la monnaie
 - 🗣️ Reconnaissance vocale pour la transcription audio
 - 📊 Création de QR codes pour les relations entre membres
 - 🌐 Stockage décentralisé via IPFS
+- ++ Apprentissage IA avec [veXtorize](./veXtorize.md) Multi-Format Document Vectorizer
 
 ## 🚀 Pourquoi UPassport ?
 

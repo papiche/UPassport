@@ -11,6 +11,8 @@ Ce script Python crée une base de données vectorielle à partir de divers type
 - Génération d'embeddings vectoriels à l'aide de modèles de transformers
 - Stockage efficace des embeddings avec FAISS
 
+Pour utiliser ce script, assurez-vous d'avoir installé toutes les dépendances nécessaires et d'avoir configuré correctement l'environnement (notamment FFmpeg, Vosk, et Ollama pour Moondream).
+
 ## Prérequis
 
 - Python 3.7+
