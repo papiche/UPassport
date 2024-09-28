@@ -50,6 +50,57 @@ Avec veXtorize.py, transformez votre montagne de documents en une base de donné
 
 on continue avec le guide complet de veXtorize.py, un outil ultime pour transformer vos documents en une base de données vectorielle intelligente. Suivez ce guide pour exploiter toute la puissance de veXtorize.py !
 
+Pour créer l'environnement Python et installer toutes les dépendances nécessaires pour veXtorize.py, suivez ces étapes détaillées :
+
+1. Créer un environnement virtuel :
+   ```
+   python -m venv vextorize_env
+   ```
+
+2. Activer l'environnement virtuel :
+   - Sur Windows : `vextorize_env\Scripts\activate`
+   - Sur macOS et Linux : `source vextorize_env/bin/activate`
+
+3. Installer les dépendances principales :
+   ```
+   pip install transformers torch faiss-cpu vosk PyMuPDF Pillow pytesseract beautifulsoup4 requests tqdm scikit-learn matplotlib datasets
+   ```
+
+4. Installer les dépendances système :
+   - FFmpeg : nécessaire pour le traitement audio/vidéo
+   - Tesseract : requis pour l'OCR
+
+   Sur Ubuntu :
+   ```
+   sudo apt-get update
+   sudo apt-get install ffmpeg tesseract-ocr
+   ```
+   Sur macOS avec Homebrew :
+   ```
+   brew install ffmpeg tesseract
+   ```
+   Sur Windows, téléchargez et installez FFmpeg et Tesseract manuellement.
+
+5. Télécharger les modèles nécessaires :
+   - Modèle Vosk pour la reconnaissance vocale
+   - Modèle de langage pour les embeddings (par exemple, "sentence-transformers/all-MiniLM-L6-v2")
+
+6. Configurer les chemins des modèles dans le script ou via les arguments en ligne de commande.
+
+7. Assurez-vous que l'API Ollama est installée et en cours d'exécution pour l'analyse d'images avec Moondream.
+
+8. Vérifiez que toutes les dépendances sont correctement installées :
+   ```
+   pip list
+   ```
+
+9. Lancez le script pour tester l'installation :
+   ```
+   python veXtorize.py --models_dir ./models --vosk_model ./vosk_model
+   ```
+
+En suivant ces étapes, vous devriez avoir un environnement Python complet et fonctionnel pour exécuter veXtorize.py avec toutes ses dépendances.
+
 ## 🚀 Démarrage rapide
 
 1. **Lancement de base** :
