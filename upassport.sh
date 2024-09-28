@@ -39,7 +39,16 @@ if [[ $PUBKEY == "https" ]]; then
         CARDNS="12D3Koo"$ipns12D
         CARDG1=$(./tools/ipfs_to_g1.py $CARDNS)
         echo "ZEROCARD IPNS12D QRCODE : /ipns/$CARDNS ($CARDG1)"
-        # REDIRECT TO CAPTAIN SECURITY QR SCANNER...
+        # FIND MEMBER & ZEROCARD
+        MEMBERPUB=$(grep -h -r -l --dereference "$CARDNS" ./pdf/ | grep IPNS12D | cut -d '/' -f 3)
+        [ -z $MEMBERPUB ] && echo '<!DOCTYPE html><html><head>
+                        </head><body><h1>ERROR --- ZEROCARD NOT FOUND ---<h1>
+                        UPassport is not registered on this Astroport. support@qo-op.com
+                        </body></html>' > ./tmp/${PUBKEY}.out.html \
+                                && echo "./tmp/${ZEROCARD}.out.html" \
+                                    &&  exit 1
+        ZEROCARD=$(cat ./pdf/${MEMBERPUB}/ZEROCARD)
+        ## REDIRECT TO SSSS SECURITY QR SCANNER
         cat ./templates/scan_ssss.html \
             | sed -e "s~_CARDNS_~${CARDNS}~g" \
             -e "s~_ZEROCARD_~${ZEROCARD}~g" \
@@ -543,12 +552,7 @@ PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
 ./tools/keygen -t duniter -o ./tmp/${PUBKEY}.zerocard.dunikey "${SALT}" "${PEPPER}"
 G1PUBZERO=$(cat ./tmp/${PUBKEY}.zerocard.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
 [[ -z $G1PUBZERO ]] \
-    && echo '<!DOCTYPE html><html><head>
-            </head><body><h1>ERROR --- key generation failed ---<h1>
-            if the problem persists please contact support@qo-op.com
-            </body></html>' > ./tmp/${PUBKEY}.out.html \
-     && echo "./tmp/${ZEROCARD}.out.html" \
-      &&  exit 1
+    &&
 ## ENCRYPT WITH UPLANETNAME PASSWORD
 if [[ ! -z ${UPLANETNAME} ]]; then
     rm -f ./pdf/${PUBKEY}/zerocard.planet.asc

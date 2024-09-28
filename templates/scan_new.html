@@ -236,6 +236,7 @@
                     data: $(this).serialize(),
                     success: function(response) {
                         $('#loadingSpinner').hide();  // Cache le spinner
+                        $('#submitButton').css('background-color', '#4CAF01');
                         $('#result-iframe').attr('srcdoc', response);
                         $('.result-container').css('display', 'flex');  // Affiche directement le résultat
                     },

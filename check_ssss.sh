@@ -57,7 +57,7 @@ PART2=$(cat ./tmp/${ZEROCARD}.ssss.mid)
 echo "SSSS + CAPTAIN PART2 COMBINE..."
 disco=$(echo "$PART2
 $SSSS" | ssss-combine -t 2 -q)
-[ ?$ -eq 0 ] \
+[ $? -eq 0 ] \
     && VALID="$VALID *** ZEROCARD CONNECTED ***" \
     || VALID="$VALID ERROR SSSS DECODING SSSS ERROR"
 
@@ -117,7 +117,6 @@ cat <<EOF > "$HTML_OUTPUT"
         <h2>ZEROCARD : $ZEROCARD</h2>
         <p><strong>Card NS:</strong> $CARDNS</p>
         <div class="result">
-            <span >$VALID</span>
             <span class="${VALID,,}">The SSSS Key is $VALID</span>
         </div>
     </div>
