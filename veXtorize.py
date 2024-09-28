@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 global device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 
 def load_models(models_dir):
@@ -78,16 +79,21 @@ def generate_embedding(text, tokenizer, model):
     return outputs.last_hidden_state.mean(dim=1).squeeze().cpu().numpy()
 
 def analyze_image_with_moondream(image_path):
-    with open(image_path, "rb") as image_file:
-        response = requests.post(
-            OLLAMA_API_URL,
-            json={
-                "model": "moondream",
-                "prompt": "Analyze this image and describe its content in detail.",
-                "images": [image_file.read().decode('latin-1')]
-            }
-        )
-    return response.json()["response"]
+    try:
+        with open(image_path, "rb") as image_file:
+            response = requests.post(
+                OLLAMA_API_URL,
+                json={
+                    "model": "moondream",
+                    "prompt": "Analyze this image and describe its content in detail.",
+                    "images": [image_file.read().decode('latin-1')]
+                }
+            )
+        return response.json().get("response", "No response from Moondream")
+    except Exception as e:
+        logger.error(f"Error analyzing image with Moondream: {str(e)}")
+        return "Error analyzing image"
+
 
 def extract_text_from_image(file_path):
     moondream_analysis = analyze_image_with_moondream(file_path)
@@ -97,15 +103,20 @@ def extract_text_from_image(file_path):
 
 def extract_text_from_pdf(file_path):
     text = ""
-    with fitz.open(file_path) as doc:
-        for page in doc:
-            if page.get_text().strip():
-                text += page.get_text()
-            else:
-                pix = page.get_pixmap()
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                text += pytesseract.image_to_string(img)
+    try:
+        with fitz.open(file_path) as doc:
+            for page in doc:
+                if page.get_text().strip():
+                    text += page.get_text()
+                else:
+                    pix = page.get_pixmap()
+                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    text += pytesseract.image_to_string(img)
+    except Exception as e:
+        logger.error(f"Error processing PDF {file_path}: {str(e)}")
+        return ""
     return text
+
 
 def extract_text_from_html(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -138,6 +149,11 @@ def enrich_metadata(file_path, content):
 
 def process_file(file_path, vosk_model_path, tokenizer, model):
     file_extension = os.path.splitext(file_path)[1].lower()
+    supported_extensions = ['.mp3', '.wav', '.flac', '.mp4', '.avi', '.mov', '.pdf', '.jpg', '.jpeg', '.png', '.gif', '.html', '.md', '.txt']
+
+    if file_extension not in supported_extensions:
+        logger.warning(f"Unsupported file type: {file_extension} for file {file_path}")
+        return None, None
 
     try:
         if file_extension in ['.mp3', '.wav', '.flac', '.mp4', '.avi', '.mov']:
@@ -178,6 +194,7 @@ def process_files_parallel(file_list, vosk_model_path, tokenizer, model):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
+    logger.info(f"Starting parallel processing of {len(file_list)} files")
     args_list = [(file, vosk_model_path, tokenizer, model) for file in file_list]
 
     with Pool() as pool:
@@ -208,6 +225,7 @@ def fine_tune_model(model, tokenizer, train_texts, train_labels):
     trainer.train()
 
 def semantic_search(query, index, tokenizer, model, metadata, k=5):
+    logger.info(f"Performing semantic search for query: {query}")
     query_embedding = generate_embedding(query, tokenizer, model)
     D, I = index.search(np.array([query_embedding]), k)
     results = []
@@ -228,6 +246,7 @@ def visualize_embeddings(embeddings, labels):
     plt.show()
 
 def update_vector_database(new_files, existing_index, existing_metadata, vosk_model_path, tokenizer, model):
+    logger.info(f"Updating vector database with {len(new_files)} new files")
     new_embeddings, new_metadata = zip(*process_files_parallel(new_files, vosk_model_path, tokenizer, model))
     existing_index.add(np.array(new_embeddings))
     existing_metadata.extend(new_metadata)
@@ -245,9 +264,13 @@ def create_vector_database(directory, output_dir, vosk_model_path, models_dir):
     results = process_files_parallel(file_list, vosk_model_path, tokenizer, model)
     embeddings, metadata = zip(*results)
 
-    logger.info(f"Processed {len(embeddings)} files successfully")
+    # Filter out None values
+    valid_embeddings = [e for e in embeddings if e is not None]
+    valid_metadata = [m for e, m in zip(embeddings, metadata) if e is not None]
 
-    if embeddings:
+    logger.info(f"Processed {len(valid_embeddings)} files successfully")
+
+    if valid_embeddings:
         dim = len(embeddings[0])
         index = faiss.IndexFlatL2(dim)
         index.add(np.array(embeddings))
