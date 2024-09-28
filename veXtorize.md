@@ -82,10 +82,13 @@ Pour créer l'environnement Python et installer toutes les dépendances nécessa
    Sur Windows, téléchargez et installez FFmpeg et Tesseract manuellement.
 
 5. Télécharger les modèles nécessaires :
+
    - Modèle Vosk pour la reconnaissance vocale
    - Modèle de langage pour les embeddings (par exemple, "sentence-transformers/all-MiniLM-L6-v2")
 
 6. Configurer les chemins des modèles dans le script ou via les arguments en ligne de commande.
+
+    Le petit programme pour faciliter ça : ```python model_setup.py```
 
 7. Assurez-vous que l'API Ollama est installée et en cours d'exécution pour l'analyse d'images avec Moondream.
 

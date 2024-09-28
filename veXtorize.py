@@ -19,6 +19,10 @@ from multiprocessing import Pool
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import torchtune
+import multiprocessing
+
+# Set the start method to 'spawn'
+multiprocessing.set_start_method('spawn', force=True)
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -30,8 +34,13 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 
 def load_models(models_dir):
     tokenizer = AutoTokenizer.from_pretrained(os.path.join(models_dir, "tokenizer"))
-    model = AutoModel.from_pretrained(os.path.join(models_dir, "model")).to(device)
+    model = AutoModel.from_pretrained(os.path.join(models_dir, "model"))
     return tokenizer, model
+
+# Dans la fonction principale ou là où vous utilisez le modèle :
+tokenizer, model = load_models(args.models_dir)
+if torch.cuda.is_available():
+    model = model.to('cuda')
 
 def extract_audio(file_path, output_path):
     command = [
@@ -164,9 +173,13 @@ def process_file(file_path, vosk_model_path, tokenizer, model):
         return None, None
 
 def process_files_parallel(file_list, vosk_model_path, tokenizer, model):
-    with Pool() as pool:
+    with Pool(initializer=set_cuda_device) as pool:
         results = pool.starmap(process_file, [(file, vosk_model_path, tokenizer, model) for file in file_list])
     return [r for r in results if r is not None]
+
+def set_cuda_device():
+    if torch.cuda.is_available():
+        torch.cuda.set_device(0)  # or whichever GPU you want to use
 
 def fine_tune_model(model, tokenizer, train_texts, train_labels):
     train_encodings = tokenizer(train_texts, truncation=True, padding=True)

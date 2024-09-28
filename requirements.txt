@@ -10,3 +10,5 @@ python-magic
 asyncio
 email-validator
 ffmpeg-python
+torchtune
+torchao
