@@ -18,7 +18,7 @@ EMAIL="$1"
 source ./.env
 [[ -z $myDUNITER ]] && myDUNITER="https://g1.cgeek.fr" # DUNITER
 [[ -z $myCESIUM ]] && myCESIUM="https://g1.data.e-is.pro" # CESIUM+
-[[ -z $ipfsNODE ]] && ipfsNODE="${ipfsNODE}" # IPFS
+[[ -z $ipfsNODE ]] && ipfsNODE="http://127.0.0./1:8080" # IPFS
 
 ## CLEANING cards
 rm -f ./cards/*
@@ -40,12 +40,12 @@ second=$(./tools/diceware.sh 1 | xargs)
 PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
 echo ${second} >> ./cards/WORDS
 
-./tools/keygen -t duniter -o ./tmp/${MOATS}.zwallet.dunikey "${SALT}" "${PEPPER}"
-G1PUB=$(cat ./tmp/${MOATS}.zwallet.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
+./tools/keygen -t duniter -o ./tmp/${MOATS}.zerocard.dunikey "${SALT}" "${PEPPER}"
+G1PUB=$(cat ./tmp/${MOATS}.zerocard.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
 
-echo "./tools/natools.py encrypt -p $CAPTAING1PUB -i ./tmp/${MOATS}.zwallet.dunikey -o ./cards/zwallet.dunikey.enc"
+echo "./tools/natools.py encrypt -p $CAPTAING1PUB -i ./tmp/${MOATS}.zerocard.dunikey -o ./cards/zerocard.dunikey.enc"
 rm ./cards/G1.captain.enc
-./tools/natools.py encrypt -p $CAPTAING1PUB -i ./tmp/${MOATS}.zwallet.dunikey -o ./cards/G1.captain.enc
+./tools/natools.py encrypt -p $CAPTAING1PUB -i ./tmp/${MOATS}.zerocard.dunikey -o ./cards/G1.captain.enc
 
 echo "SECURED G1 _WALLET: $G1PUB"
 echo "./cards/G1.captain.enc (CAPTAING1PUB)*"
@@ -61,14 +61,14 @@ convert ./tmp/ZEN_${G1PUB}.QR.png \
         ./cards/ZEN_${G1PUB}.QR.png
 
 ## CREATE IPNS KEY
-./tools/keygen -t ipfs -o ./tmp/${MOATS}.zwallet.ipns "${SALT}" "${PEPPER}"
+./tools/keygen -t ipfs -o ./tmp/${MOATS}.zerocard.ipns "${SALT}" "${PEPPER}"
 ipfs key rm "SSSS_${EMAIL}" > /dev/null 2>&1
-WALLETNS=$(ipfs key import "SSSS_${EMAIL}" -f pem-pkcs8-cleartext ./tmp/${MOATS}.zwallet.ipns)
+WALLETNS=$(ipfs key import "SSSS_${EMAIL}" -f pem-pkcs8-cleartext ./tmp/${MOATS}.zerocard.ipns)
 echo "SSSS_${EMAIL} STORAGE: /ipns/$WALLETNS"
 
 ## ENCRYPT WITH UPLANETNAME PASSWORD
 if [[ ! -z ${UPLANETNAME} ]]; then
-    cat ./tmp/${MOATS}.zwallet.ipns \
+    cat ./tmp/${MOATS}.zerocard.ipns \
         | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" \
             -o ./cards/IPNS.uplanet.asc
 fi

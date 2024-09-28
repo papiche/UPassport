@@ -77,7 +77,7 @@ case "$COMMENT" in
         ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
         echo "BYE BYE ${ZEROCARD} !"
         # UPLANETNAME Extract ZEROCARD secret
-        cat ./pdf/${PUBKEY}/zwallet.planet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${MOATS}.secret
+        cat ./pdf/${PUBKEY}/zerocard.planet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${MOATS}.secret
         # ZEROCARD amount
         solde=$(./tools/timeout.sh -t 5 ./tools/jaklis/jaklis.py balance -p ${ZEROCARD})
         echo "EMPTYING $solde G1 to ${PUBKEY}"
@@ -101,9 +101,9 @@ case "$COMMENT" in
              -e "s~300px~303px~g" \
             > ./tmp/${ZEROCARD}.out.html
 
-        ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
-        echo "/ipfs/${ASTATE}" > ./pdf/${PUBKEY}/ASTATE
-        ipfs name publish --key ${ZEROCARD} /ipfs/${ASTATE}
+        DRIVESTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
+        echo "/ipfs/${DRIVESTATE}" > ./pdf/${PUBKEY}/DRIVESTATE
+        ipfs name publish --key ${ZEROCARD} /ipfs/${DRIVESTATE}
         echo "./tmp/${ZEROCARD}.out.html"
         exit 0
         ;;

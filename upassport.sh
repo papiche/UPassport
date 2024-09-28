@@ -15,21 +15,46 @@ MOATS=$(date -u +"%Y%m%d%H%M%S%4N")
 source ./.env
 [[ -z $myDUNITER ]] && myDUNITER="https://g1.cgeek.fr" # DUNITER
 [[ -z $myCESIUM ]] && myCESIUM="https://g1.data.e-is.pro" # CESIUM+
-[[ -z $ipfsNODE ]] && ipfsNODE="https://ipfs.astroport.com" # IPFS
+[[ -z $ipfsNODE ]] && ipfsNODE="http://127.0.0./1:8080" # IPFS
 
 ## PUBKEY SHOULD BE A MEMBER PUBLIC KEY
-PUBKEY="$1"
-PUBKEY=$(echo "$PUBKEY" | tr -d ' ')
+LINK="$1"
+PUBKEY=$(echo "$LINK" | tr -d ' ')
 ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # "PUBKEY" ChK or ZEN
 [[ $ZCHK == $PUBKEY ]] && ZCHK=""
 PUBKEY="$(echo $PUBKEY | cut -d ':' -f 1)" # Cleaning
 echo "PUBKEY ? $PUBKEY"
 
+############ LINK
+if [[ $PUBKEY == "https" ]]; then
+    echo "This is a link : $LINK"
+    ipns12D=$(echo "$LINK" | grep -oP "(?<=12D3Koo)[^/]*")
+    if [ -z $ipns12D ]; then
+        echo '<!DOCTYPE html><html><head>
+            <meta http-equiv="refresh" content="0; url='${LINK}'">
+            </head><body></body></html>' > ./tmp/${ZEROCARD}.out.html
+        echo "./tmp/${ZEROCARD}.out.html"
+        exit 0
+    else
+        CARDNS="12D3Koo"$ipns12D
+        CARDG1=$(./tools/ipfs_to_g1.py $CARDNS)
+        echo "ZEROCARD IPNS12D QRCODE : /ipns/$CARDNS ($CARDG1)"
+        # REDIRECT TO CAPTAIN SECURITY QR SCANNER...
+        cat ./templates/scan_ssss.html \
+            | sed -e "s~_CARDNS_~${CARDNS}~g" \
+            -e "s~_ZEROCARD_~${ZEROCARD}~g" \
+            -e "s~https://ipfs.copylaradio.com~${ipfsNODE}~g" \
+        > ./tmp/${CARDNS}.out.html
+        echo "./tmp/${CARDNS}.out.html"
+        exit 0
+    fi
+fi
+
 # CHECK PUBKEY FORMAT
 if [[ -z $(./tools/g1_to_ipfs.py ${PUBKEY} 2>/dev/null) ]]; then
     cat ./templates/wallet.html \
     | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-         -e "s~_AMOUNT_~Pubkey Error<br><a target=_new href=https://cesium.app>Install CESIUM</a>~g" \
+         -e "s~_AMOUNT_~QR CODE Error<br><a target=_new href=https://cesium.app>Try CESIUM...</a>~g" \
         > ./tmp/${PUBKEY}.out.html
     echo "./tmp/${PUBKEY}.out.html"
     exit 0
@@ -37,7 +62,7 @@ fi
 
 ## LOAD ASTROPORT ENVIRONMENT
 [ ! -s $HOME/.zen/Astroport.ONE/tools/my.sh ] \
-    && echo "<h1>ERROR/ Missing Astroport.ONE. Please install...<h1>"
+    && echo "<h1>ERROR/ Missing Astroport.ONE. Please install...<h1>" \
     && exit 1
 . "$HOME/.zen/Astroport.ONE/tools/my.sh"
 
@@ -203,32 +228,33 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
 
     ##################################### 3RD SCAN
     if [ -L "./pdf/${PUBKEY}" ]; then
-        ############################ TRANSMIT COMMAND
+        ############################ TRANSMIT TX COMMENT AS COMMAND TO ZEROCARD
         if [[ $COMM != "" && "$DEST" == "$ZEROCARD" ]]; then
             ./command.sh "$PUBKEY" "$COMM" "$LASTX" "$TXDATE" "$ZEROCARD"
             [ ! $? -eq 0 ] && echo ">>>>>>>>>>>> ERROR"
         fi
         ##################################### 4TH SCAN
-        if [[ -s ./pdf/${PUBKEY}/ASTATE ]]; then
-            ## REDIRECT TO CURRENT ASTATE
+        if [[ -s ./pdf/${PUBKEY}/DRIVESTATE ]]; then
+            ## REDIRECT TO CURRENT DRIVESTATE
             echo '<!DOCTYPE html><html><head>
-            <meta http-equiv="refresh" content="0; url='${ipfsNODE}$(cat ./pdf/${PUBKEY}/ASTATE)'">
+            <meta http-equiv="refresh" content="0; url='${ipfsNODE}$(cat ./pdf/${PUBKEY}/DRIVESTATE)'">
             </head><body></body></html>' > ./tmp/${ZEROCARD}.out.html
             echo "./tmp/${ZEROCARD}.out.html"
             exit 0
         else
-            ## ZENCARD 1ST APP ##### 2ND SCAN
+            ## ZEROCARD 1ST APP ##### 2ND SCAN
             CODEINJECT='<a target=_new href='${ipfsNODE}'/ipfs/'$(cat ./pdf/${PUBKEY}/IPFSPORTAL)'/${PUBKEY}/>'${AMOUNT}'</a>'
 
             cat ./templates/wallet.html \
             | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
                  -e "s~_AMOUNT_~${CODEINJECT}~g" \
                  -e "s~300px~501px~g" \
-                > ./tmp/${ZEROCARD}.out.html
+                > ./pdf/${PUBKEY}/_index.html # REPLACE UPASSPORT HTML
 
-            ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
-            echo "/ipfs/${ASTATE}" > ./pdf/${PUBKEY}/ASTATE
-            ipfs name publish --key ${ZEROCARD} /ipfs/${ASTATE}
+            echo ${PUBKEY} > ./pdf/${PUBKEY}/PUBKEY
+            DRIVESTATE=$(ipfs add -qwr ./pdf/${PUBKEY}/* | tail -n 1)
+            echo "/ipfs/${DRIVESTATE}" > ./pdf/${PUBKEY}/DRIVESTATE
+            ipfs name publish --key ${ZEROCARD} /ipfs/${DRIVESTATE}
             echo "./tmp/${ZEROCARD}.out.html"
             exit 0
         fi
@@ -272,10 +298,10 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ipfs pin rm ${IPFSPORTAL}
 
         ### EXTEND IPNS QR with CAPTAIN ssss key part
-        ./tools/natools.py decrypt -f pubsec -i ./pdf/${PUBKEY}/ssss.tail.captain.enc -k ~/.zen/game/players/.current/secret.dunikey -o ./tmp/${PUBKEY}.captain
-            amzqr "$(cat ./tmp/${PUBKEY}.captain)" -l H -n ${PUBKEY}.captain.png -d ./tmp/ 2>/dev/null
+        ./tools/natools.py decrypt -f pubsec -i ./pdf/${PUBKEY}/ssss.tail.2U.enc -k ~/.zen/game/players/.current/secret.dunikey -o ./tmp/${PUBKEY}.2U
+            amzqr "$(cat ./tmp/${PUBKEY}.2U)" -l H -n ${PUBKEY}.2U.png -d ./tmp/ 2>/dev/null
 
-            CAPTAINTAIL=$(ipfs add -q ./tmp/${PUBKEY}.captain.png)
+            CAPTAINTAIL=$(ipfs add -q ./tmp/${PUBKEY}.2U.png)
             ipfs pin rm $CAPTAINTAIL
             # Clean up temporary files
             rm ./tmp/${PUBKEY}.captain.png
@@ -298,7 +324,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         echo $IPFSPORTALQR > ./pdf/${PUBKEY}/IPFSPORTALQR
         echo $IPFSPORTAL > ./pdf/${PUBKEY}/IPFSPORTAL
         echo "$(date -u)" > ./pdf/${PUBKEY}/DATE
-        echo $IPFSNODEID > ./pdf/${PUBKEY}/IPFSNODEID
+        echo $IPFSNODEID > ./pdf/${PUBKEY}/ASTROPORT
         echo "NEW IPFSPORTAL : ${ipfsNODE}/ipfs/${IPFSPORTAL} $(cat ./pdf/${PUBKEY}/DATE)"
 
         ## IMPORT ZEROCARD into LOCAL IPFS KEYS
@@ -306,16 +332,18 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         cat ./pdf/${PUBKEY}/IPNS.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${MOATS}.ipns
         ipfs key rm ${ZEROCARD} > /dev/null 2>&1
         WALLETNS=$(ipfs key import ${ZEROCARD} -f pem-pkcs8-cleartext ./tmp/${MOATS}.ipns)
-        ## ASTATE FIRST DApp = Wallet ZEROCARD QR :
+        ## DRIVESTATE FIRST DApp => Wallet AMOUNT + ZEROCARD QR + N1 APP link
         CODEINJECT="<a target=N1 href=${ipfsNODE}/ipfs/${IPFSPORTAL}/${PUBKEY}/N1/_index.html><img src=${ipfsNODE}/ipfs/${ZWALL} /></a>"
         cat ./templates/wallet.html \
         | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
              -e "s~_AMOUNT_~${CODEINJECT}~g" \
              -e "s~300px~540px~g" \
             > ./tmp/${ZEROCARD}.out.html
-        ASTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
-        echo "/ipfs/${ASTATE}" > ./pdf/${PUBKEY}/ASTATE
-        ipfs name publish --key ${ZEROCARD} /ipfs/${ASTATE}
+
+        # PUBLISH NEW DRIVESTATE
+        DRIVESTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
+        echo "/ipfs/${DRIVESTATE}" > ./pdf/${PUBKEY}/DRIVESTATE
+        ipfs name publish --key ${ZEROCARD} /ipfs/${DRIVESTATE}
 
         ######### move PDF to PASSPORT ################### in ASTROPORT game
         mkdir -p ~/.zen/game/passport
@@ -512,17 +540,24 @@ SALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
 second=$(./tools/diceware.sh 1 | xargs)
 PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
 ################################################################# DUNITER
-./tools/keygen -t duniter -o ./tmp/${PUBKEY}.zwallet.dunikey "${SALT}" "${PEPPER}"
-G1PUBZERO=$(cat ./tmp/${PUBKEY}.zwallet.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
+./tools/keygen -t duniter -o ./tmp/${PUBKEY}.zerocard.dunikey "${SALT}" "${PEPPER}"
+G1PUBZERO=$(cat ./tmp/${PUBKEY}.zerocard.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
+[[ -z $G1PUBZERO ]] \
+    && echo '<!DOCTYPE html><html><head>
+            </head><body><h1>ERROR --- key generation failed ---<h1>
+            if the problem persists please contact support@qo-op.com
+            </body></html>' > ./tmp/${PUBKEY}.out.html \
+     && echo "./tmp/${ZEROCARD}.out.html" \
+      &&  exit 1
 ## ENCRYPT WITH UPLANETNAME PASSWORD
 if [[ ! -z ${UPLANETNAME} ]]; then
-    rm -f ./pdf/${PUBKEY}/zwallet.planet.asc
-    cat ./tmp/${PUBKEY}.zwallet.dunikey | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/zwallet.planet.asc
+    rm -f ./pdf/${PUBKEY}/zerocard.planet.asc
+    cat ./tmp/${PUBKEY}.zerocard.dunikey | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/zerocard.planet.asc
 fi
 
-rm -f ./pdf/${PUBKEY}/zwallet.member.enc
-## zwallet.dunikey PUBKEY encryption
-./tools/natools.py encrypt -p $PUBKEY -i ./tmp/${PUBKEY}.zwallet.dunikey -o ./pdf/${PUBKEY}/zwallet.member.enc
+rm -f ./pdf/${PUBKEY}/zerocard.member.enc
+## zerocard.dunikey PUBKEY encryption
+./tools/natools.py encrypt -p $PUBKEY -i ./tmp/${PUBKEY}.zerocard.dunikey -o ./pdf/${PUBKEY}/zerocard.member.enc
 echo "ZEN _WALLET: $G1PUBZERO"
 rm -f ./pdf/${PUBKEY}/ZEROCARD_*.QR.jpg # cleaning & provisionning
 echo "${G1PUBZERO}" > ./pdf/${PUBKEY}/ZEROCARD
@@ -595,17 +630,20 @@ $TAIL" | ssss-combine -t 2 -q
 echo "./tools/natools.py encrypt -p $PUBKEY -i ./tmp/${G1PUBZERO}.ssss.head -o ./pdf/${PUBKEY}/ssss.member.enc"
 ./tools/natools.py encrypt -p $PUBKEY -i ./tmp/${G1PUBZERO}.ssss.head -o ./pdf/${PUBKEY}/ssss.head.member.enc
 
+echo "./tools/natools.py encrypt -p $CAPTAING1PUB -i ./tmp/${G1PUBZERO}.ssss.mid -o ./pdf/${PUBKEY}/ssss.mid.captain.enc"
+./tools/natools.py encrypt -p $CAPTAING1PUB -i ./tmp/${G1PUBZERO}.ssss.mid -o ./pdf/${PUBKEY}/ssss.mid.captain.enc
+
 ## MIDDLE ENCRYPT WITH UPLANETNAME
 if [[ ! -z ${UPLANETNAME} ]]; then
     rm -f ./pdf/${PUBKEY}/ssss.uplanet.asc
     cat ./tmp/${G1PUBZERO}.ssss | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ./pdf/${PUBKEY}/ssss.uplanet.asc
     cat ./pdf/${PUBKEY}/ssss.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${G1PUBZERO}.ssss.test
-    [[ $(diff -q ./tmp/${G1PUBZERO}.ssss.test ./tmp/${G1PUBZERO}.ssss) != "" ]] && echo "ERROR: GPG ENCRYPTION FAILED "
+    [[ $(diff -q ./tmp/${G1PUBZERO}.ssss.test ./tmp/${G1PUBZERO}.ssss) != "" ]] && echo "ERROR: GPG ENCRYPTION FAILED !!!"
     rm ./tmp/${G1PUBZERO}.ssss.test
 fi
 
 ## ENCODE TAIL SSSS SECRET WITH CAPTAING1PUB
-./tools/natools.py encrypt -p ${CAPTAING1PUB} -i ./tmp/${G1PUBZERO}.ssss.tail -o ./pdf/${PUBKEY}/ssss.tail.captain.enc
+./tools/natools.py encrypt -p ${CAPTAING1PUB} -i ./tmp/${G1PUBZERO}.ssss.tail -o ./pdf/${PUBKEY}/ssss.tail.2U.enc
 
 ## REMOVE SENSIBLE DATA FROM CACHE
 # DEEPER SECURITY CONCERN ? mount ./tmp as encrypted RAM disk
@@ -662,7 +700,7 @@ LON=$(makecoord $LON)
 
 # QmRJuGqHsruaV14ZHEjk9Gxog2B9GafC35QYrJtaAU2Pry Fac Similé
 # QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png
-cat ./static/zine/index.html \
+cat ./static/zine/UPassport.html \
     | sed -e "s~QmU43PSABthVtM8nWEWVDN1ojBBx36KLV5ZSYzkW97NKC3/page1.png~QmdEPc4Toy1vth7MZtpRSjgMtAWRFihZp3G72Di1vMhf1J~g" \
             -e "s~QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png~${FULLCERT}~g" \
             -e "s~QmTL7VDgkYjpYC2qiiFCfah2pSqDMkTANMeMtjMndwXq9y~QmRJuGqHsruaV14ZHEjk9Gxog2B9GafC35QYrJtaAU2Pry~g" \

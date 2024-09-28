@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPassport SSSS key scanner</title>
+    <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/jquery-3.6.3.min.js"></script>
+    <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/instascan.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #000;
+            color: #FFF;
+        }
+
+        h1 {
+            background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.5em;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .scanner-container {
+            width: 90%;
+            max-width: 400px;
+            margin: 20px auto;
+            text-align: center;
+        }
+
+        video#preview {
+            display: block;
+            width: 100%;
+            height: 200px;
+            border-radius: 10px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        form {
+            display: none;  /* Masquer le formulaire */
+        }
+
+        .spinner {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            justify-content: center;
+            align-items: center;
+            border-radius: 50%;
+        }
+
+        .planet {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin: 5px;
+            animation: rotation 1s linear infinite;
+        }
+
+        .planet1 { background-color: #ff6b6b; }
+        .planet2 { background-color: #00ff00; }
+        .planet3 { background-color: #00ffff; }
+        .planet4 { background-color: #0000ff; }
+
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result-container {
+            display: none;
+            justify-content: center;
+            align-items: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+        }
+
+        .result-frame {
+            width: 80%;
+            height: 80%;
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #result-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .result-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .result-button {
+            padding: 5px 10px;
+            background-color: #FF8C42;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .result-button:hover {
+            background-color: #E57A35;
+        }
+
+    </style>
+</head>
+<body>
+    <h1>SECURITY SCAN</h1>
+    <h2>_CARDNS_</h2>
+    <div class="description">
+        Scannez votre QR Code de sécurité pour que le CAPITAINE de Station vérifie que vous êtes bien le porteur du UPassport présenté...
+    </div>
+    <div class="scanner-container">
+        <video id="preview"></video>
+        <form id="qr-form">
+            <input type="hidden" id="cardns" name="cardns" value="_CARDNS_">
+            <textarea id="ssss" name="ssss" rows="4"></textarea>
+            <input type="hidden" id="zerocard" name="zerocard" value="_ZEROCARD_">
+        </form>
+            <div id="scan-result" style="margin: 20px 0; font-size: 1.2em; color: #ffcc00;">QR Code ?</div> <!-- où afficher le code scanné -->
+        <div class="spinner" id="loadingSpinner">
+            <div class="planet planet1"></div>
+            <div class="planet planet2"></div>
+            <div class="planet planet3"></div>
+            <div class="planet planet4"></div>
+        </div>
+    </div>
+
+    <div class="result-container">
+        <div class="result-frame">
+            <iframe id="result-iframe"></iframe>
+            <div class="result-controls">
+                <button class="result-button" id="open-new-tab">Open in New Tab</button>
+                <button class="result-button" id="close-result">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    $(document).ready(function() {
+        // Initialisation du scanner
+        let scanner = new Instascan.Scanner({ video: document.getElementById('preview') });
+        scanner.addListener('scan', function (content) {
+            document.getElementById("ssss").value = content;
+            let truncatedContent = content.length > 42 ? content.substring(0, 42) + "..." : content;
+            document.getElementById("scan-result").innerText = "QR CODE: " + truncatedContent;
+
+
+            // Afficher le spinner au moment du scan
+            $('#loadingSpinner').show();
+
+            // Envoie automatique des données scannées
+            const serverUrl = '/ssss';
+            $.ajax({
+                url: serverUrl, // URL modifiée ici
+                type: 'POST',
+                data: $('#qr-form').serialize(),
+                success: function(response) {
+                    $('#loadingSpinner').hide();  // Cache le spinner après réception de la réponse
+                    $('#result-iframe').attr('srcdoc', response);
+                    $('.result-container').css('display', 'flex');  // Affiche directement le résultat
+                },
+                error: function() {
+                    $('#loadingSpinner').hide();  // Cache le spinner en cas d'erreur
+                    alert('An error occurred. Try again later.');
+                }
+            });
+        });
+
+        // Démarrage de la caméra si disponible
+        Instascan.Camera.getCameras().then(function (cameras) {
+            if (cameras.length > 0) {
+                scanner.start(cameras[0]);
+            } else {
+                console.error('No cameras found.');
+            }
+        }).catch(function (e) {
+            console.error(e);
+        });
+
+        // Bouton de fermeture du résultat
+        $('#close-result').click(function() {
+            $('.result-container').hide();
+        });
+
+        // Ouverture du résultat dans un nouvel onglet
+        $('#open-new-tab').click(function() {
+            var response = $('#result-iframe').attr('srcdoc');
+            var newTab = window.open();
+            newTab.document.write(response);
+            newTab.document.close();
+        });
+    });
+    </script>
+</body>
+</html>

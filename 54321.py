@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
 # ~ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, ValidationError
@@ -44,8 +45,8 @@ class MessageData(BaseModel):
     email: str
     message: str
 
-# chemin vers votre modèle Vosk
-model = Model("./static/vosk/model/vosk-model-small-fr-0.22")
+# chemin vers le modèle Vosk
+model = Model("./vosk_model/selected")
 logging.info(f"Vosk model loaded")
 
 # Créez le dossier 'tmp' s'il n'existe pas
@@ -320,6 +321,54 @@ async def process_message(message_data: MessageData):
         return FileResponse(html_file_path)
     else:
         return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
+
+@app.post("/ssss")
+async def ssss(request: Request):
+    # Récupère les données du formulaire
+    form_data = await request.form()
+
+    # Extraire les valeurs des champs du formulaire
+    cardns = form_data.get("cardns")
+    ssss = form_data.get("ssss")
+    zerocard = form_data.get("zerocard")
+
+    logging.info(f"Received Card NS: {cardns}")
+    logging.info(f"Received SSSS key: {ssss}")
+    logging.info(f"ZEROCARD: {zerocard}")
+
+    # Préparation des arguments pour l'exécution du script
+    script_path = "./check_ssss.sh"
+    log_file_path = "./tmp/54321.log"
+
+    async def run_script():
+        process = await asyncio.create_subprocess_exec(
+            script_path, cardns, ssss, zerocard,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT
+        )
+
+        last_line = ""
+        async with aiofiles.open(log_file_path, "a") as log_file:
+            async for line in process.stdout:
+                line = line.decode().strip()
+                last_line = line
+                await log_file.write(line + "\n")
+                print(line)
+
+        return_code = await process.wait()
+        return return_code, last_line
+
+    # Exécuter le script et capturer la dernière ligne
+    return_code, last_line = await run_script()
+
+    # Déterminer si le script a réussi
+    if return_code == 0:
+        html_file_path = last_line.strip()  # Le chemin HTML est supposé être dans `last_line`
+        # Retourner le fichier HTML généré en tant que réponse
+        return FileResponse(html_file_path)
+    else:
+        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
+
 
 
 if __name__ == "__main__":

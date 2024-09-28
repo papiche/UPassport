@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import argparse
 import json
@@ -29,6 +30,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Configuration
+global device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 
@@ -36,11 +38,6 @@ def load_models(models_dir):
     tokenizer = AutoTokenizer.from_pretrained(os.path.join(models_dir, "tokenizer"))
     model = AutoModel.from_pretrained(os.path.join(models_dir, "model"))
     return tokenizer, model
-
-# Dans la fonction principale ou là où vous utilisez le modèle :
-tokenizer, model = load_models(args.models_dir)
-if torch.cuda.is_available():
-    model = model.to('cuda')
 
 def extract_audio(file_path, output_path):
     command = [
@@ -173,9 +170,17 @@ def process_file(file_path, vosk_model_path, tokenizer, model):
         return None, None
 
 def process_files_parallel(file_list, vosk_model_path, tokenizer, model):
-    with Pool(initializer=set_cuda_device) as pool:
-        results = pool.starmap(process_file, [(file, vosk_model_path, tokenizer, model) for file in file_list])
+    # Déplacer l'initialisation du device ici
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+
+    def process_file_wrapper(file):
+        return process_file(file, vosk_model_path, tokenizer, model)
+
+    with Pool() as pool:
+        results = pool.map(process_file_wrapper, file_list)
     return [r for r in results if r is not None]
+
 
 def set_cuda_device():
     if torch.cuda.is_available():
@@ -286,6 +291,8 @@ def main():
     args = parser.parse_args()
 
     logging.getLogger().setLevel(args.log)
+    if torch.cuda.is_available():
+        torch.multiprocessing.set_start_method('spawn', force=True)
 
     while True:
         choice = menu()

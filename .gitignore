@@ -165,3 +165,5 @@ tmp/
 pdf/
 cards/
 .aider*
+vosk_model/
+models/

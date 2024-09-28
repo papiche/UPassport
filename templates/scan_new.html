@@ -9,118 +9,120 @@
     <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/instascan.min.js"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #000000;
+            font-family: 'Arial', sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 0;
             display: flex;
             flex-direction: column;
+            justify-content: center;
             align-items: center;
+            min-height: 100vh;
+            background: #000;
             color: #FFF;
         }
+
         h1 {
-            color: #FFF;
+            background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.5em;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .scanner-container {
+            width: 90%;
+            max-width: 400px;
+            margin: 20px auto;
             text-align: center;
         }
-        .scanner-container {
-            display: flex;
-            flex-direction: row;
-            justify-content: space-around;
+
+        video#preview {
+            display: block;
             width: 100%;
-            max-width: 800px;
-            margin-top: 20px;
+            height: 200px;
+            border-radius: 10px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
         }
-        #preview {
-            width: 300px;
-            height: 300px;
-            border: 2px solid #333;
-        }
+
         form {
             display: flex;
             flex-direction: column;
             align-items: center;
         }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+        }
+
         input[type="text"] {
             width: 100%;
-            max-width: 350px;
-            padding: 10px;
-            margin: 10px 0;
-        }
-        input[type="submit"] {
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
+            height: 30px;
+            padding: 5px;
             border: none;
-            cursor: pointer;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 10px;
         }
-        #result {
-            margin-top: 20px;
-            font-weight: bold;
-        }
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 40px;
+
+        input[type="submit"] {
+            width: 100%;
             height: 40px;
-            animation: spin 1s linear infinite;
-            display: none;
-            margin: 20px auto;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 768px) {
-            .scanner-container {
-                flex-direction: column;
-                align-items: center;
-            }
-            #preview {
-                width: 100%;
-                max-width: 300px;
-                height: auto;
-                aspect-ratio: 1 / 1;
-            }
-            form {
-                width: 100%;
-                max-width: 300px;
-                margin-top: 20px;
-            }
-        }
-
-        #show-result-button {
-            margin-top: 20px;
-            padding: 10px 20px;
             background-color: #4CAF50;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            display: none;
+            padding: 10px;
         }
 
-        #show-result-button:hover {
+        input[type="submit"]:hover {
             background-color: #45a049;
         }
 
+        .spinner {
+            display: none;
+            width: 100px;
+            height: 100px;
+            margin: 20px auto;
+            position: relative;
+        }
+
+        .planet {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            position: absolute;
+            animation: orbit 2s linear infinite;
+        }
+
+        .planet1 { background-color: #ff6b6b; top: 0; left: 40px; }
+        .planet2 { background-color: #00ff00; right: 40px; bottom: 0; }
+        .planet3 { background-color: #00ffff; left: 0; top: 40px; }
+        .planet4 { background-color: #0000ff; bottom: 40px; right: 0; }
+
+        @keyframes orbit {
+            0% { transform: rotate(0deg) translateX(40px) rotate(0deg); }
+            100% { transform: rotate(360deg) translateX(40px) rotate(-360deg); }
+        }
+
         .result-container {
+            display: none;
+            justify-content: center;
+            align-items: center;
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             background-color: rgba(0, 0, 0, 0.8);
-            display: none;
-            justify-content: center;
-            align-items: center;
             z-index: 1000;
         }
 
         .result-frame {
-            width: 90%;
-            height: 90%;
+            width: 80%;
+            height: 80%;
             background-color: white;
             border-radius: 10px;
             overflow: hidden;
@@ -153,21 +155,48 @@
         .result-button:hover {
             background-color: #45a049;
         }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            video#preview {
+                height: 200px;
+            }
+        }
+        .description {
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 800px;
+            text-align: justify;
+        }
     </style>
 </head>
 <body>
     <h1>UPassport</h1>
+        <h2>Identité numérique décentralisée pour la Monnaie Libre Ğ1</h2>
+
     <div class="scanner-container">
         <video id="preview"></video>
+        <div class="spinner" id="loadingSpinner">
+            <div class="planet planet1"></div>
+            <div class="planet planet2"></div>
+            <div class="planet planet3"></div>
+            <div class="planet planet4"></div>
+        </div>
         <form id="qr-form">
             <label for="parametre">Scan Public Key:</label>
-            <input type="text" id="parametre" name="parametre" size=40 required>
+            <input type="text" id="parametre" name="parametre" size=30 required>
             <input type="submit" id="submitButton" value="Submit">
         </form>
     </div>
-    <div class="spinner"></div>
-    <div id="result"></div>
-    <button id="show-result-button">Show Result</button>
+    <div class="description">
+        UPassport est un générateur officiel de passeport Web3, certifié par la blockchain Ğ1.
+        Il vous permet de créer une identité numérique décentralisée en utilisant la preuve d'humanité comme toile de confiance.
+        Scanner votre clé publique, générer un passeport numérique unique et accéder à une preuve vérifiable de votre identité garantissant la sécurité et la confidentialité de vos données.
+    </div>
     <div class="result-container">
         <div class="result-frame">
             <iframe id="result-iframe"></iframe>
@@ -182,9 +211,9 @@
         let scanner = new Instascan.Scanner({ video: document.getElementById('preview') });
         scanner.addListener('scan', function (content) {
             document.getElementById("parametre").value = content;
-            // Change the color of the Submit button to blue
             $('#submitButton').css('background-color', '#0000FF');
         });
+
         Instascan.Camera.getCameras().then(function (cameras) {
             if (cameras.length > 0) {
                 scanner.start(cameras[0]);
@@ -198,54 +227,35 @@
         $(document).ready(function() {
             $('#qr-form').submit(function(e) {
                 e.preventDefault();
-                $('.spinner').show();
-                $('#result').html('');
+                $('#loadingSpinner').show();  // Affiche le spinner
                 $('.result-container').hide();
-                $('#show-result-button').hide();
 
                 $.ajax({
                     url: '/upassport',
                     type: 'POST',
                     data: $(this).serialize(),
                     success: function(response) {
-                        $('.spinner').hide();
-
-                        // Set iframe content
+                        $('#loadingSpinner').hide();  // Cache le spinner
                         $('#result-iframe').attr('srcdoc', response);
-
-                        // Show the button to display the result
-                        $('#show-result-button').show();
-                        $('.result-container').css('display', 'flex');
-                        // Store response for opening in new tab
-                        localStorage.setItem('lastResponse', response);
+                        $('.result-container').css('display', 'flex');  // Affiche directement le résultat
                     },
                     error: function() {
-                        $('.spinner').hide();
-                        $('#result').text('Timeout occurred. Wait a few minutes & try again. support@qo-op.com');
-                        // Reset the Submit button color to its original state
+                        $('#loadingSpinner').hide();  // Cache le spinner en cas d'erreur
+                        alert('An error occurred. Try again later.');
                         $('#submitButton').css('background-color', '');
                     }
                 });
             });
 
-            // Show result when button is clicked
-            $('#show-result-button').click(function() {
-                $('.result-container').css('display', 'flex');
-            });
-
-            // Close result
             $('#close-result').click(function() {
                 $('.result-container').hide();
             });
 
-            // Open in new tab
             $('#open-new-tab').click(function() {
-                var response = localStorage.getItem('lastResponse');
-                if (response) {
-                    var newTab = window.open();
-                    newTab.document.write(response);
-                    newTab.document.close();
-                }
+                var response = $('#result-iframe').attr('srcdoc');
+                var newTab = window.open();
+                newTab.document.write(response);
+                newTab.document.close();
             });
         });
     </script>
