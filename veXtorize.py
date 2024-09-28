@@ -21,6 +21,8 @@ from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import torchtune
 import multiprocessing
+from functools import partial
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Set the start method to 'spawn'
 multiprocessing.set_start_method('spawn', force=True)
@@ -34,6 +36,16 @@ global device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
+
+# Liste des extensions de fichiers supportées
+SUPPORTED_EXTENSIONS = {'.txt', '.pdf', '.jpg', '.jpeg', '.png', '.gif', '.html', '.mp3', '.wav', '.mp4', '.avi', '.mov'}
+
+def is_file_accessible(file_path, mode='r'):
+    try:
+        with open(file_path, mode):
+            return True
+    except IOError:
+        return False
 
 def load_models(models_dir):
     tokenizer = AutoTokenizer.from_pretrained(os.path.join(models_dir, "tokenizer"))
@@ -148,10 +160,11 @@ def enrich_metadata(file_path, content):
     }
 
 def process_file(file_path, vosk_model_path, tokenizer, model):
+    if not is_file_accessible(file_path):
+        logger.warning(f"File not accessible: {file_path}")
+        return None, None
     file_extension = os.path.splitext(file_path)[1].lower()
-    supported_extensions = ['.mp3', '.wav', '.flac', '.mp4', '.avi', '.mov', '.pdf', '.jpg', '.jpeg', '.png', '.gif', '.html', '.md', '.txt']
-
-    if file_extension not in supported_extensions:
+    if file_extension not in SUPPORTED_EXTENSIONS:
         logger.warning(f"Unsupported file type: {file_extension} for file {file_path}")
         return None, None
 
@@ -184,22 +197,38 @@ def process_file(file_path, vosk_model_path, tokenizer, model):
     except Exception as e:
         logger.error(f"Error processing file {file_path}: {str(e)}")
         return None, None
+    except FileNotFoundError:
+        logger.error(f"File not found: {file_path}")
+    except PermissionError:
+        logger.error(f"Permission denied: {file_path}")
+    except Exception as e:
+        logger.error(f"Unexpected error processing {file_path}: {str(e)}")
+    return None, None
 
 def process_file_wrapper(args):
     file, vosk_model_path, tokenizer, model = args
     return process_file(file, vosk_model_path, tokenizer, model)
 
+
 def process_files_parallel(file_list, vosk_model_path, tokenizer, model):
+    logger.info(f"Starting parallel processing of {len(file_list)} files")
     # Déplacer l'initialisation du device ici
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
+    max_workers = min(32, os.cpu_count() + 4)  # Limite le nombre de workers
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_file = {executor.submit(process_file, file, vosk_model_path, tokenizer, model): file for file in file_list}
+        for future in tqdm(as_completed(future_to_file), total=len(file_list), desc="Processing files"):
+            file = future_to_file[future]
+            try:
+                result = future.result()
+                if result[0] is not None:
+                    results.append(result)
+            except Exception as exc:
+                logger.error(f'{file} generated an exception: {exc}')
+    return results
 
-    logger.info(f"Starting parallel processing of {len(file_list)} files")
-    args_list = [(file, vosk_model_path, tokenizer, model) for file in file_list]
-
-    with Pool() as pool:
-        results = pool.map(process_file_wrapper, args_list)
-    return [r for r in results if r is not None]
 
 def set_cuda_device():
     if torch.cuda.is_available():
@@ -256,24 +285,33 @@ def create_vector_database(directory, output_dir, vosk_model_path, models_dir):
     logger.info(f"Creating vector database from directory: {directory}")
     tokenizer, model = load_models(models_dir)
 
-    file_list = []
-    for root, _, files in os.walk(directory):
-        for file in files:
-            file_list.append(os.path.join(root, file))
+    file_list = [os.path.join(root, file) for root, _, files in os.walk(directory) for file in files]
+    logger.info(f"Found {len(file_list)} files to process")
 
     results = process_files_parallel(file_list, vosk_model_path, tokenizer, model)
-    embeddings, metadata = zip(*results)
 
-    # Filter out None values
-    valid_embeddings = [e for e in embeddings if e is not None]
-    valid_metadata = [m for e, m in zip(embeddings, metadata) if e is not None]
+    valid_results = [(e, m) for e, m in results if e is not None and len(e) > 0]
+
+    if not valid_results:
+        logger.warning("No valid embeddings were created. Check your input files and processing steps.")
+        return
+
+    embeddings, metadata = zip(*valid_results)
+
+    # Vérifier que tous les embeddings ont la même dimension
+    embedding_dim = len(embeddings[0])
+    valid_embeddings = [e for e in embeddings if len(e) == embedding_dim]
+    valid_metadata = [m for e, m in zip(embeddings, metadata) if len(e) == embedding_dim]
+
+    if len(valid_embeddings) != len(embeddings):
+        logger.warning(f"Discarded {len(embeddings) - len(valid_embeddings)} embeddings due to inconsistent dimensions.")
 
     logger.info(f"Processed {len(valid_embeddings)} files successfully")
 
     if valid_embeddings:
-        dim = len(embeddings[0])
-        index = faiss.IndexFlatL2(dim)
-        index.add(np.array(embeddings))
+        index = faiss.IndexFlatL2(embedding_dim)
+        index.add(np.array(valid_embeddings))
+
         os.makedirs(output_dir, exist_ok=True)
         index_path = os.path.join(output_dir, "vector_index.faiss")
         faiss.write_index(index, index_path)
@@ -281,13 +319,14 @@ def create_vector_database(directory, output_dir, vosk_model_path, models_dir):
 
         metadata_path = os.path.join(output_dir, "metadata.json")
         with open(metadata_path, 'w') as f:
-            json.dump(metadata, f)
+            json.dump(valid_metadata, f)
         logger.info(f"Metadata saved to: {metadata_path}")
 
         # Visualize embeddings
-        visualize_embeddings(embeddings, [m['type'] for m in metadata])
+        visualize_embeddings(valid_embeddings, [m['type'] for m in valid_metadata])
     else:
-        logger.warning("No embeddings were created. Check your input files and processing steps.")
+        logger.warning("No valid embeddings remained after dimension check.")
+
 
 def export_to_gguf(model, tokenizer, output_path):
     logger.info(f"Exporting model to GGUF format: {output_path}")
@@ -313,7 +352,7 @@ def main():
         torch.multiprocessing.set_start_method('spawn', force=True)
     parser = argparse.ArgumentParser(description="Vector database creation and management")
     parser.add_argument("--models_dir", default="./models", help="Directory containing the downloaded models")
-    parser.add_argument("--vosk_model", default="./vosk_model", help="Path to the Vosk model")
+    parser.add_argument("--vosk_model", default="./vosk_model/selected", help="Path to the Vosk model")
     parser.add_argument("--log", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], default='INFO', help="Set the logging level")
     args = parser.parse_args()
 
@@ -391,5 +430,8 @@ def main():
         else:
             print("Invalid choice. Please try again.")
 
-if __name__ == "__main__":
+import torch.multiprocessing as mp
+
+if __name__ == '__main__':
+    mp.set_start_method('spawn', force=True)
     main()
