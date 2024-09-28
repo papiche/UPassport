@@ -36,7 +36,7 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 
 def load_models(models_dir):
     tokenizer = AutoTokenizer.from_pretrained(os.path.join(models_dir, "tokenizer"))
-    model = AutoModel.from_pretrained(os.path.join(models_dir, "model"))
+    model = AutoModel.from_pretrained(os.path.join(models_dir, "model")).to(device)
     return tokenizer, model
 
 def extract_audio(file_path, output_path):
@@ -169,18 +169,20 @@ def process_file(file_path, vosk_model_path, tokenizer, model):
         logger.error(f"Error processing file {file_path}: {str(e)}")
         return None, None
 
+def process_file_wrapper(args):
+    file, vosk_model_path, tokenizer, model = args
+    return process_file(file, vosk_model_path, tokenizer, model)
+
 def process_files_parallel(file_list, vosk_model_path, tokenizer, model):
     # Déplacer l'initialisation du device ici
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
-    def process_file_wrapper(file):
-        return process_file(file, vosk_model_path, tokenizer, model)
+    args_list = [(file, vosk_model_path, tokenizer, model) for file in file_list]
 
     with Pool() as pool:
-        results = pool.map(process_file_wrapper, file_list)
+        results = pool.map(process_file_wrapper, args_list)
     return [r for r in results if r is not None]
-
 
 def set_cuda_device():
     if torch.cuda.is_available():
@@ -284,6 +286,8 @@ def menu():
     return input("Choose an option: ")
 
 def main():
+    if torch.cuda.is_available():
+        torch.multiprocessing.set_start_method('spawn', force=True)
     parser = argparse.ArgumentParser(description="Vector database creation and management")
     parser.add_argument("--models_dir", default="./models", help="Directory containing the downloaded models")
     parser.add_argument("--vosk_model", default="./vosk_model", help="Path to the Vosk model")
