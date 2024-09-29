@@ -130,7 +130,7 @@
     </style>
 </head>
 <body>
-    <h1>SECURITY SCAN</h1>
+    <h1>SECURITY</h1>
     <h2>_CARDNS_</h2>
     <div class="description">
         Scannez votre QR Code de sécurité pour que le CAPITAINE de Station vérifie que vous êtes bien le porteur du UPassport présenté...
@@ -142,7 +142,7 @@
             <textarea id="ssss" name="ssss" rows="4"></textarea>
             <input type="hidden" id="zerocard" name="zerocard" value="_ZEROCARD_">
         </form>
-            <div id="scan-result" style="margin: 20px 0; font-size: 1.2em; color: #ffcc00;">QR Code ?</div> <!-- où afficher le code scanné -->
+            <div id="scan-result" style="margin: 20px 0; font-size: 1.2em; color: #ffcc00;">...SCAN...</div> <!-- où afficher le code scanné -->
         <div class="spinner" id="loadingSpinner">
             <div class="planet planet1"></div>
             <div class="planet planet2"></div>
@@ -165,8 +165,18 @@
 
     <script>
     $(document).ready(function() {
+        let opts = {
+          continuous: true,
+          video: document.getElementById('preview'),
+          mirror: true,
+          captureImage: false,
+          backgroundScan: false,  // Désactiver la détection en arrière-plan
+          refractoryPeriod: 5000,
+          scanPeriod: 1
+        };
+
         // Initialisation du scanner
-        let scanner = new Instascan.Scanner({ video: document.getElementById('preview') });
+        let scanner = new Instascan.Scanner(opts);
         scanner.addListener('scan', function (content) {
             document.getElementById("ssss").value = content;
             let truncatedContent = content.length > 42 ? content.substring(0, 42) + "..." : content;
