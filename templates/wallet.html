@@ -9,6 +9,7 @@
             margin: 0;
             padding: 0;
             background-color: #000;
+            font-family: Arial, sans-serif;
         }
 
         header, footer {
@@ -36,6 +37,22 @@
             transform: translate(-50%, -50%);
             font-size: 1.6em;
             font-weight: bold;
+        }
+
+        /* Media queries for responsive design */
+        @media (max-width: 768px) {
+            .circle-container {
+                width: 200px;
+                height: 200px;
+            }
+
+            .wallet-amount {
+                font-size: 1.2em;
+            }
+
+            header, footer {
+                font-size: 0.8em;
+            }
         }
     </style>
 </head>

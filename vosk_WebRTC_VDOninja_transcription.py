@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+## NOT WORKING... Could be password missing
 import asyncio
 import websockets
 import json
@@ -11,7 +12,7 @@ from urllib.parse import urlparse, parse_qs
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Configuration par défaut
-DEFAULT_ROOM_URL = "https://ipfs.copylaradio.com/ipfs/QmcSkcJ2j7GAsC2XhVqGSNAKVRpXgxfjjvDbhD5YxrncZY/?room=UPLANET&"
+DEFAULT_ROOM_NAME = "UPLANET"
 DEFAULT_WSS_SERVER = "wss://wss.vdo.ninja/"
 VOSK_MODEL_PATH = "vosk_model/selected"
 
@@ -47,16 +48,7 @@ async def process_audio(websocket, path):
         except KeyError:
             logging.error("Message does not contain expected keys")
 
-async def connect_to_vdo_ninja(room_url, wss_server):
-    logging.info(f"Connecting to VDO.Ninja with room URL: {room_url}")
-    parsed_url = urlparse(room_url)
-    query_params = parse_qs(parsed_url.query)
-    room_id = query_params.get('room', [''])[0]
-
-    if not room_id:
-        logging.error("Room ID not found in the URL")
-        raise ValueError("Room ID not found in the URL")
-
+async def connect_to_vdo_ninja(room_id, wss_server):
     uri = f"{wss_server}ws?room={room_id}"
     logging.info(f"Connecting to WebSocket at {uri}")
     try:
