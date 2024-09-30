@@ -176,7 +176,7 @@
 </head>
 <body>
     <h1>UPassport</h1>
-        <h2>Identité numérique décentralisée pour la Monnaie Libre Ğ1</h2>
+        <h2>~ Identité Numérique Décentralisée Ğ1 ~</h2>
 
     <div class="scanner-container">
         <video id="preview"></video>
@@ -187,15 +187,20 @@
             <div class="planet planet4"></div>
         </div>
         <form id="qr-form">
-            <label for="parametre">Scan Public Key:</label>
+            <label for="parametre">*** Scan Public Key ***</label>
             <input type="text" id="parametre" name="parametre" size=30 required>
             <input type="submit" id="submitButton" value="Submit">
         </form>
     </div>
     <div class="description">
-        UPassport est un générateur officiel de passeport Web3, certifié par la blockchain Ğ1.
-        Il vous permet de créer une identité numérique décentralisée en utilisant la preuve d'humanité comme toile de confiance.
-        Scanner votre clé publique, générer un passeport numérique unique et accéder à une preuve vérifiable de votre identité garantissant la sécurité et la confidentialité de vos données.
+        <b>UPassport</b> est un générateur de <u>Passeport Web3 Officiel</u> valide sur "<b>UPlanet</b>",
+        <br>une carte d'identité numérique décentralisée qui utilise la preuve d'humanité comme toile de confiance.
+            <ul>
+            <li>1) Scannez votre Clé Publique "Forgeron", (ou simple portefeuille[1])</li>
+            <li>2) Transformez le fac-simité... Envoyez 1 Ğ1 à votre "ZEROCARD"[2].</li>
+            <li>3) Obtenez votre UPassport, et disposez de votre "ẐenCARD"[3].</li>
+            </ul>
+            Cette station fait partie du réseau Astroport.ONE qui assure la sécurité et la confidentialité de vos données.
     </div>
     <div class="result-container">
         <div class="result-frame">
@@ -234,7 +239,11 @@
         }).catch(function (e) {
             console.error(e);
         });
-
+        window.addEventListener('message', function(event) {
+          if (event.data === 'eraseParametre') {
+            document.getElementById("parametre").value = '';
+          }
+        }, false);
         $(document).ready(function() {
             $('#qr-form').submit(function(e) {
                 e.preventDefault();

@@ -9,16 +9,17 @@
     <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/instascan.min.js"></script>
     <style>
         body {
-            font-family: 'Arial', sans-serif;
-            margin: 0;
-            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #2c3e50;
+            color: #ecf0f1;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background: #000;
-            color: #FFF;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
         }
 
         h1 {
@@ -30,53 +31,76 @@
             margin-bottom: 10px;
         }
 
-        .scanner-container {
-            width: 90%;
-            max-width: 400px;
-            margin: 20px auto;
+        h2 {
             text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .description {
+            text-align: center;
+            margin-bottom: 20px;
+            max-width: 600px;
+        }
+
+        .scanner-container {
+            text-align: center;
+            padding: 20px;
+            border: 2px solid #3498db;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+            max-width: 100%;
+            width: 300px;
         }
 
         video#preview {
             display: block;
             width: 100%;
             height: 200px;
+            border: 3px solid #e74c3c;
             border-radius: 10px;
             box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
         }
 
         form {
-            display: none;  /* Masquer le formulaire */
+            display: none;
         }
 
         .spinner {
+            margin-top: 20px;
             display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            justify-content: center;
-            align-items: center;
-            border-radius: 50%;
+            width: 200px;
+            height: 200px;
+            position: relative;
         }
 
         .planet {
-            width: 20px;
-            height: 20px;
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
-            margin: 5px;
-            animation: rotation 1s linear infinite;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            animation: orbit 4s linear infinite, colorChange 4s linear infinite;
         }
 
-        .planet1 { background-color: #ff6b6b; }
-        .planet2 { background-color: #00ff00; }
-        .planet3 { background-color: #00ffff; }
-        .planet4 { background-color: #0000ff; }
+        .planet1 { animation-delay: 0s; }
+        .planet2 { animation-delay: 1s; }
+        .planet3 { animation-delay: 2s; }
+        .planet4 { animation-delay: 3s; }
 
-        @keyframes rotation {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        @keyframes orbit {
+            0% { transform: rotate(0deg) translateX(60px) rotate(0deg); }
+            100% { transform: rotate(360deg) translateX(60px) rotate(-360deg); }
         }
+
+        @keyframes colorChange {
+            0% { background-color: #ff6b6b; }
+            25% { background-color: #feca57; }
+            50% { background-color: #48dbfb; }
+            75% { background-color: #ff9ff3; }
+            100% { background-color: #ff6b6b; }
+        }
+
 
         .result-container {
             display: none;
@@ -127,6 +151,12 @@
             background-color: #E57A35;
         }
 
+        .footnote {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.8em;
+            color: #bdc3c7;
+        }
     </style>
 </head>
 <body>
@@ -142,7 +172,7 @@
             <textarea id="ssss" name="ssss" rows="4"></textarea>
             <input type="hidden" id="zerocard" name="zerocard" value="_ZEROCARD_">
         </form>
-            <div id="scan-result" style="margin: 20px 0; font-size: 1.2em; color: #ffcc00;">...SCAN...</div> <!-- où afficher le code scanné -->
+        <div id="scan-result" style="margin: 20px 0; font-size: 1.2em; color: #ffcc00;">...SCAN...</div>
         <div class="spinner" id="loadingSpinner">
             <div class="planet planet1"></div>
             <div class="planet planet2"></div>
@@ -151,14 +181,14 @@
         </div>
     </div>
 
+    <div class="footnote">
+        UPassport Security Scan System - Version 1.0
+    </div>
+
     <div class="result-container">
         <div class="result-frame">
             <iframe id="result-iframe"></iframe>
             <div class="result-controls">
-<!--
-                <button class="result-button" id="open-new-tab">Open in New Tab</button>
-                <button class="result-button" id="close-result">Close</button>
--->
             </div>
         </div>
     </div>
@@ -179,7 +209,7 @@
         let scanner = new Instascan.Scanner(opts);
         scanner.addListener('scan', function (content) {
             document.getElementById("ssss").value = content;
-            let truncatedContent = content.length > 42 ? content.substring(0, 42) + "..." : content;
+            let truncatedContent = content.length > 32 ? content.substring(0, 32) + "..." : content;
             document.getElementById("scan-result").innerText = "QR CODE: " + truncatedContent;
 
 
@@ -193,6 +223,7 @@
                 type: 'POST',
                 data: $('#qr-form').serialize(),
                 success: function(response) {
+                    window.parent.postMessage('eraseParametre', '*'); // Remove parametre value from underneath QR scanner
                     $('#loadingSpinner').hide();  // Cache le spinner après réception de la réponse
                     $('#result-iframe').attr('srcdoc', response);
                     $('.result-container').css('display', 'flex');  // Affiche directement le résultat

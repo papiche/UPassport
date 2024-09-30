@@ -45,7 +45,7 @@ if [[ $PUBKEY == "https" ]]; then
                         </head><body><h1>ERROR --- ZEROCARD NOT FOUND ---<h1>
                         UPassport is not registered on this Astroport. support@qo-op.com
                         </body></html>' > ./tmp/${PUBKEY}.out.html \
-                                && echo "./tmp/${ZEROCARD}.out.html" \
+                                && echo "./tmp/${PUBKEY}.out.html" \
                                     &&  exit 1
         ZEROCARD=$(cat ./pdf/${MEMBERPUB}/ZEROCARD)
         ## REDIRECT TO SSSS SECURITY QR SCANNER
@@ -242,7 +242,7 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
             ./command.sh "$PUBKEY" "$COMM" "$LASTX" "$TXDATE" "$ZEROCARD"
             [ ! $? -eq 0 ] && echo ">>>>>>>>>>>> ERROR"
         fi
-        ##################################### 4TH SCAN
+        ##################################### 4TH SCAN : DRIVESTATE REDIRECT
         if [[ -s ./pdf/${PUBKEY}/DRIVESTATE ]]; then
             ## REDIRECT TO CURRENT DRIVESTATE
             echo '<!DOCTYPE html><html><head>
@@ -251,20 +251,20 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
             echo "./tmp/${ZEROCARD}.out.html"
             exit 0
         else
-            ## ZEROCARD 1ST APP ##### 2ND SCAN
+            ## ZEROCARD 1ST APP ##### 2ND SCAN : CHANGE DRIVESTATE TO IPFSPORTAL CONTENT
             CODEINJECT='<a target=_new href='${ipfsNODE}'/ipfs/'$(cat ./pdf/${PUBKEY}/IPFSPORTAL)'/${PUBKEY}/>'${AMOUNT}'</a>'
 
             cat ./templates/wallet.html \
             | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
                  -e "s~_AMOUNT_~${CODEINJECT}~g" \
-                 -e "s~300px~501px~g" \
+                 -e "s~300px~401px~g" \
                 > ./pdf/${PUBKEY}/_index.html # REPLACE UPASSPORT HTML
 
             echo ${PUBKEY} > ./pdf/${PUBKEY}/PUBKEY
-            DRIVESTATE=$(ipfs add -qwr ./pdf/${PUBKEY}/* | tail -n 1)
-            echo "/ipfs/${DRIVESTATE}" > ./pdf/${PUBKEY}/DRIVESTATE
+            DRIVESTATE=$(ipfs add -q ./pdf/${PUBKEY}/_index.html)
+            echo "/ipfs/${DRIVESTATE}" > ./pdf/${PUBKEY}/DRIVESTATE # UPDATE DRIVESTATE
             ipfs name publish --key ${ZEROCARD} /ipfs/${DRIVESTATE}
-            echo "./tmp/${ZEROCARD}.out.html"
+            echo "./pdf/${PUBKEY}/_index.html"
             exit 0
         fi
 
@@ -342,18 +342,21 @@ if [[ -s ./pdf/${PUBKEY}/ZEROCARD ]]; then
         ipfs key rm ${ZEROCARD} > /dev/null 2>&1
         WALLETNS=$(ipfs key import ${ZEROCARD} -f pem-pkcs8-cleartext ./tmp/${MOATS}.ipns)
         ## DRIVESTATE FIRST DApp => Wallet AMOUNT + ZEROCARD QR + N1 APP link
-        CODEINJECT="<a target=N1 href=${ipfsNODE}/ipfs/${IPFSPORTAL}/${PUBKEY}/N1/_index.html><img src=${ipfsNODE}/ipfs/${ZWALL} /></a>"
+        CODEINJECT="<a target=N1 href=${ipfsNODE}/ipfs/${IPFSPORTAL}/${PUBKEY}/N1/_index.html><img width=240px src=${ipfsNODE}/ipfs/${ZWALL} /></a>"
         cat ./templates/wallet.html \
         | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
              -e "s~_AMOUNT_~${CODEINJECT}~g" \
-             -e "s~300px~540px~g" \
+             -e "s~300px~340px~g" \
             > ./tmp/${ZEROCARD}.out.html
 
-        # PUBLISH NEW DRIVESTATE
+        # PUBLISH 1ST DRIVESTATE
+        ###  N1 NETWORK EXPLORER PREVIEW
+        ### SO USER ENTER EMAIL TO JOIN UPLANET...
         DRIVESTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
         echo "/ipfs/${DRIVESTATE}" > ./pdf/${PUBKEY}/DRIVESTATE
         ipfs name publish --key ${ZEROCARD} /ipfs/${DRIVESTATE}
 
+        ### OFFICIAL
         ######### move PDF to PASSPORT ################### in ASTROPORT game
         mkdir -p ~/.zen/game/passport
         mv ./pdf/${PUBKEY} ~/.zen/game/passport/
