@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
-# ~ from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, ValidationError
-from typing import Optional
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, EmailStr, ValidationError
+from typing import Optional
 import asyncio
 import aiofiles
 from vosk import Model, KaldiRecognizer
@@ -12,6 +12,7 @@ import wave
 import json
 import os
 import logging
+import base64
 import subprocess
 import magic
 import time
@@ -24,16 +25,18 @@ unix_timestamp = int(time.time())
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 app = FastAPI()
+
 templates = Jinja2Templates(directory="templates")
 
 # ~ # Configurer CORS
-# ~ app.add_middleware(
-    # ~ CORSMiddleware,
-    # ~ allow_origins=["*"],  # Permet toutes les origines
-    # ~ allow_credentials=True,
-    # ~ allow_methods=["*"],  # Permet toutes les méthodes
-    # ~ allow_headers=["*"],  # Permet tous les headers
-# ~ )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins or restrict
+    # ~ allow_origins=["https://ipfs.astroport.com", "https://u.astroport.com"],
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 class MessageData(BaseModel):
     ulat: str
@@ -185,13 +188,45 @@ async def transcribe_chunk(file: UploadFile = File(...)):
             logging.debug(f"Temporary WAV file removed: {wav_chunk_location}")
 
 @app.post("/upassport")
-async def scan_qr(parametre: str = Form(...)):
+async def scan_qr(parametre: str = Form(...), imageData: str = Form(None)):
     script_path = "./upassport.sh"
     log_file_path = "./tmp/54321.log"
+    image_dir = "./tmp"
+
+    # Ensure the image directory exists
+    os.makedirs(image_dir, exist_ok=True)
+
+    image_path = None
+    if imageData:
+        # Save the image
+        image_filename = f"qr_image_{parametre}.png"
+        image_path = os.path.join(image_dir, image_filename)
+
+        try:
+            # Remove the data URL prefix if present
+            if ',' in imageData:
+                image_data = imageData.split(',')[1]
+            else:
+                image_data = imageData
+
+            # Decode and save the image
+            with open(image_path, "wb") as image_file:
+                image_file.write(base64.b64decode(image_data))
+                logging.info("Saved image to: %s", image_path)
+
+        except Exception as e:
+            logging.error("Error saving image: %s", e)
+            image_path = None
 
     async def run_script():
+        cmd = [script_path, parametre]
+        if image_path:
+            cmd.append(image_path)
+
+        logging.info("Running script with command: %s", cmd)
+
         process = await asyncio.create_subprocess_exec(
-            script_path, parametre,
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT
         )
@@ -202,18 +237,22 @@ async def scan_qr(parametre: str = Form(...)):
                 line = line.decode().strip()
                 last_line = line
                 await log_file.write(line + "\n")
-                print(line)
+                logging.info(f"Script output: {line}")
 
         return_code = await process.wait()
+        logging.info(f"Script finished with return code: {return_code}")
         return return_code, last_line
 
     return_code, last_line = await run_script()
 
     if return_code == 0:
-        html_file_path = last_line.strip()
-        return FileResponse(html_file_path)
+        returned_file_path = last_line.strip()
+        logging.info(f"Returning file: {returned_file_path}")
+        return FileResponse(returned_file_path)
     else:
-        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
+        error_message = f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."
+        logging.error(error_message)
+        return {"error": error_message}
 
 @app.post("/sendmsg")
 async def send_message(
@@ -239,46 +278,27 @@ async def send_message(
             message=message
         )
 
-        # Traitement
-        result = await process_message(message_data)  # Utilisez await ici
+        # Traitement du message
+        result = await process_message(message_data)
 
         # Vérifiez le type de résultat retourné par process_message
         if isinstance(result, FileResponse):
-            return result
+            async with aiofiles.open(result.file, "rb") as file:
+                file_content = await file.read()
+            return JSONResponse(content={"status": "success", "file_path": str(result.file), "file_content": file_content.decode('utf-8')})
         elif isinstance(result, dict) and "error" in result:
-            return JSONResponse(
-                status_code=500,
-                content={"status": "error", "message": result["error"]}
-            )
+            raise HTTPException(status_code=500, detail={"status": "error", "message": result["error"]})
         else:
-            # Retourner une réponse de succès
-            return JSONResponse(
-                status_code=200,
-                content={"status": "success", "message": "Message sent successfully"}
-            )
-
-    except ValidationError as ve:
-        # Gestion des erreurs de validation Pydantic
-        logging.error(f"Validation error: {str(ve)}")
-        return JSONResponse(
-            status_code=422,
-            content={"status": "error", "message": "Invalid input data", "details": ve.errors()}
-        )
-
+            return JSONResponse(content={"status": "success", "message": "Message sent successfully"})
     except Exception as e:
-        # Gestion des autres erreurs
-        logging.error(f"Error processing message: {str(e)}")
-        return JSONResponse(
-            status_code=500,
-            content={"status": "error", "message": "An unexpected error occurred"}
-        )
+        logging.error(f"Error processing message: {e}")
+        raise HTTPException(status_code=500, detail={"status": "error", "message": str(e)})
 
 async def process_message(message_data: MessageData):
     logging.info(f"Message from pubkeyUpassport: {message_data.pubkeyUpassport}")
     logging.info(f"To [N1] UID: {message_data.uid}")
     logging.info(f"Pubkey: {message_data.pubkey}")
     logging.info(f"Record to UPlanet GEOKEY : {message_data.ulat}:{message_data.ulon}")
-
     logging.info(f"Message: {message_data.message}")
 
     if message_data.email:
@@ -294,7 +314,7 @@ async def process_message(message_data: MessageData):
     comment = message_data.message
     amount = "-1"  # API command
     date = str(unix_timestamp)  #  timestamp Unix
-    zerocard = message_data.email if message_data.email else f"MEMBER:{message_data.pubkey}"
+    zerocard = message_data.email if message_data.email else f"MEMBER:{message_data.pubkey}" # send email OR actual N1 App MEMBER G1PUB
 
     async def run_script():
         process = await asyncio.create_subprocess_exec(
@@ -317,8 +337,9 @@ async def process_message(message_data: MessageData):
     return_code, last_line = await run_script()
 
     if return_code == 0:
-        html_file_path = last_line.strip()
-        return FileResponse(html_file_path)
+        returned_file_path = last_line.strip()
+        logging.info(f"Returning file: {returned_file_path}")
+        return FileResponse(returned_file_path)
     else:
         return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
 
@@ -363,12 +384,11 @@ async def ssss(request: Request):
 
     # Déterminer si le script a réussi
     if return_code == 0:
-        html_file_path = last_line.strip()  # Le chemin HTML est supposé être dans `last_line`
-        # Retourner le fichier HTML généré en tant que réponse
-        return FileResponse(html_file_path)
+        returned_file_path = last_line.strip()  # Le chemin est supposé être dans `last_line`
+        # Retourner le fichier généré en tant que réponse
+        return FileResponse(returned_file_path)
     else:
         return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
-
 
 
 if __name__ == "__main__":

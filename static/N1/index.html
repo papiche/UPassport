@@ -18,8 +18,14 @@
         margin: 0;
         padding: 0;
         box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: #000;
+        color: #FFF;
     }
-
     #logs {
         background-color: #f0f0f0;
         padding: 10px;
@@ -213,6 +219,7 @@
 
     .form-group label {
         display: block;
+        color: black;
         margin-bottom: 5px;
         font-weight: bold;
     }
@@ -369,11 +376,11 @@
                 <input type="text" id="relation" name="relation" readonly>
             </div>
             <div class="form-group">
-                <label for="pubkeyUpassport">Upassport :</label>
+                <label for="pubkeyUpassport">Your UPassport N° :</label>
                 <input type="text" id="pubkeyUpassport" name="pubkeyUpassport" readonly>
             </div>
             <div class="form-group">
-                <label for="email">Email "ZEROCARD" :</label>
+                <label for="email">Your "ZenCard" Email :</label>
                 <input type="email" id="email" name="email">
             </div>
             <div class="form-group">
@@ -583,7 +590,6 @@ function createCarousel(images, containerId) {
         }
 
 
-
         async function init() {
             log('Initializing application...');
             const manifest = await fetchManifest();
@@ -595,6 +601,7 @@ function createCarousel(images, containerId) {
             const form = document.getElementById('dataForm');
             const responseDiv = document.getElementById('reponse');
 
+            // DETECT SUBMIT
             form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(form);
@@ -612,32 +619,32 @@ function createCarousel(images, containerId) {
                         'Accept': 'application/json'
                     }
                 });
-
-                // Changer le texte du bouton à "Done" même en cas d'erreur
                 submitButton.textContent = "Done";
-                submitButton.style.color = "blue";
 
                 if (response.ok) {
                     log('Data sent successfully');
                     responseDiv.textContent = "Message sent successfully!";
                     responseDiv.style.color = "green";
-                    closeOverlay();
                 } else {
                     log('Failed to send data');
                     responseDiv.textContent = "Failed to send message. Please try again.";
                     responseDiv.style.color = "red";
                 }
             } catch (error) {
-                // Changer le texte du bouton à "Done" même en cas d'erreur
-                submitButton.textContent = "Done";
+                // Changer le texte du bouton à "ERROR"
+                submitButton.textContent = "ERROR";
                 submitButton.style.color = "orange";
 
                 log(`Error sending data: ${error.message}`);
-                responseDiv.textContent = "MESSAGE SENT";
-                responseDiv.style.color = "green";
+                responseDiv.textContent = error.message;
+                responseDiv.style.color = "orange";
             }
             });
 
+            submitButton.textContent = "OK";
+            submitButton.style.color = "green";
+            responseDiv.textContent = "Please enter a valid ZenCard email";
+            responseDiv.style.color = "blue";
             log('Application initialized');
         }
 

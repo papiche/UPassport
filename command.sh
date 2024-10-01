@@ -22,7 +22,7 @@ DATE="$4"
 ZEROCARD="$5" ## PUBKEY or EMAIL
 
 [[ ! -L ./pdf/${PUBKEY} ]] \
-    && echo "NO VALID UPASSPORT FOUND"\
+    && echo "NOT A VALID UPASSPORT"\
     && echo "./static/img/money_coins.png" \
     && exit 1
 
@@ -34,7 +34,17 @@ echo "Clé publique (controling member): $PUBKEY"
 echo "Commentaire: $COMMENT"
 echo "Montant: $AMOUNT"
 echo "Date: $DATE"
-echo "ZEROCARD: $ZEROCARD" # email OR MEMBER:N1G1PUB (/sendmsg "API")
+echo "ZEROCARD: $ZEROCARD" # EMAIL OR MEMBERG1PUB
+# If an email is received it means Member want to
+
+### ZENCARD
+### PRIVILEGE ESCALADE
+isEMAIL=$(echo "$ZEROCARD" | grep -E -o "\b[a-zA-Z0-9.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}\b")
+[ ! -s $isEMAIL ] \
+    && echo "ZenCard chalenge... $isEMAIL" \
+    && [ -d ~/.zen/game/players/$isEMAIL ] \
+        && echo "////////////// REGISTERED ZENCARD \\\\\\\\\\\\\\" \
+        && ~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL"
 
 ### CHECK LAST COMMAND TIME
 LASTCOMMANDTIME=$(cat ./pdf/${PUBKEY}/COMMANDTIME 2>/dev/null)
@@ -91,7 +101,7 @@ case "$COMMENT" in
         exit 0
         ;;
     "MAJ")
-        echo "Mise à jour MEMBER wallet ${PUBKEY}"
+        echo "Mise à jour MEMBER wallet AMOUNT ${PUBKEY}"
         ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
         SOLDE=$(./tools/timeout.sh -t 6 ./tools/jaklis/jaklis.py balance -p ${PUBKEY})
         AMOUNT="$SOLDE Ğ1"
@@ -115,3 +125,4 @@ esac
 echo "comande éxécutée avec succès"
 echo $DATE > ./pdf/${PUBKEY}/COMMANDTIME
 echo "./static/img/astroport.png"
+exit 0

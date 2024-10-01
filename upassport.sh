@@ -4,10 +4,7 @@
 # Version: 1.0
 # License: AGPL-3.0 (https://choosealicense.com/licenses/agpl-3.0/)
 ################################################################################
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <pubkey>"
-    exit 1
-fi
+echo "Usage: $0 <pubkey> (<image_path>)"
 MOATS=$(date -u +"%Y%m%d%H%M%S%4N")
 
 ################################################################### INIT
@@ -19,6 +16,8 @@ source ./.env
 
 ## PUBKEY SHOULD BE A MEMBER PUBLIC KEY
 LINK="$1"
+IMAGE="$2"
+[ ! -z "$IMAGE" ] && echo "IMAGE : $IMAGE"
 PUBKEY=$(echo "$LINK" | tr -d ' ')
 ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # "PUBKEY" ChK or ZEN
 [[ $ZCHK == $PUBKEY ]] && ZCHK=""

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UPassport Generator - Ğ1 public key scanner -</title>
+    <title>[UPassport.ControlCenter] Ğ1 Public Key Scanner for UPlanet Entrance & various operations..."</title>
     <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/jquery-3.6.3.min.js"></script>
     <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/instascan.min.js"></script>
     <style>
@@ -175,8 +175,8 @@
     </style>
 </head>
 <body>
-    <h1>UPassport</h1>
-        <h2>~ Identité Numérique Décentralisée Ğ1 ~</h2>
+    <h1>UPassport [Ğ1]</h1>
+        <h2>~ Votre Identité Numérique Décentralisée ~</h2>
 
     <div class="scanner-container">
         <video id="preview"></video>
@@ -187,8 +187,9 @@
             <div class="planet planet4"></div>
         </div>
         <form id="qr-form">
-            <label for="parametre">*** Scan Public Key ***</label>
+            <label for="parametre">*** Scan QR Code ***</label>
             <input type="text" id="parametre" name="parametre" size=30 required>
+            <input type="hidden" id="imageData" name="imageData">
             <input type="submit" id="submitButton" value="Submit">
         </form>
     </div>
@@ -196,11 +197,12 @@
         <b>UPassport</b> est un générateur de <u>Passeport Web3 Officiel</u> valide sur "<b>UPlanet</b>",
         <br>une carte d'identité numérique décentralisée qui utilise la preuve d'humanité comme toile de confiance.
             <ul>
-            <li>1) Scannez votre Clé Publique "Forgeron", (ou simple portefeuille[1])</li>
-            <li>2) Transformez le fac-simité... Envoyez 1 Ğ1 à votre "ZEROCARD"[2].</li>
-            <li>3) Obtenez votre UPassport, et disposez de votre "ẐenCARD"[3].</li>
+            <li>1) Scannez votre Clé Publique "Forgeron", (ou simple portefeuille) [1].</li>
+            <li>2) Transformez le fac-simité... Envoyez au moins 1 Ğ1 à votre "ZEROCARD" [2].</li>
+            <li>3) Scannez à nouveau votre Clé Publique. Obtenez et imprimez votre "UPassport" [3].</li>
+            <li>4) Rejoignez UPlanet. Indiquez un email pour activer votre "ZenCARD" [4].</li>
             </ul>
-            Cette station fait partie du réseau Astroport.ONE qui assure la sécurité et la confidentialité de vos données.
+            Cette station fait partie du réseau "Astroport.ONE" [5] qui assure la sécurité et la confidentialité de vos données.
     </div>
     <div class="result-container">
         <div class="result-frame">
@@ -212,73 +214,96 @@
         </div>
     </div>
 
-    <script>
-        let opts = {
-          continuous: true,
-          video: document.getElementById('preview'),
-          mirror: true,
-          captureImage: false,
-          backgroundScan: false,  // Désactiver la détection en arrière-plan
-          refractoryPeriod: 5000,
-          scanPeriod: 1
-        };
+<script>
+    let opts = {
+        continuous: true,
+        video: document.getElementById('preview'),
+        mirror: false,
+        captureImage: false,
+        backgroundScan: false,
+        refractoryPeriod: 5000,
+        scanPeriod: 1
+    };
 
-        // Initialisation du scanner
-        let scanner = new Instascan.Scanner(opts);
-        scanner.addListener('scan', function (content) {
-            document.getElementById("parametre").value = content;
-            $('#submitButton').css('background-color', '#0000FF');
-        });
+    // Initialisation du scanner
+    let scanner = new Instascan.Scanner(opts);
+    scanner.addListener('scan', function (content) {
+        document.getElementById("parametre").value = content;
+        $('#submitButton').css('background-color', '#0000FF');
 
-        Instascan.Camera.getCameras().then(function (cameras) {
-            if (cameras.length > 0) {
-                scanner.start(cameras[0]);
-            } else {
-                console.error('No cameras found.');
-            }
-        }).catch(function (e) {
-            console.error(e);
-        });
-        window.addEventListener('message', function(event) {
-          if (event.data === 'eraseParametre') {
+        // Capture the current frame from the video element
+        let video = document.getElementById('preview');
+        let canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        let imageDataUrl = canvas.toDataURL('image/png');
+
+        // Add the image data to a hidden input
+        $('#imageData').val(imageDataUrl);
+
+        // Optionally, you can automatically submit the form here
+        // $('#qr-form').submit();
+    });
+
+    Instascan.Camera.getCameras().then(function (cameras) {
+        if (cameras.length > 0) {
+            scanner.start(cameras[0]);
+        } else {
+            console.error('No cameras found.');
+        }
+    }).catch(function (e) {
+        console.error(e);
+    });
+
+    // allow erase from sub iframes
+    window.addEventListener('message', function(event) {
+        if (event.data === 'eraseParametre') {
             document.getElementById("parametre").value = '';
-          }
-        }, false);
-        $(document).ready(function() {
-            $('#qr-form').submit(function(e) {
-                e.preventDefault();
-                $('#loadingSpinner').show();  // Affiche le spinner
-                $('.result-container').hide();
+        }
+    }, false);
 
-                $.ajax({
-                    url: '/upassport',
-                    type: 'POST',
-                    data: $(this).serialize(),
-                    success: function(response) {
-                        $('#loadingSpinner').hide();  // Cache le spinner
-                        $('#submitButton').css('background-color', '#4CAF01');
-                        $('#result-iframe').attr('srcdoc', response);
-                        $('.result-container').css('display', 'flex');  // Affiche directement le résultat
-                    },
-                    error: function() {
-                        $('#loadingSpinner').hide();  // Cache le spinner en cas d'erreur
-                        alert('An error occurred. Try again later.');
-                        $('#submitButton').css('background-color', '');
-                    }
-                });
-            });
+    $(document).ready(function() {
+        $('#qr-form').submit(function(e) {
+            e.preventDefault();
+            $('#loadingSpinner').show();  // Affiche le spinner
+            $('.result-container').hide();
 
-            $('#close-result').click(function() {
-                $('.result-container').hide();
-            });
+            let formData = new FormData(this);
+            formData.append('imageData', $('#imageData').val());
 
-            $('#open-new-tab').click(function() {
-                var response = $('#result-iframe').attr('srcdoc');
-                var newTab = window.open();
-                newTab.document.write(response);
-                newTab.document.close();
+            $.ajax({
+                url: '/upassport',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    $('#loadingSpinner').hide();  // Cache le spinner
+                    $('#submitButton').css('background-color', '#4CAF01');
+                    $('#result-iframe').attr('srcdoc', response);
+                    $('.result-container').css('display', 'flex');  // Affiche directement le résultat
+                },
+                error: function() {
+                    $('#loadingSpinner').hide();  // Cache le spinner en cas d'erreur
+                    alert('An error occurred. Try again later.');
+                    $('#submitButton').css('background-color', '');
+                }
             });
         });
-    </script>
+
+        $('#close-result').click(function() {
+            $('.result-container').hide();
+        });
+
+        $('#open-new-tab').click(function() {
+            var response = $('#result-iframe').attr('srcdoc');
+            var newTab = window.open();
+            newTab.document.write(response);
+            newTab.document.close();
+        });
+    });
+</script>
+
 </body>
 </html>
