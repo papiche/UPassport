@@ -179,8 +179,10 @@ generate_qr_with_uid() {
 ########################################################################
 ## MANAGING CACHE
 mkdir -p ./tmp
-# Delete older than 1 day cache
-find ./tmp -mtime +1 -type f -exec rm '{}' \;
+# Delete older than 3 days files from ./tmp
+find ./tmp -mtime +3 -type f -exec rm '{}' \;
+# Delete older than 7 days "fac-simile" from ./pdf
+find ./pdf -type d -mtime +7 -not -xtype l -exec rm -r {} \;
 
 ## GET PUBKEY TX HISTORY
 echo "LOADING WALLET HISTORY"
