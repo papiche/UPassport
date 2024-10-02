@@ -721,6 +721,7 @@ cat ./static/zine/UPassport.html \
             -e "s~_PLAYER_~${MEMBERUID}~g" \
             -e "s~_DATE_~$(date -u)~g" \
             -e "s~_PUBKEY_~${PUBKEY}~g" \
+            -e "s~_ZEROCARD_~${ZEROCARD}~g" \
             -e "s~_G1PUB_~${G1PUBZERO}~g" \
             -e "s~_G1PUBZERO_~${G1PUBZERO}~g" \
             -e "s~_TOTAL_~${TOTAL}~g" \
