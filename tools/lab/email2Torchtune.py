@@ -192,15 +192,7 @@ def generer_ollama_reponse(sujet, contenu, utilisateur_id):
 
 def fine_tune_model(model, dataset):
     try:
-        config = torchtune.Config(
-            model=model,
-            dataset=dataset,
-            optimizer=torch.optim.AdamW,
-            lr=1e-5,
-            batch_size=1,  # Comme nous fine-tunons après chaque email
-            num_epochs=1
-        )
-
+        config = torchtune.Config(model=model, dataset=dataset)
         tuner = torchtune.Tuner(config)
         tuner.tune()
 
