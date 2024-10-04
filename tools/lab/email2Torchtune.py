@@ -189,10 +189,19 @@ def generer_ollama_reponse(sujet, contenu, utilisateur_id):
         logger.error(traceback.format_exc())
         return "Désolé, une erreur s'est produite lors de la génération de la réponse."
 
-
 def fine_tune_model(model, dataset):
     try:
-        config = torchtune.Config(model=model, dataset=dataset)
+        # Créez un objet de configuration manuellement
+        config = {
+            'model': model,
+            'dataset': dataset,
+            'optimizer': torch.optim.AdamW,
+            'lr': 1e-5,
+            'batch_size': 1,  # Comme nous fine-tunons après chaque email
+            'num_epochs': 1
+        }
+
+        # Utilisez la classe Tuner directement avec la configuration
         tuner = torchtune.Tuner(config)
         tuner.tune()
 
@@ -200,6 +209,7 @@ def fine_tune_model(model, dataset):
     except Exception as e:
         logger.error(f"Erreur lors du fine-tuning du modèle: {str(e)}")
         logger.error(traceback.format_exc())
+
 
 def traiter_emails_et_appliquer_rag(imap_server, email_address, password, smtp_server, smtp_port, utilisateur_id):
     emails_traites = 0
