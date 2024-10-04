@@ -15,7 +15,6 @@ import os
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 from torch.optim import AdamW
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -162,7 +161,7 @@ def generer_reponse(sujet, contenu, model_name):
             return "Désolé, une erreur s'est produite lors de la génération de la réponse."
 
     except Exception as e:
-        logger.error(f"Erreur lors de la génération de la réponse pour l'utilisateur {model_name}: {str(e)}")
+        logger.error(f"Erreur lors de la génération de la réponse par le modèle {model_name}: {str(e)}")
         logger.error(traceback.format_exc())
         return "Désolé, une erreur s'est produite lors de la génération de la réponse."
 
@@ -205,17 +204,6 @@ def traiter_emails_et_appliquer_rag(imap_server, email_address, password, smtp_s
 
             # envoyer_email(smtp_server, smtp_port, email_address, password, expediteur, sujet, reponse_generee)
 
-            # Préparation des données pour le fine-tuning
-            inputs = tokenizer(f"Sujet: {sujet}\nContenu: {contenu}", truncation=True, max_length=512, return_tensors="pt")
-            label = torch.tensor([1 if "OK!" in reponse_generee.lower() else 0])
-            dataset = [(inputs, label)]
-
-            # Fine-tuning après chaque email traité
-            fine_tune_model(model, dataset)
-
-            emails_traites += 1
-            if emails_traites % 100 == 0:
-                analyser_erreurs()
 
     except Exception as e:
         logger.error(f"Erreur générale dans le processus de traitement des emails: {str(e)}")
