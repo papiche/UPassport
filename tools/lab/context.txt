@@ -1,3 +1,5 @@
+Vous êtes ASTRO un assistant intelligent qui lit et réponds aux messages. Utilisez les exemples précédents et le contexte fourni pour générer une réponse pertinente. Terminez en signalant que vous êtes un assistant numérique mis au point au G1FabLab et signez la réponse avec votre nom ASTRO.
+
 Tu es en charge de la communication des sites web
 https://g1sms.fr
 
@@ -340,7 +342,7 @@ et FooPGP
 soyez le forgeron de votre système d'information
 Inscrivez-vous sur "UPlanet"
 
-     
+
 
 et installez une ambassade Web3 chez vous...
 
@@ -407,7 +409,7 @@ Astroport.ONE dynamise le réseau ♥BOX à travers le "Système de Fichier Inte
 
  Pour les Pour les experts : Nous fournissons un ERP ("Enterprise Resource Planning" ou "Progiciel de Gestion Intégré") auquel le Web3 ajoute les fonctions de "Toiles de Confiance" et "Organisations Décentralisées" (PKI + DAO).
 
---- INSTALLATION ♥Box ẐenStation --- 
+--- INSTALLATION ♥Box ẐenStation ---
 
 bash <(wget -qO- https://git.p2p.legal/qo-op/Astroport.ONE/raw/branch/master/install.sh)
 (LINUX - systemd - amd64/arm64) -
@@ -439,9 +441,9 @@ Souveraineté Numérique
 
 Savez-vous où se trouvent vos données? Dans un datacenter, sur le disque de votre PC, où sur un NAS? Il y en a partout! Le Web2, cette toile "attrape-mouche", gargantuesque et inextricable ne rempli plus sa fonction. Conserver nos données et nous laisser y accéder librement et dans le respect du consentement à la partager ou non.
 Ce temps est terminé. IPFS apporte la brique essentielle à cette mutation. Désormais, stocker, partager et protéger ses données y est naturel. Une fois réunies, toutes ces données misent tout partout peuvent d'alléger (se dédoublonner), se localiser (PIN), se protéger (PGP), se monétiser (à la frontière entre ML et UNL).
-Nos Formations : 
+Nos Formations :
 
-Installer utiliser NextCloud (1)? Activer sa ZenCard (2)? Adapter son TW (3)? Choisir ses clefs partagées (4)?, Coder votre premier "smart contract" en BASH (5) 
+Installer utiliser NextCloud (1)? Activer sa ZenCard (2)? Adapter son TW (3)? Choisir ses clefs partagées (4)?, Coder votre premier "smart contract" en BASH (5)
 
 Nos logiciels sont libres :
 
@@ -484,7 +486,7 @@ fred
 
 Les systèmes centralisés ont des problèmes :
 
-Manque de confiance 
+Manque de confiance
 Les informations ne sont pas toujours fiables, ce qui crée des doutes entre les utilisateurs.
 
 Manque de précision
@@ -575,7 +577,7 @@ Une Aire de jeu IPFS et Crypto
 fred
 "UPlanet : Le Futur de la Création Collaborative."
 
- 
+
 
 UPlanet est bien plus qu'une simple application, c'est une révolution dans la manière dont nous explorons, créons et nous connectons. En unissant la géolocalisation, la documentation des recettes, des plans DIY et la blockchain, UPlanet ouvre la voie à une nouvelle ère de création collaborative. C'est un espace où chaque coin de terre devient un territoire créatif, où les utilisateurs peuvent partager leurs idées, collaborer sur des projets et construire une communauté dédiée à l'innovation. Bienvenue dans le futur de la créativité partagée, bienvenue dans UPlanet.
 Odoo • Image et Texte
@@ -585,10 +587,10 @@ A chaque intersection d'angle de 0.01° nous avons placé une clef.
 A cette clef correspond un territoire.
 Cesium.
 
-L'application qui vous permet de contrôler vos portefeuilles et accéder à l'espace de certification  
+L'application qui vous permet de contrôler vos portefeuilles et accéder à l'espace de certification
 Votre gestionnaire de portefeuilles mobile
 Odoo • Texte et Image
- 
+
 Votre Passeport Diplomatique Web3
 
 
@@ -600,7 +602,7 @@ Le projet "Sagittarius" au Capitole du Libre 2024
 
 Nous sommes ravis de vous annoncer que le projet Sagittarius sera présenté au Capitole du Libre 2024, qui se tiendra les 16 et 17 novembre à Toulouse.
 
-Cette présentation sera l’occasion de partager notre vision d’un écosystème Web3 décentralisé et respectueux de la vie privée, dans la lignée des efforts de UPlanet et CopyLaRadio. 
+Cette présentation sera l’occasion de partager notre vision d’un écosystème Web3 décentralisé et respectueux de la vie privée, dans la lignée des efforts de UPlanet et CopyLaRadio.
 
 SOUSCRIPTION (max. 150)
 Odoo • Texte et Image
@@ -683,18 +685,18 @@ Comparaison de prix avec les fournisseurs de stockage cloud
     12 Ẑ/mois (ou 6Ẑ+DU ou 3Ẑ+DU²) pour 128 Go + IA
 
 Voici un tableau récapitulatif des offres d’hébergement Cloud et de services d’IA populaires en France, avec leurs prix et services :
-Fournisseur 	Service 	Type 	Stockage 	Prix de base 	Estimation mensuelle (1h/jour)
-Google 	Google Drive 	Cloud Storage 	15 Go gratuits 	Gratuit / 1,99€/mois pour 100 Go 	Gratuit / 1,99€
-Google 	Google Cloud AI 	IA 	- 	À partir de 0,026€/min 	~46,80€
-Microsoft 	OneDrive 	Cloud Storage 	5 Go gratuits 	Gratuit / 2€/mois pour 100 Go 	Gratuit / 2€
-Microsoft 	Azure AI 	IA 	- 	À partir de 0,062€/min 	~111,60€
-Amazon 	Amazon Drive 	Cloud Storage 	5 Go gratuits 	Gratuit / 19,99€/an pour 100 Go 	Gratuit / ~1,67€
-Amazon 	AWS AI Services 	IA 	- 	À partir de 0,0735€/min 	~132,30€
-Dropbox 	Dropbox 	Cloud Storage 	2 Go gratuits 	Gratuit / 11,99€/mois pour 2 To 	Gratuit / 11,99€
-OVHcloud 	Public Cloud Storage 	Cloud Storage 	- 	À partir de 0,01€/Go/mois 	Variable
-OVHcloud 	AI Training 	IA 	- 	À partir de 0,30€/heure 	~9€
-IBM 	IBM Cloud 	Cloud + IA 	25 Go gratuits 	Gratuit / Tarifs variables 	Variable
-Oracle 	Oracle Cloud 	Cloud + IA 	10 Go gratuits 	Gratuit / Tarifs variables 	Variable
+Fournisseur     Service     Type    Stockage    Prix de base    Estimation mensuelle (1h/jour)
+Google  Google Drive    Cloud Storage   15 Go gratuits  Gratuit / 1,99€/mois pour 100 Go    Gratuit / 1,99€
+Google  Google Cloud AI     IA  -   À partir de 0,026€/min  ~46,80€
+Microsoft   OneDrive    Cloud Storage   5 Go gratuits   Gratuit / 2€/mois pour 100 Go   Gratuit / 2€
+Microsoft   Azure AI    IA  -   À partir de 0,062€/min  ~111,60€
+Amazon  Amazon Drive    Cloud Storage   5 Go gratuits   Gratuit / 19,99€/an pour 100 Go     Gratuit / ~1,67€
+Amazon  AWS AI Services     IA  -   À partir de 0,0735€/min     ~132,30€
+Dropbox     Dropbox     Cloud Storage   2 Go gratuits   Gratuit / 11,99€/mois pour 2 To     Gratuit / 11,99€
+OVHcloud    Public Cloud Storage    Cloud Storage   -   À partir de 0,01€/Go/mois   Variable
+OVHcloud    AI Training     IA  -   À partir de 0,30€/heure     ~9€
+IBM     IBM Cloud   Cloud + IA  25 Go gratuits  Gratuit / Tarifs variables  Variable
+Oracle  Oracle Cloud    Cloud + IA  10 Go gratuits  Gratuit / Tarifs variables  Variable
 
 *Estimation pour une utilisation de 1h/jour d’une instance de taille moyenne
 **Estimation basée sur une utilisation modérée de l’API
@@ -765,26 +767,26 @@ Il est possible de sous-louer 12 x 10 Go, ainsi pour le possesseur d’une oblig
 Calcul des revenus totaux
 
 Voici le tableau financier actualisé avec les revenus totaux sur 7 ans pour chaque scenario locatif, en tenant compte d’une possible sous-location des obligations en parts de 10 Go :
-Scenario 	Revenu annuel (en €) 	Revenu annuel en DU 	Multiplication par 12
-Obligation de 128 Go - Cool 	144 € 	0 DU 	Non applicable
-Obligation de 128 Go - Juste 	72 € + 12 DU 	12 DU 	Non applicable
-Obligation de 128 Go - Carré 	36 € + 144 DU 	144 DU 	Non applicable
-Obligation de 128 Go - Cube 	18 € + 1728 DU 	1728 DU 	Non applicable
-Part de 10 Go - Cool 	48 € 	0 DU 	x12 = 576 €
-Part de 10 Go - Juste 	24 € + 12 DU 	12 DU 	x12 = 288 € + 144 DU
-Part de 10 Go - Carré 	12 € + 144 DU 	144 DU 	x12 = 144 € + 1728 DU
-Part de 10 Go - Cube 	6 € + 1728 DU 	1728 DU 	x12 = 72 € + 20736 DU
+Scenario    Revenu annuel (en €)    Revenu annuel en DU     Multiplication par 12
+Obligation de 128 Go - Cool     144 €   0 DU    Non applicable
+Obligation de 128 Go - Juste    72 € + 12 DU    12 DU   Non applicable
+Obligation de 128 Go - Carré    36 € + 144 DU   144 DU  Non applicable
+Obligation de 128 Go - Cube     18 € + 1728 DU  1728 DU     Non applicable
+Part de 10 Go - Cool    48 €    0 DU    x12 = 576 €
+Part de 10 Go - Juste   24 € + 12 DU    12 DU   x12 = 288 € + 144 DU
+Part de 10 Go - Carré   12 € + 144 DU   144 DU  x12 = 144 € + 1728 DU
+Part de 10 Go - Cube    6 € + 1728 DU   1728 DU     x12 = 72 € + 20736 DU
 
 Revenus totaux sur 7 ans
-Scenario 	Revenu total (en €) 	Revenu total en DU
-Obligation de 128 Go - Cool 	1008 € 	0 DU
-Obligation de 128 Go - Juste 	504 € + 84 DU 	84 DU
-Obligation de 128 Go - Carré 	252 € + 1008 DU 	1008 DU
-Obligation de 128 Go - Cube 	126 € + 12096 DU 	12096 DU
-Part de 10 Go - Cool 	336 € x12 = 4032 € 	0 DU x12 = 0 DU
-Part de 10 Go - Juste 	168 € x12 + 84 DU x12 = 2016 € + 1008 DU 	12 DU x12 = 144 DU
-Part de 10 Go - Carré 	84 € x12 + 1008 DU x12 = 1008 € + 17280 DU 	144 DU x12 = 1728 DU
-Part de 10 Go - Cube 	42 € x12 + 1728 DU x12 = 504 € + 20736 DU 	1728 DU x12 = 20736 DU
+Scenario    Revenu total (en €)     Revenu total en DU
+Obligation de 128 Go - Cool     1008 €  0 DU
+Obligation de 128 Go - Juste    504 € + 84 DU   84 DU
+Obligation de 128 Go - Carré    252 € + 1008 DU     1008 DU
+Obligation de 128 Go - Cube     126 € + 12096 DU    12096 DU
+Part de 10 Go - Cool    336 € x12 = 4032 €  0 DU x12 = 0 DU
+Part de 10 Go - Juste   168 € x12 + 84 DU x12 = 2016 € + 1008 DU    12 DU x12 = 144 DU
+Part de 10 Go - Carré   84 € x12 + 1008 DU x12 = 1008 € + 17280 DU  144 DU x12 = 1728 DU
+Part de 10 Go - Cube    42 € x12 + 1728 DU x12 = 504 € + 20736 DU   1728 DU x12 = 20736 DU
 
 Ces revenus totaux sur 7 ans sont calculés en multipliant les revenus annuels par le nombre de périodes (sept ans) et en tenant compte de la multiplication par 12 en cas de sous-location des parts de 10 Go.
 
