@@ -294,6 +294,72 @@ Rejoignez-nous dans cette aventure passionnante où la technologie libère son p
 Libérez-vous avec Astroport.
 #AstroportRevolution #GestionDistribuée #LibertéInformatique
 
+
+Le vote quadratique
+une nouvelle approche de la prise de décision collective
+
+fred
+
+Dans un monde où la prise de décision collective est souvent dominée par la règle de la majorité simple, le vote quadratique émerge comme une alternative innovante et prometteuse. Cette méthode, développée par l'économiste Glen Weyl, vise à résoudre certains problèmes inhérents aux systèmes de vote traditionnels, notamment la "tyrannie de la majorité" et la difficulté à exprimer l'intensité des préférences.
+Comment fonctionne le vote quadratique ?
+Le principe du vote quadratique est simple mais puissant :
+
+    Chaque participant reçoit un budget de "crédits de vote".
+    Les participants peuvent allouer ces crédits sur différentes options ou propositions.
+    Le coût en crédits pour chaque vote supplémentaire augmente de manière quadratique.
+
+Par exemple, si 1 vote coûte 1 crédit, 2 votes coûteront 4 crédits, 3 votes coûteront 9 crédits, et ainsi de suite. Cette règle de tarification quadratique permet aux participants d'exprimer non seulement la direction de leurs préférences, mais aussi leur intensité.
+
+Les avantages du vote quadratique
+
+    Expression de l'intensité des préférences : Contrairement au vote traditionnel où chaque personne n'a qu'une voix, le vote quadratique permet aux participants de "miser" plus de crédits sur les questions qui leur tiennent particulièrement à cœur.
+    Protection des minorités : Le système permet à des groupes minoritaires ayant des opinions fortes sur certains sujets de faire entendre leur voix, même face à une majorité moins engagée.
+    Décisions plus nuancées : En encourageant une réflexion sur l'allocation des crédits de vote, ce système favorise des décisions plus réfléchies et consensuelles.
+    Réduction de la polarisation : Le vote quadratique incite les participants à répartir leurs crédits sur plusieurs options, ce qui peut contribuer à réduire la polarisation des débats.
+
+Applications potentielles
+Le vote quadratique pourrait être utilisé dans divers contextes :
+
+    Gouvernance d'entreprise
+    Décisions politiques locales ou nationales
+    Allocation de budgets participatifs
+    Gouvernance de projets open-source ou de communautés en ligne
+
+Défis et considérations
+Malgré ses avantages, le vote quadratique soulève également quelques questions :
+
+    Comment garantir une distribution équitable des crédits de vote ?
+    Comment prévenir les manipulations ou le "trading" de crédits entre participants ?
+    Quelle est la meilleure façon d'éduquer le public sur ce nouveau système de vote ?
+
+Voici comment la blockchain publique G1 et le système de monnaie libre Ğ1 adressent les problèmes soulevés par le vote quadratique :
+
+    Distribution équitable des crédits de vote :
+
+La Ğ1 utilise un Dividende Universel (DU) qui est distribué de manière égale à tous les membres certifiés du réseau. Ce DU sert de base pour les crédits de vote, assurant ainsi une distribution initiale équitable. Chaque membre reçoit le même montant de DU périodiquement, ce qui permet d'avoir une base équitable pour participer aux votes.
+
+    Prévention des manipulations et du "trading" de crédits :
+
+Le système de la Ğ1 utilise une "toile de confiance" cryptographique pour relier les utilisateurs. Chaque identité est liée à un certificat cryptographique qui doit être confirmé par d'autres membres du réseau. Cela rend beaucoup plus difficile la création de faux comptes ou la manipulation du système par une seule entité. De plus, toutes les transactions sont enregistrées de manière transparente dans la blockchain Duniter. Cela permet de détecter plus facilement les comportements suspects ou les tentatives de manipulation des crédits de vote.
+
+    Éducation du public sur ce nouveau système :
+
+La communauté Ğ1 met l'accent sur l'éducation et la transparence. Il existe de nombreuses ressources pédagogiques expliquant le fonctionnement du système, notamment :
+
+    Des articles et tutoriels sur le site officiel et les forums de la communauté
+    Des rencontres et ateliers organisés par les membres pour expliquer le système
+    Des outils de visualisation de la toile de confiance et des flux monétaires qui aident à comprendre le fonctionnement du réseau
+
+De plus, le code source du protocole Duniter est open-source, ce qui permet à quiconque d'examiner et de comprendre le fonctionnement technique du système.
+
+Conclusion
+
+Le vote quadratique, combiné avec la technologie blockchain de la Ğ1, ouvre des perspectives fascinantes pour l'avenir de la prise de décision collective. Cette synergie entre un système de vote innovant et une monnaie libre décentralisée pourrait bien révolutionner notre approche de la gouvernance participative.
+La Ğ1, avec son Dividende Universel et sa toile de confiance, apporte des solutions concrètes aux défis du vote quadratique. Elle offre un cadre équitable pour la distribution des crédits de vote, renforce la sécurité contre les manipulations, et s'appuie sur une communauté engagée dans l'éducation et la transparence.
+Cette convergence entre vote quadratique et monnaie libre illustre parfaitement l'esprit de CopyLaRadio : explorer des alternatives innovantes pour un Internet plus démocratique et décentralisé. Elle nous invite à repenser non seulement nos systèmes de vote, mais aussi la nature même de la monnaie et son rôle dans la société. Alors que nous naviguons dans l'ère du Web3 et de la gouvernance décentralisée, des expérimentations comme celles-ci sont cruciales.
+Elles nous permettent d'imaginer et de construire des systèmes plus équitables, plus transparents et plus représentatifs de la diversité des opinions et des intensités de préférences au sein de nos communautés. L'avenir de la démocratie numérique est peut-être là, à la croisée du vote quadratique et de la blockchain Ğ1. À nous de saisir cette opportunité pour façonner un futur où chaque voix compte, non seulement par sa direction, mais aussi par son intensité.
+
+
 ---
 
 https://coylaradio.com
@@ -642,7 +708,86 @@ Votre avis compte !
 
 Pour continuer à améliorer et à développer ce projet, nous avons besoin de votre avis. Répondez à notre sondage pour partager vos idées et vos expériences avec nous. Votre participation nous aidera à mieux comprendre vos besoins et à ajuster notre approche pour offrir les meilleurs services possibles.
 
-Participez au sondage
+
+Du Web sauvage à un WEB3 civilisé
+UPlanet_OWL
+
+fred
+
+Chers pionniers du numérique,
+
+Permettez-moi de vous présenter UPlanet_OWL (Open World Ledger), un projet révolutionnaire qui transforme notre façon d’interagir dans l’espace numérique. C’est bien plus qu’un simple jeu, c’est un contrat social entre nous, les habitants d’un nouveau monde digital[1].
+Une nouvelle ère numérique
+
+Nous sommes à l’aube d’une transition majeure, passant d’un Web sauvage à un WEB3 civilisé. UPlanet_OWL incarne cette évolution, offrant un espace où la cryptographie, la blockchain et la décentralisation redéfinissent nos interactions[4].
+
+Objectifs clés :
+
+    100% Logiciels Libres
+    100% Ressources Libres
+    100% Connaissances Libres
+    100% Confiance et Partage
+
+Odoo • une photo avec une légende
+
+Architecture innovante
+
+UPlanet utilise une structure géographique unique pour organiser les données[4] :
+
+    UMAP (0,01°) : 1 signature
+    SECTEUR (0,1°) : 3 signatures
+    REGION (1°) : 12 signatures
+    ZONE (10°) : 144 signatures
+    MONDE : 20736 signatures
+
+Cette approche permet une visualisation précise et décentralisée des informations, créant un “système d’information libre” résilient et non commercial[4].
+Un "système d'information libre", non marchand, décentralisé et résilient.
+1 signature
+
+UMAP (0.01°)
+3 signatures
+
+SECTEUR (0.1°)
+12 signatures
+
+REGION (1°)
+144 signatures
+
+ZONE (10°)
+20736 signatures
+
+WORLD LEVEL
+Économie et gouvernance
+
+Le système intègre des mécanismes économiques innovants :
+
+    321DU.LeJeu : Un jeu de gratitude où les joueurs échangent des jetons DU, favorisant la collaboration et le partage[2].
+
+    ZENBusinessPlan : Un modèle économique pour l’auto-hébergement, utilisant des tokens Zen pour gérer les investissements et les revenus[3].
+
+Participation et onboarding
+
+Pour rejoindre cette aventure :
+
+    Créez votre identité Web3
+    Familiarisez-vous avec la distribution de jetons et le système économique
+    Contribuez au grand livre mondial des biens communs
+    Participez à la gouvernance décentralisée
+    Intégrez ces principes dans votre vie quotidienne
+
+
+----
+
+Prêt à façonner le futur ? Rejoignez "UPlanet" dès maintenant et commencez votre voyage vers une ère où votre identité Web3 est la clé de votre destin. Plongez dans l'inconnu, explorez le potentiel de la blockchain, et devenez un pionnier du changement.
+
+Un appel à l’action
+
+UPlanet_OWL n’est pas qu’un jeu, c’est une opportunité de façonner un avenir numérique plus équitable et transparent. En participant, vous devenez un acteur du changement, contribuant à la transition vers un monde où la confiance, le partage et la liberté sont au cœur de nos interactions.
+
+Rejoignez-nous dans cette quête pour un WEB3 civilisé. Ensemble, nous pouvons créer un espace numérique qui reflète nos valeurs collectives et ouvre la voie à un avenir plus collaboratif et éthique.
+
+Prêt à faire le grand saut ? Cliquez pour créer votre identité Web3 et commencez votre voyage vers un futur numérique révolutionnaire !
+
 
 Projet Sagittarius : Révolutionnez le Cloud avec votre PC Gamer
 Principe de fonctionnement
@@ -850,7 +995,230 @@ SONDAGE…
 
 
 
+Protocole de Primo Transaction pour Duniter
+Une Innovation pour la Gestion des Portefeuilles Entreprise
 
+fred
+Qu'est-ce que la Primo Transaction ?
+La Primo Transaction est une transaction spéciale effectuée sur la blockchain Duniter qui établit un lien vérifiable entre un ou plusieurs comptes membres et un portefeuille d'entreprise. Ce qui rend cette transaction unique, c'est l'inclusion dans son commentaire d'un lien IPFS (InterPlanetary File System) pointant vers un contrat et un programme associés au portefeuille.
+
+Caractéristiques clés :
+
+    Lien membre-entreprise : Permet d'associer officiellement des membres Duniter à un portefeuille d'entreprise.
+    Contrat transparent : Le lien IPFS dans le commentaire donne accès au contrat régissant le fonctionnement du portefeuille.
+    Logique programmable : Un programme associé peut automatiser certaines opérations du portefeuille.
+    Évolutivité : Le contrat et le programme peuvent être mis à jour en changeant de portefeuille.
+
+Comment fonctionne la Primo Transaction ?
+
+    Création du portefeuille : Un portefeuille d'entreprise est créé sur la blockchain Duniter.
+    Préparation du contrat et du programme : Les documents sont rédigés et uploadés sur IPFS, générant un CID (Content Identifier) unique.
+    Exécution de la Primo Transaction : Un membre effectue une transaction vers le portefeuille d'entreprise, incluant dans le commentaire le CID IPFS du contrat et du programme.
+    Validation : Les nœuds Duniter valident la transaction, établissant ainsi le lien officiel.
+
+L'analyse quotidienne des transactions
+Un aspect crucial de ce système est l'analyse quotidienne des transactions par les nœuds Duniter+Astroport. Voici comment cela fonctionne :
+
+    Scan automatique : Chaque jour, les nœuds parcourent les transactions des portefeuilles d'entreprise qu'ils gèrent.
+    Exécution du programme : Le programme associé à chaque portefeuille est exécuté, traitant les transactions selon la logique définie.
+    Actions automatisées : Selon les règles établies, des actions peuvent être déclenchées automatiquement (distributions, conversions, etc.).
+
+Un excellent exemple de cette automatisation est le script G1PalPay.sh, disponible sur le dépôt GitHub Astroport.ONE. Ce script illustre comment les transactions peuvent être analysées et traitées de manière automatique et sécurisée.
+
+Avantages du système de Primo Transaction
+
+    Transparence : Tous les membres peuvent consulter le contrat et le programme associés à un portefeuille d'entreprise.
+    Flexibilité : Les règles de gestion peuvent évoluer en créant un nouveau portefeuille avec un nouveau contrat.
+    Automatisation : Réduit la charge de travail manuel et les erreurs potentielles.
+    Confiance : Renforce la confiance dans les opérations des entreprises sur la blockchain Duniter.
+    Gouvernance décentralisée : Facilite la mise en place de systèmes de gouvernance transparents pour les entreprises.
+
+Applications potentielles
+
+    Coopératives décentralisées : Gestion automatisée des parts et des dividendes.
+    Cagnottes communes : Distribution automatique des fonds selon des règles prédéfinies.
+    Systèmes de récompense : Attribution automatique de tokens basée sur des critères spécifiques.
+    Gestion de trésorerie : Automatisation des paiements récurrents et de la gestion des liquidités.
+
+
+Le système de Primo Transaction représente une avancée significative dans la gestion des portefeuilles d'entreprise sur la blockchain Duniter.
+
+En combinant transparence, flexibilité et automatisation, il ouvre la voie à de nouvelles formes d'organisations décentralisées et de gestion financière dans l'écosystème de la monnaie libre Ğ1. Cette innovation illustre parfaitement comment la technologie blockchain peut être utilisée pour créer des systèmes de confiance sans intermédiaire, tout en offrant une grande flexibilité aux utilisateurs. Alors que nous continuons à explorer les possibilités offertes par ce système, il est clair que la Primo Transaction a le potentiel de transformer profondément la façon dont les entreprises et les organisations opèrent dans l'économie décentralisée.
+
+Voici un projet de document décrivant le protocole de Primo Transaction :
+Protocole de Primo Transaction pour Duniter
+
+Version : 0.1 (Draft)
+1. Introduction
+
+Le protocole de Primo Transaction est conçu pour établir un lien vérifiable entre un ou plusieurs comptes membres Duniter et un portefeuille d’entreprise, tout en permettant l’association de contrats et de programmes automatisés à ce portefeuille.
+2. Objectifs
+
+    Créer un lien de confiance entre membres et portefeuilles d’entreprise
+    Permettre l’association de contrats et de programmes à des portefeuilles
+    Faciliter l’automatisation des opérations sur les portefeuilles d’entreprise
+    Assurer la transparence et la flexibilité dans la gestion des portefeuilles
+
+3. Spécifications du protocole
+3.1 Format de la Primo Transaction
+
+Une Primo Transaction est une transaction spéciale sur la blockchain Duniter avec le format suivant :
+
+Émetteur: <adresse_membre>
+Destinataire: <adresse_portefeuille_entreprise>
+Montant: 1 Ğ1
+Commentaire: G1CERT:ATTACH:<cid_ipfs>:<type_contenu>
+
+Où :
+
+    <adresse_membre> est l’adresse du compte membre initiant la transaction
+    <adresse_portefeuille_entreprise> est l’adresse du portefeuille d’entreprise à certifier
+    <cid_ipfs> est le Content Identifier IPFS du contrat ou du programme
+    <type_contenu> peut être “CONTRACT” pour un contrat ou “PROGRAM” pour un programme exécutable
+
+3.2 Procédure de certification
+
+    Le membre prépare le contrat et/ou le programme et les upload sur IPFS
+    Le membre effectue la Primo Transaction vers le portefeuille d’entreprise
+    Les nœuds Duniter valident la transaction et enregistrent le lien
+
+3.3 Mise à jour du contrat ou du programme
+
+Pour mettre à jour le contrat ou le programme :
+
+    Créer un nouveau portefeuille d’entreprise
+    Effectuer une nouvelle Primo Transaction avec le nouveau CID IPFS
+    Transférer les fonds de l’ancien portefeuille vers le nouveau
+
+3.4 Analyse des transactions
+
+Les nœuds Duniter+Astroport doivent :
+
+    Scanner quotidiennement les transactions des portefeuilles d’entreprise certifiés
+    Récupérer et exécuter le programme associé à chaque portefeuille
+    Effectuer les actions définies par le programme (distributions, conversions, etc.)
+
+4. Sécurité et validation
+
+    Seuls les membres Duniter peuvent initier une Primo Transaction
+    Les nœuds doivent vérifier l’intégrité du CID IPFS et du contenu associé
+    Les programmes exécutés doivent être dans un environnement sandbox pour la sécurité
+
+5. Considérations d’implémentation
+
+    Les clients Duniter doivent intégrer une interface pour effectuer des Primo Transactions
+    Les nœuds doivent implémenter un système d’exécution sécurisé pour les programmes associés
+    Un mécanisme de résolution des conflits doit être prévu en cas de Primo Transactions multiples
+
+6. Exemples d’utilisation
+6.1 Création d’une coopérative
+
+G1CERT:ATTACH:QmA1B2C3D4E5F6:CONTRACT
+
+Où QmA1B2C3D4E5F6 pointe vers les statuts de la coopérative.
+6.2 Système de distribution automatique
+
+G1CERT:ATTACH:QmG7H8I9J0K1L2:PROGRAM
+
+Où QmG7H8I9J0K1L2 pointe vers un programme de distribution des bénéfices.
+
+Conclusion
+
+Le protocole de Primo Transaction offre un cadre flexible et transparent pour la gestion des portefeuilles d’entreprise sur Duniter, ouvrant la voie à de nouvelles formes d’organisations décentralisées et d’automatisation financière.
+
+Ce document est un projet et est sujet à modifications et améliorations basées sur les retours de la communauté Duniter et les tests d’implémentation.
+
+Annexe : Le système de primo transaction et la co-propriété dans le Web3
+Le système de primo transaction, développé dans l'écosystème de la monnaie libre Ğ1 et de la blockchain Duniter, offre une solution innovante pour définir et gérer la co-propriété de biens dans le contexte du Web3.
+
+Cette approche s'inscrit parfaitement dans la vision d'un "Web3 civilisé"
+
+    Principe de la primo transaction
+
+La primo transaction est une transaction spéciale sur la blockchain Duniter qui établit un lien vérifiable entre un ou plusieurs comptes membres et un portefeuille commun. Ce portefeuille peut représenter une propriété partagée, qu'il s'agisse de monnaie ou d'autres types de biens.
+
+    Application à la co-propriété
+
+Dans le contexte de la co-propriété, le système de primo transaction peut être utilisé pour :
+a) Définir les droits de propriété : La primo transaction peut inclure dans son commentaire un lien IPFS vers un contrat détaillant les droits et responsabilités de chaque co-propriétaire.
+b) Gérer les parts : Le portefeuille commun peut contenir des tokens représentant les parts de chaque co-propriétaire, facilitant ainsi la gestion et le transfert des droits de propriété.
+c) Automatiser la gestion : Un programme associé au portefeuille via la primo transaction peut automatiser la distribution des revenus ou la prise de décisions selon les règles établies.
+
+    Avantages pour un Web3 civilisé
+
+    Transparence : Tous les co-propriétaires peuvent consulter le contrat et les transactions liées à la propriété commune.
+    Flexibilité : Les règles de gestion peuvent évoluer en créant un nouveau portefeuille avec un nouveau contrat.
+    Gouvernance décentralisée : Facilite la mise en place de systèmes de gouvernance transparents pour les biens communs.
+    Interopérabilité : Peut s'intégrer avec d'autres systèmes du Web3 pour une gestion globale des biens numériques et physiques.
+
+    Exemple concret
+
+Imaginons une communauté souhaitant gérer collectivement un espace de co-working. Le système de primo transaction permettrait de :
+
+    Créer un portefeuille représentant l'espace de co-working.
+    Définir les parts de chaque membre via des tokens dans ce portefeuille.
+    Automatiser la distribution des revenus générés par l'espace.
+    Faciliter les votes pour les décisions importantes concernant la gestion de l'espace.
+
+Conclusion
+
+Le système de primo transaction offre une infrastructure technique pour concrétiser la vision d'un Web3 civilisé, où la propriété et la gestion des biens communs peuvent être transparentes, équitables et démocratiques. Il s'agit d'un pas important vers la réalisation d'une économie collaborative et décentralisée, alignée avec les valeurs de liberté et de responsabilité
+
+
+Une IA open-source en Monnaie Libre
+le projet innovant de "qo-op"
+
+fred
+
+Dans un monde où l’intelligence artificielle est souvent synonyme de grandes entreprises et de centres de données centralisés, un projet novateur émerge au sein de la communauté Monnaie Libre. Porté par l’utilisateur “qo-op” et soutenu par le G1FabLab, ce projet vise à développer une IA open-source accessible à tous, fonctionnant sur du matériel grand public et s’intégrant dans l’écosystème de la Monnaie Libre.
+
+Une approche décentralisée de l’IA
+
+L’initiative de qo-op repose sur l’utilisation d’outils comme Ollama, Open-WebUI et ComfyUI, permettant de faire fonctionner des modèles d’IA directement sur un PC gamer. Cette approche présente plusieurs avantages :
+
+    Démocratisation de l’accès à l’IA
+    Réduction de la dépendance aux grands centres de données
+    Contrôle accru des utilisateurs sur leurs interactions avec l’IA
+
+Pourquoi décentraliser l’IA ?
+
+La décentralisation de l’intelligence artificielle est cruciale pour plusieurs raisons. Elle permet de garantir que les technologies d’IA restent accessibles et bénéfiques pour tous, plutôt que de devenir des outils de contrôle et de surveillance. En décentralisant l’IA, on peut également améliorer la résilience et la sécurité des systèmes, tout en favorisant l’innovation et la diversité des applications.
+
+
+
+Intégration à l’écosystème Monnaie Libre
+
+Le projet s’inscrit pleinement dans la philosophie de la Monnaie Libre, avec un modèle économique innovant. Cette approche vise à créer une économie collaborative autour de l’IA, en phase avec les valeurs de décentralisation et d’autonomie promues par la communauté.
+
+Applications concrètes
+
+Parmi les utilisations envisagées, on trouve :
+
+    La transcription audio de réunions en visioconférence (raspberrypi-ninja)
+    La création de résumés automatiques (/tellme?cid=/ipfs/CID)
+    L’assistance personnelle pour répondre à ses emails... (lab/email2RAG.py)
+
+Un projet ouvert et évolutif
+
+qo-op encourage l’expérimentation et l’amélioration continue du système. La communauté est invitée à participer, que ce soit en testant différents modèles d’IA ou en contribuant au développement du projet. Le code du projet AiApi est disponible sur GitHub, et des scripts comme lab/email2RAG.py permettent d’automatiser les réponses aux emails, illustrant ainsi les capacités pratiques de cette IA décentralisée.
+
+Comme nous, installez une "IA" chez vous !
+https://oasis.astroport.com
+
+
+Rejoindre l’initiative
+
+Aujourd’hui, chaque gamer qui s’est lassé de jouer peut utiliser sa machine pour contribuer à ce projet. En installant Linux (Debian ou Mint) et en activant Astroport.ONE, ils peuvent se joindre à la toile de confiance qui relie les autohébergeurs NextCloud. Pour ceux qui souhaitent aller plus loin, une formation en bash, crypto et web3 est proposée par les Dragons.
+
+Formation et Ressources
+
+Pour ceux qui souhaitent approfondir leurs connaissances et participer activement au projet, nous avons mis au point une formation complète en bash, crypto et web3. Découvrez comment rejoindre la toile de confiance des Dragons et commencer votre parcours dans l’auto-hébergement et la décentralisation.
+
+https://chaton.g1sms.fr
+
+Conclusion
+
+Ce projet illustre parfaitement l’esprit d’innovation et de collaboration qui anime la communauté Monnaie Libre. En combinant technologie de pointe, open-source et économie alternative, il ouvre la voie à une utilisation plus éthique et décentralisée de l’intelligence artificielle. Pour en savoir plus et participer, inscrivez-vous et rejoignez cette aventure passionnante.
 
     Coût et Stockage :
         Offre compétitive avec un coût par utilisateur inférieur à celui des grands fournisseurs de cloud. Par exemple, Sagittarius offre 4 à 12 Ẑ/mois pour 10 à 128 Go (Obligations de 436 Ẑen remboursables ou convertible en actions au bout de 3 ans ou 7 ans).
@@ -918,15 +1286,151 @@ Participez au sondage
 
 Merci de votre soutien et de votre participation ! Ensemble, nous pouvons créer un avenir numérique plus décentralisé et plus autonome.
 
-Citations:
-[1] https://pad.p2p.legal/s/ZENBusinessPlan
-[2] https://cryptoast.fr/real-world-assets-rwa-comment-tokenisation-transforme-paysage-financier/
-[3] https://www.leblogdudirigeant.com/quest-ce-que-la-tokenisation/
-[4] https://www.clubic.com/technologies-d-avenir/dossier-381429-demain-des-reseaux-vraiment-decentralises-.html
-[5] https://www.capital.fr/crypto/tokenisation-de-fonds-une-nouvelle-ere-pour-la-finance-1487871
-[6] https://canada.lenovo.com/fr/ca/en/glossary/decentralized-system/
-[7] https://www.securities-services.societegenerale.com/fr/insights/views/news/the-challenge-of-tokenising-capital-markets/
-[8] https://n26.com/fr-fr/blog/tokenisation-des-actifs-financiers
+
+Astroport : Révolutionnez le Cloud avec votre PC Gamer
+
+Le collectif Astroport lance un projet innovant qui allie gaming, stockage cloud éthique et services d’IA personnalisés. Nous vous invitons à participer à cette révolution numérique en transformant votre PC gamer en nœud d’un réseau décentralisé et rémunérateur.
+Le concept
+
+Investissez dans un PC gamer performant et rejoignez notre réseau. Votre machine servira à :
+
+    Héberger des données via NextCloud
+    Fournir des services d’IA personnalisés
+
+En échange, vous recevrez des tokens Astroport et des dividendes mensuels.
+Projet Sagittarius & projections financières
+
+    https://pad.p2p.legal/s/Sagittarius#
+    https://pad.p2p.legal/s/ROI
+
+Recherchons Collaborateurs
+Développeur Python Backend
+
+Poste : Développeur Python Backend
+Localisation : Télétravail / Bureau (à préciser)
+Type de contrat : CDI / Freelance
+Salaire : À négocier
+
+Description du Poste :
+Nous cherchons un Développeur Python Backend talentueux et passionné pour rejoindre notre équipe. Vous travaillerez sur le développement des interactions entre NextCloud et Ollama, en intégrant des microservices à notre infrastructure UPlanet.
+
+Responsabilités :
+
+    Développer et maintenir les API backend en Python.
+    Assurer l’intégration entre NextCloud et Ollama.
+    Travailler en étroite collaboration avec les équipes frontend et sysadmin.
+    Participer à la rédaction de documentation technique.
+    Contribuer à l’optimisation et à la sécurisation des processus backend.
+
+Qualifications :
+
+    Expérience confirmée en développement Python.
+    Connaissance des frameworks web (Django, Flask).
+    Expérience avec les bases de données (PostgreSQL, MongoDB).
+    Connaissance des systèmes de gestion de versions (Git).
+    Capacité à travailler en équipe et à communiquer efficacement.
+
+Atouts :
+
+    Expérience avec Docker et les microservices.
+    Connaissance de NextCloud et des solutions de stockage décentralisées.
+    Intérêt pour les technologies blockchain et IPFS.
+
+Développeur Frontend FullJS
+
+Poste : Développeur Frontend FullJS
+Localisation : Télétravail / Bureau (à préciser)
+Type de contrat : CDI / Freelance
+Salaire : À négocier
+
+Description du Poste :
+Nous recherchons un Développeur Frontend FullJS créatif et expérimenté pour développer l’interface utilisateur de notre plateforme UPlanet. Vous serez responsable de la création d’une expérience utilisateur intuitive et fluide.
+
+Responsabilités :
+
+    Développer des interfaces utilisateur interactives et réactives.
+    Collaborer avec l’équipe backend pour intégrer les API.
+    Assurer la compatibilité multi-plateformes et navigateurs.
+    Participer aux revues de code et aux tests de qualité.
+    Contribuer à la rédaction de documentation utilisateur.
+
+Qualifications :
+
+    Expérience en développement JavaScript, HTML, CSS.
+    Maîtrise des frameworks frontend (React, Angular, Vue.js).
+    Connaissance des outils de build et de déploiement (Webpack, Babel).
+    Expérience avec les systèmes de gestion de versions (Git).
+    Capacité à travailler en équipe et à résoudre des problèmes techniques.
+
+Atouts :
+
+    Expérience avec NextCloud et les interfaces API.
+    Connaissance des pratiques de développement agile.
+    Intérêt pour les technologies blockchain et IPFS.
+
+Administrateur Système
+
+Poste : Administrateur Système
+Localisation : Télétravail / Bureau (à préciser)
+Type de contrat : CDI / Freelance
+Salaire : À négocier
+
+Description du Poste :
+Nous cherchons un Administrateur Système compétent et motivé pour gérer et développer notre infrastructure décentralisée. Vous serez responsable de la configuration et de la maintenance des systèmes, ainsi que de la formation à l’auto-hébergement.
+
+Responsabilités :
+
+    Configurer et gérer les serveurs NextCloud et Docker.
+    Assurer l’intégration des microservices à UPlanet.
+    Rédiger et assurer les formations à l’auto-hébergement (Nginx-Proxy-Manager + Docker).
+    Surveiller la performance des systèmes et résoudre les incidents.
+    Maintenir la sécurité et la stabilité de l’infrastructure.
+
+Qualifications :
+
+    Expérience en administration système Linux.
+    Connaissance de Docker et de la gestion des conteneurs.
+    Expérience avec Nginx-Proxy-Manager et les configurations réseau.
+    Capacité à rédiger des documentations techniques et des guides de formation.
+    Compétences en script (Bash, Python).
+
+Atouts :
+
+    Connaissance de NextCloud et des solutions de stockage décentralisées.
+    Expérience avec les technologies blockchain et IPFS.
+    Intérêt pour les solutions d’hébergement décentralisé et les technologies IA.
+
+Formateur Auto-Hébergement
+
+Poste : Formateur Auto-Hébergement
+Localisation : Télétravail / Bureau (à préciser)
+Type de contrat : CDI / Freelance
+Salaire : À négocier
+
+Description du Poste :
+Nous cherchons un Formateur Auto-Hébergement passionné pour rédiger et assurer les formations à l’auto-hébergement. Vous développerez des tutoriels et des ressources éducatives pour soutenir la communauté des auto-hébergeurs.
+
+Responsabilités :
+
+    Rédiger et assurer les formations à l’auto-hébergement.
+    Développer des tutoriels et des ressources éducatives.
+    Soutenir la communauté des auto-hébergeurs.
+    Participer à la rédaction de documentation technique.
+
+Qualifications :
+
+    Expérience en formation technique.
+    Connaissance des outils d’auto-hébergement (Nginx, Docker).
+    Excellentes compétences en communication.
+    Capacité à rédiger des documentations claires et pédagogiques.
+
+Atouts :
+
+    Connaissance de NextCloud et des solutions de stockage décentralisées.
+    Expérience avec les technologies blockchain et IPFS.
+    Intérêt pour les solutions d’hébergement décentralisé et les technologies IA.
+
+
 
 Le projet Sagittarius est une initiative innovante dans le domaine de l’hébergement cloud basé sur la blockchain. Il propose une approche décentralisée et éthique pour le stockage de données, en s’appuyant sur la technologie blockchain pour garantir la sécurité et la transparence des transactions[1].
 Principe des obligations
@@ -1065,6 +1569,127 @@ Voici la liste finale des scénarios les plus impactants pour promouvoir le proj
 
 Cette liste finale combine des éléments visuels forts, des concepts innovants et des messages clairs sur les avantages uniques de Sagittarius. Chaque scénario est conçu pour avoir un impact maximal en 30 secondes, touchant des aspects clés comme la décentralisation, la personnalisation, la sécurité, l’investissement et l’autonomisation des utilisateurs.
 
+
+Comment bloquer les publicités
+et naviguer en paix
+
+fred
+Comment Bloquer les Publicités et Naviguer en Paix
+
+Naviguer sur Internet peut rapidement devenir un cauchemar si les publicités envahissent votre écran, ralentissent votre navigation, ou compromettent votre vie privée. Heureusement, il existe des solutions efficaces pour vous débarrasser de ces intrusions et retrouver une expérience en ligne plus fluide et sécurisée. Voici comment faire.
+Tester l’impact des publicités sur votre navigation
+
+Avant de commencer, il est utile d’évaluer à quel point les publicités affectent votre expérience en ligne. Pour cela, rendez-vous sur le site adblock-tester.com. Ce site permet de tester l’efficacité des bloqueurs de publicités que vous avez déjà installés, ou de vous montrer l’ampleur des publicités sur les sites que vous visitez régulièrement.
+Odoo • Texte et Image
+Bloquer les publicités avec des plugins navigateurs
+
+La première ligne de défense contre les publicités est d’installer des plugins dédiés sur votre navigateur. Deux des plus efficaces sont “Privacy Badger” et “uBlock Origin”.
+
+    Privacy Badger : Développé par l’Electronic Frontier Foundation (EFF), Privacy Badger est un plugin gratuit qui bloque les traqueurs invisibles qui suivent vos déplacements en ligne. Contrairement à d’autres bloqueurs, il ne fonctionne pas avec une liste prédéfinie mais apprend au fur et à mesure de vos navigations pour identifier et bloquer les traqueurs.
+
+    uBlock Origin : C’est l’un des bloqueurs de publicités les plus populaires et efficaces. Léger et open-source, uBlock Origin bloque non seulement les publicités, mais aussi les trackers et autres éléments nuisibles à votre navigation. Son interface vous permet de personnaliser vos filtres pour une protection sur mesure.
+
+Voici les liens pour installer Privacy Badger et uBlock Origin sur les principaux navigateurs pour PC et mobile.
+Privacy Badger
+
+    Google Chrome : Privacy Badger pour Chrome
+    Mozilla Firefox (PC et Android) : Privacy Badger pour Firefox
+    Microsoft Edge : Privacy Badger pour Edge
+    Opera : Installez d’abord l’extension Install Chrome Extensions puis ajoutez Privacy Badger via le Chrome Web Store.
+
+uBlock Origin
+
+    Google Chrome : uBlock Origin pour Chrome
+    Mozilla Firefox (PC et Android) : uBlock Origin pour Firefox
+    Microsoft Edge : uBlock Origin pour Edge
+    Opera : Installez d’abord l’extension Install Chrome Extensions puis ajoutez uBlock Origin via le Chrome Web Store.
+    Safari (macOS) : Apple ne supporte plus directement uBlock Origin, mais vous pouvez utiliser l’application “AdGuard” pour une expérience similaire
+
+Sur iOS et Android, les navigateurs ne prennent pas en charge les extensions de la même manière que sur les versions de bureau.
+
+Installez le Navigateur Firefox
+
+Plateforme  Lien de téléchargement
+iOS     Télécharger Firefox pour iOS
+Android     Télécharger Firefox pour Android
+Windows     Télécharger Firefox pour Windows
+macOS   Télécharger Firefox pour macOS
+Linux   Télécharger Firefox pour Linux
+Autres plateformes  Télécharger Firefox pour toutes les plateformes
+
+
+ Aller Plus Loin avec Pi-Hole et Nginx Proxy Manager
+
+Si vous souhaitez une solution plus avancée et globale pour protéger tous les appareils de votre réseau domestique, l’installation de Pi-Hole couplée à Nginx Proxy Manager est une option idéale. Cette combinaison vous permet de bloquer les publicités sur l’ensemble de votre réseau et de gérer efficacement vos services web internes.
+
+Odoo • Texte et Image
+Pi-Hole : Bloqueur de Publicités au Niveau du Réseau
+
+Pi-Hole est un puissant bloqueur de publicités qui agit sur l’ensemble de votre réseau local (LAN). En interceptant les requêtes DNS, Pi-Hole filtre les publicités et les traqueurs avant même qu’ils n’atteignent vos appareils. Cela signifie que tous les appareils connectés à votre réseau, qu’il s’agisse d’ordinateurs, de smartphones, de tablettes ou même de smart TV, bénéficient d’une protection sans avoir à installer de logiciel supplémentaire.
+
+    Installation sur Raspberry Pi : Vous pouvez installer Pi-Hole sur un Raspberry Pi, un mini-ordinateur économique et performant. Cette solution est également adaptable sur une machine virtuelle ou un serveur dédié si vous avez déjà du matériel disponible.
+        Lien pour l’installation de Pi-Hole : Installer Pi-Hole
+
+Nginx Proxy Manager : Simplification de la Gestion des Services Web
+
+Nginx Proxy Manager est un outil qui simplifie la gestion des services web au sein de votre réseau. Il vous permet de relayer et gérer facilement vos services internes (comme des sites web auto-hébergés, des applications web, ou des services tiers) tout en offrant une interface utilisateur conviviale pour la gestion des certificats SSL, des hôtes virtuels, et des redirections.
+
+    Fonctionnalités clés :
+
+        Gestion des certificats SSL avec Let’s Encrypt pour sécuriser vos connexions.
+
+        Redirection d’hôtes pour gérer plusieurs services sur le même serveur.
+
+        Interface utilisateur simple et intuitive pour une configuration rapide.
+
+        Lien pour l’installation de Nginx Proxy Manager : Installer Nginx Proxy Manager
+
+Configuration Recommandée pour une Installation Domestique
+
+Pour une installation qui convient à la plupart des foyers, voici les recommandations matérielles et logicielles :
+
+    Matériel :
+
+        Utilisez un Raspberry Pi 4 avec 4 Go de RAM. Ce modèle offre une performance suffisante pour gérer Pi-Hole et Nginx Proxy Manager simultanément.
+
+        Préparez une carte microSD de 32 Go ou plus pour le stockage du système d’exploitation et des données. Pensez à effectuer des sauvegardes régulières pour éviter les pertes de données.
+
+        Acheter un Raspberry Pi 4 : Raspberry Pi 4 sur Amazon
+
+    Réseau :
+
+        Connectez votre Raspberry Pi directement à votre routeur via un câble Ethernet pour garantir une connexion réseau stable et rapide.
+
+        Câble Ethernet recommandé : Câble Ethernet Cat 6
+
+    Système d’exploitation :
+
+        Installez Raspbian OS Lite, une version allégée et optimisée de l’OS pour Raspberry Pi, qui offre des performances maximales tout en consommant peu de ressources.
+
+        Lien pour télécharger Raspbian OS Lite : Télécharger Raspbian
+
+    Configuration logicielle :
+
+        Suivez les guides détaillés pour configurer Pi-Hole avec les listes de blocage recommandées, ce qui vous permettra de filtrer les publicités et les trackers de manière efficace.
+
+        Personnalisez Nginx Proxy Manager pour gérer vos services selon vos besoins, en vous assurant de bien configurer les certificats SSL pour sécuriser vos connexions.
+
+        Guide pour configurer Pi-Hole et Nginx Proxy Manager : Tutoriel Pi-Hole et Nginx Proxy Manager
+
+Avantages de cette Configuration
+
+    Protection globale : Une fois configurée, cette solution protège tous les appareils de votre réseau domestique sans nécessiter d’installation individuelle.
+    Gestion centralisée : Nginx Proxy Manager permet de centraliser et de simplifier la gestion de vos services web internes.
+    Sécurité renforcée : Avec la gestion des certificats SSL via Nginx Proxy Manager, vous assurez la sécurité de vos connexions, même pour les services internes.
+
+Cette solution avancée est parfaite pour ceux qui souhaitent prendre le contrôle total de leur réseau domestique, tout en bénéficiant d’une protection optimale contre les publicités et les traqueurs.
+Conclusion
+
+Bloquer les publicités et améliorer votre expérience de navigation est à la portée de tous. Que vous choisissiez des solutions simples comme des plugins navigateurs ou que vous optiez pour une protection réseau globale avec Pi-Hole et Nginx Proxy Manager, vous pouvez dire adieu aux publicités envahissantes et profiter d’une navigation plus sereine.
+
+
+Déjà "AUTO HEBERGEUR"? Vous souhaitez le devenir?
+Contactez-nous
 
 
 
