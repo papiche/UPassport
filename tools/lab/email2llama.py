@@ -91,6 +91,7 @@ def envoyer_email(smtp_server, smtp_port, sender_email, sender_password, recipie
 
         context = ssl.create_default_context()
 
+        logger.info(f"Tentative d'envoi de l'email à {recipient} en utilisant SSL")
         try:
             with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
                 server.login(sender_email, sender_password)
@@ -99,24 +100,24 @@ def envoyer_email(smtp_server, smtp_port, sender_email, sender_password, recipie
         except Exception as e:
             logger.warning(f"Échec de l'envoi avec SSL: {str(e)}. Tentative avec STARTTLS...")
 
-        # Essai avec STARTTLS
-        try:
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.ehlo()
-                if server.has_extn('STARTTLS'):
-                    server.starttls(context=context)
+            # Essai avec STARTTLS
+            try:
+                with smtplib.SMTP(smtp_server, smtp_port) as server:
                     server.ehlo()
-                server.login(sender_email, sender_password)
-                server.send_message(msg)
-            logger.info(f"Réponse envoyée avec succès à {recipient} en utilisant STARTTLS")
-        except Exception as e:
-            logger.warning(f"Échec de l'envoi avec STARTTLS: {str(e)}. Tentative sans chiffrement...")
+                    if server.has_extn('STARTTLS'):
+                        server.starttls(context=context)
+                        server.ehlo()
+                    server.login(sender_email, sender_password)
+                    server.send_message(msg)
+                logger.info(f"Réponse envoyée avec succès à {recipient} en utilisant STARTTLS")
+            except Exception as e:
+                logger.warning(f"Échec de l'envoi avec STARTTLS: {str(e)}. Tentative sans chiffrement...")
 
-            # Si STARTTLS échoue, essayer sans chiffrement
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.login(sender_email, sender_password)
-                server.send_message(msg)
-            logger.info(f"Réponse envoyée avec succès à {recipient} sans chiffrement")
+                # Si STARTTLS échoue, essayer sans chiffrement
+                with smtplib.SMTP(smtp_server, smtp_port) as server:
+                    server.login(sender_email, sender_password)
+                    server.send_message(msg)
+                logger.info(f"Réponse envoyée avec succès à {recipient} sans chiffrement")
 
     except Exception as e:
         logger.error(f"Erreur lors de l'envoi de l'email à {recipient}: {str(e)}")
