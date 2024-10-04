@@ -122,6 +122,24 @@ def envoyer_email(smtp_server, smtp_port, sender_email, sender_password, recipie
         logger.error(f"Erreur lors de l'envoi de l'email à {recipient}: {str(e)}")
         logger.error(traceback.format_exc())
 
+
+def creer_fichier_contextuel(email_address, reponse_generee, contenu):
+    try:
+        # Vérifie si le dossier des emails existe, sinon le crée
+        chemin_dossier = os.path.join("./emails/", email_address)
+        if not os.path.exists(chemin_dossier):
+            os.makedirs(chemin_dossier)
+
+        # Crée le fichier contextuel avec la réponse générée et le contenu de l'email
+        with open(os.path.join(chemin_dossier, "context.txt"), 'w') as file:
+            file.write("Contenu de l'email : \n")
+            file.write(contenu)
+            file.write("\n\nRéponse générée : \n")
+            file.write(reponse_generee)
+        logger.info(f"Fichier contextuel créé pour {email_address}")
+    except Exception as e:
+        logger.error(f"Erreur lors de la création du fichier contextuel : {str(e)}")
+
 def generer_reponse(sujet, contenu, model_name):
     try:
         # Générer l'embedding
@@ -132,13 +150,19 @@ def generer_reponse(sujet, contenu, model_name):
         embedding_response = requests.post("http://localhost:11434/api/embeddings", json=embedding_data)
         embedding = embedding_response.json()["embedding"]
 
-        # Ici, nous n'utilisons plus ChromaDB pour récupérer les exemples positifs
-        # À la place, nous pourrions utiliser une autre méthode pour stocker et récupérer ces exemples
-        # Pour cet exemple, nous allons simplement utiliser un contexte fixe
-        # ~ contexte_exemples = "Exemple 1: ...\nExemple 2: ...\nExemple 3: ..."
         # Lire le contenu du fichier contextuel
+        CONTEXT = os.getenv("CONTEXT")
+        if CONTEXT is None:
+            raise ValueError("La variable d'environnement CONTEXT n'est pas définie.")
+
         with open(CONTEXT, 'r') as file:
             contexte_exemples = file.read()
+
+        # Ajoute le contenu du fichier contextuel
+        CONTEXT_FILE = os.path.join("./emails/", email_address, "context.txt")
+        if os.path.exists(CONTEXT_FILE):
+            with open(CONTEXT_FILE, 'r') as file:
+                contexte_exemples = file.read()
 
         prompt = f"Exemples précédents:\n{contexte_exemples}\n\nEmail actuel:\nSujet: {sujet}\nContenu: {contenu}\n\nRéponse:"
         logger.debug(f"prompt : {prompt}")
@@ -168,32 +192,6 @@ def generer_reponse(sujet, contenu, model_name):
         logger.error(traceback.format_exc())
         return "Désolé, une erreur s'est produite lors de la génération de la réponse."
 
-def fine_tune_model(model, dataset):
-    try:
-        # Préparer les données
-        inputs, labels = dataset[0]
-        dataset = TensorDataset(inputs['input_ids'], inputs['attention_mask'], labels)
-        dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
-
-        # Définir l'optimiseur
-        optimizer = AdamW(model.parameters(), lr=1e-5)
-
-        # Fine-tuning
-        model.train()
-        for epoch in range(1):  # Nous faisons seulement une époque par email
-            for batch in dataloader:
-                input_ids, attention_mask, labels = batch
-                outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
-                loss = outputs.loss
-                loss.backward()
-                optimizer.step()
-                optimizer.zero_grad()
-
-        logger.info("Fine-tuning du modèle effectué avec succès")
-    except Exception as e:
-        logger.error(f"Erreur lors du fine-tuning du modèle: {str(e)}")
-        logger.error(traceback.format_exc())
-
 
 def traiter_emails_et_appliquer_rag(imap_server, email_address, password, smtp_server, smtp_port, model_name):
     emails_traites = 0
@@ -205,8 +203,10 @@ def traiter_emails_et_appliquer_rag(imap_server, email_address, password, smtp_s
             reponse_generee = generer_reponse(sujet, contenu, model_name)
             logger.info(f"Reponse : {reponse_generee}")
 
-            # envoyer_email(smtp_server, smtp_port, email_address, password, expediteur, sujet, reponse_generee)
+            # Créer le fichier contextuel
+            creer_fichier_contextuel(email_address, reponse_generee, contenu)
 
+            # envoyer_email(smtp_server, smtp_port, email_address, password, expediteur, sujet, reponse_generee)
 
     except Exception as e:
         logger.error(f"Erreur générale dans le processus de traitement des emails: {str(e)}")
@@ -224,7 +224,7 @@ if __name__ == "__main__":
         MODEL = os.getenv("MODEL")
         CONTEXT = os.getenv("CONTEXT")
 
-        traiter_emails_et_appliquer_rag(IMAP_SERVER, EMAIL, PASSWORD, SMTP_SERVER, SMTP_PORT, "llama3.2")
+        traiter_emails_et_appliquer_rag(IMAP_SERVER, EMAIL, PASSWORD, SMTP_SERVER, SMTP_PORT, MODEL)
 
         logger.info("Fin du processus de traitement des emails")
     except KeyboardInterrupt:
