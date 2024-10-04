@@ -35,12 +35,6 @@ for var in required_env_vars:
         logger.error(f"La variable d'environnement {var} n'est pas définie")
         sys.exit(1)
 
-# Initialisation du modèle et du tokenizer
-model_name = "bert-base-uncased"
-model = AutoModelForSequenceClassification.from_pretrained(model_name)
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-
 def lire_emails(imap_server, email_address, password):
     logger.info(f"Tentative de connexion au serveur IMAP: {imap_server}")
     try:
@@ -129,26 +123,8 @@ def envoyer_email(smtp_server, smtp_port, sender_email, sender_password, recipie
         logger.error(f"Erreur lors de l'envoi de l'email à {recipient}: {str(e)}")
         logger.error(traceback.format_exc())
 
-def generer_reponse(sujet, contenu, utilisateur_id):
+def generer_reponse(sujet, contenu, model_name):
     try:
-        # Utilisation de BERT pour générer la réponse
-        inputs = tokenizer(f"Sujet: {sujet}\nContenu: {contenu}", truncation=True, max_length=512, return_tensors="pt")
-        outputs = model(**inputs)
-        logits = outputs.logits
-        reponse_generlee = tokenizer.decode(torch.argmax(logits, dim=-1).squeeze().tolist())
-        # Log de la réponse générée
-        logger.info(f"Réponse générée pour le sujet '{sujet}': {reponse_generlee}")
-
-        return reponse_generlee
-    except Exception as e:
-        logger.error(f"Erreur lors de la génération de la réponse pour l'utilisateur {utilisateur_id}: {str(e)}")
-        logger.error(traceback.format_exc())
-        return "Désolé, une erreur s'est produite lors de la génération de la réponse."
-
-def generer_ollama_reponse(sujet, contenu, utilisateur_id):
-    try:
-        model_name = "llama3.2"  # Puis Utilisation directe de utilisateur_id comme nom du modèle
-
         # Générer l'embedding
         embedding_data = {
             "model": model_name,
@@ -186,7 +162,7 @@ def generer_ollama_reponse(sujet, contenu, utilisateur_id):
             return "Désolé, une erreur s'est produite lors de la génération de la réponse."
 
     except Exception as e:
-        logger.error(f"Erreur lors de la génération de la réponse pour l'utilisateur {utilisateur_id}: {str(e)}")
+        logger.error(f"Erreur lors de la génération de la réponse pour l'utilisateur {model_name}: {str(e)}")
         logger.error(traceback.format_exc())
         return "Désolé, une erreur s'est produite lors de la génération de la réponse."
 
@@ -217,14 +193,14 @@ def fine_tune_model(model, dataset):
         logger.error(traceback.format_exc())
 
 
-def traiter_emails_et_appliquer_rag(imap_server, email_address, password, smtp_server, smtp_port, utilisateur_id):
+def traiter_emails_et_appliquer_rag(imap_server, email_address, password, smtp_server, smtp_port, model_name):
     emails_traites = 0
     try:
         for sujet, contenu, email_message in lire_emails(imap_server, email_address, password):
             expediteur = email.utils.parseaddr(email_message['From'])[1]
             logger.info(f"Traitement de l'email de {expediteur} avec le sujet: {sujet}")
 
-            reponse_generee = generer_reponse(sujet, contenu, utilisateur_id)
+            reponse_generee = generer_reponse(sujet, contenu, model_name)
             logger.info(f"Reponse : {reponse_generee}")
 
             # envoyer_email(smtp_server, smtp_port, email_address, password, expediteur, sujet, reponse_generee)
@@ -254,8 +230,9 @@ if __name__ == "__main__":
         SMTP_PORT = int(os.getenv("SMTP_PORT"))
         EMAIL = os.getenv("EMAIL")
         PASSWORD = os.getenv("PASSWORD")
+        MODEL = os.getenv("MODEL")
 
-        traiter_emails_et_appliquer_rag(IMAP_SERVER, EMAIL, PASSWORD, SMTP_SERVER, SMTP_PORT, "USER")
+        traiter_emails_et_appliquer_rag(IMAP_SERVER, EMAIL, PASSWORD, SMTP_SERVER, SMTP_PORT, "llama3.2")
 
         logger.info("Fin du processus de traitement des emails")
     except KeyboardInterrupt:
