@@ -13,7 +13,8 @@ from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 import os
 import torch
-import torchtune
+from torch.utils.data import DataLoader, TensorDataset
+from torch.optim import AdamW
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 # Charger les variables d'environnement
@@ -191,19 +192,24 @@ def generer_ollama_reponse(sujet, contenu, utilisateur_id):
 
 def fine_tune_model(model, dataset):
     try:
-        # Créez un objet de configuration manuellement
-        config = {
-            'model': model,
-            'dataset': dataset,
-            'optimizer': torch.optim.AdamW,
-            'lr': 1e-5,
-            'batch_size': 1,  # Comme nous fine-tunons après chaque email
-            'num_epochs': 1
-        }
+        # Préparer les données
+        inputs, labels = dataset[0]
+        dataset = TensorDataset(inputs['input_ids'], inputs['attention_mask'], labels)
+        dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
 
-        # Utilisez la classe Tuner directement avec la configuration
-        tuner = torchtune.Tuner(config)
-        tuner.tune()
+        # Définir l'optimiseur
+        optimizer = AdamW(model.parameters(), lr=1e-5)
+
+        # Fine-tuning
+        model.train()
+        for epoch in range(1):  # Nous faisons seulement une époque par email
+            for batch in dataloader:
+                input_ids, attention_mask, labels = batch
+                outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
+                loss = outputs.loss
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
 
         logger.info("Fine-tuning du modèle effectué avec succès")
     except Exception as e:
