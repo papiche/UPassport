@@ -135,7 +135,10 @@ def generer_reponse(sujet, contenu, model_name):
         # Ici, nous n'utilisons plus ChromaDB pour récupérer les exemples positifs
         # À la place, nous pourrions utiliser une autre méthode pour stocker et récupérer ces exemples
         # Pour cet exemple, nous allons simplement utiliser un contexte fixe
-        contexte_exemples = "Exemple 1: ...\nExemple 2: ...\nExemple 3: ..."
+        # ~ contexte_exemples = "Exemple 1: ...\nExemple 2: ...\nExemple 3: ..."
+        # Lire le contenu du fichier contextuel
+        with open(CONTEXT, 'r') as file:
+            contexte_exemples = file.read()
 
         prompt = f"Exemples précédents:\n{contexte_exemples}\n\nEmail actuel:\nSujet: {sujet}\nContenu: {contenu}\n\nRéponse:"
         logger.debug(f"prompt : {prompt}")
@@ -144,7 +147,7 @@ def generer_reponse(sujet, contenu, model_name):
         generate_data = {
             "model": model_name,
             "prompt": prompt,
-            "system": "Vous êtes ASTRO un assistant intelligent qui lit et réponds aux messages. Utilisez les exemples précédents et le contexte fourni pour générer une réponse pertinente. Terminez en signalant que vous êtes un assistant et signez la réponse avec votre nom ASTRO.",
+            "system": "Vous êtes ASTRO un assistant intelligent qui lit et réponds aux messages. Utilisez les exemples précédents et le contexte fourni pour générer une réponse pertinente. Terminez en signalant que vous êtes un assistant numérique mis au point au G1FabLab et signez la réponse avec votre nom ASTRO.",
             "stream": False
         }
 
@@ -219,6 +222,7 @@ if __name__ == "__main__":
         EMAIL = os.getenv("EMAIL")
         PASSWORD = os.getenv("PASSWORD")
         MODEL = os.getenv("MODEL")
+        CONTEXT = os.getenv("CONTEXT")
 
         traiter_emails_et_appliquer_rag(IMAP_SERVER, EMAIL, PASSWORD, SMTP_SERVER, SMTP_PORT, "llama3.2")
 
