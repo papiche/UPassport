@@ -135,6 +135,8 @@ def generer_reponse(sujet, contenu, utilisateur_id):
         outputs = model(**inputs)
         logits = outputs.logits
         reponse_generlee = tokenizer.decode(torch.argmax(logits, dim=-1).squeeze().tolist())
+        # Log de la réponse générée
+        logger.info(f"Réponse générée pour le sujet '{sujet}': {reponse_generlee}")
 
         return reponse_generlee
     except Exception as e:
