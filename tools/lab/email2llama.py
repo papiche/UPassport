@@ -155,28 +155,32 @@ def generer_reponse(expediteur, sujet, contenu, model_name):
 
         embedding = embedding_response.json()["embedding"]
 
-        # Lire le contenu du fichier contextuel
+        # Lire le contenu du fichier contextuel défini dans .env
         CONTEXT = os.getenv("CONTEXT")
         if CONTEXT is None:
             raise ValueError("La variable d'environnement CONTEXT n'est pas définie.")
 
         with open(CONTEXT, 'r') as file:
-            contexte_exemples = file.read()
+            contexte_env = file.read()
 
-        # Ajoute le contenu du fichier contextuel
+        # Initialiser le contexte avec le contenu du fichier .env
+        contexte_complet = contexte_env
+
+        # Ajouter le contenu du fichier contextuel spécifique à l'expéditeur
         CONTEXT_FILE = os.path.join("./emails/", expediteur, "context.txt")
         if os.path.exists(CONTEXT_FILE):
             with open(CONTEXT_FILE, 'r') as file:
-                contexte_exemples = file.read()
+                contexte_expediteur = file.read()
+            contexte_complet += f"\n\nHistorique de conversation avec l'expéditeur:\n{contexte_expediteur}"
 
-        prompt = f"Exemples précédents:\n{contexte_exemples}\n\nEmail actuel:\nSujet: {sujet}\nContenu: {contenu}\n\nRéponse:"
+        prompt = f"Contexte général et spécifique:\n{contexte_complet}\n\nEmail actuel:\nSujet: {sujet}\nContenu: {contenu}\n\nRéponse:"
         logger.debug(f"prompt : {prompt}")
 
         # Générer la réponse
         generate_data = {
             "model": model_name,
             "prompt": prompt,
-            "system": "Vous êtes ASTRO un assistant intelligent qui lit et réponds aux messages. Utilisez les exemples précédents et le contexte fourni pour générer une réponse pertinente. Terminez en signalant que vous êtes un assistant numérique mis au point au G1FabLab. NE SIGNE PAS avec [Votre nom], signe avec [ASTRO].",
+            "system": "Vous êtes ASTRO un assistant intelligent qui lit et réponds aux messages. NE PAS UTILISER de variable entre crochet dans ta répaonse (ex: [Votre nom]). Utilise les exemples précédents et le contexte fourni pour générer une réponse pertinente. Termine en signalant que tu es un 'assistant numérique' mis au point par le G1FabLab.  Signe 'ASTRO, le petit robot.'",
             "stream": False
         }
 
