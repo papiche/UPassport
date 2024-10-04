@@ -174,9 +174,42 @@
                   console.error("L'API Clipboard n'est pas disponible.");
               }
           });
+// Ajout d'un bouton pour télécharger un fichier son
+const fileInput = document.createElement('input');
+fileInput.type = 'file';
+document.body.appendChild(fileInput);
+fileInput.addEventListener('change', function() {
+    const file = this.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const audioBlob = new Blob([event.target.result], { type: 'audio/webm' });
+            formData.append("file", audioBlob, "audio.webm");
+            console.log('Fichier son téléchargé et ajouté à la formulaire');
+        };
+        reader.readAsArrayBuffer(file);
+    }
+});
 
+// Ajout du bouton au HTML
+const button = document.createElement('button');
+button.textContent = 'Télécharger un fichier son';
+button.addEventListener('click', function() {
+    fileInput.click();
+});
+document.body.appendChild(button);
         function sendAudioChunk(audioChunk) {
             const formData = new FormData();
+
+            // Ajouter le contenu du fichier son au formulaire
+            if (file && file.value !== '') {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    formData.append('file', event.target.result, 'audio.webm');
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
             formData.append("file", new Blob([audioChunk], { type: 'audio/webm' }), "chunk.webm");
 
             $.ajax({
