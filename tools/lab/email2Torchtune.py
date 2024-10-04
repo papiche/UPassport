@@ -148,6 +148,10 @@ def generer_reponse(sujet, contenu, model_name):
             "prompt": contenu
         }
         embedding_response = requests.post("http://localhost:11434/api/embeddings", json=embedding_data)
+        # Vérifiez que la réponse contient bien les embeddings
+        if 'embedding' not in embedding_response.json():
+            raise KeyError("La clé 'embedding' n'est pas présente dans la réponse de l'API.")
+
         embedding = embedding_response.json()["embedding"]
 
         # Lire le contenu du fichier contextuel
@@ -198,7 +202,7 @@ def traiter_emails_et_appliquer_rag(imap_server, email_address, password, smtp_s
     try:
         for sujet, contenu, email_message in lire_emails(imap_server, email_address, password):
             expediteur = email.utils.parseaddr(email_message['From'])[1]
-            logger.info(f"Traitement de l'email de {expediteur} avec le sujet: {sujet}")
+            logger.info(f"Traitement par {model_name} de l'email de {expediteur} avec le sujet: {sujet} et le contenu {contenu}")
 
             reponse_generee = generer_reponse(sujet, contenu, model_name)
             logger.info(f"Reponse : {reponse_generee}")
