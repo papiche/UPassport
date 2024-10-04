@@ -140,7 +140,7 @@ def creer_fichier_contextuel(email_address, reponse_generee, contenu):
     except Exception as e:
         logger.error(f"Erreur lors de la création du fichier contextuel : {str(e)}")
 
-def generer_reponse(sujet, contenu, model_name):
+def generer_reponse(expediteur, sujet, contenu, model_name):
     try:
         # Générer l'embedding
         embedding_data = {
@@ -163,7 +163,7 @@ def generer_reponse(sujet, contenu, model_name):
             contexte_exemples = file.read()
 
         # Ajoute le contenu du fichier contextuel
-        CONTEXT_FILE = os.path.join("./emails/", email_address, "context.txt")
+        CONTEXT_FILE = os.path.join("./emails/", expediteur, "context.txt")
         if os.path.exists(CONTEXT_FILE):
             with open(CONTEXT_FILE, 'r') as file:
                 contexte_exemples = file.read()
@@ -204,11 +204,11 @@ def traiter_emails_et_appliquer_rag(imap_server, email_address, password, smtp_s
             expediteur = email.utils.parseaddr(email_message['From'])[1]
             logger.info(f"Traitement par {model_name} de l'email de {expediteur} avec le sujet: {sujet} et le contenu {contenu}")
 
-            reponse_generee = generer_reponse(sujet, contenu, model_name)
+            reponse_generee = generer_reponse(expediteur, sujet, contenu, model_name)
             logger.info(f"Reponse : {reponse_generee}")
 
             # Créer le fichier contextuel
-            creer_fichier_contextuel(email_address, reponse_generee, contenu)
+            creer_fichier_contextuel(expediteur, reponse_generee, contenu)
 
             # envoyer_email(smtp_server, smtp_port, email_address, password, expediteur, sujet, reponse_generee)
 
