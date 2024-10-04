@@ -22,7 +22,7 @@ load_dotenv()
 # Configuration du logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-handler = RotatingFileHandler('email_rag.log', maxBytes=10000000, backupCount=5)
+handler = RotatingFileHandler('log.txt', maxBytes=10000000, backupCount=5)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
@@ -131,7 +131,7 @@ def creer_fichier_contextuel(email_address, reponse_generee, contenu):
             os.makedirs(chemin_dossier)
 
         # Crée le fichier contextuel avec la réponse générée et le contenu de l'email
-        with open(os.path.join(chemin_dossier, "context.txt"), 'w') as file:
+        with open(os.path.join(chemin_dossier, "context.txt"), 'a') as file:
             file.write("Contenu de l'email : \n")
             file.write(contenu)
             file.write("\n\nRéponse générée : \n")
