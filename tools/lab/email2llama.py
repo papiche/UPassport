@@ -210,7 +210,7 @@ def traiter_emails_et_appliquer_rag(imap_server, email_address, password, smtp_s
             # Créer le fichier contextuel
             creer_fichier_contextuel(expediteur, reponse_generee, contenu)
 
-            # envoyer_email(smtp_server, smtp_port, email_address, password, expediteur, sujet, reponse_generee)
+            envoyer_email(smtp_server, smtp_port, email_address, password, expediteur, sujet, reponse_generee)
 
     except Exception as e:
         logger.error(f"Erreur générale dans le processus de traitement des emails: {str(e)}")
