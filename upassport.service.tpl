@@ -6,7 +6,7 @@ After=network.target
 User=_USER_
 Group=_USER_
 WorkingDirectory=_MY_PATH_
-ExecStart=/home/_USER_/.astro/bin/python _MY_PATH_/54321.py
+ExecStart=_PYTHON_ _MY_PATH_/54321.py
 Restart=always
 
 [Install]
