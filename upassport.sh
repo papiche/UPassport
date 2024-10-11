@@ -38,7 +38,7 @@ if [[ $PUBKEY == "https" ]]; then
         exit 0
     else
         CARDNS="12D3Koo"$ipns12D
-        CARDG1=$(./tools/ipfs_to_g1.py $CARDNS)
+        CARDG1=$(${MY_PATH}/tools/ipfs_to_g1.py $CARDNS)
         echo "ZEROCARD IPNS12D QRCODE : /ipns/$CARDNS ($CARDG1)"
         # FIND MEMBER & ZEROCARD
         MEMBERPUB=$(grep -h -r -l --dereference "$CARDNS" ${MY_PATH}/pdf/ | grep IPNS12D | cut -d '/' -f 3)
@@ -61,7 +61,7 @@ if [[ $PUBKEY == "https" ]]; then
 fi
 
 # CHECK PUBKEY FORMAT
-if [[ -z $(./tools/g1_to_ipfs.py ${PUBKEY} 2>/dev/null) ]]; then
+if [[ -z $(${MY_PATH}/tools/g1_to_ipfs.py ${PUBKEY} 2>/dev/null) ]]; then
     cat ${MY_PATH}/templates/wallet.html \
     | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
          -e "s~_AMOUNT_~QR CODE Error<br><a target=_new href=https://cesium.app>Try CESIUM...</a>~g" \
@@ -103,7 +103,7 @@ generate_qr_with_uid() {
     local member_uid=$2
     ## Extract wallet balance
     if [[ ! -s ${MY_PATH}/tmp/${pubkey}.solde ]]; then
-        solde=$(./tools/timeout.sh -t 5 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${pubkey})
+        solde=$(${MY_PATH}/tools/timeout.sh -t 5 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${pubkey})
         [ ! $? -eq 0 ] \
             && sort -u -o ${MY_PATH}/tools/jaklis/.env ${MY_PATH}/tools/jaklis/.env \
             && GVA=$(~/.zen/Astroport.ONE/tools/duniter_getnode.sh | tail -n 1) \
@@ -188,7 +188,7 @@ find ${MY_PATH}/pdf -type d -mtime +7 -not -xtype l -exec rm -r {} \;
 
 ## GET PUBKEY TX HISTORY
 echo "LOADING WALLET HISTORY"
-./tools/timeout.sh -t 6 ${MY_PATH}/tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ${MY_PATH}/tmp/$PUBKEY.TX.json
+${MY_PATH}/tools/timeout.sh -t 6 ${MY_PATH}/tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ${MY_PATH}/tmp/$PUBKEY.TX.json
 [ ! $? -eq 0 ] \
     && sort -u -o ${MY_PATH}/tools/jaklis/.env ${MY_PATH}/tools/jaklis/.env \
     && GVA=$(~/.zen/Astroport.ONE/tools/duniter_getnode.sh | tail -n 1) \
@@ -199,7 +199,7 @@ echo "LOADING WALLET HISTORY"
 
 ## EXTRACT SOLDE & ZEN & ROUND
 if [[ -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]]; then
-    SOLDE=$(./tools/timeout.sh -t 20 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${PUBKEY})
+    SOLDE=$(${MY_PATH}/tools/timeout.sh -t 20 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${PUBKEY})
     ROUND=$(echo "$SOLDE" | cut -d '.' -f 1)
     ZEN=$(echo "($SOLDE - 1) * 10" | bc | cut -d '.' -f 1)
 
@@ -513,7 +513,7 @@ TOTAL=$((TOTP2P + TOT12P + TOTP21))
 echo $TOTAL > ${MY_PATH}/pdf/${PUBKEY}/TOTAL
 
 # Create manifest.json add App for N1 level
-./tools/createN1json.sh ${MY_PATH}/pdf/${PUBKEY}/N1/
+${MY_PATH}/tools/createN1json.sh ${MY_PATH}/pdf/${PUBKEY}/N1/
 cp ${MY_PATH}/static/N1/index.html ${MY_PATH}/pdf/${PUBKEY}/N1/_index.html
 
 # Generate PUBKEY and MEMBERUID "QRCODE" add TOTAL
@@ -550,12 +550,12 @@ convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/12P.${PUBKEY}.pdf -resize 375x550 
 echo "############################################################"
 echo "# CREATE ZEROCARD ......... TOTAL = $TOTAL Z"
 echo "############################################################"
-prime=$(./tools/diceware.sh 1 | xargs)
+prime=$(${MY_PATH}/tools/diceware.sh 1 | xargs)
 SALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
-second=$(./tools/diceware.sh 1 | xargs)
+second=$(${MY_PATH}/tools/diceware.sh 1 | xargs)
 PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
 ################################################################# DUNITER
-./tools/keygen -t duniter -o ${MY_PATH}/tmp/${PUBKEY}.zerocard.dunikey "${SALT}" "${PEPPER}"
+${MY_PATH}/tools/keygen -t duniter -o ${MY_PATH}/tmp/${PUBKEY}.zerocard.dunikey "${SALT}" "${PEPPER}"
 G1PUBZERO=$(cat ${MY_PATH}/tmp/${PUBKEY}.zerocard.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
 [[ -z $G1PUBZERO ]] \
     &&
@@ -567,7 +567,7 @@ fi
 
 rm -f ${MY_PATH}/pdf/${PUBKEY}/zerocard.member.enc
 ## zerocard.dunikey PUBKEY encryption
-./tools/natools.py encrypt -p $PUBKEY -i ${MY_PATH}/tmp/${PUBKEY}.zerocard.dunikey -o ${MY_PATH}/pdf/${PUBKEY}/zerocard.member.enc
+${MY_PATH}/tools/natools.py encrypt -p $PUBKEY -i ${MY_PATH}/tmp/${PUBKEY}.zerocard.dunikey -o ${MY_PATH}/pdf/${PUBKEY}/zerocard.member.enc
 echo "ZEN _WALLET: $G1PUBZERO"
 rm -f ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD_*.QR.jpg # cleaning & provisionning
 echo "${G1PUBZERO}" > ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD
@@ -585,14 +585,14 @@ amzqr "${G1PUBZERO}" -l H -p ${MY_PATH}/static/img/zenticket.png -c -n ZEROCARD_
 
 ################################################################# IPNS
 #~ ## CREATE IPNS KEY
-./tools/keygen -t ipfs -o ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key "${SALT}" "${PEPPER}"
-IPNS12D=$(./tools/keygen -t ipfs "${SALT}" "${PEPPER}")
+${MY_PATH}/tools/keygen -t ipfs -o ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key "${SALT}" "${PEPPER}"
+IPNS12D=$(${MY_PATH}/tools/keygen -t ipfs "${SALT}" "${PEPPER}")
 ipfs key rm ${G1PUBZERO} > /dev/null 2>&1
 WALLETNS=$(ipfs key import ${G1PUBZERO} -f pem-pkcs8-cleartext ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key)
 
 ## ENCODE IPNS KEY WITH CAPTAING1PUB
 echo "${MY_PATH}/tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key -o ${MY_PATH}/pdf/${PUBKEY}/IPNS.captain.enc"
-./tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key -o ${MY_PATH}/pdf/${PUBKEY}/IPNS.captain.enc
+${MY_PATH}/tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key -o ${MY_PATH}/pdf/${PUBKEY}/IPNS.captain.enc
 
 ## ENCRYPT WITH UPLANETNAME PASSWORD
 if [[ ! -z ${UPLANETNAME} ]]; then
@@ -638,10 +638,10 @@ $TAIL" | ssss-combine -t 2 -q
 ### CRYPTO ZONE
 ## ENCODE HEAD SSSS SECRET WITH MEMBER PUBKEY
 echo "${MY_PATH}/tools/natools.py encrypt -p $PUBKEY -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.head -o ${MY_PATH}/pdf/${PUBKEY}/ssss.member.enc"
-./tools/natools.py encrypt -p $PUBKEY -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.head -o ${MY_PATH}/pdf/${PUBKEY}/ssss.head.member.enc
+${MY_PATH}/tools/natools.py encrypt -p $PUBKEY -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.head -o ${MY_PATH}/pdf/${PUBKEY}/ssss.head.member.enc
 
 echo "${MY_PATH}/tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.mid -o ${MY_PATH}/pdf/${PUBKEY}/ssss.mid.captain.enc"
-./tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.mid -o ${MY_PATH}/pdf/${PUBKEY}/ssss.mid.captain.enc
+${MY_PATH}/tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.mid -o ${MY_PATH}/pdf/${PUBKEY}/ssss.mid.captain.enc
 
 ## MIDDLE ENCRYPT WITH UPLANETNAME
 if [[ ! -z ${UPLANETNAME} ]]; then
@@ -653,7 +653,7 @@ if [[ ! -z ${UPLANETNAME} ]]; then
 fi
 
 ## ENCODE TAIL SSSS SECRET WITH CAPTAING1PUB
-./tools/natools.py encrypt -p ${CAPTAING1PUB} -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.tail -o ${MY_PATH}/pdf/${PUBKEY}/ssss.tail.2U.enc
+${MY_PATH}/tools/natools.py encrypt -p ${CAPTAING1PUB} -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.tail -o ${MY_PATH}/pdf/${PUBKEY}/ssss.tail.2U.enc
 
 ## REMOVE SENSIBLE DATA FROM CACHE
 # DEEPER SECURITY CONCERN ? mount ${MY_PATH}/tmp as encrypted RAM disk

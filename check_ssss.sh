@@ -6,11 +6,14 @@
 # Version: 1.0
 # License: AGPL-3.0 (https://choosealicense.com/licenses/agpl-3.0/)
 ###############################################################################
+MY_PATH="`dirname \"$0\"`"              # relative
+MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
+ME="${0##*/}"
 
-source ./.env
+source ${MY_PATH}/.env
 [[ -z $myDUNITER ]] && myDUNITER="https://g1.cgeek.fr" # DUNITER
 [[ -z $myCESIUM ]] && myCESIUM="https://g1.data.e-is.pro" # CESIUM+
-[[ -z $ipfsNODE ]] && ipfsNODE="http://127.0.0./1:8080" # IPFS
+[[ -z $ipfsNODE ]] && ipfsNODE="http://127.0.0.1:8080" # IPFS
 
 # Vérifier le nombre d'arguments
 if [ "$#" -ne 3 ]; then
@@ -24,7 +27,7 @@ SSSS=$2
 ZEROCARD=$3
 
 # Définir le chemin du fichier HTML de sortie
-HTML_OUTPUT="./tmp/result_${CARDNS}.html"
+HTML_OUTPUT="${MY_PATH}/tmp/result_${CARDNS}.html"
 
 # QUICK Validation du SSSS 3-c9ac213472a72bfd1ea1a7780f18914.....
 if [[ "$SSSS" =~ ^3-[a-f0-9]{101,} ]]; then
@@ -33,7 +36,7 @@ else
     VALID="INVALID"
 fi
 
-[ -z $(./tools/g1_to_ipfs.py ${ZEROCARD} 2>/dev/null) ] && VALID="INVALID"
+[ -z $(${MY_PATH}/tools/g1_to_ipfs.py ${ZEROCARD} 2>/dev/null) ] && VALID="INVALID"
 
 ## GET CARDNS
 echo "GETTING CARDNS CARDPORTAL LOCATION.........."
@@ -50,10 +53,10 @@ fi
 
 ## TRY to join SSSS with CAPTAIN part
 # Find CARDNS in local accounts IPNS12D
-MEMBERPUB=$(grep -h -r -l --dereference "$CARDNS" ./pdf/ | grep IPNS12D | cut -d '/' -f 3)
-## CAPTAIN DECRYPT MIDDLE PART ./pdf/${PUBKEY}/ssss.mid.captain.enc
-./tools/natools.py decrypt -f pubsec -i ./pdf/${MEMBERPUB}/ssss.mid.captain.enc -k ~/.zen/game/players/.current/secret.dunikey -o ./tmp/${ZEROCARD}.ssss.mid
-PART2=$(cat ./tmp/${ZEROCARD}.ssss.mid)
+MEMBERPUB=$(grep -h -r -l --dereference "$CARDNS" ${MY_PATH}/pdf/ | grep IPNS12D | cut -d '/' -f 3)
+## CAPTAIN DECRYPT MIDDLE PART ${MY_PATH}/pdf/${PUBKEY}/ssss.mid.captain.enc
+${MY_PATH}/tools/natools.py decrypt -f pubsec -i ${MY_PATH}/pdf/${MEMBERPUB}/ssss.mid.captain.enc -k ~/.zen/game/players/.current/secret.dunikey -o ${MY_PATH}/tmp/${ZEROCARD}.ssss.mid
+PART2=$(cat ${MY_PATH}/tmp/${ZEROCARD}.ssss.mid)
 echo "SSSS + CAPTAIN PART2 COMBINE..."
 disco=$(echo "$PART2
 $SSSS" | ssss-combine -t 2 -q)
