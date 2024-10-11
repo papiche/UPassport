@@ -14,7 +14,7 @@ ME="${0##*/}"
 source ${MY_PATH}/.env
 [[ -z $myDUNITER ]] && myDUNITER="https://g1.cgeek.fr" # DUNITER
 [[ -z $myCESIUM ]] && myCESIUM="https://g1.data.e-is.pro" # CESIUM+
-[[ -z $ipfsNODE ]] && ipfsNODE="http://127.0.0./1:8080" # IPFS
+[[ -z $ipfsNODE ]] && ipfsNODE="http://127.0.0.1:8080" # IPFS
 
 ## PUBKEY SHOULD BE A MEMBER PUBLIC KEY
 LINK="$1"
