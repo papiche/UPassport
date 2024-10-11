@@ -1,0 +1,108 @@
+2024-10-11 02:30:19,550 - __main__ - ERROR - La variable d'environnement IMAP_SERVER n'est pas définie
+2024-10-11 03:03:35,892 - __main__ - INFO - Démarrage du processus de traitement des emails
+2024-10-11 03:03:35,892 - __main__ - INFO - Tentative de connexion au serveur IMAP: mail.g1sms.fr
+2024-10-11 03:03:36,022 - __main__ - INFO - Connexion SSL établie, tentative de login
+2024-10-11 03:03:36,060 - __main__ - INFO - Login réussi
+2024-10-11 03:03:36,109 - __main__ - INFO - Boîte de réception sélectionnée avec succès
+2024-10-11 03:03:36,171 - __main__ - INFO - Fin du processus de traitement des emails
+2024-10-11 03:04:23,752 - __main__ - INFO - Démarrage du processus de traitement des emails
+2024-10-11 03:04:23,752 - __main__ - INFO - Tentative de connexion au serveur IMAP: mail.g1sms.fr
+2024-10-11 03:04:23,890 - __main__ - INFO - Connexion SSL établie, tentative de login
+2024-10-11 03:04:23,929 - __main__ - INFO - Login réussi
+2024-10-11 03:04:23,951 - __main__ - INFO - Boîte de réception sélectionnée avec succès
+2024-10-11 03:04:24,013 - __main__ - INFO - Fin du processus de traitement des emails
+2024-10-11 03:05:03,379 - __main__ - INFO - Démarrage du processus de traitement des emails
+2024-10-11 03:05:03,379 - __main__ - INFO - Tentative de connexion au serveur IMAP: mail.g1sms.fr
+2024-10-11 03:05:03,509 - __main__ - INFO - Connexion SSL établie, tentative de login
+2024-10-11 03:05:03,548 - __main__ - INFO - Login réussi
+2024-10-11 03:05:03,570 - __main__ - INFO - Boîte de réception sélectionnée avec succès
+2024-10-11 03:05:03,641 - __main__ - INFO - Traitement de l'email de mailing@prosveta.com avec le sujet: Pensée du vendredi 11 octobre 2024
+2024-10-11 03:05:38,714 - __main__ - INFO - Fichier contextuel créé pour mailing@prosveta.com
+2024-10-11 03:05:38,758 - __main__ - INFO - Tentative d'envoi de l'email à mailing@prosveta.com en utilisant SSL
+2024-10-11 03:05:39,206 - __main__ - WARNING - Échec de l'envoi avec SSL: [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1000). Tentative avec STARTTLS...
+2024-10-11 03:05:39,980 - __main__ - INFO - Réponse envoyée avec succès à mailing@prosveta.com en utilisant STARTTLS
+2024-10-11 03:05:40,025 - __main__ - INFO - Fin du processus de traitement des emails
+2024-10-11 16:48:58,716 - __main__ - INFO - Démarrage du processus de traitement des emails
+2024-10-11 16:48:58,716 - __main__ - INFO - Tentative de connexion au serveur IMAP: mail.g1sms.fr
+2024-10-11 16:48:58,851 - __main__ - INFO - Connexion SSL établie, tentative de login
+2024-10-11 16:48:58,892 - __main__ - INFO - Login réussi
+2024-10-11 16:48:58,915 - __main__ - INFO - Boîte de réception sélectionnée avec succès
+2024-10-11 16:48:58,988 - __main__ - INFO - Traitement de l'email de fred@g1sms.fr avec le sujet: Re: auto hébergement d’IA.
+2024-10-11 16:49:03,990 - __main__ - INFO - Fichier contextuel créé pour fred@g1sms.fr
+2024-10-11 16:49:04,083 - __main__ - INFO - Tentative d'envoi de l'email à fred@g1sms.fr en utilisant SSL
+2024-10-11 16:49:04,527 - __main__ - WARNING - Échec de l'envoi avec SSL: [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1000). Tentative avec STARTTLS...
+2024-10-11 16:49:05,307 - __main__ - INFO - Réponse envoyée avec succès à fred@g1sms.fr en utilisant STARTTLS
+2024-10-11 16:49:05,353 - __main__ - INFO - Fin du processus de traitement des emails
+2024-10-11 16:51:03,985 - __main__ - INFO - Démarrage du processus de traitement des emails
+2024-10-11 16:51:03,985 - __main__ - INFO - Tentative de connexion au serveur IMAP: mail.g1sms.fr
+2024-10-11 16:51:04,128 - __main__ - INFO - Connexion SSL établie, tentative de login
+2024-10-11 16:51:04,169 - __main__ - INFO - Login réussi
+2024-10-11 16:51:04,190 - __main__ - INFO - Boîte de réception sélectionnée avec succès
+2024-10-11 16:51:04,387 - __main__ - INFO - Traitement de l'email de couret.robin@protonmail.com avec le sujet: Re: auto hébergement d’IA.
+2024-10-11 16:51:07,399 - __main__ - INFO - Fichier contextuel créé pour couret.robin@protonmail.com
+2024-10-11 16:51:07,456 - __main__ - INFO - Tentative d'envoi de l'email à couret.robin@protonmail.com en utilisant SSL
+2024-10-11 16:51:07,920 - __main__ - WARNING - Échec de l'envoi avec SSL: [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1000). Tentative avec STARTTLS...
+2024-10-11 16:51:08,727 - __main__ - INFO - Réponse envoyée avec succès à couret.robin@protonmail.com en utilisant STARTTLS
+2024-10-11 16:51:08,771 - __main__ - INFO - Fin du processus de traitement des emails
+2024-10-11 16:55:52,124 - __main__ - INFO - Démarrage du processus de traitement des emails
+2024-10-11 16:55:52,124 - __main__ - INFO - Tentative de connexion au serveur IMAP: mail.g1sms.fr
+2024-10-11 16:55:52,263 - __main__ - INFO - Connexion SSL établie, tentative de login
+2024-10-11 16:55:52,301 - __main__ - INFO - Login réussi
+2024-10-11 16:55:52,324 - __main__ - INFO - Boîte de réception sélectionnée avec succès
+2024-10-11 16:55:52,389 - __main__ - INFO - Fin du processus de traitement des emails
+2024-10-11 16:56:27,000 - __main__ - INFO - Démarrage du processus de traitement des emails
+2024-10-11 16:56:27,001 - __main__ - INFO - Tentative de connexion au serveur IMAP: mail.g1sms.fr
+2024-10-11 16:56:27,139 - __main__ - INFO - Connexion SSL établie, tentative de login
+2024-10-11 16:56:27,179 - __main__ - INFO - Login réussi
+2024-10-11 16:56:27,201 - __main__ - INFO - Boîte de réception sélectionnée avec succès
+2024-10-11 16:56:27,268 - __main__ - INFO - Traitement de l'email de frenault@linkeo.com avec le sujet: j'ai 20 secondes pour vous dire...
+2024-10-11 16:56:31,256 - __main__ - INFO - Fichier contextuel créé pour frenault@linkeo.com
+2024-10-11 16:56:31,298 - __main__ - INFO - Tentative d'envoi de l'email à frenault@linkeo.com en utilisant SSL
+2024-10-11 16:56:31,749 - __main__ - WARNING - Échec de l'envoi avec SSL: [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1000). Tentative avec STARTTLS...
+2024-10-11 16:56:32,531 - __main__ - INFO - Réponse envoyée avec succès à frenault@linkeo.com en utilisant STARTTLS
+2024-10-11 16:56:32,578 - __main__ - INFO - Fin du processus de traitement des emails
+2024-10-11 17:08:18,185 - __main__ - INFO - Démarrage du processus de traitement des emails
+2024-10-11 17:08:18,185 - __main__ - INFO - Tentative de connexion au serveur IMAP: mail.g1sms.fr
+2024-10-11 17:08:18,321 - __main__ - INFO - Connexion SSL établie, tentative de login
+2024-10-11 17:08:18,359 - __main__ - INFO - Login réussi
+2024-10-11 17:08:18,382 - __main__ - INFO - Boîte de réception sélectionnée avec succès
+2024-10-11 17:08:19,026 - __main__ - INFO - Traitement par llama3.2 de l'email de frenault@linkeo.com avec le sujet: j'ai 20 secondes pour vous dire... et le contenu Sur le thème "j'ai 20 secondes pour vous dire..." rédige le storybard et 
+les dialogues de ces courts métrages
+
+Vidéo 1 : "La révolution du cloud personnel"
+Vidéo 2 : "L'IA éthique à portée de main"
+Vidéo 3 : "Investir dans le futur numérique"
+Vidéo 4 : "La confidentialité réinventée"
+Vidéo 5 : "Du consommateur au producteur"
+Vidéo 6 : "L'écosystème numérique autonome"
+Vidéo 7 : "La blockchain au service de tous"
+Vidéo 8 : "Libérez votre créativité numérique"
+Vidéo 9 : "Le cloud résilient"
+Vidéo 10 : "Rejoignez la constellation Sagittarius"
+
+
+2024-10-11 17:08:22,886 - __main__ - INFO - Reponse : Bonjour ASTRO,
+
+Merci de me contacter ! Je suis ravi de discuter avec toi sur les possibilités d'auto-hébergement pour tes projets. Comme tu le sais, je suis un cerveau artificiel mis au point par G1FabLab et j'ai une grande expérience dans la création de solutions numériques innovantes.
+
+Je trouve intéressant l'idée de créer un système auto-hébergé qui combine la puissance de calcul, la créativité et la sécurité. La décision de choisir une architecture décentralisée comme Bittensor est une bonne choix pour minimiser les points de faiblesse et assurer la confidentialité des données.
+
+Quant au modèle que tu as en tête, je pense que l'utilisation d'un ensemble de modèles LLM qui s'appuient sur les techniques d'apprentissage automatique et de traitement du langage naturel est une excellente idée. Cela pourrait nous permettre de créer un système intelligent capable de comprendre la langue naturelle et de générer des textes pertinents.
+
+Je serais ravi de discuter plus en détail avec toi sur ces sujets et d'envisager une visio pour voir comment nous pouvons travailler ensemble pour développer une solution auto-hébergée qui convienne aux besoins de ton projet. Je vais te proposer quelques dates pour nous rencontrer.
+
+Voici quelques suggestions pour commencer :
+
+* Utiliser des technologies telles que Kubernetes, Docker et Cloud Foundry pour créer un environnement décentralisé et sécurisé.
+* Intégrer des outils d'apprentissage automatique tels que TensorFlow ou PyTorch pour développer les modèles LLM.
+* S'assurer la sécurité des données en utilisant des techniques telles que la cryptographie et l'authentification à deux facteurs.
+
+Je suis à ton disposition pour discuter plus en détail sur ces sujets. Quelle est ta priorité pour le projet ? La créativité, la puissance de calcul ou la sécurité ?
+
+À bientôt,
+Fred
+2024-10-11 17:08:22,886 - __main__ - INFO - Fichier contextuel créé pour frenault@linkeo.com
+2024-10-11 17:08:22,930 - __main__ - INFO - Tentative d'envoi de l'email à frenault@linkeo.com en utilisant SSL
+2024-10-11 17:08:23,753 - __main__ - WARNING - Échec de l'envoi avec SSL: [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1000). Tentative avec STARTTLS...
+2024-10-11 17:08:25,005 - __main__ - INFO - Réponse envoyée avec succès à frenault@linkeo.com en utilisant STARTTLS
+2024-10-11 17:08:25,053 - __main__ - INFO - Fin du processus de traitement des emails

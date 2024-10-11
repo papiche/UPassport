@@ -29,6 +29,7 @@ AMOUNT="$3"
 DATE="$4"
 ZEROCARD="$5" ## PUBKEY or EMAIL
 
+## VALID UPASSPORT ARE BECOMING LINKS TO ~/.zen/game/passport
 [[ ! -L ${MY_PATH}/pdf/${PUBKEY} ]] \
     && echo "NOT A VALID UPASSPORT"\
     && echo "${MY_PATH}/static/img/money_coins.png" \
@@ -49,12 +50,12 @@ echo "ZEROCARD: $ZEROCARD" # EMAIL OR MEMBERG1PUB
 ### PRIVILEGE ESCALADE
 isEMAIL=$(echo "$ZEROCARD" | grep -E -o "\b[a-zA-Z0-9.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}\b")
 [ ! -s $isEMAIL ] \
-    && echo "ZenCard chalenge... $isEMAIL" \
+    && echo "ZenCard challenge... $isEMAIL" \
     && [ -d ~/.zen/game/players/$isEMAIL ] \
         && echo "////////////// REGISTERED ZENCARD \\\\\\\\\\\\\\" \
         && ~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL"
 
-### CHECK LAST COMMAND TIME
+### CHECK & UPDATE LAST COMMAND TIME
 LASTCOMMANDTIME=$(cat ${MY_PATH}/pdf/${PUBKEY}/COMMANDTIME 2>/dev/null)
 [ -z $LASTCOMMANDTIME ] \
     && LASTCOMMANDTIME=$DATE \
@@ -115,7 +116,7 @@ case "$COMMENT" in
         AMOUNT="$SOLDE Ğ1"
         cat ${MY_PATH}/templates/wallet.html \
         | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-             -e "s~_AMOUNT_~<a target=_new href=${ipfsNODE}/ipfs/$(cat ${MY_PATH}/pdf/${PUBKEY}/IPFSPORTAL)/${PUBKEY}/_index.html>${AMOUNT}</a>~g" \
+             -e "s~_AMOUNT_~<a target=_new href=${ipfsNODE}/ipfs/$(cat ${MY_PATH}/pdf/${PUBKEY}/IPFSPORTAL)/${PUBKEY}/N1/_index.html>${AMOUNT}</a>~g" \
              -e "s~300px~303px~g" \
             > ${MY_PATH}/tmp/${ZEROCARD}.out.html
 
@@ -126,7 +127,8 @@ case "$COMMENT" in
         exit 0
         ;;
     *)
-        echo "Envoi de $COMMENT à IA"
+        echo "Envoi de $COMMENT à UPLANET"
+        ##
 
         ;;
 esac
