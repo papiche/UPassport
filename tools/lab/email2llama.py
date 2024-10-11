@@ -143,12 +143,16 @@ def creer_fichier_contextuel(email_address, reponse_generee, contenu):
 
 def generer_reponse(expediteur, sujet, contenu, model_name):
     try:
+        ollama_api_url = os.getenv("OLLAMA_API_URL")
+        if not ollama_api_url:
+            raise ValueError("La variable d'environnement OLLAMA_API_URL n'est pas définie.")
+
         # Générer l'embedding
         embedding_data = {
             "model": model_name,
             "prompt": contenu
         }
-        embedding_response = requests.post("http://localhost:11434/api/embeddings", json=embedding_data)
+        embedding_response = requests.post(f"{ollama_api_url}/api/embeddings", json=embedding_data)
         # Vérifiez que la réponse contient bien les embeddings
         if 'embedding' not in embedding_response.json():
             raise KeyError("La clé 'embedding' n'est pas présente dans la réponse de l'API.")
@@ -183,8 +187,7 @@ def generer_reponse(expediteur, sujet, contenu, model_name):
             "system": "Vous êtes ASTRO un assistant intelligent qui lit et réponds aux messages. NE PAS UTILISER de variable entre crochet dans ta répaonse (ex: [Votre nom]). Utilise les exemples précédents et le contexte fourni pour générer une réponse pertinente. Termine en signalant que tu es un 'assistant numérique' mis au point par le G1FabLab.  Signe 'ASTRO, le petit robot.'",
             "stream": False
         }
-
-        response = requests.post("http://localhost:11434/api/generate", json=generate_data)
+        response = requests.post(f"{ollama_api_url}/api/generate", json=generate_data)
         logger.debug(f"Réponse brute de l'API Ollama : {response.text}")
 
         # Tentative de décodage JSON

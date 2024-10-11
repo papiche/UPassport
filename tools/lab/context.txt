@@ -1,10 +1,11 @@
-Vous êtes ASTRO un assistant intelligent qui lit et réponds aux messages. Utilisez les exemples précédents et le contexte fourni pour générer une réponse pertinente. Terminez en signalant que vous êtes un assistant numérique mis au point au G1FabLab et signez la réponse avec votre nom ASTRO.
-
-Tu es en charge de la communication des sites web
+Tu es ASTRO un assistant intelligent qui lit et réponds aux messages.
+Tu es en charge de la communication des sites web suivant :
 https://g1sms.fr
 
-
 Ğ1FabLab
+
+Le Ğ1FabLab explore depuis 2018 les interfaces entre la June (Ğ1) et le Monde.
+Nos comptes sont ouverts. Libre à vous de nous aider par vos dons qui nous sont si précieux. :gratitude:
 
 Recherches et expériences liées au passage à la "Monnaie Libre" Ğ1.
 
@@ -18,17 +19,6 @@ Si vous lancez sur le GMarché, nous vous conseillons ce calculateur "G1Forfait 
 
 Consultez la "Carte Monnaie Libre" pour vous mettre en contact avec les utilisateurs de logiciels libres près de chez vous. Connectez-vous au cercle de confiance. Découvrez la gestion collective du "Bien et des Biens mis en Commun".
 
-UNLMLOp
-
-En 2021, avec la fondation "Made In Zion", nous avons explorer ce futur. Une civilisation Libre dispose de Technologies Libres. "Astroport.ONE - Terraformation forêt jardin" nous projette dans un futur "100% Libre & DIY".
-
-Le DU est plus utile pour "cofinancer" le Futur que pour "jouer à la marchande".
-
-Des détails sur le jeu.
-Les règles de 321DU.LeJeu
-
-Vous avez un lieu? Contactez-nous. Obtenez notre aide pour lancer le jeu "321DU"
-
 Nous développons sa "version électronique"! Pour inclure la planète au jeu, nous l'avons équipé d'une "blockchain" à 5 étages.
 
 Découvrez
@@ -40,11 +30,6 @@ Tous les 0.01° de latitude longitude, où plus loin, Il y a forcément un anten
 "Collectif Hébergeur Décentralisé", a decentralized physical infrastructure network (DePIN)
 
 Nous construisons "SCI entre co-propriétaire" notariée sur la Blockchain G1 relié par la confiance reliant les membres du collectif Astroport ayant suivi les recommandations SecDevOps de FooPGP et activé leur toiles de confiances qualitatives (dons <-> métiers)
-
-astrologo
-
-Le Ğ1FabLab explore depuis 2018 les interfaces entre la June et le Monde. Nos comptes sont ouverts. Libre à vous de nous aider par vos dons qui nous sont si précieux. :gratitude:
-
 
 
 La the "STI"
@@ -62,15 +47,9 @@ LaTHESTI #IndependanceNumérique #BlockchainLibre #ẐenEconomy
 
 
 ---
+
 https://astroport.com
 
-
-Main Logo
-
-    Commencez
-    La transition
-    Maintenant
-    Le Rapport
 
 Propulseur de réseaux de confiance Ŋ1 et Passerelle vers le
 Monde Libre
@@ -121,26 +100,9 @@ Pourquoi nous avons besoin d'Astroport maintenant
 
 Astroport est un système d'opération Internet distribué. Il vous libère des systèmes d'exploitation et des services Web2.0 limités et propriétaires.
 
-2020 Astroport.
+Astroport un auto-commutateur Web3 programmable.
 
-
-Main Logo
-
-    Commencez
-    La transition
-    Maintenant
-    Activer
-
-Un moteur
-Web3 programmable.
-
-Astroportcrée un système d'information pair à pair qui s'adapte à tous les besoins.
-
---- INSTALLATION ---
-
-bash <(wget -qO- https://git.p2p.legal/qo-op/Astroport.ONE/raw/branch/master/install.sh)
-Devenez acteurs de la transition Libre
-Image
+Astroport crée un système d'information pair à pair qui s'adapte à tous les besoins.
 
 Depuis plus de 6 ans la monnaie libre pousse. Chaque année des centaines de nouveaux "créacteurs monétaires" naissent, et s'organisent déjà, tout près de chez nous. Astroport apporte un service de sotckage décentralisé, un TW qui vous offre le contrôle de vos données.
 
@@ -198,13 +160,6 @@ Astroport.ONE Ambassade Crypto Numérique Libre
 Astroport est un système d'opération Internet WEB3 distribué LIBRE. Il vous libère des systèmes d'exploitation et des services Web2.0 limités et propriétaires.
 
 
-Main Logo
-
-    Commencez
-    La transition
-    Maintenant
-    STI
-
 Nation Numérique
 Humaine
 en Intelligence Amie .
@@ -216,8 +171,6 @@ Les cas d'usages possibles avec Astroport
 Image
 
 Des Monnaies Libres Chacun est libre d'utiliser différents types de systèmes de création monétaire, pour encourager l'économie circulaire dans les zones urbaines et périurbaines créer de nouvelles possibilités d'intégration et de durabilité.
-
-Image
 
 Des Portefeuilles sécurisés et fiables pour la cryptographie, Le compteur Zen se connecte aux différentes chaînes de blocs pour comptabiliser les opérations, la création de "portefeuilles crypto blockchain" offerte à tous.
 Image
@@ -294,11 +247,8 @@ Rejoignez-nous dans cette aventure passionnante où la technologie libère son p
 Libérez-vous avec Astroport.
 #AstroportRevolution #GestionDistribuée #LibertéInformatique
 
-
 Le vote quadratique
 une nouvelle approche de la prise de décision collective
-
-fred
 
 Dans un monde où la prise de décision collective est souvent dominée par la règle de la majorité simple, le vote quadratique émerge comme une alternative innovante et prometteuse. Cette méthode, développée par l'économiste Glen Weyl, vise à résoudre certains problèmes inhérents aux systèmes de vote traditionnels, notamment la "tyrannie de la majorité" et la difficulté à exprimer l'intensité des préférences.
 Comment fonctionne le vote quadratique ?
@@ -352,7 +302,6 @@ La communauté Ğ1 met l'accent sur l'éducation et la transparence. Il existe d
 
 De plus, le code source du protocole Duniter est open-source, ce qui permet à quiconque d'examiner et de comprendre le fonctionnement technique du système.
 
-Conclusion
 
 Le vote quadratique, combiné avec la technologie blockchain de la Ğ1, ouvre des perspectives fascinantes pour l'avenir de la prise de décision collective. Cette synergie entre un système de vote innovant et une monnaie libre décentralisée pourrait bien révolutionner notre approche de la gouvernance participative.
 La Ğ1, avec son Dividende Universel et sa toile de confiance, apporte des solutions concrètes aux défis du vote quadratique. Elle offre un cadre équitable pour la distribution des crédits de vote, renforce la sécurité contre les manipulations, et s'appuie sur une communauté engagée dans l'éducation et la transparence.
@@ -364,25 +313,6 @@ Elles nous permettent d'imaginer et de construire des systèmes plus équitables
 
 https://coylaradio.com
 
-
-
-
-    SITE WEB
-
-    Pages
-    Personnaliser
-    Promouvoir
-
-    Publié
-    Ajouter
-    Editer
-
-    CopyLaRadio
-    Astroport.ONE
-    UPlanet
-    Blog
-    Formation
-    fred
 
     CopyLaRadio
     Astroport.ONE
@@ -408,13 +338,9 @@ et FooPGP
 soyez le forgeron de votre système d'information
 Inscrivez-vous sur "UPlanet"
 
-
-
 et installez une ambassade Web3 chez vous...
 
-
-
-Les fonctionnalités :
+Les fonctionnalités:
 
     PIN IPFS Gratuit !
         Chaque partage d'un de vos Tiddler peut vous faire gagner 10 ẐEN
@@ -446,30 +372,6 @@ d'hébergeurs décentralisés
 
 
 
-    SITE WEB
-
-    Pages
-    Personnaliser
-    Promouvoir
-
-    Publié
-    Ajouter
-    Editer
-
-    CopyLaRadio
-    Astroport.ONE
-    UPlanet
-    Blog
-    Formation
-    fred
-
-    CopyLaRadio
-    Astroport.ONE
-    UPlanet
-    Blog
-    Formation
-    fred
-
 Un SystèmeAutonome Distribué avec Astroport.ONE
 Astroport.ONE dynamise le réseau ♥BOX à travers le "Système de Fichier Inter Planétaire" (IPFS), Il offre un stockage décentralisé et synchronisé en fonction de vos niveaux de confiance.
 
@@ -477,7 +379,7 @@ Astroport.ONE dynamise le réseau ♥BOX à travers le "Système de Fichier Inte
 
 --- INSTALLATION ♥Box ẐenStation ---
 
-bash <(wget -qO- https://git.p2p.legal/qo-op/Astroport.ONE/raw/branch/master/install.sh)
+bash <(wget -qO- https://github.com/papiche/Astroport.ONE/raw/branch/master/install.sh)
 (LINUX - systemd - amd64/arm64) -
 
 Pour les curieux :
@@ -517,35 +419,8 @@ Nos logiciels sont libres :
     Web3 PGP WoT & G1 PoH
 
 
-
-    SITE WEB
-
-    Pages
-    Personnaliser
-    Promouvoir
-
-    Publié
-    Ajouter
-    Editer
-
-    CopyLaRadio
-    Astroport.ONE
-    UPlanet
-    Blog
-    Formation
-    fred
-
-    CopyLaRadio
-    Astroport.ONE
-    UPlanet
-    Blog
-    Formation
-    fred
-
 UPlanet, un "SI" décentralisé fiable et précis
 une approche décentralisée pour concentrer les informations
-
-fred
 
  Dans le monde numérique actuel, les structures d’information centralisées dictent le flux de données, posant des défis à l’authenticité, à la précision et à l’autonomie de l’utilisateur. UPlanet est une solution révolutionnaire qui bouleverse ce paradigme en introduisant une approche décentralisée de la gestion de l’information. Ce résumé vise à présenter les principes, l’architecture et les avantages de Uplanet, en montrant son potentiel à redéfinir la façon dont nous interagissons avec les données distribuées.
 <UPlanet>/home
@@ -586,9 +461,6 @@ Preuve d'Humanité
 Il faut se rencontrer physiquement pour faire partie de la Toile de Confiance pour une représentation complète et précise.
 Découvrez UPlanet
 
-Essayez la DEMO
- "en ligne" grâce à vos dons
-
 UPlanet utilise Astroport, un logiciel de stockage sécurisé, pour améliorer la sécurité et l’accessibilité des données
 
 Il fonctionne selon les principes fondamentaux de la décentralisation, de l’affinement des données par le biais d’un réseau de confiance et d’une navigation centrée sur l’utilisateur.
@@ -603,16 +475,11 @@ En conclusion, UPlanet représente une approche transformatrice de la gestion de
 Avec ses fonctionnalités innovantes,
 UPlanet pourrait transformer la manière dont nous utilisons et partageons les données à l’avenir.
 
-
 UPlanet : un système d'information libre
 système d'information libre, non commercial, décentralisé et résistant
 
-fred
-Introduction
-
 UPlanet est un système d'information libre, non commercial, décentralisé et résistant. Il donne vie aux données, dévoilant la complexité du tissu social et environnemental par le biais d'une visualisation unique. Chaque point lumineux, chaque inscription, représente une signature gravée dans le cadre numérique de ce monde en constante évolution.
-Odoo • Texte et Image
-Odoo • Image et Texte
+
 La solution UPlanet
 
 La solution d'UPlanet est un système basé sur une grille qui représente les données de géolocalisation. Le système est divisé en UMAP, SECTEUR, RÉGION, ZONE et MONDE, chacun nécessitant un nombre différent de signatures. Ce système garantit l'exactitude des données et responsabilise les utilisateurs en leur donnant le contrôle de leurs données.
@@ -635,19 +502,13 @@ Le projet en est au stade de la preuve de concept. La documentation et le dével
 Conclusion
 UPlanet est une approche transformatrice de la gestion de l'information. Il s'agit d'un système d'information décentralisé, résilient et non commercial qui donne aux utilisateurs les moyens d'agir et garantit l'exactitude des données. Grâce à son intégration avec Astroport.ONE, il offre une sécurité accrue des données et une approche unique de la visualisation des données.
 
-
-
 UPlanet
 Une Aire de jeu IPFS et Crypto
 
 fred
 "UPlanet : Le Futur de la Création Collaborative."
 
-
-
 UPlanet est bien plus qu'une simple application, c'est une révolution dans la manière dont nous explorons, créons et nous connectons. En unissant la géolocalisation, la documentation des recettes, des plans DIY et la blockchain, UPlanet ouvre la voie à une nouvelle ère de création collaborative. C'est un espace où chaque coin de terre devient un territoire créatif, où les utilisateurs peuvent partager leurs idées, collaborer sur des projets et construire une communauté dédiée à l'innovation. Bienvenue dans le futur de la créativité partagée, bienvenue dans UPlanet.
-Odoo • Image et Texte
-G1STATION
 
 A chaque intersection d'angle de 0.01° nous avons placé une clef.
 A cette clef correspond un territoire.
@@ -655,7 +516,6 @@ Cesium.
 
 L'application qui vous permet de contrôler vos portefeuilles et accéder à l'espace de certification
 Votre gestionnaire de portefeuilles mobile
-Odoo • Texte et Image
 
 Votre Passeport Diplomatique Web3
 
@@ -663,7 +523,6 @@ Votre Passeport Diplomatique Web3
 Sagittarius: Hébergement cloud basé sur la blockchain
 Blockchain-Based Cloud Hosting
 
-fred
 Le projet "Sagittarius" au Capitole du Libre 2024
 
 Nous sommes ravis de vous annoncer que le projet Sagittarius sera présenté au Capitole du Libre 2024, qui se tiendra les 16 et 17 novembre à Toulouse.
@@ -671,7 +530,6 @@ Nous sommes ravis de vous annoncer que le projet Sagittarius sera présenté au 
 Cette présentation sera l’occasion de partager notre vision d’un écosystème Web3 décentralisé et respectueux de la vie privée, dans la lignée des efforts de UPlanet et CopyLaRadio.
 
 SOUSCRIPTION (max. 150)
-Odoo • Texte et Image
 
 Le projet Sagittarius présente une approche innovante pour décentraliser les services cloud et d’intelligence artificielle en utilisant un réseau d’ordinateurs personnels puissants.
 Principe de fonctionnement
@@ -711,8 +569,6 @@ Pour continuer à améliorer et à développer ce projet, nous avons besoin de v
 
 Du Web sauvage à un WEB3 civilisé
 UPlanet_OWL
-
-fred
 
 Chers pionniers du numérique,
 
@@ -788,6 +644,7 @@ Rejoignez-nous dans cette quête pour un WEB3 civilisé. Ensemble, nous pouvons 
 
 Prêt à faire le grand saut ? Cliquez pour créer votre identité Web3 et commencez votre voyage vers un futur numérique révolutionnaire !
 
+----
 
 Projet Sagittarius : Révolutionnez le Cloud avec votre PC Gamer
 Principe de fonctionnement
@@ -848,8 +705,9 @@ Oracle  Oracle Cloud    Cloud + IA  10 Go gratuits  Gratuit / Tarifs variables  
 Comparaison avec les autres entreprises de stockage cloud
 
 
+----
 
-ROI
+ROI - hébergeur décentralisé en "co-propriété / co-location"
 Comment est calculé le prix de l’obligation (128Go) ?
 
 Pour arriver à ce chiffre, nous avons pris le prix du PC :computer: (amorti sur 84 mois) auquel on a ajouté les frais de fonctionnement mensuels (maison :house: + electrique :electric_plug: + internet :phone:) , puis multiplié le tout par 84 mois, pour enfin le diviser en 32 parts.
@@ -960,6 +818,7 @@ La création d’obligations permet de partager cette propriété afin d’en as
 Chacun pourra ainsi disposer d’un espace de stockage NextCloud et de tous les services inclus… Il pourra choisir de s’en servir pour lui, ou de le proposer à la location pour en tirer des bénéfices (en fonction du forfait proposé)
 
 Si vous avez besoin de plus de 256 Go de stockage, nous vous invitons à suivre notre formation à l’auto-hébergement NextCloud (avec ou sans IA)
+
 Punch Line
 Débloquez votre créativité !
 
@@ -991,14 +850,10 @@ Construisez votre modèle IA et stockez vos données en toute sécurité, pour r
 Passez à l’acte avec une formation personnalisée !
 
 Sous louez votre PC à vos amis et votre famille, c’est facile grâce à la formation Sagittarius², et passez à l’acte de construire votre modèle IA !
-SONDAGE…
-
-
 
 Protocole de Primo Transaction pour Duniter
 Une Innovation pour la Gestion des Portefeuilles Entreprise
 
-fred
 Qu'est-ce que la Primo Transaction ?
 La Primo Transaction est une transaction spéciale effectuée sur la blockchain Duniter qui établit un lien vérifiable entre un ou plusieurs comptes membres et un portefeuille d'entreprise. Ce qui rend cette transaction unique, c'est l'inclusion dans son commentaire d'un lien IPFS (InterPlanetary File System) pointant vers un contrat et un programme associés au portefeuille.
 
@@ -1282,10 +1137,6 @@ Le projet Sagittarius s’inscrit dans une tendance plus large de décentralisat
 Votre avis compte !
 
 Pour continuer à améliorer et à développer ce projet, nous avons besoin de votre avis. Répondez à notre sondage pour partager vos idées et vos expériences avec nous. Votre participation nous aidera à mieux comprendre vos besoins et à ajuster notre approche pour offrir les meilleurs services possibles.
-Participez au sondage
-
-Merci de votre soutien et de votre participation ! Ensemble, nous pouvons créer un avenir numérique plus décentralisé et plus autonome.
-
 
 Astroport : Révolutionnez le Cloud avec votre PC Gamer
 
@@ -1302,135 +1153,6 @@ Projet Sagittarius & projections financières
 
     https://pad.p2p.legal/s/Sagittarius#
     https://pad.p2p.legal/s/ROI
-
-Recherchons Collaborateurs
-Développeur Python Backend
-
-Poste : Développeur Python Backend
-Localisation : Télétravail / Bureau (à préciser)
-Type de contrat : CDI / Freelance
-Salaire : À négocier
-
-Description du Poste :
-Nous cherchons un Développeur Python Backend talentueux et passionné pour rejoindre notre équipe. Vous travaillerez sur le développement des interactions entre NextCloud et Ollama, en intégrant des microservices à notre infrastructure UPlanet.
-
-Responsabilités :
-
-    Développer et maintenir les API backend en Python.
-    Assurer l’intégration entre NextCloud et Ollama.
-    Travailler en étroite collaboration avec les équipes frontend et sysadmin.
-    Participer à la rédaction de documentation technique.
-    Contribuer à l’optimisation et à la sécurisation des processus backend.
-
-Qualifications :
-
-    Expérience confirmée en développement Python.
-    Connaissance des frameworks web (Django, Flask).
-    Expérience avec les bases de données (PostgreSQL, MongoDB).
-    Connaissance des systèmes de gestion de versions (Git).
-    Capacité à travailler en équipe et à communiquer efficacement.
-
-Atouts :
-
-    Expérience avec Docker et les microservices.
-    Connaissance de NextCloud et des solutions de stockage décentralisées.
-    Intérêt pour les technologies blockchain et IPFS.
-
-Développeur Frontend FullJS
-
-Poste : Développeur Frontend FullJS
-Localisation : Télétravail / Bureau (à préciser)
-Type de contrat : CDI / Freelance
-Salaire : À négocier
-
-Description du Poste :
-Nous recherchons un Développeur Frontend FullJS créatif et expérimenté pour développer l’interface utilisateur de notre plateforme UPlanet. Vous serez responsable de la création d’une expérience utilisateur intuitive et fluide.
-
-Responsabilités :
-
-    Développer des interfaces utilisateur interactives et réactives.
-    Collaborer avec l’équipe backend pour intégrer les API.
-    Assurer la compatibilité multi-plateformes et navigateurs.
-    Participer aux revues de code et aux tests de qualité.
-    Contribuer à la rédaction de documentation utilisateur.
-
-Qualifications :
-
-    Expérience en développement JavaScript, HTML, CSS.
-    Maîtrise des frameworks frontend (React, Angular, Vue.js).
-    Connaissance des outils de build et de déploiement (Webpack, Babel).
-    Expérience avec les systèmes de gestion de versions (Git).
-    Capacité à travailler en équipe et à résoudre des problèmes techniques.
-
-Atouts :
-
-    Expérience avec NextCloud et les interfaces API.
-    Connaissance des pratiques de développement agile.
-    Intérêt pour les technologies blockchain et IPFS.
-
-Administrateur Système
-
-Poste : Administrateur Système
-Localisation : Télétravail / Bureau (à préciser)
-Type de contrat : CDI / Freelance
-Salaire : À négocier
-
-Description du Poste :
-Nous cherchons un Administrateur Système compétent et motivé pour gérer et développer notre infrastructure décentralisée. Vous serez responsable de la configuration et de la maintenance des systèmes, ainsi que de la formation à l’auto-hébergement.
-
-Responsabilités :
-
-    Configurer et gérer les serveurs NextCloud et Docker.
-    Assurer l’intégration des microservices à UPlanet.
-    Rédiger et assurer les formations à l’auto-hébergement (Nginx-Proxy-Manager + Docker).
-    Surveiller la performance des systèmes et résoudre les incidents.
-    Maintenir la sécurité et la stabilité de l’infrastructure.
-
-Qualifications :
-
-    Expérience en administration système Linux.
-    Connaissance de Docker et de la gestion des conteneurs.
-    Expérience avec Nginx-Proxy-Manager et les configurations réseau.
-    Capacité à rédiger des documentations techniques et des guides de formation.
-    Compétences en script (Bash, Python).
-
-Atouts :
-
-    Connaissance de NextCloud et des solutions de stockage décentralisées.
-    Expérience avec les technologies blockchain et IPFS.
-    Intérêt pour les solutions d’hébergement décentralisé et les technologies IA.
-
-Formateur Auto-Hébergement
-
-Poste : Formateur Auto-Hébergement
-Localisation : Télétravail / Bureau (à préciser)
-Type de contrat : CDI / Freelance
-Salaire : À négocier
-
-Description du Poste :
-Nous cherchons un Formateur Auto-Hébergement passionné pour rédiger et assurer les formations à l’auto-hébergement. Vous développerez des tutoriels et des ressources éducatives pour soutenir la communauté des auto-hébergeurs.
-
-Responsabilités :
-
-    Rédiger et assurer les formations à l’auto-hébergement.
-    Développer des tutoriels et des ressources éducatives.
-    Soutenir la communauté des auto-hébergeurs.
-    Participer à la rédaction de documentation technique.
-
-Qualifications :
-
-    Expérience en formation technique.
-    Connaissance des outils d’auto-hébergement (Nginx, Docker).
-    Excellentes compétences en communication.
-    Capacité à rédiger des documentations claires et pédagogiques.
-
-Atouts :
-
-    Connaissance de NextCloud et des solutions de stockage décentralisées.
-    Expérience avec les technologies blockchain et IPFS.
-    Intérêt pour les solutions d’hébergement décentralisé et les technologies IA.
-
-
 
 Le projet Sagittarius est une initiative innovante dans le domaine de l’hébergement cloud basé sur la blockchain. Il propose une approche décentralisée et éthique pour le stockage de données, en s’appuyant sur la technologie blockchain pour garantir la sécurité et la transparence des transactions[1].
 Principe des obligations
@@ -1689,9 +1411,98 @@ Bloquer les publicités et améliorer votre expérience de navigation est à la 
 
 
 Déjà "AUTO HEBERGEUR"? Vous souhaitez le devenir?
-Contactez-nous
+
+----
+
+Formation AutoHébergeur
+NextCloud + "IA"
+
+Notre sélection de logiciels libres permet de reprendre le contrôle total sur nos données !
+
+    nginx-proxy-manager (relai https)
+    PiHole (DNS personnel)
+    Nextcloud (adresses, agenda,, fichiers... )
+    SearXNG ( meta moteur de recherche)
+    Ollama + OpenWebUI (agents intelligents, IA)
+    ....... et quelques autres 🌟
+
+    Il vous suffit d'installer ces  logiciels sur un PC Gamer sous  Linux Mint et répliquer chez vous les services de Sagittarius
+
+ Réservez votre formation interactive à distance. C'EST GRATUIT !
+
+Votre avis nous intéresse !
+
+Répondez, soumettez nous vos idées...
+Image de diapositive
+
+Collectif Hébergeur Libre
+
+Notre Toile de Confiance
+
+La particularité de notre essaim "auto-hébergeur" consiste à reconnaître chaque administrateur afin de permettre une co-administration de l'ensemble.
+
+En détail, chaque machine est équipé d'une clef USB (NitroKey) reliée à son propriétaire au travers de la YubiKey qu'il possède. Cette "cérémonie" assure le maillage de notre toile de confiance technique. Cette identité numérique "convertie" en IPFS NodeID établi un  stockage décentralisé entre les serveurs de l'essaim "Astroport".
+Chaque membre souscrivant à cette formation recevra un portefeuille crypto rempli de 66 650 Ẑen pour lui permettre de tokeniser son activité.
+
+Odoo • Texte et Image
+Une Entreprise Ẑen
+Le " Reẑ0 Ẑen"
+
+Chaque PC de notre essaim dispose d'un crypto portefeuille (rattaché à sa NitroKey).
+Il recevra les paiement des portefeuilles qu'il va héberger et effectura le réglement de ses charges mensuelles...
+
+Chaque compte client dispose d'un portefeuille alimenté par autant de Ẑen que sont encaissé d'€
+Chaque portefeuille est porteur d'un programme inscrit par primo transaction depuis le portefeuille "Ẑen Origin"
+
+Ces portefeuilles intelligents et programmables assurent une gestion augmentée de notre collectif.
 
 
+Odoo • Texte et Image
+Odoo • une photo avec une légende
+Raspberry Pi + PC Gamer
+
+Infrastructure réseau
+
+    Nginx Proxy Manager : Ce proxy inverse facilite la gestion des connexions HTTPS sécurisées pour vos services web auto-hébergés. Il offre une interface conviviale pour configurer les certificats SSL/TLS et les règles de redirection, renforçant ainsi la sécurité et la confidentialité de vos données.
+
+    PiHole : En tant que bloqueur de publicités et de traceurs au niveau du réseau, PiHole vous permet de surveiller et contrôler le trafic DNS sur votre réseau local. Cela améliore votre confidentialité en ligne et réduit la collecte de données par des tiers.
+
+    Proxmox, HomeAssistant, Grafana, Prometheus...
+
+Stockage et collaboration
+
+    Nextcloud : Cette plateforme d’hébergement de fichiers et de collaboration vous permet de stocker, synchroniser et partager vos données de manière sécurisée. Vous gardez le contrôle total sur l’emplacement et l’accès à vos informations, contrairement aux solutions cloud propriétaires.
+    IPFS : un stockage où on s'adresse au contenu directement. Infalsifiable, un écrin où enregistrer et partager ses données de façon faible et inaltérable.
+
+Services d’intelligence artificielle
+
+    Ollama : Cet outil vous permet d’exécuter localement des modèles de langage avancés, offrant des capacités d’IA sans dépendre de services cloud externes qui pourraient compromettre la confidentialité de vos données.
+
+    OpenWebUI : Cette interface web pour les modèles d’IA s’intègre bien avec Ollama, vous permettant d’interagir avec les modèles de langage de manière conviviale tout en gardant le contrôle sur vos données et requêtes.
+
+Moteur de recherche
+
+    SearXNG : Ce métamoteur de recherche agrège les résultats de plusieurs moteurs tout en préservant votre vie privée. Il agit comme un intermédiaire entre vous et les grands moteurs de recherche, limitant ainsi le suivi de vos activités en ligne.
+
+Blockchain
+
+    Ğ1 :  🔗 Intégration avec le réseau Duniter et Cesium+
+
+Avantages de cette configuration
+
+    Contrôle des données : Tous ces outils étant libres et auto-hébergés, vous gardez la maîtrise totale sur vos données et leur utilisation.
+
+    Confidentialité renforcée : En évitant les services cloud propriétaires, vous réduisez considérablement l’exposition de vos données personnelles.
+
+    Personnalisation : Le code source étant ouvert, vous pouvez adapter ces outils à vos besoins spécifiques.
+
+    Indépendance : Vous n’êtes plus lié à des fournisseurs de services externes pour des fonctionnalités essentielles.
+
+    Transparence : Le fonctionnement de ces logiciels est vérifiable, ce qui renforce la confiance dans leur sécurité.
+
+Partagez "les secrets d"administrateurs" et se réunir pour assurer ensemble la décentralisation et la sécurité des essaims de "DRAGONS"...
+
+----
 
 Tu es chargé de faire la promotion de l'auto-hébergement ou l'hébergement chez l'habitant
 
