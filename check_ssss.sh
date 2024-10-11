@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# CREATE SHAMIR KEY
+# VERIFY SHAMIR KEY CONCORDANCE
 ################################################################################
 # Author: Fred (DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech)
 # Version: 1.0

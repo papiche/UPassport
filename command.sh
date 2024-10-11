@@ -1,11 +1,19 @@
 #!/bin/bash
+################################################################################
+# Author: Fred (DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech)
+# Version: 1.0
+# License: AGPL-3.0 (https://choosealicense.com/licenses/agpl-3.0/)
+################################################################################
+MY_PATH="`dirname \"$0\"`"              # relative
+MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
+ME="${0##*/}"
 
 # Vérifier le nombre d'arguments
 if [ $# -ne 5 ]; then
     echo "Usage: $0 <pubkey> <comment> <amount> <date> <zerocard>"
     exit 1
 fi
-source ./.env
+source ${MY_PATH}/.env
 [[ -z $ipfsNODE ]] && ipfsNODE="https://ipfs.astroport.com" # IPFS
 MOATS=$(date -u +"%Y%m%d%H%M%S%4N")
 ## LOAD ASTROPORT ENVIRONMENT
@@ -21,9 +29,9 @@ AMOUNT="$3"
 DATE="$4"
 ZEROCARD="$5" ## PUBKEY or EMAIL
 
-[[ ! -L ./pdf/${PUBKEY} ]] \
+[[ ! -L ${MY_PATH}/pdf/${PUBKEY} ]] \
     && echo "NOT A VALID UPASSPORT"\
-    && echo "./static/img/money_coins.png" \
+    && echo "${MY_PATH}/static/img/money_coins.png" \
     && exit 1
 
 # Convertir le timestamp en date lisible
@@ -47,36 +55,36 @@ isEMAIL=$(echo "$ZEROCARD" | grep -E -o "\b[a-zA-Z0-9.%+-]+@[A-Za-z0-9.-]+\.[A-Z
         && ~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL"
 
 ### CHECK LAST COMMAND TIME
-LASTCOMMANDTIME=$(cat ./pdf/${PUBKEY}/COMMANDTIME 2>/dev/null)
+LASTCOMMANDTIME=$(cat ${MY_PATH}/pdf/${PUBKEY}/COMMANDTIME 2>/dev/null)
 [ -z $LASTCOMMANDTIME ] \
     && LASTCOMMANDTIME=$DATE \
-    && echo $DATE > ./pdf/${PUBKEY}/COMMANDTIME
+    && echo $DATE > ${MY_PATH}/pdf/${PUBKEY}/COMMANDTIME
 
 # Vérifier si DATE est supérieur à LASTCOMMANDTIME
 if [ "$DATE" -lt "$LASTCOMMANDTIME" ]; then
     echo "Erreur: La date de la commande n'est pas plus récente que la dernière commande"
-    echo "./static/img/money_coins.png";
+    echo "${MY_PATH}/static/img/money_coins.png";
     exit 0
 fi
 
 # Vérifier le format de la clé publique
 if [[ ! $PUBKEY =~ ^[A-Za-z0-9]{43,44}$ ]]; then
     echo "Erreur: Format de clé publique invalide"
-    echo "./static/img/money_coins.png";
+    echo "${MY_PATH}/static/img/money_coins.png";
     exit 1
 fi
 
 # Vérifier que le montant est un nombre négatif
 if [[ ! $AMOUNT =~ ^-[0-9]+(\.[0-9]+)?$ ]]; then
     echo "Erreur: Le montant doit être un nombre négatif"
-    echo "./static/img/money_coins.png";
+    echo "${MY_PATH}/static/img/money_coins.png";
     exit 1
 fi
 
 # Vérifier le format de la date (timestamp Unix)
 if [[ ! $DATE =~ ^[0-9]+$ ]]; then
     echo "Erreur: Format de date invalide (doit être un timestamp Unix)"
-    echo "./static/img/money_coins.png";
+    echo "${MY_PATH}/static/img/money_coins.png";
     exit 1
 fi
 
@@ -84,37 +92,37 @@ fi
 # Traitement spécifique selon le commentaire
 case "$COMMENT" in
     "BYE")
-        ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
+        ZEROCARD=$(cat ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD)
         echo "BYE BYE ${ZEROCARD} !"
         # UPLANETNAME Extract ZEROCARD secret
-        cat ./pdf/${PUBKEY}/zerocard.planet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ./tmp/${MOATS}.secret
+        cat ${MY_PATH}/pdf/${PUBKEY}/zerocard.planet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ${MY_PATH}/tmp/${MOATS}.secret
         # ZEROCARD amount
-        solde=$(./tools/timeout.sh -t 5 ./tools/jaklis/jaklis.py balance -p ${ZEROCARD})
+        solde=$(${MY_PATH}/tools/timeout.sh -t 5 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${ZEROCARD})
         echo "EMPTYING $solde G1 to ${PUBKEY}"
         # Pay Back
-        ./tools/timeout.sh -t 5 ./tools/jaklis/jaklis.py -k ./tmp/${MOATS}.secret pay -a ${solde} -p ${PUBKEY} -c "BYE" -m
+        ${MY_PATH}/tools/timeout.sh -t 5 ${MY_PATH}/tools/jaklis/jaklis.py -k ${MY_PATH}/tmp/${MOATS}.secret pay -a ${solde} -p ${PUBKEY} -c "BYE" -m
         [ $? -eq 0 ] \
-            && rm -Rf ./pdf/${PUBKEY}/ && rm ./pdf/${PUBKEY} && rmdir ~/.zen/game/passport/${PUBKEY} \
-                && echo "./static/img/nature_cloud_face.png" \
-                ||  { echo "PAYMENT FAILED... retry needed"; echo "./static/img/money_coins.png"; }
-        rm ./tmp/${MOATS}.secret
+            && rm -Rf ${MY_PATH}/pdf/${PUBKEY}/ && rm ${MY_PATH}/pdf/${PUBKEY} && rmdir ~/.zen/game/passport/${PUBKEY} \
+                && echo "${MY_PATH}/static/img/nature_cloud_face.png" \
+                ||  { echo "PAYMENT FAILED... retry needed"; echo "${MY_PATH}/static/img/money_coins.png"; }
+        rm ${MY_PATH}/tmp/${MOATS}.secret
         exit 0
         ;;
     "MAJ")
         echo "Mise à jour MEMBER wallet AMOUNT ${PUBKEY}"
-        ZEROCARD=$(cat ./pdf/${PUBKEY}/ZEROCARD)
-        SOLDE=$(./tools/timeout.sh -t 6 ./tools/jaklis/jaklis.py balance -p ${PUBKEY})
+        ZEROCARD=$(cat ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD)
+        SOLDE=$(${MY_PATH}/tools/timeout.sh -t 6 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${PUBKEY})
         AMOUNT="$SOLDE Ğ1"
-        cat ./templates/wallet.html \
+        cat ${MY_PATH}/templates/wallet.html \
         | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-             -e "s~_AMOUNT_~<a target=_new href=${ipfsNODE}/ipfs/$(cat ./pdf/${PUBKEY}/IPFSPORTAL)/${PUBKEY}/_index.html>${AMOUNT}</a>~g" \
+             -e "s~_AMOUNT_~<a target=_new href=${ipfsNODE}/ipfs/$(cat ${MY_PATH}/pdf/${PUBKEY}/IPFSPORTAL)/${PUBKEY}/_index.html>${AMOUNT}</a>~g" \
              -e "s~300px~303px~g" \
-            > ./tmp/${ZEROCARD}.out.html
+            > ${MY_PATH}/tmp/${ZEROCARD}.out.html
 
-        DRIVESTATE=$(ipfs add -q ./tmp/${ZEROCARD}.out.html)
-        echo "/ipfs/${DRIVESTATE}" > ./pdf/${PUBKEY}/DRIVESTATE
+        DRIVESTATE=$(ipfs add -q ${MY_PATH}/tmp/${ZEROCARD}.out.html)
+        echo "/ipfs/${DRIVESTATE}" > ${MY_PATH}/pdf/${PUBKEY}/DRIVESTATE
         ipfs name publish --key ${ZEROCARD} /ipfs/${DRIVESTATE}
-        echo "./tmp/${ZEROCARD}.out.html"
+        echo "${MY_PATH}/tmp/${ZEROCARD}.out.html"
         exit 0
         ;;
     *)
@@ -123,6 +131,6 @@ case "$COMMENT" in
         ;;
 esac
 echo "comande éxécutée avec succès"
-echo $DATE > ./pdf/${PUBKEY}/COMMANDTIME
-echo "./static/img/astroport.png"
+echo $DATE > ${MY_PATH}/pdf/${PUBKEY}/COMMANDTIME
+echo "${MY_PATH}/static/img/astroport.png"
 exit 0
