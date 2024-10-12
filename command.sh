@@ -7,6 +7,7 @@
 MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 ME="${0##*/}"
+export PATH=$HOME/.astro/bin:$HOME/.local/bin:$PATH
 
 ###################################################################
 ## EXECUTE ZENCARD COMMANDS

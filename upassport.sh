@@ -10,6 +10,8 @@ MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 ME="${0##*/}"
 ################################################################### INIT
+export PATH=$HOME/.astro/bin:$HOME/.local/bin:$PATH
+
 ###########\,,/(^_^)\,,/################# https://1lineart.kulaone.com/
 source ${MY_PATH}/.env
 [[ -z $myDUNITER ]] && myDUNITER="https://g1.cgeek.fr" # DUNITER
