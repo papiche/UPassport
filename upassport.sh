@@ -260,6 +260,9 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         else
             ## ZEROCARD 1ST APP ##### 2ND SCAN : CHANGE DRIVESTATE TO IPFSPORTAL CONTENT
             CODEINJECT='<a target=_new href='${ipfsNODE}'/ipfs/'$(cat ${MY_PATH}/pdf/${PUBKEY}/IPFSPORTAL)'/${PUBKEY}/>'${AMOUNT}'</a>'
+            ## BACKUP FAC SIMILE
+            mv ${MY_PATH}/pdf/${PUBKEY}/_index.html \
+                ${MY_PATH}/pdf/${PUBKEY}/_facsimile.html
 
             cat ${MY_PATH}/templates/wallet.html \
             | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
@@ -733,6 +736,7 @@ cat ${MY_PATH}/static/zine/UPassport.html \
             -e "s~_TOTAL_~${TOTAL}~g" \
             -e "s~_LAT_~${LAT}~g" \
             -e "s~_LON_~${LON}~g" \
+            -e "s~_ASTROPORT_~${ipfsNODE}~g" \
             -e "s~https://ipfs.copylaradio.com~${ipfsNODE}~g" \
         > ${MY_PATH}/pdf/${PUBKEY}/_index.html
 

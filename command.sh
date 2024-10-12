@@ -76,12 +76,19 @@ if [ ! -s $isEMAIL ]; then
             $(~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL")
             # DO SOMETHING...
         else
-            ## CREATE PLAYER via ASTROPORT CLI API CMD="" THAT="" AND="" THIS="" APPNAME="" WHAT="" OBJ="" VAL=""
-            # http://127.0.0.1:1234/?uplanet=dev%40g1sms.fr&zlat=0.00&zlon=0.00&g1pub=fr
-            # ~/.zen/Astroport.ONE/API/UPLANET.sh 45783 dev@g1sms.fr zlat 0.00 zlon 0.00 g1pub fr 202410121305468792 123460:
-            exec ~/.zen/Astroport.ONE/API/UPLANET.sh "45791" "$isEMAIL" "zlat" "$ZLAT" "zlon" "$ZLON" "g1pub" "fr" "${MOATS}" "$COOKIE" &
-            ## WRITE PLAYER into ZEROCARD APP
-            echo "$isEMAIL" > ${MY_PATH}/pdf/${PUBKEY}/PLAYER
+            if [[ "$COMMENT" != "" ]]; then
+                comment="${COMMENT,,}"
+                ulang="${comment:0:2}"
+                echo "CREATING UPLANET PLAYER ACCOUNT : $ulang"
+                ## CREATE PLAYER via ASTROPORT CLI API CMD="" THAT="" AND="" THIS="" APPNAME="" WHAT="" OBJ="" VAL=""
+                # http://127.0.0.1:1234/?uplanet=dev%40g1sms.fr&zlat=0.00&zlon=0.00&g1pub=fr
+                # ~/.zen/Astroport.ONE/API/UPLANET.sh 45783 dev@g1sms.fr zlat 0.00 zlon 0.00 g1pub fr 202410121305468792 123460:
+                exec ~/.zen/Astroport.ONE/API/UPLANET.sh "45791" "$isEMAIL" "zlat" "$ZLAT" "zlon" "$ZLON" "g1pub" "${ulang}" "${MOATS}" "$COOKIE" &
+                ## WRITE PLAYER into ZEROCARD APP
+                echo "$isEMAIL" > ${MY_PATH}/pdf/${PUBKEY}/PLAYER
+            else
+                echo "COMMENT=$COMMENT"
+            fi
         fi
 
     fi
