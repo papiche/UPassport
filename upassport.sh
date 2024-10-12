@@ -17,8 +17,8 @@ source ${MY_PATH}/.env
 [[ -z $ipfsNODE ]] && ipfsNODE="http://127.0.0.1:8080" # IPFS
 
 countMErunning=$(pgrep -au $USER -f "$ME" | wc -l)
-if [[ $countMErunning -gt 1 ]]; then
-    echo "$ME already running $countMErunning time" \
+if [[ $countMErunning -gt 2 ]]; then
+    echo "$ME already running $countMErunning time"
     cat ${MY_PATH}/templates/wallet.html \
     | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
          -e "s~_AMOUNT_~d[ o_0 ]b~g" \
