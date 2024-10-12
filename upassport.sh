@@ -10,7 +10,7 @@ MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 ME="${0##*/}"
 ################################################################### INIT
-#######################################################################
+###########\,,/(^_^)\,,/################# https://1lineart.kulaone.com/
 source ${MY_PATH}/.env
 [[ -z $myDUNITER ]] && myDUNITER="https://g1.cgeek.fr" # DUNITER
 [[ -z $myCESIUM ]] && myCESIUM="https://g1.data.e-is.pro" # CESIUM+
@@ -21,7 +21,7 @@ if [[ $countMErunning -gt 1 ]]; then
     echo "$ME already running $countMErunning time" \
     cat ${MY_PATH}/templates/wallet.html \
     | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-         -e "s~_AMOUNT_~__̴ı̴̴̡̡̡ ̡͌l̡̡̡ ̡͌l̡*̡̡ ̴̡ı̴̴̡ ̡̡͡|̲̲̲͡͡͡ ̲▫̲͡ ̲̲̲͡͡π̲̲͡͡ ̲̲͡▫̲̲͡͡ ̲|̡̡̡ ̡ ̴̡ı̴̡̡ ̡͌l̡̡̡̡.___~g" \
+         -e "s~_AMOUNT_~d[ o_0 ]b~g" \
         > ${MY_PATH}/tmp/${PUBKEY}.out.html
     echo "${MY_PATH}/tmp/${PUBKEY}.out.html"
     exit 0
@@ -227,10 +227,10 @@ else
     cat ${MY_PATH}/templates/wallet.html \
     | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
          -e "s~#000~#F00~g" \
-         -e "s~_AMOUNT_~CRITICAL WALLET ERROR~g" \
+         -e "s~_AMOUNT_~╭∩╮ (òÓ,) ╭∩╮~g" \
         > ${MY_PATH}/tmp/${PUBKEY}.out.html
     echo "${MY_PATH}/tmp/${PUBKEY}.out.html"
-    exit 1
+    exit 0
 fi
 echo "$AMOUNT G1 ($ZCHK) $ZEN ẑ€N"
 echo "------------------------------------- $ROUND -"
