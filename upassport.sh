@@ -16,6 +16,17 @@ source ${MY_PATH}/.env
 [[ -z $myCESIUM ]] && myCESIUM="https://g1.data.e-is.pro" # CESIUM+
 [[ -z $ipfsNODE ]] && ipfsNODE="http://127.0.0.1:8080" # IPFS
 
+countMErunning=$(pgrep -au $USER -f "$ME" | wc -l)
+if [[ $countMErunning -gt 1 ]]; then
+    echo "$ME already running $countMErunning time" \
+    cat ${MY_PATH}/templates/wallet.html \
+    | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
+         -e "s~_AMOUNT_~__̴ı̴̴̡̡̡ ̡͌l̡̡̡ ̡͌l̡*̡̡ ̴̡ı̴̴̡ ̡̡͡|̲̲̲͡͡͡ ̲▫̲͡ ̲̲̲͡͡π̲̲͡͡ ̲̲͡▫̲̲͡͡ ̲|̡̡̡ ̡ ̴̡ı̴̡̡ ̡͌l̡̡̡̡.___~g" \
+        > ${MY_PATH}/tmp/${PUBKEY}.out.html
+    echo "${MY_PATH}/tmp/${PUBKEY}.out.html"
+    exit 0
+fi
+
 ## PUBKEY SHOULD BE A MEMBER PUBLIC KEY
 LINK="$1"
 IMAGE="$2"
@@ -49,7 +60,7 @@ if [[ $PUBKEY == "https" || $PUBKEY == "http" ]]; then
                         UPassport is not registered on this Astroport. support@qo-op.com
                         </body></html>' > ${MY_PATH}/tmp/${PUBKEY}.out.html \
                                 && echo "${MY_PATH}/tmp/${PUBKEY}.out.html" \
-                                    &&  exit 1
+                                    &&  exit 0
         ZEROCARD=$(cat ${MY_PATH}/pdf/${MEMBERPUB}/ZEROCARD)
         ############################################
         ## REDIRECT TO SSSS SECURITY QR SCANNER
