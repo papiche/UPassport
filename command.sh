@@ -8,14 +8,22 @@ MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 ME="${0##*/}"
 
+###################################################################
+## EXECUTE ZENCARD COMMANDS
+## FOUND IN G1 RX "upassport.sh"
+## USED BY N1App FORM API : @app.post("/sendmsg")
+###################################################################
+
 # Vérifier le nombre d'arguments
-if [ $# -ne 5 ]; then
-    echo "Usage: $0 <pubkey> <comment> <amount> <date> <zerocard>"
+if [ $# -ne 7 ]; then
+    echo "Usage: $0 <pubkey> <comment> <amount> <date> <zerocard> <zlat> <zlon>"
     exit 1
 fi
+
 source ${MY_PATH}/.env
 [[ -z $ipfsNODE ]] && ipfsNODE="https://ipfs.astroport.com" # IPFS
 MOATS=$(date -u +"%Y%m%d%H%M%S%4N")
+
 ## LOAD ASTROPORT ENVIRONMENT
 [ ! -s $HOME/.zen/Astroport.ONE/tools/my.sh ] \
     && echo "ERROR/ Missing Astroport.ONE. Please install..." \
@@ -27,7 +35,9 @@ PUBKEY="$1"
 COMMENT="$2"
 AMOUNT="$3"
 DATE="$4"
-ZEROCARD="$5" ## PUBKEY or EMAIL
+ZEROCARD="$5" ## can be PUBKEY or EMAIL (N1Form)
+ZLAT="$6"
+ZLON="$7"
 
 ## VALID UPASSPORT ARE BECOMING LINKS TO ~/.zen/game/passport
 [[ ! -L ${MY_PATH}/pdf/${PUBKEY} ]] \
@@ -44,17 +54,41 @@ echo "Commentaire: $COMMENT"
 echo "Montant: $AMOUNT"
 echo "Date: $DATE"
 echo "ZEROCARD: $ZEROCARD" # EMAIL OR MEMBERG1PUB
-# If an email is received it means Member want to
+# If an email is received it means Member want to register or be recognized.
 
-### ZENCARD
+#########################################################################
+### ZEROCARD EMAIL <=> PLAYER ACCOUNT
 ### PRIVILEGE ESCALADE
 isEMAIL=$(echo "$ZEROCARD" | grep -E -o "\b[a-zA-Z0-9.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}\b")
-[ ! -s $isEMAIL ] \
-    && echo "ZenCard challenge... $isEMAIL" \
-    && [ -d ~/.zen/game/players/$isEMAIL ] \
-        && echo "////////////// REGISTERED ZENCARD \\\\\\\\\\\\\\" \
-        && ~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL"
+if [ ! -s $isEMAIL ]; then
+    echo "ZenCard challenge... $isEMAIL"
+    if [ -d ~/.zen/game/players/$isEMAIL ]; then
+        echo "////////////// REGISTERED ZENCARD \\\\\\\\\\\\\\"
+        ~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL"
+        $(~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL")
+        ## ## ## ##
+    else
+        echo "PLAYER NOT FOUND ON THIS ASTROPORT..........."
+        # Check actual member PLAYER file
+        if [ -s ${MY_PATH}/pdf/${PUBKEY}/PLAYER ]; then
+            echo "DECLARED PLAYER = $(cat ${MY_PATH}/pdf/${PUBKEY}/PLAYER) .... SEARCH IN SWARM"
+            ~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL"
+            $(~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL")
+            # DO SOMETHING...
+        else
+            ## CREATE PLAYER via ASTROPORT CLI API CMD="" THAT="" AND="" THIS="" APPNAME="" WHAT="" OBJ="" VAL=""
+            # http://127.0.0.1:1234/?uplanet=dev%40g1sms.fr&zlat=0.00&zlon=0.00&g1pub=fr
+            # ~/.zen/Astroport.ONE/API/UPLANET.sh 45783 dev@g1sms.fr zlat 0.00 zlon 0.00 g1pub fr 202410121305468792 123460:
+            exec ~/.zen/Astroport.ONE/API/UPLANET.sh "45791" "$isEMAIL" "zlat" "$ZLAT" "zlon" "$ZLON" "g1pub" "fr" "${MOATS}" "$COOKIE" &
+            ## WRITE PLAYER into ZEROCARD APP
+            echo "$isEMAIL" > ${MY_PATH}/pdf/${PUBKEY}/PLAYER
+        fi
 
+    fi
+fi
+
+#########################################################################
+############# REGULAR COMMAND /sendmsg
 ### CHECK & UPDATE LAST COMMAND TIME
 LASTCOMMANDTIME=$(cat ${MY_PATH}/pdf/${PUBKEY}/COMMANDTIME 2>/dev/null)
 [ -z $LASTCOMMANDTIME ] \

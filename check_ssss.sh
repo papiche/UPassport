@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# VERIFY SHAMIR KEY CONCORDANCE
+# VERIFY SHAMIR KEY CONCORDANCE and connect player
 ################################################################################
 # Author: Fred (DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech)
 # Version: 1.0
@@ -129,3 +129,4 @@ EOF
 
 # Afficher le chemin du fichier HTML en sortie pour que le script Python puisse le capturer
 echo "$HTML_OUTPUT"
+exit 0

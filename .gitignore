@@ -21,3 +21,4 @@ models/
 
 ## base contextuelle des interactions avec un email
 emails/
+logs.txt

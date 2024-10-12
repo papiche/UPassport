@@ -26,17 +26,19 @@ ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # "PUBKEY" ChK or ZEN
 PUBKEY="$(echo $PUBKEY | cut -d ':' -f 1)" # Cleaning
 echo "PUBKEY ? $PUBKEY"
 
-############ LINK
-if [[ $PUBKEY == "https" ]]; then
+############ LINK !!!!
+if [[ $PUBKEY == "https" || $PUBKEY == "http" ]]; then
     echo "This is a link : $LINK"
-    ipns12D=$(echo "$LINK" | grep -oP "(?<=12D3Koo)[^/]*")
+    ipns12D=$(echo "$LINK" | grep -oP "(?<=12D3Koo)[^/]*") ## SEARCH FOR UPASSPORT IPNS KEY
     if [ -z $ipns12D ]; then
+        ## ANY LINK
         echo '<!DOCTYPE html><html><head>
             <meta http-equiv="refresh" content="0; url='${LINK}'">
             </head><body></body></html>' > ${MY_PATH}/tmp/${ZEROCARD}.out.html
         echo "${MY_PATH}/tmp/${ZEROCARD}.out.html"
         exit 0
     else
+        ## ZEROCARD
         CARDNS="12D3Koo"$ipns12D
         CARDG1=$(${MY_PATH}/tools/ipfs_to_g1.py $CARDNS)
         echo "ZEROCARD IPNS12D QRCODE : /ipns/$CARDNS ($CARDG1)"
@@ -49,6 +51,7 @@ if [[ $PUBKEY == "https" ]]; then
                                 && echo "${MY_PATH}/tmp/${PUBKEY}.out.html" \
                                     &&  exit 1
         ZEROCARD=$(cat ${MY_PATH}/pdf/${MEMBERPUB}/ZEROCARD)
+        ############################################
         ## REDIRECT TO SSSS SECURITY QR SCANNER
         cat ${MY_PATH}/templates/scan_ssss.html \
             | sed -e "s~_CARDNS_~${CARDNS}~g" \
@@ -242,7 +245,8 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
     if [ -L "${MY_PATH}/pdf/${PUBKEY}" ]; then
         ############################ TRANSMIT TX COMMENT AS COMMAND TO ZEROCARD
         if [[ $COMM != "" && "$DEST" == "$ZEROCARD" ]]; then
-            ${MY_PATH}/command.sh "$PUBKEY" "$COMM" "$LASTX" "$TXDATE" "$ZEROCARD"
+            source ${MY_PATH}/pdf/${PUBKEY}/GPS
+            ${MY_PATH}/command.sh "$PUBKEY" "$COMM" "$LASTX" "$TXDATE" "$ZEROCARD" "$ulan" "$ulon"
             [ ! $? -eq 0 ] && echo ">>>>>>>>>>>> ERROR"
         fi
         ##################################### 4TH SCAN : DRIVESTATE REDIRECT

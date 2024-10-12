@@ -310,6 +310,8 @@ async def process_message(message_data: MessageData):
     log_file_path = "./tmp/54321.log"
 
     # Préparer les arguments pour le script
+    zlat = message_data.ulat
+    zlon = message_data.ulon
     pubkey = message_data.pubkeyUpassport
     comment = message_data.message
     amount = "-1"  # API command
@@ -318,7 +320,7 @@ async def process_message(message_data: MessageData):
 
     async def run_script():
         process = await asyncio.create_subprocess_exec(
-            script_path, pubkey, comment, amount, date, zerocard,
+            script_path, pubkey, comment, amount, date, zerocard, zlat, zlon,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT
         )
