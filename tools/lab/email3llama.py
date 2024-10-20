@@ -122,6 +122,8 @@ def extraire_dataset():
             return
         logger.info(f"Nombre de messages trouvés: {len(message_numbers[0].split())}")
 
+        sent_folder = os.getenv('SENTDIR', 'INBOX.Sent')
+
         for num in message_numbers[0].split():
             logger.info(f"Traitement du message numéro {num}")
             status, msg_data = imap.fetch(num, "(RFC822)")
@@ -137,7 +139,7 @@ def extraire_dataset():
             contenu_recu = get_email_content(email_recu)
 
             # Chercher la réponse correspondante dans le dossier Sent
-            status, _ = imap.select('"INBOX.Sent"')
+            status, _ = imap.select(f'"{sent_folder}"')
             if status != "OK":
                 logger.error("Impossible de sélectionner le dossier Sent Mail")
                 imap.select("INBOX")  # Retour à INBOX
@@ -224,15 +226,17 @@ def sauvegarder_brouillon(imap_server, email_address, password, recipient, subje
             msg['X-Original-Message-ID'] = original_message_id
             msg.attach(MIMEText(body, 'plain'))
 
-            # Sélectionner le dossier INBOX.Drafts
-            status, _ = imap.select('"INBOX.Drafts"')
+            draft_folder = os.getenv('DRAFTDIR', 'INBOX.Drafts')
+
+            # Sélectionner le dossier brouillons
+            status, _ = imap.select(f'"{draft_folder}"')
             if status != 'OK':
                 logger.error(f"Impossible de sélectionner le dossier INBOX.Drafts: {status}")
                 imap.logout()
                 continue
 
             # Ajouter le brouillon
-            status, _ = imap.append('"INBOX.Drafts"', '\\Draft', imaplib.Time2Internaldate(time.time()), msg.as_bytes())
+            status, _ = imap.append(f'"{draft_folder}"', '\\Draft', imaplib.Time2Internaldate(time.time()), msg.as_bytes())
             if status == 'OK':
                 logger.info(f"Brouillon sauvegardé pour {recipient}")
                 imap.logout()
@@ -329,10 +333,13 @@ def ajouter_au_contexte_global(nouveau_contenu):
 
 def generer_reponse(expediteur, sujet, contenu, model_name):
     try:
+        # Prétraitement du contenu pour enlever les lignes commençant par "> "
+        contenu_nettoye = "\n".join([ligne for ligne in contenu.split("\n") if not ligne.strip().startswith(">")])
+
         contexte_pertinent = lire_et_mettre_a_jour_contexte()
 
-        # Générer l'embedding pour le contenu de l'email actuel
-        email_embedding = generer_embedding(contenu)
+        # Générer l'embedding pour le contenu nettoyé de l'email actuel
+        email_embedding = generer_embedding(contenu_nettoye)
 
         # Trouver les entrées les plus similaires dans le dataset
         similarites = [cosine_similarity([email_embedding], [item["input_embedding"]])[0][0] for item in dataset_embeddings]
@@ -345,7 +352,7 @@ def generer_reponse(expediteur, sujet, contenu, model_name):
         prompt += "Exemples de réponses similaires:\n"
         for exemple in exemples_similaires:
             prompt += f"{exemple}\n\n"
-        prompt += f"EMAIL ACTUEL:\nExpéditeur: {expediteur}\nSujet: {sujet}\nContenu: {contenu}\n\nRéponse:"
+        prompt += f"EMAIL ACTUEL:\nExpéditeur: {expediteur}\nSujet: {sujet}\nContenu: {contenu_nettoye}\n\nRéponse:"
 
         # Générer la réponse
         generate_data = {
@@ -361,10 +368,10 @@ def generer_reponse(expediteur, sujet, contenu, model_name):
         response_json = response.json()
 
         # Stocker le nouvel embedding
-        stocker_embedding(expediteur, contenu, email_embedding)
+        stocker_embedding(expediteur, contenu_nettoye, email_embedding)
 
         # Ajouter la nouvelle réponse au contexte global
-        ajouter_au_contexte_global(f"Email de {expediteur}: {contenu}\nRéponse: {response_json['response']}")
+        ajouter_au_contexte_global(f"Email de {expediteur}: {contenu_nettoye}\nRéponse: {response_json['response']}")
 
         return response_json['response']
     except Exception as e:
