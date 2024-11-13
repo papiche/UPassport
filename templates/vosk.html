@@ -96,14 +96,13 @@
         </div>
         <div class="checkbox-container">
             <button class="copy-button" id="copyText">📋 Copier</button>
-<!-- // REAL TIME TRANSCRIPTION IS NOT WORKING ... need to be fixed...
-            <input type="checkbox" id="realtimeTranscription" name="realtimeTranscription">
-            <label for="realtimeTranscription">Transcription en temps réel</label>
--->
         </div>
         <div id="timer">00:00</div>
         <div class="spinner" id="spinner"></div>
         <div id="result"></div>
+        <h2>envoyez un fichier wav</h2>
+        <input type="file" id="audioFile" accept="audio/*">
+        <button id="uploadFile">Transcrire le fichier</button>
     </div>
 
     <script>
@@ -111,7 +110,6 @@
         let audioChunks = [];
         let timerInterval;
         let startTime;
-        let realtimeTranscription = false;
         let isRecording = false;
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -131,11 +129,6 @@
             $("#timer").text(formattedTime);
         }
 
-        $("#realtimeTranscription").change(function() {
-            realtimeTranscription = this.checked;
-            console.log("Transcription en temps réel:", realtimeTranscription);
-        });
-
         $("#startRecording").click(function() {
             if (isRecording) return;
             isRecording = true;
@@ -147,9 +140,6 @@
                     mediaRecorder.addEventListener("dataavailable", event => {
                         console.log("Chunk received, type:", event.data.type);
                         audioChunks.push(event.data);
-                        if (realtimeTranscription) {
-                            sendAudioChunk(event.data);
-                        }
                     });
 
                     $("#startRecording").prop("disabled", true);
@@ -174,28 +164,6 @@
                   console.error("L'API Clipboard n'est pas disponible.");
               }
           });
-
-        function sendAudioChunk(audioChunk) {
-            const formData = new FormData();
-            formData.append("file", new Blob([audioChunk], { type: 'audio/webm' }), "chunk.webm");
-
-            $.ajax({
-                url: "/transcribe_chunk",
-                type: "POST",
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function(response) {
-                    console.log("Transcription chunk response:", response);
-                    if (response.transcription) {
-                        $("#result").append(response.transcription + " ");
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error("Erreur lors de la transcription en temps réel :", error);
-                }
-            });
-        }
 
         $("#stopRecording").click(function() {
             if (!isRecording) return;
@@ -234,6 +202,38 @@
             $("#startRecording").removeClass("recording");
         });
     </script>
+    <script>
+    // Ajout de la fonction pour l'upload du fichier audio
+    document.getElementById("uploadFile").addEventListener("click", function() {
+        const fileInput = document.getElementById("audioFile");
+        const file = fileInput.files[0];
+        if (!file) {
+            alert("Veuillez sélectionner un fichier audio.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        $("#spinner").show();
+
+        $.ajax({
+            url: "/transcribe",
+            type: "POST",
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                $("#spinner").hide();
+                $("#result").text(response.transcription);
+            },
+            error: function(xhr, status, error) {
+                $("#spinner").hide();
+                $("#result").text("Erreur lors de la transcription : " + error);
+            }
+        });
+    });
+</script>
 </body>
 
 </html>

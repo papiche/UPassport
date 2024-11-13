@@ -4,7 +4,7 @@
 # Version: 1.0
 # License: AGPL-3.0 (https://choosealicense.com/licenses/agpl-3.0/)
 ################################################################################
-echo "Usage: $0 <pubkey> (<image_path>)"
+echo "Usage: $0 <qrcode> (<image_path or pass>)"
 MOATS=$(date -u +"%Y%m%d%H%M%S%4N")
 MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
@@ -18,40 +18,89 @@ source ${MY_PATH}/.env
 [[ -z $myCESIUM ]] && myCESIUM="https://g1.data.e-is.pro" # CESIUM+
 [[ -z $ipfsNODE ]] && ipfsNODE="http://127.0.0.1:8080" # IPFS
 
+function urldecode() { : "${*//+/ }"; echo -e "${_//%/\\x}"; }
+
+## PUBKEY SHOULD BE A MEMBER PUBLIC KEY
+QRCODE="$1"
+IMAGE="$2"
+[ ! -z "$IMAGE" ] && echo "IMAGE : $IMAGE"
+
+PUBKEY=$(echo "$QRCODE" | tr -d ' ')
+ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # G1CHK or ZEN
+[[ $ZCHK == $PUBKEY ]] && ZCHK=""
+PUBKEY="$(echo $PUBKEY | cut -d ':' -f 1)" # ":" split
+echo "PUBKEY ? $PUBKEY"
+if [ -n "$PUBKEY" ]; then
+    PUBKEY="${PUBKEY:0:256}" ## cut
+else
+    echo "PUBKEY est vide. DROP."
+    exit 0
+fi
+
 countMErunning=$(pgrep -au $USER -f "$ME" | wc -l)
 if [[ $countMErunning -gt 2 ]]; then
     echo "$ME already running $countMErunning time"
     cat ${MY_PATH}/templates/wallet.html \
     | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-         -e "s~_AMOUNT_~d[ o_0 ]b~g" \
+         -e "s~_AMOUNT_~d[ o_0 ]b ... please wait~g" \
         > ${MY_PATH}/tmp/${PUBKEY}.out.html
     echo "${MY_PATH}/tmp/${PUBKEY}.out.html"
     exit 0
 fi
 
-## PUBKEY SHOULD BE A MEMBER PUBLIC KEY
-LINK="$1"
-IMAGE="$2"
-[ ! -z "$IMAGE" ] && echo "IMAGE : $IMAGE"
-PUBKEY=$(echo "$LINK" | tr -d ' ')
-ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # "PUBKEY" ChK or ZEN
-[[ $ZCHK == $PUBKEY ]] && ZCHK=""
-PUBKEY="$(echo $PUBKEY | cut -d ':' -f 1)" # Cleaning
-echo "PUBKEY ? $PUBKEY"
+############ ZENCARD QRCODE !!!!
+if [[ ${QRCODE:0:5} == "~~~~~" ]]; then
+    ## Recreate GPG aes file
+    urldecode "${QRCODE}" | tr '_' '+' | tr '-' '\n' | tr '~' '-'  > ${MY_PATH}/tmp/${MOATS}.disco.aes
+    sed -i '$ d' ${MY_PATH}/tmp/${MOATS}.disco.aes
+    # Decoding
+    echo "cat ~/.zen/tmp/${MOATS}/disco.aes | gpg -d --passphrase "${IMAGE}" --batch"
+    cat ${MY_PATH}/tmp/${MOATS}.disco.aes | gpg -d --passphrase "${IMAGE}" --batch > ${MY_PATH}/tmp/${MOATS}.decoded
 
-############ LINK !!!!
-if [[ $PUBKEY == "https" || $PUBKEY == "http" ]]; then
-    echo "This is a link : $LINK"
-    ipns12D=$(echo "$LINK" | grep -oP "(?<=12D3Koo)[^/]*") ## SEARCH FOR UPASSPORT IPNS KEY
+    # cat ~/.zen/tmp/${MOATS}/disco
+    ## FORMAT IS "/?salt=${USALT}&pepper=${UPEPPER}"
+    DISCO=$(cat ${MY_PATH}/tmp/${MOATS}.decoded | cut -d '?' -f2)
+    arr=(${DISCO//[=&]/ })
+    s=$(urldecode ${arr[0]} | xargs)
+    salt=$(urldecode ${arr[1]} | xargs)
+    p=$(urldecode ${arr[2]} | xargs)
+    pepper=$(urldecode ${arr[3]} | xargs)
+
+    echo '<!DOCTYPE html><html><head>
+    </head><body><h1> --- ZENCARD DECODING --- <h1>
+    '${DISCO}'
+    </body></html>' > ${MY_PATH}/tmp/${PUBKEY}.out.html \
+    && echo "${MY_PATH}/tmp/${PUBKEY}.out.html" \
+    && exit 0
+
+fi
+
+## IS IT k51qzi5uqu5d IPNS KEY
+ipnsk51=$(echo "$QRCODE" | grep -oP "(?<=k51qzi5uqu5d)[^/]*")
+if [[ ${ipnsk51} != "" ]]; then
+    TWNS="k51qzi5uqu5d"$ipnsk51
+
+    echo '<!DOCTYPE html><html><head>
+    <meta http-equiv="refresh" content="0; url='${ipfsNODE}/ipns/${TWNS}'">
+    </head><body></body></html>' > ${MY_PATH}/tmp/${TWNS}.out.html
+    echo "${MY_PATH}/tmp/${TWNS}.out.html"
+    exit 0
+fi
+
+
+## IS IT http link
+if [[ ${QRCODE:0:4} == "http" ]]; then
+    echo "This is HTTP link : $QRCODE"
+    ipns12D=$(echo "$QRCODE" | grep -oP "(?<=12D3Koo)[^/]*") ## SEARCH FOR IPNS KEY
     if [ -z $ipns12D ]; then
-        ## ANY LINK
+        ## ANY HTTP LINK
         echo '<!DOCTYPE html><html><head>
-            <meta http-equiv="refresh" content="0; url='${LINK}'">
+            <meta http-equiv="refresh" content="0; url='${QRCODE}'">
             </head><body></body></html>' > ${MY_PATH}/tmp/${ZEROCARD}.out.html
         echo "${MY_PATH}/tmp/${ZEROCARD}.out.html"
         exit 0
     else
-        ## ZEROCARD
+        ## ZEROCARD IPNS LINK DETECTED
         CARDNS="12D3Koo"$ipns12D
         CARDG1=$(${MY_PATH}/tools/ipfs_to_g1.py $CARDNS)
         echo "ZEROCARD IPNS12D QRCODE : /ipns/$CARDNS ($CARDG1)"
@@ -59,7 +108,7 @@ if [[ $PUBKEY == "https" || $PUBKEY == "http" ]]; then
         MEMBERPUB=$(grep -h -r -l --dereference "$CARDNS" ${MY_PATH}/pdf/ | grep IPNS12D | cut -d '/' -f 3)
         [ -z $MEMBERPUB ] && echo '<!DOCTYPE html><html><head>
                         </head><body><h1>ERROR --- ZEROCARD NOT FOUND ---<h1>
-                        UPassport is not registered on this Astroport. support@qo-op.com
+                        UPassport is not registered on this Astroport. Contact support@qo-op.com
                         </body></html>' > ${MY_PATH}/tmp/${PUBKEY}.out.html \
                                 && echo "${MY_PATH}/tmp/${PUBKEY}.out.html" \
                                     &&  exit 0
@@ -76,11 +125,11 @@ if [[ $PUBKEY == "https" || $PUBKEY == "http" ]]; then
     fi
 fi
 
-# CHECK PUBKEY FORMAT
+# CHECK G1 PUBKEY FORMAT
 if [[ -z $(${MY_PATH}/tools/g1_to_ipfs.py ${PUBKEY} 2>/dev/null) ]]; then
     cat ${MY_PATH}/templates/wallet.html \
     | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-         -e "s~_AMOUNT_~QR CODE Error<br><a target=_new href=https://cesium.app>Try CESIUM...</a>~g" \
+         -e "s~_AMOUNT_~QR CODE Error<br><a target=_new href=https://cesium.app>UNKNOWN CESIUM KEY...</a>~g" \
         > ${MY_PATH}/tmp/${PUBKEY}.out.html
     echo "${MY_PATH}/tmp/${PUBKEY}.out.html"
     exit 0
@@ -121,9 +170,10 @@ generate_qr_with_uid() {
     if [[ ! -s ${MY_PATH}/tmp/${pubkey}.solde ]]; then
         solde=$(${MY_PATH}/tools/timeout.sh -t 5 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${pubkey})
         [ ! $? -eq 0 ] \
-            && sort -u -o ${MY_PATH}/tools/jaklis/.env ${MY_PATH}/tools/jaklis/.env \
             && GVA=$(~/.zen/Astroport.ONE/tools/duniter_getnode.sh | tail -n 1) \
-            && [[ ! -z $GVA ]] && echo "NODE=$GVA" >> ${MY_PATH}/tools/jaklis/.env && echo "GVA RELAY: $GVA"
+            && [[ ! -z $GVA ]] && sed -i '/^NODE=/d' ${MY_PATH}/tools/jaklis/.env \
+            && echo "NODE=$GVA" >> ${MY_PATH}/tools/jaklis/.env \
+            && echo "GVA RELAY: $GVA"
         echo "$solde" > ${MY_PATH}/tmp/${pubkey}.solde
         sleep 2
     else
@@ -191,7 +241,7 @@ generate_qr_with_uid() {
 ########################################################################
 ########################################################################
 
-
+#### PUBKEY RECEIVED !!!
 ########################################################################
 ### RUN TIME ######
 ########################################################################
@@ -199,31 +249,30 @@ generate_qr_with_uid() {
 mkdir -p ${MY_PATH}/tmp
 # Delete older than 3 days files from ${MY_PATH}/tmp
 find ${MY_PATH}/tmp -mtime +3 -type f -exec rm '{}' \;
-# Delete older than 7 days "fac-simile" from ${MY_PATH}/pdf
-find ${MY_PATH}/pdf -type d -mtime +7 -not -xtype l -exec rm -r {} \;
+# Detect older than 7 days "fac-simile" from ${MY_PATH}/pdf (not ls)
+#~ find ${MY_PATH}/pdf -type d -mtime +7 -not -xtype l -exec rm -r {} \;
+## TODO EMPTY & DELETE FAC-SIMILE ZEROCARD
+
 
 ## GET PUBKEY TX HISTORY
 echo "LOADING WALLET HISTORY"
 ${MY_PATH}/tools/timeout.sh -t 6 ${MY_PATH}/tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ${MY_PATH}/tmp/$PUBKEY.TX.json
 [ ! $? -eq 0 ] \
-    && sort -u -o ${MY_PATH}/tools/jaklis/.env ${MY_PATH}/tools/jaklis/.env \
     && GVA=$(~/.zen/Astroport.ONE/tools/duniter_getnode.sh | tail -n 1) \
-    && [[ ! -z $GVA ]] && echo "NODE=$GVA" >> ${MY_PATH}/tools/jaklis/.env \
+    && [[ ! -z $GVA ]] && sed -i '/^NODE=/d' ${MY_PATH}/tools/jaklis/.env \
+    && echo "NODE=$GVA" >> ${MY_PATH}/tools/jaklis/.env \
     && ${MY_PATH}/tools/timeout.sh -t 6 ${MY_PATH}/tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ${MY_PATH}/tmp/$PUBKEY.TX.json
-    ## SWITCH GVA SERVER
+    ## TEST AND SWITCH GVA SERVER
 
 
-## EXTRACT SOLDE & ZEN & ROUND
+## EXTRACT SOLDE & ZEN
 if [[ -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]]; then
     SOLDE=$(${MY_PATH}/tools/timeout.sh -t 20 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${PUBKEY})
-    ROUND=$(echo "$SOLDE" | cut -d '.' -f 1)
     ZEN=$(echo "($SOLDE - 1) * 10" | bc | cut -d '.' -f 1)
 
-    [[ "$(echo "$ROUND < 100" | bc)" == 1 ]] && ROUND=100
-
     AMOUNT="$SOLDE Ğ1"
-    [[ $SOLDE == "null" ]] && AMOUNT = "EMPTY" && ROUND=200
-    [[ $SOLDE == "" ]] && AMOUNT = "TIMEOUT" && ROUND=200
+    [[ $SOLDE == "null" ]] && AMOUNT = "EMPTY"
+    [[ $SOLDE == "" ]] && AMOUNT = "TIMEOUT"
     [[ $ZCHK == "ZEN" ]] && AMOUNT="$ZEN ẑ€N"
 else
     cat ${MY_PATH}/templates/wallet.html \
@@ -670,6 +719,12 @@ if [[ ! -z ${UPLANETNAME} ]]; then
     cat ${MY_PATH}/pdf/${PUBKEY}/ssss.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ${MY_PATH}/tmp/${G1PUBZERO}.ssss.test
     [[ $(diff -q ${MY_PATH}/tmp/${G1PUBZERO}.ssss.test ${MY_PATH}/tmp/${G1PUBZERO}.ssss) != "" ]] && echo "ERROR: GPG ENCRYPTION FAILED !!!"
     rm ${MY_PATH}/tmp/${G1PUBZERO}.ssss.test
+
+    ## PRIMAL 1ST G1 IS MADE BY MEMBER (ZEROCARD PROPERTIE)
+    #~ ${MY_PATH}/../tools/keygen -t duniter -o ${MY_PATH}/tmp/${MOATS}.key "${UPLANETNAME}" "${UPLANETNAME}" \
+        #~ && ${MY_PATH}/../tools/PAY4SURE.sh "${MY_PATH}/tmp/${MOATS}.key" "1" "${G1PUBZERO}" "UPLANET:ZEROCARD" \
+        #~ && echo "UPLANET:ZEROCARD PRIMAL TX DONE" \
+        #~ && rm ${MY_PATH}/tmp/${MOATS}.key
 fi
 
 ## ENCODE TAIL SSSS SECRET WITH CAPTAING1PUB

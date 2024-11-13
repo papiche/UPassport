@@ -61,7 +61,7 @@ echo "ZEROCARD: $ZEROCARD" # EMAIL OR MEMBERG1PUB
 ### ZEROCARD EMAIL <=> PLAYER ACCOUNT
 ### PRIVILEGE ESCALADE
 isEMAIL=$(echo "$ZEROCARD" | grep -E -o "\b[a-zA-Z0-9.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}\b")
-if [ ! -s $isEMAIL ]; then
+if [ ! -z $isEMAIL ]; then
     echo "ZenCard challenge... $isEMAIL"
     if [ -d ~/.zen/game/players/$isEMAIL ]; then
         echo "////////////// REGISTERED ZENCARD \\\\\\\\\\\\\\"

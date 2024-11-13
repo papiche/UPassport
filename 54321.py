@@ -17,6 +17,8 @@ import subprocess
 import magic
 import time
 from datetime import datetime
+import gnupg
+from urllib.parse import unquote, urlparse, parse_qs
 
 # Obtenir le timestamp Unix actuel
 unix_timestamp = int(time.time())
@@ -37,6 +39,54 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
+# Initialisation de GPG
+gpg = gnupg.GPG()
+
+def decode_qrcode(qrcode, passphrase):
+    # Décodage et transformation du QR code
+    decoded_message = unquote(qrcode).replace("_", "+").replace("~", "-").replace("-", "\n")
+
+    # Suppression de la dernière ligne
+    lines = decoded_message.splitlines()
+    decoded_message = "\n".join(lines[:-1])
+
+    # Décryptage
+    decrypted_data = gpg.decrypt(decoded_message, passphrase=passphrase)
+    if not decrypted_data.ok:
+        raise ValueError("Erreur de décryptage : " + str(decrypted_data.stderr))
+
+    return decrypted_data.data.decode('utf-8')
+
+def check_balance(g1pub):
+    result = subprocess.run(["/path/to/COINScheck.sh", g1pub], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise ValueError("Erreur dans COINScheck.sh: " + result.stderr)
+    balance_line = result.stdout.strip().splitlines()[-1]
+    return balance_line
+
+class QRCodeData(BaseModel):
+    qrcode: str
+    passphrase: str
+
+# Modèle Pydantic pour valider les entrées
+class JaklisCommand(BaseModel):
+    command: str
+    params: dict
+
+# Fonction pour exécuter une commande jaklis
+def run_jaklis_command(command, params):
+    cmd = ["python3", "tools/jaklis/jaklis.py", command]
+    for key, value in params.items():
+        cmd.append(f"--{key}")
+        cmd.append(str(value))
+
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Erreur lors de l'exécution de la commande: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur: {e.stderr}")
 
 class MessageData(BaseModel):
     ulat: str
@@ -79,6 +129,22 @@ def convert_to_wav(input_file, output_file):
 @app.get("/")
 async def get_root(request: Request):
     return templates.TemplateResponse("scan_new.html", {"request": request})
+
+@app.post("/decode_qrcode")
+async def decode_qrcode_route(data: QRCodeData):
+    try:
+        result = decode_qrcode(data.qrcode, data.passphrase)
+        return {"decoded": result}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/check_balance")
+async def check_balance_route(g1pub: str):
+    try:
+        balance = check_balance(g1pub)
+        return {"balance": balance}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/voice")
 async def get_vosk(request: Request):
@@ -137,55 +203,6 @@ async def transcribe_audio(file: UploadFile = File(...)):
         if os.path.exists(wav_file_location):
             os.remove(wav_file_location)
             logging.debug(f"Fichier WAV temporaire supprimé: {wav_file_location}")
-
-@app.post("/transcribe_chunk")
-async def transcribe_chunk(file: UploadFile = File(...)):
-    chunk_location = f"tmp/chunk_{file.filename}"
-    wav_chunk_location = f"{chunk_location}_converted.wav"
-    try:
-        logging.info(f"Received chunk: {file.filename}")
-
-        # Sauvegarder le chunk audio
-        async with aiofiles.open(chunk_location, 'wb') as out_file:
-            content = await file.read()
-            await out_file.write(content)
-        logging.debug(f"Chunk saved: {chunk_location}")
-
-        # Convertir le chunk en WAV mono 16 bits 16kHz
-        try:
-            convert_to_wav(chunk_location, wav_chunk_location)
-        except subprocess.CalledProcessError:
-            return JSONResponse(content={"error": "Failed to convert audio chunk"}, status_code=500)
-
-        # Transcrire le chunk
-        with wave.open(wav_chunk_location, "rb") as wf:
-            logging.debug(f"Opened WAV file for transcription: {wav_chunk_location}")
-            rec = KaldiRecognizer(model, wf.getframerate())
-
-            while True:
-                data = wf.readframes(4000)
-                if len(data) == 0:
-                    break
-                if rec.AcceptWaveform(data):
-                    result = json.loads(rec.Result())
-                    logging.info(f"Transcription result: {result.get('text', '')}")
-                    return JSONResponse(content={"transcription": result.get('text', '')})
-
-            result = json.loads(rec.FinalResult())
-            logging.info(f"Final transcription result: {result.get('text', '')}")
-            return JSONResponse(content={"transcription": result.get('text', '')})
-
-    except Exception as e:
-        logging.error(f"Error during chunk transcription: {str(e)}", exc_info=True)
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-    finally:
-        # Supprimer les fichiers temporaires
-        if os.path.exists(chunk_location):
-            os.remove(chunk_location)
-            logging.debug(f"Temporary file removed: {chunk_location}")
-        if os.path.exists(wav_chunk_location):
-            os.remove(wav_chunk_location)
-            logging.debug(f"Temporary WAV file removed: {wav_chunk_location}")
 
 @app.post("/upassport")
 async def scan_qr(parametre: str = Form(...), imageData: str = Form(None)):
@@ -392,6 +409,20 @@ async def ssss(request: Request):
     else:
         return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
 
+# Routes API pour chaque commande de jaklis
+@app.post("/jaklis")
+async def execute_jaklis_command(command_data: JaklisCommand):
+    command = command_data.command
+    params = command_data.params
+
+    # Liste des commandes supportées par jaklis
+    supported_commands = ['read', 'send', 'delete', 'get', 'set', 'erase', 'stars', 'unstars', 'getoffer', 'setoffer', 'deleteoffer', 'pay', 'history', 'balance', 'id', 'idBalance', 'currentUd']
+
+    if command not in supported_commands:
+        raise HTTPException(status_code=400, detail="Commande non reconnue")
+
+    output = run_jaklis_command(command, params)
+    return {"output": output}
 
 if __name__ == "__main__":
     import uvicorn

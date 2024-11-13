@@ -1,8 +1,0 @@
-python-dotenv
-requests
-numpy
-scikit-learn
-imaplib2
-email
-smtplib
-logging
