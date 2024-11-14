@@ -172,11 +172,64 @@
             max-width: 800px;
             text-align: justify;
         }
+        #clavierNumerique {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background-color: rgba(0, 0, 0, 0.8);
+          padding: 20px;
+          border-radius: 10px;
+          z-index: 1000;
+        }
+
+        #clavierNumerique div {
+          display: flex;
+          justify-content: center;
+          margin-bottom: 10px;
+        }
+
+        #clavierNumerique button {
+          width: 60px;
+          height: 60px;
+          margin: 0 5px;
+          font-size: 20px;
+          background-color: #4CAF50;
+          color: white;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          transition: background-color 0.3s;
+        }
+
+        #clavierNumerique button:hover {
+          background-color: #45a049;
+        }
+
+        #clavierNumerique button:active {
+          background-color: #3e8e41;
+        }
+
+        #clavierNumerique button:last-child {
+          background-color: #f44336;
+        }
+
+        #clavierNumerique button:last-child:hover {
+          background-color: #d32f2f;
+        }
+
+        #clavierNumerique button:nth-last-child(2) {
+          background-color: #2196F3;
+        }
+
+        #clavierNumerique button:nth-last-child(2):hover {
+          background-color: #1976D2;
+        }
+
     </style>
 </head>
 <body>
-    <h1>UPassport [Ğ1]</h1>
-        <h2>~ Votre Identité Numérique Décentralisée ~</h2>
+    <h1>MULTI SCAN [Ğ1/Ẑen]</h1>
 
     <div class="scanner-container">
         <video id="preview"></video>
@@ -190,20 +243,21 @@
             <label for="parametre">*** Scan QR Code ***</label>
             <input type="text" id="parametre" name="parametre" size=30 required>
             <input type="hidden" id="imageData" name="imageData">
+            <input type="password" id="PASS" name="PASS" value="0000" size=4>
             <input type="submit" id="submitButton" value="Submit">
         </form>
     </div>
     <div class="description">
-        <b>UPassport</b> est un générateur de <u>Passeport Web3</u> officiel et valide sur "<b>UPlanet</b>",
-        <br>une carte d'identité numérique décentralisée qui utilise la preuve d'humanité et la toile de confiance.
+        "<span id="coeurBOX"><b>♥BOX</b></span>"
+        <br><b>UPassport</b> (ZeroCard) ~ Votre Identité Numérique Décentralisée ~
             <ul>
-            <li>1) Scannez votre Clé Publique "Forgeron", (ou simple portefeuille) [1].</li>
-            <li>2) Transformez le fac-simité... Envoyez au moins 1 Ğ1 à votre "ZEROCARD" [2].</li>
-            <li>3) Scannez à nouveau votre Clé Publique. Obtenez et imprimez votre "UPassport" [3].</li>
-            <li>4) Rejoignez UPlanet. Indiquez un email pour activer votre "ZenCARD" [4].</li>
+            <li>1) Scannez le QR Code d'une Clé Publique "Forgeron" [1].</li>
+            <li>2) Transformez le "fac-simité" en envoyez 1 Ğ1 à votre "ZEROCARD" [2].</li>
+            <li>3) Scannez à nouveau votre Clé Publique pour obtenir votre "UPassport" [3].</li>
             </ul>
-Cette station fait partie du réseau "<span id="astroportLinkPlaceholder">Astroport.ONE</span>" [5] qui assure la sécurité et la confidentialité de vos données.
-    </div>
+        <br><b>MULTIPASS</b> (<span id="ZenCard">ZenCard</span>) ~ Votre Carte pour recevoir et échanger en Ẑen ~
+
+   </div>
     <div class="result-container">
         <div class="result-frame">
             <iframe id="result-iframe"></iframe>
@@ -213,6 +267,54 @@ Cette station fait partie du réseau "<span id="astroportLinkPlaceholder">Astrop
             </div>
         </div>
     </div>
+<script>
+    // Fonction pour mélanger les boutons du clavier numérique
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
+    // Fonction pour afficher le clavier numérique avec les chiffres mélangés
+    function afficherClavierNumerique() {
+        const chiffres = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
+        shuffleArray(chiffres); // Mélange les chiffres à chaque affichage
+
+        // Crée l'élément clavier numérique
+        const clavier = document.createElement('div');
+        clavier.id = 'clavierNumerique';
+        clavier.innerHTML = chiffres.map(num => `<button>${num}</button>`).join('');
+        document.body.appendChild(clavier);
+
+        // Ajout de gestionnaires d'événements pour chaque bouton
+        const boutons = document.querySelectorAll('#clavierNumerique button');
+        let pin = '';  // Variable pour stocker les chiffres saisis
+
+        boutons.forEach(bouton => {
+            bouton.addEventListener('click', () => {
+                pin += bouton.textContent;
+<!--
+                console.log(`Chiffre saisi : ${bouton.textContent}`);  // Log chaque chiffre saisi
+-->
+
+                if (pin.length === 4) {  // Soumission automatique au bout de 4 chiffres
+                    document.getElementById('PASS').value = pin;
+<!--
+                    console.log(`PIN complet saisi : ${pin}`);  // Log du PIN complet
+-->
+
+                    // Ferme le clavier numérique et soumet le formulaire
+                    document.getElementById('clavierNumerique').remove();
+                }
+            });
+        });
+    }
+
+    // Affiche le clavier numérique lors du clic dans le champ "PASS"
+    document.getElementById('PASS').addEventListener('focus', afficherClavierNumerique);
+</script>
+
 
 <script>
     let opts = {
@@ -224,10 +326,28 @@ Cette station fait partie du réseau "<span id="astroportLinkPlaceholder">Astrop
         refractoryPeriod: 5000,
         scanPeriod: 1
     };
+
     // Convert
-    // https://u.domain.tld +> https://astroport.domain.tld/12345
-    // http://name.local:54321 +> http://name.local:12345
-    function getModifiedServerUrl() {
+    // https://u.domain.tld +> https://astroport.domain.tld
+    // http://name.local:54321 +> http://name.local:1234
+    function getAstroportURL() {
+        const currentUrl = new URL(window.location.href);
+        let newUrl = new URL(currentUrl.origin);
+
+        // Transformation de `u.domain.tld` en `astroport.domain.tld`
+        if (currentUrl.hostname.startsWith('u.')) {
+            newUrl.hostname = newUrl.hostname.replace('u.', 'astroport.');
+        }
+
+        // Changer le port en 12345 si le port actuel est 54321 ou tout autre port
+        if (currentUrl.port === '54321' || currentUrl.port !== '') {
+            newUrl.port = '1234';
+        }
+
+        return newUrl.toString();
+    }
+
+    function getSwarmURL() {
         const currentUrl = new URL(window.location.href);
         let newUrl = new URL(currentUrl.origin);
 
@@ -244,7 +364,6 @@ Cette station fait partie du réseau "<span id="astroportLinkPlaceholder">Astrop
 
         return newUrl.toString();
     }
-
     // Initialisation du scanner
     let scanner = new Instascan.Scanner(opts);
     scanner.addListener('scan', function (content) {
@@ -283,10 +402,14 @@ Cette station fait partie du réseau "<span id="astroportLinkPlaceholder">Astrop
         }
     }, false);
 
+
     $(document).ready(function() {
         // Ajout du lien modifié au placeholder
-        const modifiedUrl = getModifiedServerUrl();
-        $('#astroportLinkPlaceholder').html(`<a href="${modifiedUrl}" target="_blank">Astroport.ONE</a>`);
+        const astroportUrl = getAstroportURL();
+        const swarmUrl = getSwarmURL();
+        $('#astroportLinkPlaceholder').html(`<a href="${astroportUrl}" target="_blank">Astroport.ONE</a>`);
+        $('#coeurBOX').html(`<a href="${swarmUrl}" target="_blank"><b>♥BOX</b></a>`);
+        $('#ZenCard').html(`<a href="${astroportUrl}" target="_blank"><b>ZenCard</b></a>`);
 
         $('#qr-form').submit(function(e) {
             e.preventDefault();
@@ -294,7 +417,26 @@ Cette station fait partie du réseau "<span id="astroportLinkPlaceholder">Astrop
             $('.result-container').hide();
 
             let formData = new FormData(this);
-            formData.append('imageData', $('#imageData').val());
+            const parametre = document.getElementById('parametre').value;
+            const PASS = document.getElementById('PASS').value;
+
+            // Vérifie si le paramètre commence par "~~~~~" pour décider de la valeur de `imageData`
+            if (parametre.substring(0, 5) === "~~~~~") {
+                // Remplace la valeur de 'imageData' par le PIN
+                if (formData.has('imageData')) {
+                    formData.delete('imageData');
+                }
+                formData.append('imageData', PASS);
+<!--
+                console.log(`PIN saisi : ${PASS}`);
+-->
+            } else {
+                // Utilise la valeur de l'élément avec id 'imageData'
+                if (formData.has('imageData')) {
+                    formData.delete('imageData');
+                }
+                formData.append('imageData', $('#imageData').val());
+            }
 
             $.ajax({
                 url: '/upassport',

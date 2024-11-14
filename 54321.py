@@ -16,6 +16,7 @@ import base64
 import subprocess
 import magic
 import time
+import hashlib
 from datetime import datetime
 import gnupg
 from urllib.parse import unquote, urlparse, parse_qs
@@ -213,27 +214,31 @@ async def scan_qr(parametre: str = Form(...), imageData: str = Form(None)):
     # Ensure the image directory exists
     os.makedirs(image_dir, exist_ok=True)
 
-    image_path = None
-    if imageData:
-        # Save the image
-        image_filename = f"qr_image_{parametre}.png"
+    # Vérification si imageData est un PIN de 4 chiffres
+    if imageData and imageData.isdigit() and len(imageData) == 4:
+        logging.info(f"Received a PIN: {imageData}")
+        image_path = imageData
+    else:
+        # Génération du nom de fichier à partir du hash de parametre
+        image_filename = f"qr_image_{hashlib.sha256(parametre.encode()).hexdigest()[:10]}.png"
         image_path = os.path.join(image_dir, image_filename)
 
-        try:
-            # Remove the data URL prefix if present
-            if ',' in imageData:
-                image_data = imageData.split(',')[1]
-            else:
-                image_data = imageData
+        if imageData:
+            try:
+                # Remove the data URL prefix if present
+                if ',' in imageData:
+                    image_data = imageData.split(',')[1]
+                else:
+                    image_data = imageData
 
-            # Decode and save the image
-            with open(image_path, "wb") as image_file:
-                image_file.write(base64.b64decode(image_data))
-                logging.info("Saved image to: %s", image_path)
+                # Decode and save the image
+                with open(image_path, "wb") as image_file:
+                    image_file.write(base64.b64decode(image_data))
+                    logging.info("Saved image to: %s", image_path)
 
-        except Exception as e:
-            logging.error("Error saving image: %s", e)
-            image_path = None
+            except Exception as e:
+                logging.error("Error saving image: %s", e)
+
 
     async def run_script():
         cmd = [script_path, parametre]
@@ -408,6 +413,54 @@ async def ssss(request: Request):
         return FileResponse(returned_file_path)
     else:
         return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
+
+@app.post("/zen_send")
+async def zen_send(request: Request):
+    # Récupère les données du formulaire
+    form_data = await request.form()
+
+    # Extraire les valeurs des champs du formulaire
+    zen = form_data.get("zen")
+    g1source = form_data.get("g1source")
+    g1dest = form_data.get("g1dest")
+
+    logging.info(f"Zen Amount : {zen}")
+    logging.info(f"Source : {g1source}")
+    logging.info(f"Destination : {g1dest}")
+
+    # Préparation des arguments pour l'exécution du script
+    script_path = "./zen_send.sh"
+    log_file_path = "./tmp/54321.log"
+
+    async def run_script():
+        process = await asyncio.create_subprocess_exec(
+            script_path, zen, g1source, g1dest,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT
+        )
+
+        last_line = ""
+        async with aiofiles.open(log_file_path, "a") as log_file:
+            async for line in process.stdout:
+                line = line.decode().strip()
+                last_line = line
+                await log_file.write(line + "\n")
+                print(line)
+
+        return_code = await process.wait()
+        return return_code, last_line
+
+    # Exécuter le script et capturer la dernière ligne
+    return_code, last_line = await run_script()
+
+    # Déterminer si le script a réussi
+    if return_code == 0:
+        returned_file_path = last_line.strip()  # Le chemin est supposé être dans `last_line`
+        # Retourner le fichier généré en tant que réponse
+        return FileResponse(returned_file_path)
+    else:
+        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
+
 
 # Routes API pour chaque commande de jaklis
 @app.post("/jaklis")

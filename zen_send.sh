@@ -19,61 +19,17 @@ source ${MY_PATH}/.env
 
 # Vérifier le nombre d'arguments
 if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <cardns> <ssss> <zerocard>"
+    echo "Usage: $0 <zen> <g1source> <g1dest>"
     exit 1
 fi
 
 # Récupération des arguments
-CARDNS=$1
-SSSS=$2
-ZEROCARD=$3
-[[ -z $ZEROCARD ]] && ZEROCARD=$MOATS
+ZEN=$1
+G1SOURCE=$2
+G1DEST=$3
 
 # Définir le chemin du fichier HTML de sortie
-HTML_OUTPUT="${MY_PATH}/tmp/result_${CARDNS}.html"
-
-# QUICK Validation du SSSS 3-c9ac213472a72bfd1ea1a7780f18914.....
-if [[ "$SSSS" =~ ^3-[a-f0-9]{101,} ]]; then
-    VALID="VALID"
-else
-    VALID="INVALID"
-fi
-
-[ -z $(${MY_PATH}/tools/g1_to_ipfs.py ${ZEROCARD} 2>/dev/null) ] && VALID="INVALID"
-
-## GET CARDNS
-echo "GETTING CARDNS ${CARDNS} CARDPORTAL LOCATION.........."
-CARDPORTAL=$(ipfs name resolve /ipns/${CARDNS})
-if [[ ! -z $CARDPORTAL ]]; then
-    echo "CARDPORTAL=$CARDPORTAL"
-    LS=$(ipfs ls ${CARDPORTAL})
-    [ -z $LS ] \
-        && VALID="$VALID : CARDNS IS A FILE" \
-        || echo VALID="$VALID : CARDNS IS A DIRECTORY ${LS}"
-    ## ipfs ls... todo get html from station curl
-
-fi
-
-## TRY to join SSSS with CAPTAIN part
-# Find CARDNS in local accounts IPNS12D
-MEMBERPUB=$(grep -h -r -l --dereference "$CARDNS" ${MY_PATH}/pdf/ | grep IPNS12D | rev | cut -d '/' -f 2 | rev)
-echo "MEMBERPUB=$MEMBERPUB"
-## CAPTAIN DECRYPT MIDDLE PART ${MY_PATH}/pdf/${PUBKEY}/ssss.mid.captain.enc
-${MY_PATH}/tools/natools.py decrypt -f pubsec \
-        -i ${MY_PATH}/pdf/${MEMBERPUB}/ssss.mid.captain.enc \
-        -k ~/.zen/game/players/.current/secret.dunikey \
-        -o ${MY_PATH}/tmp/${ZEROCARD}.ssss.mid
-PART2=$(cat ${MY_PATH}/tmp/${ZEROCARD}.ssss.mid)
-echo "SSSS + CAPTAIN PART2 COMBINE..."
-disco=$(echo "$PART2
-$SSSS" | ssss-combine -t 2 -q)
-[ $? -eq 0 ] \
-    && VALID="$VALID *** ZEROCARD CONNECTED ***" \
-    || VALID="$VALID ERROR SSSS DECODING SSSS ERROR"
-
-VALID="$VALID $disco"
-
-## CHECK ZEROCARD SALT PEPPER
+HTML_OUTPUT="${MY_PATH}/tmp/result_${MOATS}.html"
 
 # Générer un fichier HTML de résultat
 cat <<EOF > "$HTML_OUTPUT"
@@ -82,7 +38,7 @@ cat <<EOF > "$HTML_OUTPUT"
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SSSS Check Result</title>
+    <title>ZEN SEND Result</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -123,12 +79,12 @@ cat <<EOF > "$HTML_OUTPUT"
 </head>
 <body>
     <div class="container">
-        <h1 class="highlight">SSSS Key Validation Result</h1>
-        <h2>ZEROCARD : $ZEROCARD</h2>
-        <p><strong>Card NS:</strong> $CARDNS</p>
+        <p>$G1SOURCE<strong></strong></p> send
+        <h1 class="highlight">$ZEN ẐEN</h1>
         <div class="result">
-            <span class="${VALID,,}">The SSSS Key is $VALID</span>
+            <span class="${VALID,,}"> to </span>
         </div>
+        <h2>$G1DEST</h2>
     </div>
 </body>
 </html>

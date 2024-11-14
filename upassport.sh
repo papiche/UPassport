@@ -43,8 +43,8 @@ if [[ $countMErunning -gt 2 ]]; then
     cat ${MY_PATH}/templates/wallet.html \
     | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
          -e "s~_AMOUNT_~d[ o_0 ]b ... please wait~g" \
-        > ${MY_PATH}/tmp/${PUBKEY}.out.html
-    echo "${MY_PATH}/tmp/${PUBKEY}.out.html"
+        > ${MY_PATH}/tmp/${MOATS}.out.html
+    echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
 fi
 
@@ -57,21 +57,36 @@ if [[ ${QRCODE:0:5} == "~~~~~" ]]; then
     echo "cat ~/.zen/tmp/${MOATS}/disco.aes | gpg -d --passphrase "${IMAGE}" --batch"
     cat ${MY_PATH}/tmp/${MOATS}.disco.aes | gpg -d --passphrase "${IMAGE}" --batch > ${MY_PATH}/tmp/${MOATS}.decoded
 
-    # cat ~/.zen/tmp/${MOATS}/disco
-    ## FORMAT IS "/?salt=${USALT}&pepper=${UPEPPER}"
-    DISCO=$(cat ${MY_PATH}/tmp/${MOATS}.decoded | cut -d '?' -f2)
+    [[ -s ${MY_PATH}/tmp/${MOATS}.decoded ]] \
+        && DISCO=$(cat ${MY_PATH}/tmp/${MOATS}.decoded | cut -d '?' -f2)
+
+    if [[ ${DISCO} == "" ]]; then ## BAD PASS ...
+        cat ${MY_PATH}/templates/wallet.html \
+        | sed -e "s~_WALLET_~$(date -u) <br> ${IMAGE}~g" \
+             -e "s~_AMOUNT_~@( * O * )@~g" \
+            > ${MY_PATH}/tmp/${MOATS}.out.html
+        echo "${MY_PATH}/tmp/${MOATS}.out.html"
+        exit 0
+    fi
+    ## GOOD PASS DISCO : "/?salt=${USALT}&pepper=${UPEPPER}"
     arr=(${DISCO//[=&]/ })
     s=$(urldecode ${arr[0]} | xargs)
     salt=$(urldecode ${arr[1]} | xargs)
     p=$(urldecode ${arr[2]} | xargs)
     pepper=$(urldecode ${arr[3]} | xargs)
-
-    echo '<!DOCTYPE html><html><head>
-    </head><body><h1> --- ZENCARD DECODING --- <h1>
-    '${DISCO}'
-    </body></html>' > ${MY_PATH}/tmp/${PUBKEY}.out.html \
-    && echo "${MY_PATH}/tmp/${PUBKEY}.out.html" \
-    && exit 0
+    ## CREATE WALLET KEY
+    ${MY_PATH}/tools/keygen -t duniter -o ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey "${salt}" "${pepper}"
+    g1source=$(cat ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
+    mv ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey ${MY_PATH}/tmp/${g1source}.zencard.dunikey
+    ############################################
+    ## REDIRECT TO ZENCARD DESTINATION SCANNER
+    cat ${MY_PATH}/templates/scan_zen.html \
+        | sed -e "s~_G1SOURCE_~${g1source}~g" \
+        -e "s~_ZEN_~10~g" \
+        -e "s~https://ipfs.copylaradio.com~${ipfsNODE}~g" \
+    > ${MY_PATH}/tmp/${MOATS}.out.html
+    echo "${MY_PATH}/tmp/${MOATS}.out.html"
+    exit 0
 
 fi
 
@@ -96,8 +111,8 @@ if [[ ${QRCODE:0:4} == "http" ]]; then
         ## ANY HTTP LINK
         echo '<!DOCTYPE html><html><head>
             <meta http-equiv="refresh" content="0; url='${QRCODE}'">
-            </head><body></body></html>' > ${MY_PATH}/tmp/${ZEROCARD}.out.html
-        echo "${MY_PATH}/tmp/${ZEROCARD}.out.html"
+            </head><body></body></html>' > ${MY_PATH}/tmp/${MOATS}.out.html
+        echo "${MY_PATH}/tmp/${MOATS}.out.html"
         exit 0
     else
         ## ZEROCARD IPNS LINK DETECTED
@@ -109,8 +124,8 @@ if [[ ${QRCODE:0:4} == "http" ]]; then
         [ -z $MEMBERPUB ] && echo '<!DOCTYPE html><html><head>
                         </head><body><h1>ERROR --- ZEROCARD NOT FOUND ---<h1>
                         UPassport is not registered on this Astroport. Contact support@qo-op.com
-                        </body></html>' > ${MY_PATH}/tmp/${PUBKEY}.out.html \
-                                && echo "${MY_PATH}/tmp/${PUBKEY}.out.html" \
+                        </body></html>' > ${MY_PATH}/tmp/${MOATS}.out.html \
+                                && echo "${MY_PATH}/tmp/${MOATS}.out.html" \
                                     &&  exit 0
         ZEROCARD=$(cat ${MY_PATH}/pdf/${MEMBERPUB}/ZEROCARD)
         ############################################
@@ -130,8 +145,8 @@ if [[ -z $(${MY_PATH}/tools/g1_to_ipfs.py ${PUBKEY} 2>/dev/null) ]]; then
     cat ${MY_PATH}/templates/wallet.html \
     | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
          -e "s~_AMOUNT_~QR CODE Error<br><a target=_new href=https://cesium.app>UNKNOWN CESIUM KEY...</a>~g" \
-        > ${MY_PATH}/tmp/${PUBKEY}.out.html
-    echo "${MY_PATH}/tmp/${PUBKEY}.out.html"
+        > ${MY_PATH}/tmp/${MOATS}.out.html
+    echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
 fi
 
@@ -250,9 +265,7 @@ mkdir -p ${MY_PATH}/tmp
 # Delete older than 3 days files from ${MY_PATH}/tmp
 find ${MY_PATH}/tmp -mtime +3 -type f -exec rm '{}' \;
 # Detect older than 7 days "fac-simile" from ${MY_PATH}/pdf (not ls)
-#~ find ${MY_PATH}/pdf -type d -mtime +7 -not -xtype l -exec rm -r {} \;
-## TODO EMPTY & DELETE FAC-SIMILE ZEROCARD
-
+find ${MY_PATH}/pdf -type d -mtime +7 -not -xtype l -exec rm -r {} \;
 
 ## GET PUBKEY TX HISTORY
 echo "LOADING WALLET HISTORY"
@@ -271,16 +284,16 @@ if [[ -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]]; then
     ZEN=$(echo "($SOLDE - 1) * 10" | bc | cut -d '.' -f 1)
 
     AMOUNT="$SOLDE Ğ1"
-    [[ $SOLDE == "null" ]] && AMOUNT = "EMPTY"
-    [[ $SOLDE == "" ]] && AMOUNT = "TIMEOUT"
+    [[ $SOLDE == "null" ]] && AMOUNT="EMPTY"
+    [[ $SOLDE == "" ]] && AMOUNT="TIMEOUT"
     [[ $ZCHK == "ZEN" ]] && AMOUNT="$ZEN ẑ€N"
 else
     cat ${MY_PATH}/templates/wallet.html \
     | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
          -e "s~#000~#F00~g" \
          -e "s~_AMOUNT_~╭∩╮ (òÓ,) ╭∩╮~g" \
-        > ${MY_PATH}/tmp/${PUBKEY}.out.html
-    echo "${MY_PATH}/tmp/${PUBKEY}.out.html"
+        > ${MY_PATH}/tmp/${MOATS}.out.html
+    echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
 fi
 echo "$AMOUNT G1 ($ZCHK) $ZEN ẑ€N"
@@ -316,8 +329,8 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
             ## REDIRECT TO CURRENT DRIVESTATE
             echo '<!DOCTYPE html><html><head>
             <meta http-equiv="refresh" content="0; url='${ipfsNODE}$(cat ${MY_PATH}/pdf/${PUBKEY}/DRIVESTATE)'">
-            </head><body></body></html>' > ${MY_PATH}/tmp/${ZEROCARD}.out.html
-            echo "${MY_PATH}/tmp/${ZEROCARD}.out.html"
+            </head><body></body></html>' > ${MY_PATH}/tmp/${MOATS}.out.html
+            echo "${MY_PATH}/tmp/${MOATS}.out.html"
             exit 0
         else
             ## ZEROCARD 1ST APP ##### 2ND SCAN : CHANGE DRIVESTATE TO IPFSPORTAL CONTENT
@@ -419,12 +432,12 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
              -e "s~_AMOUNT_~${CODEINJECT}~g" \
              -e "s~300px~340px~g" \
-            > ${MY_PATH}/tmp/${ZEROCARD}.out.html
+            > ${MY_PATH}/tmp/${MOATS}.out.html
 
         # PUBLISH 1ST DRIVESTATE
         ###  N1 NETWORK EXPLORER PREVIEW
         ### SO USER ENTER EMAIL TO JOIN UPLANET...
-        DRIVESTATE=$(ipfs add -q ${MY_PATH}/tmp/${ZEROCARD}.out.html)
+        DRIVESTATE=$(ipfs add -q ${MY_PATH}/tmp/${MOATS}.out.html)
         echo "/ipfs/${DRIVESTATE}" > ${MY_PATH}/pdf/${PUBKEY}/DRIVESTATE
         ipfs name publish --key ${ZEROCARD} /ipfs/${DRIVESTATE}
 
@@ -473,9 +486,9 @@ if [[ -z $MEMBERUID ]]; then
     cat ${MY_PATH}/templates/wallet.html \
         | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
              -e "s~_AMOUNT_~${AMOUNT}~g" \
-            > ${MY_PATH}/tmp/${PUBKEY}.out.html
-    #~ xdg-open "${MY_PATH}/tmp/${PUBKEY}.out.html"
-    echo "${MY_PATH}/tmp/${PUBKEY}.out.html"
+            > ${MY_PATH}/tmp/${MOATS}.out.html
+    #~ xdg-open "${MY_PATH}/tmp/${MOATS}.out.html"
+    echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
 fi
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -642,7 +655,7 @@ rm -f ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD_*.QR.jpg # cleaning & provisionning
 echo "${G1PUBZERO}" > ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD
 echo "$(date -u)" > ${MY_PATH}/pdf/${PUBKEY}/DATE
 ## create ZEROCARD QR
-amzqr "${G1PUBZERO}" -l H -p ${MY_PATH}/static/img/zenticket.png -c -n ZEROCARD_${G1PUBZERO}.QR.png -d ${MY_PATH}/tmp/ 2>/dev/null
+amzqr "${G1PUBZERO}" -l H -p ${MY_PATH}/static/img/GZen.png -c -n ZEROCARD_${G1PUBZERO}.QR.png -d ${MY_PATH}/tmp/ 2>/dev/null
         # Write G1PUBZERO at the bottom
         convert ${MY_PATH}/tmp/ZEROCARD_${G1PUBZERO}.QR.png \
           -gravity SouthWest \

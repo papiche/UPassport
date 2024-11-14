@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPassport SSSS key scanner</title>
+    <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/jquery-3.6.3.min.js"></script>
+    <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/instascan.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            background: linear-gradient(to right, #fdd835, #4fc3f7, #ff8a65);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.5em;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .description {
+            text-align: center;
+            margin-bottom: 20px;
+            max-width: 900px;
+            color: #555;
+        }
+
+        .scanner-keypad-container {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 20px; /* Espace entre la vidéo et le clavier */
+            width: 100%;
+            max-width: 600px; /* Limite la largeur sur les grands écrans */
+        }
+
+        #preview {
+            flex: 1; /* Prend plus de place que le clavier */
+            max-width: 200px; /* Limite la largeur de la vidéo */
+            height: auto;
+            border: 3px solid #4fc3f7;
+            border-radius: 10px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .spinner {
+            margin-top: 20px;
+            display: none;
+            width: 200px;
+            height: 200px;
+            position: relative;
+        }
+
+        .planet {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            animation: orbit 4s linear infinite, colorChange 4s linear infinite;
+        }
+
+        .planet1 { animation-delay: 0s; }
+        .planet2 { animation-delay: 1s; }
+        .planet3 { animation-delay: 2s; }
+        .planet4 { animation-delay: 3s; }
+
+        @keyframes orbit {
+            0% { transform: rotate(0deg) translateX(60px) rotate(0deg); }
+            100% { transform: rotate(360deg) translateX(60px) rotate(-360deg); }
+        }
+
+        @keyframes colorChange {
+            0% { background-color: #ff6b6b; }
+            25% { background-color: #feca57; }
+            50% { background-color: #48dbfb; }
+            75% { background-color: #ff9ff3; }
+            100% { background-color: #ff6b6b; }
+        }
+
+
+        .result-container {
+            display: none;
+            justify-content: center;
+            align-items: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+        }
+
+        .result-frame {
+            width: 80%;
+            height: 80%;
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #result-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .result-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .result-button {
+            padding: 5px 10px;
+            background-color: #FF8C42;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .result-button:hover {
+            background-color: #E57A35;
+        }
+
+        .footnote {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.8em;
+            color: #bdc3c7;
+        }
+
+        .numeric-keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* Clavier en 3 colonnes */
+            gap: 10px;
+            max-width: 150px; /* Limite la largeur du clavier */
+            padding: 10px;
+            border-radius: 10px;
+            background-color: #eceff1;
+        }
+
+        .keypad-button {
+            padding: 15px;
+            font-size: 1.5em;
+            color: #333;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            text-align: center;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .keypad-button:hover {
+            background-color: #f0f0f0;
+        }
+        /* Adaptation pour les petits écrans */
+        @media (max-width: 500px) {
+            .scanner-keypad-container {
+                flex-direction: column; /* Empile la vidéo et le clavier */
+                align-items: center; /* Centre les éléments */
+            }
+
+            #preview {
+                width: 100%;
+                max-width: 100%; /* Vidéo prend toute la largeur */
+            }
+
+            .numeric-keypad {
+                max-width: 100%; /* Clavier prend toute la largeur */
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>ZenCard Loaded</h1>
+    <h2>_G1SOURCE_</h2>
+    <div class="description">
+        <form id="qr-form">
+            <input type="text" id="zen" name="zen" value=""> Ẑen
+            <input type="hidden" id="g1source" name="g1source" value="_G1SOURCE_">
+            <input type="hidden" id="g1dest" name="g1dest">
+        </form>
+    </div>
+    <div class="scanner-keypad-container">
+        <video id="preview"></video>
+        <div class="numeric-keypad" id="numeric-keypad">
+            <div class="keypad-button">1</div>
+            <div class="keypad-button">2</div>
+            <div class="keypad-button">3</div>
+            <div class="keypad-button">4</div>
+            <div class="keypad-button">5</div>
+            <div class="keypad-button">6</div>
+            <div class="keypad-button">7</div>
+            <div class="keypad-button">8</div>
+            <div class="keypad-button">9</div>
+            <div class="keypad-button">←</div>
+            <div class="keypad-button">0</div>
+            <div class="keypad-button">C</div>
+        </div>
+        <div id="scan-result" style="margin: 20px 0; font-size: 1.2em; color: #ffcc00;">SCAN DESTINATION</div>
+        <div class="spinner" id="loadingSpinner">
+            <div class="planet planet1"></div>
+            <div class="planet planet2"></div>
+            <div class="planet planet3"></div>
+            <div class="planet planet4"></div>
+        </div>
+    </div>
+
+    <div class="footnote">
+        ZenCard Scan System - Version 1.0
+    </div>
+
+    <div class="result-container">
+        <div class="result-frame">
+            <iframe id="result-iframe"></iframe>
+            <div class="result-controls">
+            </div>
+        </div>
+    </div>
+
+    <script>
+    $(document).ready(function() {
+        // Show the numeric keypad when preview is clicked
+        $('#preview').click(function() {
+            $('#numeric-keypad').toggle();
+        });
+
+        // Add click event to each keypad button
+        $('.keypad-button').click(function() {
+            let currentVal = $('#zen').val();
+            const key = $(this).text();
+
+            if (key === '←') { // Backspace key
+                $('#zen').val(currentVal.slice(0, -1));
+            } else if (key === 'C') { // Clear key
+                $('#zen').val('');
+            } else { // Number keys
+                $('#zen').val(currentVal + key);
+            }
+        });
+
+        let opts = {
+          continuous: true,
+          video: document.getElementById('preview'),
+          mirror: true,
+          captureImage: false,
+          backgroundScan: false,  // Désactiver la détection en arrière-plan
+          refractoryPeriod: 5000,
+          scanPeriod: 1
+        };
+
+        // Initialisation du scanner
+        let scanner = new Instascan.Scanner(opts);
+        scanner.addListener('scan', function (content) {
+            document.getElementById("g1dest").value = content;
+            let truncatedContent = content.length > 32 ? content.substring(0, 32) + "..." : content;
+            document.getElementById("scan-result").innerText = "QR CODE: " + truncatedContent;
+
+
+            // Afficher le spinner au moment du scan
+            $('#loadingSpinner').show();
+
+            // Envoie automatique des données scannées
+            const serverUrl = '/zen_send';
+            $.ajax({
+                url: serverUrl, // URL modifiée ici
+                type: 'POST',
+                data: $('#qr-form').serialize(),
+                success: function(response) {
+                    window.parent.postMessage('eraseParametre', '*'); // Remove parametre value from underneath QR scanner
+                    $('#loadingSpinner').hide();  // Cache le spinner après réception de la réponse
+                    $('#result-iframe').attr('srcdoc', response);
+                    $('.result-container').css('display', 'flex');  // Affiche directement le résultat
+                },
+                error: function() {
+                    $('#loadingSpinner').hide();  // Cache le spinner en cas d'erreur
+                    alert('An error occurred. Try again later.');
+                }
+            });
+        });
+
+        // Démarrage de la caméra si disponible
+        Instascan.Camera.getCameras().then(function (cameras) {
+            if (cameras.length > 0) {
+                scanner.start(cameras[0]);
+            } else {
+                console.error('No cameras found.');
+            }
+        }).catch(function (e) {
+            console.error(e);
+        });
+
+        // Bouton de fermeture du résultat
+        $('#close-result').click(function() {
+            $('.result-container').hide();
+        });
+
+        // Ouverture du résultat dans un nouvel onglet
+        $('#open-new-tab').click(function() {
+            var response = $('#result-iframe').attr('srcdoc');
+            var newTab = window.open();
+            newTab.document.write(response);
+            newTab.document.close();
+        });
+    });
+    </script>
+</body>
+</html>
