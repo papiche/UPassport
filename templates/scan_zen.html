@@ -193,17 +193,19 @@
     </style>
 </head>
 <body>
-    <h1>ZenCard Loaded</h1>
+    <h1>[ ZenCard ] (_ZEN_ Ẑen) </h1>
     <h2>_G1SOURCE_</h2>
     <div class="description">
         <form id="qr-form">
-            <input type="text" id="zen" name="zen" value=""> Ẑen
+            <b>[̲̅Ẑ̲̅(̲̅<input type="text" id="zen" name="zen" value="" max=4 size=4> )̲̅Ẑ̲̅] ?</b>
             <input type="hidden" id="g1source" name="g1source" value="_G1SOURCE_">
             <input type="hidden" id="g1dest" name="g1dest">
         </form>
     </div>
     <div class="scanner-keypad-container">
+                <div id="scan-result" style="margin: 20px 0; font-size: 1.2em; color: #ffcc00;">( ͡ °~͡° ) --> ?</div>
         <video id="preview"></video>
+
         <div class="numeric-keypad" id="numeric-keypad">
             <div class="keypad-button">1</div>
             <div class="keypad-button">2</div>
@@ -218,7 +220,6 @@
             <div class="keypad-button">0</div>
             <div class="keypad-button">C</div>
         </div>
-        <div id="scan-result" style="margin: 20px 0; font-size: 1.2em; color: #ffcc00;">SCAN DESTINATION</div>
         <div class="spinner" id="loadingSpinner">
             <div class="planet planet1"></div>
             <div class="planet planet2"></div>
@@ -226,7 +227,7 @@
             <div class="planet planet4"></div>
         </div>
     </div>
-
+    _TW_
     <div class="footnote">
         ZenCard Scan System - Version 1.0
     </div>

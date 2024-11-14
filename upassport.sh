@@ -42,7 +42,7 @@ if [[ $countMErunning -gt 2 ]]; then
     echo "$ME already running $countMErunning time"
     cat ${MY_PATH}/templates/wallet.html \
     | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-         -e "s~_AMOUNT_~d[ o_0 ]b ... please wait~g" \
+         -e "s~_AMOUNT_~$countMErunning x d[ o_0 ]b ... please wait ~g" \
         > ${MY_PATH}/tmp/${MOATS}.out.html
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
@@ -75,14 +75,18 @@ if [[ ${QRCODE:0:5} == "~~~~~" ]]; then
     p=$(urldecode ${arr[2]} | xargs)
     pepper=$(urldecode ${arr[3]} | xargs)
     ## CREATE WALLET KEY
+    TWNS=$(${MY_PATH}/tools/keygen -t ipfs "${salt}" "${pepper}")
     ${MY_PATH}/tools/keygen -t duniter -o ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey "${salt}" "${pepper}"
     g1source=$(cat ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
+    SRCCOINS=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${g1source} | tail -n 1)
+    SRCZEN=$(echo "($SRCCOINS - 1) * 10" | bc | cut -d '.' -f 1)
     mv ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey ${MY_PATH}/tmp/${g1source}.zencard.dunikey
     ############################################
     ## REDIRECT TO ZENCARD DESTINATION SCANNER
     cat ${MY_PATH}/templates/scan_zen.html \
         | sed -e "s~_G1SOURCE_~${g1source}~g" \
-        -e "s~_ZEN_~10~g" \
+        -e "s~_ZEN_~$SRCZEN~g" \
+        -e "s~_TW_~<a href=${ipfsNODE}/ipns/${TWNS} target=_new>TW</a>~g" \
         -e "s~https://ipfs.copylaradio.com~${ipfsNODE}~g" \
     > ${MY_PATH}/tmp/${MOATS}.out.html
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
@@ -286,7 +290,7 @@ if [[ -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]]; then
     AMOUNT="$SOLDE Ğ1"
     [[ $SOLDE == "null" ]] && AMOUNT="EMPTY"
     [[ $SOLDE == "" ]] && AMOUNT="TIMEOUT"
-    [[ $ZCHK == "ZEN" ]] && AMOUNT="$ZEN ẑ€N"
+    [[ $ZCHK == "ZEN" || $ZCHK == "" ]] && AMOUNT="$ZEN ẑ€N"
 else
     cat ${MY_PATH}/templates/wallet.html \
     | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
@@ -796,6 +800,8 @@ LAT=$(makecoord $LAT)
 LON=$(cat ${MY_PATH}/tmp/${PUBKEY}.cesium.json | jq -r '._source.geoPoint.lon')
 LON=$(makecoord $LON)
 
+UPLANETG1PUB=$(${MY_PATH}/tools/keygen -t duniter "${UPLANETNAME}" "${UPLANETNAME}")
+
 # QmRJuGqHsruaV14ZHEjk9Gxog2B9GafC35QYrJtaAU2Pry Fac Similé
 # QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png
 cat ${MY_PATH}/static/zine/UPassport.html \
@@ -809,6 +815,7 @@ cat ${MY_PATH}/static/zine/UPassport.html \
             -e "s~QmdmeZhD8ncBFptmD5VSJoszmu41edtT265Xq3HVh8PhZP~${ZWALLET}~g" \
             -e "s~_IPFS_~ipfs/${IPFSPORTAL}/${PUBKEY}/N1/_index.html~g" \
             -e "s~_PLAYER_~${MEMBERUID}~g" \
+            -e "s~_UPLANET8_~UPLANET:${UPLANETG1PUB:0:8}~g" \
             -e "s~_DATE_~$(date -u)~g" \
             -e "s~_PUBKEY_~${PUBKEY}~g" \
             -e "s~_ZEROCARD_~${ZEROCARD}~g" \

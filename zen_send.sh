@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# VERIFY SHAMIR KEY CONCORDANCE and connect player
+# RECEIVE SEND SEN COMMAND --- 1ST need ZenCard "AstroID" + PASS succesful scan
 ################################################################################
 # Author: Fred (DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech)
 # Version: 1.0
@@ -13,9 +13,6 @@ MOATS=$(date -u +"%Y%m%d%H%M%S%4N")
 export PATH=$HOME/.astro/bin:$HOME/.local/bin:$PATH
 
 source ${MY_PATH}/.env
-[[ -z $myDUNITER ]] && myDUNITER="https://g1.cgeek.fr" # DUNITER
-[[ -z $myCESIUM ]] && myCESIUM="https://g1.data.e-is.pro" # CESIUM+
-[[ -z $ipfsNODE ]] && ipfsNODE="http://127.0.0.1:8080" # IPFS
 
 # Vérifier le nombre d'arguments
 if [ "$#" -ne 3 ]; then
@@ -28,68 +25,73 @@ ZEN=$1
 G1SOURCE=$2
 G1DEST=$3
 
-# Définir le chemin du fichier HTML de sortie
-HTML_OUTPUT="${MY_PATH}/tmp/result_${MOATS}.html"
+## CHECK FOR SOURCE DUNIKEY
+if [[ ! -s ${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey ]]; then
+    echo "SOURCE ZENCARD NOT FOUND"
+    cat ${MY_PATH}/templates/wallet.html \
+    | sed -e "s~_WALLET_~$(date -u) <br> ${G1SOURCE}~g" \
+         -e "s~_AMOUNT_~d[ (☓‿‿☓) ]b<br>ZENCARD NOT FOUND~g" \
+        > ${MY_PATH}/tmp/${MOATS}.out.html
+    echo "${MY_PATH}/tmp/${MOATS}.out.html"
+    exit 0
+else
+    echo "# getting ${G1SOURCE} balance : "
+    SRCCOINS=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${G1SOURCE} | tail -n 1)
+    SRCZEN=$(echo "($SRCCOINS - 1) * 10" | bc | cut -d '.' -f 1)
+    echo "# verify $SRCZEN > $ZEN ? "
+    if [[ $(echo "$SRCZEN < $ZEN" | bc) == 1 || $(echo "$SRCZEN < 10" | bc) == 1 ]]; then
+        cat ${MY_PATH}/templates/wallet.html \
+        | sed -e "s~_WALLET_~$(date -u) <br> ${G1SOURCE}~g" \
+             -e "s~_AMOUNT_~ ˁ(OᴥO)ˀ <br> MISSING ẐEN <br>$SRCZEN < $ZEN~g" \
+            > ${MY_PATH}/tmp/${MOATS}.out.html
+        echo "${MY_PATH}/tmp/${MOATS}.out.html"
+        exit 0
+    fi
 
-# Générer un fichier HTML de résultat
-cat <<EOF > "$HTML_OUTPUT"
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZEN SEND Result</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: black;
-            text-align: center;
-            padding: 50px;
-            color: white;
-            margin: 0;
-        }
-        .container {
-            background-color: rgba(255, 255, 255, 0.1);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0px 0px 10px 0px #00000033;
-            display: inline-block;
-            max-width: 90%; /* Limite la largeur */
-            margin: auto; /* Centre le conteneur */
-        }
-        h1 {
-            color: #FFD700; /* Couleur dorée */
-        }
-        .result {
-            font-size: 1.5em; /* Augmenter la taille de la police pour les résultats */
-            margin-top: 20px;
-        }
-        .valid {
-            color: #00FF00; /* Vert */
-        }
-        .invalid {
-            color: #FF0000; /* Rouge */
-        }
-        .highlight {
-            background: linear-gradient(90deg, #FF4500, #FFD700, #32CD32);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <p>$G1SOURCE<strong></strong></p> send
-        <h1 class="highlight">$ZEN ẐEN</h1>
-        <div class="result">
-            <span class="${VALID,,}"> to </span>
-        </div>
-        <h2>$G1DEST</h2>
-    </div>
-</body>
-</html>
-EOF
+    echo "# checking SOURCE primal transaction : ${G1SOURCE} "
+    if [[ ! -s  ~/.zen/tmp/coucou/${G1SOURCE}.prime8 ]]; then
+        srcprime=$(silkaj money history ${G1SOURCE} | tail -n 3 | head -n 1)
+        srcprime8=$(echo $srcprime | awk -F'│' '{gsub(/[[:space:]]*/, "", $3); split($3, a, ":"); print substr(a[1], 1, 8)}')
+        echo "srcprime = $srcprime"
+        echo "srcprime8 = $srcprime8"
+        echo "$srcprime8" > ~/.zen/tmp/coucou/${G1SOURCE}.prime8
+    else
+        srcprime8=$(cat ~/.zen/tmp/coucou/${G1SOURCE}.prime8)
+    fi
+    [[ "$srcprime8" == "════════" ]] && rm ~/.zen/tmp/coucou/${G1SOURCE}.prime8
 
-# Afficher le chemin du fichier HTML en sortie pour que le script Python puisse le capturer
-echo "$HTML_OUTPUT"
-exit 0
+    echo "# checking DESTINATION primal transaction : ${G1DEST} "
+    if [[ ! -s  ~/.zen/tmp/coucou/${G1DEST}.prime8 ]]; then
+        dstprime=$(silkaj money history ${G1DEST} | tail -n 3 | head -n 1)
+        dstprime8=$(echo $dstprime | awk -F'│' '{gsub(/[[:space:]]*/, "", $3); split($3, a, ":"); print substr(a[1], 1, 8)}')
+        echo "dstprime = $dstprime"
+        echo "dstprime8 = $dstprime8"
+        echo "$dstprime8" > ~/.zen/tmp/coucou/${G1DEST}.prime8
+    else
+        dstprime8=$(cat ~/.zen/tmp/coucou/${G1DEST}.prime8)
+    fi
+    [[ "$dstprime8" == "════════" ]] && rm ~/.zen/tmp/coucou/${G1DEST}.prime8
+
+    if [[ "$srcprime8" == "$dstprime8" && "$srcprime8" != "" ]]; then
+        ## SAME UPLANET ZENCARD : TX AUTHORIZED
+        ZEN2G1=$(echo "scale=1; $ZEN / 10" | bc)
+        ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey" "$ZEN2G1" "${G1DEST}" "UPLANET$srcprime8:ZENCARD TX"
+        echo "¸¸♬·¯·♩¸¸♪·¯·♫¸¸ $ZEN ¸¸♬·¯·♩¸¸♪·¯·♫¸¸ sent on UPLANET$srcprime8"
+        cat ${MY_PATH}/templates/wallet.html \
+        | sed -e "s~_WALLET_~$(date -u) <br> ${G1SOURCE}<br>>>> ${G1DEST}~g" \
+             -e "s~_AMOUNT_~♪·¯·♫¸ $ZEN ¸♬¸¸♪<br>UPLANET$srcprime8~g" \
+            > ${MY_PATH}/tmp/${MOATS}.out.html
+        echo "${MY_PATH}/tmp/${MOATS}.out.html"
+        rm ${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey ## REMOVE DECODED ZENCARD
+        exit 0
+    else
+        ## NOT FROM SAME UPLANET
+        cat ${MY_PATH}/templates/wallet.html \
+        | sed -e "s~_WALLET_~$(date -u) <br> ${G1SOURCE}~g" \
+             -e "s~_AMOUNT_~ ／人 ◕‿‿◕ 人＼ <br> NOT COMPATIBLE <br>$srcprime8 != $dstprime8~g" \
+            > ${MY_PATH}/tmp/${MOATS}.out.html
+        echo "${MY_PATH}/tmp/${MOATS}.out.html"
+        rm ${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey ## REMOVE DECODED ZENCARD
+        exit 0
+    fi
+fi

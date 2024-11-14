@@ -229,7 +229,7 @@
     </style>
 </head>
 <body>
-    <h1>MULTI SCAN [Ğ1/Ẑen]</h1>
+    <h1>[Ẑen] MULTISCAN</h1>
 
     <div class="scanner-container">
         <video id="preview"></video>
@@ -278,6 +278,9 @@
 
     // Fonction pour afficher le clavier numérique avec les chiffres mélangés
     function afficherClavierNumerique() {
+        // Si le clavier est déjà visible, on ne fait rien
+        if (document.getElementById('clavierNumerique')) return;
+
         const chiffres = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
         shuffleArray(chiffres); // Mélange les chiffres à chaque affichage
 
@@ -294,27 +297,30 @@
         boutons.forEach(bouton => {
             bouton.addEventListener('click', () => {
                 pin += bouton.textContent;
-<!--
-                console.log(`Chiffre saisi : ${bouton.textContent}`);  // Log chaque chiffre saisi
--->
 
                 if (pin.length === 4) {  // Soumission automatique au bout de 4 chiffres
                     document.getElementById('PASS').value = pin;
-<!--
-                    console.log(`PIN complet saisi : ${pin}`);  // Log du PIN complet
--->
 
                     // Ferme le clavier numérique et soumet le formulaire
                     document.getElementById('clavierNumerique').remove();
+                    pin = '';  // Réinitialise le PIN pour la prochaine utilisation
                 }
             });
+        });
+
+        // Cache le clavier numérique si on clique en dehors de celui-ci
+        document.addEventListener('click', function cacherClavier(e) {
+            if (!clavier.contains(e.target) && e.target.id !== 'PASS') {
+                clavier.remove();
+                pin = '';  // Réinitialise le PIN au cas où
+                document.removeEventListener('click', cacherClavier);
+            }
         });
     }
 
     // Affiche le clavier numérique lors du clic dans le champ "PASS"
     document.getElementById('PASS').addEventListener('focus', afficherClavierNumerique);
 </script>
-
 
 <script>
     let opts = {
