@@ -815,7 +815,7 @@ cat ${MY_PATH}/static/zine/UPassport.html \
             -e "s~QmdmeZhD8ncBFptmD5VSJoszmu41edtT265Xq3HVh8PhZP~${ZWALLET}~g" \
             -e "s~_IPFS_~ipfs/${IPFSPORTAL}/${PUBKEY}/N1/_index.html~g" \
             -e "s~_PLAYER_~${MEMBERUID}~g" \
-            -e "s~_UPLANET8_~UPLANET:${UPLANETG1PUB:0:8}~g" \
+            -e "s~_UPLANET8_~UPlanet:${UPLANETG1PUB:0:8}~g" \
             -e "s~_DATE_~$(date -u)~g" \
             -e "s~_PUBKEY_~${PUBKEY}~g" \
             -e "s~_ZEROCARD_~${ZEROCARD}~g" \

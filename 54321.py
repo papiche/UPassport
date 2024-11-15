@@ -4,6 +4,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, ValidationError
+from dotenv import load_dotenv
 from typing import Optional
 import asyncio
 import aiofiles
@@ -18,7 +19,6 @@ import magic
 import time
 import hashlib
 from datetime import datetime
-import gnupg
 from urllib.parse import unquote, urlparse, parse_qs
 
 # Obtenir le timestamp Unix actuel
@@ -41,26 +41,14 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Initialisation de GPG
-gpg = gnupg.GPG()
+# Charger les variables d'environnement depuis le fichier .env
+load_dotenv()
 
-def decode_qrcode(qrcode, passphrase):
-    # Décodage et transformation du QR code
-    decoded_message = unquote(qrcode).replace("_", "+").replace("~", "-").replace("-", "\n")
-
-    # Suppression de la dernière ligne
-    lines = decoded_message.splitlines()
-    decoded_message = "\n".join(lines[:-1])
-
-    # Décryptage
-    decrypted_data = gpg.decrypt(decoded_message, passphrase=passphrase)
-    if not decrypted_data.ok:
-        raise ValueError("Erreur de décryptage : " + str(decrypted_data.stderr))
-
-    return decrypted_data.data.decode('utf-8')
+# Récupérer la valeur de OBSkey depuis l'environnement
+OBSkey = os.getenv("OBSkey")
 
 def check_balance(g1pub):
-    result = subprocess.run(["/path/to/COINScheck.sh", g1pub], capture_output=True, text=True)
+    result = subprocess.run(["tools/COINScheck.sh", g1pub], capture_output=True, text=True)
     if result.returncode != 0:
         raise ValueError("Erreur dans COINScheck.sh: " + result.stderr)
     balance_line = result.stdout.strip().splitlines()[-1]
@@ -131,15 +119,7 @@ def convert_to_wav(input_file, output_file):
 async def get_root(request: Request):
     return templates.TemplateResponse("scan_new.html", {"request": request})
 
-@app.post("/decode_qrcode")
-async def decode_qrcode_route(data: QRCodeData):
-    try:
-        result = decode_qrcode(data.qrcode, data.passphrase)
-        return {"decoded": result}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@app.post("/check_balance")
+@app.get("/check_balance")
 async def check_balance_route(g1pub: str):
     try:
         balance = check_balance(g1pub)
@@ -461,6 +441,50 @@ async def zen_send(request: Request):
     else:
         return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
 
+
+# Store the OBS Studio recording process object
+recording_process = None
+
+@app.get("/rec")
+def start_recording():
+    global recording_process
+    if recording_process:
+        raise HTTPException(status_code=400, detail="Recording is already in progress.")
+
+    obsws_url = f"obsws://127.0.0.1:4455/{OBSkey}"
+
+    # Exécution de la commande OBS
+    getlog = subprocess.run(
+        ["obs-cmd", "--websocket", obsws_url, "recording", "start"],
+        capture_output=True,
+        text=True
+    )
+
+    # Vérification du code de retour
+    if getlog.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to start recording. Error: {getlog.stderr.strip()}"
+        )
+
+    # Si tout va bien, on change l'état et retourne un message
+    recording_process = True
+    return {"message": "Recording started successfully.", "output": getlog.stdout.strip()}
+
+@app.get("/stop")
+def stop_recording():
+    global recording_process
+    if not recording_process:
+        raise HTTPException(status_code=400, detail="No recording in progress to stop.")
+
+    # Utiliser la valeur de OBSkey depuis l'environnement
+    obsws_url = f"obsws://127.0.0.1:4455/{OBSkey}"
+
+    getlog = subprocess.run(["obs-cmd", "--websocket", obsws_url, 'recording', 'stop'], capture_output=True, text=True)
+    print(getlog)
+    recording_process = None
+
+    return {"message": "Recording stopped successfully."}
 
 # Routes API pour chaque commande de jaklis
 @app.post("/jaklis")
