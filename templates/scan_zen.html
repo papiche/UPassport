@@ -196,14 +196,17 @@
     <h1>[ ZenCard ] (_ZEN_ Ẑen) </h1>
     <h2>_G1SOURCE_</h2>
     <div class="description">
-        <form id="qr-form">
-            <b>[̲̅Ẑ̲̅(̲̅<input type="text" id="zen" name="zen" value="" max=4 size=4> )̲̅Ẑ̲̅] ?</b>
-            <input type="hidden" id="g1source" name="g1source" value="_G1SOURCE_">
-            <input type="hidden" id="g1dest" name="g1dest">
-        </form>
+
     </div>
     <div class="scanner-keypad-container">
-                <div id="scan-result" style="margin: 20px 0; font-size: 1.2em; color: #ffcc00;">( ͡ °~͡° ) --> ?</div>
+        <div id="scan-result" style="margin: 20px 0; font-size: 1.2em; color: #ffcc00;">( ͡ °~͡° ) --> ?
+        <form id="qr-form">
+            <b>[̲̅Ẑ̲̅(̲̅<input type="text" id="zen" name="zen" value="" max=4 size=4 > )̲̅Ẑ̲̅]</b> ?
+            <br> email : <input type="hidden" id="g1source" name="g1source" value="_G1SOURCE_">
+            <input type="text" id="g1dest" name="g1dest">
+            <input type="submit" id="submitButton" value="PalPay">
+        </form>*
+        </div>
         <video id="preview"></video>
 
         <div class="numeric-keypad" id="numeric-keypad">
@@ -246,6 +249,8 @@
         $('#preview').click(function() {
             $('#numeric-keypad').toggle();
         });
+
+        $('#submitButton').css('background-color', '#000000');
 
         // Add click event to each keypad button
         $('.keypad-button').click(function() {
@@ -324,6 +329,30 @@
             newTab.document.write(response);
             newTab.document.close();
         });
+
+        $('#qr-form').submit(function(e) {
+            e.preventDefault();
+            $('#loadingSpinner').show();
+            const serverUrl = '/zen_send';
+            $.ajax({
+                url: serverUrl,
+                type: 'POST',
+                data: $('#qr-form').serialize(),
+                success: function(response) {
+                    window.parent.postMessage('eraseParametre', '*'); // Remove parametre value from underneath QR scanner
+                    $('#loadingSpinner').hide();  // Cache le spinner après réception de la réponse
+                    $('#result-iframe').attr('srcdoc', response);
+                    $('.result-container').css('display', 'flex');  // Affiche directement le résultat
+                },
+                error: function() {
+                    $('#loadingSpinner').hide();  // Cache le spinner en cas d'erreur
+                    alert('An error occurred. Try again later.');
+                }
+            });
+        });
+
+
+
     });
     </script>
 </body>

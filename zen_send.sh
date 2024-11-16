@@ -25,16 +25,10 @@ ZEN=$1
 G1SOURCE=$2
 G1DEST=$3
 
+
 ## CHECK FOR SOURCE DUNIKEY
-if [[ ! -s ${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey ]]; then
-    echo "SOURCE ZENCARD NOT FOUND"
-    cat ${MY_PATH}/templates/wallet.html \
-    | sed -e "s~_WALLET_~$(date -u) <br> ${G1SOURCE}~g" \
-         -e "s~_AMOUNT_~d[ (☓‿‿☓) ]b<br>ZENCARD NOT FOUND~g" \
-        > ${MY_PATH}/tmp/${MOATS}.out.html
-    echo "${MY_PATH}/tmp/${MOATS}.out.html"
-    exit 0
-else
+if [[ -s ${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey ]]; then
+
     echo "# getting ${G1SOURCE} balance : "
     SRCCOINS=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${G1SOURCE} | tail -n 1)
     SRCZEN=$(echo "($SRCCOINS - 1) * 10" | bc | cut -d '.' -f 1)
@@ -60,38 +54,75 @@ else
     fi
     [[ "$srcprime8" == "════════" ]] && rm ~/.zen/tmp/coucou/${G1SOURCE}.prime8
 
-    echo "# checking DESTINATION primal transaction : ${G1DEST} "
-    if [[ ! -s  ~/.zen/tmp/coucou/${G1DEST}.prime8 ]]; then
-        dstprime=$(silkaj money history ${G1DEST} | tail -n 3 | head -n 1)
-        dstprime8=$(echo $dstprime | awk -F'│' '{gsub(/[[:space:]]*/, "", $3); split($3, a, ":"); print substr(a[1], 1, 8)}')
-        echo "dstprime = $dstprime"
-        echo "dstprime8 = $dstprime8"
-        echo "$dstprime8" > ~/.zen/tmp/coucou/${G1DEST}.prime8
-    else
-        dstprime8=$(cat ~/.zen/tmp/coucou/${G1DEST}.prime8)
-    fi
-    [[ "$dstprime8" == "════════" ]] && rm ~/.zen/tmp/coucou/${G1DEST}.prime8
+    ### G1DEST NOT AN EMAIL
+    if [[ ! "${G1DEST}" =~ ^[a-zA-Z0-9.%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$ ]]; then
+        echo "# checking DESTINATION primal transaction : ${G1DEST} "
+        if [[ ! -s  ~/.zen/tmp/coucou/${G1DEST}.prime8 ]]; then
+            dstprime=$(silkaj money history ${G1DEST} | tail -n 3 | head -n 1)
+            dstprime8=$(echo $dstprime | awk -F'│' '{gsub(/[[:space:]]*/, "", $3); split($3, a, ":"); print substr(a[1], 1, 8)}')
+            echo "dstprime = $dstprime"
+            echo "dstprime8 = $dstprime8"
+            echo "$dstprime8" > ~/.zen/tmp/coucou/${G1DEST}.prime8
+        else
+            dstprime8=$(cat ~/.zen/tmp/coucou/${G1DEST}.prime8)
+        fi
+        [[ "$dstprime8" == "════════" ]] && rm ~/.zen/tmp/coucou/${G1DEST}.prime8
 
-    if [[ "$srcprime8" == "$dstprime8" && "$srcprime8" != "" ]]; then
-        ## SAME UPLANET ZENCARD : TX AUTHORIZED
-        ZEN2G1=$(echo "scale=1; $ZEN / 10" | bc)
-        ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey" "$ZEN2G1" "${G1DEST}" "UPLANET$srcprime8:ZENCARD TX"
-        echo "¸¸♬·¯·♩¸¸♪·¯·♫¸¸ $ZEN ¸¸♬·¯·♩¸¸♪·¯·♫¸¸ sent on UPLANET$srcprime8"
-        cat ${MY_PATH}/templates/wallet.html \
-        | sed -e "s~_WALLET_~$(date -u) <br> ${G1SOURCE}<br>>>> ${G1DEST}~g" \
-             -e "s~_AMOUNT_~♪·¯·♫¸ $ZEN ¸♬¸¸♪<br>UPLANET$srcprime8~g" \
-            > ${MY_PATH}/tmp/${MOATS}.out.html
-        echo "${MY_PATH}/tmp/${MOATS}.out.html"
-        rm ${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey ## REMOVE DECODED ZENCARD
-        exit 0
+        if [[ "$srcprime8" == "$dstprime8" && "$srcprime8" != "" ]]; then
+            ## SAME UPLANET ZENCARD : TX AUTHORIZED
+            ZEN2G1=$(echo "scale=1; $ZEN / 10" | bc)
+            ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey" "$ZEN2G1" "${G1DEST}" "UPLANET$srcprime8:ZENCARD TX"
+            echo "¸¸♬·¯·♩¸¸♪·¯·♫¸¸ $ZEN ¸¸♬·¯·♩¸¸♪·¯·♫¸¸ sent on UPLANET$srcprime8"
+            cat ${MY_PATH}/templates/wallet.html \
+            | sed -e "s~_WALLET_~$(date -u) <br> ${G1SOURCE}<br>>>> ${G1DEST}~g" \
+                 -e "s~_AMOUNT_~♪·¯·♫¸ $ZEN ẐEN ¸♬¸¸♪<br>UPLANET$srcprime8~g" \
+                > ${MY_PATH}/tmp/${MOATS}.out.html
+            echo "${MY_PATH}/tmp/${MOATS}.out.html"
+            rm ${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey ## REMOVE DECODED ZENCARD
+            exit 0
+        else
+            ## NOT FROM SAME UPLANET
+            cat ${MY_PATH}/templates/wallet.html \
+            | sed -e "s~_WALLET_~$(date -u) <br> ${G1SOURCE}~g" \
+                 -e "s~_AMOUNT_~ ／人 ◕‿‿◕ 人＼ <br> NOT COMPATIBLE <br>$srcprime8 != $dstprime8~g" \
+                > ${MY_PATH}/tmp/${MOATS}.out.html
+            echo "${MY_PATH}/tmp/${MOATS}.out.html"
+            rm ${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey ## REMOVE DECODED ZENCARD
+            exit 0
+        fi
     else
-        ## NOT FROM SAME UPLANET
-        cat ${MY_PATH}/templates/wallet.html \
-        | sed -e "s~_WALLET_~$(date -u) <br> ${G1SOURCE}~g" \
-             -e "s~_AMOUNT_~ ／人 ◕‿‿◕ 人＼ <br> NOT COMPATIBLE <br>$srcprime8 != $dstprime8~g" \
-            > ${MY_PATH}/tmp/${MOATS}.out.html
-        echo "${MY_PATH}/tmp/${MOATS}.out.html"
-        rm ${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey ## REMOVE DECODED ZENCARD
-        exit 0
+        ### G1PalPay mode : if G1DEST is an EMAIL, then search for it on UPlanet
+        echo "${G1DEST} searching on UPlanet"
+        $(~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "${G1DEST}" | tail -n 1)
+        if [[ -z ${ASTROG1} ]]; then
+            echo "${G1DEST} NOT FOUND"
+            cat ${MY_PATH}/templates/wallet.html \
+            | sed -e "s~_WALLET_~$(date -u) <br> ${G1SOURCE}~g" \
+                 -e "s~_AMOUNT_~d[ (☓‿‿☓) ]b<br>${G1DEST} NOT FOUND~g" \
+                > ${MY_PATH}/tmp/${MOATS}.out.html
+            echo "${MY_PATH}/tmp/${MOATS}.out.html"
+            exit 0
+        else
+            ZEN2G1=$(echo "scale=1; $ZEN / 10" | bc)
+            ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey" "$ZEN2G1" "${ASTROG1}" "UPLANET$srcprime8:ZENCARD TX"
+
+            echo "¸¸♬·¯·♩¸¸♪·¯·♫¸¸ $ZEN ¸¸♬·¯·♩¸¸♪·¯·♫¸¸ sent on PALPAY"
+            cat ${MY_PATH}/templates/wallet.html \
+            | sed -e "s~_WALLET_~$(date -u) <br> ${G1SOURCE}<br>>>> ${G1DEST}~g" \
+                 -e "s~_AMOUNT_~♪·¯·♫¸ $ZEN ẐEN ¸♬¸¸♪<br> to ${G1DEST}~g" \
+                > ${MY_PATH}/tmp/${MOATS}.out.html
+            echo "${MY_PATH}/tmp/${MOATS}.out.html"
+            rm ${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey ## REMOVE DECODED ZENCARD
+            exit 0
+        fi
     fi
+
+else
+    echo "SOURCE ZENCARD NOT FOUND"
+    cat ${MY_PATH}/templates/wallet.html \
+    | sed -e "s~_WALLET_~$(date -u) <br> ${G1SOURCE}~g" \
+         -e "s~_AMOUNT_~d[ (☓‿‿☓) ]b<br>ZENCARD NOT FOUND~g" \
+        > ${MY_PATH}/tmp/${MOATS}.out.html
+    echo "${MY_PATH}/tmp/${MOATS}.out.html"
+    exit 0
 fi
