@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Fred (support@qo-op.com)
-# Version: 0.1
+# Version: 0.2
 # License: AGPL-3.0 (https://choosealicense.com/licenses/agpl-3.0/)
 ################################################################################
 #~ COINScheck.sh
@@ -48,11 +48,11 @@ fi
 
 mkdir -p $HOME/.zen/tmp/coucou/
 COINSFILE=$HOME/.zen/tmp/coucou/${G1PUB}.COINS
-#######################################################
-## GET EXTERNAL G1 DATA
-${MY_PATH}/../tools/GetGCAttributesFromG1PUB.sh ${G1PUB}
-#######################################################
-#######################################################
+#~ #######################################################
+#~ ## GET EXTERNAL G1 DATA
+#~ ${MY_PATH}/../tools/GetGCAttributesFromG1PUB.sh ${G1PUB}
+#~ #######################################################
+#~ #######################################################
 
 # echo "ACTUAL $COINSFILE CONTAINS"
 CURCOINS=$(cat $COINSFILE 2>/dev/null)

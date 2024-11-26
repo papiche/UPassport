@@ -54,6 +54,23 @@ def check_balance(g1pub):
     balance_line = result.stdout.strip().splitlines()[-1]
     return balance_line
 
+def is_obs_running():
+    """Vérifie si OBS Studio est en cours d'exécution."""
+    process = subprocess.run(['pgrep', 'obs'], capture_output=True, text=True)
+    return process.returncode == 0
+
+def start_obs():
+    """Démarre OBS Studio."""
+    try:
+        # Essayez de lancer OBS Studio en utilisant sa commande standard
+        subprocess.Popen(['obs'])
+    except FileNotFoundError:
+        try:
+            # Si la commande 'obs' ne fonctionne pas, essayez le chemin complet
+            subprocess.Popen(['/usr/bin/obs'])
+        except FileNotFoundError:
+            print("OBS Studio n'a pas pu être trouvé. Assurez-vous qu'il est installé et que son chemin est correct.")
+
 class QRCodeData(BaseModel):
     qrcode: str
     passphrase: str
@@ -451,23 +468,24 @@ def start_recording():
     if recording_process:
         raise HTTPException(status_code=400, detail="Recording is already in progress.")
 
+    # Vérifiez si OBS est en cours d'exécution et lancez-le si nécessaire
+    if not is_obs_running():
+        start_obs()
+
     obsws_url = f"obsws://127.0.0.1:4455/{OBSkey}"
 
-    # Exécution de la commande OBS
     getlog = subprocess.run(
         ["obs-cmd", "--websocket", obsws_url, "recording", "start"],
         capture_output=True,
         text=True
     )
 
-    # Vérification du code de retour
     if getlog.returncode != 0:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to start recording. Error: {getlog.stderr.strip()}"
         )
 
-    # Si tout va bien, on change l'état et retourne un message
     recording_process = True
     return {"message": "Recording started successfully.", "output": getlog.stdout.strip()}
 
