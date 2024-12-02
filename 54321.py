@@ -47,13 +47,6 @@ load_dotenv()
 # Récupérer la valeur de OBSkey depuis l'environnement
 OBSkey = os.getenv("OBSkey")
 
-def check_balance(g1pub):
-    result = subprocess.run(["tools/COINScheck.sh", g1pub], capture_output=True, text=True)
-    if result.returncode != 0:
-        raise ValueError("Erreur dans COINScheck.sh: " + result.stderr)
-    balance_line = result.stdout.strip().splitlines()[-1]
-    return balance_line
-
 def is_obs_running():
     """Vérifie si OBS Studio est en cours d'exécution."""
     process = subprocess.run(['pgrep', 'obs'], capture_output=True, text=True)
@@ -74,25 +67,6 @@ def start_obs():
 class QRCodeData(BaseModel):
     qrcode: str
     passphrase: str
-
-# Modèle Pydantic pour valider les entrées
-class JaklisCommand(BaseModel):
-    command: str
-    params: dict
-
-# Fonction pour exécuter une commande jaklis
-def run_jaklis_command(command, params):
-    cmd = ["python3", "tools/jaklis/jaklis.py", command]
-    for key, value in params.items():
-        cmd.append(f"--{key}")
-        cmd.append(str(value))
-
-    try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        return result.stdout
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Erreur lors de l'exécution de la commande: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {e.stderr}")
 
 class MessageData(BaseModel):
     ulat: str
@@ -132,9 +106,18 @@ def convert_to_wav(input_file, output_file):
         logging.error(f"FFmpeg error output: {e.stderr}")
         raise
 
+## DEFAULT = MULTIPASS QR CODE SCANNER
 @app.get("/")
 async def get_root(request: Request):
     return templates.TemplateResponse("scan_new.html", {"request": request})
+
+## CHECK G1PUB BALANCE
+def check_balance(g1pub):
+    result = subprocess.run(["tools/COINScheck.sh", g1pub], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise ValueError("Erreur dans COINScheck.sh: " + result.stderr)
+    balance_line = result.stdout.strip().splitlines()[-1]
+    return balance_line
 
 @app.get("/check_balance")
 async def check_balance_route(g1pub: str):
@@ -364,6 +347,10 @@ async def process_message(message_data: MessageData):
     else:
         return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
 
+###############################################################################
+## Collect UPassport SSSS KEY and match ot with CAPTAIN parts or SWARM key copy
+## Can also receive DRIVE KEY IPNS httt.../12D
+##################################################./check_ssss.sh #############
 @app.post("/ssss")
 async def ssss(request: Request):
     # Récupère les données du formulaire
@@ -503,21 +490,6 @@ def stop_recording():
     recording_process = None
 
     return {"message": "Recording stopped successfully."}
-
-# Routes API pour chaque commande de jaklis
-@app.post("/jaklis")
-async def execute_jaklis_command(command_data: JaklisCommand):
-    command = command_data.command
-    params = command_data.params
-
-    # Liste des commandes supportées par jaklis
-    supported_commands = ['read', 'send', 'delete', 'get', 'set', 'erase', 'stars', 'unstars', 'getoffer', 'setoffer', 'deleteoffer', 'pay', 'history', 'balance', 'id', 'idBalance', 'currentUd']
-
-    if command not in supported_commands:
-        raise HTTPException(status_code=400, detail="Commande non reconnue")
-
-    output = run_jaklis_command(command, params)
-    return {"output": output}
 
 if __name__ == "__main__":
     import uvicorn

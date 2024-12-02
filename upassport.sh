@@ -80,7 +80,9 @@ if [[ ${QRCODE:0:5} == "~~~~~" ]]; then
     g1source=$(cat ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
     SRCCOINS=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${g1source} | tail -n 1)
     SRCZEN=$(echo "($SRCCOINS - 1) * 10" | bc | cut -d '.' -f 1)
+    ### REVEAL DUNIKEY KEY
     mv ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey ${MY_PATH}/tmp/${g1source}.zencard.dunikey
+    ### TODO ? ACTIVATE IPNS KEY
     ############################################
     ## REDIRECT TO ZENCARD DESTINATION SCANNER
     cat ${MY_PATH}/templates/scan_zen.html \
@@ -94,7 +96,7 @@ if [[ ${QRCODE:0:5} == "~~~~~" ]]; then
 
 fi
 
-## IS IT k51qzi5uqu5d IPNS KEY
+## IS IT k51qzi5uqu5d STYLE IPNS KEY (like a TW on MULTIPASS)
 ipnsk51=$(echo "$QRCODE" | grep -oP "(?<=k51qzi5uqu5d)[^/]*")
 if [[ ${ipnsk51} != "" ]]; then
     TWNS="k51qzi5uqu5d"$ipnsk51
@@ -107,10 +109,11 @@ if [[ ${ipnsk51} != "" ]]; then
 fi
 
 
-## IS IT http link
+## IS IT http(s) link
 if [[ ${QRCODE:0:4} == "http" ]]; then
     echo "This is HTTP link : $QRCODE"
-    ipns12D=$(echo "$QRCODE" | grep -oP "(?<=12D3Koo)[^/]*") ## SEARCH FOR IPNS KEY
+    ## SEARCH FOR IPNS KEY (12D3Koo ZEROCARD DISKDRIVE style)
+    ipns12D=$(echo "$QRCODE" | grep -oP "(?<=12D3Koo)[^/]*")
     if [ -z $ipns12D ]; then
         ## ANY HTTP LINK
         echo '<!DOCTYPE html><html><head>
@@ -192,10 +195,11 @@ generate_qr_with_uid() {
             && GVA=$(~/.zen/Astroport.ONE/tools/duniter_getnode.sh | tail -n 1) \
             && [[ ! -z $GVA ]] && sed -i '/^NODE=/d' ${MY_PATH}/tools/jaklis/.env \
             && echo "NODE=$GVA" >> ${MY_PATH}/tools/jaklis/.env \
-            && echo "GVA RELAY: $GVA"
+            && echo "GVA RELAY: $GVA" ## GVA RELAY SWITCHING
         echo "$solde" > ${MY_PATH}/tmp/${pubkey}.solde
         sleep 2
     else
+        ## EXTRACT CESIUM+ GEOLOCATION
         if [[ -s ${MY_PATH}/tmp/$pubkey.cesium.json ]];then
             zlat=$(cat ${MY_PATH}/tmp/${pubkey}.cesium.json | jq -r '._source.geoPoint.lat')
             ulat=$(makecoord $zlat)
@@ -486,7 +490,7 @@ echo "# GET MEMBER UID"
 MEMBERUID=$(cat ${MY_PATH}/tmp/$PUBKEY.me.json | jq -r '.results[].uids[].uid')
 
 if [[ -z $MEMBERUID ]]; then
-    ## NOT MEMBERUID : THIS IS A WALLET
+    ## NOT MEMBERUID : THIS IS A SIMPLE WALLET - show amount -
     cat ${MY_PATH}/templates/wallet.html \
         | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
              -e "s~_AMOUNT_~${AMOUNT}~g" \
