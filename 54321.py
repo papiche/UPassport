@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -85,6 +86,39 @@ logging.info(f"Vosk model loaded")
 # Créez le dossier 'tmp' s'il n'existe pas
 if not os.path.exists('tmp'):
     os.makedirs('tmp')
+
+async def run_script(script_path, *args, log_file_path="./tmp/54321.log"):
+    """
+    Fonction générique pour exécuter des scripts shell avec gestion des logs
+
+    Args:
+        script_path (str): Chemin du script à exécuter
+        *args: Arguments à passer au script
+        log_file_path (str): Chemin du fichier de log
+
+    Returns:
+        tuple: Code de retour et dernière ligne de sortie
+    """
+    logging.info(f"Running script: {script_path} with args: {args}")
+
+    process = await asyncio.create_subprocess_exec(
+        script_path, *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT
+    )
+
+    last_line = ""
+    async with aiofiles.open(log_file_path, "a") as log_file:
+        async for line in process.stdout:
+            line = line.decode().strip()
+            last_line = line
+            await log_file.write(line + "\n")
+            logging.info(f"Script output: {line}")
+
+    return_code = await process.wait()
+    logging.info(f"Script finished with return code: {return_code}")
+
+    return return_code, last_line
 
 def convert_to_wav(input_file, output_file):
     command = [
@@ -187,8 +221,6 @@ async def transcribe_audio(file: UploadFile = File(...)):
 
 @app.post("/upassport")
 async def scan_qr(parametre: str = Form(...), imageData: str = Form(None)):
-    script_path = "./upassport.sh"
-    log_file_path = "./tmp/54321.log"
     image_dir = "./tmp"
 
     # Ensure the image directory exists
@@ -219,40 +251,16 @@ async def scan_qr(parametre: str = Form(...), imageData: str = Form(None)):
             except Exception as e:
                 logging.error("Error saving image: %s", e)
 
-
-    async def run_script():
-        cmd = [script_path, parametre]
-        if image_path:
-            cmd.append(image_path)
-
-        logging.info("Running script with command: %s", cmd)
-
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT
-        )
-
-        last_line = ""
-        async with aiofiles.open(log_file_path, "a") as log_file:
-            async for line in process.stdout:
-                line = line.decode().strip()
-                last_line = line
-                await log_file.write(line + "\n")
-                logging.info(f"Script output: {line}")
-
-        return_code = await process.wait()
-        logging.info(f"Script finished with return code: {return_code}")
-        return return_code, last_line
-
-    return_code, last_line = await run_script()
+    ## Running External Script > get last line > send file content back to client.
+    script_path = "./upassport.sh"
+    return_code, last_line = await run_script(script_path, parametre, image_path)
 
     if return_code == 0:
         returned_file_path = last_line.strip()
         logging.info(f"Returning file: {returned_file_path}")
         return FileResponse(returned_file_path)
     else:
-        error_message = f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."
+        error_message = f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs."
         logging.error(error_message)
         return {"error": error_message}
 
@@ -320,25 +328,7 @@ async def process_message(message_data: MessageData):
     date = str(unix_timestamp)  #  timestamp Unix
     zerocard = message_data.email if message_data.email else f"MEMBER:{message_data.pubkey}" # send email OR actual N1 App MEMBER G1PUB
 
-    async def run_script():
-        process = await asyncio.create_subprocess_exec(
-            script_path, pubkey, comment, amount, date, zerocard, zlat, zlon,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT
-        )
-
-        last_line = ""
-        async with aiofiles.open(log_file_path, "a") as log_file:
-            async for line in process.stdout:
-                line = line.decode().strip()
-                last_line = line
-                await log_file.write(line + "\n")
-                print(line)
-
-        return_code = await process.wait()
-        return return_code, last_line
-
-    return_code, last_line = await run_script()
+    return_code, last_line = await run_script(script_path, pubkey, comment, amount, date, zerocard, zlat, zlon, log_file_path=log_file_path)
 
     if return_code == 0:
         returned_file_path = last_line.strip()
@@ -353,10 +343,7 @@ async def process_message(message_data: MessageData):
 ##################################################./check_ssss.sh #############
 @app.post("/ssss")
 async def ssss(request: Request):
-    # Récupère les données du formulaire
     form_data = await request.form()
-
-    # Extraire les valeurs des champs du formulaire
     cardns = form_data.get("cardns")
     ssss = form_data.get("ssss")
     zerocard = form_data.get("zerocard")
@@ -365,45 +352,18 @@ async def ssss(request: Request):
     logging.info(f"Received SSSS key: {ssss}")
     logging.info(f"ZEROCARD: {zerocard}")
 
-    # Préparation des arguments pour l'exécution du script
     script_path = "./check_ssss.sh"
-    log_file_path = "./tmp/54321.log"
+    return_code, last_line = await run_script(script_path, cardns, ssss, zerocard)
 
-    async def run_script():
-        process = await asyncio.create_subprocess_exec(
-            script_path, cardns, ssss, zerocard,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT
-        )
-
-        last_line = ""
-        async with aiofiles.open(log_file_path, "a") as log_file:
-            async for line in process.stdout:
-                line = line.decode().strip()
-                last_line = line
-                await log_file.write(line + "\n")
-                print(line)
-
-        return_code = await process.wait()
-        return return_code, last_line
-
-    # Exécuter le script et capturer la dernière ligne
-    return_code, last_line = await run_script()
-
-    # Déterminer si le script a réussi
     if return_code == 0:
-        returned_file_path = last_line.strip()  # Le chemin est supposé être dans `last_line`
-        # Retourner le fichier généré en tant que réponse
+        returned_file_path = last_line.strip()
         return FileResponse(returned_file_path)
     else:
-        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
+        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs."}
 
 @app.post("/zen_send")
 async def zen_send(request: Request):
-    # Récupère les données du formulaire
     form_data = await request.form()
-
-    # Extraire les valeurs des champs du formulaire
     zen = form_data.get("zen")
     g1source = form_data.get("g1source")
     g1dest = form_data.get("g1dest")
@@ -412,84 +372,77 @@ async def zen_send(request: Request):
     logging.info(f"Source : {g1source}")
     logging.info(f"Destination : {g1dest}")
 
-    # Préparation des arguments pour l'exécution du script
     script_path = "./zen_send.sh"
-    log_file_path = "./tmp/54321.log"
+    return_code, last_line = await run_script(script_path, zen, g1source, g1dest)
 
-    async def run_script():
-        process = await asyncio.create_subprocess_exec(
-            script_path, zen, g1source, g1dest,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT
-        )
-
-        last_line = ""
-        async with aiofiles.open(log_file_path, "a") as log_file:
-            async for line in process.stdout:
-                line = line.decode().strip()
-                last_line = line
-                await log_file.write(line + "\n")
-                print(line)
-
-        return_code = await process.wait()
-        return return_code, last_line
-
-    # Exécuter le script et capturer la dernière ligne
-    return_code, last_line = await run_script()
-
-    # Déterminer si le script a réussi
     if return_code == 0:
-        returned_file_path = last_line.strip()  # Le chemin est supposé être dans `last_line`
-        # Retourner le fichier généré en tant que réponse
+        returned_file_path = last_line.strip()
         return FileResponse(returned_file_path)
     else:
-        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans {log_file_path}."}
+        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ./tmp/54321.log."}
 
-
+###################################################
+######### REC / STOP - NODE OBS STUDIO -
 # Store the OBS Studio recording process object
 recording_process = None
 
 @app.get("/rec")
-def start_recording():
+async def start_recording(player: Optional[str] = None):
     global recording_process
     if recording_process:
         raise HTTPException(status_code=400, detail="Recording is already in progress.")
 
-    # Vérifiez si OBS est en cours d'exécution et lancez-le si nécessaire
-    if not is_obs_running():
-        start_obs()
+    if not player:
+        return {"message": "No player provided. What is your email?"}
 
-    obsws_url = f"obsws://127.0.0.1:4455/{OBSkey}"
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", player):
+        raise HTTPException(status_code=400, detail="Invalid email address provided.")
 
-    getlog = subprocess.run(
-        ["obs-cmd", "--websocket", obsws_url, "recording", "start"],
-        capture_output=True,
-        text=True
-    )
+    script_path = "./startrec.sh"
+    return_code, last_line = await run_script(script_path, player)
 
-    if getlog.returncode != 0:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to start recording. Error: {getlog.stderr.strip()}"
+    if return_code == 0:
+        obsws_url = f"obsws://127.0.0.1:4455/{OBSkey}"
+        getlog = subprocess.run(
+            ["obs-cmd", "--websocket", obsws_url, "recording", "start"],
+            capture_output=True, text=True
         )
 
-    recording_process = True
-    return {"message": "Recording started successfully.", "output": getlog.stdout.strip()}
+        if getlog.returncode == 0:
+            recording_process = True
+            return {"message": "Recording started successfully.", "player_info": last_line.strip(), "obs_output": getlog.stdout.strip()}
+        else:
+            return {"error": f"Failed to start OBS recording. Error: {getlog.stderr.strip()}"}
+    else:
+        return {"error": f"Script execution failed. Check logs in ./tmp/54321.log"}
 
 @app.get("/stop")
-def stop_recording():
+async def stop_recording(player: Optional[str] = None):
     global recording_process
     if not recording_process:
         raise HTTPException(status_code=400, detail="No recording in progress to stop.")
 
-    # Utiliser la valeur de OBSkey depuis l'environnement
-    obsws_url = f"obsws://127.0.0.1:4455/{OBSkey}"
+    if not player:
+        return {"message": "No player provided. Recording not stopped."}
 
-    getlog = subprocess.run(["obs-cmd", "--websocket", obsws_url, 'recording', 'stop'], capture_output=True, text=True)
-    print(getlog)
-    recording_process = None
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", player):
+        raise HTTPException(status_code=400, detail="Invalid email address provided.")
 
-    return {"message": "Recording stopped successfully."}
+    script_path = "./stoprec.sh"
+    return_code, last_line = await run_script(script_path, player)
+
+    if return_code == 0:
+        obsws_url = f"obsws://127.0.0.1:4455/{OBSkey}"
+        getlog = subprocess.run(["obs-cmd", "--websocket", obsws_url, 'recording', 'stop'], capture_output=True, text=True)
+
+        if getlog.returncode == 0:
+            recording_process = None
+            return {"message": "Recording stopped successfully.", "player_info": last_line.strip(), "obs_output": getlog.stdout.strip()}
+        else:
+            return {"error": f"Failed to stop OBS recording. Error: {getlog.stderr.strip()}"}
+    else:
+        return {"error": f"Script execution failed. Check logs in ./tmp/54321.log"}
+
 
 if __name__ == "__main__":
     import uvicorn
