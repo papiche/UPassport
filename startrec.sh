@@ -24,8 +24,12 @@ fi
 PLAYER=$1
 echo "${PLAYER} willing make OBS REC"
 
-## SEARCHING FOR REGISTERED PLAYER
-~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh ${PLAYER}
+## Is it a local PLAYER
+[[ ! -d ~/.zen/game/players/${PLAYER} ]] \
+    && echo "UNKNOWN PLAYER ${PLAYER}" \
+    && exit 1
 
+## SEARCHING FOR SWARM REGISTERED PLAYER
+#~ ~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh ${PLAYER}
 
 exit 0

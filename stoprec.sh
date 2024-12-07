@@ -24,8 +24,17 @@ fi
 PLAYER=$1
 echo "${PLAYER} willing make OBS STOP"
 
-## SEARCHING FOR REGISTERED PLAYER
-~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh ${PLAYER}
+## Is it a local PLAYER
+[[ ! -d ~/.zen/game/players/${PLAYER} ]] \
+    && echo "UNKNOWN PLAYER ${PLAYER}" \
+    && exit 1
 
+## STOP RECORDING
+obs-cmd --websocket obsws://127.0.0.1:4455/${OBSkey} recording stop
+output=$(obs-cmd --websocket obsws://127.0.0.1:4455/${OBSkey} recording stop)
+echo "$output"
+filepath=$(echo "$output" | grep -oP '(?<=Result: Ok\(")[^"]+')
+filename=$(basename "$filepath")
+echo "Le nom du fichier est : $filename"
 
 exit 0

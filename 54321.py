@@ -414,7 +414,7 @@ async def start_recording(player: Optional[str] = None):
         else:
             return {"error": f"Failed to start OBS recording. Error: {getlog.stderr.strip()}"}
     else:
-        return {"error": f"Script execution failed. Check logs in ./tmp/54321.log"}
+        return {"error": f"Script execution failed. {last_line.strip()}"}
 
 @app.get("/stop")
 async def stop_recording(player: Optional[str] = None):
@@ -432,16 +432,10 @@ async def stop_recording(player: Optional[str] = None):
     return_code, last_line = await run_script(script_path, player)
 
     if return_code == 0:
-        obsws_url = f"obsws://127.0.0.1:4455/{OBSkey}"
-        getlog = subprocess.run(["obs-cmd", "--websocket", obsws_url, 'recording', 'stop'], capture_output=True, text=True)
-
-        if getlog.returncode == 0:
             recording_process = None
-            return {"message": "Recording stopped successfully.", "player_info": last_line.strip(), "obs_output": getlog.stdout.strip()}
+            return {"message": "Recording stopped successfully.", "player": player, "info": last_line.strip(), "debug": getlog.stdout.strip()}
         else:
-            return {"error": f"Failed to stop OBS recording. Error: {getlog.stderr.strip()}"}
-    else:
-        return {"error": f"Script execution failed. Check logs in ./tmp/54321.log"}
+            return {"error": f"Failed to stop OBS recording. Error: {last_line.strip()}"}
 
 
 if __name__ == "__main__":
