@@ -140,8 +140,20 @@ def convert_to_wav(input_file, output_file):
         logging.error(f"FFmpeg error output: {e.stderr}")
         raise
 
-## DEFAULT = MULTIPASS QR CODE SCANNER
+## DEFAULT = UPlanet Status
 @app.get("/")
+async def zen_send(request: Request):
+
+    script_path = os.path.expanduser("~/.zen/Astroport.ONE/Ustats.sh")
+    return_code, last_line = await run_script(script_path)
+
+    if return_code == 0:
+        returned_file_path = last_line.strip()
+        return FileResponse(returned_file_path)
+    else:
+        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ./tmp/54321.log."}
+
+@app.get("/scan")
 async def get_root(request: Request):
     return templates.TemplateResponse("scan_new.html", {"request": request})
 
@@ -434,9 +446,16 @@ async def stop_recording(player: Optional[str] = None):
     if return_code == 0:
             recording_process = None
             return {"message": "Recording stopped successfully.", "player": player, "info": last_line.strip(), "debug": getlog.stdout.strip()}
-        else:
-            return {"error": f"Failed to stop OBS recording. Error: {last_line.strip()}"}
+    else:
+        return {"error": f"Failed to stop OBS recording. Error: {last_line.strip()}"}
 
+@app.route('/webhook', methods=['POST'])
+def get_webhook():
+    if request.method == 'POST':
+        print("received data: ", request.json)
+        return {"received": request.json}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid method.")
 
 if __name__ == "__main__":
     import uvicorn

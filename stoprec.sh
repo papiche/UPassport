@@ -34,7 +34,20 @@ obs-cmd --websocket obsws://127.0.0.1:4455/${OBSkey} recording stop
 output=$(obs-cmd --websocket obsws://127.0.0.1:4455/${OBSkey} recording stop)
 echo "$output"
 filepath=$(echo "$output" | grep -oP '(?<=Result: Ok\(")[^"]+')
+directory=$(dirname "$filepath")
 filename=$(basename "$filepath")
 echo "Le nom du fichier est : $filename"
+fname=$(echo "${filename}" | sed -r 's/\<./\U&/g' | sed 's/ //g')
+
+$(~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh ${PLAYER} | tail -n 1)
+
+## RECORD INTO TW
+# ex: /home/$YOU/Astroport/${PLAYER}/... TyPE(film, youtube, mp3, video, pdf)/ REFERENCE /
+mkdir -p ~/Astroport/${PLAYER}/video/${MOATS}/
+mv "$filepath" ~/Astroport/${PLAYER}/video/${MOATS}/"$fname" \
+    && directory=$HOME/Astroport/${PLAYER}/video/${MOATS}
+
+~/.zen/Astroport.ONE/tools/new_file_in_astroport.sh "$directory" "$fname" "$ASTROG1" "$PLAYER"
+ls $HOME/Astroport/${PLAYER}/video/${MOATS}/VIDEO_${MOATS}.dragdrop.json
 
 exit 0
