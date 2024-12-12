@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embarquement "Made In Zen"</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        form {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .question-description {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        input[type="text"], select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        input[type="submit"] {
+            background-color: #3498db;
+            color: #fff;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        input[type="submit"]:hover {
+            background-color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <h1>Questionnaire "Made In Zen"</h1>
+    <form id="zenForm" action="/submit_questionnaire" method="post">
+        <label for="os">Système d'exploitation :</label>
+        <div class="question-description">Votre choix de système d'exploitation nous aide à connaitre votre situation logicielle et matérielle.</div>
+        <select name="os" id="os" required>
+            <option value="">Choisissez</option>
+            <option value="Windows">Windows</option>
+            <option value="macOS">macOS</option>
+            <option value="Linux">Linux</option>
+            <option value="Autre">Autre</option>
+        </select>
+
+        <label for="smartphone">Marque de smartphone :</label>
+        <div class="question-description">Connaître votre smartphone nous permet d'optimiser la compatibilité avec nos services mobiles.</div>
+        <input type="text" id="smartphone" name="smartphone" required>
+
+        <label for="storage">Capacité de stockage du smartphone :</label>
+        <div class="question-description">Cette information nous aide à adapter nos recommandations de stockage et de sauvegarde.</div>
+        <select name="storage" id="storage" required>
+            <option value="">Choisissez</option>
+            <option value="64 Go">Moins de 64 Go</option>
+            <option value="128 Go">128 Go</option>
+            <option value="256 Go">256 Go</option>
+            <option value="512 Go">Plus de 256 Go</option>
+        </select>
+
+        <label for="data_concern">Préoccupation pour la sécurité des données :</label>
+        <div class="question-description">Votre niveau de préoccupation nous permet d'ajuster nos explications sur les fonctionnalités de sécurité de Astroport.ONE</div>
+        <select name="data_concern" id="data_concern" required>
+            <option value="">Choisissez</option>
+            <option value="Oui">Oui</option>
+            <option value="Non">Non</option>
+            <option value="Plutôt oui">Plutôt oui</option>
+            <option value="Plutôt non">Plutôt non</option>
+        </select>
+
+        <label for="nextcloud_knowledge">Connaissez-vous Nextcloud ?</label>
+        <div class="question-description">Nextcloud est une composante clé pour gardez vos fichiers à l'abri. Connaissez vous ?</div>
+        <select name="nextcloud_knowledge" id="nextcloud_knowledge" required>
+            <option value="">Choisissez</option>
+            <option value="Oui">Oui</option>
+            <option value="Non">Non</option>
+        </select>
+
+        <label for="ai_usage">Utilisez-vous des services d'IA Cloud ?</label>
+        <div class="question-description">Utilisez vous des fonctionnalités d'IA Cloud (OpenAI, Microsoft, Google, Anthropic, ...).</div>
+        <select name="ai_usage" id="ai_usage" required>
+            <option value="">Choisissez</option>
+            <option value="Oui">Oui</option>
+            <option value="Non">Non</option>
+        </select>
+
+        <label for="ollama_knowledge">Connaissez-vous Ollama ?</label>
+        <div class="question-description">Ollama est un outil d'IA intégré à Made In Zen qui permet de fabriquer de son cerveau numérique personnel "en local" ou chez un ami.</div>
+        <select name="ollama_knowledge" id="ollama_knowledge" required>
+            <option value="">Choisissez</option>
+            <option value="Oui">Oui</option>
+            <option value="Non">Non</option>
+        </select>
+
+        <label for="data_management_time">Temps quotidien de gestion des données :</label>
+        <div class="question-description">Cette information nous permet de vous montrer comment Made In Zen peut vous faire gagner du temps.</div>
+        <select name="data_management_time" id="data_management_time" required>
+            <option value="">Choisissez</option>
+            <option value="Moins de 30 min">Moins de 30 min</option>
+            <option value="30 min - 1h">30 min - 1h</option>
+            <option value="1h - 2h">1h - 2h</option>
+            <option value="Plus de 2h">Plus de 2h</option>
+        </select>
+
+        <label for="community_importance">Importance de participer à un projet communautaire :</label>
+        <div class="question-description">Made In Zen est un projet communautaire. Votre intérêt pour ce type de projet nous aide à mettre en avant les aspects qui vous intéressent le plus.</div>
+        <select name="community_importance" id="community_importance" required>
+            <option value="">Choisissez</option>
+            <option value="Très important">Très important</option>
+            <option value="Important">Important</option>
+            <option value="Peu important">Peu important</option>
+            <option value="Pas important">Pas important</option>
+        </select>
+
+        <label for="tech_interest">Intérêt pour les nouvelles technologies :</label>
+        <div class="question-description">Votre intérêt pour les nouvelles technologies nous aide à adapter le niveau technique de notre présentation.</div>
+        <select name="tech_interest" id="tech_interest" required>
+            <option value="">Choisissez</option>
+            <option value="Oui">Oui</option>
+            <option value="Non">Non</option>
+            <option value="Plutôt oui">Plutôt oui</option>
+            <option value="Plutôt non">Plutôt non</option>
+        </select>
+
+        <input type="submit" value="Soumettre">
+    </form>
+
+    <script>
+    document.getElementById('zenForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const response = await fetch('/submit_questionnaire', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (data.redirect) {
+            window.location.href = data.redirect;
+        }
+    });
+    </script>
+</body>
+</html>

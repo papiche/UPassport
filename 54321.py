@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, ValidationError
 from dotenv import load_dotenv
 from typing import Optional
@@ -28,8 +29,14 @@ unix_timestamp = int(time.time())
 # Configure le logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-app = FastAPI()
+# Charger les variables d'environnement depuis le fichier .env
+load_dotenv()
+# Récupérer la valeur de OBSkey depuis l'environnement
+OBSkey = os.getenv("OBSkey")
 
+app = FastAPI()
+# Mount the directory containing static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 # ~ # Configurer CORS
@@ -42,28 +49,47 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Charger les variables d'environnement depuis le fichier .env
-load_dotenv()
+class UserAnswers(BaseModel):
+    os: str
+    smartphone: str
+    storage: str
+    data_concern: str
+    nextcloud_knowledge: str
+    ai_usage: str
+    ollama_knowledge: str
+    data_management_time: str
+    community_importance: str
+    tech_interest: str
 
-# Récupérer la valeur de OBSkey depuis l'environnement
-OBSkey = os.getenv("OBSkey")
+user_answers = UserAnswers(
+    os="", smartphone="", storage="", data_concern="",
+    nextcloud_knowledge="", ai_usage="", ollama_knowledge="",
+    data_management_time="", community_importance="", tech_interest=""
+)
 
-def is_obs_running():
-    """Vérifie si OBS Studio est en cours d'exécution."""
-    process = subprocess.run(['pgrep', 'obs'], capture_output=True, text=True)
-    return process.returncode == 0
+slides = [
+{"title": "Made In Zen : Prenez le Contrôle de Vos Données", "content": "Bienvenue ! Made In Zen vous offre une solution unique pour sécuriser vos données et participer à un projet innovant."},
+{"title": "Le Problème", "content": "Vous utilisez {os}, et vous êtes préoccupé par {data_concern}. Made In Zen vous apporte la solution."},
+{"title": "La Solution : Made In Zen", "content": "Made In Zen combine la sécurité de la blockchain, la puissance du cloud Nextcloud et l'innovation de l'IA pour une gestion optimale de vos données."},
+{"title": "Nextcloud Sécurisé", "content": "{nextcloud_content}"},
+{"title": "IA Intégrée", "content": "{ai_content}"},
+{"title": "Ollama et Made In Zen", "content": "{ollama_content}"},
+{"title": "Sécurité et Confidentialité", "content": "Made In Zen assure la sécurité et la confidentialité de vos données grâce à la technologie blockchain et des protocoles de sécurité robustes."},
+{"title": "Gouvernance Participative", "content": "Participez à la gouvernance de Made In Zen ! Votre voix compte."},
+{"title": "Le Modèle de Redistribution 3 x 1/3", "content": "Un modèle de redistribution équitable et transparent qui soutient l'innovation et la communauté open source."},
+{"title": "Le Ẑen : Une Monnaie Numérique Sécurisée", "content": "Utilisez le Ẑen, notre monnaie numérique sécurisée, pour des transactions fluides et transparentes."},
+{"title": "Optimisation du Stockage", "content": "Gérez efficacement votre espace de stockage avec Made In Zen, adapté à vos besoins spécifiques."},
+{"title": "Collaboration en Temps Réel", "content": "Travaillez ensemble sur vos projets, où que vous soyez, grâce à nos outils de collaboration intégrés."},
+{"title": "Automatisation des Tâches", "content": "Simplifiez votre quotidien grâce à l'automatisation intelligente des tâches répétitives."},
+{"title": "Intégration avec vos Outils Favoris", "content": "Made In Zen s'intègre parfaitement avec vos applications préférées pour une expérience fluide."},
+{"title": "Support Communautaire", "content": "Bénéficiez de l'aide et des conseils de notre communauté active et bienveillante."},
+{"title": "Témoignages Clients", "content": "Découvrez ce que nos utilisateurs pensent de Made In Zen et comment cela a transformé leur gestion de données."},
+{"title": "Formation et Ressources", "content": "Accédez à nos formations et ressources pour tirer le meilleur parti de Made In Zen."},
+{"title": "Tarification Transparente", "content": "Des offres claires et sans surprise, adaptées à vos besoins et à votre budget."},
+{"title": "Rejoignez-nous", "content": "Inscrivez-vous dès aujourd'hui et commencez à prendre le contrôle de vos données avec Made In Zen."},
+{"title": "Contactez-nous", "content": "Des questions ? Notre équipe est là pour vous aider. Contactez-nous pour plus d'informations."}
+]
 
-def start_obs():
-    """Démarre OBS Studio."""
-    try:
-        # Essayez de lancer OBS Studio en utilisant sa commande standard
-        subprocess.Popen(['obs'])
-    except FileNotFoundError:
-        try:
-            # Si la commande 'obs' ne fonctionne pas, essayez le chemin complet
-            subprocess.Popen(['/usr/bin/obs'])
-        except FileNotFoundError:
-            print("OBS Studio n'a pas pu être trouvé. Assurez-vous qu'il est installé et que son chemin est correct.")
 
 class QRCodeData(BaseModel):
     qrcode: str
@@ -152,6 +178,83 @@ async def zen_send(request: Request):
         return FileResponse(returned_file_path)
     else:
         return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ./tmp/54321.log."}
+
+@app.get("/enter")
+async def questionnaire(request: Request):
+    return templates.TemplateResponse("questionnaire.html", {"request": request})
+
+@app.post("/submit_questionnaire")
+async def submit_questionnaire(
+    request: Request,
+    os: str = Form(...),
+    smartphone: str = Form(...),
+    storage: str = Form(...),
+    data_concern: str = Form(...),
+    nextcloud_knowledge: str = Form(...),
+    ai_usage: str = Form(...),
+    ollama_knowledge: str = Form(...),
+    data_management_time: str = Form(...),
+    community_importance: str = Form(...),
+    tech_interest: str = Form(...)
+):
+    global user_answers
+    user_answers = UserAnswers(
+        os=os, smartphone=smartphone, storage=storage, data_concern=data_concern,
+        nextcloud_knowledge=nextcloud_knowledge, ai_usage=ai_usage, ollama_knowledge=ollama_knowledge,
+        data_management_time=data_management_time, community_importance=community_importance, tech_interest=tech_interest
+    )
+    return {"redirect": "/presentation/1"}
+
+def get_slide_image(slide_id: int) -> str:
+    """Determine which image variation to use based on user answers."""
+    if slide_id == 1:
+        return f"images/slide_{slide_id:02d}.png"  # Default image for slide 1
+    elif slide_id == 2:
+        if user_answers.os == "Linux":
+             return f"images/slide_{slide_id:02d}_a.png"
+        else :
+             return f"images/slide_{slide_id:02d}_b.png"
+    elif slide_id == 3:
+        return f"images/slide_{slide_id:02d}.png"  # Default for slide 3
+    elif slide_id == 4:
+        if user_answers.nextcloud_knowledge == "Oui":
+            return f"images/slide_{slide_id:02d}_a.png"  # User knows Nextcloud
+        else:
+             return f"images/slide_{slide_id:02d}_b.png"  # User doesn't know Nextcloud
+    elif slide_id == 5:
+         if user_answers.ai_usage == "Oui":
+            return f"images/slide_{slide_id:02d}_a.png"
+         else:
+            return f"images/slide_{slide_id:02d}_b.png"
+    elif slide_id == 6:
+        if user_answers.ollama_knowledge == "Oui":
+            return f"images/slide_{slide_id:02d}_a.png"  # User knows Ollama
+        else:
+            return f"images/slide_{slide_id:02d}_b.png" # User doesn't know Ollama
+    elif slide_id >= 7 and slide_id <= 20:
+         return f"images/slide_{slide_id:02d}.png" # default
+    return f"images/slide_{slide_id:02d}.png" # default
+
+
+@app.get("/presentation/{slide_id}")
+async def get_slide(request: Request, slide_id: int):
+    if slide_id < 1 or slide_id > len(slides):
+        return {"error": "Slide not found"}
+
+    slide = slides[slide_id - 1]
+
+    if slide_id == 2:
+        slide["content"] = slide["content"].format(os=user_answers.os, data_concern=user_answers.data_concern)
+    elif slide_id == 4:
+        slide["content"] = "Découvrez Nextcloud, une solution de stockage cloud sécurisée et open source." if user_answers.nextcloud_knowledge == "Non" else "Améliorez votre expérience Nextcloud grâce à la sécurité de Made In Zen."
+    elif slide_id == 5:
+        slide["content"] = "Intégrez vos services IA préférés à votre espace de stockage sécurisé." if user_answers.ai_usage == "Oui" else "Découvrez les possibilités de l'IA dans un environnement sécurisé avec Made In Zen."
+    elif slide_id == 6:
+        slide["content"] = "Optimisez votre workflow avec Ollama et l'espace de stockage sécurisé de Made In Zen." if user_answers.ollama_knowledge == "Oui" else "Découvrez Ollama et les services d'IA avancés, accessibles en toute sécurité via Made In Zen."
+
+    image_path = get_slide_image(slide_id)
+
+    return templates.TemplateResponse("slide.html", {"request": request, "slide": slide, "slide_id": slide_id, "total_slides": len(slides), "image_path": image_path})
 
 @app.get("/scan")
 async def get_root(request: Request):
