@@ -48,6 +48,6 @@ mv "$filepath" ~/Astroport/${PLAYER}/video/${MOATS}/"$fname" \
     && directory=$HOME/Astroport/${PLAYER}/video/${MOATS}
 
 ~/.zen/Astroport.ONE/tools/new_file_in_astroport.sh "$directory" "$fname" "$ASTROG1" "$PLAYER"
-ls $HOME/Astroport/${PLAYER}/video/${MOATS}/VIDEO_${MOATS}.dragdrop.json
 
+cat $HOME/Astroport/${PLAYER}/video/${MOATS}/VIDEO_${MOATS}.dragdrop.json | jq -rc
 exit 0
