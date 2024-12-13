@@ -53,7 +53,7 @@ VIDEO="$HOME/Astroport/${PLAYER}/video/${MOATS}/${fname}.mp4"
 if [[ -s ${VIDEO} ]]; then
 {
     ffmpeg -i ${VIDEO} -vn -acodec pcm_s16le -ar 16000 -ac 1 ~/.zen/tmp/${fname}.wav
-    curl -X POST -F "file=@${HOME}/.zen/tmp/${fname}.wav" http://127.0.0.1:54321/transcribe | jq '.transcription' > ~/Astroport/${PLAYER}/video/${MOATS}/transcription.txt
+    #~ curl -X POST -F "file=@${HOME}/.zen/tmp/${fname}.wav" http://127.0.0.1:54321/transcribe | jq '.transcription' > ~/Astroport/${PLAYER}/video/${MOATS}/transcription.txt
 } &
 fi
 cat $HOME/Astroport/${PLAYER}/video/${MOATS}/VIDEO_${MOATS}.dragdrop.json | jq -rc

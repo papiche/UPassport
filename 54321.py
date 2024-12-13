@@ -147,24 +147,31 @@ async def run_script(script_path, *args, log_file_path="./tmp/54321.log"):
     return return_code, last_line
 
 def convert_to_wav(input_file, output_file):
-    command = [
-        'ffmpeg',
-        '-f', 'webm',  # Explicitly specify input format
-        '-i', input_file,
-        '-acodec', 'pcm_s16le',
-        '-ac', '1',
-        '-ar', '16000',
-        '-f', 'wav',
-        output_file
-    ]
+    # Vérifier si le fichier est déjà au format WAV
+    if input_file.lower().endswith('.wav'):
+        # Si c'est le cas, copiez simplement le fichier
+        command = ['cp', input_file, output_file]
+    else:
+        # Sinon, procédez à la conversion
+        command = [
+            'ffmpeg',
+            '-i', input_file,
+            '-acodec', 'pcm_s16le',
+            '-ac', '1',
+            '-ar', '16000',
+            '-f', 'wav',
+            output_file
+        ]
+
     try:
         result = subprocess.run(command, check=True, capture_output=True, text=True)
-        logging.info(f"File converted to WAV: {output_file}")
-        logging.debug(f"FFmpeg output: {result.stdout}")
+        logging.info(f"File processed: {output_file}")
+        logging.debug(f"Command output: {result.stdout}")
     except subprocess.CalledProcessError as e:
-        logging.error(f"FFmpeg conversion failed: {e}")
-        logging.error(f"FFmpeg error output: {e.stderr}")
+        logging.error(f"File processing failed: {e}")
+        logging.error(f"Error output: {e.stderr}")
         raise
+
 
 ## DEFAULT = UPlanet Status
 @app.get("/")
