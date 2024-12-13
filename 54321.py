@@ -280,6 +280,13 @@ async def check_balance_route(g1pub: str):
 async def get_vosk(request: Request):
     return templates.TemplateResponse("vosk.html", {"request": request})
 
+def format_time(seconds):
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    seconds = int(seconds % 60)
+    milliseconds = int((seconds % 1) * 1000)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
+
 @app.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
     file_location = f"tmp/{file.filename}"
@@ -293,32 +300,57 @@ async def transcribe_audio(file: UploadFile = File(...)):
             await out_file.write(content)
         logging.debug(f"Fichier sauvegardé: {file_location}")
 
-        # Convertir le fichier en WAV avec ffmpeg
-        convert_to_wav(file_location, wav_file_location)
+        # Avant la conversion
+        mime = magic.Magic(mime=True)
+        file_type = mime.from_file(file_location)
+
+        if file_type != 'audio/x-wav':
+            # Convertir le fichier en WAV avec ffmpeg
+            convert_to_wav(file_location, wav_file_location)
+            audio_file = wav_file_location
+        else:
+            # Le fichier est déjà au format WAV, pas besoin de conversion
+            audio_file = file_location
 
         # Ouvrir le fichier WAV converti
-        with wave.open(wav_file_location, "rb") as wf:
-            logging.debug(f"Fichier WAV ouvert: {wav_file_location}")
+        with wave.open(audio_file, "rb") as wf:
+            logging.debug(f"Fichier WAV ouvert: {audio_file}")
             # Créer un recognizer
             rec = KaldiRecognizer(model, wf.getframerate())
             logging.debug(f"Recognizer créé avec le taux d'échantillonnage: {wf.getframerate()}")
 
-            # Lire et transcrire l'audio
-            result = ""
+            result = []
+            current_time = 0
+            buffer = ""
+            last_timestamp = 0
+
             while True:
-                data = wf.readframes(4000)
+                data = wf.readframes(4000)  # Lire par petits morceaux
                 if len(data) == 0:
-                    logging.debug("Fin de la lecture du fichier audio")
                     break
                 if rec.AcceptWaveform(data):
                     part_result = json.loads(rec.Result())
-                    result += part_result['text'] + " "
-                    logging.debug(f"Résultat partiel: {part_result['text']}")
+                    if part_result['text']:
+                        buffer += part_result['text'] + " "
+                        current_time = wf.tell() / wf.getframerate()
 
-            # Obtenir le résultat final
-            part_result = json.loads(rec.FinalResult())
-            result += part_result['text']
-            logging.info(f"Transcription terminée. Résultat final: {result}")
+                        # Créer un nouveau segment si suffisamment de texte accumulé
+                        if len(buffer.split()) > 10 or current_time - last_timestamp > 5:
+                            result.append({
+                                'start': format_time(last_timestamp),
+                                'end': format_time(current_time),
+                                'text': buffer.strip()
+                            })
+                            buffer = ""
+                            last_timestamp = current_time
+
+            # Ajouter le dernier segment s'il reste du texte
+            if buffer:
+                result.append({
+                    'start': format_time(last_timestamp),
+                    'end': format_time(current_time),
+                    'text': buffer.strip()
+                })
 
         return JSONResponse(content={"transcription": result})
 
@@ -330,8 +362,8 @@ async def transcribe_audio(file: UploadFile = File(...)):
         if os.path.exists(file_location):
             os.remove(file_location)
             logging.debug(f"Fichier temporaire supprimé: {file_location}")
-        if os.path.exists(wav_file_location):
-            os.remove(wav_file_location)
+        if os.path.exists(audio_file):
+            os.remove(audio_file)
             logging.debug(f"Fichier WAV temporaire supprimé: {wav_file_location}")
 
 @app.post("/upassport")
