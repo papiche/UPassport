@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from typing import Optional
 import asyncio
 import aiofiles
+import whisper
+import torch
 from vosk import Model, KaldiRecognizer
 import wave
 import json
@@ -27,7 +29,7 @@ from urllib.parse import unquote, urlparse, parse_qs
 unix_timestamp = int(time.time())
 
 # Configure le logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Charger les variables d'environnement depuis le fichier .env
 load_dotenv()
@@ -175,7 +177,7 @@ def convert_to_wav(input_file, output_file):
 
 ## DEFAULT = UPlanet Status
 @app.get("/")
-async def zen_send(request: Request):
+async def ustats(request: Request):
 
     script_path = os.path.expanduser("~/.zen/Astroport.ONE/Ustats.sh")
     return_code, last_line = await run_script(script_path)
@@ -294,10 +296,98 @@ def format_time(seconds):
     milliseconds = int((seconds % 1) * 1000)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
 
+# ~ @app.post("/transcribe")
+# ~ async def transcribe_audio(file: UploadFile = File(...)):
+    # ~ file_location = f"tmp/{file.filename}"
+    # ~ wav_file_location = f"tmp/converted_{file.filename}.wav"
+    # ~ try:
+        # ~ logging.info(f"Début de la transcription pour le fichier: {file.filename}")
+
+        # ~ # Sauvegarder le fichier uploadé
+        # ~ async with aiofiles.open(file_location, 'wb') as out_file:
+            # ~ content = await file.read()
+            # ~ await out_file.write(content)
+        # ~ logging.debug(f"Fichier sauvegardé: {file_location}")
+
+         # ~ # Extraire le flux audio avec ffmpeg directement
+        # ~ logging.info(f"Extraction du flux audio depuis: {file_location} -> {wav_file_location}")
+        # ~ command = [
+            # ~ 'ffmpeg',
+            # ~ '-i', file_location,
+            # ~ '-vn', # disable video
+            # ~ '-acodec', 'pcm_s16le',
+            # ~ '-ac', '1',
+            # ~ '-ar', '16000',
+            # ~ '-f', 'wav',
+            # ~ wav_file_location
+        # ~ ]
+        # ~ try:
+            # ~ result = subprocess.run(command, check=True, capture_output=True, text=True)
+            # ~ logging.info(f"File processed: {wav_file_location}")
+            # ~ logging.debug(f"Command output: {result.stdout}")
+        # ~ except subprocess.CalledProcessError as e:
+            # ~ logging.error(f"File processing failed: {e}")
+            # ~ logging.error(f"Error output: {e.stderr}")
+            # ~ raise
+
+        # ~ audio_file = wav_file_location
+        # ~ logging.debug(f"Fichier audio: {audio_file}")
+
+        # ~ # Ouvrir le fichier WAV converti
+        # ~ with wave.open(audio_file, "rb") as wf:
+            # ~ logging.debug(f"Fichier WAV ouvert: {audio_file}")
+
+            # ~ num_channels = wf.getnchannels()
+            # ~ sample_rate = wf.getframerate()
+            # ~ logging.debug(f"Fichier WAV: Canaux={num_channels}, Fréquence={sample_rate}")
+
+            # ~ # Vérifier si le fichier WAV est valide
+            # ~ if num_channels != 1 or sample_rate != 16000:
+                  # ~ error_message = f"Fichier WAV invalide: Canaux={num_channels}, Fréquence={sample_rate}"
+                  # ~ logging.error(error_message)
+                  # ~ return HTMLResponse(error_message, status_code=500)
+
+            # ~ # Créer un recognizer avec des options
+            # ~ rec = KaldiRecognizer(model, wf.getframerate())
+            # ~ logging.debug(f"Recognizer créé avec le taux d'échantillonnage: {wf.getframerate()}")
+
+           # ~ # Lire toutes les données du fichier en une seule fois
+            # ~ data = wf.readframes(wf.getnframes())
+            # ~ logging.debug(f"Lecture de {len(data)} octets du fichier.")
+
+            # ~ # Effectuer la reconnaissance sur les données complètes
+            # ~ if rec.AcceptWaveform(data):
+                # ~ full_result = json.loads(rec.Result())
+                # ~ logging.debug(f"Résultat de Vosk (full): {full_result}")
+                # ~ if full_result and full_result.get('text'):
+                    # ~ transcription = full_result['text'].strip()
+                    # ~ logging.debug(f"Transcription: {transcription}")
+                    # ~ # Instead of JSON, return a simple string
+                    # ~ return HTMLResponse(transcription)
+                # ~ else:
+                    # ~ error_message = f"Pas de texte dans le résultat de Vosk"
+                    # ~ logging.debug(error_message)
+                    # ~ return HTMLResponse(error_message)
+            # ~ else:
+                 # ~ error_message = f"Erreur lors de l'acceptation du waveform"
+                 # ~ logging.debug(error_message)
+                 # ~ return HTMLResponse(error_message)
+
+    # ~ except Exception as e:
+        # ~ logging.error(f"Erreur lors de la transcription: {str(e)}", exc_info=True)
+        # ~ return JSONResponse(content={"error": str(e)}, status_code=500)
+    # ~ finally:
+        # ~ # Supprimer les fichiers temporaires
+        # ~ if os.path.exists(file_location):
+            # ~ #os.remove(file_location)
+            # ~ logging.debug(f"Fichier temporaire supprimé: {file_location}")
+        # ~ if os.path.exists(audio_file):
+           # ~ # os.remove(audio_file)
+            # ~ logging.debug(f"Fichier WAV temporaire supprimé: {wav_file_location}")
+
 @app.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
     file_location = f"tmp/{file.filename}"
-    wav_file_location = f"tmp/converted_{file.filename}.wav"
     try:
         logging.info(f"Début de la transcription pour le fichier: {file.filename}")
 
@@ -307,59 +397,37 @@ async def transcribe_audio(file: UploadFile = File(...)):
             await out_file.write(content)
         logging.debug(f"Fichier sauvegardé: {file_location}")
 
-        # Avant la conversion
+        # Déterminer le type du fichier (pour la conversion si necessaire)
         mime = magic.Magic(mime=True)
         file_type = mime.from_file(file_location)
 
+        # Convertir en wav si le fichier n'est pas deja au bon format
         if file_type != 'audio/x-wav':
-            # Convertir le fichier en WAV avec ffmpeg
+            wav_file_location = f"tmp/converted_{file.filename}.wav"
             convert_to_wav(file_location, wav_file_location)
             audio_file = wav_file_location
-        else:
-            # Le fichier est déjà au format WAV, pas besoin de conversion
-            audio_file = file_location
+        else :
+          audio_file = file_location
 
-        # Ouvrir le fichier WAV converti
-        with wave.open(audio_file, "rb") as wf:
-            logging.debug(f"Fichier WAV ouvert: {audio_file}")
-            # Créer un recognizer
-            rec = KaldiRecognizer(model, wf.getframerate())
-            logging.debug(f"Recognizer créé avec le taux d'échantillonnage: {wf.getframerate()}")
+        # Charger le modèle Whisper
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        logging.info(f"Using device: {device}")
+        model = whisper.load_model("medium", device=device)  # Vous pouvez choisir un modèle plus grand pour une meilleure précision
 
-            result = []
-            current_time = 0
-            buffer = ""
-            last_timestamp = 0
+        # Transcrire l'audio
+        logging.info(f"whisper Transcribing file: {audio_file}")
+        result = model.transcribe(audio_file)
 
-            while True:
-                data = wf.readframes(4000)  # Lire par petits morceaux
-                if len(data) == 0:
-                    break
-                if rec.AcceptWaveform(data):
-                    part_result = json.loads(rec.Result())
-                    if part_result['text']:
-                        buffer += part_result['text'] + " "
-                        current_time = wf.tell() / wf.getframerate()
+        # Formatter les segments de transcription pour correspondre à l'ancien format
+        formatted_result = []
+        for segment in result['segments']:
+            formatted_result.append({
+                'start': format_time(segment['start']),
+                'end': format_time(segment['end']),
+                'text': segment['text'].strip()
+            })
 
-                        # Créer un nouveau segment si suffisamment de texte accumulé
-                        if len(buffer.split()) > 10 or current_time - last_timestamp > 5:
-                            result.append({
-                                'start': format_time(last_timestamp),
-                                'end': format_time(current_time),
-                                'text': buffer.strip()
-                            })
-                            buffer = ""
-                            last_timestamp = current_time
-
-            # Ajouter le dernier segment s'il reste du texte
-            if buffer:
-                result.append({
-                    'start': format_time(last_timestamp),
-                    'end': format_time(current_time),
-                    'text': buffer.strip()
-                })
-
-        return JSONResponse(content={"transcription": result})
+        return JSONResponse(content={"transcription": formatted_result})
 
     except Exception as e:
         logging.error(f"Erreur lors de la transcription: {str(e)}", exc_info=True)
@@ -367,11 +435,11 @@ async def transcribe_audio(file: UploadFile = File(...)):
     finally:
         # Supprimer les fichiers temporaires
         if os.path.exists(file_location):
-            os.remove(file_location)
+           # os.remove(file_location)
             logging.debug(f"Fichier temporaire supprimé: {file_location}")
-        if os.path.exists(audio_file):
-            os.remove(audio_file)
-            logging.debug(f"Fichier WAV temporaire supprimé: {wav_file_location}")
+        if os.path.exists(audio_file) and audio_file != file_location :
+           # os.remove(audio_file)
+            logging.debug(f"Fichier WAV temporaire supprimé: {audio_file}")
 
 @app.post("/upassport")
 async def scan_qr(parametre: str = Form(...), imageData: str = Form(None)):
@@ -637,7 +705,6 @@ async def stop_recording(player: Optional[str] = None):
             return {"message": "Recording stopped successfully.", "player": player, "info": last_line.strip(), "debug": getlog.stdout.strip()}
     else:
         return {"error": f"Failed to stop OBS recording. Error: {last_line.strip()}"}
-
 
 @app.route('/webhook', methods=['POST'])
 def get_webhook():

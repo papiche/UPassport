@@ -19,8 +19,5 @@ models/
 # aider IA
 .aider*
 
-## base contextuelle des interactions avec un email
-emails/
-logs.txt
-email_dataset.json
 temp.wav
+temp_audio.wav

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>G1FabLab TW Studio</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .button-container {
+            margin-top: 20px;
+        }
+        .button-container button {
+            padding: 10px 20px;
+            margin-right: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .button-container button:hover {
+            background-color: #45a049;
+        }
+        .button-container a {
+            padding: 10px 20px;
+            margin-right: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            text-decoration: none; /* remove underline */
+            display: inline-block; /* to have the same behaviour as button tag */
+        }
+    </style>
+</head>
+<body>
+    <h1>TW Studio</h1>
+    {% if error %}
+        <p class="error">{{ error }}</p>
+    {% endif %}
+    {% if message %}
+        <p class="success">{{ message }}</p>
+    {% endif %}
+
+    {% if player_info %}
+    <p>Player info : {{ player_info }} </p>
+    {% endif %}
+    {% if obs_output %}
+        <p>Obs output : {{ obs_output }}</p>
+    {% endif %}
+
+    {% if not recording %}
+    <div class="button-container">
+        <a href="https://screen.qo-op.com" target="_blank">SCREEN</a>
+        <a href="https://voice.qo-op.com" target="_blank">VOICE</a>
+    <br><br><br>
+    </div>
+
+    <form method="post" action="/rec" enctype="multipart/form-data">
+        <label for="player">Email:</label>
+        <input type="email" id="player" name="player" required><br><br>
+        <label for="link">Video Link:</label>
+        <input type="text" id="link" name="link"><br><br>
+        <label for="file">Upload Video File (max 1GB):</label>
+        <input type="file" id="file" name="file" accept="video/*"><br><br>
+        <button type="submit">Start Video Recording, Upload File or Download Youtube Link</button>
+    </form>
+    {% else %}
+        <form method="get" action="/stop">
+            <input type="hidden" name="player" value="{{ current_player }}">
+            <button type="submit">Stop Recording</button>
+        </form>
+    {% endif %}
+</body>
+</html>
