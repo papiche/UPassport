@@ -548,8 +548,6 @@ async def rec_form(request: Request):
 @app.post("/rec", response_class=HTMLResponse)
 async def start_recording(request: Request, player: str = Form(...), link: str = Form(default=""), file: UploadFile = File(None)):
     global recording_process, current_player
-    if recording_process:
-        return templates.TemplateResponse("rec_form.html", {"request": request, "error": "Recording is already in progress.", "recording": True, "current_player": current_player})
 
     if not player:
         return templates.TemplateResponse("rec_form.html", {"request": request, "error": "No player provided. What is your email?", "recording": False})
@@ -557,48 +555,31 @@ async def start_recording(request: Request, player: str = Form(...), link: str =
     if not re.match(r"[^@]+@[^@]+\.[^@]+", player):
         return templates.TemplateResponse("rec_form.html", {"request": request, "error": "Invalid email address provided.", "recording": False})
 
-    ## UPLOAD
-    if file:
-      file_size = len(await file.read())
-      await file.seek(0) # reset file pointer
-      if file_size > 1024 * 1024 * 1024:
+    script_path = "./startrec.sh"
+
+    # Cas 1: Upload de fichier
+    if file and file.filename:
+        file_size = len(await file.read())
+        await file.seek(0)  # reset file pointer
+        if file_size > 1024 * 1024 * 1024:
             return templates.TemplateResponse("rec_form.html", {"request": request, "error": "File size exceeds the limit of 1GB.", "recording": False})
 
-      mime = magic.Magic(mime=True)
-      file_type = mime.from_buffer(await file.read(2048)) # Read a chunk of file
-      await file.seek(0) # reset file pointer
+        file_location = f"tmp/{file.filename}"
+        async with aiofiles.open(file_location, 'wb') as out_file:
+            content = await file.read()
+            await out_file.write(content)
 
-      if not file_type.startswith('video/'):
-         return templates.TemplateResponse("rec_form.html", {"request": request, "error": f"Uploaded file is not a video. Type: {file_type}", "recording": False})
+        return_code, last_line = await run_script(script_path, player, f"upload={file_location}")
 
-      file_location = f"tmp/{file.filename}"
-
-      # Sauvegarder le fichier uploadé
-      async with aiofiles.open(file_location, 'wb') as out_file:
-           content = await file.read()
-           await out_file.write(content)
-      logging.debug(f"Fichier sauvegardé: {file_location}")
-
-      script_path = "./startrec.sh"
-      return_code, last_line = await run_script(script_path, player, f"upload={file_location}") # appel avec le parametre upload=
-
-      if return_code == 0:
-         return templates.TemplateResponse("rec_form.html", {"request": request, "message": "Video Uploaded successfully", "recording": False})
-      else:
-         return templates.TemplateResponse("rec_form.html", {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False})
-
-    ## YOUTUBE LINK
+    # Cas 2: Lien YouTube
     elif link:
-        script_path = "./startrec.sh"
-        return_code, last_line = await run_script(script_path, player, f"link={link}") # appel avec le parametre link=
+        return_code, last_line = await run_script(script_path, player, f"link={link}")
 
-        if return_code == 0:
-           return templates.TemplateResponse("rec_form.html", {"request": request, "message": "Video Downloaded successfully", "recording": False})
-        else:
-           return templates.TemplateResponse("rec_form.html", {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False})
-    ## VDO OBS-STUDIO
+    # Cas 3: Enregistrement OBS
     else:
-        script_path = "./startrec.sh"
+        if recording_process:
+            return templates.TemplateResponse("rec_form.html", {"request": request, "error": "Recording is already in progress.", "recording": True, "current_player": current_player})
+
         return_code, last_line = await run_script(script_path, player)
 
         if return_code == 0:
@@ -610,12 +591,15 @@ async def start_recording(request: Request, player: str = Form(...), link: str =
 
             if getlog.returncode == 0:
                 recording_process = True
-                current_player = player # stocke l'email
+                current_player = player
                 return templates.TemplateResponse("rec_form.html", {"request": request, "message": "Recording started successfully.", "player_info": last_line.strip(), "obs_output": getlog.stdout.strip(), "recording": True, "current_player": current_player})
             else:
                 return templates.TemplateResponse("rec_form.html", {"request": request, "error": f"Failed to start OBS recording. Error: {getlog.stderr.strip()}", "recording": False})
-        else:
-            return templates.TemplateResponse("rec_form.html", {"request": request, "error": f"Script execution failed. {last_line.strip()}", "recording": False})
+
+    if return_code == 0:
+        return templates.TemplateResponse("rec_form.html", {"request": request, "message": "Operation completed successfully", "recording": False})
+    else:
+        return templates.TemplateResponse("rec_form.html", {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False})
 
 @app.get("/stop")
 async def stop_recording(player: Optional[str] = None):
