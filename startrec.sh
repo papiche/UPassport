@@ -1,6 +1,5 @@
 #!/bin/bash
-###################################################################### startrec.sh
-# RECEIVE SEND SEN COMMAND --- 1ST need ZenCard "AstroID" + PASS succesful scan
+################################################################### startrec.sh
 ################################################################################
 # Author: Fred (DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech)
 # Version: 1.2
@@ -22,68 +21,78 @@ fi
 
 # Récupération des arguments
 PLAYER=$1
-echo "${PLAYER} /REC ================================= "
-
-# Vérifier si un lien est fourni
-if [[ "$2" =~ ^link=(.*)$ ]]; then
-  VIDEO_LINK="${BASH_REMATCH[1]}"
-  echo "Received video link: $VIDEO_LINK"
-
-  # Validation du lien
-    if [[ "$VIDEO_LINK" =~ ^(http|https):// ]]; then
-
-      # Créer le répertoire de destination s'il n'existe pas
-       OUTPUT_DIR="$HOME/Astroport/$PLAYER/REC"
-        mkdir -p "$OUTPUT_DIR"
-
-        # Utiliser yt-dlp pour télécharger la vidéo
-        yt-dlp -o "$OUTPUT_DIR/%(title)s.%(ext)s" "$VIDEO_LINK"
-
-        if [ $? -eq 0 ]; then
-          echo "Video downloaded successfully to $OUTPUT_DIR."
-        else
-          echo "Failed to download video using yt-dlp."
-        fi
-        exit 0
-
-    else
-    echo "Invalid video link format."
-    exit 1
-  fi
-fi
-
-# Vérifier si un fichier uploadé est fourni
-if [[ "$2" =~ ^upload=(.*)$ ]]; then
-  UPLOADED_FILE="${BASH_REMATCH[1]}"
-    echo "Received uploaded file: $UPLOADED_FILE"
-
-   # Verifier que le fichier existe
-    if [[ -f "$UPLOADED_FILE" ]]; then
-       # Créer le répertoire de destination s'il n'existe pas
-       OUTPUT_DIR="$HOME/Astroport/$PLAYER/REC"
-       mkdir -p "$OUTPUT_DIR"
-
-      # Déplacer le fichier vers le répertoire de destination
-        cp "$UPLOADED_FILE" "$OUTPUT_DIR"
-        if [ $? -eq 0 ]; then
-          echo "Video uploaded successfully to $OUTPUT_DIR."
-        else
-            echo "Failed to move the uploaded video."
-        fi
-        exit 0
-    else
-       echo "Uploaded file not found"
-       exit 1
-  fi
-fi
-
 
 ## Is it a local PLAYER
 [[ ! -d ~/.zen/game/players/${PLAYER} ]] \
     && echo "UNKNOWN PLAYER ${PLAYER}" \
     && exit 1
 
-## SEARCHING FOR SWARM REGISTERED PLAYER
-#~ ~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh ${PLAYER}
+echo "${PLAYER} /REC ================================= "
+OUTPUT_DIR="$HOME/Astroport/$PLAYER/REC/$MOATS"
+mkdir -p "$OUTPUT_DIR"
 
+# Fonction pour détecter les silences et découper la vidéo
+segment_video() {
+    local input_file=$1
+    local output_dir=$2
+
+    # Détection des silences
+    ffmpeg -i "$input_file" -af silencedetect=n=-30dB:d=2 -f null - 2>&1 | grep silence_end | awk '{print $5 " " $8}' > "$output_dir/silence.txt"
+
+    # Découpage de la vidéo basé sur les silences détectés
+    python3 ${MY_PATH}/split_video.py "$input_file" "$output_dir/silence.txt" "$output_dir"
+}
+
+# Fonction pour transcrire un segment vidéo avec Whisper
+transcribe_segment() {
+    local input_file=$1
+    local output_file=$2
+    whisper "$input_file" --model medium --output_dir "$(dirname "$output_file")" --output_format txt
+}
+
+process_video() {
+    local video_file=$1
+    local output_dir=$2
+
+    # Découpage de la vidéo basé sur les silences
+    segment_video "$video_file" "$output_dir"
+
+    # Transcription de chaque segment
+    for segment in "$output_dir"/segment_*.mp4; do
+        transcribe_segment "$segment" "${segment%.*}.txt"
+    done
+
+    # Concaténation des transcriptions
+    cat "$output_dir"/*.txt > "$output_dir/full_transcription.txt"
+}
+
+# Traitement du lien YouTube ou du fichier uploadé
+if [[ "$2" =~ ^link=(.*)$ ]]; then
+    VIDEO_LINK="${BASH_REMATCH[1]}"
+    echo "Received video link: $VIDEO_LINK"
+
+    yt-dlp -f 'bv[height<=720]+ba[language=fr]/b[height<=720]' -o "$OUTPUT_DIR/%(title)s.%(ext)s" "$VIDEO_LINK"
+
+    if [ ! $? -eq 0 ]; then
+        yt-dlp -f 'b[height<=360]+ba[language=fr]/best[height<=360]' -o "$OUTPUT_DIR/%(title)s.%(ext)s" "$VIDEO_LINK"
+    fi
+
+    UPLOADED_FILE="$(yt-dlp --get-filename -o "%(title)s.%(ext)s" "$VIDEO_LINK")"
+    echo "Video downloaded and saved to: $UPLOADED_FILE"
+
+    process_video "$OUTPUT_DIR/$UPLOADED_FILE" "$OUTPUT_DIR"
+
+elif [[ "$2" =~ ^upload=(.*)$ ]]; then
+    UPLOADED_FILE="${BASH_REMATCH[1]}"
+    echo "Received uploaded file: $UPLOADED_FILE"
+
+    cp "$UPLOADED_FILE" "$OUTPUT_DIR"
+    process_video "$OUTPUT_DIR/$(basename "$UPLOADED_FILE")" "$OUTPUT_DIR"
+
+else
+    echo "No video link or uploaded file provided - OBS Recording - "
+    exit 0
+fi
+
+echo "PROCESSING VIDEO PIPELINE..."
 exit 0

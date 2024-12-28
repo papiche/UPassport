@@ -21,3 +21,4 @@ models/
 
 temp.wav
 temp_audio.wav
+whisper.cpp/

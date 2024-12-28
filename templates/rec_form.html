@@ -3,71 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G1FabLab TW Studio</title>
+    <title>Astroport Studio 🎥</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
         .button-container {
             margin-top: 20px;
+            text-align: center;
         }
-        .button-container button {
-            padding: 10px 20px;
-            margin-right: 10px;
-            background-color: #4CAF50;
+        .button-container button, .button-container a {
+            padding: 12px 24px;
+            margin: 10px;
+            background-color: #3498db;
             color: white;
             border: none;
+            border-radius: 5px;
             cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-size: 1em;
+            text-decoration: none;
+            display: inline-block;
         }
-        .button-container button:hover {
-            background-color: #45a049;
+        .button-container button:hover, .button-container a:hover {
+            background-color: #2980b9;
         }
-        .button-container a {
-            padding: 10px 20px;
-            margin-right: 10px;
-            background-color: #4CAF50;
+        form {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+        input[type="email"], input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button[type="submit"] {
+            background-color: #2ecc71;
             color: white;
+            padding: 12px 20px;
             border: none;
+            border-radius: 4px;
             cursor: pointer;
-            text-decoration: none; /* remove underline */
-            display: inline-block; /* to have the same behaviour as button tag */
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+        button[type="submit"]:hover {
+            background-color: #27ae60;
+        }
+        .error {
+            color: #e74c3c;
+            background-color: #fadbd8;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .success {
+            color: #2ecc71;
+            background-color: #d4efdf;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
-    <h1>TW Studio</h1>
+    <h1>🎬 TW Studio 🎬</h1>
     {% if error %}
-        <p class="error">{{ error }}</p>
+        <p class="error">❌ {{ error }}</p>
     {% endif %}
     {% if message %}
-        <p class="success">{{ message }}</p>
+        <p class="success">✅ {{ message }}</p>
     {% endif %}
 
     {% if player_info %}
-    <p>Player info : {{ player_info }} </p>
+    <p>👤 Player info : {{ player_info }} </p>
     {% endif %}
     {% if obs_output %}
-        <p>Obs output : {{ obs_output }}</p>
+        <p>🖥️ Obs output : {{ obs_output }}</p>
     {% endif %}
 
     {% if not recording %}
     <div class="button-container">
-        <a href="https://screen.qo-op.com" target="_blank">SCREEN</a>
-        <a href="https://voice.qo-op.com" target="_blank">VOICE</a>
-    <br><br><br>
+        <a href="https://screen.qo-op.com" target="_blank">📺 SCREEN</a>
+        <a href="https://voice.qo-op.com" target="_blank">🎙️ VOICE</a>
     </div>
 
     <form method="post" action="/rec" enctype="multipart/form-data">
-        <label for="player">Email:</label>
-        <input type="email" id="player" name="player" required><br><br>
-        <label for="link">Video Link:</label>
-        <input type="text" id="link" name="link"><br><br>
-        <label for="file">Upload Video File (max 1GB):</label>
-        <input type="file" id="file" name="file" accept="video/*"><br><br>
-        <button type="submit">Start Video Recording, Upload File or Download Youtube Link</button>
+        <label for="player">📧 Email:</label>
+        <input type="email" id="player" name="player" required>
+        <label for="link">🔗 Video Link:</label>
+        <input type="text" id="link" name="link">
+        <label for="file">📁 Upload Video File (max 1GB):</label>
+        <input type="file" id="file" name="file" accept="video/*">
+        <button type="submit">🎥 Start Video Recording, <br>📤 Upload File <br>or 📥 Download Youtube Link</button>
     </form>
     {% else %}
         <form method="get" action="/stop">
             <input type="hidden" name="player" value="{{ current_player }}">
-            <button type="submit">Stop Recording</button>
+            <button type="submit">⏹️ Stop Recording</button>
         </form>
     {% endif %}
 </body>

@@ -597,7 +597,7 @@ async def start_recording(request: Request, player: str = Form(...), link: str =
                 return templates.TemplateResponse("rec_form.html", {"request": request, "error": f"Failed to start OBS recording. Error: {getlog.stderr.strip()}", "recording": False})
 
     if return_code == 0:
-        return templates.TemplateResponse("rec_form.html", {"request": request, "message": "Operation completed successfully", "recording": False})
+        return templates.TemplateResponse("rec_form.html", {"request": request, "message": f"Operation completed successfully {last_line.strip()}", "recording": False})
     else:
         return templates.TemplateResponse("rec_form.html", {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False})
 
