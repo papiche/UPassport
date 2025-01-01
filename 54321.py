@@ -542,11 +542,14 @@ recording_process = None
 current_player = None # Pour stocker l'email
 @app.get("/rec", response_class=HTMLResponse)
 async def rec_form(request: Request):
-    """Displays the HTML form to input the email."""
     return templates.TemplateResponse("rec_form.html", {"request": request, "recording": False})
 
+@app.get("/webcam", response_class=HTMLResponse)
+async def rec_form(request: Request):
+    return templates.TemplateResponse("webcam.html", {"request": request, "recording": False})
+
 @app.post("/rec", response_class=HTMLResponse)
-async def start_recording(request: Request, player: str = Form(...), link: str = Form(default=""), file: UploadFile = File(None)):
+async def start_recording(request: Request, player: str = Form(...), link: str = Form(default=""), file: UploadFile = File(None), video_blob: str = Form(default="")):
     global recording_process, current_player
 
     if not player:
@@ -557,7 +560,34 @@ async def start_recording(request: Request, player: str = Form(...), link: str =
 
     script_path = "./startrec.sh"
 
-    # Cas 1: Upload de fichier
+    # Cas 1: Enregistrement webcam
+    if video_blob:
+        try:
+            # Vérifier si le blob contient une virgule (format data URL)
+            if ',' in video_blob:
+                # Extraire la partie après la virgule
+                _, video_data_base64 = video_blob.split(',', 1)
+                video_data = base64.b64decode(video_data_base64)
+            else:
+                # Si pas de virgule, supposer que c'est directement en base64
+                video_data = base64.b64decode(video_blob)
+
+            file_location = f"tmp/{player}_{int(time.time())}.webm"
+            with open(file_location, 'wb') as f:
+                f.write(video_data)
+
+            return_code, last_line = await run_script(script_path, player, f"blob={file_location}")
+
+            if return_code == 0:
+                return templates.TemplateResponse("webcam.html", {"request": request, "message": f"Operation completed successfully {last_line.strip()}", "recording": False})
+            else:
+                return templates.TemplateResponse("webcam.html", {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False})
+
+        except Exception as e:
+            # Gérer toute exception qui pourrait se produire lors du traitement du blob
+            return templates.TemplateResponse("webcam.html", {"request": request, "error": f"Error processing video data: {str(e)}", "recording": False})
+
+    # Cas 2: Upload de fichier
     if file and file.filename:
         file_size = len(await file.read())
         await file.seek(0)  # reset file pointer
@@ -571,11 +601,11 @@ async def start_recording(request: Request, player: str = Form(...), link: str =
 
         return_code, last_line = await run_script(script_path, player, f"upload={file_location}")
 
-    # Cas 2: Lien YouTube
+    # Cas 3: Lien YouTube
     elif link:
         return_code, last_line = await run_script(script_path, player, f"link={link}")
 
-    # Cas 3: Enregistrement OBS
+    # Cas 4: Enregistrement OBS
     else:
         if recording_process:
             return templates.TemplateResponse("rec_form.html", {"request": request, "error": "Recording is already in progress.", "recording": True, "current_player": current_player})
@@ -617,10 +647,10 @@ async def stop_recording(player: Optional[str] = None):
     return_code, last_line = await run_script(script_path, player)
 
     if return_code == 0:
-            recording_process = None
-            return {"message": "Recording stopped successfully.", "player": player, "info": last_line.strip(), "debug": getlog.stdout.strip()}
+        recording_process = None
+        return templates.TemplateResponse("rec_form.html", {"request": request, "message": f"Operation completed successfully {last_line.strip()}", "recording": False})
     else:
-        return {"error": f"Failed to stop OBS recording. Error: {last_line.strip()}"}
+        return templates.TemplateResponse("rec_form.html", {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False})
 
 
 @app.route('/webhook', methods=['POST'])

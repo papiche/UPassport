@@ -685,6 +685,7 @@ async def start_recording(request: Request, player: str = Form(...), link: str =
         else:
             return templates.TemplateResponse("rec_form.html", {"request": request, "error": f"Script execution failed. {last_line.strip()}", "recording": False})
 
+
 @app.get("/stop")
 async def stop_recording(player: Optional[str] = None):
     global recording_process
@@ -701,10 +702,11 @@ async def stop_recording(player: Optional[str] = None):
     return_code, last_line = await run_script(script_path, player)
 
     if return_code == 0:
-            recording_process = None
-            return {"message": "Recording stopped successfully.", "player": player, "info": last_line.strip(), "debug": getlog.stdout.strip()}
+        recording_process = None
+        return {"message": "Recording stopped successfully.", "player": player, "info": last_line.strip()}
     else:
         return {"error": f"Failed to stop OBS recording. Error: {last_line.strip()}"}
+
 
 @app.route('/webhook', methods=['POST'])
 def get_webhook():

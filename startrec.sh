@@ -31,40 +31,40 @@ echo "${PLAYER} /REC ================================= "
 OUTPUT_DIR="$HOME/Astroport/$PLAYER/REC/$MOATS"
 mkdir -p "$OUTPUT_DIR"
 
-# Fonction pour détecter les silences et découper la vidéo
-segment_video() {
-    local input_file=$1
-    local output_dir=$2
-
-    # Détection des silences
-    ffmpeg -i "$input_file" -af silencedetect=n=-30dB:d=2 -f null - 2>&1 | grep silence_end | awk '{print $5 " " $8}' > "$output_dir/silence.txt"
-
-    # Découpage de la vidéo basé sur les silences détectés
-    python3 ${MY_PATH}/split_video.py "$input_file" "$output_dir/silence.txt" "$output_dir"
-}
-
-# Fonction pour transcrire un segment vidéo avec Whisper
-transcribe_segment() {
-    local input_file=$1
-    local output_file=$2
-    whisper "$input_file" --model medium --output_dir "$(dirname "$output_file")" --output_format txt
-}
-
 process_video() {
     local video_file=$1
     local output_dir=$2
 
-    # Découpage de la vidéo basé sur les silences
-    segment_video "$video_file" "$output_dir"
+    # Transcription avec le script Python
+    python3 transcribe.whisper.py "$video_file" "$output_dir/transcription.txt"
 
-    # Transcription de chaque segment
-    for segment in "$output_dir"/segment_*.mp4; do
-        transcribe_segment "$segment" "${segment%.*}.txt"
-    done
+    # Extraction d'images clés
+    ffmpeg -i "$video_file" -vf fps=1 "$output_dir/frame%03d.jpg"
 
-    # Concaténation des transcriptions
-    cat "$output_dir"/*.txt > "$output_dir/full_transcription.txt"
+    # Sélection aléatoire de 3 images
+    shuf -n 3 -e "$output_dir"/frame*.jpg > "$output_dir/selected_frames.txt"
+
+    # Reconnaissance d'objets avec Ollama API pour les 3 images sélectionnées
+    while IFS= read -r image; do
+        curl http://localhost:11434/api/generate -d '{
+            "model": "llava",
+            "prompt": "Describe what you see in this image?",
+            "images": ["'"$(base64 -w 0 "$image")"'"]
+        }' | jq -r '.response' >> "$output_dir/objects.txt"
+    done < "$output_dir/selected_frames.txt"
+
+    # Génération de résumé et métadonnées
+    transcription=$(cat "$output_dir/transcription.txt")
+    objects=$(cat "$output_dir/objects.txt")
+    curl http://localhost:11434/api/generate -d '{
+        "model": "llama2",
+        "prompt": "Based on the following transcription and recognized objects, generate a summary and metadata:\n\nTranscription: '"$transcription"'\n\nRecognized objects: '"$objects"'\n\nPlease provide:\n1. A brief summary\n2. Keywords\n3. Main topics\n4. Mood or tone"
+    }' | jq -r '.response' > "$output_dir/summary_metadata.txt"
+
+    # Nettoyage des fichiers temporaires
+    rm "$output_dir/selected_frames.txt"
 }
+
 
 # Traitement du lien YouTube ou du fichier uploadé
 if [[ "$2" =~ ^link=(.*)$ ]]; then
@@ -88,6 +88,12 @@ elif [[ "$2" =~ ^upload=(.*)$ ]]; then
 
     cp "$UPLOADED_FILE" "$OUTPUT_DIR"
     process_video "$OUTPUT_DIR/$(basename "$UPLOADED_FILE")" "$OUTPUT_DIR"
+
+elif [[ "$2" =~ ^blob=(.*)$ ]]; then
+    BLOB_URL="${BASH_REMATCH[1]}"
+    echo "Received blob URL: $BLOB_URL"
+
+    process_video "$BLOB_URL" "$OUTPUT_DIR"
 
 else
     echo "No video link or uploaded file provided - OBS Recording - "

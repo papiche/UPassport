@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Cute Webcam Recorder 🎥✨</title>
+    <style>
+        body {
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            background-color: #ffe6f2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #ff69b4;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px #ffb3d9;
+            animation: rainbow 5s infinite;
+        }
+        @keyframes rainbow {
+            0% {color: #ff69b4;}
+            25% {color: #ff9933;}
+            50% {color: #33cc33;}
+            75% {color: #3399ff;}
+            100% {color: #ff69b4;}
+        }
+        #video-preview {
+            width: 320px;
+            height: 240px;
+            border: 10px solid #ffb3d9;
+            border-radius: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 15px #ff69b4;
+        }
+        #timer {
+            font-size: 3em;
+            margin-bottom: 20px;
+            color: #ff1493;
+            text-shadow: 2px 2px 4px #ffb3d9;
+        }
+        button {
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            font-size: 1.2em;
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            border-radius: 50px;
+            background-color: #ff69b4;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button:hover {
+            transform: scale(1.1);
+            background-color: #ff1493;
+        }
+        button:disabled {
+            background-color: #ffb3d9;
+            cursor: not-allowed;
+        }
+        .hidden {
+            display: none;
+        }
+        form {
+            background-color: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 0 15px rgba(255,105,180,0.3);
+            margin-top: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #ff69b4;
+            font-size: 1.1em;
+        }
+        input[type="email"], input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 2px solid #ffb3d9;
+            border-radius: 10px;
+            font-size: 1em;
+        }
+        input[type="range"] {
+            width: 60%;
+            margin-bottom: 10px;
+        }
+        #duration-display {
+            font-size: 1.2em;
+            color: #ff1493;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌈 Super Cute Webcam Recorder 🎀</h1>
+
+    <video id="video-preview" autoplay muted></video>
+
+    <div id="timer" class="hidden">16</div>
+
+    <div id="duration-display">Recording time: 16 seconds</div>
+    <input type="range" id="duration-slider" min="3" max="16" value="16">
+
+    <button id="start-recording">🎬 Start Recording</button>
+    <button id="submit-video" class="hidden">💖 Submit Video</button>
+
+    <form id="record-form" method="post" action="/rec" enctype="multipart/form-data">
+        <label for="player">📧 Your Magical Email:</label>
+        <input type="email" id="player" name="player" required placeholder="unicorn@rainbow.com">
+        <input type="hidden" id="video_blob" name="video_blob">
+    </form>
+
+    <script>
+        let mediaRecorder;
+        let recordedChunks = [];
+        const startButton = document.getElementById('start-recording');
+        const submitButton = document.getElementById('submit-video');
+        const videoPreview = document.getElementById('video-preview');
+        const timerDisplay = document.getElementById('timer');
+        const durationSlider = document.getElementById('duration-slider');
+        const durationDisplay = document.getElementById('duration-display');
+
+        durationSlider.addEventListener('input', () => {
+            durationDisplay.textContent = `Recording time: ${durationSlider.value} seconds`;
+        });
+
+        startButton.addEventListener('click', async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            videoPreview.srcObject = stream;
+
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                document.getElementById('video_blob').value = URL.createObjectURL(blob);
+                submitButton.classList.remove('hidden');
+            };
+
+            mediaRecorder.start();
+            startTimer(parseInt(durationSlider.value));
+            startButton.disabled = true;
+            timerDisplay.classList.remove('hidden');
+        });
+
+        submitButton.addEventListener('click', () => {
+            document.getElementById('record-form').submit();
+        });
+
+        function startTimer(duration) {
+            let timer = duration;
+            const countdown = setInterval(() => {
+                timerDisplay.textContent = timer;
+                if (--timer < 0) {
+                    clearInterval(countdown);
+                    mediaRecorder.stop();
+                    videoPreview.srcObject.getTracks().forEach(track => track.stop());
+                    timerDisplay.textContent = "Done! 🌟";
+                }
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

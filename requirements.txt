@@ -12,3 +12,4 @@ email-validator
 ffmpeg-python
 torchtune
 torchao
+moviepy

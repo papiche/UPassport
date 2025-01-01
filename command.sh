@@ -66,7 +66,7 @@ if [ ! -z $isEMAIL ]; then
     if [ -d ~/.zen/game/players/$isEMAIL ]; then
         echo "////////////// REGISTERED ZENCARD \\\\\\\\\\\\\\"
         ~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL"
-        $(~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL")
+        $(~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL" | tail -n 1)
         ## ## ## ##
     else
         echo "PLAYER NOT FOUND ON THIS ASTROPORT..........."
@@ -74,7 +74,7 @@ if [ ! -z $isEMAIL ]; then
         if [ -s ${MY_PATH}/pdf/${PUBKEY}/PLAYER ]; then
             echo "DECLARED PLAYER = $(cat ${MY_PATH}/pdf/${PUBKEY}/PLAYER) .... SEARCH IN SWARM"
             ~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL"
-            $(~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL")
+            $(~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL" | tail -n 1)
             # DO SOMETHING...
         else
             if [[ "$COMMENT" != "" ]]; then
