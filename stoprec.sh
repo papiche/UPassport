@@ -45,14 +45,25 @@ mkdir -p ~/Astroport/${PLAYER}/video/${MOATS}/
 mv "$filepath" ~/Astroport/${PLAYER}/video/${MOATS}/$fname \
     && directory=$HOME/Astroport/${PLAYER}/video/${MOATS}
 
+## IPFS SWALLOW : new_file_in_astroport.sh
 ~/.zen/Astroport.ONE/tools/new_file_in_astroport.sh "$directory" "$fname" "$ASTROG1" "$PLAYER"
-
-VIDEO="$HOME/Astroport/${PLAYER}/video/${MOATS}/${fname}.mp4"
-if [[ -s ${VIDEO} ]]; then
-{
-    ffmpeg -i ${VIDEO} -vn -acodec pcm_s16le -ar 16000 -ac 1 ~/.zen/tmp/${fname}.wav
-    #~ curl -X POST -F "file=@${HOME}/.zen/tmp/${fname}.wav" http://127.0.0.1:54321/transcribe | jq '.transcription' > ~/Astroport/${PLAYER}/video/${MOATS}/transcription.txt
-} &
-fi
+## LOG RESULT
 cat $HOME/Astroport/${PLAYER}/video/${MOATS}/VIDEO_${MOATS}.dragdrop.json | jq -rc
-exit 0
+
+###################################################################################
+if [[ -s $HOME/Astroport/${PLAYER}/video/${MOATS}/VIDEO_${MOATS}.dragdrop.json ]]; then
+    ## ADD TIDDLER TO TW
+    (
+    $MY_PATH/tools/import_tiddler.sh ~/.zen/game/players/${PLAYER}/ipfs/moa/index.html $HOME/Astroport/${PLAYER}/video/${MOATS}/VIDEO_${MOATS}.dragdrop.json
+    ###############################
+    IPFSPOP=$(ipfs add -rwq ~/.zen/game/players/${PLAYER}/ipfs/moa/index.html | tail -n 1)
+    ipfs --timeout 120s name publish -k ${PLAYER} /ipfs/${IPFSPOP}
+    ) &
+    echo "% PUBLISHING ${PLAYER} ${myIPFS}/ipfs/${IPFSPOP}"
+    exit 0
+else
+    echo "Astroport Swallowing failed"
+    exit 1
+fi
+
+

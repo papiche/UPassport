@@ -631,8 +631,19 @@ async def start_recording(request: Request, player: str = Form(...), link: str =
     else:
         return templates.TemplateResponse("rec_form.html", {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False})
 
+from fastapi import Request, HTTPException, FastAPI
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from typing import Optional
+import re
+
+app = FastAPI()
+templates = Jinja2Templates(directory="templates")
+
+recording_process = None
+
 @app.get("/stop")
-async def stop_recording(player: Optional[str] = None):
+async def stop_recording(request: Request, player: Optional[str] = None):
     global recording_process
     if not recording_process:
         raise HTTPException(status_code=400, detail="No recording in progress to stop.")
@@ -648,9 +659,15 @@ async def stop_recording(player: Optional[str] = None):
 
     if return_code == 0:
         recording_process = None
-        return templates.TemplateResponse("rec_form.html", {"request": request, "message": f"Operation completed successfully {last_line.strip()}", "recording": False})
+        return templates.TemplateResponse(
+            "rec_form.html",
+            {"request": request, "message": f"Operation completed successfully {last_line.strip()}", "recording": False}
+        )
     else:
-        return templates.TemplateResponse("rec_form.html", {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False})
+        return templates.TemplateResponse(
+            "rec_form.html",
+            {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False}
+        )
 
 
 @app.route('/webhook', methods=['POST'])
