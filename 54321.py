@@ -631,17 +631,6 @@ async def start_recording(request: Request, player: str = Form(...), link: str =
     else:
         return templates.TemplateResponse("rec_form.html", {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False})
 
-from fastapi import Request, HTTPException, FastAPI
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-from typing import Optional
-import re
-
-app = FastAPI()
-templates = Jinja2Templates(directory="templates")
-
-recording_process = None
-
 @app.get("/stop")
 async def stop_recording(request: Request, player: Optional[str] = None):
     global recording_process
