@@ -27,44 +27,46 @@ PLAYER=$1
     && echo "UNKNOWN PLAYER ${PLAYER}" \
     && exit 1
 
-echo "${PLAYER} /REC ================================= "
-OUTPUT_DIR="$HOME/Astroport/$PLAYER/REC/$MOATS"
-mkdir -p "$OUTPUT_DIR"
-
 process_video() {
     local video_file=$1
-    local output_dir=$2
+    local astrog1=$2
 
-    # Transcription avec le script Python
-    python3 transcribe.whisper.py "$video_file" "$output_dir/transcription.txt"
+    filename=$(basename "$video_file")
+    echo "Le nom du fichier est : $filename"
+    fname=$(echo "${filename}" | sed -r 's/\<./\U&/g' | sed 's/ //g')
+    ## RECORD INTO TW
+    # ex: /home/$YOU/Astroport/${PLAYER}/... TyPE(film, youtube, mp3, video, pdf)/ REFERENCE /
+    mkdir -p ~/Astroport/${PLAYER}/video/${MOATS}/
+    mv "$video_file" ~/Astroport/${PLAYER}/video/${MOATS}/$fname \
+        && directory=$HOME/Astroport/${PLAYER}/video/${MOATS}
 
-    # Extraction d'images clés
-    ffmpeg -i "$video_file" -vf fps=1 "$output_dir/frame%03d.jpg"
+    ## IPFS SWALLOW : new_file_in_astroport.sh
+    ~/.zen/Astroport.ONE/tools/new_file_in_astroport.sh "$directory" "$fname" "$astrog1" "$PLAYER"
+    ## LOG RESULT
+    cat $HOME/Astroport/${PLAYER}/video/${MOATS}/VIDEO_${MOATS}.dragdrop.json | jq -rc
 
-    # Sélection aléatoire de 3 images
-    shuf -n 3 -e "$output_dir"/frame*.jpg > "$output_dir/selected_frames.txt"
-
-    # Reconnaissance d'objets avec Ollama API pour les 3 images sélectionnées
-    while IFS= read -r image; do
-        curl http://localhost:11434/api/generate -d '{
-            "model": "llava",
-            "prompt": "Describe what you see in this image?",
-            "images": ["'"$(base64 -w 0 "$image")"'"]
-        }' | jq -r '.response' >> "$output_dir/objects.txt"
-    done < "$output_dir/selected_frames.txt"
-
-    # Génération de résumé et métadonnées
-    transcription=$(cat "$output_dir/transcription.txt")
-    objects=$(cat "$output_dir/objects.txt")
-    curl http://localhost:11434/api/generate -d '{
-        "model": "llama2",
-        "prompt": "Based on the following transcription and recognized objects, generate a summary and metadata:\n\nTranscription: '"$transcription"'\n\nRecognized objects: '"$objects"'\n\nPlease provide:\n1. A brief summary\n2. Keywords\n3. Main topics\n4. Mood or tone"
-    }' | jq -r '.response' > "$output_dir/summary_metadata.txt"
-
-    # Nettoyage des fichiers temporaires
-    rm "$output_dir/selected_frames.txt"
+    ###################################################################################
+    if [[ -s $HOME/Astroport/${PLAYER}/video/${MOATS}/VIDEO_${MOATS}.dragdrop.json ]]; then
+        ## ADD TIDDLER TO TW
+        (
+        $MY_PATH/tools/import_tiddler.sh ~/.zen/game/players/${PLAYER}/ipfs/moa/index.html $HOME/Astroport/${PLAYER}/video/${MOATS}/VIDEO_${MOATS}.dragdrop.json
+        ###############################
+        IPFSPOP=$(ipfs add -rwq ~/.zen/game/players/${PLAYER}/ipfs/moa/index.html | tail -n 1)
+        ipfs --timeout 120s name publish -k ${PLAYER} /ipfs/${IPFSPOP}
+        ) &
+        echo "% PUBLISHING ${PLAYER} ${myIPFS}/ipfs/${IPFSPOP}"
+        exit 0
+    else
+        echo "Astroport Swallowing failed"
+        exit 1
+    fi
 }
 
+
+$(~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh ${PLAYER} | tail -n 1)
+echo "${PLAYER} /REC =========================== $ASTROG1 "
+OUTPUT_DIR="$HOME/Astroport/$PLAYER/video/$MOATS"
+mkdir -p "$OUTPUT_DIR"
 
 # Traitement du lien YouTube ou du fichier uploadé
 if [[ "$2" =~ ^link=(.*)$ ]]; then
@@ -80,20 +82,20 @@ if [[ "$2" =~ ^link=(.*)$ ]]; then
     UPLOADED_FILE="$(yt-dlp --get-filename -o "%(title)s.%(ext)s" "$VIDEO_LINK")"
     echo "Video downloaded and saved to: $UPLOADED_FILE"
 
-    process_video "$OUTPUT_DIR/$UPLOADED_FILE" "$OUTPUT_DIR"
+    process_video "$OUTPUT_DIR/$UPLOADED_FILE" "$ASTROG1"
 
 elif [[ "$2" =~ ^upload=(.*)$ ]]; then
     UPLOADED_FILE="${BASH_REMATCH[1]}"
     echo "Received uploaded file: $UPLOADED_FILE"
 
     cp "$UPLOADED_FILE" "$OUTPUT_DIR"
-    process_video "$OUTPUT_DIR/$(basename "$UPLOADED_FILE")" "$OUTPUT_DIR"
+    process_video "$OUTPUT_DIR/$(basename "$UPLOADED_FILE")" "$ASTROG1"
 
 elif [[ "$2" =~ ^blob=(.*)$ ]]; then
     BLOB_URL="${BASH_REMATCH[1]}"
     echo "Received blob URL: $BLOB_URL"
 
-    process_video "$BLOB_URL" "$OUTPUT_DIR"
+    process_video "$BLOB_URL" "$ASTROG1"
 
 else
     echo "No video link or uploaded file provided - OBS Recording - "

@@ -10,8 +10,6 @@ from dotenv import load_dotenv
 from typing import Optional
 import asyncio
 import aiofiles
-from vosk import Model, KaldiRecognizer
-import wave
 import json
 import os
 import logging
@@ -105,9 +103,6 @@ class MessageData(BaseModel):
     email: str
     message: str
 
-# chemin vers le modèle Vosk
-model = Model("./vosk_model/selected")
-logging.info(f"Vosk model loaded")
 
 # Créez le dossier 'tmp' s'il n'existe pas
 if not os.path.exists('tmp'):
@@ -145,32 +140,6 @@ async def run_script(script_path, *args, log_file_path="./tmp/54321.log"):
     logging.info(f"Script finished with return code: {return_code}")
 
     return return_code, last_line
-
-def convert_to_wav(input_file, output_file):
-    # Vérifier si le fichier est déjà au format WAV
-    if input_file.lower().endswith('.wav'):
-        # Si c'est le cas, copiez simplement le fichier
-        command = ['cp', input_file, output_file]
-    else:
-        # Sinon, procédez à la conversion
-        command = [
-            'ffmpeg',
-            '-i', input_file,
-            '-acodec', 'pcm_s16le',
-            '-ac', '1',
-            '-ar', '16000',
-            '-f', 'wav',
-            output_file
-        ]
-
-    try:
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-        logging.info(f"File processed: {output_file}")
-        logging.debug(f"Command output: {result.stdout}")
-    except subprocess.CalledProcessError as e:
-        logging.error(f"File processing failed: {e}")
-        logging.error(f"Error output: {e.stderr}")
-        raise
 
 
 ## DEFAULT = UPlanet Status
@@ -282,96 +251,6 @@ async def check_balance_route(g1pub: str):
         return {"balance": balance}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-@app.get("/voice")
-async def get_vosk(request: Request):
-    return templates.TemplateResponse("vosk.html", {"request": request})
-
-def format_time(seconds):
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    seconds = int(seconds % 60)
-    milliseconds = int((seconds % 1) * 1000)
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
-
-@app.post("/transcribe")
-async def transcribe_audio(file: UploadFile = File(...)):
-    file_location = f"tmp/{file.filename}"
-    wav_file_location = f"tmp/converted_{file.filename}.wav"
-    try:
-        logging.info(f"Début de la transcription pour le fichier: {file.filename}")
-
-        # Sauvegarder le fichier uploadé
-        async with aiofiles.open(file_location, 'wb') as out_file:
-            content = await file.read()
-            await out_file.write(content)
-        logging.debug(f"Fichier sauvegardé: {file_location}")
-
-        # Avant la conversion
-        mime = magic.Magic(mime=True)
-        file_type = mime.from_file(file_location)
-
-        if file_type != 'audio/x-wav':
-            # Convertir le fichier en WAV avec ffmpeg
-            convert_to_wav(file_location, wav_file_location)
-            audio_file = wav_file_location
-        else:
-            # Le fichier est déjà au format WAV, pas besoin de conversion
-            audio_file = file_location
-
-        # Ouvrir le fichier WAV converti
-        with wave.open(audio_file, "rb") as wf:
-            logging.debug(f"Fichier WAV ouvert: {audio_file}")
-            # Créer un recognizer
-            rec = KaldiRecognizer(model, wf.getframerate())
-            logging.debug(f"Recognizer créé avec le taux d'échantillonnage: {wf.getframerate()}")
-
-            result = []
-            current_time = 0
-            buffer = ""
-            last_timestamp = 0
-
-            while True:
-                data = wf.readframes(4000)  # Lire par petits morceaux
-                if len(data) == 0:
-                    break
-                if rec.AcceptWaveform(data):
-                    part_result = json.loads(rec.Result())
-                    if part_result['text']:
-                        buffer += part_result['text'] + " "
-                        current_time = wf.tell() / wf.getframerate()
-
-                        # Créer un nouveau segment si suffisamment de texte accumulé
-                        if len(buffer.split()) > 10 or current_time - last_timestamp > 5:
-                            result.append({
-                                'start': format_time(last_timestamp),
-                                'end': format_time(current_time),
-                                'text': buffer.strip()
-                            })
-                            buffer = ""
-                            last_timestamp = current_time
-
-            # Ajouter le dernier segment s'il reste du texte
-            if buffer:
-                result.append({
-                    'start': format_time(last_timestamp),
-                    'end': format_time(current_time),
-                    'text': buffer.strip()
-                })
-
-        return JSONResponse(content={"transcription": result})
-
-    except Exception as e:
-        logging.error(f"Erreur lors de la transcription: {str(e)}", exc_info=True)
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-    finally:
-        # Supprimer les fichiers temporaires
-        if os.path.exists(file_location):
-            os.remove(file_location)
-            logging.debug(f"Fichier temporaire supprimé: {file_location}")
-        if os.path.exists(audio_file):
-            os.remove(audio_file)
-            logging.debug(f"Fichier WAV temporaire supprimé: {wav_file_location}")
 
 @app.post("/upassport")
 async def scan_qr(parametre: str = Form(...), imageData: str = Form(None)):

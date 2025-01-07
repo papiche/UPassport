@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="/static/rec.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Astroport Studio 🎥</title>
     <link rel="stylesheet" href="/static/style.css">
@@ -106,8 +107,8 @@
 
     {% if not recording %}
     <div class="button-container">
+        <a href="https://voice.qo-op.com" target="_blank">🎙️ </a>
         <a href="https://screen.qo-op.com" target="_blank">📺 SCREEN</a>
-        <a href="https://voice.qo-op.com" target="_blank">🎙️ VOICE</a>
     </div>
 
     <form method="post" action="/rec" enctype="multipart/form-data">
