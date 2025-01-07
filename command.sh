@@ -1,5 +1,5 @@
 #!/bin/bash
-################################################################################
+################################################################### command.sh
 # Author: Fred (DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech)
 # Version: 1.0
 # License: AGPL-3.0 (https://choosealicense.com/licenses/agpl-3.0/)

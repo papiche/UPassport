@@ -1,5 +1,5 @@
 #!/bin/bash
-################################################################################
+##################################################################### zen_send.sh
 # RECEIVE SEND SEN COMMAND --- 1ST need ZenCard "AstroID" + PASS succesful scan
 ################################################################################
 # Author: Fred (DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech)

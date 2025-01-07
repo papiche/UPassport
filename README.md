@@ -1,116 +1,124 @@
-# UPassport
+# Astroport Studio: A Multimedia and Identity Platform for the Ğ1 Ecosystem
 
-UPassport est un générateur innovant de passeports numériques pour la monnaie libre Ğ1. Il crée des identités visuelles uniques basées sur les clés publiques des utilisateurs, tout en intégrant des fonctionnalités avancées de reconnaissance vocale et de stockage décentralisé.
+Astroport Studio is a versatile web application designed to interact with the Ğ1 (Junium) cryptocurrency ecosystem. It serves as a bridge between user interactions, multimedia handling, user identity generation, and the underlying Ğ1 network using the `Astroport.ONE` infrastructure.
 
-## 🌟 Fonctionnalités Principales
+## 🌟 Core Features
 
-- 🔐 Génération de passeports numériques personnalisés
-- 📱 Interface web responsive (mobile et desktop)
-- 🔗 Intégration avec le réseau Duniter et Cesium+
-- 🗣️ Reconnaissance vocale pour la transcription audio
-- 📊 Création de QR codes pour les relations entre membres
-- 🌐 Stockage décentralisé via IPFS
-- ++ Apprentissage IA avec [veXtorize](./veXtorize.md) Multi-Format Document Vectorizer
+*   **User Interaction**:
+    *   Interactive surveys to tailor user experience.
+    *   Dynamic presentations based on survey responses.
+    *   Intuitive interfaces for various actions.
+*   **Identity Management (UPassport)**:
+    *   Secure processing of digital passport information.
+    *   Processing public keys via QR code scans or direct entry.
+    *   Integration with a backend processing script to generate user profiles using `upassport.sh`.
+*   **Ğ1 Interaction**:
+    *   Check user account balances using public keys via the `COINScheck.sh` script.
+    *   Send messages with location and identity information via the `command.sh` script.
+    *   Handle secure data sharing.
+    *   Processing ZEN cryptocurrency transactions with `zen_send.sh`
+*   **Media Processing**:
+    *   Start/Stop OBS recording (via web interface), with integration to the underlying recording mechanisms.
+    *   Upload local video files to be processed by Astroport pipeline.
+    *   Download videos from YouTube links, processing them via Astroport pipeline.
+    *   Process audio and video blobs received from webcams using the `startrec.sh` script.
+    *   Integration to the underlying recording mechanisms (`startrec.sh` and `stoprec.sh`) including post-processing to handle IPFS integration with TiddlyWiki
+*   **Backend Scripting**:
+    *   Execution of shell scripts for core operations (IPFS handling, Ğ1 transactions, file processing).
+    *   Logging and error handling for all background operations.
+*   **Data Handling**:
+    *   Temporary storage for files (`tmp/`) and log files.
+    *   Use of Pydantic to validate incoming data.
+*   **Asynchronous Processing**:
+    *   Utilizes `asyncio` to concurrently handle requests and backend processes.
+    *   Ensures responsive behavior for end users.
 
-## 🚀 Pourquoi UPassport ?
+## 🚀 Why Astroport Studio?
 
-1. **Innovation Monétaire** : Soutient l'écosystème de la monnaie libre Ğ1.
-2. **Identité Numérique Sécurisée** : Crée des identités uniques et vérifiables.
-3. **Décentralisation** : Utilise IPFS pour un stockage distribué et résilient.
-4. **Accessibilité** : Interface conviviale et support multiplateforme.
-5. **Open Source** : Favorise la collaboration et l'amélioration continue.
+1.  **Integration**: Seamless interaction with the Ğ1 currency.
+2.  **Multimedia Support**: Handles video recording, uploads, and YouTube link downloads, and webcam recording.
+3.  **Decentralization**: Built with distributed storage in mind (IPFS integration).
+4.  **User-Centric**: Provides intuitive interfaces for various tasks.
+5.  **Extensibility**: Leverages external shell scripts for custom logic.
 
-## 📋 Prérequis
+## 📋 Prerequisites
 
-- Python 3.7+
-- Node.js et npm
-- FFmpeg
-- ImageMagick
-- IPFS
-- GPG
-- NaCl
+*   Python 3.7+
+*   Node.js and npm
+*   FFmpeg
+*   ImageMagick
+*   IPFS
+*   GPG
+*   NaCl
+*   Astroport.ONE installation (as described below)
 
 ## 🛠️ Installation
 
-Si c'est votre machine personnelle (Linux), créez un nouveau compte utilisateur pour y installer "UPassport" et "Astroport.ONE"
+1.  **Clone the repository:**
 
-1. Clonez le dépôt UPassport :
-   ```
-   git clone https://github.com/papiche/UPassport.git
-   cd UPassport
-   ```
-
-2. Installez **Astroport.ONE** :
-   ```
-   bash <(wget -qO- https://raw.githubusercontent.com/papiche/Astroport.ONE/master/install.sh)
-   ```
-
-   * Créez un compte capitaine ```~/.zen/Astroport.ONE/command.sh```
-
-   OPTION : rejoindre la toile de confiance "Dragons", suivre la procédure http://pad.p2p.legal/s/keygen pour relier votre clef PGP (ou SSH) à la balise IPFS de votre Station AstroportONE
-
-
-3. Installez les dépendances Python (il peut en manquer, signaler celles qui manquent) :
-
-Vous devriez vous trouver dans l'environnement python ".astro", sinon créer et activer le
+2.  **Install Astroport.ONE:**
+    ```bash
+    bash <(wget -qO- https://raw.githubusercontent.com/papiche/Astroport.ONE/master/install.sh)
     ```
+    * Create a captain user by running the command  `~/.zen/Astroport.ONE/command.sh`
+    * OPTIONAL : Join the Dragons Web of Trust, link your SSH key to your Astroport.ONE IPFS
+
+3.  **Create and activate a Python virtual environment (optional but highly recommended):**
+    ```bash
     python -m venv .astro
     . ~/.astro/bin/activate
     ```
 
-   ```
-   pip3 install fastapi uvicorn vosk sounddevice pydantic[email]
-   ```
+4.  **Install Python dependencies:**
+    ```bash
+    pip install fastapi uvicorn vosk sounddevice pydantic[email] python-multipart
+    ```
 
+## 🖥️ Usage
 
-## 🖥️ Utilisation
+1.  **Launch the application:**
+    ```bash
+     python ./54321.py
+    ```
 
-1. Lancez l'application :
-   ```
-   python ./54321.py
+2.  Access the application via your browser at `http://localhost:54321`.
 
-   ```
-
-2. Accédez à `http://localhost:54321` dans votre navigateur.
-
-3. Utilisez l'interface pour :
-   - Scanner un QR code
-   - Entrer une clé publique Ğ1
-   - Essayez la transcription vocale (http://localhost:54321/voice)
+3.  Explore the various functionalities including:
+    *   Interactive questionnaire at `/enter`.
+    *   Video recording and media processing at `/rec`.
+    *   QR Code scanning and UPassport features at `/scan`.
+    *   Balance checks with G1 public keys at `/check_balance?g1pub=<pubkey>`.
 
 ## 🛠️ Configuration
 
-- Modifiez les URLs des nœuds dans le fichier `.env`
-- Personnalisez les templates HTML dans `templates/`
+*   Adjust environment settings in the `.env` file (e.g., node URLs).
+*   Modify HTML templates in the `templates/` directory for UI customization.
+*   Ensure proper permissions for executing shell scripts.
 
-## 🤝 Comment Contribuer
+## 🤝 How to Contribute
 
-Nous accueillons chaleureusement toutes les contributions ! Voici comment vous pouvez participer :
+Contributions are highly appreciated! Here’s how you can help:
 
-1. 🐛 Signalez des bugs ou suggérez des améliorations via les issues GitHub.
-2. 💡 Proposez de nouvelles fonctionnalités ou des améliorations de code.
-3. 🔧 Soumettez des pull requests pour corriger des bugs ou ajouter des fonctionnalités.
-4. 📚 Améliorez la documentation ou ajoutez des traductions.
-5. 🧪 Participez aux tests et à l'assurance qualité.
+1.  🐛 Report issues and bugs.
+2.  💡 Suggest new features and improvements.
+3.  🔧 Submit pull requests for fixes and enhancements.
+4.  📚 Improve the documentation.
+5.  🧪 Help with testing.
 
-Consultez notre [guide de contribution](CONTRIBUTING.md) pour plus de détails.
+## 📄 License
 
-## 📄 Licence
+This project is licensed under the AGPL-3.0 License. See the [LICENSE](LICENSE) file for more details.
 
-Ce projet est sous licence AGPL-3.0. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
-
-## 👤 Auteur
+## 👤 Author
 
 Fred (DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech)
 
-## 🙏 Remerciements
+## 🙏 Acknowledgements
 
-- Communauté Ğ1 et Duniter
-- Contributeurs des bibliothèques utilisées
-- Équipe Vosk pour la reconnaissance vocale
+*   Ğ1 and Duniter community
+*   Contributors to the utilized libraries.
+*   Vosk team for speech recognition tools.
 
 ## 📚 Documentation
 
-Pour une documentation complète, visitez notre [wiki](https://github.com/papiche/UPassport/wiki).
-
-Rejoignez-nous dans cette aventure passionnante pour façonner l'avenir de l'identité numérique et de la monnaie libre !
+We invite you to be part of this project shaping the future of digital identity, and multimedia management within the Ğ1 ecosystem!
