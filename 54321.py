@@ -537,12 +537,20 @@ async def stop_recording(request: Request, player: Optional[str] = None):
             {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False}
         )
 
-
-@app.route('/webhook', methods=['POST'])
-def get_webhook():
+@app.post('/ping')
+async def get_webhook(request: Request):
     if request.method == 'POST':
-        print("received data: ", request.json)
-        return {"received": request.json}
+        try:
+            data = await request.json()  # Get the request body as JSON
+            referer = request.headers.get("referer")  # Access the Referer header
+
+            log_message = f"Received PING: {data}, Referer: {referer}"
+            logging.info(log_message)
+            return {"received": data, "referer": referer}
+        except Exception as e:
+           logging.error(f"Error processing ping request: {e}")
+           raise HTTPException(status_code=400, detail=f"Invalid request data: {e}")
+
     else:
         raise HTTPException(status_code=400, detail="Invalid method.")
 

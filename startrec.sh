@@ -72,7 +72,7 @@ mkdir -p "$OUTPUT_DIR"
 if [[ "$2" =~ ^link=(.*)$ ]]; then
     VIDEO_LINK="${BASH_REMATCH[1]}"
     echo "Received video link: $VIDEO_LINK"
-
+    (
     yt-dlp -f 'bv[height<=720]+ba[language=fr]/b[height<=720]' -o "$OUTPUT_DIR/%(title)s.%(ext)s" "$VIDEO_LINK"
 
     if [ ! $? -eq 0 ]; then
@@ -83,6 +83,7 @@ if [[ "$2" =~ ^link=(.*)$ ]]; then
     echo "Video downloaded and saved to: $UPLOADED_FILE"
 
     process_video "$OUTPUT_DIR/$UPLOADED_FILE" "$ASTROG1"
+    ) &
 
 elif [[ "$2" =~ ^upload=(.*)$ ]]; then
     UPLOADED_FILE="${BASH_REMATCH[1]}"
