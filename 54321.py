@@ -537,6 +537,39 @@ async def stop_recording(request: Request, player: Optional[str] = None):
             {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False}
         )
 
+@app.get("/uplanet", response_class=HTMLResponse)
+async def welcomeuplanet(request: Request):
+    return templates.TemplateResponse("uplanet.html", {"request": request})
+
+@app.post("/uplanet")
+async def uplanet(request: Request):
+    try:
+        data = await request.json()
+        email = data.get('email')
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+
+        # Logging
+        logging.info(f"email account : {email}")
+        logging.info(f"latitude : {latitude}")
+        logging.info(f"longitude : {longitude}")
+
+        # Appel du script UPLANET.sh
+        script_path = "~/.zen/Astroport.ONE/API/UPLANET.sh"
+        command = f"{script_path} {email} {latitude} {longitude}"
+
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+
+        if result.returncode == 0:
+            return JSONResponse(content={"status": "success", "message": "UPlanet account created successfully"})
+        else:
+            logging.error(f"UPLANET.sh script error: {result.stderr}")
+            raise HTTPException(status_code=500, detail={"status": "error", "message": "Failed to create UPlanet account"})
+
+    except Exception as e:
+        logging.error(f"Error processing uplanet request: {e}")
+        raise HTTPException(status_code=500, detail={"status": "error", "message": str(e)})
+
 @app.post('/ping')
 async def get_webhook(request: Request):
     if request.method == 'POST':

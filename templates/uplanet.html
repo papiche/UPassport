@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPlanet Zero - Votre Identité Nostr</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        .container {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        input, button {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #e8f5e9;
+            display: none;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        #countdown {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Obtenez votre identité Nostr sur UPlanet Zero</h1>
+
+        <h2>Pourquoi activer votre compte UPlanet ?</h2>
+        <ul>
+            <li>Rejoignez un réseau décentralisé et sécurisé</li>
+            <li>Gardez le contrôle total de vos données</li>
+            <li>Participez à la Web of Trust (WoT) Nostr</li>
+            <li>Intégrez-vous à l'écosystème de la monnaie libre G1</li>
+            <li>Bénéficiez d'une identité numérique unique et portable</li>
+        </ul>
+
+        <form id="nostrForm">
+            <input type="email" id="email" placeholder="Votre adresse e-mail" required>
+            <button type="submit">Obtenir mon identité Nostr</button>
+        </form>
+
+        <p id="status"></p>
+        <div id="countdown"></div>
+    </div>
+
+    <script>
+        document.getElementById('nostrForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const statusElement = document.getElementById('status');
+            const countdownElement = document.getElementById('countdown');
+
+            statusElement.style.display = 'block';
+            statusElement.textContent = "Traitement en cours...";
+
+            let countdown = 10;
+            countdownElement.style.display = 'block';
+
+            const countdownInterval = setInterval(() => {
+                countdownElement.textContent = `Temps estimé : ${countdown} secondes`;
+                countdown--;
+                if (countdown < 0) {
+                    clearInterval(countdownInterval);
+                    countdownElement.style.display = 'none';
+                }
+            }, 1000);
+
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
+
+                    fetch('/uplanet', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            email: email,
+                            latitude: latitude,
+                            longitude: longitude
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        clearInterval(countdownInterval);
+                        countdownElement.style.display = 'none';
+                        statusElement.textContent = "Votre identité Nostr a été calculée et envoyée à votre adresse e-mail. Pour activer votre compte UPlanet, envoyez 1 G1 depuis votre compte membre.";
+                        statusElement.style.backgroundColor = "#e8f5e9";
+                    })
+                    .catch(error => {
+                        clearInterval(countdownInterval);
+                        countdownElement.style.display = 'none';
+                        statusElement.textContent = "Une erreur s'est produite. Veuillez réessayer.";
+                        statusElement.style.backgroundColor = "#ffebee";
+                    });
+                }, function() {
+                    clearInterval(countdownInterval);
+                    countdownElement.style.display = 'none';
+                    statusElement.textContent = "Impossible d'obtenir votre position. Veuillez autoriser l'accès à votre localisation.";
+                    statusElement.style.backgroundColor = "#fff3e0";
+                });
+            } else {
+                clearInterval(countdownInterval);
+                countdownElement.style.display = 'none';
+                statusElement.textContent = "La géolocalisation n'est pas supportée par votre navigateur.";
+                statusElement.style.backgroundColor = "#fff3e0";
+            }
+        });
+    </script>
+</body>
+</html>

@@ -366,6 +366,7 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         echo "........... ZEROCARD NOT ACTIVATED YET"
     fi
 
+    ## CHECK IF OUTGOING TX
     if [ "$(echo "$LASTX < 0" | bc)" -eq 1 ]; then
     ######################################################################
       echo "TX: $DEST ($COMM)"
