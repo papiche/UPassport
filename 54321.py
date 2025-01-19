@@ -556,12 +556,12 @@ async def uplanet(request: Request):
 
         # Appel du script UPLANET.sh
         script_path = "~/.zen/Astroport.ONE/API/UPLANET.sh"
-        command = f"{script_path} {email} {latitude} {longitude}"
+        return_code, last_line = await run_script(script_path, email, "zlat", latitude, "zlon", longitude)
 
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
-
-        if result.returncode == 0:
-            return JSONResponse(content={"status": "success", "message": "UPlanet account created successfully"})
+        if return_code == 0:
+            returned_file_path = last_line.strip()
+            logging.info(f"Returning file: {last_line}")
+            return FileResponse(last_line)
         else:
             logging.error(f"UPLANET.sh script error: {result.stderr}")
             raise HTTPException(status_code=500, detail={"status": "error", "message": "Failed to create UPlanet account"})

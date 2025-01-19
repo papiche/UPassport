@@ -95,6 +95,91 @@ Astroport Studio is a versatile web application designed to interact with the Ğ
 *   Modify HTML templates in the `templates/` directory for UI customization.
 *   Ensure proper permissions for executing shell scripts.
 
+---
+
+Détaillons la gestion fonctionnelle des ZEROCARDS et des NOSTRCARDS dans le script `upassport.sh`.
+
+**ZEROCARD : Identité secondaire et passeport décentralisé**
+
+1.  **Objectif principal :** Une ZEROCARD est une identité secondaire liée à une identité Duniter principale. Elle sert de "passeport numérique" dans un écosystème décentralisé. Elle est conçue pour :
+    *   **Représenter une identité sur un espace IPFS:** La Zerocard permet d'avoir un `DRIVESTATE`, c'est à dire une page HTML dynamique stockée sur IPFS, mise à jour via une clé IPNS, liée à un utilisateur principal (un "membre" Duniter).
+    *   **Activer un écosystème décentralisé :** Chaque ZEROCARD peut interagir avec d'autres, déclencher des commandes ou contrôler des applications sur IPFS.
+
+2.  **Processus de création et d'activation :**
+    *   **Génération de clés :** Une paire de clés Duniter est générée, et une clé IPFS est générée, cette dernière est cryptée et liée à l'identité principale.
+    *   **Enregistrement :** Les données de la ZEROCARD (clé publique, etc.) sont stockées dans des fichiers PDF/HTML et mises à jour sur IPFS.
+    *   **Initialisation :** L'activation d'une ZEROCARD se fait par un transfert sortant (TX) de la part de l'identité principale. Après une transaction de la part de l'identité principale vers la clé publique de la Zerocard, le script va :
+        *   Extraire les données de la ZEROCARD.
+        *   Déployer une première DApp sur IPFS.
+        *   Ré-organiser les informations dans l'arborescence IPFS.
+        *   Chiffrer les données sensibles de la ZEROCARD.
+    *   **Mise à jour dynamique:** Les actions (TX et commentaires) de l'utilisateur principal sont interprétées par le script, pour modifier le contenu du driveState. Ce mécanisme permet de mettre en place des commandes vers un espace IPFS.
+    *   **Clé IPNS dédiée :** La ZEROCARD est liée à une clé IPNS qui permet de mettre à jour le `DRIVESTATE` associé. Ce `DRIVESTATE` est utilisé comme porte d'entrée vers un contenu IPFS dynamique (par exemple un portfolio, un blog, un e-commerce etc.)
+    *   **Protection:** L'accès au contenu de la ZEROCARD, et la gestion du `DRIVESTATE`, est protégée par l'identité principale et un mot de passe (UPLANETNAME), ainsi que par une partie du secret SSSS lié à la création de l'espace ZEROCARD.
+
+3.  **Fonctionnement :**
+    *   **Commandes :** L'identité principale peut envoyer des transactions avec des commentaires spécifiques vers la ZEROCARD. Le script interprète ces commentaires comme des commandes (dans le script : `command.sh`), déclenchant des actions sur la ZEROCARD.
+    *   **Redirection Drivestate :** Le contenu du `DRIVESTATE` de la ZEROCARD peut rediriger l'utilisateur vers d'autres applications web sur IPFS.
+    *   **Stockage distribué :** Toutes les données sont stockées sur IPFS, ce qui garantit leur disponibilité et leur pérennité.
+    *   **Sécurité :** Les données sensibles de la ZEROCARD sont chiffrées et protégées. La clé IPNS est elle même chiffrée.
+    *   **Gestion du cycle de vie:** Le mécanisme permet de gérer l'activation et la désactivation du contenu.
+
+**NOSTRCARD : Identité Nostr liée à une identité G1**
+
+1.  **Objectif principal :** Une NOSTRCARD permet de lier une identité Nostr à une identité Duniter (G1). Elle est utilisée pour :
+    *   **Créer une identité Nostr :** Elle génère des clés Nostr publiques et privées.
+    *   **Associer Nostr à Duniter :** Elle lie l'identité Nostr à un membre Duniter et à un e-mail
+    *   **Stockage décentralisé :** L'identité Nostr et les données associées sont stockées sur IPFS, et accessibles via un `NOSTRVAULT` en IPNS.
+    *   **Utilisation dans l'écosystème décentralisé :** Elle utilise l'adresse mail comme point de liaison vers l'utilisateur principal.
+    *   **Récupérer une identité :** L'identité Nostr est récupérable grâce à un ssss-split, partagé entre 3 acteurs (via QR code ou autre).
+
+2.  **Processus de création :**
+    *   **Analyse du QR code (email):** L'analyse du QRcode reçu comme une adresse email déclenche la création d'une identité NOSTRCARD.
+    *   **Génération de clés :** Une paire de clés Nostr est générée.
+    *   **Génération de clés :** Une paire de clés Duniter est générée.
+    *   **Distribution des clés :** Les données d'identification (les clés) sont ensuite protégées via une distribution Shamir secret sharing et distribuées (via QR Codes) à 3 acteurs.
+    *   **Stockage :** Les clés Nostr sont stockées en local.
+    *   **Stockage IPNS :** L'ensemble des données (clé nostr, clé g1, les ssss parts, etc.) sont ensuite regroupées et envoyées sur IPFS et liées à un espace `NOSTRVAULT` en IPNS.
+    *   **Publication du vault :** Une clé IPNS est générée pour mettre à jour l'espace `NOSTRVAULT` et est liée à la clé publique duniter.
+    *   **Protection :** L'accès aux données sensibles de la NOSTRCARD est protégé par les clés et par un password (UPLANETNAME).
+
+3.  **Fonctionnement :**
+    *   **Ecosystème Nostr :** Elle permet à l'utilisateur d'utiliser Nostr avec son identité G1.
+    *   **Récupération de l'identité:** Elle permet de retrouver l'accès à son identité Nostr, via les 3 clés ssss.
+    *   **Stockage de données :** Toutes les données sont stockées sur IPFS, et disponibles via IPNS.
+    *   **Sécurité :** Les données sensibles de la NOSTRCARD sont chiffrées et protégées.
+
+**Comparaison fonctionnelle**
+
+| Caractéristique        | ZEROCARD                                            | NOSTRCARD                                           |
+| --------------------- | --------------------------------------------------- | ---------------------------------------------------- |
+| **Objectif**          | Identité secondaire, "passeport" décentralisé.     | Identité Nostr liée à une identité G1.              |
+| **Déclencheur**        | Envoi d'un QR code de type clé publique G1       | Envoi d'un QR code de type adresse email           |
+| **Utilisation**       | Contrôle d'applications et identité sur IPFS      | Accès au réseau Nostr et gestion de l'identité.      |
+| **Cycle de vie**    |  Déploiement dynamique via tx de l'identité principale |  Création par ssss-split des données, puis déploiement IPFS  |
+| **Structure**        | Structure hiérarchique, mise à jour via transactions  | Structure autonome, avec récupération du vault via SSSS |
+| **Interaction**       | Interaction avec l'identité principale via commentaires | Interaction avec le réseau Nostr et récupération.     |
+| **Sécurité**           | Clés chiffrées, stockage IPFS, accès à un mot de passe (UPLANETNAME) | Clés Nostr et G1 stockées et chiffrées, accès via SSSS, et via un mot de passe. |
+| **Distribution du secret**  | Clé IPNS chiffrée via clé Captain et UPLANETNAME | Clé Nostr et ssss parties distribuées via 3 acteurs. |
+| **Gestion**        | Le controle est du coté du G1 | Le contrôle est du coté de l'utilisateur |
+
+**Points clés**
+
+*   **Hiérarchie vs Autonomie :** La ZEROCARD est hiérarchique et contrôlée par l'identité principale, tandis que la NOSTRCARD est autonome, gérée et récupérable par l'utilisateur principal via un système ssss-split.
+*   **Focus :** La ZEROCARD est axée sur le contrôle décentralisé des applications et la gestion de l'identité sur IPFS (Drivestate), tandis que la NOSTRCARD se concentre sur l'accès au réseau Nostr et la protection des données.
+*   **Complexité :** Les ZEROCARDS ont un cycle de vie plus complexe et sont plus liées à des mécanismes IPFS/blockchain (notamment le `DRIVESTATE`)  alors que les NOSTRCARDS sont plus "simples" dans leurs fonctionnements (un enregistrement IPFS + une gestion de clé).
+
+**En résumé**
+
+Les ZEROCARDS et les NOSTRCARDS sont deux types d'identités différentes dans cet écosystème :
+
+*   La **ZEROCARD** est un outil pour activer un espace IPFS lié à un utilisateur principal via une interface dynamique.
+*   La **NOSTRCARD** permet de créer et de récupérer une identité Nostr en la liant à un utilisateur et une identité G1.
+
+Elles utilisent toutes deux IPFS pour le stockage et une forme de protection des données, mais avec des objectifs et des approches distincts.
+
+---
+
 ## 🤝 How to Contribute
 
 Contributions are highly appreciated! Here’s how you can help:

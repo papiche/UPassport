@@ -12,6 +12,7 @@ venv.bak/
 ## App
 tmp/
 pdf/
+nostr/
 cards/
 vosk_model/
 models/
