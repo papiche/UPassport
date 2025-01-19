@@ -217,6 +217,18 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     echo "${G1PUBNOSTR}:NOSTR ${EMAIL} STORAGE: /ipns/$NOSTRNS"
     echo "/ipns/$NOSTRNS" > ${HOME}/.zen/game/nostr/${EMAIL}/NOSTRNS
 
+    amzqr "${ipfsNODE}/ipns/$NOSTRNS" -l H -p ${MY_PATH}/static/img/moa_net.png -c -n ${G1PUBNOSTR}.IPNS.QR.png -d ${MY_PATH}/tmp/ 2>/dev/null
+    convert ${MY_PATH}/tmp/${G1PUBNOSTR}.IPNS.QR.png \
+        -gravity SouthWest \
+        -pointsize 18 \
+        -fill black \
+        -annotate +2+2 "[APP] $NOSTRNS" \
+        -annotate +1+3 "[APP] $NOSTRNS" \
+        ${HOME}/.zen/game/nostr/${EMAIL}/IPNS.QR.png
+
+    VAULTNSQR=$(ipfs add -q ${HOME}/.zen/game/nostr/${EMAIL}/IPNS.QR.png)
+    ipfs pin rm /ipfs/${VAULTNSQR}
+
     ## HEAD SSSS CLEAR
     amzqr "$(cat ${MY_PATH}/tmp/${EMAIL}.ssss.head)" -l H -p ${MY_PATH}/static/img/nostr_cloud.png -c -n ${EMAIL}.QR.png -d ${MY_PATH}/tmp/ 2>/dev/null
     SSSSQR=$(ipfs add -q ${MY_PATH}/tmp/${EMAIL}.QR.png)
@@ -248,6 +260,7 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             -e "s~toto@yopmail.com~${EMAIL}~g" \
             -e "s~QmdmeZhD8ncBFptmD5VSJoszmu41edtT265Xq3HVh8PhZP~${SSSSQR}~g" \
             -e "s~Qma4ceUiYD2bAydL174qCSrsnQRoDC3p5WgRGKo9tEgRqH~${G1PUBNOSTRQR}~g" \
+            -e "s~QmPV9NfaeYfZzYPaQGs9BZvMBY2t3n2SC8jodSH4zsWZak~${VAULTNSQR}~g" \
             -e "s~_NOSTRVAULT_~/ipns/${NOSTRNS}~g" \
             -e "s~_CAPTAINEMAIL_~${CAPTAINEMAIL}~g" \
             -e "s~_NOSTRG1PUB_~${G1PUBNOSTR}~g" \

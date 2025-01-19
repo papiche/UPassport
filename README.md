@@ -190,6 +190,16 @@ Contributions are highly appreciated! Here’s how you can help:
 4.  📚 Improve the documentation.
 5.  🧪 Help with testing.
 
+## 🤝 Comment Contribuer
+
+Votre contribution est la bienvenue ! Voici quelques pistes pour nous aider :
+
+1.  **Signalement des Problèmes :** Signalez les bugs et les problèmes rencontrés.
+2.  **Suggestions d'Améliorations :** Proposez de nouvelles fonctionnalités et des améliorations.
+3.  **Soumission de Pull Requests :** Soumettez des pull requests pour corriger des bugs et améliorer le code.
+4.  **Amélioration de la Documentation :** Aidez à améliorer la documentation du projet.
+5.  **Test :** Aidez-nous à tester les nouvelles fonctionnalités.
+
 ## 📄 License
 
 This project is licensed under the AGPL-3.0 License. See the [LICENSE](LICENSE) file for more details.
@@ -202,7 +212,7 @@ Fred (DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech)
 
 *   Ğ1 and Duniter community
 *   Contributors to the utilized libraries.
-*   Vosk team for speech recognition tools.
+*   Vosk and openai-whisper team for speech recognition tools.
 
 ## 📚 Documentation
 
