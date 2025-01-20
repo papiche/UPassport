@@ -1,6 +1,6 @@
-# Astroport Studio: A Multimedia and Identity Platform for the Ğ1 Ecosystem
+# UPassport: A Multimedia and Identity Platform for the Ğ1 Ecosystem
 
-Astroport Studio is a versatile web application designed to interact with the Ğ1 (Junium) cryptocurrency ecosystem. It serves as a bridge between user interactions, multimedia handling, user identity generation, and the underlying Ğ1 network using the `Astroport.ONE` infrastructure.
+UPassport is a versatile web application designed to interact with the Ğ1 (Duniter) cryptocurrency ecosystem. It serves as a bridge between user interactions, multimedia handling, user identity generation, and the underlying Ğ1 network using the `Astroport.ONE` infrastructure.
 
 ## 🌟 Core Features
 

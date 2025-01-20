@@ -157,8 +157,6 @@ fi
 if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     EMAIL="$QRCODE"
     echo "Email detected: $EMAIL"
-    [[ -s "${MY_PATH}/tmp/${EMAIL}_index.html" ]] \
-        && rm -Rf "${HOME}/.zen/game/nostr/${EMAIL}/" ## CLEANING OLD NOSTR
 
     ############################################## PREPARE SALT PEPPER
     SALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
@@ -217,7 +215,7 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     echo "${G1PUBNOSTR}:NOSTR ${EMAIL} STORAGE: /ipns/$NOSTRNS"
     echo "/ipns/$NOSTRNS" > ${HOME}/.zen/game/nostr/${EMAIL}/NOSTRNS
 
-    amzqr "${ipfsNODE}/ipns/$NOSTRNS" -l H -p ${MY_PATH}/static/img/moa_net.png -c -n ${G1PUBNOSTR}.IPNS.QR.png -d ${MY_PATH}/tmp/ 2>/dev/null
+    amzqr "${ipfsNODE}/ipns/$NOSTRNS" -l H -p ${MY_PATH}/static/img/no_str.png -c -n ${G1PUBNOSTR}.IPNS.QR.png -d ${MY_PATH}/tmp/ 2>/dev/null
     convert ${MY_PATH}/tmp/${G1PUBNOSTR}.IPNS.QR.png \
         -gravity SouthWest \
         -pointsize 18 \
@@ -230,7 +228,7 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     ipfs pin rm /ipfs/${VAULTNSQR}
 
     ## HEAD SSSS CLEAR
-    amzqr "$(cat ${MY_PATH}/tmp/${EMAIL}.ssss.head)" -l H -p ${MY_PATH}/static/img/nostr_cloud.png -c -n ${EMAIL}.QR.png -d ${MY_PATH}/tmp/ 2>/dev/null
+    amzqr "$(cat ${MY_PATH}/tmp/${EMAIL}.ssss.head)" -l H -p ${MY_PATH}/static/img/key.png -c -n ${EMAIL}.QR.png -d ${MY_PATH}/tmp/ 2>/dev/null
     SSSSQR=$(ipfs add -q ${MY_PATH}/tmp/${EMAIL}.QR.png)
     ipfs pin rm /ipfs/${SSSSQR}
 
@@ -248,10 +246,6 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     G1PUBNOSTRQR=$(ipfs add -q ${HOME}/.zen/game/nostr/${EMAIL}/G1PUBNOSTR.QR.png)
     ipfs pin rm /ipfs/${G1PUBNOSTRQR}
 
-    NOSTRIPFS=$(ipfs add -rwq ${HOME}/.zen/game/nostr/${EMAIL}/ | tail -n 1)
-    ipfs name publish --key "${G1PUBNOSTR}:NOSTR" /ipfs/${NOSTRIPFS} 2>&1 >/dev/null &
-    ipfs key rm "${G1PUBNOSTR}:NOSTR"
-
     ##############################################################
     ### PREPARE NOSTR ZINE
     cat ${MY_PATH}/static/zine/nostr.html \
@@ -260,16 +254,19 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             -e "s~toto@yopmail.com~${EMAIL}~g" \
             -e "s~QmdmeZhD8ncBFptmD5VSJoszmu41edtT265Xq3HVh8PhZP~${SSSSQR}~g" \
             -e "s~Qma4ceUiYD2bAydL174qCSrsnQRoDC3p5WgRGKo9tEgRqH~${G1PUBNOSTRQR}~g" \
-            -e "s~QmPV9NfaeYfZzYPaQGs9BZvMBY2t3n2SC8jodSH4zsWZak~${VAULTNSQR}~g" \
+            -e "s~Qmeu1LHnTTHNB9vex5oUwu3VVbc7uQZxMb8bYXuX56YAx2~${VAULTNSQR}~g" \
             -e "s~_NOSTRVAULT_~/ipns/${NOSTRNS}~g" \
             -e "s~_CAPTAINEMAIL_~${CAPTAINEMAIL}~g" \
             -e "s~_NOSTRG1PUB_~${G1PUBNOSTR}~g" \
             -e "s~_UPLANET8_~UPlanet:${UPLANETG1PUB:0:8}~g" \
             -e "s~_DATE_~$(date -u)~g" \
             -e "s~http://127.0.0.1:8080~${myIPFS}~g" \
-        > ${MY_PATH}/tmp/${EMAIL}_index.html
+        > ${HOME}/.zen/game/nostr/${EMAIL}/_index.html
 
-    echo "${MY_PATH}/tmp/${EMAIL}_index.html"
+    NOSTRIPFS=$(ipfs add -rwq ${HOME}/.zen/game/nostr/${EMAIL}/ | tail -n 1)
+    ipfs name publish --key "${G1PUBNOSTR}:NOSTR" /ipfs/${NOSTRIPFS} 2>&1 >/dev/null &
+
+    echo "${HOME}/.zen/game/nostr/${EMAIL}/_index.html"
     exit 0
 fi
 
