@@ -226,6 +226,26 @@
           background-color: #1976D2;
         }
 
+        .camera-controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .camera-controls button {
+        padding: 10px 15px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      .camera-controls button:hover {
+        background-color: #45a049;
+      }
     </style>
 </head>
 <body>
@@ -239,6 +259,14 @@
             <div class="planet planet3"></div>
             <div class="planet planet4"></div>
         </div>
+        <div class="camera-controls">
+          <button id="start-camera">Activer caméra</button>
+          <button id="stop-camera">Désactiver caméra</button>
+          <button id="take-photo">Prendre photo</button>
+        </div>
+        <div id="image-container">
+           <img id="captured-image" style="display: none; max-width: 100%; margin-top: 10px;" />
+        </div>
         <form id="qr-form">
             <label for="parametre">*** Enter EMAIL || Scan QRCODE ***</label>
             <input type="text" id="parametre" name="parametre" size=30 required>
@@ -251,13 +279,14 @@
         "<span id="coeurBOX"><b>♥BOX</b></span>"
         <br><b>USCAN</b> ~ UPlanet Terminal ~
             <ul>
-            <li>1) Scannez le QR Code d'une Clé Publique (Forgeron DU) [1].</li>
-            <li>2) Scannez le QR Code d'une "ZEROCARD" (UPassport) [2].</li>
-            <li>3) Scannez le QR Code d'une "ẐenCard" (MULTIPASS) [3].</li>
-            <li>4) Saisissez un email." [4].</li>
+            <li>1) Scannez une Clé Publique (Forgeron DU) [1].</li>
+            <li>2) Scannez le QR Code IPNS d'une "ZEROCARD" (UPassport) [2].</li>
+            <li>3) Scannez le QR Code ~~~~ d'une "ẐenCard" (MULTIPASS) [3].</li>
+            <li>4) Saisissez un email et fabriquez votre NOSTRCARD [4].</li>
             </ul>
         <br><b>MULTIPASS</b> (<span id="ZenCard">ZenCard</span>) ~ une Carte pour recevoir et échanger en Ẑen ~
         <br><b>UPassport</b> (<span id="ZEROCARD">ZEROCARD</span>) ~ une Carte pour explorer votre toile de confiance ~
+        <br><b>NOSTR</b> (<span id="NOSTRCARD">NOSTRCARD</span>) ~ une Carte pour relier vos toile de confiance ~
 
    </div>
     <div class="result-container">
@@ -374,6 +403,10 @@
     }
     // Initialisation du scanner
     let scanner = new Instascan.Scanner(opts);
+    let cameraActive = false;
+    let activeCamera = null;
+
+
     scanner.addListener('scan', function (content) {
         document.getElementById("parametre").value = content;
         $('#submitButton').css('background-color', '#0000FF');
@@ -393,9 +426,63 @@
         // $('#qr-form').submit();
     });
 
+    // Activer la caméra
+    document.getElementById('start-camera').addEventListener('click', function() {
+        if (!cameraActive) {
+            Instascan.Camera.getCameras().then(function (cameras) {
+                if (cameras.length > 0) {
+                    activeCamera = cameras[0]; // Stocke la caméra active
+                    scanner.start(activeCamera);
+                    cameraActive = true;
+                } else {
+                    console.error('No cameras found.');
+                }
+            }).catch(function (e) {
+                console.error(e);
+            });
+        }
+    });
+
+    // Désactiver la caméra
+    document.getElementById('stop-camera').addEventListener('click', function() {
+        if (cameraActive) {
+            scanner.stop();
+            cameraActive = false;
+            $('#captured-image').hide();
+            $('#captured-image').attr('src', '');
+         }
+    });
+
+    document.getElementById('take-photo').addEventListener('click', function() {
+        if (cameraActive) {
+            capturePhoto();
+        }
+        else {
+            alert('Please activate the camera first.');
+        }
+    });
+
+        function capturePhoto() {
+            if (cameraActive) {
+                let video = document.getElementById('preview');
+                let canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                let imageDataUrl = canvas.toDataURL('image/png');
+
+                // Afficher l'image capturée
+                $('#captured-image').attr('src', imageDataUrl).show();
+
+                // Ajout de l'image data dans l'input hidden
+                $('#imageData').val(imageDataUrl);
+            }
+        }
+
     Instascan.Camera.getCameras().then(function (cameras) {
         if (cameras.length > 0) {
-            scanner.start(cameras[0]);
+            // scanner.start(cameras[0]);
         } else {
             console.error('No cameras found.');
         }
@@ -420,13 +507,14 @@
         $('#ZenCard').html(`<a href="${astroportUrl}" target="_blank"><b>ZenCard</b></a>`);
 
         $('#qr-form').submit(function(e) {
-            e.preventDefault();
-            $('#loadingSpinner').show();  // Affiche le spinner
-            $('.result-container').hide();
+          e.preventDefault();
+          $('#loadingSpinner').show();
+          $('.result-container').hide();
 
-            let formData = new FormData(this);
-            const parametre = document.getElementById('parametre').value;
-            const PASS = document.getElementById('PASS').value;
+          let formData = new FormData(this);
+          const parametre = document.getElementById('parametre').value;
+          const PASS = document.getElementById('PASS').value;
+          let imageData = $('#imageData').val();
 
             // Vérifie si le paramètre commence par "~~~~~" pour décider de la valeur de `imageData`
             if (parametre.substring(0, 5) === "~~~~~") {
@@ -435,31 +523,32 @@
                     formData.delete('imageData');
                 }
                 formData.append('imageData', PASS);
-<!--
                 console.log(`PIN saisi : ${PASS}`);
--->
             } else {
-                // Utilise la valeur de l'élément avec id 'imageData'
-                if (formData.has('imageData')) {
-                    formData.delete('imageData');
-                }
-                formData.append('imageData', $('#imageData').val());
-            }
+              // Si aucune image n'a été capturée, ne pas utiliser d'image data
+                if (imageData)
+                   {
+                     if (formData.has('imageData'))
+                         {formData.delete('imageData');}
 
-            $.ajax({
+                      formData.append('imageData', imageData);
+                   }
+                }
+
+          $.ajax({
                 url: '/upassport',
                 type: 'POST',
                 data: formData,
                 processData: false,
                 contentType: false,
                 success: function(response) {
-                    $('#loadingSpinner').hide();  // Cache le spinner
+                    $('#loadingSpinner').hide();
                     $('#submitButton').css('background-color', '#4CAF01');
                     $('#result-iframe').attr('srcdoc', response);
-                    $('.result-container').css('display', 'flex');  // Affiche directement le résultat
+                    $('.result-container').css('display', 'flex');
                 },
                 error: function() {
-                    $('#loadingSpinner').hide();  // Cache le spinner en cas d'erreur
+                    $('#loadingSpinner').hide();
                     alert('An error occurred. Try again later.');
                     $('#submitButton').css('background-color', '');
                 }

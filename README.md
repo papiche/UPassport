@@ -107,14 +107,14 @@ Détaillons la gestion fonctionnelle des ZEROCARDS et des NOSTRCARDS dans le scr
 
 2.  **Processus de création et d'activation :**
     *   **Génération de clés :** Une paire de clés Duniter est générée, et une clé IPFS est générée, cette dernière est cryptée et liée à l'identité principale.
-    *   **Enregistrement :** Les données de la ZEROCARD (clé publique, etc.) sont stockées dans des fichiers PDF/HTML et mises à jour sur IPFS.
+    *   **Enregistrement :** Les données de la ZEROCARD (clé publique, etc.) sont stockées dans des fichiers HTML et mises à jour sur IPFS.
     *   **Initialisation :** L'activation d'une ZEROCARD se fait par un transfert sortant (TX) de la part de l'identité principale. Après une transaction de la part de l'identité principale vers la clé publique de la Zerocard, le script va :
         *   Extraire les données de la ZEROCARD.
         *   Déployer une première DApp sur IPFS.
         *   Ré-organiser les informations dans l'arborescence IPFS.
         *   Chiffrer les données sensibles de la ZEROCARD.
     *   **Mise à jour dynamique:** Les actions (TX et commentaires) de l'utilisateur principal sont interprétées par le script, pour modifier le contenu du driveState. Ce mécanisme permet de mettre en place des commandes vers un espace IPFS.
-    *   **Clé IPNS dédiée :** La ZEROCARD est liée à une clé IPNS qui permet de mettre à jour le `DRIVESTATE` associé. Ce `DRIVESTATE` est utilisé comme porte d'entrée vers un contenu IPFS dynamique (par exemple un portfolio, un blog, un e-commerce etc.)
+    *   **Clé IPNS dédiée :** La ZEROCARD est liée à une clé IPNS qui permet de mettre à jour le `DRIVESTATE` associé. Ce `DRIVESTATE` est utilisé comme porte d'entrée vers un contenu IPFS dynamique (mise à jour des sphères informationnelles N1 et N2)
     *   **Protection:** L'accès au contenu de la ZEROCARD, et la gestion du `DRIVESTATE`, est protégée par l'identité principale et un mot de passe (UPLANETNAME), ainsi que par une partie du secret SSSS lié à la création de l'espace ZEROCARD.
 
 3.  **Fonctionnement :**
