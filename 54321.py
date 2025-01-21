@@ -236,6 +236,10 @@ async def get_slide(request: Request, slide_id: int):
 async def get_root(request: Request):
     return templates.TemplateResponse("scan_new.html", {"request": request})
 
+@app.get("/nostr")
+async def get_root(request: Request):
+    return templates.TemplateResponse("nostr.html", {"request": request})
+
 ## CHECK G1PUB BALANCE
 def check_balance(g1pub):
     result = subprocess.run(["tools/COINScheck.sh", g1pub], capture_output=True, text=True)
