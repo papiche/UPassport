@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>[UPassport] Ğ1 Public Key Scanner for UPlanet</title>
+    <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/jquery-3.6.3.min.js"></script>
+    <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/instascan.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #000;
+            color: #FFF;
+        }
+
+        h1 {
+            background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.5em;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .scanner-container {
+            width: 90%;
+            max-width: 400px;
+            margin: 20px auto;
+            text-align: center;
+        }
+
+        video#preview {
+            display: block;
+            width: 100%;
+            height: 200px;
+            border-radius: 10px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            height: 30px;
+            padding: 5px;
+            border: none;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 10px;
+        }
+
+        input[type="submit"] {
+            width: 100%;
+            height: 40px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            padding: 10px;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+
+        .spinner {
+            display: none;
+            width: 100px;
+            height: 100px;
+            margin: 20px auto;
+            position: relative;
+        }
+
+        .planet {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            position: absolute;
+            animation: orbit 2s linear infinite;
+        }
+
+        .planet1 { background-color: #ff6b6b; top: 0; left: 40px; }
+        .planet2 { background-color: #00ff00; right: 40px; bottom: 0; }
+        .planet3 { background-color: #00ffff; left: 0; top: 40px; }
+        .planet4 { background-color: #0000ff; bottom: 40px; right: 0; }
+
+        @keyframes orbit {
+            0% { transform: rotate(0deg) translateX(40px) rotate(0deg); }
+            100% { transform: rotate(360deg) translateX(40px) rotate(-360deg); }
+        }
+
+        .result-container {
+            display: none;
+            justify-content: center;
+            align-items: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+        }
+
+        .result-frame {
+            width: 80%;
+            height: 80%;
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #result-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .result-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .result-button {
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .result-button:hover {
+            background-color: #45a049;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            video#preview {
+                height: 200px;
+            }
+        }
+        .description {
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 800px;
+            text-align: justify;
+        }
+        #clavierNumerique {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background-color: rgba(0, 0, 0, 0.8);
+          padding: 20px;
+          border-radius: 10px;
+          z-index: 1000;
+        }
+
+        #clavierNumerique div {
+          display: flex;
+          justify-content: center;
+          margin-bottom: 10px;
+        }
+
+        #clavierNumerique button {
+          width: 60px;
+          height: 60px;
+          margin: 0 5px;
+          font-size: 20px;
+          background-color: #4CAF50;
+          color: white;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          transition: background-color 0.3s;
+        }
+
+        #clavierNumerique button:hover {
+          background-color: #45a049;
+        }
+
+        #clavierNumerique button:active {
+          background-color: #3e8e41;
+        }
+
+        #clavierNumerique button:last-child {
+          background-color: #f44336;
+        }
+
+        #clavierNumerique button:last-child:hover {
+          background-color: #d32f2f;
+        }
+
+        #clavierNumerique button:nth-last-child(2) {
+          background-color: #2196F3;
+        }
+
+        #clavierNumerique button:nth-last-child(2):hover {
+          background-color: #1976D2;
+        }
+
+    </style>
+</head>
+<body>
+    <h1>UPlanet Terminal</h1>
+
+    <div class="scanner-container">
+        <video id="preview"></video>
+        <div class="spinner" id="loadingSpinner">
+            <div class="planet planet1"></div>
+            <div class="planet planet2"></div>
+            <div class="planet planet3"></div>
+            <div class="planet planet4"></div>
+        </div>
+        <form id="qr-form">
+            <label for="parametre">*** Enter EMAIL || Scan QRCODE ***</label>
+            <input type="text" id="parametre" name="parametre" size=30 required>
+            <input type="hidden" id="imageData" name="imageData">
+            <input type="password" id="PASS" name="PASS" value="0000" size=4>
+            <input type="submit" id="submitButton" value="Submit">
+        </form>
+    </div>
+    <div class="description">
+        "<span id="coeurBOX"><b>♥BOX</b></span>"
+        <br><b>USCAN</b> ~ UPlanet Terminal ~
+            <ul>
+            <li>1) Scannez une Clé Publique (Forgeron DU) [1].</li>
+            <li>2) Scannez le QR Code IPNS d'une "ZEROCARD" (UPassport) [2].</li>
+            <li>3) Scannez le QR Code ~~~~ d'une "ẐenCard" (MULTIPASS) [3].</li>
+            <li>4) Saisissez un email et fabriquez votre NOSTRCARD [4].</li>
+            </ul>
+        <br><b>MULTIPASS</b> (<span id="ZenCard">ZenCard</span>) ~ une Carte pour recevoir et échanger en Ẑen ~
+        <br><b>UPassport</b> (<span id="ZEROCARD">ZEROCARD</span>) ~ une Carte pour explorer votre toile de confiance ~
+        <br><b>NOSTR</b> (<span id="NOSTRCARD">NOSTRCARD</span>) ~ une Carte pour relier vos toile de confiance ~
+
+   </div>
+    <div class="result-container">
+        <div class="result-frame">
+            <iframe id="result-iframe"></iframe>
+            <div class="result-controls">
+                <button class="result-button" id="open-new-tab">Open in New Tab</button>
+                <button class="result-button" id="close-result">Close</button>
+            </div>
+        </div>
+    </div>
+<script>
+    // Fonction pour mélanger les boutons du clavier numérique
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
+    // Fonction pour afficher le clavier numérique avec les chiffres mélangés
+    function afficherClavierNumerique() {
+        // Si le clavier est déjà visible, on ne fait rien
+        if (document.getElementById('clavierNumerique')) return;
+
+        const chiffres = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
+        shuffleArray(chiffres); // Mélange les chiffres à chaque affichage
+
+        // Crée l'élément clavier numérique
+        const clavier = document.createElement('div');
+        clavier.id = 'clavierNumerique';
+        clavier.innerHTML = chiffres.map(num => `<button>${num}</button>`).join('');
+        document.body.appendChild(clavier);
+
+        // Ajout de gestionnaires d'événements pour chaque bouton
+        const boutons = document.querySelectorAll('#clavierNumerique button');
+        let pin = '';  // Variable pour stocker les chiffres saisis
+
+        boutons.forEach(bouton => {
+            bouton.addEventListener('click', () => {
+                pin += bouton.textContent;
+
+                if (pin.length === 4) {  // Soumission automatique au bout de 4 chiffres
+                    document.getElementById('PASS').value = pin;
+
+                    // Ferme le clavier numérique et soumet le formulaire
+                    document.getElementById('clavierNumerique').remove();
+                    pin = '';  // Réinitialise le PIN pour la prochaine utilisation
+                }
+            });
+        });
+
+        // Cache le clavier numérique si on clique en dehors de celui-ci
+        document.addEventListener('click', function cacherClavier(e) {
+            if (!clavier.contains(e.target) && e.target.id !== 'PASS') {
+                clavier.remove();
+                pin = '';  // Réinitialise le PIN au cas où
+                document.removeEventListener('click', cacherClavier);
+            }
+        });
+    }
+
+    // Affiche le clavier numérique lors du clic dans le champ "PASS"
+    document.getElementById('PASS').addEventListener('focus', afficherClavierNumerique);
+</script>
+
+<script>
+    let opts = {
+        continuous: true,
+        video: document.getElementById('preview'),
+        mirror: false,
+        captureImage: false,
+        backgroundScan: false,
+        refractoryPeriod: 5000,
+        scanPeriod: 1
+    };
+
+    // Convert
+    // https://u.domain.tld +> https://astroport.domain.tld
+    // http://name.local:54321 +> http://name.local:1234
+    function getAstroportURL() {
+        const currentUrl = new URL(window.location.href);
+        let newUrl = new URL(currentUrl.origin);
+
+        // Transformation de `u.domain.tld` en `astroport.domain.tld`
+        if (currentUrl.hostname.startsWith('u.')) {
+            newUrl.hostname = newUrl.hostname.replace('u.', 'astroport.');
+        }
+
+        // Changer le port en 12345 si le port actuel est 54321 ou tout autre port
+        if (currentUrl.port === '54321' || currentUrl.port !== '') {
+            newUrl.port = '1234';
+        }
+
+        return newUrl.toString();
+    }
+
+    function getSwarmURL() {
+        const currentUrl = new URL(window.location.href);
+        let newUrl = new URL(currentUrl.origin);
+
+        // Transformation de `u.domain.tld` en `astroport.domain.tld`
+        if (currentUrl.hostname.startsWith('u.')) {
+            newUrl.hostname = newUrl.hostname.replace('u.', 'astroport.');
+            newUrl.pathname = '/12345'; // Ajouter le chemin /12345 pour le domaine modifié
+        }
+
+        // Changer le port en 12345 si le port actuel est 54321 ou tout autre port
+        if (currentUrl.port === '54321' || currentUrl.port !== '') {
+            newUrl.port = '12345';
+        }
+
+        return newUrl.toString();
+    }
+    // Initialisation du scanner
+    let scanner = new Instascan.Scanner(opts);
+    scanner.addListener('scan', function (content) {
+        document.getElementById("parametre").value = content;
+        $('#submitButton').css('background-color', '#0000FF');
+
+        // Capture the current frame from the video element
+        let video = document.getElementById('preview');
+        let canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        let imageDataUrl = canvas.toDataURL('image/png');
+
+        // Add the image data to a hidden input
+        $('#imageData').val(imageDataUrl);
+
+        // Optionally, you can automatically submit the form here
+        // $('#qr-form').submit();
+    });
+
+    Instascan.Camera.getCameras().then(function (cameras) {
+        if (cameras.length > 0) {
+            scanner.start(cameras[0]);
+        } else {
+            console.error('No cameras found.');
+        }
+    }).catch(function (e) {
+        console.error(e);
+    });
+
+    // allow erase from sub iframes
+    window.addEventListener('message', function(event) {
+        if (event.data === 'eraseParametre') {
+            document.getElementById("parametre").value = '';
+        }
+    }, false);
+
+
+    $(document).ready(function() {
+        // Ajout du lien modifié au placeholder
+        const astroportUrl = getAstroportURL();
+        const swarmUrl = getSwarmURL();
+        $('#astroportLinkPlaceholder').html(`<a href="${astroportUrl}" target="_blank">Astroport.ONE</a>`);
+        $('#coeurBOX').html(`<a href="${swarmUrl}" target="_blank"><b>♥BOX</b></a>`);
+        $('#ZenCard').html(`<a href="${astroportUrl}" target="_blank"><b>ZenCard</b></a>`);
+
+        $('#qr-form').submit(function(e) {
+            e.preventDefault();
+            $('#loadingSpinner').show();  // Affiche le spinner
+            $('.result-container').hide();
+
+            let formData = new FormData(this);
+            const parametre = document.getElementById('parametre').value;
+            const PASS = document.getElementById('PASS').value;
+
+            // Vérifie si le paramètre commence par "~~~~~" pour décider de la valeur de `imageData`
+            if (parametre.substring(0, 5) === "~~~~~") {
+                // Remplace la valeur de 'imageData' par le PIN
+                if (formData.has('imageData')) {
+                    formData.delete('imageData');
+                }
+                formData.append('imageData', PASS);
+<!--
+                console.log(`PIN saisi : ${PASS}`);
+-->
+            } else {
+                // Utilise la valeur de l'élément avec id 'imageData'
+                if (formData.has('imageData')) {
+                    formData.delete('imageData');
+                }
+                formData.append('imageData', $('#imageData').val());
+            }
+
+            $.ajax({
+                url: '/upassport',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    $('#loadingSpinner').hide();  // Cache le spinner
+                    $('#submitButton').css('background-color', '#4CAF01');
+                    $('#result-iframe').attr('srcdoc', response);
+                    $('.result-container').css('display', 'flex');  // Affiche directement le résultat
+                },
+                error: function() {
+                    $('#loadingSpinner').hide();  // Cache le spinner en cas d'erreur
+                    alert('An error occurred. Try again later.');
+                    $('#submitButton').css('background-color', '');
+                }
+            });
+        });
+
+        $('#close-result').click(function() {
+            $('.result-container').hide();
+        });
+
+        $('#open-new-tab').click(function() {
+            var response = $('#result-iframe').attr('srcdoc');
+            var newTab = window.open();
+            newTab.document.write(response);
+            newTab.document.close();
+        });
+    });
+</script>
+
+</body>
+</html>
