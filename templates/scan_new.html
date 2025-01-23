@@ -252,20 +252,17 @@
     <h1>UPlanet Terminal</h1>
 
     <div class="scanner-container">
-        <video id="preview"></video>
-        <div class="spinner" id="loadingSpinner">
-            <div class="planet planet1"></div>
-            <div class="planet planet2"></div>
-            <div class="planet planet3"></div>
-            <div class="planet planet4"></div>
-        </div>
         <div class="camera-controls">
           <button id="start-camera">Activer caméra</button>
           <button id="stop-camera">Désactiver caméra</button>
           <button id="take-photo">Prendre photo</button>
         </div>
-        <div id="image-container">
-           <img id="captured-image" style="display: none; max-width: 100%; margin-top: 10px;" />
+            <video id="preview"></video>
+        <div class="spinner" id="loadingSpinner">
+            <div class="planet planet1"></div>
+            <div class="planet planet2"></div>
+            <div class="planet planet3"></div>
+            <div class="planet planet4"></div>
         </div>
         <form id="qr-form">
             <label for="parametre">*** Enter EMAIL || Scan QRCODE ***</label>
@@ -275,6 +272,9 @@
             <input type="submit" id="submitButton" value="Submit">
         </form>
     </div>
+        <div id="image-container">
+           <img id="captured-image" style="display: none; max-width: 100%; margin-top: 10px;" />
+        </div>
     <div class="description">
         "<span id="coeurBOX"><b>♥BOX</b></span>"
         <br><b>USCAN</b> ~ UPlanet Terminal ~

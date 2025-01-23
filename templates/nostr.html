@@ -27,6 +27,8 @@
         #relays-list { margin-top: 20px; }
         #relays-list ul { padding-left: 20px; }
         #relays-list li { margin-bottom: 5px; }
+        #debug-info { margin-top: 20px; border: 1px dashed #ccc; padding: 10px; font-size: 0.9em; white-space: pre-wrap; }
+
     </style>
 </head>
 <body>
@@ -34,46 +36,60 @@
         <h1>Nostr Connect</h1>
         <button id="connectButton">Connect with Nostr</button>
         <div id="status"></div>
-
         <h2>Send Message</h2>
         <label for="message">Message:</label>
         <textarea id="message"></textarea>
         <button id="sendButton" disabled>Send Message</button>
-
         <div id="relays-list">
           <h2>Connected Relays</h2>
           <ul></ul>
         </div>
+        <div id="debug-info"></div>
     </div>
     <script>
+    let debugInfo = ''; // Variable pour stocker les logs
 
+    function log(message) {
+        debugInfo += message + '\n';
+        document.getElementById('debug-info').innerText = debugInfo;
+        console.log(message);
+    }
         // Vérifier si l'extension Nostr est détectée
+        log('Checking for nostr extension...');
         if (typeof window.nostr === 'undefined') {
-            document.getElementById('status').innerText = 'Nostr extension not found. Please install one!';
+           log('Nostr extension not found. Please install one!');
+           document.getElementById('status').innerText = 'Nostr extension not found. Please install one!';
         } else {
-             document.getElementById('status').innerText = 'Nostr extension detected.';
+           log('Nostr extension detected.');
+           document.getElementById('status').innerText = 'Nostr extension detected.';
             document.getElementById('connectButton').addEventListener('click', connectToNostr);
             document.getElementById('sendButton').addEventListener('click', sendMessage);
         }
         // Fonction pour se connecter à NOSTR
         async function connectToNostr() {
+           log('Initiating Nostr Connection...');
            try {
               const pubkey = await window.nostr.getPublicKey();
+              log(`Connected as: ${pubkey}`);
               document.getElementById('status').innerText = `Connected as: ${pubkey}`;
               // Récupère et affiche les relais
               getRelays();
               // Active le bouton d'envoi
               document.getElementById('sendButton').disabled = false;
             } catch (error) {
+                log(`Connection failed: ${error.message}`);
                 document.getElementById('status').innerText = `Connection failed: ${error.message}`;
               }
          }
          // Fonction pour récupérer la liste des relais
         async function getRelays() {
+          log('Fetching relays from Nostr extension...');
           try {
              const relays = await window.nostr.getRelays();
+             log('Relays fetched successfully.');
              displayRelays(relays);
          } catch (error) {
+            log(`Failed to fetch relays: ${error.message}`);
             console.error("Failed to fetch relays:", error);
             document.getElementById('relays-list').innerHTML = `<p>Failed to load relays: ${error.message}</p>`;
            }
@@ -81,12 +97,14 @@
 
          // Fonction pour afficher la liste des relais
         function displayRelays(relays) {
+           log('Displaying relays...');
             const listContainer = document.querySelector('#relays-list ul');
            listContainer.innerHTML = '';
             Object.keys(relays).forEach(url => {
                 const listItem = document.createElement('li');
                 listItem.textContent = `${url} (${relays[url].read ? 'read' : 'no read'}, ${relays[url].write ? 'write' : 'no write'})`;
                 listContainer.appendChild(listItem);
+                log(`Relay: ${url}`);
             });
         }
 
@@ -97,6 +115,7 @@
               alert("Please write your message!");
               return;
              }
+            log(`Preparing message: ${message}`);
             const event = {
                 kind: 1,
                 content: message,
@@ -104,17 +123,23 @@
             };
            try {
               const signedEvent = await window.nostr.signEvent(event);
+               log(`Message signed: ${signedEvent.id}`);
               const pub = signedEvent.pubkey;
               const id = signedEvent.id;
 
                // Publish to all relays (extension handles this!)
                let result = await window.nostr.publish(signedEvent);
-               if(result)
+                log(`Publish result : ${result}`);
+               if(result) {
                   document.getElementById('status').innerText = `Message send: ${id}`;
+                  log(`Message sent successfully: ${id}`);
+                }
               else {
-                 document.getElementById('status').innerText = `Error to send message. Try again`;
+                document.getElementById('status').innerText = `Error to send message. Try again`;
+                log(`Error to send message.`);
                 }
            } catch(error) {
+            log(`Error: ${error.message}`);
             document.getElementById('status').innerText = `Error: ${error.message}`;
            }
          }
