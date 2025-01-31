@@ -553,7 +553,7 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         ipfs key rm ${ZEROCARD} > /dev/null 2>&1
         WALLETNS=$(ipfs key import ${ZEROCARD} -f pem-pkcs8-cleartext ${MY_PATH}/tmp/${MOATS}.ipns)
         ## DRIVESTATE FIRST DApp => Wallet AMOUNT + ZEROCARD QR + N1 APP link
-        CODEINJECT="<a target=N1 href=${ipfsNODE}/ipfs/${IPFSPORTAL}/${PUBKEY}/N1/_index.html><img width=240px src=${ipfsNODE}/ipfs/${ZWALL} /></a>"
+        CODEINJECT="<a target=N1 href=${ipfsNODE}/ipfs/${IPFSPORTAL}/${PUBKEY}/><img width=240px src=${ipfsNODE}/ipfs/${ZWALL} /></a>"
         cat ${MY_PATH}/templates/wallet.html \
         | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
              -e "s~_AMOUNT_~${CODEINJECT}~g" \
@@ -935,7 +935,7 @@ cat ${MY_PATH}/static/zine/UPassport.html \
             -e "s~QmZHV5QppQX9N7MS1GFMqzmnRU5vLbpmQ1UkSRY5K5LfA9/page_.png~${IPFSPORTALQR}~g" \
             -e "s~QmNSck9ygXYG6YHu19DfuJnH2B8yS9RRkEwP1tD35sjUgE/pageZ.png~${MEMBERPUBQR}~g" \
             -e "s~QmdmeZhD8ncBFptmD5VSJoszmu41edtT265Xq3HVh8PhZP~${ZWALLET}~g" \
-            -e "s~_IPFS_~ipfs/${IPFSPORTAL}/${PUBKEY}/N1/_index.html~g" \
+            -e "s~_IPFS_~ipfs/${IPFSPORTAL}/${PUBKEY}/~g" \
             -e "s~_PLAYER_~${MEMBERUID}~g" \
             -e "s~_UPLANET8_~UPlanet:${UPLANETG1PUB:0:8}~g" \
             -e "s~_DATE_~$(date -u)~g" \
