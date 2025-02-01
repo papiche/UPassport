@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload to IPFS</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .upload-container {
+            background: #fff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+        }
+        h1 {
+            color: #0056b3;
+            margin-bottom: 20px;
+        }
+        .upload-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .upload-form input[type="file"] {
+             margin-bottom: 20px;
+             padding: 10px;
+             border: 1px solid #ddd;
+             border-radius: 5px;
+             width: 80%;
+             max-width: 300px;
+        }
+        .upload-form input[type="submit"] {
+            padding: 10px 20px;
+            background-color: #0056b3;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+
+        }
+        .upload-form input[type="submit"]:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
+        }
+        .upload-form input[type="submit"]:hover {
+            background-color: #003d82;
+        }
+         #fileSizeError {
+            color: red;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            display: none;
+        }
+         #fileSizeError.show {
+             display: block;
+         }
+
+        #response {
+            margin-top: 20px;
+            text-align: left;
+            padding: 20px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            display: none; /* Initially hide the response */
+            white-space: pre-wrap; /* Preserve line breaks */
+            word-wrap: break-word;   /* Allow long words to wrap */
+        }
+        #response.show {
+            display: block; /* Show the response when the 'show' class is applied */
+        }
+        #response pre {
+            white-space: pre-wrap; /* Keep long words inside pre tags */
+            word-wrap: break-word;
+        }
+
+         footer {
+            margin-top: 20px;
+            font-size: 0.8em;
+            color: #777;
+        }
+        footer a {
+          color: #0056b3;
+          text-decoration: none;
+        }
+        footer a:hover {
+          text-decoration: underline;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="upload-container">
+        <h1>Upload a file to "IPFS"</h1>
+          <div id="fileSizeError">File must be less than 100MB.</div>
+        <form class="upload-form" id="uploadForm" action="/upload2ipfs" method="post" enctype="multipart/form-data">
+            <input type="file" name="file" id="fileInput" required>
+            <input type="submit" value="Upload" id="uploadButton" disabled>
+        </form>
+        <div id="response">
+          <pre id="jsonResponse"></pre>
+        </div>
+        <footer>
+         Astroport.ONE Relay on <a href="https://qo-op.com/" target="_blank">UPlanet(s)</a>.
+        </footer>
+    </div>
+
+    <script>
+        const uploadForm = document.getElementById('uploadForm');
+        const responseDiv = document.getElementById('response');
+        const jsonResponsePre = document.getElementById('jsonResponse');
+        const fileInput = document.getElementById('fileInput');
+        const uploadButton = document.getElementById('uploadButton');
+        const fileSizeError = document.getElementById('fileSizeError');
+        const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+
+         function validateFileSize() {
+           if (fileInput.files.length > 0) {
+            const fileSize = fileInput.files[0].size;
+            if (fileSize > MAX_FILE_SIZE_BYTES) {
+                fileSizeError.classList.add('show');
+                uploadButton.disabled = true;
+            } else {
+                  fileSizeError.classList.remove('show');
+                  uploadButton.disabled = false;
+              }
+          } else {
+           fileSizeError.classList.remove('show');
+            uploadButton.disabled = true; // Disable upload if no file selected
+           }
+          }
+
+        fileInput.addEventListener('change', validateFileSize);
+
+        uploadForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            responseDiv.classList.remove('show');  // Hide the response area
+
+            const formData = new FormData(uploadForm);
+
+            try {
+                const response = await fetch('/upload2ipfs', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                   throw new Error(`HTTP error! status: ${response.status}, Message: ${errorText}`);
+                }
+
+                 const json = await response.json();
+                jsonResponsePre.textContent = JSON.stringify(json, null, 2); // Use pre tag to properly format JSON
+                responseDiv.classList.add('show'); // Show the response area
+
+            } catch (error) {
+                 jsonResponsePre.textContent = `Error: ${error.message}`;
+                 responseDiv.classList.add('show');
+            }
+        });
+         validateFileSize();
+    </script>
+
+</body>
+</html>

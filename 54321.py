@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3*
+import uuid
 import re
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
@@ -541,6 +542,11 @@ async def stop_recording(request: Request, player: Optional[str] = None):
             {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False}
         )
 
+############# API DESCRIPTION PAGE
+@app.get("/index", response_class=HTMLResponse)
+async def welcomeuplanet(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
 @app.get("/uplanet", response_class=HTMLResponse)
 async def welcomeuplanet(request: Request):
     return templates.TemplateResponse("uplanet.html", {"request": request})
@@ -590,6 +596,72 @@ async def get_webhook(request: Request):
 
     else:
         raise HTTPException(status_code=400, detail="Invalid method.")
+
+@app.get("/upload", response_class=HTMLResponse)
+async def upload_form(request: Request):
+    return templates.TemplateResponse("upload2ipfs.html", {"request": request})
+
+
+@app.post("/upload2ipfs")
+async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
+    if not file:
+        raise HTTPException(status_code=400, detail="No file uploaded.")
+
+    file_location = f"tmp/{file.filename}"
+    try:
+        async with aiofiles.open(file_location, 'wb') as out_file:
+            content = await file.read()
+            await out_file.write(content)
+
+        # Generate a unique temporary file path
+        temp_file_path = f"tmp/temp_{uuid.uuid4()}.json"
+
+        script_path = "./upload2ipfs.sh"
+        return_code, last_line = await run_script(script_path, file_location, temp_file_path)
+
+        if return_code == 0:
+          try:
+                async with aiofiles.open(temp_file_path, mode="r") as temp_file:
+                    json_content = await temp_file.read()
+                json_output = json.loads(json_content.strip()) # Remove extra spaces/newlines
+
+                # Delete the temporary files
+                os.remove(temp_file_path)
+                os.remove(file_location)
+                return JSONResponse(content=json_output)
+          except (json.JSONDecodeError, FileNotFoundError) as e:
+                logging.error(f"Failed to decode JSON from temp file: {temp_file_path}, Error: {e}")
+                return JSONResponse(
+                  content={
+                      "error": "Failed to process script output, JSON decode error.",
+                       "exception": str(e),
+                       "temp_file_path": temp_file_path,
+                      },
+                   status_code=500
+               )
+          finally:
+                if os.path.exists(temp_file_path):
+                   os.remove(temp_file_path) # Ensure file deletion in case of error
+                if os.path.exists(file_location):
+                  os.remove(file_location) # Ensure file deletion in case of error
+        else:
+           logging.error(f"Script execution failed: {last_line.strip()}")
+           return JSONResponse(
+                content={
+                    "error": f"Script execution failed.",
+                    "raw_output": last_line.strip()
+                  },
+                  status_code=500
+               )
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}")
+        return JSONResponse(
+            content={
+                "error": "An unexpected error occurred.",
+                "exception": str(e)
+                },
+            status_code=500
+        )
 
 if __name__ == "__main__":
     import uvicorn
