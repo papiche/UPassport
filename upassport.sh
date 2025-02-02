@@ -68,7 +68,7 @@ if [[ ${QRCODE:0:5} == "~~~~~" ]]; then
 
     if [[ ${DISCO} == "" ]]; then ## BAD PASS ...
         cat ${MY_PATH}/templates/wallet.html \
-        | sed -e "s~_WALLET_~$(date -u) <br> ${IMAGE}~g" \
+        | sed -e "s~_WALLET_~$(date -u) <br> BAD ${IMAGE}~g" \
              -e "s~_AMOUNT_~@( * O * )@~g" \
             > ${MY_PATH}/tmp/${MOATS}.out.html
         echo "${MY_PATH}/tmp/${MOATS}.out.html"
@@ -158,6 +158,17 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     EMAIL="$QRCODE"
     echo "Email detected: $EMAIL"
 
+    ### SEARCH FOR SAME EMAIL
+    if [[ -d ${HOME}/.zen/game/nostr/${EMAIL} ]]; then
+        echo "NOSTR Card existing..."
+        cat ${MY_PATH}/templates/wallet.html \
+        | sed -e "s~_WALLET_~$(date -u) <br> ${EMAIL}~g" \
+             -e "s~_AMOUNT_~NOSTR CARD EXISTING~g" \
+            > ${MY_PATH}/tmp/${MOATS}.out.html
+        echo "${MY_PATH}/tmp/${MOATS}.out.html"
+        exit 0
+    fi
+
     ############################################## PREPARE SALT PEPPER
     SALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
     PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
@@ -233,7 +244,10 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     ipfs pin rm /ipfs/${SSSSQR}
 
     ## Create G1PUBNOSTR QR Code
-    amzqr "${G1PUBNOSTR}" -l H -p ${MY_PATH}/static/img/nature_cloud_face.png -c -n G1PUBNOSTR.QR.png -d ${MY_PATH}/tmp/ 2>/dev/null
+    [[ -s ${HOME}/.zen/game/nostr/${EMAIL}/picture.png ]] \
+        && DPIC="${HOME}/.zen/game/nostr/${EMAIL}/picture.png" \
+        || DPIC="${MY_PATH}/static/img/nature_cloud_face.png"
+    amzqr "${G1PUBNOSTR}" -l H -p ${DPIC} -c -n G1PUBNOSTR.QR.png -d ${MY_PATH}/tmp/ 2>/dev/null
     echo "${G1PUBNOSTR}" > ${HOME}/.zen/game/nostr/${EMAIL}/G1PUBNOSTR
     convert ${MY_PATH}/tmp/G1PUBNOSTR.QR.png \
             -gravity SouthWest \
