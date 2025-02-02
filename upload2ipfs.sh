@@ -121,12 +121,10 @@ fi
 # Calculate file hash (ox)
 FILE_HASH=$(sha256sum "$FILE_PATH" | awk '{print $1}')
 
-# URL encode the filename
-ENCODED_FILE_NAME=$(echo "$FILE_NAME" | sed 's/[^a-zA-Z0-9._-]/%&/g' | xxd -r -p | sed 's/%/%/g')
 # Construct JSON output
 NIP94_JSON="{
     \"tags\": [
-      [\"url\", \"$myIPFS/ipfs/$CID/$ENCODED_FILE_NAME\" ],
+      [\"url\", \"$myIPFS/ipfs/$CID/$FILE_NAME\" ],
       [\"ox\", \"$FILE_HASH\" ],
       [\"m\", \"$FILE_TYPE\"]
       $NIP94_TAGS
@@ -147,7 +145,7 @@ JSON_OUTPUT="{
   \"date\": \"$DATE\",
   \"description\": \"$DESCRIPTION\",
   \"text\": \"$TEXT\",
-  \"title\": \"\$:/$IDISK/$CID/$FILE_NAME\"
+  \"title\": \"\$:/ipfs/$IDISK/$CID/$FILE_NAME\"
 }"
 
 # Log JSON output to stderr before writing to temp file
