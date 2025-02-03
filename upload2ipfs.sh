@@ -1,4 +1,13 @@
 #!/bin/bash
+####################################################
+## Receives a file and a temp file path
+## Add to IPFS produce a json with all details
+######################################################
+## NIP-96/NIP-94 compatibility
+## Add https://domain.tld/.well-known/nostr/nip96.json
+## { "api_url": "https://u.domain.tld/upload2ipfs" }
+####################################################
+
 MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 ME="${0##*/}"
@@ -10,18 +19,18 @@ FILE_PATH="$1"
 TEMP_FILE="$2"
 
 if [ -z "$FILE_PATH" ]; then
-  echo '{"status": "error", "message": "No file path provided.", "debug": "FILE_PATH is empty"}' >&2
+  echo '{"status": "error", "message": "No file path provided.", "debug": "FILE_PATH is empty"}' > "$TEMP_FILE"
   exit 1
 fi
 
 if [ -z "$TEMP_FILE" ]; then
-  echo '{"status": "error", "message": "No temporary file path provided.", "debug": "TEMP_FILE is empty"}' >&2
+  echo '{"status": "error", "message": "No temporary file path provided.", "debug": "TEMP_FILE is empty"}' > "$TEMP_FILE"
   exit 1
 fi
 
 
 if [ ! -f "$FILE_PATH" ]; then
-  echo '{"status": "error", "message": "File not found.", "debug": "File does not exist"}' >&2
+  echo '{"status": "error", "message": "File not found.", "debug": "File does not exist"}' > "$TEMP_FILE"
   exit 1
 fi
 
@@ -36,7 +45,7 @@ echo "DEBUG: FILE_SIZE: $FILE_SIZE, FILE_TYPE: $FILE_TYPE, FILE_NAME: $FILE_NAME
 # Check if file size exceeds 100MB
 MAX_FILE_SIZE=$((100 * 1024 * 1024)) # 100MB in bytes
 if [ "$FILE_SIZE" -gt "$MAX_FILE_SIZE" ]; then
-    echo '{"status": "error", "message": "File size exceeds 100MB limit.", "debug": "File too large", "fileSize": "'"$FILE_SIZE"'"}' >&2
+    echo '{"status": "error", "message": "File size exceeds 100MB limit.", "debug": "File too large", "fileSize": "'"$FILE_SIZE"'"}' > "$TEMP_FILE"
     exit 1
 fi
 
@@ -48,7 +57,7 @@ CID=$(echo "$CID_OUTPUT" | tail -n 1)
 
 # Check if ipfs command worked
 if [ -z "$CID" ]; then
-    echo '{"status": "error", "message": "IPFS add failed.", "debug": "CID is empty", "ipfs_output": "'"$CID_OUTPUT"'"}' >&2
+    echo '{"status": "error", "message": "IPFS add failed.", "debug": "CID is empty", "ipfs_output": "'"$CID_OUTPUT"'"}' > "$TEMP_FILE"
     exit 1
 fi
 
