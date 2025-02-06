@@ -532,8 +532,8 @@ fi
 ## N1 DESTINATION PATH
 mkdir -p ${MY_PATH}/pdf/${PUBKEY}/N1/
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## CESIUM & DUNITER extract
-cp ${MY_PATH}/tmp/$PUBKEY.me.json ${MY_PATH}/pdf/${PUBKEY}/CESIUM.json
+## CESIUM RELATIONS & DUNITER AMOUNT extract
+cp ${MY_PATH}/tmp/$PUBKEY.me.json ${MY_PATH}/pdf/${PUBKEY}/P2P.CESIUM.json
 cp ${MY_PATH}/tmp/$PUBKEY.TX.json ${MY_PATH}/pdf/${PUBKEY}/TX.json
 
 ################################################## N1 analysing
