@@ -857,7 +857,7 @@ cat ${MY_PATH}/static/zine/UPassport.html \
             -e "s~_LAT_~${LAT}~g" \
             -e "s~_LON_~${LON}~g" \
             -e "s~_ASTROPORT_~${ipfsNODE}~g" \
-            -e "s~https://ipfs.copylaradio.com~${ipfsNODE}~g" \
+            -e "s~http://127.0.0.1:8080~~g" \
         > ${MY_PATH}/pdf/${PUBKEY}/_index.html
 
 echo "${MY_PATH}/pdf/${PUBKEY}/_index.html"
