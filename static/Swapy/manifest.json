@@ -1,7 +1,0 @@
-{
-    "modules": [
-        "./modules/module1.js",
-        "./modules/module2.js",
-        "./modules/module3.js"
-    ]
-}
