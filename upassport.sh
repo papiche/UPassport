@@ -174,9 +174,9 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE"
 
     ## MAILJET SEND NOSTR CARD
-    ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/zine.html" "NOSTR Card $NPUBLIC"
+    ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "NOSTR Card $NPUBLIC"
 
-    echo "${HOME}/.zen/game/nostr/${EMAIL}/zine.html"
+    echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
     exit 0
 fi
 
@@ -407,7 +407,7 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         [[ -s ${MY_PATH}/pdf/${PUBKEY}/AVATAR.png ]] \
             && convert ${MY_PATH}/pdf/${PUBKEY}/AVATAR.png -rotate +90 -resize 120x120 ${MY_PATH}/tmp/${PUBKEY}.AVATAR_rotated.png \
             && composite -gravity NorthEast -geometry +160+20 \
-                ${MY_PATH}/tmp/${PUBKEY}.AVATAR_rotated.png ${MY_PATH}/static/zine/page2.png \
+                ${MY_PATH}/tmp/${PUBKEY}.AVATAR_rotated.png ${MY_PATH}/static/.nostr.zine/page2.png \
                 ${MY_PATH}/tmp/${PUBKEY}.onPAPER.png \
             && onPAPERIPFS="$(ipfs add -wq ${MY_PATH}/tmp/${PUBKEY}.onPAPER.png | tail -n 1)/${PUBKEY}.onPAPER.png"
 
@@ -651,15 +651,15 @@ cp ${MY_PATH}/tmp/${PUBKEY}.UID.png ${MY_PATH}/pdf/${PUBKEY}/${PUBKEY}.UID.png
 # CREATE FRIENDS PAGES INTO PDF & png
 ## Moving Related UID into ${MY_PATH}/pdf/${PUBKEY}/N1/
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## Peer to Peer
+## Peer to Peer “Followers/Following”
 nb_fichiers=$(ls ${MY_PATH}/pdf/${PUBKEY}/N1/*.p2p*.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ${MY_PATH}/pdf/${PUBKEY}/N1/*.p2p*.png ${MY_PATH}/pdf/${PUBKEY}/P2P.${PUBKEY}.pdf
 convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P2P.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P2P.png
-## Peer to One
+## Peer to One “Followers”
 nb_fichiers=$(ls ${MY_PATH}/pdf/${PUBKEY}/N1/*.certin*.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ${MY_PATH}/pdf/${PUBKEY}/N1/*.certin*.png ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf
 convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P21.png
-## One to Peer
+## One to Peer “Following”
 nb_fichiers=$(ls ${MY_PATH}/pdf/${PUBKEY}/N1/*.certout*.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ${MY_PATH}/pdf/${PUBKEY}/N1/*.certout*.png ${MY_PATH}/pdf/${PUBKEY}/12P.${PUBKEY}.pdf
 convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/12P.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/12P.png
@@ -768,12 +768,6 @@ if [[ ! -z ${UPLANETNAME} ]]; then
     cat ${MY_PATH}/pdf/${PUBKEY}/ssss.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ${MY_PATH}/tmp/${G1PUBZERO}.ssss.test
     [[ $(diff -q ${MY_PATH}/tmp/${G1PUBZERO}.ssss.test ${MY_PATH}/tmp/${G1PUBZERO}.ssss) != "" ]] && echo "ERROR: GPG ENCRYPTION FAILED !!!"
     rm ${MY_PATH}/tmp/${G1PUBZERO}.ssss.test
-
-    ## PRIMAL 1ST G1 IS MADE BY MEMBER (ZEROCARD PROPERTIE)
-    #~ ${MY_PATH}/../tools/keygen -t duniter -o ${MY_PATH}/tmp/${MOATS}.key "${UPLANETNAME}" "${UPLANETNAME}" \
-        #~ && ${MY_PATH}/../tools/PAY4SURE.sh "${MY_PATH}/tmp/${MOATS}.key" "1" "${G1PUBZERO}" "UPLANET:ZEROCARD" \
-        #~ && echo "UPLANET:ZEROCARD PRIMAL TX DONE" \
-        #~ && rm ${MY_PATH}/tmp/${MOATS}.key
 fi
 
 ## ENCODE TAIL SSSS SECRET WITH CAPTAING1PUB
@@ -836,7 +830,7 @@ UPLANETG1PUB=$(${MY_PATH}/tools/keygen -t duniter "${UPLANETNAME}" "${UPLANETNAM
 
 # QmRJuGqHsruaV14ZHEjk9Gxog2B9GafC35QYrJtaAU2Pry Fac Similé
 # QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png
-cat ${MY_PATH}/static/zine/UPassport.html \
+cat ${MY_PATH}/static/.nostr.zine/UPassport.html \
     | sed -e "s~QmU43PSABthVtM8nWEWVDN1ojBBx36KLV5ZSYzkW97NKC3/page1.png~QmdEPc4Toy1vth7MZtpRSjgMtAWRFihZp3G72Di1vMhf1J~g" \
             -e "s~QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png~${FULLCERT}~g" \
             -e "s~QmTL7VDgkYjpYC2qiiFCfah2pSqDMkTANMeMtjMndwXq9y~QmRJuGqHsruaV14ZHEjk9Gxog2B9GafC35QYrJtaAU2Pry~g" \
