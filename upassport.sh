@@ -40,9 +40,9 @@ fi
 countMErunning=$(pgrep -au $USER -f "$ME" | wc -l)
 if [[ $countMErunning -gt 2 ]]; then
     echo "$ME already running $countMErunning time"
-    cat ${MY_PATH}/templates/wallet.html \
-    | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-         -e "s~_AMOUNT_~$countMErunning x d[ o_0 ]b ... please wait ~g" \
+    cat ${MY_PATH}/templates/message.html \
+    | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
+         -e "s~_MESSAGE_~$countMErunning x d[ o_0 ]b ... please wait ~g" \
         > ${MY_PATH}/tmp/${MOATS}.out.html
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
@@ -67,9 +67,9 @@ if [[ ${QRCODE:0:5} == "~~~~~" ]]; then
         && DISCO=$(cat ${MY_PATH}/tmp/${MOATS}.decoded | cut -d '?' -f2)
 
     if [[ ${DISCO} == "" ]]; then ## BAD PASS ...
-        cat ${MY_PATH}/templates/wallet.html \
-        | sed -e "s~_WALLET_~$(date -u) <br> BAD ${IMAGE}~g" \
-             -e "s~_AMOUNT_~@( * O * )@~g" \
+        cat ${MY_PATH}/templates/message.html \
+        | sed -e "s~_TITLE_~$(date -u) <br> BAD ${IMAGE}~g" \
+             -e "s~_MESSAGE_~@( * O * )@~g" \
             > ${MY_PATH}/tmp/${MOATS}.out.html
         echo "${MY_PATH}/tmp/${MOATS}.out.html"
         exit 0
@@ -162,9 +162,9 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     ### SEARCH FOR SAME EMAIL
     if [[ -d ${HOME}/.zen/game/nostr/${EMAIL} ]]; then
         echo "NOSTR Card existing..."
-        cat ${MY_PATH}/templates/wallet.html \
-        | sed -e "s~_WALLET_~$(date -u) <br> ${EMAIL}~g" \
-             -e "s~_AMOUNT_~NOSTR CARD EXISTING~g" \
+        cat ${MY_PATH}/templates/message.html \
+        | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
+             -e "s~_MESSAGE_~NOSTR CARD EXISTING~g" \
             > ${MY_PATH}/tmp/${MOATS}.out.html
         echo "${MY_PATH}/tmp/${MOATS}.out.html"
         exit 0
@@ -182,9 +182,9 @@ fi
 
 # CHECK G1 PUBKEY FORMAT
 if [[ -z $(${MY_PATH}/tools/g1_to_ipfs.py ${PUBKEY} 2>/dev/null) ]]; then
-    cat ${MY_PATH}/templates/wallet.html \
-    | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-         -e "s~_AMOUNT_~QR CODE Error<br><a target=_new href=https://cesium.app>UNKNOWN CESIUM KEY...</a>~g" \
+    cat ${MY_PATH}/templates/message.html \
+    | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
+         -e "s~_MESSAGE_~QR CODE Error<br><a target=_new href=https://cesium.app>UNKNOWN CESIUM KEY...</a>~g" \
         > ${MY_PATH}/tmp/${MOATS}.out.html
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
@@ -323,10 +323,10 @@ if [[ -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]]; then
     [[ $SOLDE == "" ]] && AMOUNT="TIMEOUT"
     [[ $ZCHK == "ZEN" || $ZCHK == "" ]] && AMOUNT="$ZEN ẑ€N"
 else
-    cat ${MY_PATH}/templates/wallet.html \
-    | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
+    cat ${MY_PATH}/templates/message.html \
+    | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
          -e "s~#000~#F00~g" \
-         -e "s~_AMOUNT_~╭∩╮ (òÓ,) ╭∩╮~g" \
+         -e "s~_MESSAGE_~╭∩╮ (òÓ,) ╭∩╮~g" \
         > ${MY_PATH}/tmp/${MOATS}.out.html
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
@@ -374,9 +374,9 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
             mv ${MY_PATH}/pdf/${PUBKEY}/_index.html \
                 ${MY_PATH}/pdf/${PUBKEY}/_facsimile.html
 
-            cat ${MY_PATH}/templates/wallet.html \
-            | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-                 -e "s~_AMOUNT_~${CODEINJECT}~g" \
+            cat ${MY_PATH}/templates/message.html \
+            | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
+                 -e "s~_MESSAGE_~${CODEINJECT}~g" \
                  -e "s~300px~401px~g" \
                 > ${MY_PATH}/pdf/${PUBKEY}/_index.html # REPLACE UPASSPORT HTML
 
@@ -464,9 +464,9 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         WALLETNS=$(ipfs key import ${ZEROCARD} -f pem-pkcs8-cleartext ${MY_PATH}/tmp/${MOATS}.ipns)
         ## DRIVESTATE FIRST DApp => Wallet AMOUNT + ZEROCARD QR + N1 APP link
         CODEINJECT="<a target=N1 href=${ipfsNODE}/ipfs/${IPFSPORTAL}/${PUBKEY}/><img width=240px src=${ipfsNODE}/ipfs/${ZWALL} /></a>"
-        cat ${MY_PATH}/templates/wallet.html \
-        | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-             -e "s~_AMOUNT_~${CODEINJECT}~g" \
+        cat ${MY_PATH}/templates/message.html \
+        | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
+             -e "s~_MESSAGE_~${CODEINJECT}~g" \
              -e "s~300px~340px~g" \
             > ${MY_PATH}/tmp/${MOATS}.out.html
 
@@ -519,9 +519,9 @@ MEMBERUID=$(cat ${MY_PATH}/tmp/$PUBKEY.me.json | jq -r '.results[].uids[].uid')
 
 if [[ -z $MEMBERUID ]]; then
     ## NOT MEMBERUID : THIS IS A SIMPLE WALLET - show amount -
-    cat ${MY_PATH}/templates/wallet.html \
-        | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-             -e "s~_AMOUNT_~${AMOUNT}~g" \
+    cat ${MY_PATH}/templates/message.html \
+        | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
+             -e "s~_MESSAGE_~${AMOUNT}~g" \
             > ${MY_PATH}/tmp/${MOATS}.out.html
     #~ xdg-open "${MY_PATH}/tmp/${MOATS}.out.html"
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
@@ -750,7 +750,7 @@ TAIL=$(cat ${MY_PATH}/tmp/${G1PUBZERO}.ssss | tail -n 1) && echo "$TAIL" > ${MY_
 echo "TEST DECODING..."
 echo "$HEAD
 $TAIL" | ssss-combine -t 2 -q
-[ ! $? -eq 0 ] && echo "ERROR! SSSSKEY DECODING FAILED" && echo "${MY_PATH}/templates/wallet.html" && exit 1
+[ ! $? -eq 0 ] && echo "ERROR! SSSSKEY DECODING FAILED" && echo "${MY_PATH}/templates/message.html" && exit 1
 
 ##########################################################################
 ### CRYPTO ZONE

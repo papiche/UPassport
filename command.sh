@@ -156,9 +156,9 @@ case "$COMMENT" in
         ZEROCARD=$(cat ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD)
         SOLDE=$(${MY_PATH}/tools/timeout.sh -t 6 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${PUBKEY})
         AMOUNT="$SOLDE Ğ1"
-        cat ${MY_PATH}/templates/wallet.html \
-        | sed -e "s~_WALLET_~$(date -u) <br> ${PUBKEY}~g" \
-             -e "s~_AMOUNT_~<a target=_new href=${ipfsNODE}/ipfs/$(cat ${MY_PATH}/pdf/${PUBKEY}/IPFSPORTAL)/${PUBKEY}/N1/_index.html>${AMOUNT}</a>~g" \
+        cat ${MY_PATH}/templates/message.html \
+        | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
+             -e "s~_MESSAGE_~<a target=_new href=${ipfsNODE}/ipfs/$(cat ${MY_PATH}/pdf/${PUBKEY}/IPFSPORTAL)/${PUBKEY}/N1/_index.html>${AMOUNT}</a>~g" \
              -e "s~300px~303px~g" \
             > ${MY_PATH}/tmp/${ZEROCARD}.out.html
 
