@@ -16,21 +16,21 @@ ME="${0##*/}"
     && source "${HOME}/.zen/Astroport.ONE/tools/my.sh"
 
 FILE_PATH="$1"
-TEMP_FILE="$2"
+OUTPUT_FILE="$2"
 
 if [ -z "$FILE_PATH" ]; then
-  echo '{"status": "error", "message": "No file path provided.", "debug": "FILE_PATH is empty"}' > "$TEMP_FILE"
+  echo '{"status": "error", "message": "No file path provided.", "debug": "FILE_PATH is empty"}' > "$OUTPUT_FILE"
   exit 1
 fi
 
-if [ -z "$TEMP_FILE" ]; then
-  echo '{"status": "error", "message": "No temporary file path provided.", "debug": "TEMP_FILE is empty"}' > "$TEMP_FILE"
+if [ -z "$OUTPUT_FILE" ]; then
+  echo '{"status": "error", "message": "No temporary file path provided.", "debug": "OUTPUT_FILE is empty"}' > "$OUTPUT_FILE"
   exit 1
 fi
 
 
 if [ ! -f "$FILE_PATH" ]; then
-  echo '{"status": "error", "message": "File not found.", "debug": "File does not exist"}' > "$TEMP_FILE"
+  echo '{"status": "error", "message": "File not found.", "debug": "File does not exist"}' > "$OUTPUT_FILE"
   exit 1
 fi
 
@@ -45,19 +45,19 @@ echo "DEBUG: FILE_SIZE: $FILE_SIZE, FILE_TYPE: $FILE_TYPE, FILE_NAME: $FILE_NAME
 # Check if file size exceeds 100MB
 MAX_FILE_SIZE=$((100 * 1024 * 1024)) # 100MB in bytes
 if [ "$FILE_SIZE" -gt "$MAX_FILE_SIZE" ]; then
-    echo '{"status": "error", "message": "File size exceeds 100MB limit.", "debug": "File too large", "fileSize": "'"$FILE_SIZE"'"}' > "$TEMP_FILE"
+    echo '{"status": "error", "message": "File size exceeds 100MB limit.", "debug": "File too large", "fileSize": "'"$FILE_SIZE"'"}' > "$OUTPUT_FILE"
     exit 1
 fi
 
 # Attempt to add the file to IPFS and capture the output
-CID_OUTPUT=$(ipfs add -rwq "$FILE_PATH" 2>&1)
+CID_OUTPUT=$(ipfs add -wq "$FILE_PATH" 2>&1)
 
-# Extract the CID (last line)
+# Extract the CID
 CID=$(echo "$CID_OUTPUT" | tail -n 1)
 
 # Check if ipfs command worked
 if [ -z "$CID" ]; then
-    echo '{"status": "error", "message": "IPFS add failed.", "debug": "CID is empty", "ipfs_output": "'"$CID_OUTPUT"'"}' > "$TEMP_FILE"
+    echo '{"status": "error", "message": "IPFS add failed.", "debug": "CID is empty", "ipfs_output": "'"$CID_OUTPUT"'"}' > "$OUTPUT_FILE"
     exit 1
 fi
 
@@ -151,16 +151,20 @@ JSON_OUTPUT="{
   \"duration\": ${DURATION:-0},
   \"fileSize\": ${FILE_SIZE:-0},
   \"fileName\": \"$FILE_NAME\",
+  \"unode\": \"$IPFSNODEID\",
   \"date\": \"$DATE\",
   \"description\": \"$DESCRIPTION\",
   \"text\": \"$TEXT\",
-  \"title\": \"\$:/ipfs/$IDISK/$CID/$FILE_NAME\"
+  \"title\": \"\$:/$IDISK/$CID/$FILE_NAME\"
 }"
 
 # Log JSON output to stderr before writing to temp file
 echo "DEBUG: JSON_OUTPUT: $JSON_OUTPUT" >&2
 
+# UNPIN
+ipfs pin rm "$CID" >&2 ## UNPIN
+
 # Write the JSON to the temp file
-echo "$JSON_OUTPUT" > "$TEMP_FILE"
+echo "$JSON_OUTPUT" > "$OUTPUT_FILE"
 
 exit 0
