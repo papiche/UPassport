@@ -174,7 +174,7 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE"
 
     ## MAILJET SEND NOSTR CARD
-    ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "NOSTR Card $NPUBLIC"
+    ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "NOSTR Card ${EMAIL}"
 
     echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
     exit 0

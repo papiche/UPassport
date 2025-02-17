@@ -134,6 +134,7 @@ FILE_HASH=$(sha256sum "$FILE_PATH" | awk '{print $1}')
 NIP94_JSON="{
     \"tags\": [
       [\"url\", \"$myIPFS/ipfs/$CID/$FILE_NAME\" ],
+      [\"x\", \"$FILE_HASH\" ],
       [\"ox\", \"$FILE_HASH\" ],
       [\"m\", \"$FILE_TYPE\"]
       $NIP94_TAGS
