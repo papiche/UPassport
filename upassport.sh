@@ -271,6 +271,12 @@ if [[ ${QRCODE:0:2} == "1-" ]]; then
     else
 
         echo "IRREGULAR... ${QRCODE}"
+        cat ${MY_PATH}/templates/message.html \
+        | sed -e "s~_TITLE_~$(date -u) <br> ${QRCODE}~g" \
+             -e "s~_MESSAGE_~IRREGULAR QRCODE<br>^(*(oo)*)^~g" \
+            > ${MY_PATH}/tmp/${MOATS}.out.html
+        echo "${MY_PATH}/tmp/${MOATS}.out.html"
+        exit 0
 
     fi
 fi
@@ -279,7 +285,7 @@ fi
 if [[ -z $(${MY_PATH}/tools/g1_to_ipfs.py ${PUBKEY} 2>/dev/null) ]]; then
     cat ${MY_PATH}/templates/message.html \
     | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
-         -e "s~_MESSAGE_~QR CODE Error<br><a target=_new href=https://cesium.app>UNKNOWN CESIUM KEY...</a>~g" \
+         -e "s~_MESSAGE_~QR CODE Error<br><a target=_new href=https://cesium.app>BAD G1 WALLET...</a>~g" \
         > ${MY_PATH}/tmp/${MOATS}.out.html
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
