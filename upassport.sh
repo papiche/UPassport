@@ -165,7 +165,7 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
         ### CREATING NOSTR CARD ZINE
         ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE"
         ## MAILJET SEND NOSTR CARD
-        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "${EMAIL} NOSTR Card"
+        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "NOSTR Card"
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
         exit 0
     fi
@@ -185,6 +185,7 @@ fi
 ########################################################################
 if [[ ${QRCODE:0:2} == "1-" ]]; then
     echo "NOSTR CARD SSSS KEY verification......"
+    SSSS1=$(echo ${QRCODE} | cut -d ':' -f 1)
     IPNSVAULT=$(echo ${QRCODE} | cut -d ':' -f 2)
     ipnsk51=$(echo "$IPNSVAULT" | grep -oP "(?<=k51qzi5uqu5d)[^/]*")
 
@@ -215,12 +216,12 @@ if [[ ${QRCODE:0:2} == "1-" ]]; then
         fi
         ## DISCO DECODING
         #################################################################
-        ########################## DISCO DECRYPTION
+        ########################## DISCO 1-DECRYPTION
         tmp_mid=$(mktemp)
         tmp_tail=$(mktemp)
-        # Decrypt the middle part using CAPTAIN key
-        ${MY_PATH}/../tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.mid.captain.enc" \
-                -k ~/.zen/game/players/.current/secret.dunikey -o "$tmp_mid"
+        #~ # Decrypt the middle part using CAPTAIN key
+        #~ ${MY_PATH}/../tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.mid.captain.enc" \
+                #~ -k ~/.zen/game/players/.current/secret.dunikey -o "$tmp_mid"
 
         # Decrypt the tail part using UPLANET key
         ${MY_PATH}/../tools/keygen -t duniter -o ~/.zen/game/uplanet.dunikey "${UPLANETNAME}" "${UPLANETNAME}"
@@ -229,8 +230,8 @@ if [[ ${QRCODE:0:2} == "1-" ]]; then
 
         rm ~/.zen/game/uplanet.dunikey
 
-        # Combine decrypted shares
-        DISCO=$(cat "$tmp_mid" "$tmp_tail" | ssss-combine -t 2 -q 2>&1)
+        # Combine "$SSSS1" "$tmp_tail"  decrypted shares
+        DISCO=$(cat "$SSSS1" "$tmp_tail" | ssss-combine -t 2 -q 2>&1)
         #~ echo "DISCO = $DISCO"
         arr=(${DISCO//[=&]/ })
         s=$(urldecode ${arr[0]} | xargs)
