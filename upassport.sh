@@ -205,7 +205,7 @@ if [[ ${QRCODE:0:2} == "1-" ]]; then
         mkdir -p ~/.zen/tmp/$MOATS/$IPNSVAULT
         ipfs get -o ~/.zen/tmp/$MOATS/$IPNSVAULT $VAULTSTATE
         PLAYER=$(ls ~/.zen/tmp/$MOATS/$IPNSVAULT | rev | cut -d '/' -f 1 | rev)
-        G1PRIME=$(cat $HOME/.zen/game/nostr/${PLAYER}/G1PRIME 2>/dev/null) ## PRIMAL G1PUB
+        G1PRIME=$(cat ~/.zen/tmp/$MOATS/$IPNSVAULT/${PLAYER}/G1PRIME 2>/dev/null) ## PRIMAL G1PUB
         if [[ -z $G1PRIME ]]; then
             cat ${MY_PATH}/templates/message.html \
             | sed -e "s~_TITLE_~$(date -u) <br> ${IPNSVAULT}~g" \
@@ -255,14 +255,13 @@ if [[ ${QRCODE:0:2} == "1-" ]]; then
         ## NOSTR CARD DUNIKEY PRIVATE
         ${MY_PATH}/tools/keygen -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
         G1PUBNOSTR=$(cat ~/.zen/tmp/$MOATS/$IPNSVAULT/${PLAYER}/G1PUBNOSTR) ## NOSTR G1PUB READING
-        # same as $HOME/.zen/game/nostr/${PLAYER}/G1PRIME
-        PRIMAL=$(cat ~/.zen/tmp/coucou/${G1PUBNOSTR}.primal 2>/dev/null) ### PRIMAL READING
-        AMOUNT=$(cat ~/.zen/tmp/coucou/${G1PUBNOSTR}.COINS 2>/dev/null)
+        AMOUNT=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${G1PUBNOSTR} | tail -n 1)
+        echo "______ AMOUNT = ${AMOUNT} G1"
         ## EMPTY AMOUNT G1 to PRIMAL
-        ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${HOME}/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey" "$AMOUNT" "${PRIMAL}" "NOSTRCARD:EMPTY"
+        ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${HOME}/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey" "$AMOUNT" "${G1PRIME}" "NOSTRCARD:EMPTY"
 
         cat ${MY_PATH}/templates/message.html \
-        | sed -e "s~_TITLE_~$(date -u) <br> ${PRIMAL}~g" \
+        | sed -e "s~_TITLE_~$(date -u) <br> ${G1PRIME}~g" \
              -e "s~_MESSAGE_~NOSTR CARD PAY BACK <br> $AMOUNT~g" \
             > ${MY_PATH}/tmp/${MOATS}.out.html
         echo "${MY_PATH}/tmp/${MOATS}.out.html"
