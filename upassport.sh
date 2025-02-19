@@ -155,25 +155,34 @@ fi
 
 ####################################################################
 # CHECK IF IT IS AN EMAIL = NOSTR CARD
+########################################################################
 if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     EMAIL="$QRCODE"
     echo "Email detected: $EMAIL"
 
-    ### SEARCH FOR SAME EMAIL
+    ### SEARCH FOR EXISTING NOSTR CARD
     if [[ ! -s ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ]]; then
         ### CREATING NOSTR CARD ZINE
         ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE"
+        ## MAILJET SEND NOSTR CARD
+        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "${EMAIL} NOSTR Card"
+        echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
+        exit 0
     fi
 
-    ## MAILJET SEND NOSTR CARD
-    ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "${EMAIL} NOSTR Card"
-
-    echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
+    ## ALREADY EXISTING
+    cat ${MY_PATH}/templates/message.html \
+    | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
+         -e "s~_MESSAGE_~NOSTR CARD ALREADY EXISTING~g" \
+        > ${MY_PATH}/tmp/${MOATS}.out.html
+    echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
+
 fi
 
-
+########################################################################
 ############ NOSTRCARD SSSS 1-xxx:ipns KEY QRCODE !!!!
+########################################################################
 if [[ ${QRCODE:0:2} == "1-" ]]; then
     echo "NOSTR CARD SSSS KEY verification......"
     IPNSVAULT=$(echo ${QRCODE} | cut -d ':' -f 2)
@@ -185,7 +194,7 @@ if [[ ${QRCODE:0:2} == "1-" ]]; then
         VAULTSTATE=$(ipfs name resolve /ipns/${VAULTNS})
         if [[ -z $VAULTSTATE ]]; then
             cat ${MY_PATH}/templates/message.html \
-            | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
+            | sed -e "s~_TITLE_~$(date -u) <br> ${IPNSVAULT}~g" \
                  -e "s~_MESSAGE_~NOSTR VAULT EMPTY~g" \
                 > ${MY_PATH}/tmp/${MOATS}.out.html
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
@@ -194,55 +203,74 @@ if [[ ${QRCODE:0:2} == "1-" ]]; then
         ## GETTING VAULT
         mkdir -p ~/.zen/tmp/$MOATS/$IPNSVAULT
         ipfs get -o ~/.zen/tmp/$MOATS/$IPNSVAULT $VAULTSTATE
-        PLAYER=$(ls ~/.zen/tmp/$MOATS/$IPNSVAULT | rev | cut -d '/' -f 1)
+        PLAYER=$(ls ~/.zen/tmp/$MOATS/$IPNSVAULT | rev | cut -d '/' -f 1 | rev)
+        G1PRIME=$(cat $HOME/.zen/game/nostr/${PLAYER}/G1PRIME 2>/dev/null) ## PRIMAL G1PUB
+        if [[ -z $G1PRIME ]]; then
+            cat ${MY_PATH}/templates/message.html \
+            | sed -e "s~_TITLE_~$(date -u) <br> ${IPNSVAULT}~g" \
+                 -e "s~_MESSAGE_~NOSTR CARD MISSING PRIMAL~g" \
+                > ${MY_PATH}/tmp/${MOATS}.out.html
+            echo "${MY_PATH}/tmp/${MOATS}.out.html"
+            exit 0
+        fi
         ## DISCO DECODING
-            #################################################################
-            ########################## DISCO DECRYPTION
-            tmp_mid=$(mktemp)
-            tmp_tail=$(mktemp)
-            # Decrypt the middle part using CAPTAIN key
-            ${MY_PATH}/../tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.mid.captain.enc" \
-                    -k ~/.zen/game/players/.current/secret.dunikey -o "$tmp_mid"
+        #################################################################
+        ########################## DISCO DECRYPTION
+        tmp_mid=$(mktemp)
+        tmp_tail=$(mktemp)
+        # Decrypt the middle part using CAPTAIN key
+        ${MY_PATH}/../tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.mid.captain.enc" \
+                -k ~/.zen/game/players/.current/secret.dunikey -o "$tmp_mid"
 
-            # Decrypt the tail part using UPLANET key
-            ${MY_PATH}/../tools/keygen -t duniter -o ~/.zen/game/uplanet.dunikey "${UPLANETNAME}" "${UPLANETNAME}"
-            ${MY_PATH}/../tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.tail.uplanet.enc" \
-                    -k ~/.zen/game/uplanet.dunikey -o "$tmp_tail"
+        # Decrypt the tail part using UPLANET key
+        ${MY_PATH}/../tools/keygen -t duniter -o ~/.zen/game/uplanet.dunikey "${UPLANETNAME}" "${UPLANETNAME}"
+        ${MY_PATH}/../tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.tail.uplanet.enc" \
+                -k ~/.zen/game/uplanet.dunikey -o "$tmp_tail"
 
-            rm ~/.zen/game/uplanet.dunikey
+        rm ~/.zen/game/uplanet.dunikey
 
-            # Combine decrypted shares
-            DISCO=$(cat "$tmp_mid" "$tmp_tail" | ssss-combine -t 2 -q 2>&1)
-            #~ echo "DISCO = $DISCO"
-            arr=(${DISCO//[=&]/ })
-            s=$(urldecode ${arr[0]} | xargs)
-            salt=$(urldecode ${arr[1]} | xargs)
-            p=$(urldecode ${arr[2]} | xargs)
-            pepper=$(urldecode ${arr[3]} | xargs)
-            if [[ $s =~ ^/.*?$ ]]; then
-                [[ ! -z $s ]] \
-                    && rm "$tmp_mid" "$tmp_tail" \
-                    || { echo "DISCO DECODING ERROR"; continue; };
-            else
-                echo "ERROR : BAD DISCO DECODING"
-                continue
-            fi
-            ##################################################### DISCO DECODED
-            ## s=/?email
-            NSEC=$(${MY_PATH}/../tools/keygen -t nostr "${salt}" "${pepper}" -s)
-            NPUB=$(${MY_PATH}/../tools/keygen -t nostr "${salt}" "${pepper}")
+        # Combine decrypted shares
+        DISCO=$(cat "$tmp_mid" "$tmp_tail" | ssss-combine -t 2 -q 2>&1)
+        #~ echo "DISCO = $DISCO"
+        arr=(${DISCO//[=&]/ })
+        s=$(urldecode ${arr[0]} | xargs)
+        salt=$(urldecode ${arr[1]} | xargs)
+        p=$(urldecode ${arr[2]} | xargs)
+        pepper=$(urldecode ${arr[3]} | xargs)
+        if [[ $s =~ ^/.*?$ ]]; then
+            [[ ! -z $s ]] \
+                && rm "$tmp_mid" "$tmp_tail" \
+                || { echo "DISCO DECODING ERROR"; continue; };
+        else
+            echo "ERROR : BAD DISCO DECODING"
+            cat ${MY_PATH}/templates/message.html \
+            | sed -e "s~_TITLE_~$(date -u) <br> ${IPNSVAULT}~g" \
+                 -e "s~_MESSAGE_~DISCO DECODING ERROR~g" \
+                > ${MY_PATH}/tmp/${MOATS}.out.html
+            echo "${MY_PATH}/tmp/${MOATS}.out.html"
+            exit 0
+        fi
+        ##################################################### DISCO DECODED
+        ## NOSTR CARD DUNIKEY PRIVATE
+        ${MY_PATH}/tools/keygen -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
+        G1PUBNOSTR=$(cat ~/.zen/tmp/$MOATS/$IPNSVAULT/${PLAYER}/G1PUBNOSTR) ## NOSTR G1PUB READING
+        # same as $HOME/.zen/game/nostr/${PLAYER}/G1PRIME
+        PRIMAL=$(cat ~/.zen/tmp/coucou/${G1PUBNOSTR}.primal 2>/dev/null) ### PRIMAL READING
+        AMOUNT=$(cat ~/.zen/tmp/coucou/${G1PUBNOSTR}.COINS 2>/dev/null)
+        ## EMPTY AMOUNT G1 to PRIMAL
+        ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${HOME}/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey" "$AMOUNT" "${PRIMAL}" "NOSTRCARD:EMPTY"
+
         cat ${MY_PATH}/templates/message.html \
-        | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
-             -e "s~_MESSAGE_~UNPLUG<br><a target=ipns href=${ipfsNODE}/ipns/${VAULTNS} >NOSTR VAULT</a>~g" \
+        | sed -e "s~_TITLE_~$(date -u) <br> ${PRIMAL}~g" \
+             -e "s~_MESSAGE_~NOSTR CARD PAY BACK <br> $AMOUNT~g" \
             > ${MY_PATH}/tmp/${MOATS}.out.html
         echo "${MY_PATH}/tmp/${MOATS}.out.html"
 
         exit 0
 
-
     else
 
-        echo "UNREGULAR... ${QRCODE}"
+        echo "IRREGULAR... ${QRCODE}"
 
     fi
 fi
