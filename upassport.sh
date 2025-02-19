@@ -160,24 +160,91 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     echo "Email detected: $EMAIL"
 
     ### SEARCH FOR SAME EMAIL
-    if [[ -d ${HOME}/.zen/game/nostr/${EMAIL} ]]; then
-        echo "NOSTR Card existing..."
-        cat ${MY_PATH}/templates/message.html \
-        | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
-             -e "s~_MESSAGE_~NOSTR CARD EXISTING~g" \
-            > ${MY_PATH}/tmp/${MOATS}.out.html
-        echo "${MY_PATH}/tmp/${MOATS}.out.html"
-        exit 0
+    if [[ ! -s ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ]]; then
+        ### CREATING NOSTR CARD ZINE
+        ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE"
     fi
 
-    ### CREATING NOSTR CARD ZINE
-    ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE"
-
     ## MAILJET SEND NOSTR CARD
-    ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "NOSTR Card ${EMAIL}"
+    ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "${EMAIL} NOSTR Card"
 
     echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
     exit 0
+fi
+
+
+############ NOSTRCARD SSSS 1-xxx:ipns KEY QRCODE !!!!
+if [[ ${QRCODE:0:2} == "1-" ]]; then
+    echo "NOSTR CARD SSSS KEY verification......"
+    IPNSVAULT=$(echo ${QRCODE} | cut -d ':' -f 2)
+    ipnsk51=$(echo "$IPNSVAULT" | grep -oP "(?<=k51qzi5uqu5d)[^/]*")
+
+    if [[ ${ipnsk51} != "" ]]; then
+        VAULTNS="k51qzi5uqu5d"$ipnsk51
+
+        VAULTSTATE=$(ipfs name resolve /ipns/${VAULTNS})
+        if [[ -z $VAULTSTATE ]]; then
+            cat ${MY_PATH}/templates/message.html \
+            | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
+                 -e "s~_MESSAGE_~NOSTR VAULT EMPTY~g" \
+                > ${MY_PATH}/tmp/${MOATS}.out.html
+            echo "${MY_PATH}/tmp/${MOATS}.out.html"
+            exit 0
+        fi
+        ## GETTING VAULT
+        mkdir -p ~/.zen/tmp/$MOATS/$IPNSVAULT
+        ipfs get -o ~/.zen/tmp/$MOATS/$IPNSVAULT $VAULTSTATE
+        PLAYER=$(ls ~/.zen/tmp/$MOATS/$IPNSVAULT | rev | cut -d '/' -f 1)
+        ## DISCO DECODING
+            #################################################################
+            ########################## DISCO DECRYPTION
+            tmp_mid=$(mktemp)
+            tmp_tail=$(mktemp)
+            # Decrypt the middle part using CAPTAIN key
+            ${MY_PATH}/../tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.mid.captain.enc" \
+                    -k ~/.zen/game/players/.current/secret.dunikey -o "$tmp_mid"
+
+            # Decrypt the tail part using UPLANET key
+            ${MY_PATH}/../tools/keygen -t duniter -o ~/.zen/game/uplanet.dunikey "${UPLANETNAME}" "${UPLANETNAME}"
+            ${MY_PATH}/../tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.tail.uplanet.enc" \
+                    -k ~/.zen/game/uplanet.dunikey -o "$tmp_tail"
+
+            rm ~/.zen/game/uplanet.dunikey
+
+            # Combine decrypted shares
+            DISCO=$(cat "$tmp_mid" "$tmp_tail" | ssss-combine -t 2 -q 2>&1)
+            #~ echo "DISCO = $DISCO"
+            arr=(${DISCO//[=&]/ })
+            s=$(urldecode ${arr[0]} | xargs)
+            salt=$(urldecode ${arr[1]} | xargs)
+            p=$(urldecode ${arr[2]} | xargs)
+            pepper=$(urldecode ${arr[3]} | xargs)
+            if [[ $s =~ ^/.*?$ ]]; then
+                [[ ! -z $s ]] \
+                    && rm "$tmp_mid" "$tmp_tail" \
+                    || { echo "DISCO DECODING ERROR"; continue; };
+            else
+                echo "ERROR : BAD DISCO DECODING"
+                continue
+            fi
+            ##################################################### DISCO DECODED
+            ## s=/?email
+            NSEC=$(${MY_PATH}/../tools/keygen -t nostr "${salt}" "${pepper}" -s)
+            NPUB=$(${MY_PATH}/../tools/keygen -t nostr "${salt}" "${pepper}")
+        cat ${MY_PATH}/templates/message.html \
+        | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
+             -e "s~_MESSAGE_~UNPLUG<br><a target=ipns href=${ipfsNODE}/ipns/${VAULTNS} >NOSTR VAULT</a>~g" \
+            > ${MY_PATH}/tmp/${MOATS}.out.html
+        echo "${MY_PATH}/tmp/${MOATS}.out.html"
+
+        exit 0
+
+
+    else
+
+        echo "UNREGULAR... ${QRCODE}"
+
+    fi
 fi
 
 # CHECK G1 PUBKEY FORMAT
@@ -297,6 +364,7 @@ generate_qr_with_uid() {
 ########################################################################
 ## MANAGING CACHE
 mkdir -p ${MY_PATH}/tmp
+mkdir -p ${MY_PATH}/pdf
 # Delete older than 3 days files from ${MY_PATH}/tmp
 find ${MY_PATH}/tmp -mtime +3 -type f -exec rm '{}' \;
 # Detect older than 7 days "fac-simile" from ${MY_PATH}/pdf (not ls)
