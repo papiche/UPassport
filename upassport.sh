@@ -181,7 +181,7 @@ if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
 fi
 
 ########################################################################
-############ NOSTRCARD SSSS 1-xxx:ipns KEY QRCODE !!!!
+############ NOSTRCARD SSSS 1-xxx:ipns EMPTY KEY QRCODE RECEIVED
 ########################################################################
 if [[ ${QRCODE:0:2} == "1-" ]]; then
     echo "NOSTR CARD SSSS KEY verification......"
@@ -191,7 +191,8 @@ if [[ ${QRCODE:0:2} == "1-" ]]; then
 
     if [[ ${ipnsk51} != "" ]]; then
         VAULTNS="k51qzi5uqu5d"$ipnsk51
-
+        ## GETTING IPNS VAULT STATE
+        #################################################################
         VAULTSTATE=$(ipfs name resolve /ipns/${VAULTNS})
         if [[ -z $VAULTSTATE ]]; then
             cat ${MY_PATH}/templates/message.html \
@@ -201,7 +202,8 @@ if [[ ${QRCODE:0:2} == "1-" ]]; then
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
             exit 0
         fi
-        ## GETTING VAULT
+        ## GETTING IPNS VAULT CONTENT
+        #################################################################
         mkdir -p ~/.zen/tmp/$MOATS/$IPNSVAULT
         ipfs get -o ~/.zen/tmp/$MOATS/$IPNSVAULT $VAULTSTATE
         PLAYER=$(ls ~/.zen/tmp/$MOATS/$IPNSVAULT | rev | cut -d '/' -f 1 | rev)
@@ -252,7 +254,7 @@ if [[ ${QRCODE:0:2} == "1-" ]]; then
             exit 0
         fi
         ##################################################### DISCO DECODED
-        ## NOSTR CARD DUNIKEY PRIVATE
+        ## MAKE NOSTR CARD DUNIKEY PRIVATE KEY
         ${MY_PATH}/tools/keygen -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
         G1PUBNOSTR=$(cat ~/.zen/tmp/$MOATS/$IPNSVAULT/${PLAYER}/G1PUBNOSTR) ## NOSTR G1PUB READING
         AMOUNT=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${G1PUBNOSTR} | tail -n 1)
