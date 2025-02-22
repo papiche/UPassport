@@ -35,6 +35,7 @@
             max-width: 400px;
             margin: 20px auto;
             text-align: center;
+            position: relative; /* Required for absolute positioning of captured image */
         }
 
         video#preview {
@@ -246,6 +247,16 @@
       .camera-controls button:hover {
         background-color: #45a049;
       }
+
+    .captured-image-overlay {
+        position: fixed; /* Changed to fixed to position relative to viewport */
+        top: 10px;
+        right: 10px;
+        max-width: 100px;
+        z-index: 100; /* Ensure it is above video and form */
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    }
     </style>
 </head>
 <body>
@@ -271,12 +282,12 @@
             <input type="text" id="parametre" name="parametre" size=30 required>
             <input type="hidden" id="imageData" name="imageData">
             <input type="password" id="PASS" name="PASS" value="0000" size=4>
-            <input type="submit" id="submitButton" value="Submit">
+            <input type="submit" id="submitButton" value="OK">
         </form>
-    </div>
         <div id="image-container">
            <img id="captured-image" style="display: none; max-width: 100%; margin-top: 10px;" />
         </div>
+    </div>
     <div class="description">
         <h2><center>
         <- <span id="UPlanet">UPlanet</span> <-> <span id="coeurBOX"><b>♥BOX</b></span> ->
@@ -457,6 +468,7 @@
             cameraActive = false;
             $('#captured-image').hide();
             $('#captured-image').attr('src', '');
+            $('#captured-image').removeClass('captured-image-overlay'); // Remove the overlay class
          }
     });
 
@@ -479,8 +491,8 @@
 
                 let imageDataUrl = canvas.toDataURL('image/png');
 
-                // Afficher l'image capturée
-                $('#captured-image').attr('src', imageDataUrl).show();
+                // Afficher l'image capturée en overlay et ajouter la classe CSS
+                $('#captured-image').attr('src', imageDataUrl).addClass('captured-image-overlay').show();
 
                 // Ajout de l'image data dans l'input hidden
                 $('#imageData').val(imageDataUrl);

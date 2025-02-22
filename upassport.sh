@@ -744,13 +744,13 @@ cp ${MY_PATH}/tmp/${PUBKEY}.GPS ${MY_PATH}/pdf/${PUBKEY}/GPS
 cp ${MY_PATH}/tmp/${PUBKEY}.png ${MY_PATH}/pdf/${PUBKEY}/AVATAR.png
 convert ${MY_PATH}/tmp/${PUBKEY}.png -resize 32x32! ${MY_PATH}/pdf/${PUBKEY}/N1/favicon.ico
 cp ${MY_PATH}/tmp/${PUBKEY}.UID.png ${MY_PATH}/pdf/${PUBKEY}/${PUBKEY}.UID.png
-    convert ${MY_PATH}/tmp/${PUBKEY}.UID.png \
-          -gravity NorthEast \
-          -pointsize 25 \
-          -fill black \
-          -annotate +2+2 "${TOTAL} Z" \
-          -annotate +3+1 "${TOTAL} Z" \
-          ${MY_PATH}/pdf/${PUBKEY}/${PUBKEY}.UID.png
+convert ${MY_PATH}/tmp/${PUBKEY}.UID.png \
+      -gravity NorthEast \
+      -pointsize 25 \
+      -fill black \
+      -annotate +2+2 "${TOTAL} Z" \
+      -annotate +3+1 "${TOTAL} Z" \
+      ${MY_PATH}/pdf/${PUBKEY}/${PUBKEY}.UID.png
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # CREATE FRIENDS PAGES INTO PDF & png
 ## Moving Related UID into ${MY_PATH}/pdf/${PUBKEY}/N1/
