@@ -29,7 +29,7 @@ PUBKEY=$(echo "$QRCODE" | tr -d ' ')
 ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # G1CHK or ZEN
 [[ $ZCHK == $PUBKEY ]] && ZCHK=""
 PUBKEY="$(echo $PUBKEY | cut -d ':' -f 1)" # ":" split
-echo "PUBKEY ? $PUBKEY"
+echo "PUBKEY ? $PUBKEY ($ZCHK)"
 if [ -n "$PUBKEY" ]; then
     PUBKEY="${PUBKEY:0:256}" ## cut
 else
@@ -186,7 +186,7 @@ fi
 if [[ ${QRCODE:0:2} == "1-" ]]; then
     echo "NOSTR CARD SSSS KEY verification......"
     SSSS1=$(echo ${QRCODE} | cut -d ':' -f 1)
-    IPNSVAULT=$(echo ${QRCODE} | cut -d ':' -f 2)
+    IPNSVAULT=${ZCHK}
     ipnsk51=$(echo "$IPNSVAULT" | grep -oP "(?<=k51qzi5uqu5d)[^/]*")
 
     if [[ ${ipnsk51} != "" ]]; then
@@ -254,13 +254,16 @@ if [[ ${QRCODE:0:2} == "1-" ]]; then
             exit 0
         fi
         ##################################################### DISCO DECODED
-        ## MAKE NOSTR CARD DUNIKEY PRIVATE KEY
+        ## DUNIKEY PRIVATE KEY for CASH BACK
         ${MY_PATH}/tools/keygen -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
         G1PUBNOSTR=$(cat ~/.zen/tmp/$MOATS/$IPNSVAULT/${PLAYER}/G1PUBNOSTR) ## NOSTR G1PUB READING
         AMOUNT=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${G1PUBNOSTR} | tail -n 1)
         echo "______ AMOUNT = ${AMOUNT} G1"
         ## EMPTY AMOUNT G1 to PRIMAL
         ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${HOME}/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey" "$AMOUNT" "${G1PRIME}" "NOSTRCARD:EMPTY"
+
+        ## UPDATE TODATE - one day to reactivate... (if local)
+        echo ${TODATE} > ${HOME}/.zen/game/nostr/${EMAIL}/TODATE 2>/dev/null
 
         cat ${MY_PATH}/templates/message.html \
         | sed -e "s~_TITLE_~$(date -u) <br> ${G1PRIME}~g" \
