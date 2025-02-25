@@ -219,15 +219,15 @@ if [[ ${PUBKEY:0:2} == "1-" ]]; then
         ## DISCO DECODING
         #################################################################
         ########################## DISCO 1-DECRYPTION
-        tmp_mid=$(mktemp)
-        tmp_tail=$(mktemp)
         #~ # Decrypt the middle part using CAPTAIN key
-        #~ ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.mid.captain.enc" \
+        #~ ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/tmp/$MOATS/$IPNSVAULT/${PLAYER}/ssss.mid.captain.enc" \
                 #~ -k ~/.zen/game/players/.current/secret.dunikey -o "$tmp_mid"
+        ## useless, we received player ssss part of the key
 
         # Decrypt the tail part using UPLANET key
+        tmp_tail=$(mktemp)
         ${MY_PATH}/tools/keygen -t duniter -o ~/.zen/game/uplanet.dunikey "${UPLANETNAME}" "${UPLANETNAME}"
-        ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.tail.uplanet.enc" \
+        ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/tmp/$MOATS/$IPNSVAULT/${PLAYER}/ssss.tail.uplanet.enc" \
                 -k ~/.zen/game/uplanet.dunikey -o "$tmp_tail"
 
         rm ~/.zen/game/uplanet.dunikey
@@ -242,7 +242,7 @@ if [[ ${PUBKEY:0:2} == "1-" ]]; then
         pepper=$(urldecode ${arr[3]} | xargs)
         if [[ $s =~ ^/.*?$ ]]; then
             [[ ! -z $s ]] \
-                && rm "$tmp_mid" "$tmp_tail" \
+                && rm "$tmp_tail" \
                 || { echo "DISCO DECODING ERROR"; continue; };
         else
             echo "ERROR : BAD DISCO DECODING"
@@ -262,7 +262,7 @@ if [[ ${PUBKEY:0:2} == "1-" ]]; then
         ## EMPTY AMOUNT G1 to PRIMAL
         ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${HOME}/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey" "$AMOUNT" "${G1PRIME}" "NOSTRCARD:EMPTY"
 
-        ## UPDATE TODATE - one day to reactivate... (if local)
+        ## UPDATE TODATE - one day to reactivate...
         echo ${TODATE} > ${HOME}/.zen/game/nostr/${EMAIL}/TODATE 2>/dev/null
 
         cat ${MY_PATH}/templates/message.html \
