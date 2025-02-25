@@ -257,7 +257,7 @@ if [[ ${PUBKEY:0:2} == "1-" ]]; then
         fi
         ##################################################### DISCO DECODED
         ## DUNIKEY PRIVATE KEY for CASH BACK
-        ${MY_PATH}/tools/keygen -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
+        ${MY_PATH}/tools/keygen -t duniter -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
         G1PUBNOSTR=$(cat ~/.zen/tmp/$MOATS/$IPNSVAULT/${PLAYER}/G1PUBNOSTR) ## NOSTR G1PUB READING
         AMOUNT=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${G1PUBNOSTR} | tail -n 1)
         echo "______ AMOUNT = ${AMOUNT} G1"
