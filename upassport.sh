@@ -103,7 +103,7 @@ if [[ ${QRCODE:0:5} == "~~~~~" ]]; then
 fi
 
 ## IS IT k51qzi5uqu5d STYLE IPNS KEY (like a TW on MULTIPASS)
-ipnsk51=$(echo "$QRCODE" | grep -oP "(?<=k51qzi5uqu5d)[^/]*")
+ipnsk51=$(echo "$PUBKEY" | grep -oP "(?<=k51qzi5uqu5d)[^/]*")
 if [[ ${ipnsk51} != "" ]]; then
     TWNS="k51qzi5uqu5d"$ipnsk51
 
@@ -116,7 +116,7 @@ fi
 
 
 ## IS IT http(s) link
-if [[ ${QRCODE:0:4} == "http" ]]; then
+if [[ ${PUBKEY:0:4} == "http" ]]; then
     echo "This is HTTP link : $QRCODE"
     ## SEARCH FOR IPNS KEY (12D3Koo ZEROCARD DISKDRIVE style)
     ipns12D=$(echo "$QRCODE" | grep -oP "(?<=12D3Koo)[^/]*")
@@ -156,7 +156,7 @@ fi
 ####################################################################
 # CHECK IF IT IS AN EMAIL = NOSTR CARD
 ########################################################################
-if [[ $QRCODE =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     EMAIL="$QRCODE"
     echo "Email detected: $EMAIL"
 
@@ -183,7 +183,7 @@ fi
 ########################################################################
 ############ NOSTRCARD SSSS 1-xxx:ipns EMPTY KEY QRCODE RECEIVED
 ########################################################################
-if [[ ${QRCODE:0:2} == "1-" ]]; then
+if [[ ${PUBKEY:0:2} == "1-" ]]; then
     echo "NOSTR CARD SSSS KEY verification......"
     SSSS1=$(echo ${QRCODE} | cut -d ':' -f 1)
     IPNSVAULT=${ZCHK}
