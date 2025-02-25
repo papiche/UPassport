@@ -223,6 +223,8 @@ if [[ ${PUBKEY:0:2} == "1-" ]]; then
         #~ ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/tmp/$MOATS/$IPNSVAULT/${PLAYER}/ssss.mid.captain.enc" \
                 #~ -k ~/.zen/game/players/.current/secret.dunikey -o "$tmp_mid"
         ## useless, we received player ssss part of the key
+        tmp_player=$(mktemp)
+        echo "$SSSS1" > "$tmp_player"
 
         # Decrypt the tail part using UPLANET key
         tmp_tail=$(mktemp)
@@ -232,8 +234,8 @@ if [[ ${PUBKEY:0:2} == "1-" ]]; then
 
         rm ~/.zen/game/uplanet.dunikey
 
-        # Combine "$SSSS1" "$tmp_tail"  decrypted shares
-        DISCO=$(cat "$SSSS1" "$tmp_tail" | ssss-combine -t 2 -q 2>&1)
+        # Combine "$tmp_player" "$tmp_tail"  decrypted shares
+        DISCO=$(cat "$tmp_player" "$tmp_tail" | ssss-combine -t 2 -q 2>&1)
         #~ echo "DISCO = $DISCO"
         arr=(${DISCO//[=&]/ })
         s=$(urldecode ${arr[0]} | xargs)
@@ -242,7 +244,7 @@ if [[ ${PUBKEY:0:2} == "1-" ]]; then
         pepper=$(urldecode ${arr[3]} | xargs)
         if [[ $s =~ ^/.*?$ ]]; then
             [[ ! -z $s ]] \
-                && rm "$tmp_tail" \
+                && rm "$tmp_player" "$tmp_tail" \
                 || { echo "DISCO DECODING ERROR"; continue; };
         else
             echo "ERROR : BAD DISCO DECODING"
