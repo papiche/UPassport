@@ -222,12 +222,12 @@ if [[ ${PUBKEY:0:2} == "1-" ]]; then
         tmp_mid=$(mktemp)
         tmp_tail=$(mktemp)
         #~ # Decrypt the middle part using CAPTAIN key
-        #~ ${MY_PATH}/../tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.mid.captain.enc" \
+        #~ ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.mid.captain.enc" \
                 #~ -k ~/.zen/game/players/.current/secret.dunikey -o "$tmp_mid"
 
         # Decrypt the tail part using UPLANET key
-        ${MY_PATH}/../tools/keygen -t duniter -o ~/.zen/game/uplanet.dunikey "${UPLANETNAME}" "${UPLANETNAME}"
-        ${MY_PATH}/../tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.tail.uplanet.enc" \
+        ${MY_PATH}/tools/keygen -t duniter -o ~/.zen/game/uplanet.dunikey "${UPLANETNAME}" "${UPLANETNAME}"
+        ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.tail.uplanet.enc" \
                 -k ~/.zen/game/uplanet.dunikey -o "$tmp_tail"
 
         rm ~/.zen/game/uplanet.dunikey
