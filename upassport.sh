@@ -265,7 +265,7 @@ if [[ ${PUBKEY:0:2} == "1-" ]]; then
         ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${HOME}/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey" "$AMOUNT" "${G1PRIME}" "NOSTRCARD:EMPTY"
 
         ## UPDATE TODATE - one day to reactivate...
-        echo ${TODATE} > ${HOME}/.zen/game/nostr/${EMAIL}/TODATE 2>/dev/null
+        echo ${TODATE} > ${HOME}/.zen/game/nostr/${PLAYER}/TODATE 2>/dev/null
 
         cat ${MY_PATH}/templates/message.html \
         | sed -e "s~_TITLE_~$(date -u) <br> ${G1PRIME}~g" \
