@@ -183,7 +183,7 @@ fi
 ########################################################################
 ############ NOSTRCARD SSSS 1-xxx:ipns EMPTY KEY QRCODE RECEIVED
 ########################################################################
-if [[ ${PUBKEY:0:2} == "1-" ]]; then
+if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} != "k51qzi" ]]; then
     echo "NOSTR CARD SSSS KEY verification......"
     SSSS1=$(echo ${QRCODE} | cut -d ':' -f 1)
     IPNSVAULT=${ZCHK}
@@ -262,7 +262,7 @@ if [[ ${PUBKEY:0:2} == "1-" ]]; then
         AMOUNT=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${G1PUBNOSTR} | tail -n 1)
         echo "______ AMOUNT = ${AMOUNT} G1"
         ## EMPTY AMOUNT G1 to PRIMAL
-        ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${HOME}/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey" "$AMOUNT" "${G1PRIME}" "NOSTRCARD:EMPTY"
+        ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${HOME}/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey" "$AMOUNT" "${G1PRIME}" "NOSTR:EXIT"
 
         ## UPDATE TODATE - one day to reactivate...
         echo ${TODATE} > ${HOME}/.zen/game/nostr/${PLAYER}/TODATE 2>/dev/null

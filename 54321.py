@@ -584,15 +584,35 @@ async def uplanet(request: Request):
 async def get_webhook(request: Request):
     if request.method == 'POST':
         try:
-            data = await request.json()  # Get the request body as JSON
-            referer = request.headers.get("referer")  # Access the Referer header
+            # Générer un nom de fichier avec un timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_filename = f"/tmp/ping_{timestamp}.log"
 
-            log_message = f"Received PING: {data}, Referer: {referer}"
-            logging.info(log_message)
+            # Récupérer les données de la requête
+            data = await request.json()  # Récupérer le corps de la requête en JSON
+            referer = request.headers.get("referer")  # Récupérer l'en-tête Referer
+
+            # Écrire les données dans le fichier
+            with open(log_filename, "w") as log_file:
+                log_file.write(f"Received PING: {data}, Referer: {referer}\n")
+
+            # Appeler le script mailjet.sh avec les arguments appropriés
+            subprocess.run([
+                os.path.expanduser("~/.zen/Astroport.ONE/tools/mailjet.sh"),
+                "sagittarius@g1sms.fr",
+                log_filename,
+                "PING RECEIVED"
+            ])
+
+            # Supprimer le fichier après l'appel
+            os.remove(log_filename)
+
             return {"received": data, "referer": referer}
         except Exception as e:
-           logging.error(f"Error processing ping request: {e}")
-           raise HTTPException(status_code=400, detail=f"Invalid request data: {e}")
+            # Supprimer le fichier en cas d'erreur (s'il existe)
+            if os.path.exists(log_filename):
+                os.remove(log_filename)
+            raise HTTPException(status_code=400, detail=f"Invalid request data: {e}")
 
     else:
         raise HTTPException(status_code=400, detail="Invalid method.")
