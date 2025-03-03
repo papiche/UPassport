@@ -249,7 +249,6 @@
       }
 
     .captured-image-overlay {
-        position: fixed; /* Changed to fixed to position relative to viewport */
         top: 10px;
         right: 10px;
         max-width: 100px;
@@ -279,10 +278,11 @@
 <!--
             <label for="parametre">[[ EMAIL + JJMM || QRCODE + PASS ]]</label>
 -->
-            <input type="text" id="parametre" name="parametre" size=30 required>
+            <input type="text" id="parametre" name="parametre" size=30 required placeholder="Saisissez un Email ou Scannez un QR Code...">
             <input type="hidden" id="imageData" name="imageData">
             <input type="password" id="PASS" name="PASS" value="0000" size=4>
-            <input type="submit" id="submitButton" value="OK">
+            <input type="submit" id="submitButton" value="-- OK --">
+
         </form>
         <div id="image-container">
            <img id="captured-image" style="display: none; max-width: 100%; margin-top: 10px;" />
@@ -300,12 +300,12 @@
             <li>3) Scannez le QR Code ~~~~ d'une "ẐenCard" (MULTIPASS) [3].</li>
             <li>4) Saisissez un email et fabriquez votre NOSTRCARD [4].</li>
             </ul>
--->
+
         <br>
         <br><b>NOSTR</b> (<span id="NOSTR">NostrCard</span>) ~ Explorer et communiquer sur le Web3 ~
         <br><b>UPASSPORT</b> (<span id="UPassport">0Card</span>) ~ Révéler et batir vos toiles de confiance ~
         <br><b>MULTIPASS</b> (<span id="MULTIPASS">ZenCard</span>) ~ Recevoir et échanger des Ẑen ~
-
+-->
    </div>
     <div class="result-container">
         <div class="result-frame">
