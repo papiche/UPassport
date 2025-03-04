@@ -316,7 +316,23 @@
             </div>
         </div>
     </div>
+
 <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Obtenez la langue du navigateur
+        const userLanguage = navigator.language || navigator.languages[0];
+
+        // Extraire les deux premiers caractères de la langue
+        const shortLanguageCode = userLanguage.substring(0, 2);
+
+        // Initialisez la valeur du champ PASS avec les deux premiers caractères de la langue
+        document.getElementById('PASS').value = shortLanguageCode;
+    });
+</script>
+
+
+<script>
+
     // Fonction pour mélanger les boutons du clavier numérique
     function shuffleArray(array) {
         for (let i = array.length - 1; i > 0; i--) {
