@@ -969,6 +969,5 @@ cat ${MY_PATH}/static/zine/UPassport.html \
         > ${MY_PATH}/pdf/${PUBKEY}/_index.html
 
 echo "${MY_PATH}/pdf/${PUBKEY}/_index.html"
-#~ xdg-open ${MY_PATH}/pdf/${PUBKEY}/_index.html ## OPEN PASSPORT ON DESKTOP
-[[ ! -s ${MY_PATH}/pdf/${PUBKEY}/_index.html ]] && echo "${MY_PATH}/tmp/54321.log" ## SEND LOG TO USER
+
 exit 0
