@@ -612,9 +612,9 @@
                     const longitude = position.coords.longitude.toFixed(2);
                     const altitude = position.coords.altitude ? position.coords.altitude.toFixed(2) : '0';
 
-                    let locationString = `LON${latitude},${longitude}`;
+                    let locationString = `LAT${latitude}LON${longitude}`;
                     if (position.coords.altitude) {
-                        locationString += `AT${altitude}`;
+                        locationString += `ALT${altitude}`;
                     }
 
                     $('#PASS').val(locationString);
@@ -668,7 +668,7 @@
                                                     const uploadedFileURL = urlTag ? urlTag[1] : null;
 
                                                     if (uploadedFileURL) {
-                                                        alert("File uploaded successfully to NIP-96 server! URL: " + uploadedFileURL);
+                                                        // alert("File uploaded successfully to NIP-96 server! URL: " + uploadedFileURL);
 
                                                         // --- NOSTR EVENT CREATION AND PUBLISHING START (Modified tags and content) ---
                                                         const parametreContent = $('#parametre').val();
@@ -697,8 +697,7 @@
                                                         window.nostr.signEvent(event).then(signedEvent => {
                                                             const relays = [
                                                                 'wss://relay.copylaradio.com',
-                                                                'ws://127.0.0.1:7777',
-                                                                'wss://relay.domain.tld'
+                                                                'ws://127.0.0.1:7777'
                                                             ];
 
                                                             relays.forEach(relayUrl => {
