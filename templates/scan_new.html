@@ -256,7 +256,7 @@
         border-radius: 5px;
         box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
     }
-    </style>
+</style>
 </head>
 <body>
     <h1>UPlanet ♥️BOX</h1>
@@ -266,6 +266,7 @@
           <button id="start-camera">Activer caméra</button>
           <button id="stop-camera">Désactiver caméra</button>
           <button id="take-photo">Prendre photo</button>
+          <button id="get-location">MESSAGE</button>
         </div>
             <video id="preview"></video>
         <div class="spinner" id="loadingSpinner">
@@ -281,6 +282,7 @@
             <input type="text" id="parametre" name="parametre" size=30 required placeholder="Saisissez un Email ou Scannez un QR Code...">
             <input type="hidden" id="imageData" name="imageData">
             <input type="password" id="PASS" name="PASS" value="0000" size=4>
+            <input type="hidden" id="nostrHex" name="HEX" value=""> <!-- Hidden input for HEX key -->
             <input type="submit" id="submitButton" value="-- OK --">
 
         </form>
@@ -600,6 +602,204 @@
             var newTab = window.open();
             newTab.document.write(response);
             newTab.document.close();
+        });
+
+        // GPS Location and NOSTR HEX Button Click Handler
+        $('#get-location').click(function() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    const latitude = position.coords.latitude.toFixed(2);
+                    const longitude = position.coords.longitude.toFixed(2);
+                    const altitude = position.coords.altitude ? position.coords.altitude.toFixed(2) : '0';
+
+                    let locationString = `LON${latitude},${longitude}`;
+                    if (position.coords.altitude) {
+                        locationString += `AT${altitude}`;
+                    }
+
+                    $('#PASS').val(locationString);
+
+                    // Attempt to get NOSTR HEX Key after GPS is successful
+                    if (window.nostr) {
+                        window.nostr.getPublicKey()
+                            .then(function(publicKey) {
+                                $('#nostrHex').val(publicKey);
+
+                                // --- NIP-96 FILE UPLOAD START (No NIP-98 Auth) ---
+
+                                const nip96ServerUrl = 'https://g1sms.fr'; // Base URL of the NIP-96 server
+                                const wellKnownUrl = `${nip96ServerUrl}/.well-known/nostr/nip96.json`;
+
+                                $.ajax({
+                                    url: wellKnownUrl,
+                                    dataType: 'json',
+                                    success: function(nip96Config) {
+                                        const nip96ApiEndpoint = nip96Config.api_url;
+
+                                        const imageDataBase64 = $('#imageData').val();
+                                        if (!imageDataBase64) {
+                                            alert("No image data to upload. Please take a photo first.");
+                                            return;
+                                        }
+
+                                        const byteString = atob(imageDataBase64.split(',')[1]);
+                                        const mimeString = imageDataBase64.split(',')[0].split(':')[1].split(';')[0];
+                                        const ab = new ArrayBuffer(byteString.length);
+                                        const ia = new Uint8Array(ab);
+                                        for (let i = 0; i < byteString.length; i++) {
+                                            ia[i] = byteString.charCodeAt(i);
+                                        }
+                                        const imageBlob = new Blob([ab], { type: mimeString });
+                                        const imageFile = new File([imageBlob], "captured-image.png", { type: mimeString }); // Create a File object
+
+                                        const formDataNip96 = new FormData();
+                                        formDataNip96.append('file', imageFile); // Append the File object
+
+                                        $.ajax({
+                                            url: nip96ApiEndpoint,
+                                            type: 'POST',
+                                            data: formDataNip96,
+                                            processData: false,
+                                            contentType: false,
+                                            success: function(nip96Response) {
+                                                console.log("NIP-96 Upload Response:", nip96Response);
+                                                if (nip96Response && nip96Response.nip94_event && nip96Response.nip94_event.tags) {
+                                                    const urlTag = nip96Response.nip94_event.tags.find(tag => tag[0] === 'url');
+                                                    const uploadedFileURL = urlTag ? urlTag[1] : null;
+
+                                                    if (uploadedFileURL) {
+                                                        alert("File uploaded successfully to NIP-96 server! URL: " + uploadedFileURL);
+
+                                                        // --- NOSTR EVENT CREATION AND PUBLISHING START (Modified tags and content) ---
+                                                        const parametreContent = $('#parametre').val();
+                                                        const nostrContent = `${parametreContent}\n${uploadedFileURL}`;
+                                                        let nostrTags = [];
+
+                                                        // Add tags from NIP-96 response
+                                                        nostrTags = nostrTags.concat(nip96Response.nip94_event.tags);
+
+                                                        // Add app tag
+                                                        nostrTags.push(['application', 'UPlanet']);
+
+                                                        // Add location tags
+                                                        nostrTags.push(['latitude', latitude]);
+                                                        nostrTags.push(['longitude', longitude]);
+
+
+                                                        const event = {
+                                                            kind: 1,
+                                                            tags: nostrTags,
+                                                            content: nostrContent, // Content is parametre + image URL
+                                                            pubkey: publicKey,
+                                                            created_at: Math.floor(Date.now() / 1000)
+                                                        };
+
+                                                        window.nostr.signEvent(event).then(signedEvent => {
+                                                            const relays = [
+                                                                'wss://relay.copylaradio.com',
+                                                                'ws://127.0.0.1:7777',
+                                                                'wss://relay.domain.tld'
+                                                            ];
+
+                                                            relays.forEach(relayUrl => {
+                                                                try {
+                                                                    const ws = new WebSocket(relayUrl);
+
+                                                                    ws.onopen = () => {
+                                                                        console.log(`Connected to relay: ${relayUrl}`);
+                                                                        const publishMessage = ['EVENT', signedEvent];
+                                                                        ws.send(JSON.stringify(publishMessage));
+                                                                        console.log(`Event sent to ${relayUrl}`, signedEvent);
+                                                                    };
+
+                                                                    ws.onerror = (error) => {
+                                                                        console.error(`WebSocket error on relay ${relayUrl}:`, error);
+                                                                    };
+
+                                                                    ws.onclose = () => {
+                                                                        console.log(`Connection closed to relay: ${relayUrl}`);
+                                                                    };
+
+                                                                    ws.onmessage = (event) => {
+                                                                        try {
+                                                                            const message = JSON.parse(event.data);
+                                                                            if (message[0] === 'OK' && message[1] === signedEvent.id) {
+                                                                                console.log(`Relay ${relayUrl} acknowledged event ID: ${signedEvent.id}`);
+                                                                            } else if (message[0] === 'NOTICE') {
+                                                                                console.log(`Relay ${relayUrl} NOTICE: ${message[1]}`);
+                                                                            }
+                                                                        } catch (e) {
+                                                                            console.error(`Error parsing relay message from ${relayUrl}:`, e, event.data);
+                                                                        }
+                                                                    };
+
+
+                                                                } catch (error) {
+                                                                    console.error(`Error connecting to relay ${relayUrl}:`, error);
+                                                                }
+                                                            });
+
+                                                        }).catch(signError => {
+                                                            console.error("Error signing Nostr event:", signError);
+                                                            alert("Failed to sign Nostr event. Please check NOSTR Connect.");
+                                                        });
+                                                        // --- NOSTR EVENT CREATION AND PUBLISHING END ---
+
+                                                    } else {
+                                                        alert("File upload successful to NIP-96, but URL not found in response.");
+                                                    }
+
+                                                } else {
+                                                    alert("File upload to NIP-96 server likely failed or response format is unexpected. Check console for details.");
+                                                }
+                                            },
+                                            error: function(jqXHR, textStatus, errorThrown) {
+                                                console.error("NIP-96 Upload Error:", textStatus, errorThrown, jqXHR);
+                                                alert("File upload to NIP-96 server failed. Check console for details.");
+                                            }
+                                        });
+
+
+                                    },
+                                    error: function(jqXHR, textStatus, errorThrown) {
+                                        console.error("Error fetching NIP-96 config:", textStatus, errorThrown, jqXHR);
+                                        alert("Failed to fetch NIP-96 configuration from g1sms.fr. Check console for details.");
+                                    }
+                                });
+
+
+                                // --- NIP-96 FILE UPLOAD END ---
+
+
+                            })
+                            .catch(function(err) {
+                                console.error("Error getting NOSTR public key:", err);
+                                alert("Error connecting to NOSTR Connect or retrieving public key.");
+                            });
+                    } else {
+                        alert("NOSTR Connect extension not detected.");
+                    }
+
+
+                }, function(error) {
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            alert("User denied the request for Geolocation.");
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            alert("Location information is unavailable.");
+                            break;
+                        case error.TIMEOUT:
+                            alert("The request to get user location timed out.");
+                            break;
+                        case error.UNKNOWN_ERROR:
+                            alert("An unknown error occurred.");
+                            break;
+                    }
+                });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
         });
     });
 </script>
