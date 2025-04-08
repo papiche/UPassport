@@ -420,6 +420,12 @@
         return newUrl.toString();
     }
 
+    function getRelayURL() {
+        const currentUrl = new URL(window.location.href);
+        let domainName = currentUrl.hostname;
+        return `wss://relay.${domainName}`;
+    }
+
     function getSwarmURL() {
         const currentUrl = new URL(window.location.href);
         let newUrl = new URL(currentUrl.origin);
@@ -697,7 +703,8 @@
                                                         window.nostr.signEvent(event).then(signedEvent => {
                                                             const relays = [
                                                                 'wss://relay.copylaradio.com',
-                                                                'ws://127.0.0.1:7777'
+                                                                'ws://127.0.0.1:7777',
+                                                                getRelayURL() // Dynamically added relay
                                                             ];
 
                                                             relays.forEach(relayUrl => {
