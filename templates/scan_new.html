@@ -431,10 +431,11 @@
         let newUrl = new URL(currentUrl.origin);
         let domainName = currentUrl.hostname;
         if (currentUrl.hostname.startsWith('u.')) {
-            return `https://ipfs.${domainName}ipns/copylaradio.com`;
+            newUrl.hostname = newUrl.hostname.replace('u.', 'ipfs.');
+            return `${newUrl}ipns/copylaradio.com`;
         } else {
             newUrl.port = '8080';
-            return `${newUrl}/ipns/copylaradio.com`;
+            return `${newUrl}ipns/copylaradio.com`;
         }
 
     }
