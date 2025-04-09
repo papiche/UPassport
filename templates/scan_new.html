@@ -279,7 +279,7 @@
 <!--
             <label for="parametre">[[ EMAIL + JJMM || QRCODE + PASS ]]</label>
 -->
-            <input type="text" id="parametre" name="parametre" size=30 required placeholder="Saisissez un Email ou Scannez un QR Code...">
+            <input type="text" id="parametre" name="parametre" size=30 required placeholder="Saisissez un Email, Scannez un QR Code, Envoyez un Message ...">
             <input type="hidden" id="imageData" name="imageData">
             <input type="password" id="PASS" name="PASS" value="0000" size=4>
             <input type="hidden" id="nostrHex" name="HEX" value=""> <!-- Hidden input for HEX key -->
@@ -426,6 +426,20 @@
         return `wss://relay.${domainName}`;
     }
 
+    function getUPlanetURL() {
+        const currentUrl = new URL(window.location.href);
+        let newUrl = new URL(currentUrl.origin);
+        let domainName = currentUrl.hostname;
+        if (currentUrl.hostname.startsWith('u.')) {
+            return `https://ipfs.${domainName}ipns/copylaradio.com`;
+        } else {
+            newUrl.port = '8080';
+            return `${newUrl}/ipns/copylaradio.com`;
+        }
+
+    }
+
+
     function getSwarmURL() {
         const currentUrl = new URL(window.location.href);
         let newUrl = new URL(currentUrl.origin);
@@ -505,23 +519,23 @@
         }
     });
 
-        function capturePhoto() {
-            if (cameraActive) {
-                let video = document.getElementById('preview');
-                let canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    function capturePhoto() {
+        if (cameraActive) {
+            let video = document.getElementById('preview');
+            let canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                let imageDataUrl = canvas.toDataURL('image/png');
+            let imageDataUrl = canvas.toDataURL('image/png');
 
-                // Afficher l'image capturée en overlay et ajouter la classe CSS
-                $('#captured-image').attr('src', imageDataUrl).addClass('captured-image-overlay').show();
+            // Afficher l'image capturée en overlay et ajouter la classe CSS
+            $('#captured-image').attr('src', imageDataUrl).addClass('captured-image-overlay').show();
 
-                // Ajout de l'image data dans l'input hidden
-                $('#imageData').val(imageDataUrl);
-            }
+            // Ajout de l'image data dans l'input hidden
+            $('#imageData').val(imageDataUrl);
         }
+    }
 
     Instascan.Camera.getCameras().then(function (cameras) {
         if (cameras.length > 0) {
@@ -545,10 +559,11 @@
         // Ajout du lien modifié au placeholder
         const astroportUrl = getAstroportURL();
         const swarmUrl = getSwarmURL();
+        const UPlanetUrl = getUPlanetURL();
         $('#astroportLinkPlaceholder').html(`<a href="${astroportUrl}" target="_blank">Astroport.ONE</a>`);
         $('#coeurBOX').html(`<a href="${swarmUrl}" target="_blank"><b>♥BOX</b></a>`);
         $('#Astroport').html(`<a href="${astroportUrl}" target="_blank"><b>Astroport</b></a>`);
-        $('#UPlanet').html(`<a href="/" target="_blank"><b>UPlanet</b></a>`);
+        $('#UPlanet').html(`<a href="${UPlanetUrl}"><b>UPlanet</b></a>`);
 
         $('#qr-form').submit(function(e) {
           e.preventDefault();
