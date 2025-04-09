@@ -157,7 +157,7 @@ fi
 # CHECK IF IT IS AN EMAIL = NOSTR CARD
 ########################################################################
 if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
-    EMAIL="$QRCODE,,"
+    EMAIL="${QRCODE,,}"
     echo "Email detected: $EMAIL"
 
     ## SEARCH FOR EXISTING Zen Card

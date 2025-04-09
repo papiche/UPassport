@@ -629,6 +629,11 @@
 
         // GPS Location and NOSTR HEX Button Click Handler
         $('#get-location').click(function() {
+            // **Animation START
+            $('#loadingSpinner').show();
+            $('.result-container').hide();
+            $('#submitButton').css('background-color', '#0000FF'); // Start animation color, same as OK button click
+
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(function(position) {
                     const latitude = position.coords.latitude.toFixed(2);
@@ -661,6 +666,7 @@
 
                                         const imageDataBase64 = $('#imageData').val();
                                         if (!imageDataBase64) {
+                                            $('#loadingSpinner').hide();
                                             alert("No image data to upload. Please take a photo first.");
                                             return;
                                         }
@@ -723,7 +729,7 @@
                                                                 'ws://127.0.0.1:7777',
                                                                 getRelayURL() // Dynamically added relay
                                                             ];
-
+                                                            $('#loadingSpinner').hide();
                                                             relays.forEach(relayUrl => {
                                                                 try {
                                                                     const ws = new WebSocket(relayUrl);
@@ -763,20 +769,24 @@
                                                             });
 
                                                         }).catch(signError => {
+                                                            $('#loadingSpinner').hide();
                                                             console.error("Error signing Nostr event:", signError);
                                                             alert("Failed to sign Nostr event. Please check NOSTR Connect.");
                                                         });
                                                         // --- NOSTR EVENT CREATION AND PUBLISHING END ---
 
                                                     } else {
+                                                        $('#loadingSpinner').hide();
                                                         alert("File upload successful to NIP-96, but URL not found in response.");
                                                     }
 
                                                 } else {
+                                                    $('#loadingSpinner').hide();
                                                     alert("File upload to NIP-96 server likely failed or response format is unexpected. Check console for details.");
                                                 }
                                             },
                                             error: function(jqXHR, textStatus, errorThrown) {
+                                                $('#loadingSpinner').hide();
                                                 console.error("NIP-96 Upload Error:", textStatus, errorThrown, jqXHR);
                                                 alert("File upload to NIP-96 server failed. Check console for details.");
                                             }
@@ -785,6 +795,7 @@
 
                                     },
                                     error: function(jqXHR, textStatus, errorThrown) {
+                                        $('#loadingSpinner').hide();
                                         console.error("Error fetching NIP-96 config:", textStatus, errorThrown, jqXHR);
                                         alert("Failed to fetch NIP-96 configuration from g1sms.fr. Check console for details.");
                                     }
@@ -796,10 +807,12 @@
 
                             })
                             .catch(function(err) {
+                                $('#loadingSpinner').hide();
                                 console.error("Error getting NOSTR public key:", err);
                                 alert("Error connecting to NOSTR Connect or retrieving public key.");
                             });
                     } else {
+                        $('#loadingSpinner').hide();
                         alert("NOSTR Connect extension not detected.");
                     }
 
@@ -821,6 +834,8 @@
                     }
                 });
             } else {
+                $('#loadingSpinner').hide();
+                $('#submitButton').css('background-color', '');
                 alert("Geolocation is not supported by this browser.");
             }
         });
