@@ -422,8 +422,8 @@
 
     function getRelayURL() {
         const currentUrl = new URL(window.location.href);
-        let domainName = currentUrl.hostname;
-        return `wss://relay.${domainName}`;
+        let relayName = currentUrl.hostname.replace('u.', 'relay.');
+        return `wss://${relayName}`;
     }
 
     function getUPlanetURL() {

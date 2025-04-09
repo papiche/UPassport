@@ -160,13 +160,21 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     EMAIL="$QRCODE,,"
     echo "Email detected: $EMAIL"
 
-
+    ## SEARCH FOR EXISTING Zen Card
+    if [[ -d ${HOME}/.zen/game/players/${EMAIL} ]]; then
+        cat ${MY_PATH}/templates/message.html \
+        | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
+             -e "s~_MESSAGE_~♥️BOX ACCOUNT~g" \
+            > ${MY_PATH}/tmp/${MOATS}.out.html
+        echo "${MY_PATH}/tmp/${MOATS}.out.html"
+        exit 0
+    fi
     ### SEARCH FOR EXISTING NOSTR CARD
     if [[ ! -s ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ]]; then
         ### CREATING NOSTR CARD ZINE
         ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE"
         ## MAILJET SEND NOSTR CARD
-        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "NOSTR Card"
+        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "UPlanet NOSTR Card"
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
         exit 0
     else
