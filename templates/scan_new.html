@@ -729,7 +729,11 @@
                                                                 'ws://127.0.0.1:7777',
                                                                 getRelayURL() // Dynamically added relay
                                                             ];
+
                                                             $('#loadingSpinner').hide();
+                                                            $('#captured-image').hide();
+                                                            $('#captured-image').removeClass('captured-image-overlay');
+
                                                             relays.forEach(relayUrl => {
                                                                 try {
                                                                     const ws = new WebSocket(relayUrl);
@@ -813,7 +817,7 @@
                             });
                     } else {
                         $('#loadingSpinner').hide();
-                        alert("NOSTR Connect extension not detected.");
+                        alert("Missing NOSTR Card setup in NOSTR Connect.");
                     }
 
 
