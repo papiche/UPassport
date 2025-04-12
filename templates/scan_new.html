@@ -713,7 +713,7 @@
                                                         // Add location tags
                                                         nostrTags.push(['latitude', latitude]);
                                                         nostrTags.push(['longitude', longitude]);
-
+                                                        nostrTags.push(['g', `${latitude};${longitude}`]);
 
                                                         const event = {
                                                             kind: 1,

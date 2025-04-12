@@ -306,7 +306,7 @@ fi
 if [[ -z $(${MY_PATH}/tools/g1_to_ipfs.py ${PUBKEY} 2>/dev/null) ]]; then
     cat ${MY_PATH}/templates/message.html \
     | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
-         -e "s~_MESSAGE_~QR CODE Error<br><a target=_new href=https://pad.p2p.legal/HELP>Call for HELP</a>~g" \
+         -e "s~_MESSAGE_~QR CODE Error<br><a target=_new href=https://pad.p2p.legal/HELP>HELP</a>?!~g" \
         > ${MY_PATH}/tmp/${MOATS}.out.html
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
