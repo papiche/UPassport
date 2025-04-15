@@ -83,7 +83,7 @@ Before setting up UPassport, ensure you have the following prerequisites install
 
 ## 🛠️ Installation Guide
 
-1.  **Install Astroport.ONE (it will install UPassport):**
+1.  **Install Astroport.ONE (automatic install ~/.zen/UPassport):**
     ```bash
     bash <(wget -qO- https://raw.githubusercontent.com/papiche/Astroport.ONE/master/install.sh)
     ```
@@ -91,7 +91,7 @@ Before setting up UPassport, ensure you have the following prerequisites install
 2.  For developpers, **Clone (Fork) the UPassport Repository:**
     ```bash
     git clone https://github.com/papiche/UPassport.git
-    cd <uplanet_directory>
+    cd UPassport
     ```
 
 3.  **Set up a Python Virtual Environment (Recommended):**
@@ -144,3 +144,153 @@ Before setting up UPassport, ensure you have the following prerequisites install
 *   **Customization**: UPassport is designed to be extensible. You can customize and extend its functionalities by modifying the Python code, Bash scripts, and HTML templates.
 
 By setting up UPassport, you gain access to a powerful terminal for interacting with the decentralized Ğ1 ecosystem, managing your digital identity, and leveraging multimedia capabilities within a secure and open-source framework.
+
+
+---
+
+# UPassport : Terminal Multimédia et d'Identité pour l'Écosystème Ğ1
+
+## 🌟 Aperçu
+
+UPassport est une application web Libre et Open Source (FOSS) conçue comme un terminal polyvalent pour interagir avec la cryptomonnaie Ğ1 (Duniter) et le web décentralisé. Il sert de pont entre les interactions utilisateur, la gestion multimédia et la gestion d'identité sécurisée au sein de l'écosystème Ğ1, en tirant parti de l'infrastructure `Astroport.ONE`.
+
+UPassport vise à résoudre le dilemme de la confiance Homme/Machine et à fournir une solution FOSS pour établir un système d'information décentralisé entièrement fiable basé sur NOSTR et IPFS. Ce système est construit pour respecter la distance équivalente espace-temps pour chacun sur Internet.
+
+## ✨ Fonctionnalités Clés
+
+UPassport offre une gamme de fonctionnalités centrées sur l'identité décentralisée, les interactions avec la Ğ1 et le traitement multimédia :
+
+*   **Gestion d'Identité UPassport** :
+    *   **Scan de QR Code** : Scanne et traite de manière sécurisée les QR codes pour les clés publiques, les détails ZenCard, les clés SSSS et d'autres données pertinentes.
+    *   **Génération d'UPassport** : Facilite la création d'UPassports, en utilisant des scripts backend pour générer des profils utilisateurs et les clés cryptographiques associées.
+    *   **Sécurité des Clés SSSS** : Met en œuvre le schéma de partage de secret de Shamir (SSSS) pour une sécurité renforcée et la récupération des clés UPassport.
+    *   **Intégration ZeroCard** : Gère les ZeroCards dans le cadre du système UPassport, permettant des interactions sécurisées et la vérification d'identité.
+
+*   **Fonctionnalité Carte NOSTR** :
+    *   **Création de Carte NOSTR** : Permet aux utilisateurs de créer des Cartes NOSTR liées à leurs adresses e-mail, en générant des paires de clés NOSTR et des portefeuilles G1 associés.
+    *   **Gestion de Profil NOSTR** : Configure et met à jour les profils NOSTR, y compris les métadonnées et les liens vers le contenu hébergé sur IPFS.
+    *   **Stockage de Coffre-fort NOSTR** : Utilise IPFS pour le stockage décentralisé des données des Cartes NOSTR et des actifs associés.
+    *   **Publication d'Événements NOSTR** : Permet la publication d'événements NOSTR, y compris les données de localisation et les images téléchargées, vers les relais NOSTR.
+
+*   **Interaction avec l'Écosystème Ğ1 (Duniter)** :
+    *   **Vérification de Solde** : Vérifie les soldes des comptes Ğ1 en utilisant les clés publiques via le script `COINScheck.sh`.
+    *   **Paiements ZEN (PalPay)** : Facilite les transactions en cryptomonnaie ZEN (Ẑen) en utilisant les ZenCards, avec un terminal "PalPay" dédié.
+    *   **Traitement des Transactions** : Exécute les paiements DUNITER de manière sécurisée en utilisant le script `PAY4SURE.sh`.
+    *   **Historique du Portefeuille** : Récupère et affiche l'historique des transactions pour les clés publiques Ğ1.
+
+*   **Traitement et Enregistrement Multimédia** :
+    *   **Intégration OBS Studio** : Démarre et arrête les enregistrements dans OBS Studio à distance via une interface web, permettant la création de contenu multimédia au sein de l'écosystème UPassport.
+    *   **Enregistrement Webcam** : Capture et traite les blobs vidéo et audio directement depuis les webcams des utilisateurs.
+    *   **Traitement du Téléversement de Fichiers** : Gère les téléversements de fichiers vidéo et audio locaux pour le traitement dans le pipeline Astroport.
+    *   **Téléchargement de Liens YouTube** : Télécharge et traite les vidéos à partir de liens YouTube.
+    *   **Intégration IPFS pour le Multimédia** : Intègre IPFS pour le stockage et la distribution décentralisés des contenus multimédias enregistrés et traités.
+
+*   **Scripts Backend et Opérations Asynchrones** :
+    *   **Exécution de Scripts Shell** : Repose sur des scripts Bash (`upassport.sh`, `zen_send.sh`, `check_ssss.sh`, `startrec.sh`, `stoprec.sh`, `command.sh`, `upload2ipfs.sh`) pour les fonctionnalités de base, assurant des opérations robustes et sécurisées.
+    *   **Gestion des Tâches Asynchrones** : Utilise `asyncio` dans le backend Python pour gérer les requêtes concurrentes et les exécutions de scripts, maintenant une expérience utilisateur réactive.
+    *   **Journalisation Complète** : Met en œuvre une journalisation détaillée pour toutes les opérations backend et les exécutions de scripts, facilitant le débogage et la surveillance.
+
+*   **Gestion et Validation des Données** :
+    *   **Validation Pydantic** : Emploie des modèles Pydantic pour la validation des données, assurant l'intégrité des données pour les requêtes entrantes.
+    *   **Stockage Temporaire de Fichiers** : Utilise un répertoire `tmp/` pour le stockage temporaire des fichiers pendant le traitement, avec des routines de nettoyage automatisées.
+    *   **IPFS pour le Stockage Décentralisé** : Tire parti d'IPFS pour le stockage décentralisé et persistant des données utilisateur, des Cartes NOSTR et des actifs multimédias.
+
+## 🚀 Pourquoi UPassport ?
+
+UPassport est conçu pour donner du pouvoir aux utilisateurs au sein de l'écosystème Ğ1 en fournissant :
+
+1.  **Intégration Transparente avec la Ğ1** : Interaction directe et intuitive avec la cryptomonnaie Ğ1 et son écosystème.
+2.  **Support Multimédia Complet** : Une suite complète d'outils pour l'enregistrement vidéo et audio, le traitement et la distribution décentralisée.
+3.  **Identité Décentralisée et Sécurisée** : Tire parti de NOSTR et d'IPFS pour construire un système d'identité robuste, contrôlé par l'utilisateur et résistant à la censure.
+4.  **Libre et Open Source** : Assure la transparence, le développement piloté par la communauté et une sécurité auditable.
+5.  **Architecture Extensible** : Construit avec la modularité à l'esprit, en utilisant des scripts externes pour une logique personnalisée et une extension facile des fonctionnalités.
+
+## 📋 Prérequis
+
+Avant de configurer UPassport, assurez-vous d'avoir installé et configuré les prérequis suivants :
+
+*   **Dépendances Logiciel** :
+    *   **Python** : Version 3.7 ou supérieure.
+    *   **Node.js et npm** : Pour la gestion des actifs frontend (si nécessaire, bien que peu utilisé dans le code fourni).
+    *   **FFmpeg** : Pour les tâches de traitement multimédia.
+    *   **ImageMagick** : Pour la manipulation d'images, en particulier la génération de QR codes et le traitement d'images.
+    *   **IPFS (InterPlanetary File System)** : Assurez-vous qu'IPFS est installé et fonctionne en tant que démon pour le stockage décentralisé.
+    *   **GPG (GNU Privacy Guard)** : Pour les opérations cryptographiques, en particulier le déchiffrement et la gestion des clés.
+    *   **NaCl (libsodium)** : Pour les primitives cryptographiques utilisées dans DUNITER et NOSTR.
+    *   **OBS Studio (Optionnel)** : Si vous prévoyez d'utiliser les fonctionnalités d'enregistrement.
+    *   **`amzqr`** : Générateur de QR codes en ligne de commande (doit probablement être installé séparément, par exemple via `pip install amzqr`).
+    *   **`ssss-split`, `ssss-combine` (outils Shamir's Secret Sharing Scheme)** : Probablement fournis par le paquet `ssss` (installez si nécessaire, par exemple via le gestionnaire de paquets système).
+    *   **`natools.py`** : Outils de chiffrement et de déchiffrement (probablement partie de l'ensemble d'outils Astroport.ONE ou un utilitaire séparé - assurez-vous qu'il est disponible dans votre `$PATH` ou ajustez les chemins des scripts).
+    *   **`jaklis.py`** : Interface en ligne de commande DUNITER (probablement partie de l'ensemble d'outils Astroport.ONE - assurez-vous qu'il est disponible ou ajustez les chemins des scripts).
+
+*   **Installation d'Astroport.ONE** :
+    *   UPassport repose fortement sur l'infrastructure `Astroport.ONE`. Installez-la en exécutant :
+        ```bash
+        bash <(wget -qO- https://raw.githubusercontent.com/papiche/Astroport.ONE/master/install.sh)
+        ```
+    *   **Utilisateur Capitaine** : Créez un utilisateur capitaine au sein de votre configuration Astroport.ONE en exécutant `~/.zen/Astroport.ONE/command.sh`. Ceci est crucial pour les fonctions administratives et la gestion des clés.
+    *   **Web de Confiance Dragons (Optionnel)** : Envisagez de rejoindre le Web de Confiance Dragons et de lier votre clé SSH à votre IPFS Astroport.ONE pour une sécurité et une participation au réseau améliorées.
+
+## 🛠️ Guide d'Installation
+
+1.  **Installez Astroport.ONE (installe ~/.zen/UPassport automatiquement)** :
+    ```bash
+    bash <(wget -qO- https://raw.githubusercontent.com/papiche/Astroport.ONE/master/install.sh)
+    ```
+
+2.  Pour les développeurs, **Clonez (forkez) le Répertoire UPassport** :
+    ```bash
+    git clone https://github.com/papiche/UPassport.git
+    cd UPassport
+    ```
+
+3.  **Configurez un Environnement Virtuel Python (Recommandé)** :
+    ```bash
+    python3 -m venv .astro
+    source .astro/bin/activate
+    ```
+
+4.  **Installez les Dépendances Python** :
+    ```bash
+    pip install fastapi uvicorn aiofiles pydantic python-multipart python-dotenv cryptography base58 aiohttp Jinja2
+    ```
+    *(Note : Cette commande inclut les dépendances explicitement identifiées dans le code. Vous pourriez avoir besoin d'installer des paquets supplémentaires en fonction de l'ensemble d'outils Astroport.ONE complet et de toute autre fonctionnalité que vous comptez utiliser.)*
+
+## 🖥️ Démarrage
+
+1.  **Lancez l'Application UPassport** :
+    ```bash
+    python 54321.py
+    ```
+
+2.  **Accédez à UPassport dans votre Navigateur Web** : Ouvrez votre navigateur web et naviguez vers `http://localhost:54321`.
+
+3.  **Explorez les Fonctionnalités d'UPassport** : L'interface web d'UPassport donne accès à divers terminaux et outils :
+
+    *   **Terminal Principal (`/scan` ou `/`)** : Pour le scan de QR codes général, les actions UPassport et les interactions avec les Cartes NOSTR.
+    *   **Terminal ZenCard (`/scan_zen.html` - accessible en interne)** : Pour initier des paiements ZEN (Ẑen) en utilisant les ZenCards.
+    *   **Scanner de Sécurité (`/scan_ssss.html` - accessible en interne)** : Pour la vérification de sécurité UPassport, utilisé par les CAPITAINES de station.
+    *   **Interface Carte NOSTR (`/nostr`)** : Pour explorer les fonctionnalités NOSTR et potentiellement gérer les Cartes NOSTR (la fonctionnalité peut être limitée dans le code fourni).
+    *   **Interface d'Enregistrement (`/rec`)** : Pour démarrer et arrêter les enregistrements OBS Studio, téléverser des fichiers vidéo ou traiter des liens YouTube.
+    *   **Enregistrement Webcam (`/webcam`)** : Pour capturer et traiter la vidéo directement depuis votre webcam.
+    *   **Téléversement de Fichiers vers IPFS (`/upload`)** : Pour téléverser des fichiers vers IPFS et obtenir des liens IPFS.
+    *   **Création de Compte UPlanet (`/uplanet` ou `/uplanet.html`)** : Pour créer des comptes UPlanet (la fonctionnalité peut être limitée dans le code fourni).
+    *   **Description de l'API (`/index` ou `/uplanet`)** : Fournit une description de l'API de base et une page de bienvenue.
+
+## 🛠️ Configuration
+
+*   **Fichier `.env`** : Configurez les paramètres spécifiques à l'environnement dans le fichier `.env` situé dans le répertoire racine. Ce fichier est crucial pour définir :
+    *   Les points de terminaison API pour DUNITER et Cesium+.
+    *   Les adresses des nœuds IPFS.
+    *   Les clés API Mailjet (si les notifications par e-mail sont activées).
+    *   Les mots de passe et les informations sensibles (traitez-les avec soin et tenez compte des meilleures pratiques de sécurité).
+    *   `OBSkey` : La clé WebSocket pour l'intégration d'OBS Studio.
+
+**Notes Importantes** :
+
+*   **Sécurité** : Manipulez le fichier `.env` et les clés cryptographiques avec le plus grand soin. Assurez-vous que des mesures de sécurité appropriées sont en place, en particulier dans les environnements de production.
+*   **Configuration Astroport.ONE** : Une installation Astroport.ONE fonctionnelle est essentielle pour que UPassport fonctionne correctement.
+*   **Chemins des Scripts** : Vérifiez et ajustez les chemins des scripts dans les scripts Python et Bash pour qu'ils correspondent à votre installation Astroport.ONE et à l'emplacement des outils.
+*   **Personnalisation** : UPassport est conçu pour être extensible. Vous pouvez personnaliser et étendre ses fonctionnalités en modifiant le code Python, les scripts Bash et les modèles HTML.
+
+En configurant UPassport, vous accédez à un terminal puissant pour interagir avec l'écosystème Ğ1 décentralisé, gérer votre identité numérique et tirer parti des capacités multimédias dans un cadre sécurisé et open source.
