@@ -1,219 +1,146 @@
-# UPassport: A Multimedia and Identity Platform for the Ğ1 Ecosystem
+# UPassport: A Decentralized Identity and Multimedia Terminal for the Ğ1 Ecosystem
 
-UPassport is a versatile web application designed to interact with the Ğ1 (Duniter) cryptocurrency ecosystem. It serves as a bridge between user interactions, multimedia handling, user identity generation, and the underlying Ğ1 network using the `Astroport.ONE` infrastructure.
+## 🌟 Overview
 
-## 🌟 Core Features
+UPassport is a Free and Open Source Software (FOSS) web application designed as a versatile terminal for interacting with the Ğ1 (Duniter) cryptocurrency and the decentralized web. It acts as a bridge between user interactions, multimedia handling, and secure identity management within the Ğ1 ecosystem, leveraging the `Astroport.ONE` infrastructure.
 
-*   **User Interaction**:
-    *   Interactive surveys to tailor user experience.
-    *   Dynamic presentations based on survey responses.
-    *   Intuitive interfaces for various actions.
-*   **Identity Management (UPassport)**:
-    *   Secure processing of digital passport information.
-    *   Processing public keys via QR code scans or direct entry.
-    *   Integration with a backend processing script to generate user profiles using `upassport.sh`.
-*   **Ğ1 Interaction**:
-    *   Check user account balances using public keys via the `COINScheck.sh` script.
-    *   Send messages with location and identity information via the `command.sh` script.
-    *   Handle secure data sharing.
-    *   Processing ZEN cryptocurrency transactions with `zen_send.sh`
-*   **Media Processing**:
-    *   Start/Stop OBS recording (via web interface), with integration to the underlying recording mechanisms.
-    *   Upload local video files to be processed by Astroport pipeline.
-    *   Download videos from YouTube links, processing them via Astroport pipeline.
-    *   Process audio and video blobs received from webcams using the `startrec.sh` script.
-    *   Integration to the underlying recording mechanisms (`startrec.sh` and `stoprec.sh`) including post-processing to handle IPFS integration with TiddlyWiki
-*   **Backend Scripting**:
-    *   Execution of shell scripts for core operations (IPFS handling, Ğ1 transactions, file processing).
-    *   Logging and error handling for all background operations.
-*   **Data Handling**:
-    *   Temporary storage for files (`tmp/`) and log files.
-    *   Use of Pydantic to validate incoming data.
-*   **Asynchronous Processing**:
-    *   Utilizes `asyncio` to concurrently handle requests and backend processes.
-    *   Ensures responsive behavior for end users.
+UPassport aims to solve the Human/Machine Trust dilemma by providing a FOSS solution for establishing a fully trusted decentralized information system based on NOSTR and IPFS. This system is built to respect space-time equivalent distance for everyone on the internet.
 
-## 🚀 Why Astroport Studio?
+## ✨ Key Features
 
-1.  **Integration**: Seamless interaction with the Ğ1 currency.
-2.  **Multimedia Support**: Handles video recording, uploads, and YouTube link downloads, and webcam recording.
-3.  **Decentralization**: Built with distributed storage in mind (IPFS integration).
-4.  **User-Centric**: Provides intuitive interfaces for various tasks.
-5.  **Extensibility**: Leverages external shell scripts for custom logic.
+UPassport offers a range of functionalities centered around decentralized identity, Ğ1 interactions, and multimedia processing:
+
+*   **UPassport Identity Management**:
+    *   **QR Code Scanning**: Securely scans and processes QR codes for public keys, ZenCard details, SSSS keys, and other relevant data.
+    *   **UPassport Generation**: Facilitates the creation of UPassports, leveraging backend scripts to generate user profiles and associated cryptographic keys.
+    *   **SSSS Key Security**: Implements Shamir's Secret Sharing Scheme (SSSS) for enhanced security and key recovery of UPassports.
+    *   **ZeroCard Integration**: Manages ZeroCards as part of the UPassport system, enabling secure interactions and identity verification.
+
+*   **NOSTR Card Functionality**:
+    *   **NOSTR Card Creation**: Allows users to create NOSTR Cards linked to their email addresses, generating NOSTR key pairs and associated G1 wallets.
+    *   **NOSTR Profile Management**: Sets up and updates NOSTR profiles, including metadata and links to IPFS-hosted content.
+    *   **NOSTR Vault Storage**: Utilizes IPFS for decentralized storage of NOSTR Card data and related assets.
+    *   **NOSTR Event Publishing**: Enables publishing of NOSTR events, including location data and uploaded images, to NOSTR relays.
+
+*   **Ğ1 (Duniter) Ecosystem Interaction**:
+    *   **Balance Checking**: Verifies Ğ1 account balances using public keys via the `COINScheck.sh` script.
+    *   **ZEN Payments (PalPay)**: Facilitates ZEN (Ẑen) cryptocurrency transactions using ZenCards, with a dedicated "PalPay" terminal.
+    *   **Transaction Processing**: Executes DUNITER payments securely using the `PAY4SURE.sh` script.
+    *   **Wallet History**: Retrieves and displays transaction history for Ğ1 public keys.
+
+*   **Multimedia Processing & Recording**:
+    *   **OBS Studio Integration**: Starts and stops recordings in OBS Studio remotely via a web interface, enabling multimedia content creation within the UPassport ecosystem.
+    *   **Webcam Recording**: Captures and processes video and audio blobs directly from user webcams.
+    *   **File Upload Processing**: Handles uploads of local video and audio files for processing within the Astroport pipeline.
+    *   **YouTube Link Downloading**: Downloads and processes videos from YouTube links.
+    *   **IPFS Integration for Media**: Integrates with IPFS for decentralized storage and distribution of recorded and processed multimedia content.
+
+*   **Backend Scripting & Asynchronous Operations**:
+    *   **Shell Script Execution**: Relies on Bash scripts (`upassport.sh`, `zen_send.sh`, `check_ssss.sh`, `startrec.sh`, `stoprec.sh`, `command.sh`, `upload2ipfs.sh`) for core functionalities, ensuring robust and secure operations.
+    *   **Asynchronous Task Handling**: Uses `asyncio` in the Python backend to manage concurrent requests and script executions, maintaining a responsive user experience.
+    *   **Comprehensive Logging**: Implements detailed logging for all backend operations and script executions, aiding in debugging and monitoring.
+
+*   **Data Handling & Validation**:
+    *   **Pydantic Validation**: Employs Pydantic models for data validation, ensuring data integrity for incoming requests.
+    *   **Temporary File Storage**: Utilizes a `tmp/` directory for temporary file storage during processing, with automated cleanup routines.
+    *   **IPFS for Decentralized Storage**: Leverages IPFS for decentralized and persistent storage of user data, NOSTR Cards, and multimedia assets.
+
+## 🚀 Why UPassport?
+
+UPassport is designed to empower users within the Ğ1 ecosystem by providing:
+
+1.  **Seamless Ğ1 Integration**: Direct and intuitive interaction with the Ğ1 cryptocurrency and its ecosystem.
+2.  **Comprehensive Multimedia Support**: A full suite of tools for video and audio recording, processing, and decentralized distribution.
+3.  **Decentralized and Secure Identity**: Leverages NOSTR and IPFS to build a robust, user-controlled, and censorship-resistant identity system.
+4.  **Free and Open Source**: Ensures transparency, community-driven development, and auditable security.
+5.  **Extensible Architecture**: Built with modularity in mind, leveraging external scripts for custom logic and easy expansion of functionalities.
 
 ## 📋 Prerequisites
 
-*   Python 3.7+
-*   Node.js and npm
-*   FFmpeg
-*   ImageMagick
-*   IPFS
-*   GPG
-*   NaCl
-*   Astroport.ONE installation (as described below)
+Before setting up UPassport, ensure you have the following prerequisites installed and configured:
 
-## 🛠️ Installation
+*   **Software Dependencies**:
+    *   **Python**: Version 3.7 or higher.
+    *   **Node.js and npm**: For frontend asset management (if needed, though not heavily used in the provided code).
+    *   **FFmpeg**: For multimedia processing tasks.
+    *   **ImageMagick**: For image manipulation, particularly QR code generation and image processing.
+    *   **IPFS (InterPlanetary File System)**:  Ensure IPFS is installed and running as a daemon for decentralized storage.
+    *   **GPG (GNU Privacy Guard)**: For cryptographic operations, particularly decryption and key management.
+    *   **NaCl (libsodium)**:  For cryptographic primitives used in DUNITER and NOSTR.
+    *   **OBS Studio (Optional)**: If you plan to use the recording functionalities.
+    *   **`amzqr`**: Command-line QR code generator (likely needs to be installed separately, e.g., via `pip install amzqr`).
+    *   **`ssss-split`, `ssss-combine` (Shamir's Secret Sharing Scheme tools)**:  Likely provided by the `ssss` package (install if needed, e.g., via system package manager).
+    *   **`natools.py`**:  Encryption and decryption tools (likely part of the Astroport.ONE toolset or a separate utility - ensure it's available in your `$PATH` or adjust script paths).
+    *   **`jaklis.py`**:  DUNITER command-line interface (likely part of the Astroport.ONE toolset - ensure it's available or adjust script paths).
 
-1.  **Clone the repository:**
+*   **Astroport.ONE Installation**:
+    *   UPassport heavily relies on the `Astroport.ONE` infrastructure. Install it by running:
+        ```bash
+        bash <(wget -qO- https://raw.githubusercontent.com/papiche/Astroport.ONE/master/install.sh)
+        ```
+    *   **Captain User**: Create a captain user within your Astroport.ONE setup by running `~/.zen/Astroport.ONE/command.sh`. This is crucial for administrative functions and key management.
+    *   **Dragons Web of Trust (Optional)**: Consider joining the Dragons Web of Trust and linking your SSH key to your Astroport.ONE IPFS for enhanced security and network participation.
 
-2.  **Install Astroport.ONE:**
+## 🛠️ Installation Guide
+
+1.  **Install Astroport.ONE (it will install UPassport):**
     ```bash
     bash <(wget -qO- https://raw.githubusercontent.com/papiche/Astroport.ONE/master/install.sh)
     ```
-    * Create a captain user by running the command  `~/.zen/Astroport.ONE/command.sh`
-    * OPTIONAL : Join the Dragons Web of Trust, link your SSH key to your Astroport.ONE IPFS
 
-3.  **Create and activate a Python virtual environment (optional but highly recommended):**
+2.  For developpers, **Clone (Fork) the UPassport Repository:**
     ```bash
-    python -m venv .astro
-    . ~/.astro/bin/activate
+    git clone https://github.com/papiche/UPassport.git
+    cd <uplanet_directory>
     ```
 
-4.  **Install Python dependencies:**
+3.  **Set up a Python Virtual Environment (Recommended):**
     ```bash
-    pip install fastapi uvicorn vosk sounddevice pydantic[email] python-multipart
+    python3 -m venv .astro
+    source .astro/bin/activate
     ```
 
-## 🖥️ Usage
-
-1.  **Launch the application:**
+4.  **Install Python Dependencies:**
     ```bash
-     python ./54321.py
+    pip install fastapi uvicorn aiofiles pydantic python-multipart python-dotenv cryptography base58 aiohttp Jinja2
+    ```
+    *(Note: This command includes dependencies explicitly identified from the code. You might need to install additional packages depending on the complete Astroport.ONE toolchain and any further functionalities you intend to use.)*
+
+## 🖥️ Getting Started
+
+1.  **Launch the UPassport Application:**
+    ```bash
+    python 54321.py
     ```
 
-2.  Access the application via your browser at `http://localhost:54321`.
+2.  **Access UPassport in your Web Browser**: Open your web browser and navigate to `http://localhost:54321`.
 
-3.  Explore the various functionalities including:
-    *   Interactive questionnaire at `/enter`.
-    *   Video recording and media processing at `/rec`.
-    *   QR Code scanning and UPassport features at `/scan`.
-    *   Balance checks with G1 public keys at `/check_balance?g1pub=<pubkey>`.
+3.  **Explore UPassport Functionalities**: The UPassport web interface provides access to various terminals and tools:
+
+    *   **Main Terminal (`/scan` or `/`)**:  For general QR code scanning, UPassport actions, and NOSTR Card interactions.
+    *   **ZenCard Terminal (`/scan_zen.html` - accessed internally)**: For initiating ZEN (Ẑen) payments using ZenCards.
+    *   **Security Scanner (`/scan_ssss.html` - accessed internally)**: For UPassport security verification, used by station CAPTAINs.
+    *   **NOSTR Card Interface (`/nostr`)**: For exploring NOSTR functionalities and potentially managing NOSTR Cards (functionality may be limited in the provided code).
+    *   **Recording Interface (`/rec`)**: For starting and stopping OBS Studio recordings, uploading video files, or processing YouTube links.
+    *   **Webcam Recording (`/webcam`)**: For capturing and processing video directly from your webcam.
+    *   **File Upload to IPFS (`/upload`)**: For uploading files to IPFS and obtaining IPFS links.
+    *   **UPlanet Account Creation (`/uplanet` or `/uplanet.html`)**: For creating UPlanet accounts (functionality may be limited in the provided code).
+    *   **API Description (`/index` or `/uplanet`)**: Provides a basic API description and welcome page.
 
 ## 🛠️ Configuration
 
-*   Adjust environment settings in the `.env` file (e.g., node URLs).
-*   Modify HTML templates in the `templates/` directory for UI customization.
-*   Ensure proper permissions for executing shell scripts.
+*   **`.env` File**: Configure environment-specific settings in the `.env` file located in the root directory. This file is crucial for setting:
+    *   API endpoints for DUNITER and Cesium+.
+    *   IPFS node addresses.
+    *   Mailjet API keys (if email notifications are enabled).
+    *   Passwords and security-sensitive information (handle with care and consider security best practices).
+    *   `OBSkey`:  The WebSocket key for OBS Studio integration.
 
----
+**Important Notes:**
 
-Détaillons la gestion fonctionnelle des ZEROCARDS et des NOSTRCARDS dans le script `upassport.sh`.
+*   **Security**:  Handle `.env` file and cryptographic keys with utmost care. Ensure proper security measures are in place, especially in production environments.
+*   **Astroport.ONE Setup**:  A functional Astroport.ONE installation is essential for UPassport to operate correctly.
+*   **Script Paths**:  Verify and adjust script paths within the Python and Bash scripts to match your Astroport.ONE installation and tool locations.
+*   **Customization**: UPassport is designed to be extensible. You can customize and extend its functionalities by modifying the Python code, Bash scripts, and HTML templates.
 
-**ZEROCARD : Identité secondaire et passeport décentralisé**
-
-1.  **Objectif principal :** Une ZEROCARD est une identité secondaire liée à une identité Duniter principale. Elle sert de "passeport numérique" dans un écosystème décentralisé. Elle est conçue pour :
-    *   **Représenter une identité sur un espace IPFS:** La Zerocard permet d'avoir un `DRIVESTATE`, c'est à dire une page HTML dynamique stockée sur IPFS, mise à jour via une clé IPNS, liée à un utilisateur principal (un "membre" Duniter).
-    *   **Activer un écosystème décentralisé :** Chaque ZEROCARD peut interagir avec d'autres, déclencher des commandes ou contrôler des applications sur IPFS.
-
-2.  **Processus de création et d'activation :**
-    *   **Génération de clés :** Une paire de clés Duniter est générée, et une clé IPFS est générée, cette dernière est cryptée et liée à l'identité principale.
-    *   **Enregistrement :** Les données de la ZEROCARD (clé publique, etc.) sont stockées dans des fichiers HTML et mises à jour sur IPFS.
-    *   **Initialisation :** L'activation d'une ZEROCARD se fait par un transfert sortant (TX) de la part de l'identité principale. Après une transaction de la part de l'identité principale vers la clé publique de la Zerocard, le script va :
-        *   Extraire les données de la ZEROCARD.
-        *   Déployer une première DApp sur IPFS.
-        *   Ré-organiser les informations dans l'arborescence IPFS.
-        *   Chiffrer les données sensibles de la ZEROCARD.
-    *   **Mise à jour dynamique:** Les actions (TX et commentaires) de l'utilisateur principal sont interprétées par le script, pour modifier le contenu du driveState. Ce mécanisme permet de mettre en place des commandes vers un espace IPFS.
-    *   **Clé IPNS dédiée :** La ZEROCARD est liée à une clé IPNS qui permet de mettre à jour le `DRIVESTATE` associé. Ce `DRIVESTATE` est utilisé comme porte d'entrée vers un contenu IPFS dynamique (mise à jour des sphères informationnelles N1 et N2)
-    *   **Protection:** L'accès au contenu de la ZEROCARD, et la gestion du `DRIVESTATE`, est protégée par l'identité principale et un mot de passe (UPLANETNAME), ainsi que par une partie du secret SSSS lié à la création de l'espace ZEROCARD.
-
-3.  **Fonctionnement :**
-    *   **Commandes :** L'identité principale peut envoyer des transactions avec des commentaires spécifiques vers la ZEROCARD. Le script interprète ces commentaires comme des commandes (dans le script : `command.sh`), déclenchant des actions sur la ZEROCARD.
-    *   **Redirection Drivestate :** Le contenu du `DRIVESTATE` de la ZEROCARD peut rediriger l'utilisateur vers d'autres applications web sur IPFS.
-    *   **Stockage distribué :** Toutes les données sont stockées sur IPFS, ce qui garantit leur disponibilité et leur pérennité.
-    *   **Sécurité :** Les données sensibles de la ZEROCARD sont chiffrées et protégées. La clé IPNS est elle même chiffrée.
-    *   **Gestion du cycle de vie:** Le mécanisme permet de gérer l'activation et la désactivation du contenu.
-
-**NOSTRCARD : Identité Nostr liée à une identité G1**
-
-1.  **Objectif principal :** Une NOSTRCARD permet de lier une identité Nostr à une identité Duniter (G1). Elle est utilisée pour :
-    *   **Créer une identité Nostr :** Elle génère des clés Nostr publiques et privées.
-    *   **Associer Nostr à Duniter :** Elle lie l'identité Nostr à un membre Duniter et à un e-mail
-    *   **Stockage décentralisé :** L'identité Nostr et les données associées sont stockées sur IPFS, et accessibles via un `NOSTRVAULT` en IPNS.
-    *   **Utilisation dans l'écosystème décentralisé :** Elle utilise l'adresse mail comme point de liaison vers l'utilisateur principal.
-    *   **Récupérer une identité :** L'identité Nostr est récupérable grâce à un ssss-split, partagé entre 3 acteurs (via QR code ou autre).
-
-2.  **Processus de création :**
-    *   **Analyse du QR code (email):** L'analyse du QRcode reçu comme une adresse email déclenche la création d'une identité NOSTRCARD.
-    *   **Génération de clés :** Une paire de clés Nostr est générée.
-    *   **Génération de clés :** Une paire de clés Duniter est générée.
-    *   **Distribution des clés :** Les données d'identification (les clés) sont ensuite protégées via une distribution Shamir secret sharing et distribuées (via QR Codes) à 3 acteurs.
-    *   **Stockage :** Les clés Nostr sont stockées en local.
-    *   **Stockage IPNS :** L'ensemble des données (clé nostr, clé g1, les ssss parts, etc.) sont ensuite regroupées et envoyées sur IPFS et liées à un espace `NOSTRVAULT` en IPNS.
-    *   **Publication du vault :** Une clé IPNS est générée pour mettre à jour l'espace `NOSTRVAULT` et est liée à la clé publique duniter.
-    *   **Protection :** L'accès aux données sensibles de la NOSTRCARD est protégé par les clés et par un password (UPLANETNAME).
-
-3.  **Fonctionnement :**
-    *   **Ecosystème Nostr :** Elle permet à l'utilisateur d'utiliser Nostr avec son identité G1.
-    *   **Récupération de l'identité:** Elle permet de retrouver l'accès à son identité Nostr, via les 3 clés ssss.
-    *   **Stockage de données :** Toutes les données sont stockées sur IPFS, et disponibles via IPNS.
-    *   **Sécurité :** Les données sensibles de la NOSTRCARD sont chiffrées et protégées.
-
-**Comparaison fonctionnelle**
-
-| Caractéristique        | ZEROCARD                                            | NOSTRCARD                                           |
-| --------------------- | --------------------------------------------------- | ---------------------------------------------------- |
-| **Objectif**          | Identité secondaire, "passeport" décentralisé.     | Identité Nostr liée à une identité G1.              |
-| **Déclencheur**        | Envoi d'un QR code de type clé publique G1       | Envoi d'un QR code de type adresse email           |
-| **Utilisation**       | Contrôle d'applications et identité sur IPFS      | Accès au réseau Nostr et gestion de l'identité.      |
-| **Cycle de vie**    |  Déploiement dynamique via tx de l'identité principale |  Création par ssss-split des données, puis déploiement IPFS  |
-| **Structure**        | Structure hiérarchique, mise à jour via transactions  | Structure autonome, avec récupération du vault via SSSS |
-| **Interaction**       | Interaction avec l'identité principale via commentaires | Interaction avec le réseau Nostr et récupération.     |
-| **Sécurité**           | Clés chiffrées, stockage IPFS, accès à un mot de passe (UPLANETNAME) | Clés Nostr et G1 stockées et chiffrées, accès via SSSS, et via un mot de passe. |
-| **Distribution du secret**  | Clé IPNS chiffrée via clé Captain et UPLANETNAME | Clé Nostr et ssss parties distribuées via 3 acteurs. |
-| **Gestion**        | Le controle est du coté du G1 | Le contrôle est du coté de l'utilisateur |
-
-**Points clés**
-
-*   **Hiérarchie vs Autonomie :** La ZEROCARD est hiérarchique et contrôlée par l'identité principale, tandis que la NOSTRCARD est autonome, gérée et récupérable par l'utilisateur principal via un système ssss-split.
-*   **Focus :** La ZEROCARD est axée sur le contrôle décentralisé des applications et la gestion de l'identité sur IPFS (Drivestate), tandis que la NOSTRCARD se concentre sur l'accès au réseau Nostr et la protection des données.
-*   **Complexité :** Les ZEROCARDS ont un cycle de vie plus complexe et sont plus liées à des mécanismes IPFS/blockchain (notamment le `DRIVESTATE`)  alors que les NOSTRCARDS sont plus "simples" dans leurs fonctionnements (un enregistrement IPFS + une gestion de clé).
-
-**En résumé**
-
-Les ZEROCARDS et les NOSTRCARDS sont deux types d'identités différentes dans cet écosystème :
-
-*   La **ZEROCARD** est un outil pour activer un espace IPFS lié à un utilisateur principal via une interface dynamique.
-*   La **NOSTRCARD** permet de créer et de récupérer une identité Nostr en la liant à un utilisateur et une identité G1.
-
-Elles utilisent toutes deux IPFS pour le stockage et une forme de protection des données, mais avec des objectifs et des approches distincts.
-
----
-
-## 🤝 How to Contribute
-
-Contributions are highly appreciated! Here’s how you can help:
-
-1.  🐛 Report issues and bugs.
-2.  💡 Suggest new features and improvements.
-3.  🔧 Submit pull requests for fixes and enhancements.
-4.  📚 Improve the documentation.
-5.  🧪 Help with testing.
-
-## 🤝 Comment Contribuer
-
-Votre contribution est la bienvenue ! Voici quelques pistes pour nous aider :
-
-1.  **Signalement des Problèmes :** Signalez les bugs et les problèmes rencontrés.
-2.  **Suggestions d'Améliorations :** Proposez de nouvelles fonctionnalités et des améliorations.
-3.  **Soumission de Pull Requests :** Soumettez des pull requests pour corriger des bugs et améliorer le code.
-4.  **Amélioration de la Documentation :** Aidez à améliorer la documentation du projet.
-5.  **Test :** Aidez-nous à tester les nouvelles fonctionnalités.
-
-## 📄 License
-
-This project is licensed under the AGPL-3.0 License. See the [LICENSE](LICENSE) file for more details.
-
-## 👤 Author
-
-Fred (DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech)
-
-## 🙏 Acknowledgements
-
-*   Ğ1 and Duniter community
-*   Contributors to the utilized libraries.
-*   Vosk and openai-whisper team for speech recognition tools.
-
-## 📚 Documentation
-
-We invite you to be part of this project shaping the future of digital identity, and multimedia management within the Ğ1 ecosystem!
+By setting up UPassport, you gain access to a powerful terminal for interacting with the decentralized Ğ1 ecosystem, managing your digital identity, and leveraging multimedia capabilities within a secure and open-source framework.
