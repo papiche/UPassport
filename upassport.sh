@@ -23,6 +23,9 @@ function urldecode() { : "${*//+/ }"; echo -e "${_//%/\\x}"; }
 ## PUBKEY SHOULD BE A MEMBER PUBLIC KEY
 QRCODE="$1"
 IMAGE="$2"
+ZLAT="$3"
+ZLON="$4"
+
 [ ! -z "$IMAGE" ] && echo "IMAGE : $IMAGE"
 
 PUBKEY=$(echo "$QRCODE" | tr -d ' ')
@@ -172,7 +175,7 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     ### SEARCH FOR EXISTING NOSTR CARD
     if [[ ! -s ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ]]; then
         ### CREATING NOSTR CARD ZINE
-        ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE"
+        ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE" "${ZLAT}" "${ZLON}"
         ## MAILJET SEND NOSTR CARD
         ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "UPlanet NOSTR Card"
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"

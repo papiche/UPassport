@@ -135,7 +135,12 @@ async def check_balance_route(g1pub: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/upassport")
-async def scan_qr(parametre: str = Form(...), imageData: str = Form(None)):
+async def scan_qr(
+    parametre: str = Form(...),
+    imageData: str = Form(None),
+    zlat: str = Form(None),
+    zlon: str = Form(None)
+):
     image_dir = "./tmp"
 
     # Ensure the image directory exists
@@ -166,9 +171,12 @@ async def scan_qr(parametre: str = Form(...), imageData: str = Form(None)):
             except Exception as e:
                 logging.error("Error saving image: %s", e)
 
+    # Log zlat and zlon values
+    logging.info(f"zlat: {zlat}, zlon: {zlon}")
+
     ## Running External Script > get last line > send file content back to client.
     script_path = "./upassport.sh"
-    return_code, last_line = await run_script(script_path, parametre, image_path)
+    return_code, last_line = await run_script(script_path, parametre, image_path, zlat, zlon)
 
     if return_code == 0:
         returned_file_path = last_line.strip()
