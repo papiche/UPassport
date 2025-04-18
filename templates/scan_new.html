@@ -282,7 +282,9 @@
             <input type="text" id="parametre" name="parametre" size=30 required placeholder="Email, QR Code ou Message NOSTR...">
             <input type="hidden" id="imageData" name="imageData">
             <input type="password" id="PASS" name="PASS" value="0000" size=4>
-            <input type="hidden" id="nostrHex" name="HEX" value=""> <!-- Hidden input for HEX key -->
+            <input type="hidden" id="nostrHex" name="HEX" value="">
+            <input type="hidden" id="zlat" name="zlat" value="">
+            <input type="hidden" id="zlon" name="zlon" value="">
             <input type="submit" id="submitButton" value="-- OK --">
 
         </form>
@@ -400,6 +402,20 @@
         scanPeriod: 1
     };
 
+    // Function to extract URL parameters
+    function getUrlParameter(name) {
+      name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+      const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+      const results = regex.exec(location.search);
+      return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    }
+    const dZLAT = '0.00';
+    const ZLAT = getUrlParameter('zlat') || dZLAT;
+    $('#zlat').val(ZLAT);
+    const dZLON = '0.00';
+    const ZLON = getUrlParameter('zlon') || dZLON;
+    $('#zlon').val(ZLON);
+
     // Convert
     // https://u.domain.tld +> https://astroport.domain.tld
     // http://name.local:54321 +> http://name.local:1234
@@ -423,6 +439,9 @@
     function getRelayURL() {
         const currentUrl = new URL(window.location.href);
         let relayName = currentUrl.hostname.replace('u.', 'relay.');
+        if (currentUrl.port === '54321' || currentUrl.port !== '') {
+            return `ws://127.0.0.1:7777`;
+        }
         return `wss://${relayName}`;
     }
 
