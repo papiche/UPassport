@@ -131,12 +131,12 @@ async def get_root(request: Request):
     return templates.TemplateResponse("g1nostr.html", {"request": request})
 
 @app.post("/g1nostr")
-async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...), salt: str = Form(...), pepper: str = Form(...)):
+async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...), lat: str = Form(...), lon: str = Form(...), salt: str = Form(...), pepper: str = Form(...)):
     """
     Endpoint to execute the g1.sh script and return the generated file.
     """
     script_path = "./g1.sh" # Make sure g1.sh is in the same directory or adjust path
-    return_code, last_line = await run_script(script_path, email, lang, salt, pepper)
+    return_code, last_line = await run_script(script_path, email, lang, lat, lon, salt, pepper)
 
     if return_code == 0:
         returned_file_path = last_line.strip()
@@ -452,39 +452,6 @@ async def stop_recording(request: Request, player: Optional[str] = None):
 @app.get("/index", response_class=HTMLResponse)
 async def welcomeuplanet(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
-
-@app.get("/uplanet", response_class=HTMLResponse)
-async def welcomeuplanet(request: Request):
-    return templates.TemplateResponse("uplanet.html", {"request": request})
-
-@app.post("/uplanet")
-async def uplanet(request: Request):
-    try:
-        data = await request.json()
-        email = data.get('email')
-        latitude = data.get('latitude')
-        longitude = data.get('longitude')
-
-        # Logging
-        logging.info(f"email account : {email}")
-        logging.info(f"latitude : {latitude}")
-        logging.info(f"longitude : {longitude}")
-
-        # Appel du script UPLANET.sh
-        script_path = "~/.zen/Astroport.ONE/API/UPLANET.sh"
-        return_code, last_line = await run_script(script_path, email, "zlat", latitude, "zlon", longitude)
-
-        if return_code == 0:
-            returned_file_path = last_line.strip()
-            logging.info(f"Returning file: {last_line}")
-            return FileResponse(last_line)
-        else:
-            logging.error(f"UPLANET.sh script error: {result.stderr}")
-            raise HTTPException(status_code=500, detail={"status": "error", "message": "Failed to create UPlanet account"})
-
-    except Exception as e:
-        logging.error(f"Error processing uplanet request: {e}")
-        raise HTTPException(status_code=500, detail={"status": "error", "message": str(e)})
 
 @app.post('/ping')
 async def get_webhook(request: Request):

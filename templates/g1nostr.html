@@ -184,23 +184,28 @@
     </style>
 </head>
 <body>
+
     <div class="container">
-        <h2>G1 NOSTR Card</h2>
+        <h2>Identifiants </h2>
         <form id="nostr-form" action="/g1nostr" method="post">
             <input type="hidden" id="lang" name="lang" value="fr">
+            <input type="hidden" id="lat" name="lat" value="0.00">
+            <input type="hidden" id="lon" name="lon" value="0.00">
 
-            <label for="salt">Identifiant (Cesium / GChange):</label>
+            <label for="salt">Identifiant :</label>
             <input type="text" id="salt" name="salt" required>
 
-            <label for="pepper">Mot de passe (Cesium / GChange):</label>
+            <label for="pepper">Mot de passe :</label>
             <input type="password" id="pepper" name="pepper" required>
+        <h2>Email</h2>
 
             <label for="email">Email:</label>
             <input type="text" id="email" name="email" required>
 
-            <input type="submit" value="CONVERTIR">
+            <input type="submit" value="INSCRIPTION">
         </form>
         <div id="error-message" class="error"></div>
+        <div id="geo-error" class="error"></div>
 
         <div class="loader-container" id="loader-container">
             <div class="loader"></div>
@@ -209,11 +214,11 @@
         </div>
     </div>
 
-    <!-- Modal for displaying result -->
+ <!-- Modal for displaying result -->
     <div class="modal" id="result-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <span class="modal-title">Votre Carte NOSTR</span>
+                <span class="modal-title">NOSTR Card</span>
                 <button class="modal-close" id="modal-close">&times;</button>
             </div>
             <div class="modal-body">
@@ -221,10 +226,29 @@
             </div>
             <div class="modal-footer">
                 <button class="modal-button modal-button-secondary" id="close-result">Fermer</button>
-                <button class="modal-button modal-button-primary" id="open-new-tab">Ouvrir dans un nouvel onglet</button>
+                <button class="modal-button modal-button-primary" id="open-new-tab">Ouvrir</button>
             </div>
         </div>
     </div>
+<div id="coordinates-display" style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
+    <p>Latitude: <span id="display-lat">0.00</span> | Longitude: <span id="display-lon">0.00</span></p>
+    <p><a id="map-link" href="https://ipfs.copylaradio.com/ipns/copylaradio.com/map_render.html?southWestLat=0.00&southWestLon=0.00&deg=0.01" target="_blank">Voir sur la carte</a></p>
+</div>
+
+<h1>Inscrivez votre identité <a href="https://www.gchange.fr/" target="gchange">GChange</a> sur UPlanet</h1>
+
+<h2>Pourquoi activer votre compte UPlanet ?</h2>
+        <h2>Pourquoi activer votre compte UPlanet ?</h2>
+        <ul>
+            <li>Rejoignez un réseau décentralisé et sécurisé</li>
+            <li>Profitez de la Toile de Confiance sur Nostr</li>
+            <li>Etendez l'écosystème de la Monnaie Libre</li>
+            <li>Profitez des services NextCloud / IA sur UPlanet</li>
+        </ul>
+
+G1FabLab : <a href="https://www.copylaradio.com" target="copylaradio">CopyLaRadio</a> : La Coopérative des Auto Hébergeurs Web2 & Web3
+
+
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -235,12 +259,56 @@
 
             const form = document.getElementById('nostr-form');
             const errorMessageDiv = document.getElementById('error-message');
+            const geoErrorDiv = document.getElementById('geo-error');
             const loaderContainer = document.getElementById('loader-container');
             const resultModal = document.getElementById('result-modal');
             const resultIframe = document.getElementById('result-iframe');
             const openNewTabButton = document.getElementById('open-new-tab');
             const closeResultButton = document.getElementById('close-result');
             const modalCloseButton = document.getElementById('modal-close');
+
+            // Get geolocation
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        // Round to 2 decimal places
+                        const lat = Math.round(position.coords.latitude * 100) / 100;
+                        const lon = Math.round(position.coords.longitude * 100) / 100;
+
+                        document.getElementById('lat').value = lat.toFixed(2);
+                        document.getElementById('lon').value = lon.toFixed(2);
+
+                        // Mettre à jour l'affichage des coordonnées
+                        document.getElementById('display-lat').textContent = lat.toFixed(2);
+                        document.getElementById('display-lon').textContent = lon.toFixed(2);
+
+                        // Mettre à jour le lien de la carte
+                        const mapLink = document.getElementById('map-link');
+                        mapLink.href = `https://ipfs.copylaradio.com/ipns/copylaradio.com/map_render.html?southWestLat=${lat.toFixed(2)}&southWestLon=${lon.toFixed(2)}&deg=0.01`;
+                    },
+                    function(error) {
+                        let errorMessage;
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage = "La géolocalisation a été refusée. Utilisation des coordonnées par défaut.";
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage = "Les informations de localisation ne sont pas disponibles. Utilisation des coordonnées par défaut.";
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage = "La demande de géolocalisation a expiré. Utilisation des coordonnées par défaut.";
+                                break;
+                            default:
+                                errorMessage = "Une erreur inconnue s'est produite lors de la géolocalisation. Utilisation des coordonnées par défaut.";
+                        }
+                        geoErrorDiv.innerText = errorMessage;
+                        geoErrorDiv.style.display = 'block';
+                    }
+                );
+            } else {
+                geoErrorDiv.innerText = "La géolocalisation n'est pas supportée par votre navigateur. Utilisation des coordonnées par défaut.";
+                geoErrorDiv.style.display = 'block';
+            }
 
             form.addEventListener('submit', function(event) {
                 event.preventDefault();

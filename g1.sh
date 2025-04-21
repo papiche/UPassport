@@ -20,10 +20,12 @@ source "$HOME/.zen/Astroport.ONE/tools/my.sh"
 ####################################################################
 EMAIL="$1"
 LANG="$2"
-SALT="$3"
-PEPPER="$4"
+LAT="$3"
+LON="$4"
+SALT="$5"
+PEPPER="$6"
 
-if [[ "$#" -lt 4 ]]; then
+if [[ "$#" -lt 6 ]]; then
     echo "Error: Missing parameters."
     cat ${MY_PATH}/templates/message.html \
     | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
@@ -51,7 +53,7 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     ### SEARCH FOR EXISTING NOSTR CARD
     if [[ ! -s ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ]]; then
         ### CREATING NOSTR CARD with SALT PEPPER
-        ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$LANG" "0.00" "0.00" "${SALT}" "${PEPPER}"
+        ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$LANG" "${LAT}" "${LON}" "${SALT}" "${PEPPER}"
         ## MAILJET SEND NOSTR CARD
         ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "UPlanet NOSTR Card"
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
