@@ -28,7 +28,7 @@
         #relays-list ul { padding-left: 20px; }
         #relays-list li { margin-bottom: 5px; }
         #debug-info { margin-top: 20px; border: 1px dashed #ccc; padding: 10px; font-size: 0.9em; white-space: pre-wrap; }
-
+        #loadingSpinner { display: none; margin: 20px 0; }
     </style>
 </head>
 <body>
@@ -40,6 +40,7 @@
         <label for="message">Message:</label>
         <textarea id="message"></textarea>
         <button id="sendButton" disabled>Send Message</button>
+        <div id="loadingSpinner">Publishing to relays...</div>
         <div id="relays-list">
           <h2>Connected Relays</h2>
           <ul></ul>
@@ -47,102 +48,177 @@
         <div id="debug-info"></div>
     </div>
     <script>
-    let debugInfo = ''; // Variable pour stocker les logs
+    let debugInfo = '';
+    let nostrExtensionAvailable = false;
+    let publicKey = '';
+    const DEFAULT_RELAYS = [
+        'wss://relay.copylaradio.com',
+        'ws://127.0.0.1:7777'
+    ];
 
     function log(message) {
         debugInfo += message + '\n';
         document.getElementById('debug-info').innerText = debugInfo;
         console.log(message);
     }
-        // Vérifier si l'extension Nostr est détectée
+
+    function checkNostrExtension() {
         log('Checking for nostr extension...');
-        if (typeof window.nostr === 'undefined') {
-           log('Nostr extension not found. Please install one!');
-           document.getElementById('status').innerText = 'Nostr extension not found. Please install one!';
+        if (typeof window.nostr !== 'undefined') {
+            nostrExtensionAvailable = true;
+            log('Nostr extension detected.');
+            document.getElementById('status').innerText = 'Nostr extension detected. Click "Connect with Nostr" to continue.';
+            document.getElementById('connectButton').disabled = false;
+            setupEventListeners();
         } else {
-           log('Nostr extension detected.');
-           document.getElementById('status').innerText = 'Nostr extension detected.';
-            document.getElementById('connectButton').addEventListener('click', connectToNostr);
-            document.getElementById('sendButton').addEventListener('click', sendMessage);
+            log('Nostr extension not detected. Waiting for possible late loading...');
+            document.getElementById('status').innerText = 'Nostr extension not detected. Please install one or refresh after installation.';
+            document.getElementById('connectButton').disabled = true;
+
+            setTimeout(checkNostrExtension, 1000);
         }
-        // Fonction pour se connecter à NOSTR
-        async function connectToNostr() {
-           log('Initiating Nostr Connection...');
-           try {
-              const pubkey = await window.nostr.getPublicKey();
-              log(`Connected as: ${pubkey}`);
-              document.getElementById('status').innerText = `Connected as: ${pubkey}`;
-              // Récupère et affiche les relais
-              getRelays();
-              // Active le bouton d'envoi
-              document.getElementById('sendButton').disabled = false;
+    }
+
+    function setupEventListeners() {
+        document.getElementById('connectButton').addEventListener('click', connectToNostr);
+        document.getElementById('sendButton').addEventListener('click', sendMessage);
+    }
+
+    async function connectToNostr() {
+        log('Initiating Nostr Connection...');
+        try {
+            publicKey = await window.nostr.getPublicKey();
+            log(`Connected as: ${publicKey}`);
+            document.getElementById('status').innerText = `Connected as: ${publicKey}`;
+            document.getElementById('sendButton').disabled = false;
+            displayRelays(DEFAULT_RELAYS);
+        } catch (error) {
+            log(`Connection failed: ${error.message}`);
+            document.getElementById('status').innerText = `Connection failed: ${error.message}`;
+        }
+    }
+
+    function displayRelays(relays) {
+        log('Displaying relays...');
+        const listContainer = document.querySelector('#relays-list ul');
+        listContainer.innerHTML = '';
+        relays.forEach(url => {
+            const listItem = document.createElement('li');
+            listItem.textContent = url;
+            listContainer.appendChild(listItem);
+            log(`Relay: ${url}`);
+        });
+    }
+
+    function publishToRelay(relayUrl, signedEvent) {
+        return new Promise((resolve) => {
+            try {
+                const ws = new WebSocket(relayUrl);
+
+                ws.onopen = () => {
+                    log(`Connected to ${relayUrl}`);
+                    const publishMessage = ['EVENT', signedEvent];
+                    ws.send(JSON.stringify(publishMessage));
+                    log(`Event sent to ${relayUrl}`);
+                    resolve(true);
+                };
+
+                ws.onerror = (error) => {
+                    log(`WebSocket error on relay ${relayUrl}: ${error.message}`);
+                    resolve(false);
+                };
+
+                ws.onclose = () => {
+                    log(`Connection closed to relay: ${relayUrl}`);
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        if (message[0] === 'OK' && message[1] === signedEvent.id) {
+                            log(`Relay ${relayUrl} acknowledged event ID: ${signedEvent.id}`);
+                        } else if (message[0] === 'NOTICE') {
+                            log(`Relay ${relayUrl} NOTICE: ${message[1]}`);
+                        }
+                    } catch (e) {
+                        log(`Error parsing relay message from ${relayUrl}: ${e.message}`);
+                    }
+                };
+
+                // Timeout for connection
+                setTimeout(() => {
+                    if (ws.readyState !== WebSocket.OPEN) {
+                        ws.close();
+                        log(`Timeout connecting to ${relayUrl}`);
+                        resolve(false);
+                    }
+                }, 5000);
+
             } catch (error) {
-                log(`Connection failed: ${error.message}`);
-                document.getElementById('status').innerText = `Connection failed: ${error.message}`;
-              }
-         }
-         // Fonction pour récupérer la liste des relais
-        async function getRelays() {
-          log('Fetching relays from Nostr extension...');
-          try {
-             const relays = await window.nostr.getRelays();
-             log('Relays fetched successfully.');
-             displayRelays(relays);
-         } catch (error) {
-            log(`Failed to fetch relays: ${error.message}`);
-            console.error("Failed to fetch relays:", error);
-            document.getElementById('relays-list').innerHTML = `<p>Failed to load relays: ${error.message}</p>`;
-           }
+                log(`Error connecting to relay ${relayUrl}: ${error.message}`);
+                resolve(false);
+            }
+        });
+    }
+
+    async function sendMessage() {
+        const messageContent = document.getElementById('message').value.trim();
+        if (!messageContent) {
+            alert("Please write your message!");
+            return;
         }
 
-         // Fonction pour afficher la liste des relais
-        function displayRelays(relays) {
-           log('Displaying relays...');
-            const listContainer = document.querySelector('#relays-list ul');
-           listContainer.innerHTML = '';
-            Object.keys(relays).forEach(url => {
-                const listItem = document.createElement('li');
-                listItem.textContent = `${url} (${relays[url].read ? 'read' : 'no read'}, ${relays[url].write ? 'write' : 'no write'})`;
-                listContainer.appendChild(listItem);
-                log(`Relay: ${url}`);
-            });
-        }
+        document.getElementById('loadingSpinner').style.display = 'block';
+        document.getElementById('sendButton').disabled = true;
 
-        // Fonction pour envoyer un message NOSTR
-        async function sendMessage() {
-           const message = document.getElementById('message').value;
-             if (!message) {
-              alert("Please write your message!");
-              return;
-             }
-            log(`Preparing message: ${message}`);
-            const event = {
-                kind: 1,
-                content: message,
-                tags: []
-            };
-           try {
-              const signedEvent = await window.nostr.signEvent(event);
-               log(`Message signed: ${signedEvent.id}`);
-              const pub = signedEvent.pubkey;
-              const id = signedEvent.id;
+        log(`Preparing message: ${messageContent}`);
 
-               // Publish to all relays (extension handles this!)
-               let result = await window.nostr.publish(signedEvent);
-                log(`Publish result : ${result}`);
-               if(result) {
-                  document.getElementById('status').innerText = `Message send: ${id}`;
-                  log(`Message sent successfully: ${id}`);
-                }
-              else {
-                document.getElementById('status').innerText = `Error to send message. Try again`;
-                log(`Error to send message.`);
-                }
-           } catch(error) {
+        const event = {
+            kind: 1,
+            content: messageContent,
+            tags: [],
+            created_at: Math.floor(Date.now() / 1000),
+            pubkey: publicKey
+        };
+
+        try {
+            // Sign the event with extension
+            const signedEvent = await window.nostr.signEvent(event);
+            log(`Message signed: ${signedEvent.id}`);
+
+            // Publish to all relays
+            let successCount = 0;
+            const totalRelays = DEFAULT_RELAYS.length;
+
+            document.getElementById('status').innerText = `Publishing to ${totalRelays} relays...`;
+
+            for (const relayUrl of DEFAULT_RELAYS) {
+                const success = await publishToRelay(relayUrl, signedEvent);
+                if (success) successCount++;
+            }
+
+            document.getElementById('status').innerText = `Message published to ${successCount}/${totalRelays} relays. ID: ${signedEvent.id}`;
+            log(`Message published to ${successCount} relays`);
+
+        } catch(error) {
             log(`Error: ${error.message}`);
             document.getElementById('status').innerText = `Error: ${error.message}`;
-           }
-         }
+        } finally {
+            document.getElementById('loadingSpinner').style.display = 'none';
+            document.getElementById('sendButton').disabled = false;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        checkNostrExtension();
+
+        const checkInterval = setInterval(function() {
+            if (!nostrExtensionAvailable && typeof window.nostr !== 'undefined') {
+                clearInterval(checkInterval);
+                checkNostrExtension();
+            }
+        }, 500);
+    });
     </script>
 </body>
 </html>

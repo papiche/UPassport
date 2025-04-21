@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>G1 NOSTR Card Generator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        h2 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        label {
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #34495e;
+        }
+        input[type="text"],
+        input[type="password"] {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        input[type="submit"] {
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+        }
+        input[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+        .error {
+            color: #e74c3c;
+            margin-top: 15px;
+            text-align: center;
+            padding: 10px;
+            background-color: #fdecea;
+            border-radius: 6px;
+            display: none;
+        }
+
+        /* Loading animation */
+        .loader-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 30px 0;
+            text-align: center;
+        }
+        .loader {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loader-text {
+            color: #7f8c8d;
+            font-size: 18px;
+            margin-top: 10px;
+        }
+        .loader-subtext {
+            color: #95a5a6;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        /* Modal for result */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: white;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        .modal-header {
+            padding: 15px 20px;
+            background-color: #2c3e50;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-title {
+            font-weight: 500;
+            font-size: 18px;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0 10px;
+        }
+        .modal-body {
+            flex: 1;
+            min-height: 400px;
+            overflow: auto;
+        }
+        .modal-footer {
+            padding: 15px;
+            background-color: #f8f9fa;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .modal-button {
+            padding: 8px 16px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .modal-button-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .modal-button-primary:hover {
+            background-color: #0069d9;
+        }
+        .modal-button-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .modal-button-secondary:hover {
+            background-color: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>G1 NOSTR Card</h2>
+        <form id="nostr-form" action="/g1nostr" method="post">
+            <input type="hidden" id="lang" name="lang" value="fr">
+
+            <label for="salt">Identifiant (Cesium / GChange):</label>
+            <input type="text" id="salt" name="salt" required>
+
+            <label for="pepper">Mot de passe (Cesium / GChange):</label>
+            <input type="password" id="pepper" name="pepper" required>
+
+            <label for="email">Email:</label>
+            <input type="text" id="email" name="email" required>
+
+            <input type="submit" value="CONVERTIR">
+        </form>
+        <div id="error-message" class="error"></div>
+
+        <div class="loader-container" id="loader-container">
+            <div class="loader"></div>
+            <div class="loader-text">Génération de votre carte NOSTR</div>
+            <div class="loader-subtext">Veuillez patienter, cette opération peut prendre quelques secondes...</div>
+        </div>
+    </div>
+
+    <!-- Modal for displaying result -->
+    <div class="modal" id="result-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">Votre Carte NOSTR</span>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <iframe id="result-iframe" style="width: 100%; height: 100%; min-height: 500px; border: none;"></iframe>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-button modal-button-secondary" id="close-result">Fermer</button>
+                <button class="modal-button modal-button-primary" id="open-new-tab">Ouvrir dans un nouvel onglet</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set language from browser
+            const userLanguage = navigator.language || navigator.languages[0];
+            const shortLanguageCode = userLanguage.substring(0, 2);
+            document.getElementById('lang').value = shortLanguageCode.toLowerCase();
+
+            const form = document.getElementById('nostr-form');
+            const errorMessageDiv = document.getElementById('error-message');
+            const loaderContainer = document.getElementById('loader-container');
+            const resultModal = document.getElementById('result-modal');
+            const resultIframe = document.getElementById('result-iframe');
+            const openNewTabButton = document.getElementById('open-new-tab');
+            const closeResultButton = document.getElementById('close-result');
+            const modalCloseButton = document.getElementById('modal-close');
+
+            form.addEventListener('submit', function(event) {
+                event.preventDefault();
+
+                // Reset UI
+                errorMessageDiv.style.display = 'none';
+                errorMessageDiv.innerText = '';
+                loaderContainer.style.display = 'flex';
+                resultModal.style.display = 'none';
+
+                const formData = new FormData(form);
+
+                fetch('/g1nostr', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    } else {
+                        return response.json().then(err => {
+                            throw new Error(err.error || `Server error: ${response.status} ${response.statusText}`);
+                        });
+                    }
+                })
+                .then(blob => {
+                    loaderContainer.style.display = 'none';
+
+                    if (blob) {
+                        const blobUrl = URL.createObjectURL(blob);
+                        resultIframe.src = blobUrl;
+                        resultModal.style.display = 'flex';
+                        resultIframe.dataset.src = blobUrl;
+                    }
+                })
+                .catch(error => {
+                    loaderContainer.style.display = 'none';
+                    errorMessageDiv.innerText = `Erreur: ${error.message}`;
+                    errorMessageDiv.style.display = 'block';
+                    console.error('Fetch error:', error);
+                });
+            });
+
+            openNewTabButton.addEventListener('click', function() {
+                const currentSrc = resultIframe.dataset.src;
+                if (currentSrc) {
+                    window.open(currentSrc, '_blank');
+                }
+            });
+
+            closeResultButton.addEventListener('click', function() {
+                resultModal.style.display = 'none';
+                resultIframe.src = '';
+                resultIframe.dataset.src = '';
+            });
+
+            modalCloseButton.addEventListener('click', function() {
+                resultModal.style.display = 'none';
+                resultIframe.src = '';
+                resultIframe.dataset.src = '';
+            });
+
+            // Close modal when clicking outside
+            resultModal.addEventListener('click', function(e) {
+                if (e.target === resultModal) {
+                    resultModal.style.display = 'none';
+                    resultIframe.src = '';
+                    resultIframe.dataset.src = '';
+                }
+            });
+
+            // Handle error messages from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            if (error) {
+                errorMessageDiv.innerText = "Erreur: " + error;
+                errorMessageDiv.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

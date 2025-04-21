@@ -126,6 +126,27 @@ async def get_root(request: Request):
 async def get_root(request: Request):
     return templates.TemplateResponse("nostr.html", {"request": request})
 
+@app.get("/g1", response_class=HTMLResponse)
+async def get_root(request: Request):
+    return templates.TemplateResponse("g1nostr.html", {"request": request})
+
+@app.post("/g1nostr")
+async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...), salt: str = Form(...), pepper: str = Form(...)):
+    """
+    Endpoint to execute the g1.sh script and return the generated file.
+    """
+    script_path = "./g1.sh" # Make sure g1.sh is in the same directory or adjust path
+    return_code, last_line = await run_script(script_path, email, lang, salt, pepper)
+
+    if return_code == 0:
+        returned_file_path = last_line.strip()
+        logging.info(f"Returning file: {returned_file_path}")
+        return FileResponse(returned_file_path)
+    else:
+        error_message = f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs. Script output: {last_line}"
+        logging.error(error_message)
+        return JSONResponse({"error": error_message}, status_code=500) # Return 500 for server error
+
 @app.get("/check_balance")
 async def check_balance_route(g1pub: str):
     try:
