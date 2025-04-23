@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>G1 NOSTR Card Generator</title>
+    <title>NOSTR Card Generator</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -186,21 +186,23 @@
 <body>
 
     <div class="container">
-        <h2>Identifiants </h2>
+    <h1><a href="https://qo-op.com" target="uplanet">UPlanet "ORIGIN"</a></h1>
+    <p><a id="map-link" href="https://ipfs.copylaradio.com/ipns/copylaradio.com/map_render.html?southWestLat=0.00&southWestLon=0.00&deg=0.01" target="_blank">UMAP : <span id="display-lat">0.00</span> <span id="display-lon">0.00</span></a></p>
         <form id="nostr-form" action="/g1nostr" method="post">
             <input type="hidden" id="lang" name="lang" value="fr">
             <input type="hidden" id="lat" name="lat" value="0.00">
             <input type="hidden" id="lon" name="lon" value="0.00">
-
-            <label for="salt">Identifiant :</label>
-            <input type="text" id="salt" name="salt" required>
-
-            <label for="pepper">Mot de passe :</label>
-            <input type="password" id="pepper" name="pepper" required>
         <h2>Email</h2>
 
             <label for="email">Email:</label>
             <input type="text" id="email" name="email" required>
+        <h2>Identifiants (<a href="https://www.gchange.fr/" target="gchange">ğchange</a>)</h2>
+
+            <label for="salt">Identifiant :</label>
+            <input type="text" id="salt" name="salt">
+
+            <label for="pepper">Mot de passe :</label>
+            <input type="password" id="pepper" name="pepper">
 
             <input type="submit" value="INSCRIPTION">
         </form>
@@ -230,21 +232,21 @@
             </div>
         </div>
     </div>
-
-<h1>Inscrivez votre identité <a href="https://www.gchange.fr/" target="gchange">GChange</a> sur <a href="https://qo-op.com" target="uplanet">UPlanet ORIGIN</a></h1>
+<center>
 <div id="coordinates-display" style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
-    <p><a id="map-link" href="https://ipfs.copylaradio.com/ipns/copylaradio.com/map_render.html?southWestLat=0.00&southWestLon=0.00&deg=0.01" target="_blank">UMAP : <span id="display-lat">0.00</span> <span id="display-lon">0.00</span></a></p>
-</div>
+    <p>
         <h2>Pourquoi activer votre compte UPlanet ?</h2>
         <ul>
             <li>Rejoignez un réseau social décentralisé et sécurisé</li>
             <li>Profitez de la Toile de Confiance Ğ1 sur Nostr</li>
             <li>Etendez l'écosystème de la Monnaie Libre</li>
-            <li>Profitez de nos services NextCloud + IA</li>
+            <li>Profitez de nos services NextCloud et IA</li>
         </ul>
 
-G1FabLab : <a href="https://www.copylaradio.com" target="copylaradio">CopyLaRadio</a> : La Coopérative des Auto Hébergeurs Web2 & Web3
-
+<b><a href="https://www.copylaradio.com" target="copylaradio">CopyLaRadio</a></b> : La Coopérative des Auto Hébergeurs Web2 & Web3
+</p>
+</div>
+</center>
 
 
     <script>

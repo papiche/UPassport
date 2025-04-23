@@ -2,223 +2,564 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nostr Connect Example</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+    <title>Nostr Mobile Post</title>
+    <!-- Using jQuery for AJAX NIP-96 upload as in the original example -->
+    <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/jquery-3.6.3.min.js"></script>
     <style>
         body {
             font-family: 'Arial', sans-serif;
             margin: 0;
-            padding: 20px;
-            background-color: #f4f4f4;
+            padding: 15px;
+            background-color: #1a1a1a; /* Dark background */
+            color: #e0e0e0; /* Light text */
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            box-sizing: border-box;
         }
         .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: white;
+            background-color: #2a2a2a; /* Slightly lighter container */
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 500px; /* Max width for larger phones */
+            margin: 20px auto;
+            box-sizing: border-box;
         }
-        label { display: block; margin-bottom: 5px; }
-        textarea { width: 100%; height: 100px; padding: 8px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;}
-        button { padding: 10px 15px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        button:hover { background-color: #45a049; }
-        #status { margin-top: 20px; font-weight: bold; }
-        #relays-list { margin-top: 20px; }
-        #relays-list ul { padding-left: 20px; }
-        #relays-list li { margin-bottom: 5px; }
-        #debug-info { margin-top: 20px; border: 1px dashed #ccc; padding: 10px; font-size: 0.9em; white-space: pre-wrap; }
-        #loadingSpinner { display: none; margin: 20px 0; }
+        h1 {
+            background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 1.8em;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #cccccc;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background-color: #333;
+            color: #e0e0e0;
+            font-size: 1em;
+        }
+        button, .button-like {
+            display: block; /* Make buttons full width */
+            width: 100%;
+            padding: 12px 15px;
+            background-color: #4CAF50; /* Green */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            text-align: center;
+            margin-bottom: 10px;
+            transition: background-color 0.3s ease;
+            box-sizing: border-box;
+        }
+        button:hover, .button-like:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+        /* Style the file input label like a button */
+        .button-like {
+             background-color: #2196F3; /* Blue */
+        }
+        .button-like:hover {
+             background-color: #1976D2;
+        }
+        /* Hide the actual file input */
+        input[type="file"] {
+            display: none;
+        }
+        #imagePreview {
+            display: none; /* Hidden initially */
+            max-width: 100%;
+            height: auto;
+            margin-top: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            border: 1px solid #444;
+        }
+        #status {
+            margin-top: 15px;
+            font-weight: bold;
+            text-align: center;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #333;
+            min-height: 20px; /* Ensure space even when empty */
+        }
+        .spinner {
+            display: none;
+            width: 40px;
+            height: 40px;
+            margin: 20px auto;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #debug-info {
+             display: none; /* Hide debug by default */
+             margin-top: 20px;
+             border: 1px dashed #555;
+             padding: 10px;
+             font-size: 0.8em;
+             white-space: pre-wrap;
+             word-wrap: break-word;
+             max-height: 200px;
+             overflow-y: auto;
+             background-color: #222;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Nostr Connect</h1>
-        <button id="connectButton">Connect with Nostr</button>
-        <div id="status"></div>
-        <h2>Send Message</h2>
+        <h1>Nostr Mobile Post</h1>
+
+        <button id="connectButton" disabled>Connect with Nostr</button>
+
         <label for="message">Message:</label>
-        <textarea id="message"></textarea>
-        <button id="sendButton" disabled>Send Message</button>
-        <div id="loadingSpinner">Publishing to relays...</div>
-        <div id="relays-list">
-          <h2>Connected Relays</h2>
-          <ul></ul>
-        </div>
+        <textarea id="message" placeholder="Write your message here..."></textarea>
+
+        <!-- Styled label acting as a button -->
+        <label for="imageInput" class="button-like">📸 Select Photo</label>
+        <!-- Actual file input, hidden -->
+        <input type="file" id="imageInput" accept="image/*">
+
+        <!-- Image preview area -->
+        <img id="imagePreview" src="#" alt="Image Preview"/>
+
+        <button id="postButton" disabled>📍 Post with Location</button>
+
+        <div class="spinner" id="loadingSpinner"></div>
+        <div id="status">Please connect to Nostr.</div>
         <div id="debug-info"></div>
     </div>
+
     <script>
-    let debugInfo = '';
-    let nostrExtensionAvailable = false;
-    let publicKey = '';
-    const DEFAULT_RELAYS = [
-        'wss://relay.copylaradio.com',
-        'ws://127.0.0.1:7777'
-    ];
+        let debugInfo = '';
+        let nostrExtensionAvailable = false;
+        let publicKey = '';
+        let selectedImageDataUrl = null; // To store the Base64 image data
+        let currentLatitude = null;
+        let currentLongitude = null;
 
-    function log(message) {
-        debugInfo += message + '\n';
-        document.getElementById('debug-info').innerText = debugInfo;
-        console.log(message);
-    }
+        const relaysToPublish = [
+            'wss://relay.copylaradio.com',
+            'ws://127.0.0.1:7777',
+            // Add more default relays if needed
+            // getRelayURL() // You might want to add this back if needed
+        ];
 
-    function checkNostrExtension() {
-        log('Checking for nostr extension...');
-        if (typeof window.nostr !== 'undefined') {
-            nostrExtensionAvailable = true;
-            log('Nostr extension detected.');
-            document.getElementById('status').innerText = 'Nostr extension detected. Click "Connect with Nostr" to continue.';
-            document.getElementById('connectButton').disabled = false;
-            setupEventListeners();
-        } else {
-            log('Nostr extension not detected. Waiting for possible late loading...');
-            document.getElementById('status').innerText = 'Nostr extension not detected. Please install one or refresh after installation.';
-            document.getElementById('connectButton').disabled = true;
-
-            setTimeout(checkNostrExtension, 1000);
+        // --- Helper Functions ---
+        function log(message) {
+            console.log(message);
+            debugInfo += `[${new Date().toLocaleTimeString()}] ${message}\n`;
+            // Keep debug info manageable
+            const lines = debugInfo.split('\n');
+            if (lines.length > 50) {
+                debugInfo = lines.slice(-50).join('\n');
+            }
+            $('#debug-info').text(debugInfo);
         }
-    }
 
-    function setupEventListeners() {
-        document.getElementById('connectButton').addEventListener('click', connectToNostr);
-        document.getElementById('sendButton').addEventListener('click', sendMessage);
-    }
-
-    async function connectToNostr() {
-        log('Initiating Nostr Connection...');
-        try {
-            publicKey = await window.nostr.getPublicKey();
-            log(`Connected as: ${publicKey}`);
-            document.getElementById('status').innerText = `Connected as: ${publicKey}`;
-            document.getElementById('sendButton').disabled = false;
-            displayRelays(DEFAULT_RELAYS);
-        } catch (error) {
-            log(`Connection failed: ${error.message}`);
-            document.getElementById('status').innerText = `Connection failed: ${error.message}`;
+        function updateStatus(message, isError = false) {
+            log(`Status Update: ${message}`);
+            const statusElement = $('#status');
+            statusElement.text(message);
+            statusElement.css('color', isError ? '#ff6b6b' : '#4CAF50'); // Red for error, Green for success
+            if (isError) {
+                statusElement.css('background-color', '#5c3a3a');
+            } else {
+                 statusElement.css('background-color', '#3a5c3a');
+            }
         }
-    }
 
-    function displayRelays(relays) {
-        log('Displaying relays...');
-        const listContainer = document.querySelector('#relays-list ul');
-        listContainer.innerHTML = '';
-        relays.forEach(url => {
-            const listItem = document.createElement('li');
-            listItem.textContent = url;
-            listContainer.appendChild(listItem);
-            log(`Relay: ${url}`);
-        });
-    }
+        function showLoading(show) {
+            if (show) {
+                $('#loadingSpinner').show();
+                $('#postButton').prop('disabled', true);
+            } else {
+                $('#loadingSpinner').hide();
+                $('#postButton').prop('disabled', !publicKey); // Re-enable only if connected
+            }
+        }
 
-    function publishToRelay(relayUrl, signedEvent) {
-        return new Promise((resolve) => {
+        // Dynamically get relay URL based on current location (like in original script)
+        function getRelayURL() {
+            const currentUrl = new URL(window.location.href);
+            let relayName = currentUrl.hostname.replace(/^u\./, 'relay.'); // Handle u.domain.tld -> relay.domain.tld
+             // Adjust for local development ports or specific setups
+            if (currentUrl.port === '54321' || currentUrl.hostname === 'localhost' || currentUrl.hostname === '127.0.0.1') {
+                 return `ws://127.0.0.1:7777`; // Default local relay
+            }
+             // Assume WSS for other domains
+            return `wss://${relayName}`;
+        }
+
+        // --- Core Logic ---
+
+        function checkNostrExtension() {
+            log('Checking for nostr extension...');
+            if (typeof window.nostr !== 'undefined') {
+                nostrExtensionAvailable = true;
+                log('Nostr extension detected.');
+                $('#connectButton').prop('disabled', false).text('Connect with Nostr');
+                updateStatus('Nostr extension ready. Please connect.');
+            } else {
+                log('Nostr extension not detected. Waiting...');
+                $('#connectButton').prop('disabled', true).text('Nostr Extension Needed');
+                updateStatus('Nostr extension not found. Please install/enable Nostr Connect (e.g., Amethyst, Nostore).', true);
+                // Keep checking briefly in case it loads late
+                // setTimeout(checkNostrExtension, 2000);
+            }
+        }
+
+        async function connectToNostr() {
+            if (!nostrExtensionAvailable) {
+                updateStatus('Cannot connect: Nostr extension missing.', true);
+                return;
+            }
+            log('Initiating Nostr Connection...');
+            updateStatus('Connecting to Nostr...');
+            $('#connectButton').prop('disabled', true);
             try {
-                const ws = new WebSocket(relayUrl);
+                publicKey = await window.nostr.getPublicKey();
+                log(`Connected as pubkey: ${publicKey.substring(0, 10)}...`);
+                updateStatus(`Connected! Pubkey: ${publicKey.substring(0, 10)}...`);
+                $('#connectButton').hide(); // Hide connect button after success
+                $('#postButton').prop('disabled', false); // Enable posting
+            } catch (error) {
+                log(`Nostr Connection failed: ${error.message || error}`);
+                updateStatus(`Connection failed. Check Nostr Connect app.`, true);
+                $('#connectButton').prop('disabled', false); // Re-enable connect button
+            }
+        }
 
-                ws.onopen = () => {
-                    log(`Connected to ${relayUrl}`);
-                    const publishMessage = ['EVENT', signedEvent];
-                    ws.send(JSON.stringify(publishMessage));
-                    log(`Event sent to ${relayUrl}`);
-                    resolve(true);
-                };
+        function handleImageSelection(event) {
+            const file = event.target.files[0];
+            if (file) {
+                log(`Image selected: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
+                const reader = new FileReader();
 
-                ws.onerror = (error) => {
-                    log(`WebSocket error on relay ${relayUrl}: ${error.message}`);
-                    resolve(false);
-                };
+                reader.onload = function(e) {
+                    selectedImageDataUrl = e.target.result; // Store Base64 data
+                    $('#imagePreview').attr('src', selectedImageDataUrl).show();
+                    log('Image preview updated.');
+                }
+                reader.onerror = function(e) {
+                     log(`File reading error: ${e}`);
+                     updateStatus('Error reading image file.', true);
+                     selectedImageDataUrl = null;
+                     $('#imagePreview').hide();
+                }
+                reader.readAsDataURL(file);
+            } else {
+                log('No image file selected or selection cancelled.');
+                selectedImageDataUrl = null;
+                 $('#imagePreview').hide();
+            }
+        }
 
-                ws.onclose = () => {
-                    log(`Connection closed to relay: ${relayUrl}`);
-                };
+        function getLocation() {
+            return new Promise((resolve, reject) => {
+                if (navigator.geolocation) {
+                    log('Requesting geolocation...');
+                    updateStatus('Getting location...');
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            currentLatitude = position.coords.latitude;
+                            currentLongitude = position.coords.longitude;
+                            log(`Location acquired: Lat ${currentLatitude.toFixed(4)}, Lon ${currentLongitude.toFixed(4)}`);
+                            updateStatus(`Location: ${currentLatitude.toFixed(2)}, ${currentLongitude.toFixed(2)}`);
+                            resolve({ latitude: currentLatitude, longitude: currentLongitude });
+                        },
+                        (error) => {
+                            log(`Geolocation error: ${error.message} (Code: ${error.code})`);
+                            let errorMsg = "Could not get location.";
+                            switch(error.code) {
+                                case error.PERMISSION_DENIED: errorMsg = "Location permission denied."; break;
+                                case error.POSITION_UNAVAILABLE: errorMsg = "Location information unavailable."; break;
+                                case error.TIMEOUT: errorMsg = "Location request timed out."; break;
+                            }
+                            updateStatus(errorMsg, true);
+                            reject(errorMsg);
+                        },
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 } // Options
+                    );
+                } else {
+                    log("Geolocation is not supported by this browser.");
+                    updateStatus("Geolocation not supported.", true);
+                    reject("Geolocation not supported.");
+                }
+            });
+        }
 
-                ws.onmessage = (event) => {
-                    try {
-                        const message = JSON.parse(event.data);
-                        if (message[0] === 'OK' && message[1] === signedEvent.id) {
-                            log(`Relay ${relayUrl} acknowledged event ID: ${signedEvent.id}`);
-                        } else if (message[0] === 'NOTICE') {
-                            log(`Relay ${relayUrl} NOTICE: ${message[1]}`);
+        function uploadImageNip96(imageDataBase64) {
+            return new Promise(async (resolve, reject) => {
+                log("Starting NIP-96 image upload...");
+                const nip96ServerUrl = 'https://g1sms.fr'; // Your NIP-96 server
+                const wellKnownUrl = `${nip96ServerUrl}/.well-known/nostr/nip96.json`;
+
+                try {
+                    // 1. Fetch NIP-96 configuration
+                    const nip96ConfigResponse = await $.ajax({ url: wellKnownUrl, dataType: 'json' });
+                    const nip96ApiEndpoint = nip96ConfigResponse.api_url;
+                    log(`NIP-96 API endpoint: ${nip96ApiEndpoint}`);
+
+                    if (!nip96ApiEndpoint) {
+                        throw new Error("NIP-96 config missing api_url");
+                    }
+
+                    // 2. Convert Base64 to Blob/File
+                    const byteString = atob(imageDataBase64.split(',')[1]);
+                    const mimeString = imageDataBase64.split(',')[0].split(':')[1].split(';')[0];
+                    const ab = new ArrayBuffer(byteString.length);
+                    const ia = new Uint8Array(ab);
+                    for (let i = 0; i < byteString.length; i++) {
+                        ia[i] = byteString.charCodeAt(i);
+                    }
+                    const imageBlob = new Blob([ab], { type: mimeString });
+                    // Use a generic name or derive from original if available
+                    const imageFile = new File([imageBlob], `mobile-upload-${Date.now()}.png`, { type: mimeString });
+
+                    // 3. Prepare FormData
+                    const formDataNip96 = new FormData();
+                    formDataNip96.append('file', imageFile);
+
+                     // 4. Perform the upload (No NIP-98 Auth header in this example)
+                    log(`Uploading to ${nip96ApiEndpoint}...`);
+                    const nip96Response = await $.ajax({
+                        url: nip96ApiEndpoint,
+                        type: 'POST',
+                        data: formDataNip96,
+                        processData: false,
+                        contentType: false,
+                    });
+
+                    log("NIP-96 Upload Response Received");
+                    console.log(nip96Response); // Log the full response for debugging
+
+                    // 5. Extract URL and NIP-94 tags from response
+                    if (nip96Response && nip96Response.nip94_event && nip96Response.nip94_event.tags) {
+                        const urlTag = nip96Response.nip94_event.tags.find(tag => tag[0] === 'url');
+                        const uploadedFileURL = urlTag ? urlTag[1] : null;
+                        const nip94Tags = nip96Response.nip94_event.tags; // Get all tags
+
+                        if (uploadedFileURL) {
+                            log(`NIP-96 Upload successful. URL: ${uploadedFileURL}`);
+                            resolve({ uploadedFileURL, nip94Tags });
+                        } else {
+                            throw new Error("NIP-96 response missing file URL in tags.");
                         }
-                    } catch (e) {
-                        log(`Error parsing relay message from ${relayUrl}: ${e.message}`);
+                    } else {
+                        throw new Error("Invalid NIP-96 response format.");
                     }
-                };
 
-                // Timeout for connection
-                setTimeout(() => {
-                    if (ws.readyState !== WebSocket.OPEN) {
-                        ws.close();
-                        log(`Timeout connecting to ${relayUrl}`);
-                        resolve(false);
+                } catch (error) {
+                    log(`NIP-96 Upload Error: ${error?.message || error}`);
+                    console.error("NIP-96 Error Details:", error?.responseJSON || error);
+                    reject(`Image upload failed: ${error?.message || 'Unknown error'}`);
+                }
+            });
+        }
+
+        async function publishToRelay(relayUrl, signedEvent) {
+            return new Promise((resolve) => {
+                log(`Attempting to publish to ${relayUrl}`);
+                let socket = null;
+                let timer = null;
+
+                try {
+                    socket = new WebSocket(relayUrl);
+
+                    const closeAndResolve = (success, message) => {
+                        clearTimeout(timer);
+                        if (socket && socket.readyState === WebSocket.OPEN) {
+                            socket.close();
+                        }
+                        log(message);
+                        resolve(success);
+                    };
+
+                    socket.onopen = () => {
+                        log(`Connected to ${relayUrl}. Sending EVENT.`);
+                        const publishMessage = JSON.stringify(['EVENT', signedEvent]);
+                        socket.send(publishMessage);
+                         // Set a short timer to wait for OK/NOTICE before closing
+                        timer = setTimeout(() => closeAndResolve(true, `Event sent to ${relayUrl}, closing connection (no OK received).`), 3000);
+                    };
+
+                    socket.onmessage = (event) => {
+                        try {
+                            const message = JSON.parse(event.data);
+                            if (message[0] === 'OK' && message[1] === signedEvent.id) {
+                                closeAndResolve(true, `Relay ${relayUrl} acknowledged event ID: ${signedEvent.id}`);
+                            } else if (message[0] === 'NOTICE') {
+                                log(`Relay ${relayUrl} NOTICE: ${message[1]}`);
+                                // Still consider it success, maybe close later
+                            } else {
+                                log(`Relay ${relayUrl} unexpected message: ${event.data}`);
+                            }
+                        } catch (e) {
+                            log(`Error parsing message from ${relayUrl}: ${e.message}`);
+                        }
+                    };
+
+                    socket.onerror = (error) => {
+                         closeAndResolve(false, `WebSocket error on ${relayUrl}: ${error.message || 'Unknown error'}`);
+                    };
+
+                    socket.onclose = (event) => {
+                        log(`WebSocket closed for ${relayUrl}. Code: ${event.code}, Reason: ${event.reason || 'No reason given'}`);
+                         // If timer is still running, it means we didn't get an OK/NOTICE and closed prematurely
+                        if (timer) {
+                           clearTimeout(timer);
+                           resolve(false); // Didn't confirm success before close
+                        }
+                    };
+
+                     // Connection Timeout
+                    timer = setTimeout(() => {
+                        closeAndResolve(false, `Timeout connecting to ${relayUrl}`);
+                    }, 7000); // 7 seconds connection timeout
+
+                } catch (error) {
+                    log(`Error creating WebSocket for ${relayUrl}: ${error.message}`);
+                    resolve(false);
+                }
+            });
+        }
+
+        async function postNostrEvent() {
+            if (!publicKey) {
+                updateStatus("Please connect to Nostr first.", true);
+                return;
+            }
+
+            const messageContent = $('#message').val().trim();
+            if (!messageContent && !selectedImageDataUrl) {
+                 updateStatus("Please write a message or select an image.", true);
+                 return;
+            }
+
+            showLoading(true);
+            updateStatus("Starting post process...");
+
+            try {
+                // 1. Get Location
+                const location = await getLocation();
+                const latString = location.latitude.toFixed(6); // More precision for tags
+                const lonString = location.longitude.toFixed(6);
+
+                let finalContent = messageContent;
+                let eventTags = [
+                    ['g', `${latString};${lonString}`], // Geocoord tag (custom format)
+                    // ['geohash', '...'] // Could add geohash later if needed
+                    ['client', 'NostrMobilePost'] // Identify the client
+                ];
+
+                // 2. Upload Image if selected
+                let uploadResult = null;
+                if (selectedImageDataUrl) {
+                    updateStatus("Uploading image...");
+                    try {
+                        uploadResult = await uploadImageNip96(selectedImageDataUrl);
+                        finalContent += `\n${uploadResult.uploadedFileURL}`; // Add URL to content
+                         // Add NIP-94 tags from the upload response
+                        eventTags = eventTags.concat(uploadResult.nip94Tags.filter(tag => tag.length >= 2)); // Add valid tags
+                        updateStatus("Image uploaded.");
+                    } catch (uploadError) {
+                        updateStatus(`Image upload failed: ${uploadError}. Posting without image.`, true);
+                         // Continue without image, or could choose to stop here:
+                         // showLoading(false); return;
                     }
-                }, 5000);
+                }
+
+                // 3. Construct Nostr Event
+                const event = {
+                    kind: 1, // Standard text note
+                    pubkey: publicKey,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: eventTags,
+                    content: finalContent,
+                };
+                log("Constructed unsigned event:");
+                console.log(event);
+
+                // 4. Sign Event
+                updateStatus("Please confirm in Nostr Connect...");
+                log("Requesting event signature...");
+                const signedEvent = await window.nostr.signEvent(event);
+                log(`Event signed. ID: ${signedEvent.id}`);
+                updateStatus("Event signed. Publishing...");
+
+                // 5. Publish to Relays
+                const dynamicRelay = getRelayURL();
+                const allRelays = [...new Set([...relaysToPublish, dynamicRelay])]; // Add dynamic relay and ensure uniqueness
+                log(`Publishing to relays: ${allRelays.join(', ')}`);
+
+                let successCount = 0;
+                const publishPromises = allRelays.map(relayUrl => publishToRelay(relayUrl, signedEvent));
+
+                const results = await Promise.all(publishPromises);
+                successCount = results.filter(success => success).length;
+
+                log(`Publishing attempt finished. Success count: ${successCount}/${allRelays.length}`);
+                updateStatus(`Published to ${successCount}/${allRelays.length} relays. Event ID: ${signedEvent.id.substring(0,10)}...`);
+
+                // Clear inputs after successful post
+                $('#message').val('');
+                $('#imageInput').val(''); // Clear file input selection
+                $('#imagePreview').hide().attr('src', '#');
+                selectedImageDataUrl = null;
 
             } catch (error) {
-                log(`Error connecting to relay ${relayUrl}: ${error.message}`);
-                resolve(false);
+                log(`Error during posting process: ${error?.message || error}`);
+                updateStatus(`Error: ${error?.message || error}`, true);
+            } finally {
+                showLoading(false);
             }
+        }
+
+        // --- Event Listeners ---
+        $(document).ready(function() {
+            log('Document ready. Initializing.');
+            $('#connectButton').on('click', connectToNostr);
+            $('#imageInput').on('change', handleImageSelection);
+            $('#postButton').on('click', postNostrEvent);
+
+            // Initial check for Nostr extension
+            checkNostrExtension();
+
+            // Fallback check in case extension loads late
+            setTimeout(() => {
+                 if (!nostrExtensionAvailable) checkNostrExtension();
+             }, 1000);
         });
-    }
 
-    async function sendMessage() {
-        const messageContent = document.getElementById('message').value.trim();
-        if (!messageContent) {
-            alert("Please write your message!");
-            return;
-        }
-
-        document.getElementById('loadingSpinner').style.display = 'block';
-        document.getElementById('sendButton').disabled = true;
-
-        log(`Preparing message: ${messageContent}`);
-
-        const event = {
-            kind: 1,
-            content: messageContent,
-            tags: [],
-            created_at: Math.floor(Date.now() / 1000),
-            pubkey: publicKey
-        };
-
-        try {
-            // Sign the event with extension
-            const signedEvent = await window.nostr.signEvent(event);
-            log(`Message signed: ${signedEvent.id}`);
-
-            // Publish to all relays
-            let successCount = 0;
-            const totalRelays = DEFAULT_RELAYS.length;
-
-            document.getElementById('status').innerText = `Publishing to ${totalRelays} relays...`;
-
-            for (const relayUrl of DEFAULT_RELAYS) {
-                const success = await publishToRelay(relayUrl, signedEvent);
-                if (success) successCount++;
-            }
-
-            document.getElementById('status').innerText = `Message published to ${successCount}/${totalRelays} relays. ID: ${signedEvent.id}`;
-            log(`Message published to ${successCount} relays`);
-
-        } catch(error) {
-            log(`Error: ${error.message}`);
-            document.getElementById('status').innerText = `Error: ${error.message}`;
-        } finally {
-            document.getElementById('loadingSpinner').style.display = 'none';
-            document.getElementById('sendButton').disabled = false;
-        }
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        checkNostrExtension();
-
-        const checkInterval = setInterval(function() {
-            if (!nostrExtensionAvailable && typeof window.nostr !== 'undefined') {
-                clearInterval(checkInterval);
-                checkNostrExtension();
-            }
-        }, 500);
-    });
     </script>
 </body>
 </html>
