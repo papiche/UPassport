@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+    <title>Nostr Mobile Post (Credential Login)</title>
+    <!-- Libraries for Key Generation & Nostr -->
+    <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/js-sha256@0.9.0/build/sha256.min.js"></script> <!-- Updated js-sha256 CDN -->
+    <script>(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.bech32 = f()}})(function(){var define,module,exports;return (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.createBitArray=createBitArray,exports.fromBits=fromBits,exports.toBits=toBits;function toBitArrayUnchecked(a){return a}function createBitArray(a){return toBitArrayUnchecked(new Uint8Array(a))}function convert(a,c,d,e,f){var g=(1<<e)-1,h=0,i=0,j=0;if(a.forEach(function(a){for(h=(h<<c)+a,i+=c;i>=e;)i-=e,d[j]=h>>i&g,j+=1}),f)0<i&&(d[j]=h<<e-i&g);else{if(i>=c)throw new Error("Excessive padding: ".concat(i," (max ").concat(c-1," allowed)"));if(0!=h%(1<<i))throw new Error("Non-zero padding")}}function toBits(a,b,c){if(8<b||1>b)throw new RangeError("Invalid bits per element; 1 to 8 expected");return convert(toBitArrayUnchecked(a),8,c,b,!0),c}function fromBits(a,b,c){if(8<b||1>b)throw new RangeError("Invalid bits per element; 1 to 8 expected");return convert(a,b,toBitArrayUnchecked(c),8,!1),c}
+
+},{}],2:[function(require,module,exports){
+"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.CHECKSUM_LENGTH=void 0,exports.createChecksum=createChecksum,exports.decode=decode,exports.decodeWithPrefix=decodeWithPrefix,exports.detectCase=detectCase,exports.encode=encode,exports.expandPrefix=expandPrefix,exports.verifyChecksum=verifyChecksum;var _bitConverter=require("./bit-converter"),CHARSET="qpzry9x8gf2tvdw0s3jn54khce6mua7l",BECH32M_CHECKSUM=734539939,MIN_CHAR_CODE=33,MAX_CHAR_CODE=126,CHECKSUM_LENGTH=exports.CHECKSUM_LENGTH=6,CHAR_LOOKUP=function(){for(var a=new Map,b=0;b<CHARSET.length;b+=1)a.set(CHARSET[b],b);return a}(),GEN=[996825010,642813549,513874426,1027748829,705979059];function polymod(a){return a.reduce(function(a,b){return GEN.reduce(function(b,c,d){return 0==(1&a>>25>>d)?b:b^c},(33554431&a)<<5^b)},1)}function expandPrefix(a,b){for(var c,d=0;d<a.length;d+=1)c=a.charCodeAt(d),b[d]=c>>5,b[d+a.length+1]=31&c;b[a.length]=0}function verifyChecksum(a){switch(polymod(a)){case 1:return"bech32";case BECH32M_CHECKSUM:return"bech32m";default:}}function createChecksum(a,b){var c;switch(b){case"bech32":c=1;break;case"bech32m":c=BECH32M_CHECKSUM;break;default:throw Error("Invalid encoding value: ".concat(b,"; expected bech32 or bech32m"))}for(var d,e=polymod(a)^c,f=0;f<CHECKSUM_LENGTH;f+=1)d=5*(5-f),a[a.length-CHECKSUM_LENGTH+f]=31&e>>d}function encode(a){return a.reduce(function(a,b){return a+CHARSET[b]},"")}function decode(a,b){for(var c,d=b||(0,_bitConverter.createBitArray)(a.length),e=0;e<a.length;e+=1){if(c=CHAR_LOOKUP.get(a[e]),void 0===c)throw new Error("Invalid char in message: ".concat(a[e]));d[e]=c}return d}function decodeWithPrefix(a,b){var c=b.length+2*a.length+1,d=(0,_bitConverter.createBitArray)(c);return expandPrefix(a,d.subarray(0,2*a.length+1)),decode(b,d.subarray(2*a.length+1)),d}function detectCase(a){for(var b,c=1<arguments.length&&void 0!==arguments[1]?arguments[1]:"message",d=!1,e=!1,f=0;f<a.length;f+=1){if(b=a.charCodeAt(f),b<MIN_CHAR_CODE||b>MAX_CHAR_CODE)throw new TypeError("Invalid char in ".concat(c,": ").concat(b,"; ")+"should be in ASCII range ".concat(MIN_CHAR_CODE,"-").concat(MAX_CHAR_CODE));e=e||65<=b&&90>=b,d=d||97<=b&&122>=b}if(d&&e)throw new TypeError("Mixed-case ".concat(c));else return e?"upper":d?"lower":null}
+
+},{"./bit-converter":1}],3:[function(require,module,exports){
+"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.BitcoinAddress=void 0,exports.decode=decode,exports.decodeTo5BitArray=decodeTo5BitArray,exports.encode=encode,exports.encode5BitArray=encode5BitArray,exports.from5BitArray=from5BitArray,exports.to5BitArray=to5BitArray;var _bitConverter=require("./bit-converter"),_encoding=require("./encoding");function _typeof(a){"@babel/helpers - typeof";return _typeof="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(a){return typeof a}:function(a){return a&&"function"==typeof Symbol&&a.constructor===Symbol&&a!==Symbol.prototype?"symbol":typeof a},_typeof(a)}function _classCallCheck(b,a){if(!(b instanceof a))throw new TypeError("Cannot call a class as a function")}function _defineProperties(a,b){for(var c,d=0;d<b.length;d++)c=b[d],c.enumerable=c.enumerable||!1,c.configurable=!0,"value"in c&&(c.writable=!0),Object.defineProperty(a,_toPropertyKey(c.key),c)}function _createClass(a,b,c){return b&&_defineProperties(a.prototype,b),c&&_defineProperties(a,c),Object.defineProperty(a,"prototype",{writable:!1}),a}function _toPropertyKey(a){var b=_toPrimitive(a,"string");return"symbol"==_typeof(b)?b:b+""}function _toPrimitive(a,b){if("object"!=_typeof(a)||!a)return a;var c=a[Symbol.toPrimitive];if(void 0!==c){var d=c.call(a,b||"default");if("object"!=_typeof(d))return d;throw new TypeError("@@toPrimitive must return a primitive value.")}return("string"===b?String:Number)(a)}var MAX_ENC_LENGTH=90;function to5BitArray(a,b){var c=Math.ceil(8*a.length/5),d=b||(0,_bitConverter.createBitArray)(c);return(0,_bitConverter.toBits)(a,5,d)}function from5BitArray(a,b){var c=Math.floor(5*a.length/8),d=b||new Uint8Array(c);return(0,_bitConverter.fromBits)(a,5,d)}function encode5BitArray(a,b){var c,d=2<arguments.length&&void 0!==arguments[2]?arguments[2]:"bech32",e=2*a.length+1+b.length+_encoding.CHECKSUM_LENGTH;if(e-a.length>MAX_ENC_LENGTH)throw new Error("Message to be produced is too long (max ".concat(MAX_ENC_LENGTH," supported)"));var f=null!==(c=(0,_encoding.detectCase)(a,"prefix"))&&void 0!==c?c:"lower",g=(0,_bitConverter.createBitArray)(e);(0,_encoding.expandPrefix)(a.toLowerCase(),g.subarray(0,2*a.length+1));var h=g.subarray(2*a.length+1,g.length-_encoding.CHECKSUM_LENGTH);h.set(b),(0,_encoding.createChecksum)(g,d);var i=(0,_encoding.encode)(g.subarray(2*a.length+1));return"upper"===f&&(i=i.toUpperCase()),"".concat(a,"1").concat(i)}function encode(a,b){var c=2<arguments.length&&arguments[2]!==void 0?arguments[2]:"bech32";return encode5BitArray(a,to5BitArray(b),c)}function decodeTo5BitArray(a){if(a.length>MAX_ENC_LENGTH)throw new TypeError("Message too long; max ".concat(MAX_ENC_LENGTH," expected"));(0,_encoding.detectCase)(a);var b=a.toLowerCase(),c=b.lastIndexOf("1");if(0>c)throw new Error("No separator char (\"1\") found");if(c>a.length-_encoding.CHECKSUM_LENGTH-1)throw new Error("Data part of the message too short (at least ".concat(_encoding.CHECKSUM_LENGTH," chars expected)"));var d=b.substring(0,c),e=(0,_encoding.decodeWithPrefix)(d,b.substring(c+1)),f=(0,_encoding.verifyChecksum)(e);if(f===void 0)throw new Error("Invalid checksum");return{prefix:d,encoding:f,data:e.subarray(2*d.length+1,e.length-_encoding.CHECKSUM_LENGTH)}}function decode(a){var b=decodeTo5BitArray(a),c=b.prefix,d=b.encoding,e=b.data;return{prefix:c,encoding:d,data:from5BitArray(e)}}var BitcoinAddress=exports.BitcoinAddress=function(){function a(b,c,d){if(_classCallCheck(this,a),"bc"!==b&&"tb"!==b)throw new Error("Invalid human-readable prefix, \"bc\" or \"tb\" expected");if(0>c||16<c)throw new RangeError("Invalid scriptVersion, value in range [0, 16] expected");if(2>d.length||40<d.length)throw new RangeError("Invalid script length: expected 2 to 40 bytes");if(0===c&&20!==d.length&&32!==d.length)throw new Error("Invalid v0 script length: expected 20 or 32 bytes");this.prefix=b,this.scriptVersion=c,this.data=d}return _createClass(a,[{key:"type",value:function(){if(0===this.scriptVersion)switch(this.data.length){case 20:return"p2wpkh";case 32:return"p2wsh";default:}}},{key:"encode",value:function(){var a=Math.ceil(8*this.data.length/5),b=(0,_bitConverter.createBitArray)(a+1);b[0]=this.scriptVersion,to5BitArray(this.data,b.subarray(1));var c=0===this.scriptVersion?"bech32":"bech32m";return encode5BitArray(this.prefix,b,c)}}],[{key:"decode",value:function(a){var b=decodeTo5BitArray(a),c=b.prefix,d=b.data,e=b.encoding;if("bc"!==c&&"tb"!==c)throw new Error("Invalid human-readable prefix, \"bc\" or \"tb\" expected");var f=d[0];if(0===f&&"bech32"!==e)throw Error("Unexpected encoding ".concat(e," used for version 0 script"));if(0<f&&"bech32m"!==e)throw Error("Unexpected encoding ".concat(e," used for version ").concat(f," script"));return new this(c,f,from5BitArray(d.subarray(1)))}}])}();
+
+},{"./bit-converter":1,"./encoding":2}]},{},[3])(3)
+});
+</script>
+    <!-- Nostr Tools (for signing and pubkey derivation) -->
+    <script src="https://unpkg.com/nostr-tools@1/lib/nostr.bundle.js"></script>
+    <!-- jQuery (already included, keep for AJAX/UI) -->
+    <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/jquery-3.6.3.min.js"></script>
+    <style>
+        /* CSS styles remain the same as the previous version */
+        body {
+            font-family: 'Arial', sans-serif; margin: 0; padding: 15px;
+            background-color: #1a1a1a; color: #e0e0e0; display: flex;
+            flex-direction: column; min-height: 100vh; box-sizing: border-box;
+        }
+        .container {
+            background-color: #2a2a2a; padding: 20px; border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5); width: 100%;
+            max-width: 500px; margin: 20px auto; box-sizing: border-box;
+        }
+        h1 {
+            background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            font-size: 1.8em; text-align: center; margin-bottom: 20px;
+        }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #cccccc; }
+        input[type="text"], input[type="password"], textarea {
+            width: 100%; padding: 10px; margin-bottom: 15px;
+            box-sizing: border-box; border: 1px solid #555; border-radius: 4px;
+            background-color: #333; color: #e0e0e0; font-size: 1em;
+        }
+        textarea { height: 100px; }
+        button, .button-like {
+            display: block; width: 100%; padding: 12px 15px;
+            background-color: #4CAF50; color: white; border: none;
+            border-radius: 5px; cursor: pointer; font-size: 1em;
+            text-align: center; margin-bottom: 10px; transition: background-color 0.3s ease;
+            box-sizing: border-box;
+        }
+        button:hover, .button-like:hover { background-color: #45a049; }
+        button:disabled { background-color: #555; cursor: not-allowed; }
+        .button-like { background-color: #2196F3; } /* Blue for select photo */
+        .button-like:hover { background-color: #1976D2; }
+        #loginButton { background-color: #ff9800; } /* Orange for login */
+        #loginButton:hover { background-color: #f57c00; }
+        input[type="file"] { display: none; }
+        #imagePreview {
+            display: none; max-width: 100%; height: auto; margin-top: 15px;
+            margin-bottom: 15px; border-radius: 5px; border: 1px solid #444;
+        }
+        #status {
+            margin-top: 15px; font-weight: bold; text-align: center; padding: 10px;
+            border-radius: 4px; background-color: #333; min-height: 20px; color: #ccc;
+        }
+        .spinner {
+            display: none; width: 40px; height: 40px; margin: 20px auto;
+            border: 4px solid #555; border-top: 4px solid #4CAF50;
+            border-radius: 50%; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #debug-info {
+             display: none; margin-top: 20px; border: 1px dashed #555;
+             padding: 10px; font-size: 0.8em; white-space: pre-wrap;
+             word-wrap: break-word; max-height: 200px; overflow-y: auto;
+             background-color: #222;
+        }
+        #relay-list { font-size: 0.8em; margin-top: 10px; max-height: 100px; overflow-y: auto; padding-left: 15px; color: #aaa; }
+        #relay-list li { margin-bottom: 3px; }
+        .login-section { border: 1px solid #444; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .post-section { display: none; } /* Hide post section initially */
+         .security-warning { color: #ffcc00; font-size: 0.9em; text-align: center; margin-bottom: 15px; border: 1px dashed #ffcc00; padding: 8px; border-radius: 4px;}
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Nostr Mobile Post</h1>
+
+        <!-- Login Section -->
+        <div id="loginSection" class="login-section">
+            <h2>Login / Generate Keys</h2>
+             <div class="security-warning">
+                ⚠️ Warning: Entering credentials directly is less secure than using a dedicated signer like Amethyst or Nostore. Use only on trusted connections (HTTPS).
+             </div>
+            <label for="usernameInput">Username (Salt):</label>
+            <input type="text" id="usernameInput" placeholder="Enter your username">
+
+            <label for="passwordInput">Password:</label>
+            <input type="password" id="passwordInput" placeholder="Enter your password">
+
+            <button id="loginButton">Login & Generate Keys</button>
+        </div>
+
+        <!-- Posting Section (Initially Hidden) -->
+        <div id="postSection" class="post-section">
+            <label for="message">Message:</label>
+            <textarea id="message" placeholder="Write your message here..."></textarea>
+
+            <label for="imageInput" class="button-like">📸 Select Photo</label>
+            <input type="file" id="imageInput" accept="image/*">
+
+            <img id="imagePreview" src="#" alt="Image Preview"/>
+
+            <button id="postButton" disabled>📍 Post with Location</button>
+        </div>
+
+        <!-- Status & Debugging -->
+        <div class="spinner" id="loadingSpinner"></div>
+        <div id="status">Please login to generate keys.</div>
+
+        <details>
+            <summary style="cursor: pointer; color: #aaa; font-size: 0.9em;">Show Relays & Debug</summary>
+            <div id="relay-list-container" style="margin-top: 10px;">
+                <span style="font-size: 0.9em; color: #bbb;">Publishing to:</span>
+                <ul id="relay-list"><li>Login required</li></ul>
+            </div>
+            <div id="debug-info"></div>
+        </details>
+    </div>
+
+    <script>
+        // Polyfill / Helper for Buffer.from(hex) -> Uint8Array
+        function hexToBytes(hex) {
+            if (typeof hex !== 'string') {
+                throw new TypeError('Expected a string');
+            }
+            if (hex.length % 2 !== 0) {
+                 // Or handle padding depending on requirement, nostr keys are usually fixed length
+                 console.warn("Hex string length is not even.");
+            }
+            const bytes = new Uint8Array(hex.length / 2);
+            for (let i = 0; i < bytes.length; i++) {
+                const hexSlice = hex.slice(i * 2, i * 2 + 2);
+                bytes[i] = parseInt(hexSlice, 16);
+                 if (isNaN(bytes[i])) {
+                      throw new Error(`Invalid hex character in string: ${hexSlice}`);
+                 }
+            }
+            return bytes;
+        }
+
+        let debugInfo = '';
+        let publicKey = null; // Stores hex public key
+        let nPub = null;      // Stores bech32 npub
+        let privateKeyHex = null; // Stores hex private key - !! HANDLE SECURELY !!
+        let selectedImageDataUrl = null;
+        let currentLatitude = null;
+        let currentLongitude = null;
+
+        const DEFAULT_RELAYS = [
+            'wss://relay.copylaradio.com',
+            'ws://127.0.0.1:7777',
+        ];
+        let allRelaysToPublish = [...DEFAULT_RELAYS]; // Start with defaults
+
+        // --- Helper Functions (log, updateStatus, showLoading, getRelayURL, updateRelayListUI) ---
+        // These functions remain largely the same as the previous version
+        function log(message) {
+            console.log(message);
+            const timestamp = new Date().toLocaleTimeString();
+            debugInfo += `[${timestamp}] ${message}\n`;
+            const lines = debugInfo.split('\n');
+            if (lines.length > 100) { debugInfo = lines.slice(-100).join('\n'); }
+            $('#debug-info').text(debugInfo);
+            const debugElement = document.getElementById('debug-info');
+            if (debugElement) { debugElement.scrollTop = debugElement.scrollHeight; }
+        }
+
+        function updateStatus(message, isError = false, isSuccess = false) {
+             log(`Status Update: ${message}`);
+             const statusElement = $('#status');
+             statusElement.text(message);
+             let bgColor = '#333', textColor = '#ccc';
+             if (isError) { bgColor = '#5c3a3a'; textColor = '#ff6b6b'; }
+             else if (isSuccess) { bgColor = '#3a5c3a'; textColor = '#90ee90'; }
+             statusElement.css({ 'background-color': bgColor, 'color': textColor });
+        }
+
+         function showLoading(show) {
+             $('#loadingSpinner').toggle(show);
+             // Disable login button during processing
+             $('#loginButton').prop('disabled', show);
+             // Disable post button if loading OR if not logged in (publicKey is null)
+             $('#postButton').prop('disabled', show || !publicKey);
+         }
+
+        function getRelayURL() {
+             const currentUrl = new URL(window.location.href);
+             let relayName = currentUrl.hostname.replace(/^u\./, 'relay.');
+             if (currentUrl.port === '54321' || ['localhost', '127.0.0.1'].includes(currentUrl.hostname)) {
+                  return `ws://127.0.0.1:7777`;
+             }
+             return `wss://${relayName}`;
+        }
+
+         function updateRelayListUI() {
+             const listElement = $('#relay-list');
+             listElement.empty();
+             if (allRelaysToPublish.length > 0) {
+                 allRelaysToPublish.forEach(relay => { $('<li>').text(relay).appendTo(listElement); });
+             } else {
+                  $('<li>').text("No relays configured!").appendTo(listElement);
+             }
+             log(`Updated UI with ${allRelaysToPublish.length} relays.`);
+         }
+        // --- End Helper Functions ---
+
+        // --- Key Generation ---
+        async function generateNostrKeysFromCredentials(username, password) {
+            log("Starting key generation from credentials...");
+            showLoading(true);
+            updateStatus("Generating keys...");
+
+            try {
+                // 1. Dérivation du seed avec PBKDF2
+                const seed = await deriveSeedPBKDF2(password, username);
+                log(`Seed derived: ${Array.from(seed).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 10)}...`);
+
+                // 2. Génération Ed25519
+                const ed25519KeyPair = nacl.sign.keyPair.fromSeed(seed);
+                const ed25519Seed = ed25519KeyPair.secretKey.slice(0, 32);
+
+                // 3. Conversion vers SECP256k1
+                const secp256k1Seed = sha256.array(ed25519Seed);
+                const privateKeyBytes = new Uint8Array(secp256k1Seed);
+                privateKeyHex = Array.from(privateKeyBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+
+                // 4. Encodage Bech32
+                const nsec = window.bech32.encode('nsec', window.bech32.toWords(privateKeyBytes));
+                const pubKey = nostrTools.getPublicKey(privateKeyHex);
+                const npub = window.bech32.encode('npub', window.bech32.toWords(hexToBytes(pubKey)));
+
+                showLoading(false);
+                updateStatus(`Keys generated for ${username}`, false, true);
+                return { nsec, npub, privateKeyHex, publicKey: pubKey };
+
+            } catch (error) {
+                log(`Key generation failed: ${error.message}`);
+                showLoading(false);
+                updateStatus(`Error: ${error.message}`, true);
+                throw error;
+            }
+        }
+
+        // Fonction de dérivation avec PBKDF2 (API Web Crypto native)
+        async function deriveSeedPBKDF2(password, saltStr) {
+            const iterations = 100000; // Nombre d'itérations (augmenter pour plus de sécurité)
+            const salt = new TextEncoder().encode(saltStr);
+            const keyMaterial = await crypto.subtle.importKey(
+                'raw',
+                new TextEncoder().encode(password),
+                { name: 'PBKDF2' },
+                false,
+                ['deriveBits']
+            );
+            return new Uint8Array(await crypto.subtle.deriveBits(
+                {
+                    name: 'PBKDF2',
+                    salt: salt,
+                    iterations: iterations,
+                    hash: 'SHA-256'
+                },
+                keyMaterial,
+                256 // Nombre de bits à dériver (32 bytes)
+            ));
+        }
+        // --- End Key Generation ---
+
+
+        // --- Login Logic ---
+        async function handleCredentialLogin() {
+            const username = $('#usernameInput').val().trim();
+            const password = $('#passwordInput').val(); // Don't trim password
+
+            if (!username || !password) {
+                updateStatus("Username and Password are required.", true);
+                return;
+            }
+
+            try {
+                const keys = await generateNostrKeysFromCredentials(username, password);
+
+                // Store keys globally (publicKey is already hex)
+                publicKey = keys.publicKey;
+                nPub = keys.npub;
+                // !! Storing private key in a global variable is insecure for production !!
+                // Consider using a more secure storage or session-based approach if possible.
+                privateKeyHex = keys.privateKeyHex;
+
+                log(`Login successful for ${username}. Pubkey: ${publicKey.substring(0, 10)}...`);
+                // updateStatus is already called by generateNostrKeysFromCredentials on success
+
+                // Hide login section, show post section
+                $('#loginSection').hide();
+                $('#postSection').show();
+                $('#postButton').prop('disabled', false); // Enable post button
+
+                // --- Fetch extra relays AFTER successful login ---
+                updateStatus('Fetching additional relays...');
+                try {
+                    const extraRelays = await fetchExtraRelays('wss://relay.copylaradio.com');
+                     log(`Fetched ${extraRelays.length} extra relays.`);
+                     const dynamicRelay = getRelayURL();
+                     const combinedRelays = new Set([...DEFAULT_RELAYS, dynamicRelay, ...extraRelays]);
+                     allRelaysToPublish = [...combinedRelays];
+                     updateStatus(`Logged in as ${nPub.substring(0,10)}... ${extraRelays.length} extra relays found. Ready.`, false, true);
+                } catch (relayError) {
+                     log(`Error fetching extra relays: ${relayError}`);
+                     const dynamicRelay = getRelayURL();
+                     allRelaysToPublish = [...new Set([...DEFAULT_RELAYS, dynamicRelay])];
+                     updateStatus(`Logged in as ${nPub.substring(0,10)}... Could not fetch extra relays. Using defaults.`, true);
+                }
+                updateRelayListUI(); // Update the UI list
+
+            } catch (error) {
+                // Error already logged by generateNostrKeysFromCredentials
+                // updateStatus already set to error state
+                privateKeyHex = null; // Ensure private key is cleared on failure
+                publicKey = null;
+                nPub = null;
+                $('#postButton').prop('disabled', true);
+            }
+        }
+        // --- End Login Logic ---
+
+
+        // --- Relay Fetching (fetchExtraRelays) ---
+        // This function remains the same as the previous version
+         function fetchExtraRelays(sourceRelayUrl) {
+             return new Promise((resolve, reject) => {
+                 log(`Fetching Kind 10002 relays from ${sourceRelayUrl}`);
+                 let ws = null; let subId = `fetch-${Math.random().toString(36).substring(2, 8)}`;
+                 let foundRelays = new Set(); let timer = null;
+                 try {
+                     ws = new WebSocket(sourceRelayUrl);
+                     const closeWebSocket = (reason) => {
+                         clearTimeout(timer);
+                         if (ws && ws.readyState === WebSocket.OPEN) {
+                             try { ws.send(JSON.stringify(["CLOSE", subId])); log(`Sent CLOSE for ${subId}`); }
+                             catch (e) { log(`Error sending CLOSE: ${e.message}`); }
+                             ws.close(); log(`WebSocket closed. Reason: ${reason}`);
+                         }
+                     };
+                     ws.onopen = () => {
+                         log(`Connected to ${sourceRelayUrl} for Kind 10002`);
+                         const req = ["REQ", subId, { kinds: [10002], limit: 15 }];
+                         ws.send(JSON.stringify(req)); log(`Sent REQ: ${JSON.stringify(req)}`);
+                         timer = setTimeout(() => { closeWebSocket("Timeout"); resolve([...foundRelays]); }, 10000);
+                     };
+                     ws.onmessage = (event) => {
+                         try {
+                             const message = JSON.parse(event.data);
+                             if (message[0] === "EVENT" && message[1] === subId) {
+                                 const ev = message[2];
+                                 if (ev && ev.tags) { ev.tags.forEach(tag => { if (tag[0] === 'r' && typeof tag[1] === 'string' && tag[1].startsWith('wss://')) { foundRelays.add(tag[1]); } }); }
+                             } else if (message[0] === "EOSE" && message[1] === subId) {
+                                 log(`Received EOSE for ${subId}. Found ${foundRelays.size} relays.`); closeWebSocket("EOSE received"); resolve([...foundRelays]);
+                             } else if (message[0] === "NOTICE") { log(`NOTICE from ${sourceRelayUrl}: ${message[1]}`); }
+                         } catch (e) { log(`Error parsing message: ${e.message}`); }
+                     };
+                     ws.onerror = (error) => { log(`WebSocket error: ${error.message || 'Unknown error'}`); closeWebSocket("WebSocket error"); reject(`Failed fetch from ${sourceRelayUrl}`); };
+                     ws.onclose = (event) => { log(`WebSocket closed. Code: ${event.code}`); clearTimeout(timer); };
+                 } catch (error) { log(`Error creating WebSocket: ${error.message}`); reject(`Failed connection to ${sourceRelayUrl}`); }
+             });
+         }
+        // --- End Relay Fetching ---
+
+
+        // --- Image Handling (handleImageSelection, getLocation, uploadImageNip96) ---
+        // These functions remain the same as the previous version
+        function handleImageSelection(event) {
+             const file = event.target.files[0];
+             if (file) {
+                 log(`Image selected: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
+                 const reader = new FileReader();
+                 reader.onload = (e) => { selectedImageDataUrl = e.target.result; $('#imagePreview').attr('src', selectedImageDataUrl).show(); log('Image preview updated.'); };
+                 reader.onerror = (e) => { log(`File reading error: ${e}`); updateStatus('Error reading image file.', true); selectedImageDataUrl = null; $('#imagePreview').hide().attr('src', '#'); };
+                 reader.readAsDataURL(file);
+             } else { log('No image file selected.'); selectedImageDataUrl = null; $('#imagePreview').hide().attr('src', '#'); }
+         }
+
+         function getLocation() {
+              return new Promise((resolve, reject) => {
+                 if (!navigator.geolocation) { const msg = "Geolocation not supported."; log(msg); updateStatus(msg, true); return reject(msg); }
+                 log('Requesting geolocation...'); updateStatus('Getting location...');
+                 navigator.geolocation.getCurrentPosition(
+                     (pos) => { currentLatitude = pos.coords.latitude; currentLongitude = pos.coords.longitude; log(`Location: Lat ${currentLatitude.toFixed(6)}, Lon ${currentLongitude.toFixed(6)}`); updateStatus(`Location: ${currentLatitude.toFixed(2)}, ${currentLongitude.toFixed(2)}`); resolve({ latitude: currentLatitude, longitude: currentLongitude }); },
+                     (err) => { log(`Geolocation error: ${err.message} (Code: ${err.code})`); let msg = "Could not get location."; if(err.code === 1) msg = "Location permission denied."; else if(err.code === 2) msg = "Location unavailable."; else if(err.code === 3) msg = "Location timed out."; updateStatus(msg, true); reject(msg); },
+                     { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+                 );
+             });
+         }
+
+         function uploadImageNip96(imageDataBase64) {
+             // This function remains the same - uses jQuery AJAX for NIP-96 upload
+              return new Promise(async (resolve, reject) => {
+                 log("Starting NIP-96 image upload...");
+                 const nip96ServerUrl = 'https://g1sms.fr'; const wellKnownUrl = `${nip96ServerUrl}/.well-known/nostr/nip96.json`;
+                 try {
+                     const config = await $.ajax({ url: wellKnownUrl, dataType: 'json' });
+                     const apiUrl = config.api_url; log(`NIP-96 API endpoint: ${apiUrl}`);
+                     if (!apiUrl) throw new Error("NIP-96 config missing api_url");
+
+                     const byteString = atob(imageDataBase64.split(',')[1]); const mimeString = imageDataBase64.split(',')[0].split(':')[1].split(';')[0];
+                     const ab = new ArrayBuffer(byteString.length); const ia = new Uint8Array(ab);
+                     for (let i = 0; i < byteString.length; i++) { ia[i] = byteString.charCodeAt(i); }
+                     const blob = new Blob([ab], { type: mimeString }); const file = new File([blob], `mobile-${Date.now()}.png`, { type: mimeString });
+                     const formData = new FormData(); formData.append('file', file);
+
+                     log(`Uploading to ${apiUrl}...`);
+                     const response = await $.ajax({ url: apiUrl, type: 'POST', data: formData, processData: false, contentType: false });
+                     log("NIP-96 Upload Response Received:"); console.log(response);
+
+                     if (response?.status === "success" && response?.nip94_event?.tags) {
+                         const urlTag = response.nip94_event.tags.find(tag => tag[0] === 'url');
+                         const url = urlTag ? urlTag[1] : null;
+                         const tags = response.nip94_event.tags; const size = response.fileSize;
+                         if (url) { log(`Upload successful. URL: ${url}, Size: ${size || 'N/A'}`); resolve({ uploadedFileURL: url, nip94Tags: tags, fileSize: size }); }
+                         else { throw new Error("NIP-96 response missing file URL."); }
+                     } else { const msg = response?.message || "Invalid NIP-96 response or upload failed."; throw new Error(msg); }
+                 } catch (error) {
+                     let errMsg = error?.message || 'Unknown upload error';
+                     if (error?.responseJSON?.message) { errMsg = error.responseJSON.message; }
+                     else if (error?.statusText && error?.status) { errMsg = `HTTP ${error.status}: ${error.statusText}`; }
+                     log(`NIP-96 Upload Error: ${errMsg}`); console.error("NIP-96 Error Details:", error); reject(`Image upload failed: ${errMsg}`);
+                 }
+             });
+         }
+        // --- End Image Handling ---
+
+
+        // --- Event Publishing (publishToRelay) ---
+        // This function remains the same as the previous version
+         async function publishToRelay(relayUrl, signedEvent) {
+             return new Promise((resolve) => {
+                 log(`Publishing to ${relayUrl}`); let socket = null; let timer = null;
+                 try {
+                     socket = new WebSocket(relayUrl);
+                     const closeAndResolve = (ok, msg) => { clearTimeout(timer); if (socket && socket.readyState === 1) socket.close(); log(msg); resolve(ok); };
+                     socket.onopen = () => { log(`Connected to ${relayUrl}. Sending EVENT.`); socket.send(JSON.stringify(['EVENT', signedEvent])); timer = setTimeout(() => closeAndResolve(true, `Sent to ${relayUrl}, closing (no OK/NOTICE).`), 3000); };
+                     socket.onmessage = (ev) => { try { const msg = JSON.parse(ev.data); if (msg[0] === 'OK' && msg[1] === signedEvent.id) { closeAndResolve(true, `Relay ${relayUrl} acknowledged: ${signedEvent.id}`); } else if (msg[0] === 'NOTICE') { log(`Relay ${relayUrl} NOTICE: ${msg[1]}`); if(timer) clearTimeout(timer); timer = setTimeout(() => closeAndResolve(true, `Relay ${relayUrl} NOTICE received, closing.`), 500); } } catch (e) { log(`Parse error from ${relayUrl}: ${e.message}`); } };
+                     socket.onerror = (err) => closeAndResolve(false, `WebSocket error ${relayUrl}: ${err.message || 'Unknown'}`);
+                     socket.onclose = (ev) => { log(`WebSocket closed ${relayUrl}. Code: ${ev.code}`); if (timer) { clearTimeout(timer); resolve(false); } }; // Closed before confirm?
+                     timer = setTimeout(() => closeAndResolve(false, `Timeout connecting/publishing ${relayUrl}`), 7000);
+                 } catch (err) { log(`WebSocket creation error ${relayUrl}: ${err.message}`); resolve(false); }
+             });
+         }
+        // --- End Event Publishing ---
+
+
+        // --- Main Posting Logic (postNostrEvent) ---
+        async function postNostrEvent() {
+            // Ensure user is logged in (keys are generated)
+            if (!publicKey || !privateKeyHex) {
+                updateStatus("Error: Keys not available. Please login first.", true);
+                return;
+            }
+
+            const messageContent = $('#message').val().trim();
+            if (!messageContent && !selectedImageDataUrl) {
+                 updateStatus("Please write a message or select an image.", true); return;
+            }
+
+            showLoading(true);
+            updateStatus("Starting post process...");
+
+            try {
+                const location = await getLocation();
+                const latString = location.latitude.toFixed(6);
+                const lonString = location.longitude.toFixed(6);
+
+                let finalContent = messageContent;
+                let eventTags = [
+                    ['application', 'UPlanet'], ['latitude', latString],
+                    ['longitude', lonString], ['g', `${latString};${lonString}`]
+                ];
+
+                let uploadResult = null;
+                if (selectedImageDataUrl) {
+                    updateStatus("Uploading image...");
+                    try {
+                         uploadResult = await uploadImageNip96(selectedImageDataUrl);
+                         finalContent += `\n${uploadResult.uploadedFileURL}`;
+                         if (uploadResult.nip94Tags && Array.isArray(uploadResult.nip94Tags)) {
+                             eventTags = eventTags.concat(uploadResult.nip94Tags.filter(tag => Array.isArray(tag) && tag.length >= 2));
+                             log(`Added ${uploadResult.nip94Tags.length} NIP-94 tags.`);
+                         }
+                         if (uploadResult.fileSize !== undefined && uploadResult.fileSize !== null) {
+                              eventTags.push(['fileSize', String(uploadResult.fileSize)]);
+                              log(`Added fileSize tag: ${uploadResult.fileSize}`);
+                         }
+                         updateStatus("Image uploaded.", false, true);
+                    } catch (uploadError) {
+                         updateStatus(`Image upload failed: ${uploadError}. Posting without image.`, true);
+                    }
+                }
+
+                // Construct Unsigned Event
+                const event = {
+                    kind: 1, pubkey: publicKey, // Use hex public key
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: eventTags, content: finalContent,
+                };
+                log("Constructed unsigned event:"); console.log(JSON.stringify(event, null, 2));
+
+                // ** Sign Event Locally ** (Needs nostr-tools)
+                updateStatus("Signing event locally...");
+                log("Signing event with private key...");
+                // nostrTools.finalizeEvent handles ID calculation and signature
+                const signedEvent = nostrTools.finalizeEvent(event, hexToBytes(privateKeyHex));
+                log(`Event signed locally. ID: ${signedEvent.id}`);
+                updateStatus("Event signed. Publishing...");
+
+                // Publish to Relays
+                log(`Publishing to ${allRelaysToPublish.length} relays: ${allRelaysToPublish.join(', ')}`);
+                updateRelayListUI();
+
+                let successCount = 0;
+                const publishPromises = allRelaysToPublish.map(relayUrl => publishToRelay(relayUrl, signedEvent));
+                const results = await Promise.all(publishPromises);
+                successCount = results.filter(success => success).length;
+
+                log(`Publishing finished. Success: ${successCount}/${allRelaysToPublish.length}`);
+                if (successCount > 0) {
+                    updateStatus(`Published to ${successCount}/${allRelaysToPublish.length} relays. ID: ${signedEvent.id.substring(0,10)}...`, false, true);
+                    $('#message').val(''); $('#imageInput').val(''); $('#imagePreview').hide().attr('src', '#'); selectedImageDataUrl = null; // Clear inputs
+                } else {
+                     updateStatus(`Failed to publish to any relays. Check connections.`, true);
+                }
+
+            } catch (error) {
+                 log(`Error during posting: ${error?.message || error}`);
+                 updateStatus(`Error: ${error?.message || error}`, true);
+            } finally {
+                showLoading(false);
+            }
+        }
+        // --- End Main Posting Logic ---
+
+
+        // --- Event Listeners ---
+        $(document).ready(function() {
+            log('Document ready. Initializing credential login mode.');
+            $('#loginButton').on('click', handleCredentialLogin);
+            $('#imageInput').on('change', handleImageSelection);
+            $('#postButton').on('click', postNostrEvent); // Post button in the hidden section
+
+            // Make debug toggleable
+             $('#debug-info').hide();
+             $('details summary').on('click', () => { setTimeout(() => log(`Debug visibility toggled: ${$('#debug-info').is(':visible') ? 'Shown' : 'Hidden'}`), 0); });
+
+            updateStatus("Please login with username/password to generate keys.");
+            updateRelayListUI(); // Show initial relay list state
+        });
+
+    </script>
+</body>
+</html>
