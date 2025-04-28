@@ -197,6 +197,20 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
 
 fi
 
+get_NOSTRNS_directory() {
+    local pubkey="$1"
+    local key_file
+    local found_dir=""
+
+    while IFS= read -r -d $'\0' key_file; do
+        if [[ "/ipns/$pubkey" == "$(cat "$key_file")" ]]; then
+            # Extraire le dernier répertoire du chemin
+            KNAME=$(basename "$(dirname "$key_file")")
+            echo $KNAME
+            return 0
+        fi
+    done < <(find "$HOME/.zen/game/nostr" -type f -name "NOSTRNS" -print0)
+}
 ########################################################################
 ############ NOSTRCARD SSSS 1-xxx:ipns EMPTY KEY QRCODE RECEIVED
 ########################################################################
@@ -208,27 +222,25 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} != "k51qzi" ]]; then
 
     if [[ ${ipnsk51} != "" ]]; then
         VAULTNS="k51qzi5uqu5d"$ipnsk51
-        ## GETTING IPNS VAULT STATE
+        ## SEARCHING FOR LOCAL NOSTR CARD
+        PLAYER=$(get_NOSTRNS_directory ${VAULTNS})
         #################################################################
-        VAULTSTATE=$(ipfs name resolve /ipns/${VAULTNS})
-        if [[ -z $VAULTSTATE ]]; then
+        if [[ -z $PLAYER ]]; then
             cat ${MY_PATH}/templates/message.html \
             | sed -e "s~_TITLE_~$(date -u) <br> ${IPNSVAULT}~g" \
-                 -e "s~_MESSAGE_~NOSTR VAULT EMPTY~g" \
+                 -e "s~_MESSAGE_~NOSTR CARD MISSING~g" \
                 > ${MY_PATH}/tmp/${MOATS}.out.html
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
             exit 0
         fi
+        mkdir -p $HOME/.zen/tmp/$MOATS/$IPNSVAULT/$PLAYER
         ## GETTING IPNS VAULT CONTENT
         #################################################################
-        mkdir -p ~/.zen/tmp/$MOATS/$IPNSVAULT
-        ipfs get -o ~/.zen/tmp/$MOATS/$IPNSVAULT $VAULTSTATE
-        PLAYER=$(ls ~/.zen/tmp/$MOATS/$IPNSVAULT | rev | cut -d '/' -f 1 | rev)
-        G1PRIME=$(cat ~/.zen/tmp/$MOATS/$IPNSVAULT/${PLAYER}/G1PRIME 2>/dev/null) ## PRIMAL G1PUB
+        G1PRIME=$(cat ~/.zen/game/nostr/${PLAYER}/G1PRIME 2>/dev/null) ## PRIMAL G1PUB
         if [[ -z $G1PRIME ]]; then
             cat ${MY_PATH}/templates/message.html \
             | sed -e "s~_TITLE_~$(date -u) <br> ${IPNSVAULT}~g" \
-                 -e "s~_MESSAGE_~NOSTR CARD MISSING PRIMAL~g" \
+                 -e "s~_MESSAGE_~NOSTR CARD PRIMAL ERROR~g" \
                 > ${MY_PATH}/tmp/${MOATS}.out.html
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
             exit 0
@@ -237,7 +249,7 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} != "k51qzi" ]]; then
         #################################################################
         ########################## DISCO 1-DECRYPTION
         #~ # Decrypt the middle part using CAPTAIN key
-        #~ ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/tmp/$MOATS/$IPNSVAULT/${PLAYER}/ssss.mid.captain.enc" \
+        #~ ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.mid.captain.enc" \
                 #~ -k ~/.zen/game/players/.current/secret.dunikey -o "$tmp_mid"
         ## useless, we received player ssss part of the key
         tmp_player=$(mktemp)
@@ -246,7 +258,7 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} != "k51qzi" ]]; then
         # Decrypt the tail part using UPLANET key
         tmp_tail=$(mktemp)
         ${MY_PATH}/tools/keygen -t duniter -o ~/.zen/game/uplanet.dunikey "${UPLANETNAME}" "${UPLANETNAME}"
-        ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/tmp/$MOATS/$IPNSVAULT/${PLAYER}/ssss.tail.uplanet.enc" \
+        ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.tail.uplanet.enc" \
                 -k ~/.zen/game/uplanet.dunikey -o "$tmp_tail"
 
         rm ~/.zen/game/uplanet.dunikey
@@ -260,9 +272,7 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} != "k51qzi" ]]; then
         p=$(urldecode ${arr[2]} | xargs)
         pepper=$(urldecode ${arr[3]} | xargs)
         if [[ $s =~ ^/.*?$ ]]; then
-            [[ ! -z $s ]] \
-                && rm "$tmp_player" "$tmp_tail" \
-                || { echo "DISCO DECODING ERROR"; continue; };
+            rm "$tmp_player" "$tmp_tail"
         else
             echo "ERROR : BAD DISCO DECODING"
             cat ${MY_PATH}/templates/message.html \
@@ -273,25 +283,35 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} != "k51qzi" ]]; then
             exit 0
         fi
         ##################################################### DISCO DECODED
-        ## DUNIKEY PRIVATE KEY for CASH BACK
-        ${MY_PATH}/tools/keygen -t duniter -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
-        G1PUBNOSTR=$(cat ~/.zen/tmp/$MOATS/$IPNSVAULT/${PLAYER}/G1PUBNOSTR) ## NOSTR G1PUB READING
-        AMOUNT=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${G1PUBNOSTR} | tail -n 1)
-        echo "______ AMOUNT = ${AMOUNT} G1"
-        ## EMPTY AMOUNT G1 to PRIMAL
-        ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${HOME}/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey" "$AMOUNT" "${G1PRIME}" "NOSTR:EXIT"
+        ### CASH BACK => EMPTY WALLET CLOSE ACCOUNT
+        if [[ "$IMAGE" == "0000" ]]; then
+            ## DUNIKEY PRIVATE KEY for CASH BACK
+            ${MY_PATH}/tools/keygen -t duniter -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
+            G1PUBNOSTR=$(cat ~/.zen/game/nostr/${PLAYER}/G1PUBNOSTR) ## NOSTR G1PUB READING
+            AMOUNT=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${G1PUBNOSTR} | tail -n 1)
+            echo "______ AMOUNT = ${AMOUNT} G1"
+            ## EMPTY AMOUNT G1 to PRIMAL
+            ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${HOME}/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey" "$AMOUNT" "${G1PRIME}" "NOSTR:EXIT"
 
-        ## UPDATE TODATE - one day to reactivate...
-        echo ${TODATE} > ${HOME}/.zen/game/nostr/${PLAYER}/TODATE 2>/dev/null
+            ## UPDATE TODATE - one day to reactivate...
+            echo ${TODATE} > ${HOME}/.zen/game/nostr/${PLAYER}/TODATE 2>/dev/null
 
-        cat ${MY_PATH}/templates/message.html \
-        | sed -e "s~_TITLE_~$(date -u) <br> ${G1PRIME}~g" \
-             -e "s~_MESSAGE_~NOSTR CARD PAY BACK <br> $AMOUNT~g" \
-            > ${MY_PATH}/tmp/${MOATS}.out.html
-        echo "${MY_PATH}/tmp/${MOATS}.out.html"
-
-        exit 0
-
+            cat ${MY_PATH}/templates/message.html \
+            | sed -e "s~_TITLE_~$(date -u) <br> ${G1PRIME}~g" \
+                 -e "s~_MESSAGE_~NOSTR CARD PAY BACK <br> $AMOUNT~g" \
+                > ${MY_PATH}/tmp/${MOATS}.out.html
+            echo "${MY_PATH}/tmp/${MOATS}.out.html"
+            exit 0
+        else
+        ### OPEN UPLANET GEO KEY MESSAGE
+            ### Filling UPassport API template with nsec
+            NSEC=$(${MY_PATH}/tools/keygen -t nostr "${salt}" "${pepper}" -s)
+            cat ~/.zen/UPassport/templates/nostr.html \
+                | sed "s/const userNsec = '';/const userNsec = '${NSEC}';/" \
+                > ${MY_PATH}/tmp/${MOATS}.out.html
+            echo "${MY_PATH}/tmp/${MOATS}.out.html"
+            exit 0
+        fi
     else
 
         echo "IRREGULAR... ${QRCODE}"
