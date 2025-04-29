@@ -298,7 +298,7 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} != "k51qzi" ]]; then
 
             cat ${MY_PATH}/templates/message.html \
             | sed -e "s~_TITLE_~$(date -u) <br> ${G1PRIME}~g" \
-                 -e "s~_MESSAGE_~NOSTR CARD PAY BACK <br> $AMOUNT~g" \
+                 -e "s~_MESSAGE_~PRIMAL PAY BACK <br> $AMOUNT~g" \
                 > ${MY_PATH}/tmp/${MOATS}.out.html
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
             exit 0
