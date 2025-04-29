@@ -28,8 +28,8 @@ ZLON="$4"
 
 [ ! -z "$IMAGE" ] && echo "IMAGE : $IMAGE"
 
-PUBKEY=$(echo "$QRCODE" | tr -d ' ')
-ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # G1CHK or ZEN
+PUBKEY=$(echo "$QRCODE" | tr -d ' ') ## REMOVE SPACE
+ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # :G1CHK or :ZEN or :NOSTRNS
 [[ $ZCHK == $PUBKEY ]] && ZCHK=""
 PUBKEY="$(echo $PUBKEY | cut -d ':' -f 1)" # ":" split
 echo "PUBKEY ? $PUBKEY ($ZCHK)"
@@ -214,7 +214,7 @@ get_NOSTRNS_directory() {
 ########################################################################
 ############ NOSTRCARD SSSS 1-xxx:ipns EMPTY KEY QRCODE RECEIVED
 ########################################################################
-if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} != "k51qzi" ]]; then
+if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
     echo "NOSTR CARD SSSS KEY verification......"
     SSSS1=$(echo ${QRCODE} | cut -d ':' -f 1)
     IPNSVAULT=${ZCHK}
@@ -234,17 +234,6 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} != "k51qzi" ]]; then
             exit 0
         fi
         mkdir -p $HOME/.zen/tmp/$MOATS/$IPNSVAULT/$PLAYER
-        ## GETTING IPNS VAULT CONTENT
-        #################################################################
-        G1PRIME=$(cat ~/.zen/game/nostr/${PLAYER}/G1PRIME 2>/dev/null) ## PRIMAL G1PUB
-        if [[ -z $G1PRIME ]]; then
-            cat ${MY_PATH}/templates/message.html \
-            | sed -e "s~_TITLE_~$(date -u) <br> ${IPNSVAULT}~g" \
-                 -e "s~_MESSAGE_~NOSTR CARD PRIMAL ERROR~g" \
-                > ${MY_PATH}/tmp/${MOATS}.out.html
-            echo "${MY_PATH}/tmp/${MOATS}.out.html"
-            exit 0
-        fi
         ## DISCO DECODING
         #################################################################
         ########################## DISCO 1-DECRYPTION
@@ -257,11 +246,11 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} != "k51qzi" ]]; then
 
         # Decrypt the tail part using UPLANET key
         tmp_tail=$(mktemp)
-        ${MY_PATH}/tools/keygen -t duniter -o ~/.zen/game/uplanet.dunikey "${UPLANETNAME}" "${UPLANETNAME}"
+        ${MY_PATH}/tools/keygen -t duniter -o $HOME/.zen/tmp/$MOATS/uplanet.dunikey "${UPLANETNAME}" "${UPLANETNAME}"
         ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.tail.uplanet.enc" \
-                -k ~/.zen/game/uplanet.dunikey -o "$tmp_tail"
+                -k $HOME/.zen/tmp/$MOATS/uplanet.dunikey -o "$tmp_tail"
 
-        rm ~/.zen/game/uplanet.dunikey
+        rm $HOME/.zen/tmp/$MOATS/uplanet.dunikey
 
         # Combine "$tmp_player" "$tmp_tail"  decrypted shares
         DISCO=$(cat "$tmp_player" "$tmp_tail" | ssss-combine -t 2 -q 2>&1)
@@ -339,22 +328,6 @@ TOT=0
 ########################################################################
 ### FUNCTIONS
 ########################################################################
-function makecoord() {
-    local input="$1"
-
-    input=$(echo "${input}" | sed 's/\([0-9]*\.[0-9]\{2\}\).*/\1/')  # Ensure has exactly two decimal places
-
-    if [[ ${input} =~ ^-?[0-9]+\.[0-9]$ ]]; then
-        input="${input}0"
-    elif [[ ${input} =~ ^\.[0-9]+$ ]]; then
-        input="0${input}"
-    elif [[ ${input} =~ ^-?[0-9]+\.$ ]]; then
-        input="${input}00"
-    elif [[ ${input} =~ ^-?[0-9]+$ ]]; then
-        input="${input}.00"
-    fi
-    echo "${input}"
-}
 ########################################################################
 # Function to get Cesium+ profile, generate QR code, and annotate with UID
 generate_qr_with_uid() {
