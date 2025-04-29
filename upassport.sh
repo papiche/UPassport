@@ -255,14 +255,8 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
         # Combine "$tmp_player" "$tmp_tail"  decrypted shares ## STRANGE 1, 2 OUTPUT
         # WARNING: couldn't get memory lock (ENOMEM, try to adjust RLIMIT_MEMLOCK!).*
         DISCO=$(cat "$tmp_player" "$tmp_tail" | ssss-combine -t 2 -q 2>&1 | tail -n 1)
-        echo "DISCO = $DISCO"
+        #~ echo "DISCO = $DISCO"
         IFS='=&' read -r s salt p pepper <<< "$DISCO"
-        echo "s=$s"
-        echo "salt=$salt"
-        echo "p=$p"
-        echo "pepper=$pepper"
-        ls "$tmp_player" "$tmp_tail"
-        echo 'cat "'$tmp_player'" "'$tmp_tail'" | ssss-combine -t 2 -q 2>&1'
         if [[ -n $pepper ]]; then
             rm "$tmp_player" "$tmp_tail"
         else

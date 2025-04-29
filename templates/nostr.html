@@ -237,7 +237,7 @@
         async function initializeApp() {
             log('initializeApp called.');
             if (userNsec) {
-                $('#nsec-warning').show(); log("NSEC provided. Init local key.");
+                log("NSEC provided. Init local key.");
                  if (typeof NostrTools === 'undefined') { updateStatus("Error: NostrTools unloaded.", true); log("Fatal: NostrTools missing."); return; }
                 try {
                     const decoded = NostrTools.nip19.decode(userNsec);
