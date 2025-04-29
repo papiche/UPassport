@@ -198,7 +198,7 @@
 
     <script>
         // --- Configuration ---
-        const userNsec = ''; // Leave empty for extension
+        const userNsec = 'nsec1ff55w3pu48w5vc99u82derfqgfjp82cxue6sevwkujhnzt2sgjsq6djk6h'; // Leave empty for extension
         const MESSAGES_PER_PAGE = 10; // How many messages to fetch at once
         let manualLocationSet = false; // Flag to track if UI is populated
         // --- Global Variables ---
@@ -600,10 +600,76 @@
                 const event = { kind: 1, pubkey: publicKey, created_at: Math.floor(Date.now() / 1000), tags: tags, content: content };
                 log("Unsigned event:"); console.log(JSON.stringify(event, null, 2));
 
-                let signedEvent;
-                // ... (signing logic remains the same) ...
-                 if (privateKeyHex) { /* ... */ } else if (window.nostr) { /* ... */ } else throw new Error("Cannot sign.");
+                let signedEvent = null;
 
+                if (privateKeyHex) {
+                    log("Attempting local signing with NSEC..."); // More specific log
+                    try {
+                        if (typeof NostrTools === 'undefined' || typeof NostrTools.getEventHash !== 'function' || typeof NostrTools.getSignature !== 'function') {
+                            throw new Error("NostrTools crypto functions missing or not loaded!");
+                        }
+                        // It's generally safer to work with a copy if you modify it,
+                        // but in this case, modifying the original 'event' and assigning it works.
+                        // Let's stick to the original method but add checks.
+                        event.id = NostrTools.getEventHash(event);
+                        if (!event.id) throw new Error("Failed to generate event hash.");
+
+                        event.sig = NostrTools.getSignature(event, privateKeyHex);
+                         if (!event.sig) throw new Error("Failed to generate signature.");
+
+                        signedEvent = event; // Assign the fully signed event object
+
+                        if (!signedEvent || !signedEvent.id || !signedEvent.sig) {
+                            // Double-check after assignment
+                            throw new Error("Signed event object is incomplete after signing.");
+                        }
+
+                        log(`Signed locally. ID: ${signedEvent.id}`);
+                        updateStatus("Signed. Publishing...");
+
+                    } catch (signError) {
+                        log(`Local signing error: ${signError.message}`);
+                        console.error("Local Signing Error Details:", signError);
+                        updateStatus(`Local signing error: ${signError.message}`, true);
+                        showLoading(false); // Stop loading
+                        return; // Exit the function, don't proceed to publish
+                    }
+
+                } else if (window.nostr) {
+                    updateStatus("Confirm in extension...");
+                    log("Requesting signature via extension...");
+                    try {
+                         signedEvent = await window.nostr.signEvent(event);
+                         if (!signedEvent || !signedEvent.id || !signedEvent.sig) {
+                             throw new Error("Extension returned incomplete signed event.");
+                         }
+                         log(`Signed via extension. ID: ${signedEvent.id}`);
+                         updateStatus("Signed. Publishing...");
+                    } catch (extSignError) {
+                        log(`Extension signing error: ${extSignError.message}`);
+                        console.error("Extension Signing Error Details:", extSignError);
+                        updateStatus(`Extension signing error: ${extSignError.message}`, true);
+                        showLoading(false); // Stop loading
+                        $('#connectButton').prop('disabled', false).show(); // Re-enable connect button maybe?
+                        return; // Exit the function
+                    }
+                } else {
+                     // This case should ideally not be reached if init logic is correct
+                    log("Error: Cannot sign event - No private key and no extension available.");
+                    updateStatus("Cannot sign event: No key/extension.", true);
+                    showLoading(false);
+                    return; // Exit
+                    // Old: throw new Error("Cannot sign.");
+                }
+
+                // --- Crucial Check ---
+                if (!signedEvent) {
+                    log("Error: signedEvent is null or undefined before publishing. Aborting.");
+                    updateStatus("Failed to prepare event for publishing.", true);
+                    showLoading(false);
+                    return; // Exit explicitly if signing failed somehow
+                }
+                // --- End Crucial Check ---
                 log(`Publishing to ${allRelaysToPublish.length} relays...`);
                 updateRelayListUI();
                 let success = 0;
