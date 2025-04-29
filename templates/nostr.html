@@ -53,11 +53,30 @@
         .reply-author code { background-color: #444; padding: 1px 3px; border-radius: 3px;}
         .reply-content { font-size: 0.95em; color: #ddd;}
         #replies-list { padding-left: 0; list-style: none; }
+        .back-button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        .back-button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>UPlanet Geo Message</h1>
+        <button class="back-button" id="back-button">&lt;</button>
+        <script>
+        document.getElementById('back-button').addEventListener('click', function() {
+            window.location.href = '/scan';
+        });
+        </script>
         <div id="profile-display"><span>Loading profile...</span></div>
         <div id="nsec-warning" class="warning" style="display: none;">
              ⚠️ WARNING: You are publishing message on UPlanet

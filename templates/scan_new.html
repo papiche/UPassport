@@ -260,6 +260,7 @@
 </head>
 <body>
     <h1>♥️BOX Terminal</h1>
+    <button id="nostr">📍UPlanet Geo Message📍</button>
 
     <div class="scanner-container">
         <div class="camera-controls">
@@ -279,9 +280,15 @@
 <!--
             <label for="parametre">[[ EMAIL + JJMM || QRCODE + PASS ]]</label>
 -->
-            <input type="text" id="parametre" name="parametre" size=30 required placeholder="Email, QR Code ou Message NOSTR...">
+            <input type="text" id="parametre" name="parametre" size=30 required placeholder="Email, QR Code, ...">
             <input type="hidden" id="imageData" name="imageData">
+            <div style="display: flex; align-items: center;">
             <input type="password" id="PASS" name="PASS" value="1234" size=4>
+            <label style="margin-left: 10px;">
+                <input type="checkbox" id="toggle-password"> 👀
+            </label>
+            </div>
+
             <input type="hidden" id="nostrHex" name="HEX" value="">
             <input type="hidden" id="zlat" name="zlat" value="">
             <input type="hidden" id="zlon" name="zlon" value="">
@@ -296,6 +303,7 @@
         <h2><center>
         <- <span id="UPlanet">UPlanet</span> <-> <span id="coeurBOX"><b>♥BOX</b></span> <-> <span id="NOSTR">NOSTR</span> ->
         </center></h2>
+
 <!--
         <br><b>USCAN</b> ~ UPlanet Terminal ~
             <ul>
@@ -332,6 +340,17 @@
         // Initialisez la valeur du champ PASS avec les deux premiers caractères de la langue
         document.getElementById('PASS').value = shortLanguageCode;
     });
+
+    // Ajout du gestionnaire d'événements pour la checkbox de masquage/affichage du mot de passe
+    document.getElementById('toggle-password').addEventListener('change', function() {
+        var passwordField = document.getElementById('PASS');
+        if (this.checked) {
+            passwordField.type = 'text'; // Affiche le mot de passe en clair
+        } else {
+            passwordField.type = 'password'; // Masque le mot de passe
+        }
+    });
+
 </script>
 
 
@@ -580,11 +599,11 @@
         const astroportUrl = getAstroportURL();
         const swarmUrl = getSwarmURL();
         const UPlanetUrl = getUPlanetURL();
-        $('#astroportLinkPlaceholder').html(`<a href="${astroportUrl}" target="_blank">Astroport.ONE</a>`);
-        $('#coeurBOX').html(`<a href="${swarmUrl}" target="_blank"><b>♥BOX</b></a>`);
-        $('#Astroport').html(`<a href="${astroportUrl}" target="_blank"><b>Astroport</b></a>`);
+        $('#astroportLinkPlaceholder').html(`<a href="${astroportUrl}">Astroport.ONE</a>`);
+        $('#coeurBOX').html(`<a href="${swarmUrl}"><b>♥BOX</b></a>`);
+        $('#Astroport').html(`<a href="${astroportUrl}" ><b>Astroport</b></a>`);
         $('#UPlanet').html(`<a href="${UPlanetUrl}"><b>UPlanet</b></a>`);
-        $('#NOSTR').html(`<a href="https://coracle.copylaradio.com" target="_blank"><b>NOSTR</b></a>`);
+        $('#NOSTR').html(`<a href="https://coracle.copylaradio.com"><b>NOSTR</b></a>`);
 
         $('#qr-form').submit(function(e) {
           e.preventDefault();
@@ -644,6 +663,10 @@
             var newTab = window.open();
             newTab.document.write(response);
             newTab.document.close();
+        });
+
+        $('#nostr').click(function() {
+            window.location.href = '/nostr';
         });
 
         // GPS Location and NOSTR HEX Button Click Handler
