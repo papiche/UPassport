@@ -253,7 +253,7 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
         rm $HOME/.zen/tmp/$MOATS/uplanet.dunikey
 
         # Combine "$tmp_player" "$tmp_tail"  decrypted shares
-        DISCO=$(cat "$tmp_player" "$tmp_tail" | ssss-combine -t 2 -q 2>&1 | cut -d '/' -f 2-)
+        DISCO=$(cat "$tmp_player" "$tmp_tail" | ssss-combine -t 2 -q)
         echo "DISCO = $DISCO"
         IFS='=&' read -r s salt p pepper <<< "$DISCO"
         echo "s=$s"
