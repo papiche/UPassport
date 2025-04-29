@@ -25,7 +25,19 @@
         #status { margin-top: 15px; font-weight: bold; text-align: center; padding: 10px; border-radius: 4px; background-color: #333; min-height: 20px; color: #ccc; word-wrap: break-word; }
         .spinner { display: none; width: 40px; height: 40px; margin: 20px auto; border: 4px solid #555; border-top: 4px solid #4CAF50; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .warning { color: #ffcc00; background-color: #4d3d00; border: 1px solid #ffcc00; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center; font-weight: bold; }
+        .warning {
+    background: linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8b00ff);
+    color: #ffffff; /* Change la couleur du texte pour qu'il soit lisible sur le dégradé */
+    border: 1px solid #ffcc00;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    text-align: center;
+    font-weight: bold;
+    -webkit-background-clip: text; /* Pour s'assurer que le texte est coloré par le dégradé */
+    -webkit-text-fill-color: transparent; /* Rend le texte transparent pour que le dégradé soit visible */
+}
+
         details { background-color: #333; padding: 5px; border-radius: 4px; margin-top: 15px;}
         details summary { cursor: pointer; color: #aaa; font-size: 0.9em; }
         #debug-info { margin-top: 10px; border: 1px dashed #555; padding: 10px; font-size: 0.8em; white-space: pre-wrap; word-wrap: break-word; max-height: 200px; overflow-y: auto; background-color: #222; color: #bbb; }
@@ -53,47 +65,114 @@
         .reply-author code { background-color: #444; padding: 1px 3px; border-radius: 3px;}
         .reply-content { font-size: 0.95em; color: #ddd;}
         #replies-list { padding-left: 0; list-style: none; }
-        .back-button {
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
+        /* Location Tumbler Styles */
+        #location-controls {
+             border: 1px solid #444;
+             border-radius: 5px;
+             padding: 10px;
+             background-color: #282828; /* Slightly different bg */
         }
-
-        .back-button:hover {
-            background-color: #0056b3;
+        .coord-control {
+            text-align: center; /* Center the label */
+        }
+        .coord-control > div {
+             justify-content: center; /* Center the selects horizontally */
+        }
+        .tumbler {
+            appearance: none; /* Remove default dropdown arrow */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding: 8px 4px; /* Adjust padding */
+            border: 1px solid #555;
+            background-color: #404040;
+            color: #e0e0e0;
+            font-family: 'Courier New', Courier, monospace; /* Monospace font */
+            font-size: 1.1em;
+            font-weight: bold;
+            border-radius: 3px;
+            margin: 0 1px; /* Small gap */
+            text-align: center; /* Center text inside select */
+            cursor: pointer;
+            min-width: 28px; /* Ensure minimum width */
+        }
+        .tumbler:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+        }
+        .tumbler-dot {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin: 0 2px;
+            align-self: center; /* Vertically align the dot */
+            color: #aaa;
+        }
+        #location-status {
+             min-height: 1.1em; /* Prevent layout jump */
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>UPlanet Geo Message</h1>
-        <button class="back-button" id="back-button">&lt;</button>
+        <div id="nsec-warning" class="warning">
+             🌐️ UPlanet Geo Message 🌐
+        </div>
         <script>
-        document.getElementById('back-button').addEventListener('click', function() {
+        document.getElementById('nsec-warning').addEventListener('click', function() {
             window.location.href = '/scan';
         });
         </script>
         <div id="profile-display"><span>Loading profile...</span></div>
-        <div id="nsec-warning" class="warning" style="display: none;">
-             ⚠️ WARNING: You are publishing message on UPlanet
-        </div>
+
         <button id="connectButton" disabled>Connect with Nostr</button>
+        <!-- Location Adjustment UI -->
+        <div id="location-controls" style="margin-bottom: 15px; display: none;"> <!-- Hide initially -->
+            <div id="location-values" style="display: flex; justify-content: space-around; background-color: #333; padding: 10px; border-radius: 5px;">
+                <!-- Latitude -->
+                <div class="coord-control">
+                    <label for="lat-sign" style="font-size: 0.8em; display: block; text-align: center; margin-bottom: 3px;">Latitude</label>
+                    <div style="display: flex; align-items: center;">
+                        <select id="lat-sign" class="tumbler">
+                            <option value="N">N</option>
+                            <option value="S">S</option>
+                        </select>
+                        <select id="lat-deg1" class="tumbler"></select> <!-- 0-9 -->
+                        <select id="lat-deg0" class="tumbler"></select> <!-- 0-9 -->
+                        <span class="tumbler-dot">.</span>
+                        <select id="lat-frac1" class="tumbler"></select> <!-- 0-9 -->
+                        <select id="lat-frac0" class="tumbler"></select> <!-- 0-9 -->
+                    </div>
+                </div>
+                <!-- Longitude -->
+                <div class="coord-control">
+                     <label for="lon-sign" style="font-size: 0.8em; display: block; text-align: center; margin-bottom: 3px;">Longitude</label>
+                    <div style="display: flex; align-items: center;">
+                        <select id="lon-sign" class="tumbler">
+                            <option value="E">E</option>
+                            <option value="W">W</option>
+                        </select>
+                        <select id="lon-deg2" class="tumbler"></select> <!-- 0-1 -->
+                        <select id="lon-deg1" class="tumbler"></select> <!-- 0-9 -->
+                        <select id="lon-deg0" class="tumbler"></select> <!-- 0-9 -->
+                         <span class="tumbler-dot">.</span>
+                        <select id="lon-frac1" class="tumbler"></select> <!-- 0-9 -->
+                        <select id="lon-frac0" class="tumbler"></select> <!-- 0-9 -->
+                    </div>
+                </div>
+            </div>
+             <div id="location-status" style="font-size: 0.8em; text-align: center; margin-top: 5px; color: #aaa;">Fetching location...</div>
+        </div>
         <label for="message">Message:</label>
-        <textarea id="message" placeholder="Write your message here..."></textarea>
-        <label for="imageInput" class="button-like">📸 Select Photo</label>
+        <textarea id="message" placeholder="..."></textarea>
+        <label for="imageInput" class="button-like">📸 Photo</label>
         <input type="file" id="imageInput" accept="image/*">
         <img id="imagePreview" src="#" alt="Image Preview"/>
-        <button id="postButton" disabled>📍 Post with Location</button>
+        <button id="postButton" disabled>📍 Post</button>
         <div class="spinner" id="loadingSpinner"></div>
         <div id="status">Initializing...</div>
 
         <!-- Message Section -->
         <div id="message-section">
-            <h2>Notes Feed</h2>
             <!-- Navigation Buttons -->
             <div id="message-navigation">
                 <button id="older-button" disabled> < </button>
@@ -121,7 +200,7 @@
         // --- Configuration ---
         const userNsec = ''; // Leave empty for extension
         const MESSAGES_PER_PAGE = 10; // How many messages to fetch at once
-
+        let manualLocationSet = false; // Flag to track if UI is populated
         // --- Global Variables ---
         let debugInfo = '';
         let nostrExtensionAvailable = false;
@@ -149,6 +228,193 @@
         async function fetchProfileAndRelays(pubkey) { log(`Fetching profile/relays for ${pubkey.slice(0,10)}...`); let nostrPool; try { nostrPool = getNostrPool(); } catch (e) { log("Pool fail in fetchProfileRelays."); return {}; } let profileEv = null, relayEv = null, userRelays = []; try { log("Pool obj before list:", nostrPool); console.dir(nostrPool); const evs = await nostrPool.list(DEFAULT_RELAYS, [{ kinds: [0], authors: [pubkey], limit: 1 }, { kinds: [10002], authors: [pubkey], limit: 1 }]); evs.forEach(e => { if (e.kind === 0 && (!profileEv || e.created_at > profileEv.created_at)) profileEv = e; if (e.kind === 10002 && (!relayEv || e.created_at > relayEv.created_at)) relayEv = e; }); if (profileEv) { log(`Profile ev: ${profileEv.id}`); try { userProfile = JSON.parse(profileEv.content); } catch (e) { log(`Profile parse err: ${e.message}`); userProfile = {}; } } else { log(`No profile ev.`); userProfile = {}; } if (relayEv) { log(`Relay list ev: ${relayEv.id}`); userRelays = relayEv.tags.filter(t => t[0] === 'r' && typeof t[1] === 'string' && t[1].startsWith('wss://')).map(t => t[1]); log(`Extracted ${userRelays.length} relays.`); } else log(`No relay list ev.`); } catch (e) { log(`Error fetching profile/relays: ${e}`); console.error("Fetch Profile/Relay Err:", e); updateStatus('Error fetch profile/relay.', true); userProfile = {}; } const dyn = getRelayURL(); const comb = new Set([...DEFAULT_RELAYS, dyn, ...userRelays]); allRelaysToPublish = [...comb]; updateRelayListUI(); renderProfile(pubkey, userProfile); return userProfile; }
         function renderProfile(pubkey, profileData) { const div = $('#profile-display').empty(); const defPic = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'; const pic = profileData?.picture || defPic; const name = profileData?.display_name || profileData?.name || pubkey.slice(0, 16); const nip05 = profileData?.nip05 || ''; $('<img>').attr('src', pic).on('error', function() { $(this).attr('src', defPic); }).appendTo(div); const infoDiv = $('<div>').attr('id', 'profile-info').appendTo(div); $('<span>').addClass('profile-name').text(name).appendTo(infoDiv); if (nip05) $('<span>').addClass('profile-nip05').text(nip05).appendTo(infoDiv); }
 
+        // --- Location UI Helper Functions ---
+
+        // Populate a select dropdown with numbers
+        function populateSelect(selectId, start, end) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            select.innerHTML = ''; // Clear existing options
+            for (let i = start; i <= end; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i.toString().padStart(end.toString().length > 1 && i < 10 ? end.toString().length : 1, '0'); // Pad with 0 if needed (e.g., 0-9 -> 0,1..9; 0-10 -> 00,01..10)
+                select.appendChild(option);
+            }
+        }
+
+        // Populate all location selects with default ranges
+        function initializeLocationSelects() {
+            populateSelect('lat-deg1', 0, 9);
+            populateSelect('lat-deg0', 0, 9);
+            populateSelect('lat-frac1', 0, 9);
+            populateSelect('lat-frac0', 0, 9);
+
+            populateSelect('lon-deg2', 0, 1);
+            populateSelect('lon-deg1', 0, 9);
+            populateSelect('lon-deg0', 0, 9);
+            populateSelect('lon-frac1', 0, 9);
+            populateSelect('lon-frac0', 0, 9);
+
+            // Add change listener to longitude hundreds digit to restrict next digit
+            $('#lon-deg2').on('change', function() {
+                const hundreds = parseInt($(this).val(), 10);
+                const lonDeg1Select = $('#lon-deg1');
+                const currentLonDeg1 = parseInt(lonDeg1Select.val() || '0', 10);
+                lonDeg1Select.empty(); // Clear options
+
+                let maxTens = 9;
+                if (hundreds === 1) {
+                    maxTens = 8; // Max longitude is 180
+                }
+
+                for (let i = 0; i <= maxTens; i++) {
+                    $('<option>').val(i).text(i).appendTo(lonDeg1Select);
+                }
+                // Try to restore previous value if valid, else set to 0
+                lonDeg1Select.val(currentLonDeg1 <= maxTens ? currentLonDeg1 : '0');
+                lonDeg1Select.trigger('change'); // Trigger change for the next digit
+            });
+
+             // Add change listener to longitude tens digit to restrict units digit if hundreds is 1
+             $('#lon-deg1').on('change', function() {
+                 const hundreds = parseInt($('#lon-deg2').val(), 10);
+                 const tens = parseInt($(this).val(), 10);
+                 const lonDeg0Select = $('#lon-deg0');
+                 const currentLonDeg0 = parseInt(lonDeg0Select.val() || '0', 10);
+                 lonDeg0Select.empty(); // Clear options
+
+                 let maxUnits = 9;
+                 if (hundreds === 1 && tens === 8) {
+                     maxUnits = 0; // Max longitude is 180.00
+                 }
+
+                 for (let i = 0; i <= maxUnits; i++) {
+                     $('<option>').val(i).text(i).appendTo(lonDeg0Select);
+                 }
+                 // Try to restore previous value if valid, else set to 0
+                 lonDeg0Select.val(currentLonDeg0 <= maxUnits ? currentLonDeg0 : '0');
+             });
+
+
+            // Add change listener to latitude tens digit to restrict next digit (max 90)
+            $('#lat-deg1').on('change', function() {
+                const tens = parseInt($(this).val(), 10);
+                const latDeg0Select = $('#lat-deg0');
+                const currentLatDeg0 = parseInt(latDeg0Select.val() || '0', 10);
+                 latDeg0Select.empty();
+
+                 let maxUnits = 9;
+                 if (tens === 9) {
+                     maxUnits = 0; // Max latitude is 90
+                 }
+                for (let i = 0; i <= maxUnits; i++) {
+                    $('<option>').val(i).text(i).appendTo(latDeg0Select);
+                }
+                latDeg0Select.val(currentLatDeg0 <= maxUnits ? currentLatDeg0 : '0');
+
+                // If 90 is selected, force fractions to 0
+                if (tens === 9 && maxUnits === 0) {
+                    $('#lat-frac1').val('0').prop('disabled', true);
+                    $('#lat-frac0').val('0').prop('disabled', true);
+                } else {
+                     $('#lat-frac1').prop('disabled', false);
+                     $('#lat-frac0').prop('disabled', false);
+                }
+            });
+
+            // Initial population based on default tens value (0)
+            $('#lat-deg1').trigger('change');
+            $('#lon-deg2').trigger('change'); // This will trigger the chain for lon-deg1 change
+        }
+
+
+        // Update the location UI selects based on numeric lat/lon
+        function updateLocationUI(latitude, longitude) {
+            if (latitude == null || longitude == null) {
+                log("Cannot update location UI: Invalid coordinates.");
+                 $('#location-status').text('Location unavailable.');
+                // Optionally set UI to 0.00 N, 0.00 E
+                $('#lat-sign').val('N');
+                $('#lat-deg1').val(0); $('#lat-deg0').val(0);
+                $('#lat-frac1').val(0); $('#lat-frac0').val(0);
+                $('#lon-sign').val('E');
+                $('#lon-deg2').val(0); $('#lon-deg1').val(0); $('#lon-deg0').val(0);
+                $('#lon-frac1').val(0); $('#lon-frac0').val(0);
+                $('#lat-deg1').trigger('change'); // Update constraints
+                $('#lon-deg2').trigger('change'); // Update constraints
+                 manualLocationSet = true;
+                $('#location-controls').show();
+                return;
+            }
+
+            log(`Updating Location UI: Lat ${latitude.toFixed(6)}, Lon ${longitude.toFixed(6)}`);
+
+            // Latitude
+            const latAbs = Math.abs(latitude);
+            const latDeg = Math.floor(latAbs);
+            const latFrac = Math.round((latAbs - latDeg) * 100); // Get 2 decimal places
+
+            $('#lat-sign').val(latitude >= 0 ? 'N' : 'S');
+            $('#lat-deg1').val(Math.floor(latDeg / 10) % 10);
+            $('#lat-deg0').val(latDeg % 10);
+            $('#lat-frac1').val(Math.floor(latFrac / 10) % 10);
+            $('#lat-frac0').val(latFrac % 10);
+
+            // Longitude
+            const lonAbs = Math.abs(longitude);
+            const lonDeg = Math.floor(lonAbs);
+            const lonFrac = Math.round((lonAbs - lonDeg) * 100); // Get 2 decimal places
+
+            $('#lon-sign').val(longitude >= 0 ? 'E' : 'W');
+            $('#lon-deg2').val(Math.floor(lonDeg / 100) % 10);
+            $('#lon-deg1').val(Math.floor(lonDeg / 10) % 10);
+            $('#lon-deg0').val(lonDeg % 10);
+            $('#lon-frac1').val(Math.floor(lonFrac / 10) % 10);
+            $('#lon-frac0').val(lonFrac % 10);
+
+            // Trigger change events to ensure constraints (like 180 deg) are applied correctly
+            $('#lat-deg1').trigger('change');
+            $('#lon-deg2').trigger('change'); // This triggers lon-deg1 check too
+
+
+            $('#location-status').text(`Location Acquired: ${latitude.toFixed(2)}, ${longitude.toFixed(2)}`);
+            manualLocationSet = true; // Mark UI as populated
+            $('#location-controls').show(); // Show the controls
+        }
+
+        // Read the adjusted location from the UI selects
+        function readLocationFromUI() {
+            if (!manualLocationSet) {
+                 log("Location UI not initialized, cannot read values.");
+                 return null; // Or throw error, or return default? Returning null is safest.
+            }
+
+            // Latitude
+            const latSign = $('#lat-sign').val() === 'N' ? 1 : -1;
+            const latDeg1 = parseInt($('#lat-deg1').val(), 10);
+            const latDeg0 = parseInt($('#lat-deg0').val(), 10);
+            const latFrac1 = parseInt($('#lat-frac1').val(), 10);
+            const latFrac0 = parseInt($('#lat-frac0').val(), 10);
+            const latitude = latSign * (latDeg1 * 10 + latDeg0 + (latFrac1 * 10 + latFrac0) / 100.0);
+
+            // Longitude
+            const lonSign = $('#lon-sign').val() === 'E' ? 1 : -1;
+            const lonDeg2 = parseInt($('#lon-deg2').val(), 10);
+            const lonDeg1 = parseInt($('#lon-deg1').val(), 10);
+            const lonDeg0 = parseInt($('#lon-deg0').val(), 10);
+            const lonFrac1 = parseInt($('#lon-frac1').val(), 10);
+            const lonFrac0 = parseInt($('#lon-frac0').val(), 10);
+            const longitude = lonSign * (lonDeg2 * 100 + lonDeg1 * 10 + lonDeg0 + (lonFrac1 * 10 + lonFrac0) / 100.0);
+
+             // Validate ranges (redundant due to select limits, but good practice)
+             const finalLat = Math.max(-90, Math.min(90, latitude));
+             const finalLon = Math.max(-180, Math.min(180, longitude));
+
+
+            log(`Read Location from UI: Lat ${finalLat.toFixed(2)}, Lon ${finalLon.toFixed(2)}`);
+            return { latitude: finalLat, longitude: finalLon };
+        }
         // Fetch and display a batch of messages
         async function fetchAndDisplayMessages(pubkey) {
             log(`Fetching batch of messages (limit ${MESSAGES_PER_PAGE}) for ${pubkey.slice(0, 10)}...`);
@@ -245,13 +511,124 @@
 
         // handleImageSelection, getLocation, uploadImageNip96, publishToRelay
         function handleImageSelection(event) { const f = event.target.files[0]; if (f) { log(`Image selected: ${f.name}, size: ${f.size}`); const r = new FileReader(); r.onload = (e) => { selectedImageDataUrl = e.target.result; $('#imagePreview').attr('src', selectedImageDataUrl).show(); log('Preview updated.'); }; r.onerror = (e) => { log(`File read error: ${e}`); updateStatus('Error reading image.', true); selectedImageDataUrl = null; $('#imagePreview').hide().attr('src', '#'); }; r.readAsDataURL(f); } else { log('No image selected.'); selectedImageDataUrl = null; $('#imagePreview').hide().attr('src', '#'); } }
-        function getLocation() { return new Promise((resolve, reject) => { if (!navigator.geolocation) { const m = "Geolocation unsupported."; log(m); updateStatus(m, true); return reject(m); } log('Requesting location...'); updateStatus('Getting location...'); navigator.geolocation.getCurrentPosition( (p) => { currentLatitude = p.coords.latitude; currentLongitude = p.coords.longitude; log(`Location: Lat ${currentLatitude.toFixed(6)}, Lon ${currentLongitude.toFixed(6)}`); updateStatus(`Location: ${currentLatitude.toFixed(2)}, ${currentLongitude.toFixed(2)}`); resolve({ latitude: currentLatitude, longitude: currentLongitude }); }, (e) => { log(`Location error: ${e.message} (Code: ${e.code})`); const m = ["Permission denied.", "Position unavailable.", "Timeout."][e.code-1] || "Location error."; updateStatus(m, true); reject(m); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 } ); }); }
+        function getLocation() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    const m = "Geolocation unsupported.";
+                    log(m);
+                    updateStatus(m, true);
+                    return reject(m);
+                }
+                log('Requesting location...');
+                updateStatus('Getting location...');
+                navigator.geolocation.getCurrentPosition(
+                    (p) => {
+                        currentLatitude = p.coords.latitude;
+                        currentLongitude = p.coords.longitude;
+                        log(`Location: Lat ${currentLatitude.toFixed(6)}, Lon ${currentLongitude.toFixed(6)}`);
+                        // updateStatus(`Location: ${currentLatitude.toFixed(2)}, ${currentLongitude.toFixed(2)}`); // Replaced by updateLocationUI status
+                        updateLocationUI(currentLatitude, currentLongitude);
+                        resolve({ latitude: currentLatitude, longitude: currentLongitude });
+                    },
+                    (e) => {
+                        log(`Location error: ${e.message} (Code: ${e.code})`);
+                        const m = ["Permission denied.", "Position unavailable.", "Timeout."][e.code-1] || "Location error.";
+                        updateStatus(m, true); // Keep general status update
+                        updateLocationUI(null, null);
+                        reject(m);
+                    },
+                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+                );
+            });
+        }
+
         function uploadImageNip96(imageDataBase64) { return new Promise(async (resolve, reject) => { log("NIP-96 Upload start..."); const server = 'https://g1sms.fr'; const wk = `${server}/.well-known/nostr/nip96.json`; try { const cfg = await $.ajax({ url: wk, dataType: 'json' }); const ep = cfg.api_url; if (!ep) throw new Error("No api_url"); log(`NIP-96 EP: ${ep}`); const bs = atob(imageDataBase64.split(',')[1]); const mime = imageDataBase64.split(',')[0].split(':')[1].split(';')[0]; const ab = new ArrayBuffer(bs.length); const ia = new Uint8Array(ab); for (let i=0; i<bs.length; i++) ia[i]=bs.charCodeAt(i); const blob = new Blob([ab],{type:mime}); const file = new File([blob],`mobile-${Date.now()}.png`,{type:mime}); const fd = new FormData(); fd.append('file', file); log(`Uploading to ${ep}...`); const r = await $.ajax({ url: ep, type: 'POST', data: fd, processData: false, contentType: false }); log("NIP-96 Resp:", r); if (r?.status === "success" && r.nip94_event?.tags) { const ut = r.nip94_event.tags.find(t => t[0] === 'url'); const url = ut?.[1]; const tags = r.nip94_event.tags; const size = r.fileSize; if (url) { log(`Upload OK: ${url}, Size: ${size||'N/A'}`); resolve({ uploadedFileURL: url, nip94Tags: tags, fileSize: size }); } else throw new Error("No URL tag."); } else throw new Error(r?.message || "Invalid NIP-96 response."); } catch (e) { let m = e?.message || 'Unknown upload error'; if (e?.responseJSON?.message) m = e.responseJSON.message; else if (e?.statusText) m = `HTTP ${e.status}: ${e.statusText}`; log(`NIP-96 Err: ${m}`); console.error("NIP-96 Details:", e); reject(`Upload fail: ${m}`); } }); }
         async function publishToRelay(relayUrl, signedEvent) { return new Promise((resolve) => { log(`Publish to ${relayUrl}`); let ws = null; let timer = null; try { ws = new WebSocket(relayUrl); const close = (ok, msg) => { clearTimeout(timer); if (ws?.readyState === WebSocket.OPEN) ws.close(); log(msg); resolve(ok); }; ws.onopen = () => { log(`Connected ${relayUrl}. Send.`); ws.send(JSON.stringify(['EVENT', signedEvent])); timer = setTimeout(() => close(true, `Sent ${relayUrl}, no OK/Notice.`), 3000); }; ws.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m[0]==='OK' && m[1]===signedEvent.id) close(true, `OK ${relayUrl}: ${m[1].slice(0,8)}...`); else if (m[0]==='NOTICE') { log(`NOTICE ${relayUrl}: ${m[1]}`); clearTimeout(timer); timer = setTimeout(() => close(true, `NOTICE ${relayUrl}, closing.`), 500); } } catch (e) { log(`Msg parse err ${relayUrl}: ${e.message}`); } }; ws.onerror = (e) => close(false, `Error ${relayUrl}: ${e.message || 'Unknown'}`); ws.onclose = (e) => { log(`Closed ${relayUrl}. Code: ${e.code}`); if (timer) { clearTimeout(timer); resolve(false); } }; timer = setTimeout(() => close(false, `Timeout ${relayUrl}`), 7000); } catch (e) { log(`Connect err ${relayUrl}: ${e.message}`); resolve(false); } }); }
 
         // postNostrEvent
-        async function postNostrEvent() { if (!publicKey) { updateStatus("Not connected.", true); return; } const msg = $('#message').val().trim(); if (!msg && !selectedImageDataUrl) { updateStatus("Need message or image.", true); return; } showLoading(true); updateStatus("Starting post..."); try { const loc = await getLocation(); const lat = loc.latitude.toFixed(2); const lon = loc.longitude.toFixed(2); let content = msg; let tags = [['application', 'UPlanet'], ['latitude', lat], ['longitude', lon], ['g', `${lat};${lon}`]]; if (selectedImageDataUrl) { updateStatus("Uploading image..."); try { const up = await uploadImageNip96(selectedImageDataUrl); content += `\n${up.uploadedFileURL}`; if (up.nip94Tags) tags = tags.concat(up.nip94Tags.filter(t => Array.isArray(t) && t.length >= 2)); if (up.fileSize != null) tags.push(['fileSize', String(up.fileSize)]); updateStatus("Image uploaded.", false, true); } catch (e) { updateStatus(`Upload failed: ${e}. Posting text only.`, true); } } const event = { kind: 1, pubkey: publicKey, created_at: Math.floor(Date.now() / 1000), tags: tags, content: content }; log("Unsigned event:"); console.log(JSON.stringify(event, null, 2)); let signedEvent; if (privateKeyHex) { if (typeof NostrTools === 'undefined') throw new Error("NostrTools missing."); log("Signing locally..."); updateStatus("Signing locally..."); event.id = NostrTools.getEventHash(event); event.sig = NostrTools.getSignature(event, privateKeyHex); signedEvent = event; log(`Signed locally. ID: ${signedEvent.id}`); updateStatus("Signed. Publishing..."); } else if (window.nostr) { updateStatus("Confirm in extension..."); log("Requesting signature via extension..."); signedEvent = await window.nostr.signEvent(event); log(`Signed via extension. ID: ${signedEvent.id}`); updateStatus("Signed. Publishing..."); } else throw new Error("Cannot sign."); log(`Publishing to ${allRelaysToPublish.length} relays...`); updateRelayListUI(); let success = 0; const results = await Promise.all(allRelaysToPublish.map(r => publishToRelay(r, signedEvent))); success = results.filter(Boolean).length; log(`Published. Success: ${success}/${allRelaysToPublish.length}`); if (success > 0) { updateStatus(`Published to ${success}/${allRelaysToPublish.length}. ID: ${signedEvent.id.slice(0,10)}...`, false, true); $('#message').val(''); $('#imageInput').val(''); $('#imagePreview').hide().attr('src', '#'); selectedImageDataUrl = null; log("Scheduling message refresh..."); /* Refresh message list after delay */ setTimeout(() => { log("Refreshing messages..."); fetchAndDisplayMessages(publicKey); }, 4000); } else updateStatus(`Failed to publish to any relays.`, true); } catch (e) { log(`Post error: ${e?.message || e}`); console.error("Post Details:", e); updateStatus(`Error: ${e?.message || 'Unknown error'}`, true); } finally { showLoading(false); } }
+        async function postNostrEvent() {
+            if (!publicKey) { updateStatus("Not connected.", true); return; }
+            const msg = $('#message').val().trim();
+            if (!msg && !selectedImageDataUrl) { updateStatus("Need message or image.", true); return; }
 
+            showLoading(true);
+            updateStatus("Reading location from UI...");
+
+            const adjustedLocation = readLocationFromUI();
+
+            // Check if location is available from UI
+            if (!adjustedLocation) {
+                updateStatus("Location not available or not set. Cannot post.", true);
+                log("Post aborted: Location UI did not provide valid coordinates.");
+                showLoading(false);
+                return; // Stop posting if location isn't set in the UI
+            }
+
+            const lat = adjustedLocation.latitude.toFixed(2); // Use adjusted value
+            const lon = adjustedLocation.longitude.toFixed(2); // Use adjusted value
+
+            updateStatus("Preparing event...");
+            log(`Using adjusted location: Lat ${lat}, Lon ${lon}`);
+
+            try {
+                // The rest of the function remains largely the same,
+                // but uses the lat/lon derived from readLocationFromUI()
+
+                let content = msg;
+                let tags = [
+                    ['application', 'UPlanet'],
+                    ['latitude', lat],      // Use adjusted lat
+                    ['longitude', lon],     // Use adjusted lon
+                    ['g', `${adjustedLocation.latitude.toFixed(6)};${adjustedLocation.longitude.toFixed(6)}`] // Use higher precision 'g' tag if desired
+                    // Consider adding ['geohash', geohashValue] if you implement geohashing
+                ];
+
+                if (selectedImageDataUrl) {
+                    updateStatus("Uploading image...");
+                    try {
+                        const up = await uploadImageNip96(selectedImageDataUrl);
+                        content += `\n${up.uploadedFileURL}`;
+                        if (up.nip94Tags) tags = tags.concat(up.nip94Tags.filter(t => Array.isArray(t) && t.length >= 2));
+                        if (up.fileSize != null) tags.push(['fileSize', String(up.fileSize)]);
+                        updateStatus("Image uploaded.", false, true);
+                    } catch (e) {
+                        updateStatus(`Upload failed: ${e}. Posting text only.`, true);
+                        // Continue without image, location is still set
+                    }
+                }
+
+                const event = { kind: 1, pubkey: publicKey, created_at: Math.floor(Date.now() / 1000), tags: tags, content: content };
+                log("Unsigned event:"); console.log(JSON.stringify(event, null, 2));
+
+                let signedEvent;
+                // ... (signing logic remains the same) ...
+                 if (privateKeyHex) { /* ... */ } else if (window.nostr) { /* ... */ } else throw new Error("Cannot sign.");
+
+                log(`Publishing to ${allRelaysToPublish.length} relays...`);
+                updateRelayListUI();
+                let success = 0;
+                const results = await Promise.all(allRelaysToPublish.map(r => publishToRelay(r, signedEvent)));
+                success = results.filter(Boolean).length;
+                log(`Published. Success: ${success}/${allRelaysToPublish.length}`);
+
+                if (success > 0) {
+                    updateStatus(`Published to ${success}/${allRelaysToPublish.length}. ID: ${signedEvent.id.slice(0,10)}...`, false, true);
+                    $('#message').val('');
+                    $('#imageInput').val('');
+                    $('#imagePreview').hide().attr('src', '#');
+                    selectedImageDataUrl = null;
+                    log("Scheduling message refresh...");
+                    setTimeout(() => { log("Refreshing messages..."); fetchAndDisplayMessages(publicKey); }, 4000);
+                } else {
+                    updateStatus(`Failed to publish to any relays.`, true);
+                }
+            } catch (e) {
+                log(`Post error: ${e?.message || e}`); console.error("Post Details:", e);
+                updateStatus(`Error: ${e?.message || 'Unknown error'}`, true);
+            } finally {
+                showLoading(false);
+            }
+        }
         // --- Initialization ---
         async function initializeApp() {
             log('initializeApp called.');
@@ -268,12 +645,12 @@
                     await fetchAndDisplayMessages(publicKey); // Fetch initial batch
                 } catch (e) {
                     log(`Error initializing NSEC: ${e.message}. Falling back.`); updateStatus('Error NSEC. Trying extension...', true);
-                    privateKeyHex = null; publicKey = ''; $('#nsec-warning').hide();
+                    privateKeyHex = null; publicKey = '';
                     updateStatus("Checking extension (fallback)...");
                     setTimeout(() => { log("Executing delayed check (fallback)."); checkNostrExtension(); }, 500);
                 }
             } else {
-                log("No NSEC. Scheduling extension check..."); $('#nsec-warning').hide(); updateStatus("Checking extension...");
+                log("No NSEC. Scheduling extension check..."); updateStatus("Checking extension...");
                 setTimeout(() => { log("Executing delayed check."); checkNostrExtension(); }, 500);
             }
             updateRelayListUI();
@@ -281,6 +658,14 @@
 
         $(document).ready(function() {
             log('Document ready.');
+
+            initializeLocationSelects();
+
+            log("Requesting initial location for UI...");
+            getLocation().catch(err => {
+                log(`Initial getLocation failed: ${err}. UI will show defaults/error state.`);
+            });
+
             // Setup common event listeners immediately
             $('#connectButton').on('click', connectToNostr);
             $('#imageInput').on('change', handleImageSelection);
@@ -301,7 +686,6 @@
                     displayMessageAtIndex(currentMessageIndex + 1);
                 } else {
                     log("Already at the oldest fetched message.");
-                    // TODO: Implement fetching older messages (pagination) if needed
                 }
             });
             $('#newer-button').on('click', () => {
