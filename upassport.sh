@@ -255,11 +255,8 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
         # Combine "$tmp_player" "$tmp_tail"  decrypted shares
         DISCO=$(cat "$tmp_player" "$tmp_tail" | ssss-combine -t 2 -q 2>&1)
         #~ echo "DISCO = $DISCO"
-        arr=(${DISCO//[=&]/ })
-        s=$(urldecode ${arr[0]} | xargs -0)
-        salt=$(urldecode ${arr[1]} | xargs -0)
-        p=$(urldecode ${arr[2]} | xargs -0)
-        pepper=$(urldecode ${arr[3]} | xargs -0)
+        IFS='=&' read -r s salt p pepper <<< "$DISCO"
+
         if [[ $s =~ ^/.*?$ ]]; then
             rm "$tmp_player" "$tmp_tail"
         else
