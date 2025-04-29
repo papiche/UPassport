@@ -257,7 +257,7 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
         #~ echo "DISCO = $DISCO"
         IFS='=&' read -r s salt p pepper <<< "$DISCO"
 
-        if [[ $s =~ ^/.*?$ ]]; then
+        if [[ $s =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             rm "$tmp_player" "$tmp_tail"
         else
             echo "ERROR : BAD DISCO DECODING"
