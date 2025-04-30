@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+    <title>UPlanet NOSTR Long-Form Publisher</title>
+    <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/jquery-3.6.3.min.js"></script>
+    <!-- Import nostr-tools (includes SimplePool) -->
+    <script src="https://ipfs.copylaradio.com/ipfs/QmXEmaPRUaGcvhuyeG99mHHNyP43nn8GtNeuDok8jdpG4a/nostr.bundle.js"></script>
+    <!-- Import marked.js for Markdown rendering -->
+    <script src="https://ipfs.copylaradio.com/ipfs/QmdzDrrj7R5nyNWMpFbx5WmQdue6uCkjHvfmUF7vMWXv1v/marked.min.js.js"></script>
+    <style>
+        /* Basic styles - Keep existing */
+        body { font-family: 'Arial', sans-serif; margin: 0; padding: 15px; background-color: #1a1a1a; color: #e0e0e0; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; }
+        .container { background-color: #2a2a2a; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.5); width: 100%; max-width: 650px; /* Wider for editor */ margin: 20px auto; box-sizing: border-box; }
+        h1 { background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 1.8em; text-align: center; margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #cccccc; }
+        input[type="text"] { /* Style for title input */
+            width: 100%; padding: 10px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #555; border-radius: 4px; background-color: #333; color: #e0e0e0; font-size: 1.1em;
+        }
+        textarea { width: 100%; height: 200px; /* Taller for articles */ padding: 10px; margin-bottom: 5px; /* Less margin before preview */ box-sizing: border-box; border: 1px solid #555; border-radius: 4px; background-color: #333; color: #e0e0e0; font-size: 1em; }
+        #markdownPreview { /* Style for Markdown Preview */
+            border: 1px dashed #555; padding: 10px; margin-bottom: 15px; min-height: 150px; background-color: #2f2f2f; border-radius: 4px; color: #e0e0e0; overflow-wrap: break-word;
+        }
+        #markdownPreview h1, #markdownPreview h2, #markdownPreview h3 { margin-top: 0.8em; margin-bottom: 0.4em; border-bottom: 1px solid #444; padding-bottom: 3px; }
+        #markdownPreview p { margin-bottom: 0.5em; }
+        #markdownPreview code { background-color: #444; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
+        #markdownPreview pre code { display: block; padding: 8px; background-color: #222; }
+        #markdownPreview blockquote { border-left: 3px solid #666; padding-left: 10px; margin-left: 5px; color: #bbb; }
+        #markdownPreview ul, #markdownPreview ol { margin-left: 20px; }
+        #markdownPreview img { max-width: 100%; height: auto; border-radius: 4px; margin-top: 5px; }
+
+        button, .button-like { display: block; width: 100%; padding: 12px 15px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; text-align: center; margin-bottom: 10px; transition: background-color 0.3s ease; box-sizing: border-box; }
+        button:hover, .button-like:hover { background-color: #45a049; }
+        button:disabled { background-color: #555; cursor: not-allowed; opacity: 0.6; }
+        .button-like { background-color: #2196F3; }
+        .button-like:hover { background-color: #1976D2; }
+        .button-secondary { background-color: #607D8B; } /* For toggle button */
+        .button-secondary:hover { background-color: #546E7A; }
+        input[type="file"] { display: none; }
+        #imagePreview { display: none; max-width: 100%; height: auto; margin-top: 15px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #444; }
+        #status { margin-top: 15px; font-weight: bold; text-align: center; padding: 10px; border-radius: 4px; background-color: #333; min-height: 20px; color: #ccc; word-wrap: break-word; }
+        .spinner { display: none; width: 40px; height: 40px; margin: 20px auto; border: 4px solid #555; border-top: 4px solid #4CAF50; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .warning { /* Keep warning style */
+             background: linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8b00ff);
+             color: #ffffff; border: 1px solid #ffcc00; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center; font-weight: bold;
+             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        details { background-color: #333; padding: 5px; border-radius: 4px; margin-top: 15px;}
+        details summary { cursor: pointer; color: #aaa; font-size: 0.9em; }
+        #debug-info { margin-top: 10px; border: 1px dashed #555; padding: 10px; font-size: 0.8em; white-space: pre-wrap; word-wrap: break-word; max-height: 200px; overflow-y: auto; background-color: #222; color: #bbb; }
+        #relay-list { font-size: 0.8em; margin-top: 5px; max-height: 100px; overflow-y: auto; padding-left: 15px; color: #aaa; }
+        #relay-list li { margin-bottom: 3px; }
+
+        /* Profile & Message Area Styles - Adapt for articles */
+        #profile-display { display: flex; align-items: center; padding: 10px; margin-bottom: 15px; background-color: #383838; border-radius: 5px; min-height: 50px; color: #ccc; font-size: 0.9em; }
+        #profile-display img { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; border: 1px solid #555; object-fit: cover; }
+        #profile-info { display: flex; flex-direction: column; }
+        #profile-info span { display: block; }
+        #profile-info .profile-name { font-weight: bold; color: #eee; }
+        #profile-info .profile-nip05 { font-size: 0.85em; color: #aaa; }
+        #message-section { margin-top: 20px; padding: 15px; background-color: #333; border-radius: 5px; display: none; }
+        #message-section h2 { margin-top: 0; font-size: 1.3em; color: #ddd; border-bottom: 1px solid #555; padding-bottom: 5px; text-align: center; } /* Centered title */
+        #message-navigation { display: flex; justify-content: space-between; margin-bottom: 15px; }
+        #message-navigation button { width: auto; padding: 8px 12px; font-size: 0.9em; background-color: #555; flex-grow: 1; margin: 0 5px; }
+        #message-navigation button:first-child { margin-left: 0; }
+        #message-navigation button:last-child { margin-right: 0; }
+        #message-navigation button:hover:not(:disabled) { background-color: #666; }
+        #last-message-area, #replies-area { margin-top: 10px; }
+        .message-item, .reply-item { background-color: #2a2a2a; border: 1px solid #444; padding: 15px; /* More padding */ border-radius: 4px; margin-bottom: 15px; /* More space */ word-wrap: break-word; }
+        .message-title { /* Style for article title */
+            font-size: 1.4em; font-weight: bold; color: #eee; margin-bottom: 10px;
+        }
+        .message-content, .reply-content { /* Rendered Markdown content */
+            font-size: 1em; /* Base size for article */ color: #ddd; line-height: 1.6;
+        }
+        .message-content img, .reply-content img { max-width: 100%; height: auto; border-radius: 4px; margin-top: 10px; margin-bottom: 5px; border: 1px solid #444; }
+        .message-meta { /* Metadata for article */
+            font-size: 0.8em; color: #888; margin-top: 15px; border-top: 1px solid #444; padding-top: 5px;
+        }
+        .reply-author { font-size: 0.85em; color: #aaa; margin-bottom: 5px; }
+        .reply-author code { background-color: #444; padding: 1px 3px; border-radius: 3px;}
+        #replies-list { padding-left: 0; list-style: none; }
+
+        /* Location Tumbler Styles - Kept but hidden by default */
+        #location-controls {
+             border: 1px solid #444;
+             border-radius: 5px;
+             padding: 10px;
+             background-color: #282828;
+             margin-top: 10px; /* Space from toggle button */
+        }
+        .coord-control { text-align: center; }
+        .coord-control > div { justify-content: center; }
+        .tumbler { appearance: none; -webkit-appearance: none; -moz-appearance: none; padding: 8px 4px; border: 1px solid #555; background-color: #404040; color: #e0e0e0; font-family: 'Courier New', Courier, monospace; font-size: 1.1em; font-weight: bold; border-radius: 3px; margin: 0 1px; text-align: center; cursor: pointer; min-width: 28px; }
+        .tumbler:focus { outline: none; border-color: #4CAF50; box-shadow: 0 0 5px rgba(76, 175, 80, 0.5); }
+        .tumbler-dot { font-size: 1.2em; font-weight: bold; margin: 0 2px; align-self: center; color: #aaa; }
+        #location-status { min-height: 1.1em; font-size: 0.8em; text-align: center; margin-top: 5px; color: #aaa; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="nsec-warning" class="warning">
+             🌐️ UPlanet NOSTR Long-Form Publisher 🌐
+        </div>
+        <script>
+        // Keep the link functionality if needed
+        // document.getElementById('nsec-warning').addEventListener('click', function() {
+        //     window.location.href = '/scan'; // Or remove if not needed
+        // });
+        </script>
+        <h1>Create Long-Form Article (Kind 30023)</h1>
+        <div id="profile-display"><span>Loading profile...</span></div>
+
+        <button id="connectButton" disabled>Connect with Nostr</button>
+
+        <label for="articleTitle">Article Title:</label>
+        <input type="text" id="articleTitle" placeholder="Your awesome article title...">
+
+        <label for="message">Article Content (Markdown):</label>
+        <textarea id="message" placeholder="Write your article here using Markdown...\n\n# Heading 1\n## Heading 2\n\n*   List item 1\n*   List item 2\n\n[Link text](https://example.com)\n\n![Image alt text](image_url.jpg)\n\n`inline code`\n\n```\ncode block\n```\n\n> Blockquote"></textarea>
+
+        <label>Markdown Preview:</label>
+        <div id="markdownPreview"></div>
+
+        <label for="imageInput" class="button-like">📸 Add/Replace Image</label>
+        <input type="file" id="imageInput" accept="image/*">
+        <img id="imagePreview" src="#" alt="Image Preview"/>
+
+        <!-- Optional Location Toggle -->
+        <button id="toggleLocationButton" class="button-secondary">📍 Add Location (Optional)</button>
+        <div id="location-controls" style="display: none;"> <!-- Hidden by default -->
+             <div id="location-values" style="display: flex; justify-content: space-around; background-color: #333; padding: 10px; border-radius: 5px;">
+                <!-- Latitude -->
+                <div class="coord-control">
+                    <label for="lat-sign" style="font-size: 0.8em; display: block; text-align: center; margin-bottom: 3px;">Latitude</label>
+                    <div style="display: flex; align-items: center;">
+                        <select id="lat-sign" class="tumbler"><option value="N">N</option><option value="S">S</option></select>
+                        <select id="lat-deg1" class="tumbler"></select><select id="lat-deg0" class="tumbler"></select>
+                        <span class="tumbler-dot">.</span>
+                        <select id="lat-frac1" class="tumbler"></select><select id="lat-frac0" class="tumbler"></select>
+                    </div>
+                </div>
+                <!-- Longitude -->
+                <div class="coord-control">
+                     <label for="lon-sign" style="font-size: 0.8em; display: block; text-align: center; margin-bottom: 3px;">Longitude</label>
+                    <div style="display: flex; align-items: center;">
+                        <select id="lon-sign" class="tumbler"><option value="E">E</option><option value="W">W</option></select>
+                        <select id="lon-deg2" class="tumbler"></select><select id="lon-deg1" class="tumbler"></select><select id="lon-deg0" class="tumbler"></select>
+                         <span class="tumbler-dot">.</span>
+                        <select id="lon-frac1" class="tumbler"></select><select id="lon-frac0" class="tumbler"></select>
+                    </div>
+                </div>
+            </div>
+             <div id="location-status" style="font-size: 0.8em; text-align: center; margin-top: 5px; color: #aaa;">Fetching location...</div>
+        </div>
+
+
+        <button id="postButton" disabled>Publish Article</button>
+        <div class="spinner" id="loadingSpinner"></div>
+        <div id="status">Initializing...</div>
+
+        <!-- Message Section - Displays Published Articles -->
+        <div id="message-section">
+             <h2>My Latest Articles</h2>
+            <!-- Navigation Buttons -->
+            <div id="message-navigation">
+                <button id="older-button" disabled> < Older </button>
+                <button id="refresh-button">Refresh</button>
+                <button id="newer-button" disabled> Newer > </button>
+            </div>
+            <div id="last-message-area">Loading articles...</div>
+             <!-- Replies Area (Kept, as replies to articles are common) -->
+            <div id="replies-area">
+                <h3>Replies to Selected Article</h3>
+                <ul id="replies-list"><li>Select an article to see replies...</li></ul>
+            </div>
+        </div>
+
+        <details>
+            <summary>Show Relays & Debug</summary>
+            <div id="relay-list-container" style="margin-top: 10px;">
+                <span style="font-size: 0.9em; color: #bbb;">Publishing to:</span>
+                <ul id="relay-list"><li>Loading relays...</li></ul>
+            </div>
+            <div id="debug-info"></div>
+        </details>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const userNsec = ''; // Leave empty for extension
+        const ARTICLES_PER_PAGE = 5; // How many articles (kind 30023) to fetch at once
+        let manualLocationSet = false;
+        let includeLocation = false; // Flag to control if location is included
+
+        // --- Global Variables (Moved Outside document.ready) ---
+        let debugInfo = '';
+        let fetchedMessages = [];
+        let currentMessageIndex = 0;
+        let nostrExtensionAvailable = false;
+        let privateKeyHex = null;
+        let publicKey = '';
+        let userProfile = null;
+        let pool = null;
+        let selectedImageDataUrl = null;
+        let currentLatitude = null;
+        let currentLongitude = null;
+        const DEFAULT_RELAYS = ['wss://relay.copylaradio.com', 'ws://127.0.0.1:7777'];
+        let allRelaysToPublish = [...DEFAULT_RELAYS]; // Initialize here using DEFAULT_RELAYS
+
+
+        // --- Helper Functions (Existing + Logging) ---
+        function log(message) { /* ... Keep existing log function ... */ console.log(message); const ts = new Date().toLocaleTimeString(); debugInfo += `[${ts}] ${message}\n`; const lines = debugInfo.split('\n'); if (lines.length > 150) debugInfo = lines.slice(-150).join('\n'); $('#debug-info').text(debugInfo); const el = document.getElementById('debug-info'); if (el) el.scrollTop = el.scrollHeight; }
+        function updateStatus(message, isError = false, isSuccess = false) { /* ... Keep existing updateStatus function ... */ log(`Status Update: ${message}`); const el = $('#status'); el.text(message); let bg = '#333', fg = '#ccc'; if (isError) { bg = '#5c3a3a'; fg = '#ff6b6b'; } else if (isSuccess) { bg = '#3a5c3a'; fg = '#90ee90'; } el.css({ 'background-color': bg, 'color': fg }); }
+        function showLoading(show) { /* ... Keep existing showLoading function ... */ $('#loadingSpinner').toggle(show); $('#postButton').prop('disabled', show || !publicKey); }
+        function getRelayURL() { /* ... Keep existing getRelayURL function ... */ const u = new URL(window.location.href); let r = u.hostname.replace(/^u\./, 'relay.'); if (u.port === '54321' || ['localhost', '127.0.0.1'].includes(u.hostname)) return `ws://127.0.0.1:7777`; return `wss://${r}`; }
+        function updateRelayListUI() { /* ... Keep existing updateRelayListUI function ... */ const l = $('#relay-list').empty(); if (allRelaysToPublish.length > 0) allRelaysToPublish.forEach(r => $('<li>').text(r).appendTo(l)); else $('<li>').text("No relays configured!").appendTo(l); log(`UI updated with ${allRelaysToPublish.length} relays.`); } // Added count to log
+
+        // --- Nostr Interaction Functions (Existing + Added Logging) ---
+        function getNostrPool() {
+            // Added detailed logging
+            log("getNostrPool called.");
+            if (!pool) {
+                log("Pool is null, attempting creation.");
+                if (typeof NostrTools === 'undefined') {
+                    log("Error: NostrTools is undefined!");
+                    updateStatus("Nostr library not loaded!", true);
+                    throw new Error("NostrTools is undefined!");
+                }
+                 if (typeof NostrTools?.SimplePool !== 'function') {
+                     const m = "Error: NostrTools.SimplePool is undefined or not a function!";
+                     log(m); console.error(m, "NostrTools object:", NostrTools);
+                     updateStatus(m, true); throw new Error(m);
+                 }
+                 try {
+                     log("Attempting: new NostrTools.SimplePool()...");
+                     pool = new NostrTools.SimplePool({ getTimeout: 7000, listTimeout: 7000 }); // Increased timeout slightly
+                     log("SimplePool object created.");
+                     if (!pool) { // Check if pool is still null/undefined after creation attempt
+                        log("Error: Pool object is null/undefined AFTER creation attempt!");
+                        throw new Error("Pool object creation failed silently.");
+                     }
+                     if (typeof pool?.list !== 'function' || typeof pool?.get !== 'function') {
+                         log("Error: Pool object is missing list() or get() methods.");
+                         console.error("Invalid Pool object:", pool); pool = null; // Reset pool if invalid
+                         throw new Error("Pool object is invalid (missing methods).");
+                     }
+                     log("Pool initialized successfully.");
+                 } catch (e) {
+                     log(`Pool initialization error: ${e.message}`);
+                     console.error("Pool Initialization Exception Details:", e);
+                     updateStatus("Failed to initialize relay pool.", true);
+                     pool = null; // Ensure pool is null on error
+                     throw e; // Re-throw error to indicate failure
+                 }
+            } else {
+                 log("Pool already exists, reusing.");
+            }
+            // Final check before returning
+            if (!pool) {
+                const m = "Error: Pool is null or invalid at the end of getNostrPool.";
+                log(m); updateStatus("Relay pool unavailable.", true);
+                throw new Error(m);
+            }
+             log("Returning existing/newly created pool object.");
+            return pool;
+        }
+        async function fetchProfileAndRelays(pubkey) {
+             log(`Fetching profile/relays for ${pubkey.slice(0,10)}...`);
+             let nostrPool;
+             try {
+                 log("Getting pool for fetchProfileAndRelays...");
+                 nostrPool = getNostrPool();
+                 log("Got pool for fetchProfileAndRelays.");
+             } catch (e) {
+                 log(`Pool fetch error in fetchProfileAndRelays: ${e.message}`);
+                 // Can't proceed without a pool
+                 renderProfile(pubkey, {}); // Render default profile
+                 updateRelayListUI(); // Update with defaults if pool fails
+                 return {};
+             }
+             // ... rest of fetchProfileAndRelays remains the same ...
+             let profileEv = null, relayEv = null, userRelays = [];
+             try {
+                 log("Pool obj before list in fetchProfileAndRelays:", nostrPool);
+                 const relaysToQuery = DEFAULT_RELAYS; // Query only default relays for profile/relay list first
+                 log(`Querying relays for profile/kind 10002: ${relaysToQuery.join(', ')}`);
+                 const evs = await nostrPool.list(relaysToQuery, [
+                     { kinds: [0], authors: [pubkey], limit: 1 },
+                     { kinds: [10002], authors: [pubkey], limit: 1 }
+                 ]);
+                 log(`Received ${evs.length} events for profile/relay list.`);
+                 evs.forEach(e => { if (e.kind === 0 && (!profileEv || e.created_at > profileEv.created_at)) profileEv = e; if (e.kind === 10002 && (!relayEv || e.created_at > relayEv.created_at)) relayEv = e; });
+                 if (profileEv) { log(`Profile event found: ${profileEv.id.slice(0,10)}...`); try { userProfile = JSON.parse(profileEv.content); } catch (e) { log(`Profile JSON parse error: ${e.message}`); userProfile = {}; } } else { log(`No profile event (kind 0) found.`); userProfile = {}; }
+                 if (relayEv) { log(`Relay list event (kind 10002) found: ${relayEv.id.slice(0,10)}...`); userRelays = relayEv.tags.filter(t => t[0] === 'r' && typeof t[1] === 'string' && t[1].startsWith('wss://')).map(t => t[1]); log(`Extracted ${userRelays.length} user relays from event.`); } else log(`No relay list event (kind 10002) found.`);
+             } catch (e) {
+                 log(`Error during nostrPool.list in fetchProfileAndRelays: ${e}`);
+                 console.error("Fetch Profile/Relay List Error Details:", e);
+                 updateStatus('Error fetching profile/relay list.', true);
+                 userProfile = {}; // Reset profile on error
+             }
+             const dynamicRelay = getRelayURL();
+             const combinedRelays = new Set([...DEFAULT_RELAYS, dynamicRelay, ...userRelays]);
+             allRelaysToPublish = [...combinedRelays]; // Update the global list for publishing
+             log(`Final 'allRelaysToPublish' count: ${allRelaysToPublish.length}`);
+             updateRelayListUI(); // Update UI with the final list
+             renderProfile(pubkey, userProfile);
+             return userProfile;
+        }
+        // ... renderProfile function remains the same ...
+        function renderProfile(pubkey, profileData) { /* ... Keep existing renderProfile function ... */ const div = $('#profile-display').empty(); const defPic = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'; const pic = profileData?.picture || defPic; const name = profileData?.display_name || profileData?.name || pubkey.slice(0, 16); const nip05 = profileData?.nip05 || ''; $('<img>').attr('src', pic).on('error', function() { $(this).attr('src', defPic); }).appendTo(div); const infoDiv = $('<div>').attr('id', 'profile-info').appendTo(div); $('<span>').addClass('profile-name').text(name).appendTo(infoDiv); if (nip05) $('<span>').addClass('profile-nip05').text(nip05).appendTo(infoDiv); }
+
+
+        // --- Location UI Helpers (Existing + Logging) ---
+        // ... Keep populateSelect, initializeLocationSelects, updateLocationUI, readLocationFromUI, getLocation ...
+        function populateSelect(selectId, start, end) { /* ... */ }
+        function initializeLocationSelects() { /* ... Keep existing implementation ... */ populateSelect('lat-deg1', 0, 9); populateSelect('lat-deg0', 0, 9); populateSelect('lat-frac1', 0, 9); populateSelect('lat-frac0', 0, 9); populateSelect('lon-deg2', 0, 1); populateSelect('lon-deg1', 0, 9); populateSelect('lon-deg0', 0, 9); populateSelect('lon-frac1', 0, 9); populateSelect('lon-frac0', 0, 9); $('#lon-deg2').on('change', function() { const hundreds = parseInt($(this).val(), 10); const lonDeg1Select = $('#lon-deg1'); const currentLonDeg1 = parseInt(lonDeg1Select.val() || '0', 10); lonDeg1Select.empty(); let maxTens = 9; if (hundreds === 1) maxTens = 8; for (let i = 0; i <= maxTens; i++) $('<option>').val(i).text(i).appendTo(lonDeg1Select); lonDeg1Select.val(currentLonDeg1 <= maxTens ? currentLonDeg1 : '0'); lonDeg1Select.trigger('change'); }); $('#lon-deg1').on('change', function() { const hundreds = parseInt($('#lon-deg2').val(), 10); const tens = parseInt($(this).val(), 10); const lonDeg0Select = $('#lon-deg0'); const currentLonDeg0 = parseInt(lonDeg0Select.val() || '0', 10); lonDeg0Select.empty(); let maxUnits = 9; if (hundreds === 1 && tens === 8) maxUnits = 0; for (let i = 0; i <= maxUnits; i++) $('<option>').val(i).text(i).appendTo(lonDeg0Select); lonDeg0Select.val(currentLonDeg0 <= maxUnits ? currentLonDeg0 : '0'); }); $('#lat-deg1').on('change', function() { const tens = parseInt($(this).val(), 10); const latDeg0Select = $('#lat-deg0'); const currentLatDeg0 = parseInt(latDeg0Select.val() || '0', 10); latDeg0Select.empty(); let maxUnits = 9; if (tens === 9) maxUnits = 0; for (let i = 0; i <= maxUnits; i++) $('<option>').val(i).text(i).appendTo(latDeg0Select); latDeg0Select.val(currentLatDeg0 <= maxUnits ? currentLatDeg0 : '0'); if (tens === 9 && maxUnits === 0) { $('#lat-frac1').val('0').prop('disabled', true); $('#lat-frac0').val('0').prop('disabled', true); } else { $('#lat-frac1').prop('disabled', false); $('#lat-frac0').prop('disabled', false); } }); $('#lat-deg1').trigger('change'); $('#lon-deg2').trigger('change'); }
+        function updateLocationUI(latitude, longitude) {
+            if (latitude == null || longitude == null) {
+                log("Updating location UI: Coordinates invalid or unavailable. Setting defaults (0).");
+                $('#location-status').text('Location unavailable. Using 0°, 0°');
+                // Set UI selects to 0 N, 0 E
+                $('#lat-sign').val('N');
+                $('#lat-deg1').val(0); $('#lat-deg0').val(0);
+                $('#lat-frac1').val(0); $('#lat-frac0').val(0);
+                $('#lon-sign').val('E');
+                $('#lon-deg2').val(0); $('#lon-deg1').val(0); $('#lon-deg0').val(0);
+                $('#lon-frac1').val(0); $('#lon-frac0').val(0);
+                // Trigger changes to apply constraints if needed (e.g., max digits for 0)
+                $('#lat-deg1').trigger('change');
+                $('#lon-deg2').trigger('change');
+                manualLocationSet = true; // Mark as set even with defaults
+                log("Location UI set to defaults and marked as initialized.");
+                // Don't necessarily show controls automatically if defaults are set? User action might be better.
+                // $('#location-controls').show();
+                return;
+            }
+
+            log(`Updating Location UI display: Lat ${latitude.toFixed(6)}, Lon ${longitude.toFixed(6)}`);
+
+            // ... (rest of the existing code to set selects based on valid lat/lon) ...
+            const latAbs = Math.abs(latitude);
+            const latDeg = Math.floor(latAbs);
+            const latFrac = Math.round((latAbs - latDeg) * 100);
+            $('#lat-sign').val(latitude >= 0 ? 'N' : 'S');
+            $('#lat-deg1').val(Math.floor(latDeg / 10) % 10);
+            $('#lat-deg0').val(latDeg % 10);
+            $('#lat-frac1').val(Math.floor(latFrac / 10) % 10);
+            $('#lat-frac0').val(latFrac % 10);
+
+            const lonAbs = Math.abs(longitude);
+            const lonDeg = Math.floor(lonAbs);
+            const lonFrac = Math.round((lonAbs - lonDeg) * 100);
+            $('#lon-sign').val(longitude >= 0 ? 'E' : 'W');
+            $('#lon-deg2').val(Math.floor(lonDeg / 100) % 10);
+            $('#lon-deg1').val(Math.floor(lonDeg / 10) % 10);
+            $('#lon-deg0').val(lonDeg % 10);
+            $('#lon-frac1').val(Math.floor(lonFrac / 10) % 10);
+            $('#lon-frac0').val(lonFrac % 10);
+
+            // Trigger change events LAST to ensure constraints are applied correctly
+            $('#lat-deg1').trigger('change');
+            $('#lon-deg2').trigger('change'); // This triggers lon-deg1 check too
+
+            $('#location-status').text(`Location Acquired: ${latitude.toFixed(2)}, ${longitude.toFixed(2)}`);
+            manualLocationSet = true; // Mark UI as populated *after* setting values
+            log("Location UI updated with fetched coordinates and marked as initialized.");
+            // Decide if the controls should show automatically when location is toggled on
+            // if (includeLocation) $('#location-controls').show();
+        }
+
+        function readLocationFromUI() {
+            log("Attempting to read location from UI...");
+
+            if (!manualLocationSet) {
+                 log("Error: Location UI not marked as initialized (manualLocationSet=false). Cannot read values.");
+                 // Return null or perhaps default coordinates? Returning null seems safer.
+                 updateStatus("Error: Location UI not ready.", true);
+                 return null;
+            }
+
+            log("Location UI is marked as initialized (manualLocationSet=true). Reading values...");
+
+            let latitude = NaN; // Default to NaN to easily spot failures
+            let longitude = NaN;
+
+            try {
+                // --- Latitude ---
+                const latSignVal = $('#lat-sign').val();
+                const latDeg1Val = $('#lat-deg1').val();
+                const latDeg0Val = $('#lat-deg0').val();
+                const latFrac1Val = $('#lat-frac1').val();
+                const latFrac0Val = $('#lat-frac0').val();
+
+                log(`Raw Lat values: sign=${latSignVal}, d1=${latDeg1Val}, d0=${latDeg0Val}, f1=${latFrac1Val}, f0=${latFrac0Val}`);
+
+                const latSign = latSignVal === 'N' ? 1 : -1;
+                const latDeg1 = parseInt(latDeg1Val, 10);
+                const latDeg0 = parseInt(latDeg0Val, 10);
+                const latFrac1 = parseInt(latFrac1Val, 10);
+                const latFrac0 = parseInt(latFrac0Val, 10);
+
+                 // Check for NaN immediately after parsing
+                 if (isNaN(latDeg1) || isNaN(latDeg0) || isNaN(latFrac1) || isNaN(latFrac0)) {
+                    log(`ERROR: NaN detected during Latitude parseInt. d1=${latDeg1}, d0=${latDeg0}, f1=${latFrac1}, f0=${latFrac0}`);
+                    throw new Error("Failed to parse latitude digits."); // Stop calculation
+                 }
+
+                latitude = latSign * (latDeg1 * 10 + latDeg0 + (latFrac1 * 10 + latFrac0) / 100.0);
+                log(`Calculated Latitude (before validation): ${latitude}`);
+
+
+                // --- Longitude ---
+                const lonSignVal = $('#lon-sign').val();
+                const lonDeg2Val = $('#lon-deg2').val();
+                const lonDeg1Val = $('#lon-deg1').val();
+                const lonDeg0Val = $('#lon-deg0').val();
+                const lonFrac1Val = $('#lon-frac1').val();
+                const lonFrac0Val = $('#lon-frac0').val();
+
+                log(`Raw Lon values: sign=${lonSignVal}, d2=${lonDeg2Val}, d1=${lonDeg1Val}, d0=${lonDeg0Val}, f1=${lonFrac1Val}, f0=${lonFrac0Val}`);
+
+                const lonSign = lonSignVal === 'E' ? 1 : -1;
+                const lonDeg2 = parseInt(lonDeg2Val, 10);
+                const lonDeg1 = parseInt(lonDeg1Val, 10);
+                const lonDeg0 = parseInt(lonDeg0Val, 10);
+                const lonFrac1 = parseInt(lonFrac1Val, 10);
+                const lonFrac0 = parseInt(lonFrac0Val, 10);
+
+                // Check for NaN immediately after parsing
+                 if (isNaN(lonDeg2) || isNaN(lonDeg1) || isNaN(lonDeg0) || isNaN(lonFrac1) || isNaN(lonFrac0)) {
+                     log(`ERROR: NaN detected during Longitude parseInt. d2=${lonDeg2}, d1=${lonDeg1}, d0=${lonDeg0}, f1=${lonFrac1}, f0=${lonFrac0}`);
+                     throw new Error("Failed to parse longitude digits."); // Stop calculation
+                 }
+
+                longitude = lonSign * (lonDeg2 * 100 + lonDeg1 * 10 + lonDeg0 + (lonFrac1 * 10 + lonFrac0) / 100.0);
+                log(`Calculated Longitude (before validation): ${longitude}`);
+
+
+                // Validate final numerical results
+                if (isNaN(latitude) || isNaN(longitude)) {
+                     log("ERROR: Final calculated latitude or longitude is NaN.");
+                     throw new Error("NaN result after calculation.");
+                 }
+
+                 // Validate ranges (redundant due to select limits, but good practice)
+                 const finalLat = Math.max(-90, Math.min(90, latitude));
+                 const finalLon = Math.max(-180, Math.min(180, longitude));
+
+                 log(`Read & Validated Location from UI: Lat ${finalLat.toFixed(6)}, Lon ${finalLon.toFixed(6)}`);
+                 return { latitude: finalLat, longitude: finalLon };
+
+            } catch (error) {
+                log(`ERROR in readLocationFromUI: ${error.message}`);
+                console.error("Details of readLocationFromUI error:", error);
+                updateStatus("Error reading location values from UI.", true);
+                return null; // Return null on any error during reading/parsing
+            }
+        }
+
+        function getLocation() { /* ... Keep existing implementation ... */ return new Promise((resolve, reject) => { if (!navigator.geolocation) { const m = "Geolocation unsupported."; log(m); updateStatus(m, true); return reject(m); } log('Requesting location...'); updateStatus('Getting location...'); navigator.geolocation.getCurrentPosition( (p) => { currentLatitude = p.coords.latitude; currentLongitude = p.coords.longitude; log(`Location: Lat ${currentLatitude.toFixed(6)}, Lon ${currentLongitude.toFixed(6)}`); updateLocationUI(currentLatitude, currentLongitude); resolve({ latitude: currentLatitude, longitude: currentLongitude }); }, (e) => { log(`Location error: ${e.message} (Code: ${e.code})`); const m = ["Permission denied.", "Position unavailable.", "Timeout."][e.code-1] || "Location error."; updateStatus(m, true); updateLocationUI(null, null); reject(m); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 } ); }); }
+
+
+        // --- Markdown Preview Function ---
+        // ... Keep updateMarkdownPreview ...
+        function updateMarkdownPreview() { /* ... Keep existing implementation ... */ const markdownText = $('#message').val(); if (typeof marked !== 'undefined') { try { const dirtyHtml = marked.parse(markdownText); const safeHtml = dirtyHtml.replace(/<a href=/g, '<a target="_blank" rel="noopener noreferrer" href='); $('#markdownPreview').html(safeHtml); } catch (e) { log(`Markdown parsing error: ${e.message}`); $('#markdownPreview').html('<p style="color: #ff6b6b;">Error rendering Markdown preview.</p>'); } } else { log("marked.js not loaded yet."); $('#markdownPreview').text('Preview unavailable (loading library)...'); } }
+
+        // --- Article Fetching/Display ---
+        async function fetchAndDisplayMessages(pubkey) {
+            log(`Fetching batch of articles (kind 30023, limit ${ARTICLES_PER_PAGE}) for ${pubkey.slice(0, 10)}...`);
+            $('#message-section').show();
+            const messageArea = $('#last-message-area').html('<i>Loading articles...</i>');
+            const repliesList = $('#replies-list').empty().html('<li><i>Select an article...</i></li>');
+            $('#older-button').prop('disabled', true);
+            $('#newer-button').prop('disabled', true);
+            fetchedMessages = [];
+            currentMessageIndex = 0;
+
+            let nostrPool;
+            try {
+                log("Getting pool for fetchAndDisplayMessages...");
+                nostrPool = getNostrPool();
+                log("Got pool for fetchAndDisplayMessages.");
+            } catch (e) {
+                log(`Failed to get Nostr pool in fetchAndDisplayMessages: ${e.message}`);
+                messageArea.html('<i>Error initializing relay pool. Cannot load articles.</i>');
+                return;
+            }
+
+            try {
+                log(`Pool object before list in fetchAndDisplayMessages:`, nostrPool);
+                log(`Querying relays for articles: ${allRelaysToPublish.join(', ')}`);
+                const events = await nostrPool.list(allRelaysToPublish, [{
+                    kinds: [30023], // Fetch long-form content
+                    authors: [pubkey],
+                    limit: ARTICLES_PER_PAGE
+                }]);
+                log(`Received ${events.length} article events.`);
+
+                if (events.length > 0) {
+                    log(`Fetched ${events.length} articles.`);
+                    fetchedMessages = events.sort((a, b) => b.created_at - a.created_at);
+                    displayMessageAtIndex(0); // Display the first (newest) article
+                } else {
+                    log('No articles found for this user.');
+                    messageArea.html('<i>No articles found.</i>');
+                     $('#replies-list').empty().html('<li><i>N/A</i></li>');
+                }
+            } catch (error) {
+                log(`Error during nostrPool.list in fetchAndDisplayMessages: ${error}`);
+                console.error("Fetch Articles List Error Details:", error);
+                messageArea.html('<i>Error loading articles. Check console & relays.</i>');
+                 $('#replies-list').empty().html('<li><i>Error loading replies.</i></li>');
+            }
+        }
+        // ... displayMessageAtIndex function remains the same ...
+        function displayMessageAtIndex(index) { /* ... Keep existing implementation ... */ log(`Displaying article at index: ${index}`); const messageArea = $('#last-message-area'); const repliesList = $('#replies-list'); if (index < 0 || index >= fetchedMessages.length) { log(`Index ${index} out of bounds (0-${fetchedMessages.length - 1}).`); messageArea.html(`<i>Invalid article index: ${index}</i>`); repliesList.empty().html('<li><i>N/A</i></li>'); $('#newer-button').prop('disabled', fetchedMessages.length === 0 || currentMessageIndex <= 0); $('#older-button').prop('disabled', fetchedMessages.length === 0 || currentMessageIndex >= fetchedMessages.length - 1); return; } currentMessageIndex = index; const currentMessage = fetchedMessages[currentMessageIndex]; renderMessage(messageArea, currentMessage); fetchAndDisplayReplies(currentMessage.id); $('#newer-button').prop('disabled', currentMessageIndex <= 0); $('#older-button').prop('disabled', currentMessageIndex >= fetchedMessages.length - 1); log(`Navigation updated: Newer ${$('#newer-button').prop('disabled')}, Older ${$('#older-button').prop('disabled')}`); }
+        // ... renderMessage function remains the same ...
+        function renderMessage(container, event) { /* ... Keep existing implementation ... */ container.empty(); const item = $('<div>').addClass('message-item').appendTo(container); const titleTag = event.tags.find(t => t[0] === 'd'); const title = titleTag ? titleTag[1] : `Article ${event.id.slice(0, 8)}...`; $('<div>').addClass('message-title').text(title).appendTo(item); const contentDiv = $('<div>').addClass('message-content').appendTo(item); if (typeof marked !== 'undefined') { try { const dirtyHtml = marked.parse(event.content || ''); const safeHtml = dirtyHtml.replace(/<a href=/g, '<a target="_blank" rel="noopener noreferrer" href='); contentDiv.html(safeHtml); } catch(e) { log(`Markdown render error for ${event.id}: ${e.message}`); contentDiv.text('[Error rendering content]'); } } else { contentDiv.text(event.content || '[Content requires Markdown library]'); } const publishedAtTag = event.tags.find(t => t[0] === 'published_at'); const timestamp = publishedAtTag ? parseInt(publishedAtTag[1], 10) : event.created_at; const dateString = new Date(timestamp * 1000).toLocaleString(); $('<div>').addClass('message-meta') .text(`Article ${currentMessageIndex + 1}/${fetchedMessages.length} | ID: ${event.id.slice(0,10)}... | Published: ${dateString}`) .appendTo(item); }
+        // ... fetchAndDisplayReplies function remains the same ...
+        async function fetchAndDisplayReplies(eventId) { /* ... Keep existing implementation ... */ log(`Fetching replies for event ${eventId.slice(0, 10)}...`); const list = $('#replies-list').empty().html('<li><i>Loading replies...</i></li>'); if (!eventId) { list.html('<li><i>No parent ID.</i></li>'); return; } let nostrPool; try { log("Getting pool for fetchAndDisplayReplies..."); nostrPool = getNostrPool(); log("Got pool for fetchAndDisplayReplies."); } catch (e) { log(`Pool fail in fetchReplies: ${e.message}`); list.html('<li><i>Relay pool error fetching replies.</i></li>'); return; } try { log(`Pool object before list in fetchReplies:`, nostrPool); log(`Querying relays for replies: ${allRelaysToPublish.join(', ')}`); const replies = await nostrPool.list(allRelaysToPublish, [{ kinds: [1], '#e': [eventId], limit: 20 }]); log(`Received ${replies.length} reply events.`); if (replies.length > 0) { log(`Found ${replies.length} replies.`); list.empty(); replies.sort((a, b) => a.created_at - b.created_at).forEach(r => renderReply(list, r)); } else { log('No replies found.'); list.html('<li><i>No replies yet.</i></li>'); } } catch (e) { log(`Error during nostrPool.list in fetchReplies: ${e}`); console.error("Fetch Replies List Error Details:", e); list.html('<li><i>Error loading replies. Check console & relays.</i></li>'); } }
+        // ... renderReply function remains the same ...
+        function renderReply(list, event) { /* ... Keep existing implementation ... */ const item = $('<li>').addClass('reply-item').appendTo(list); const authorP = $('<p>').addClass('reply-author').appendTo(item); authorP.append('Reply by: '); $('<code>').text(event.pubkey.slice(0, 10) + '...').appendTo(authorP); authorP.append(` at ${new Date(event.created_at * 1000).toLocaleTimeString()}`); const contentDiv = $('<div>').addClass('reply-content').appendTo(item); if (typeof marked !== 'undefined') { try { const dirtyHtml = marked.parse(event.content || ''); const safeHtml = dirtyHtml.replace(/<a href=/g, '<a target="_blank" rel="noopener noreferrer" href='); contentDiv.html(safeHtml); } catch (e) { contentDiv.text(event.content || ''); } } else { const lines = (event.content || '').split('\n'); lines.forEach((line, i) => { const trimmed = line.trim(); if (/\.(jpg|jpeg|png|gif|webp)$/i.test(trimmed)) { $('<img>').attr('src', trimmed).appendTo(contentDiv); } else if (/^https?:\/\//.test(trimmed)) { $('<a>').attr({href: trimmed, target: '_blank', rel: 'noopener noreferrer'}).text(trimmed).appendTo(contentDiv); } else { contentDiv.append(document.createTextNode(line)); } if (i < lines.length - 1) contentDiv.append('<br>'); }); } }
+
+        // checkNostrExtension, connectToNostr - Unchanged
+        // ... Keep checkNostrExtension ...
+        function checkNostrExtension() { log('Checking extension...'); if (typeof window.nostr !== 'undefined') { nostrExtensionAvailable = true; log('Extension OK.'); $('#connectButton').prop('disabled', false).text('Connect with Nostr Extension'); updateStatus('Nostr Extension ready.'); } else { nostrExtensionAvailable = false; log('Extension fail.'); $('#connectButton').prop('disabled', true).text('Nostr Extension Needed'); updateStatus('Nostr Extension not found or NSEC needed.', true); } }
+        // ... Keep connectToNostr (uses updated fetchProfileAndRelays/fetchAndDisplayMessages) ...
+        async function connectToNostr() { if (!nostrExtensionAvailable) return; log('Connecting via extension...'); updateStatus('Connecting extension...'); $('#connectButton').prop('disabled', true); try { publicKey = await window.nostr.getPublicKey(); log(`Ext connected. Pubkey: ${publicKey.slice(0, 10)}...`); $('#connectButton').hide(); $('#postButton').prop('disabled', false); updateStatus(`Extension Connected! Pubkey: ${publicKey.slice(0, 10)}...`, false, true); await fetchProfileAndRelays(publicKey); await fetchAndDisplayMessages(publicKey); } catch (e) { log(`Ext connection fail: ${e.message || e}`); updateStatus(`Extension connect failed.`, true); $('#connectButton').prop('disabled', false).show(); publicKey = ''; } }
+
+
+        // handleImageSelection, uploadImageNip96 - Unchanged
+        // ... Keep handleImageSelection ...
+        function handleImageSelection(event) { /* ... */ }
+        // ... Keep uploadImageNip96 ...
+        function uploadImageNip96(imageDataBase64) { /* ... */ }
+        // ... Keep publishToRelay ...
+        async function publishToRelay(relayUrl, signedEvent) { /* ... */ }
+
+        // --- MODIFIED: postNostrEvent for Kind 30023 ---
+        // ... Keep postNostrEvent ... (No changes needed here for the current errors)
+        async function postNostrEvent() { /* ... Keep existing implementation ... */ if (!publicKey) { updateStatus("Not connected.", true); return; } const title = $('#articleTitle').val().trim(); const markdownContent = $('#message').val().trim(); if (!title) { updateStatus("Article title is required.", true); return; } if (!markdownContent && !selectedImageDataUrl) { updateStatus("Need article content or an image.", true); return; } showLoading(true); updateStatus("Preparing article event..."); let finalContent = markdownContent; let tags = [ ['d', title], ['title', title], ['published_at', String(Math.floor(Date.now() / 1000))], ['application', 'UPlanet Publisher'] ]; let adjustedLocation = null; if (includeLocation && manualLocationSet) { adjustedLocation = readLocationFromUI(); if (adjustedLocation) { log(`Including location: Lat ${adjustedLocation.latitude.toFixed(2)}, Lon ${adjustedLocation.longitude.toFixed(2)}`); tags.push(['latitude', adjustedLocation.latitude.toFixed(2)]); tags.push(['longitude', adjustedLocation.longitude.toFixed(2)]); tags.push(['g', `${adjustedLocation.latitude.toFixed(6)};${adjustedLocation.longitude.toFixed(6)}`]); } else { log("Location toggle is on, but reading UI failed. Not adding geo tags."); updateStatus("Warning: Could not read location from UI.", false); } } else { log("Location not included."); } try { if (selectedImageDataUrl) { updateStatus("Uploading image..."); try { const up = await uploadImageNip96(selectedImageDataUrl); finalContent += `\n\n![Uploaded Image](${up.uploadedFileURL})`; if (up.nip94Tags) tags = tags.concat(up.nip94Tags.filter(t => Array.isArray(t) && t.length >= 2)); if (up.fileSize != null) tags.push(['fileSize', String(up.fileSize)]); updateStatus("Image uploaded & added.", false, true); $('#message').val(finalContent); updateMarkdownPreview(); } catch (e) { updateStatus(`Upload failed: ${e}. Publishing without image URL.`, true); } } const event = { kind: 30023, pubkey: publicKey, created_at: Math.floor(Date.now() / 1000), tags: tags, content: finalContent }; log("Unsigned Kind 30023 event:"); console.log(JSON.stringify(event, null, 2)); log(`DEBUG: Before signing check. typeof privateKeyHex: ${typeof privateKeyHex}, privateKeyHex value: ${privateKeyHex}, typeof window.nostr: ${typeof window.nostr}`); let signedEvent = null; if (privateKeyHex) { log("Attempting local signing with NSEC..."); try { if (typeof NostrTools === 'undefined' || typeof NostrTools.getEventHash !== 'function' || typeof NostrTools.getSignature !== 'function') throw new Error("NostrTools crypto functions missing!"); event.id = NostrTools.getEventHash(event); if (!event.id) throw new Error("Failed hash."); event.sig = NostrTools.getSignature(event, privateKeyHex); if (!event.sig) throw new Error("Failed sig."); signedEvent = event; if (!signedEvent || !signedEvent.id || !signedEvent.sig) throw new Error("Signed event object incomplete."); log(`Signed locally. ID: ${signedEvent.id}`); updateStatus("Signed. Publishing..."); } catch (signError) { log(`Local signing error: ${signError.message}`); updateStatus(`Local signing error: ${signError.message}`, true); showLoading(false); return; } } else if (window.nostr) { updateStatus("Confirm in extension..."); log("Requesting signature via extension..."); try { signedEvent = await window.nostr.signEvent(event); if (!signedEvent || !signedEvent.id || !signedEvent.sig) throw new Error("Extension returned incomplete signed event."); log(`Signed via extension. ID: ${signedEvent.id}`); updateStatus("Signed. Publishing..."); } catch (extSignError) { log(`Extension signing error: ${extSignError.message}`); updateStatus(`Extension signing error: ${extSignError.message}`, true); showLoading(false); return; } } else { log("Error: Cannot sign event - No key/extension."); updateStatus("Cannot sign event.", true); showLoading(false); return; } if (!signedEvent) { log("Error: signedEvent null before publish."); updateStatus("Failed event prep.", true); showLoading(false); return; } log(`Publishing Kind 30023 to ${allRelaysToPublish.length} relays...`); updateRelayListUI(); let success = 0; const results = await Promise.all(allRelaysToPublish.map(r => publishToRelay(r, signedEvent))); success = results.filter(Boolean).length; log(`Published. Success: ${success}/${allRelaysToPublish.length}`); if (success > 0) { updateStatus(`Article published to ${success}/${allRelaysToPublish.length}. ID: ${signedEvent.id.slice(0,10)}...`, false, true); $('#articleTitle').val(''); $('#message').val(''); updateMarkdownPreview(); $('#imageInput').val(''); $('#imagePreview').hide().attr('src', '#'); selectedImageDataUrl = null; log("Scheduling article refresh..."); setTimeout(() => { log("Refreshing articles..."); fetchAndDisplayMessages(publicKey); }, 4000); } else { updateStatus(`Failed to publish article to any relays.`, true); } } catch (e) { log(`Post error: ${e?.message || e}`); console.error("Post Details:", e); updateStatus(`Error: ${e?.message || 'Unknown error'}`, true); } finally { showLoading(false); } }
+
+
+        // --- Initialization (Adapted slightly) ---
+        async function initializeApp() {
+            log('initializeApp called.');
+            // Setup Markdown Preview Listener
+            $('#message').on('input', updateMarkdownPreview);
+            // Initialize location UI elements (even if hidden initially)
+            initializeLocationSelects();
+            // Try to get initial location for the optional UI
+             log("Requesting initial location for optional UI...");
+            getLocation().catch(err => {
+                log(`Initial getLocation failed: ${err}. Location UI might show defaults/error.`);
+            });
+
+            // Toggle Location UI Button
+            $('#toggleLocationButton').on('click', function() { /* ... Keep existing implementation ... */ includeLocation = !includeLocation; const $locationControls = $('#location-controls'); if (includeLocation) { $(this).text('📍 Location Added (Click to Remove)'); $locationControls.slideDown(); if (currentLatitude === null || currentLongitude === null) { log("Location toggled on, attempting fetch..."); getLocation().catch(err => log(`Fetch on toggle failed: ${err}`)); } } else { $(this).text('📍 Add Location (Optional)'); $locationControls.slideUp(); log("Location toggled off."); } });
+
+
+            // NSEC Logic (Only run if NSEC is provided)
+            if (userNsec) {
+                log("NSEC provided. Attempting NSEC initialization...");
+                 if (typeof NostrTools === 'undefined' || typeof NostrTools.getPublicKey !== 'function' || typeof NostrTools.nip19 !== 'object') {
+                     updateStatus("Error: NostrTools crypto parts unloaded.", true); log("Fatal: NostrTools crypto missing for NSEC."); return;
+                 }
+                try {
+                    const decoded = NostrTools.nip19.decode(userNsec);
+                    if (decoded.type !== 'nsec' || !decoded.data) throw new Error('Invalid NSEC format');
+                    privateKeyHex = decoded.data; publicKey = NostrTools.getPublicKey(privateKeyHex);
+                    log(`Init NSEC OK. Pubkey: ${publicKey.slice(0, 10)}...`); updateStatus(`Using NSEC key. Pubkey: ${publicKey.slice(0, 10)}...`, false, true);
+                    $('#connectButton').hide(); $('#postButton').prop('disabled', false);
+                    // Fetch data immediately since we have the key
+                    await fetchProfileAndRelays(publicKey);
+                    await fetchAndDisplayMessages(publicKey);
+                } catch (e) {
+                    log(`Error initializing NSEC: ${e.message}. Extension check will run if available.`);
+                    updateStatus('Error NSEC. Will check for extension.', true);
+                    privateKeyHex = null; publicKey = ''; // Reset keys on NSEC failure
+                    // Do NOT call checkNostrExtension here, let the document.ready handler do it.
+                }
+            } else {
+                log("No NSEC configured. Extension check will be scheduled.");
+                updateStatus("Ready. Waiting for extension check...");
+                // Do NOT call checkNostrExtension here.
+            }
+            // These run regardless of NSEC/Extension status initially
+            updateRelayListUI();
+            updateMarkdownPreview();
+            log("initializeApp finished setup.");
+        }
+
+        $(document).ready(function() {
+            log('Document ready.');
+
+            // Setup common event listeners (Keep these)
+             $('#connectButton').on('click', connectToNostr);
+             $('#imageInput').on('change', handleImageSelection);
+             $('#postButton').on('click', postNostrEvent);
+             $('#refresh-button').on('click', () => { /* Refresh logic */ if(publicKey) fetchAndDisplayMessages(publicKey); });
+             $('#older-button').on('click', () => { /* Older logic */ if(currentMessageIndex < fetchedMessages.length - 1) displayMessageAtIndex(currentMessageIndex + 1); });
+             $('#newer-button').on('click', () => { /* Newer logic */ if(currentMessageIndex > 0) displayMessageAtIndex(currentMessageIndex - 1); });
+             $('#debug-info').hide(); $('details summary').on('click', () => setTimeout(() => log(`Debug visibility: ${$('#debug-info').is(':visible')}`), 0));
+
+
+            // --- Library Loading Check ---
+            log("Checking required libraries (NostrTools, marked.js)...");
+            let libsLoaded = false;
+            let attempts = 0;
+            const maxAttempts = 50; // ~5 seconds
+            const checkInterval = 100; // ms
+
+            const intervalId = setInterval(() => {
+                attempts++;
+                const nostrToolsReady = typeof NostrTools !== 'undefined' && typeof NostrTools.SimplePool === 'function';
+                const markedReady = typeof marked !== 'undefined';
+
+                if (nostrToolsReady && markedReady) {
+                    libsLoaded = true;
+                    clearInterval(intervalId);
+                    log("Required libraries loaded.");
+                    updateStatus("Initializing App...", false, true);
+                    initializeApp(); // Initialize the app (sets up UI, listeners, location)
+
+                    // ***** MODIFIED PART *****
+                    // Now that core init is done, schedule the extension check
+                    log("Scheduling extension check shortly...");
+                    setTimeout(() => {
+                        log("Running delayed extension check...");
+                        // Only run the check if we haven't already established a publicKey via NSEC
+                        if (!publicKey) {
+                            checkNostrExtension();
+                        } else {
+                            log("Skipping extension check - already connected via NSEC.");
+                        }
+                    }, 500); // Wait 500ms (adjust higher if needed, e.g., 1000)
+                    // ***** END MODIFIED PART *****
+
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(intervalId);
+                    log(`Error: Library loading timeout after ${attempts * checkInterval}ms.`);
+                    let missing = [];
+                    if (!nostrToolsReady) missing.push("NostrTools (or SimplePool)");
+                    if (!markedReady) missing.push("marked.js");
+                    updateStatus(`Error loading libraries: ${missing.join(', ')}`, true);
+                    $('#postButton').prop('disabled', true);
+                    $('#connectButton').prop('disabled', true).text('Library Load Error');
+                }
+            }, checkInterval);
+        });
+    </script>
+</body>
+</html>

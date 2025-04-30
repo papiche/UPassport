@@ -126,6 +126,10 @@ async def get_root(request: Request):
 async def get_root(request: Request):
     return templates.TemplateResponse("nostr.html", {"request": request})
 
+@app.get("/blog")
+async def get_root(request: Request):
+    return templates.TemplateResponse("nostr_blog.html", {"request": request})
+
 @app.get("/g1", response_class=HTMLResponse)
 async def get_root(request: Request):
     return templates.TemplateResponse("g1nostr.html", {"request": request})
