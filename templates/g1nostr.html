@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>NOSTR Card Generator</title>
+    <title>MULTIPASS DISCO Respawn</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -184,9 +184,23 @@
     </style>
 </head>
 <body>
+<center>
+<div id="coordinates-display" style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
+    <p>
+        <h2>Activez votre MULTIPASS <a href="https://qo-op.com" target="uplanet">UPlanet "ORIGIN"</a> !</h2>
+        <ul>
+            <li>Rejoignez un réseau social décentralisé et sécurisé</li>
+            <li>Profitez de la Toile de Confiance Ğ1 sur Nostr</li>
+            <li>Etendez l'écosystème de la Monnaie Libre</li>
+            <li>Profitez des services Ẑen : NextCloud, IA</li>
+        </ul>
+
+<b><a href="https://www.copylaradio.com" target="copylaradio">CopyLaRadio</a></b> : La Coopérative des Auto Hébergeurs Web2 & Web3
+</p>
+</div>
+</center>
 
     <div class="container">
-    <h1><a href="https://qo-op.com" target="uplanet">UPlanet "ORIGIN"</a></h1>
     <p><a id="map-link" href="https://ipfs.copylaradio.com/ipns/copylaradio.com/map_render.html?southWestLat=0.00&southWestLon=0.00&deg=0.01" target="_blank">UMAP : <span id="display-lat">0.00</span> <span id="display-lon">0.00</span></a></p>
         <form id="nostr-form" action="/g1nostr" method="post">
             <input type="hidden" id="lang" name="lang" value="fr">
@@ -196,12 +210,12 @@
 
             <label for="email">Email:</label>
             <input type="text" id="email" name="email" required>
-        <h2>Identifiants (<a href="https://www.gchange.fr/" target="gchange">ğchange</a>)</h2>
+        <h2>DISCO </h2>
 
-            <label for="salt">Identifiant :</label>
+            <label for="salt">Salt :</label>
             <input type="text" id="salt" name="salt">
 
-            <label for="pepper">Mot de passe :</label>
+            <label for="pepper">Pepper :</label>
             <input type="password" id="pepper" name="pepper">
 
             <input type="submit" value="INSCRIPTION">
@@ -211,7 +225,7 @@
 
         <div class="loader-container" id="loader-container">
             <div class="loader"></div>
-            <div class="loader-text">Génération de votre carte NOSTR</div>
+            <div class="loader-text">Génération de votre carte MULTIPASS</div>
             <div class="loader-subtext">Veuillez patienter, cette opération peut prendre quelques secondes...</div>
         </div>
     </div>
@@ -220,7 +234,7 @@
     <div class="modal" id="result-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <span class="modal-title">NOSTR Card</span>
+                <span class="modal-title">MULTIPASS</span>
                 <button class="modal-close" id="modal-close">&times;</button>
             </div>
             <div class="modal-body">
@@ -232,21 +246,6 @@
             </div>
         </div>
     </div>
-<center>
-<div id="coordinates-display" style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
-    <p>
-        <h2>Pourquoi activer votre compte UPlanet ?</h2>
-        <ul>
-            <li>Rejoignez un réseau social décentralisé et sécurisé</li>
-            <li>Profitez de la Toile de Confiance Ğ1 sur Nostr</li>
-            <li>Etendez l'écosystème de la Monnaie Libre</li>
-            <li>Profitez de nos services NextCloud et IA</li>
-        </ul>
-
-<b><a href="https://www.copylaradio.com" target="copylaradio">CopyLaRadio</a></b> : La Coopérative des Auto Hébergeurs Web2 & Web3
-</p>
-</div>
-</center>
 
 
     <script>
