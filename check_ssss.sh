@@ -12,10 +12,15 @@ ME="${0##*/}"
 MOATS=$(date -u +"%Y%m%d%H%M%S%4N")
 export PATH=$HOME/.astro/bin:$HOME/.local/bin:$PATH
 
+## LOAD ASTROPORT ENVIRONMENT
+[ ! -s $HOME/.zen/Astroport.ONE/tools/my.sh ] \
+    && echo "ERROR/ Missing Astroport.ONE. Please install..." \
+    && exit 1
+. "$HOME/.zen/Astroport.ONE/tools/my.sh"
+
 source ${MY_PATH}/.env
 [[ -z $myDUNITER ]] && myDUNITER="https://g1.cgeek.fr" # DUNITER
 [[ -z $myCESIUM ]] && myCESIUM="https://g1.data.e-is.pro" # CESIUM+
-[[ -z $ipfsNODE ]] && ipfsNODE="http://127.0.0.1:8080" # IPFS
 
 # Vérifier le nombre d'arguments
 if [ "$#" -ne 3 ]; then

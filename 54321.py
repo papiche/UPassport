@@ -105,12 +105,17 @@ def check_balance(g1pub):
     balance_line = result.stdout.strip().splitlines()[-1]
     return balance_line
 
-## DEFAULT = UPlanet Status
+## DEFAULT = UPlanet Status (specify lat / lon with different precision to select grid level)
 @app.get("/")
-async def zen_send(request: Request):
-
+async def ustats(request: Request, lat: str = None, lon: str = None):
     script_path = os.path.expanduser("~/.zen/Astroport.ONE/Ustats.sh")
-    return_code, last_line = await run_script(script_path)
+
+    # Préparer les arguments en fonction des paramètres reçus
+    args = []
+    if lat is not None and lon is not None:
+        args.extend([lat, lon])
+
+    return_code, last_line = await run_script(script_path, *args)
 
     if return_code == 0:
         returned_file_path = last_line.strip()

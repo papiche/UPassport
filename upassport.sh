@@ -16,7 +16,7 @@ export PATH=$HOME/.astro/bin:$HOME/.local/bin:$PATH
 source ${MY_PATH}/.env
 [[ -z $myDUNITER ]] && myDUNITER="https://g1.cgeek.fr" # DUNITER
 [[ -z $myCESIUM ]] && myCESIUM="https://g1.data.e-is.pro" # CESIUM+
-[[ -z $ipfsNODE ]] && ipfsNODE="http://127.0.0.1:8080" # IPFS
+[[ -z $myIPFS ]] && myIPFS="http://127.0.0.1:8080" # IPFS
 
 function urldecode() { : "${*//+/ }"; echo -e "${_//%/\\x}"; }
 
@@ -97,8 +97,8 @@ if [[ ${QRCODE:0:5} == "~~~~~" ]]; then
     cat ${MY_PATH}/templates/scan_zen.html \
         | sed -e "s~_G1SOURCE_~${g1source}~g" \
         -e "s~_ZEN_~$SRCZEN~g" \
-        -e "s~_TW_~<a href=${ipfsNODE}/ipns/${TWNS} target=_new>TW</a>~g" \
-        -e "s~https://ipfs.copylaradio.com~${ipfsNODE}~g" \
+        -e "s~_TW_~<a href=${myIPFS}/ipns/${TWNS} target=_new>TW</a>~g" \
+        -e "s~https://ipfs.copylaradio.com~${myIPFS}~g" \
     > ${MY_PATH}/tmp/${MOATS}.out.html
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
@@ -111,7 +111,7 @@ if [[ ${ipnsk51} != "" ]]; then
     TWNS="k51qzi5uqu5d"$ipnsk51
 
     echo '<!DOCTYPE html><html><head>
-    <meta http-equiv="refresh" content="0; url='${ipfsNODE}/ipns/${TWNS}'">
+    <meta http-equiv="refresh" content="0; url='${myIPFS}/ipns/${TWNS}'">
     </head><body></body></html>' > ${MY_PATH}/tmp/${TWNS}.out.html
     echo "${MY_PATH}/tmp/${TWNS}.out.html"
     exit 0
@@ -149,7 +149,7 @@ if [[ ${PUBKEY:0:4} == "http" ]]; then
         cat ${MY_PATH}/templates/scan_ssss.html \
             | sed -e "s~_CARDNS_~${CARDNS}~g" \
             -e "s~_ZEROCARD_~${ZEROCARD}~g" \
-            -e "s~https://ipfs.copylaradio.com~${ipfsNODE}~g" \
+            -e "s~https://ipfs.copylaradio.com~${myIPFS}~g" \
         > ${MY_PATH}/tmp/${CARDNS}.out.html
         echo "${MY_PATH}/tmp/${CARDNS}.out.html"
         exit 0
@@ -479,13 +479,13 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         if [[ -s ${MY_PATH}/pdf/${PUBKEY}/DRIVESTATE ]]; then
             ## REDIRECT TO CURRENT DRIVESTATE
             echo '<!DOCTYPE html><html><head>
-            <meta http-equiv="refresh" content="0; url='${ipfsNODE}$(cat ${MY_PATH}/pdf/${PUBKEY}/DRIVESTATE)'">
+            <meta http-equiv="refresh" content="0; url='${myIPFS}$(cat ${MY_PATH}/pdf/${PUBKEY}/DRIVESTATE)'">
             </head><body></body></html>' > ${MY_PATH}/tmp/${MOATS}.out.html
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
             exit 0
         else
             ## ZEROCARD 1ST APP ##### 2ND SCAN : CHANGE DRIVESTATE TO IPFSPORTAL CONTENT
-            CODEINJECT='<a target=_new href='${ipfsNODE}'/ipfs/'$(cat ${MY_PATH}/pdf/${PUBKEY}/IPFSPORTAL)'/${PUBKEY}/>'${AMOUNT}'</a>'
+            CODEINJECT='<a target=_new href='${myIPFS}'/ipfs/'$(cat ${MY_PATH}/pdf/${PUBKEY}/IPFSPORTAL)'/${PUBKEY}/>'${AMOUNT}'</a>'
             ## BACKUP FAC SIMILE
             mv ${MY_PATH}/pdf/${PUBKEY}/_index.html \
                 ${MY_PATH}/pdf/${PUBKEY}/_facsimile.html
@@ -538,7 +538,7 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         ZEROCARD=$(cat ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD)
         ## Change ẐeroCard G1/Cesium link to ZEROCARD /IPNS link
         sed -i "s~${ZWALL}~${OIPNSQR}~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
-        sed -i "s~${ipfsNODE}/ipfs/QmYZWzSfPgb1y83fWTmKBEHdA9QoxsYBmqLkEJU2KQ1DYW/#/app/wot/${ZEROCARD}/~${ipfsNODE}/ipns/$(cat ${MY_PATH}/pdf/${PUBKEY}/IPNS)~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
+        sed -i "s~${myIPFS}/ipfs/QmYZWzSfPgb1y83fWTmKBEHdA9QoxsYBmqLkEJU2KQ1DYW/#/app/wot/${ZEROCARD}/~${myIPFS}/ipns/$(cat ${MY_PATH}/pdf/${PUBKEY}/IPNS)~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
         ## NEW IPFSPORTAL (DATA : ${MY_PATH}/pdf/${PUBKEY}/*)
         IPFSPORTAL=$(ipfs add -qrw ${MY_PATH}/pdf/${PUBKEY}/ | tail -n 1)
         ipfs pin rm ${IPFSPORTAL}
@@ -554,7 +554,7 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
             rm ${MY_PATH}/tmp/${PUBKEY}.captain
 
         ## IPFSPORTAL = DATA ipfs link
-        amzqr "${ipfsNODE}/ipfs/${IPFSPORTAL}" -l H -p ${MY_PATH}/static/img/server.png -c -n ${PUBKEY}.ipfs.png -d ${MY_PATH}/tmp/
+        amzqr "${myIPFS}/ipfs/${IPFSPORTAL}" -l H -p ${MY_PATH}/static/img/server.png -c -n ${PUBKEY}.ipfs.png -d ${MY_PATH}/tmp/
         convert ${MY_PATH}/tmp/${PUBKEY}.ipfs.png \
         -gravity SouthWest \
         -pointsize 18 \
@@ -571,7 +571,7 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         echo $IPFSPORTAL > ${MY_PATH}/pdf/${PUBKEY}/IPFSPORTAL
         echo "$(date -u)" > ${MY_PATH}/pdf/${PUBKEY}/DATE
         echo $IPFSNODEID > ${MY_PATH}/pdf/${PUBKEY}/ASTROPORT
-        echo "NEW IPFSPORTAL : ${ipfsNODE}/ipfs/${IPFSPORTAL} $(cat ${MY_PATH}/pdf/${PUBKEY}/DATE)"
+        echo "NEW IPFSPORTAL : ${myIPFS}/ipfs/${IPFSPORTAL} $(cat ${MY_PATH}/pdf/${PUBKEY}/DATE)"
 
         ## IMPORT ZEROCARD into LOCAL IPFS KEYS
         ## Décodage clef IPNS par secret UPLANETNAME
@@ -579,7 +579,7 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         ipfs key rm ${ZEROCARD} > /dev/null 2>&1
         WALLETNS=$(ipfs key import ${ZEROCARD} -f pem-pkcs8-cleartext ${MY_PATH}/tmp/${MOATS}.ipns)
         ## DRIVESTATE FIRST DApp => Wallet AMOUNT + ZEROCARD QR + N1 APP link
-        CODEINJECT="<a target=N1 href=${ipfsNODE}/ipfs/${IPFSPORTAL}/${PUBKEY}/><img width=240px src=${ipfsNODE}/ipfs/${ZWALL} /></a>"
+        CODEINJECT="<a target=N1 href=${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/><img width=240px src=${myIPFS}/ipfs/${ZWALL} /></a>"
         cat ${MY_PATH}/templates/message.html \
         | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
              -e "s~_MESSAGE_~${CODEINJECT}~g" \
@@ -837,7 +837,7 @@ fi
 rm ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key
 ipfs key rm ${G1PUBZERO} > /dev/null 2>&1
 echo "IPNS APP KEY : $IPNS12D /ipns/ $WALLETNS"
-amzqr "${ipfsNODE}/ipns/$IPNS12D" -l H -p ${MY_PATH}/static/img/moa_net.png -c -n ${PUBKEY}.IPNS.QR.png -d ${MY_PATH}/tmp/ 2>/dev/null
+amzqr "${myIPFS}/ipns/$IPNS12D" -l H -p ${MY_PATH}/static/img/moa_net.png -c -n ${PUBKEY}.IPNS.QR.png -d ${MY_PATH}/tmp/ 2>/dev/null
 convert ${MY_PATH}/tmp/${PUBKEY}.IPNS.QR.png \
         -gravity SouthWest \
         -pointsize 18 \
@@ -908,9 +908,9 @@ IPFSPORTAL=$(ipfs add -qrw ${MY_PATH}/pdf/${PUBKEY}/ | tail -n 1)
 echo $IPFSPORTAL > ${MY_PATH}/pdf/${PUBKEY}/IPFSPORTAL
 
 ipfs pin rm ${IPFSPORTAL}
-echo "${ipfsNODE}/ipfs/${IPFSPORTAL}"
+echo "${myIPFS}/ipfs/${IPFSPORTAL}"
 
-amzqr "${ipfsNODE}/ipfs/${IPFSPORTAL}" -l H -p ${MY_PATH}/static/img/server.png -c -n ${PUBKEY}.ipfs.png -d ${MY_PATH}/tmp/
+amzqr "${myIPFS}/ipfs/${IPFSPORTAL}" -l H -p ${MY_PATH}/static/img/server.png -c -n ${PUBKEY}.ipfs.png -d ${MY_PATH}/tmp/
 convert ${MY_PATH}/tmp/${PUBKEY}.ipfs.png \
         -gravity SouthWest \
         -pointsize 18 \
@@ -966,7 +966,7 @@ cat ${MY_PATH}/static/zine/UPassport.html \
             -e "s~_TOTAL_~${TOTAL}~g" \
             -e "s~_LAT_~${LAT}~g" \
             -e "s~_LON_~${LON}~g" \
-            -e "s~_ASTROPORT_~${ipfsNODE}~g" \
+            -e "s~_ASTROPORT_~${myIPFS}~g" \
             -e "s~http://127.0.0.1:8080~${myIPFS}~g" \
         > ${MY_PATH}/pdf/${PUBKEY}/_index.html
 

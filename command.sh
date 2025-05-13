@@ -22,7 +22,7 @@ if [ $# -ne 7 ]; then
 fi
 
 source ${MY_PATH}/.env
-[[ -z $ipfsNODE ]] && ipfsNODE="https://ipfs.astroport.com" # IPFS
+[[ -z $myIPFS ]] && myIPFS="https://ipfs.astroport.com" # IPFS
 MOATS=$(date -u +"%Y%m%d%H%M%S%4N")
 
 ## LOAD ASTROPORT ENVIRONMENT
@@ -158,7 +158,7 @@ case "$COMMENT" in
         AMOUNT="$SOLDE Ğ1"
         cat ${MY_PATH}/templates/message.html \
         | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
-             -e "s~_MESSAGE_~<a target=_new href=${ipfsNODE}/ipfs/$(cat ${MY_PATH}/pdf/${PUBKEY}/IPFSPORTAL)/${PUBKEY}/N1/_index.html>${AMOUNT}</a>~g" \
+             -e "s~_MESSAGE_~<a target=_new href=${myIPFS}/ipfs/$(cat ${MY_PATH}/pdf/${PUBKEY}/IPFSPORTAL)/${PUBKEY}/N1/_index.html>${AMOUNT}</a>~g" \
              -e "s~300px~303px~g" \
             > ${MY_PATH}/tmp/${ZEROCARD}.out.html
 

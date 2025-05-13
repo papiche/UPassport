@@ -22,8 +22,8 @@ fi
 # Récupération des arguments
 PLAYER=$1
 
-## Is it a local PLAYER
-[[ ! -d ~/.zen/game/players/${PLAYER} ]] \
+## Is it a local NOSTR Card
+[[ ! -d ~/.zen/game/player/${PLAYER} ]] \
     && echo "UNKNOWN PLAYER ${PLAYER}" \
     && exit 1
 
