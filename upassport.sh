@@ -23,8 +23,11 @@ function urldecode() { : "${*//+/ }"; echo -e "${_//%/\\x}"; }
 ## PUBKEY SHOULD BE A MEMBER PUBLIC KEY
 QRCODE="$1"
 IMAGE="$2"
-ZLAT="$3"
-ZLON="$4"
+LAT="$3"
+LON="$4"
+
+ZLAT=$(makecoord $LAT)
+ZLON=$(makecoord $LON)
 
 [ ! -z "$IMAGE" ] && echo "IMAGE : $IMAGE"
 
@@ -937,12 +940,12 @@ echo "Create Zine Passport"
     && CERTOUT=$(ipfs add -q ${MY_PATH}/pdf/${PUBKEY}/12P.png) \
     || CERTOUT="QmReCfHszucv2Ra9zbKjKwmgoJ4krWpqB12TDK5AR9PKCQ/page4.png"
 
-LAT=$(cat ${MY_PATH}/tmp/${PUBKEY}.cesium.json | jq -r '._source.geoPoint.lat')
-LAT=$(makecoord $LAT)
-LON=$(cat ${MY_PATH}/tmp/${PUBKEY}.cesium.json | jq -r '._source.geoPoint.lon')
-LON=$(makecoord $LON)
-
-UPLANETG1PUB=$(${MY_PATH}/tools/keygen -t duniter "${UPLANETNAME}" "${UPLANETNAME}")
+if [[ -z $LAT || -z $LON ]]; then
+    cLAT=$(cat ${MY_PATH}/tmp/${PUBKEY}.cesium.json | jq -r '._source.geoPoint.lat')
+    LAT=$(makecoord $cLAT)
+    cLON=$(cat ${MY_PATH}/tmp/${PUBKEY}.cesium.json | jq -r '._source.geoPoint.lon')
+    LON=$(makecoord $cLON)
+fi
 
 # QmRJuGqHsruaV14ZHEjk9Gxog2B9GafC35QYrJtaAU2Pry Fac Similé
 # QmVJftuuuLgTJ8tb2kLhaKdaWFWH3jd4YXYJwM4h96NF8Q/page2.png
