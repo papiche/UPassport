@@ -611,6 +611,14 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         exit 0
       else
         ## RESEND FAC SIMILE
+        if [[ "$IMAGE" == "0000" ]]; then
+            ## "0000" UPassport => DELETE
+            sed -i "s~PRINT~DELETED~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
+            sed -i "s~${PUBKEY}~~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
+            echo "${MY_PATH}/pdf/${PUBKEY}/_index.html"
+            rm -Rf ${MY_PATH}/pdf/${PUBKEY-null}
+            exit 0
+        fi
         echo "TX NOT FOR ZEROCARD"
         echo "${MY_PATH}/pdf/${PUBKEY}/_index.html"
         exit 0
@@ -773,14 +781,17 @@ convert ${MY_PATH}/tmp/${PUBKEY}.UID.png \
 ## Peer to Peer “Followers/Following”
 nb_fichiers=$(ls ${MY_PATH}/pdf/${PUBKEY}/N1/*.p2p*.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ${MY_PATH}/pdf/${PUBKEY}/N1/*.p2p*.png ${MY_PATH}/pdf/${PUBKEY}/P2P.${PUBKEY}.pdf
+echo "convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P2P.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P2P.png"
 convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P2P.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P2P.png
 ## Peer to One “Followers”
 nb_fichiers=$(ls ${MY_PATH}/pdf/${PUBKEY}/N1/*.certin*.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ${MY_PATH}/pdf/${PUBKEY}/N1/*.certin*.png ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf
+echo "convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P21.png"
 convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P21.png
 ## One to Peer “Following”
 nb_fichiers=$(ls ${MY_PATH}/pdf/${PUBKEY}/N1/*.certout*.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ${MY_PATH}/pdf/${PUBKEY}/N1/*.certout*.png ${MY_PATH}/pdf/${PUBKEY}/12P.${PUBKEY}.pdf
+echo "convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/12P.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/12P.png"
 convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/12P.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/12P.png
 
 ################################################################################
