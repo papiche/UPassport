@@ -118,10 +118,34 @@ async def ustats(request: Request, lat: str = None, lon: str = None, deg: str = 
     return_code, last_line = await run_script(script_path, *args)
 
     if return_code == 0:
-        returned_file_path = last_line.strip()
-        return FileResponse(returned_file_path)
+        # Vérifier si last_line est un chemin de fichier ou du JSON
+        if os.path.exists(last_line.strip()):
+            # Si c'est un chemin de fichier, lire son contenu
+            try:
+                async with aiofiles.open(last_line.strip(), 'r') as f:
+                    content = await f.read()
+                return JSONResponse(content=json.loads(content))
+            except Exception as e:
+                logging.error(f"Error reading file: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": f"Error reading file: {str(e)}"}
+                )
+        else:
+            # Si c'est du JSON direct, le parser et le retourner
+            try:
+                return JSONResponse(content=json.loads(last_line))
+            except json.JSONDecodeError as e:
+                logging.error(f"Error parsing JSON: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": f"Error parsing JSON: {str(e)}"}
+                )
     else:
-        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ./tmp/54321.log."}
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ./tmp/54321.log."}
+        )
 
 @app.get("/scan")
 async def get_root(request: Request):
