@@ -615,8 +615,8 @@
           const PASS = document.getElementById('PASS').value;
           let imageData = $('#imageData').val();
 
-            // Vérifie si le paramètre commence par "~~~~~" pour décider de la valeur de `imageData`
-            if (parametre.substring(0, 5) === "~~~~~") {
+            // Vérifie si le paramètre commence par "~~~~~" ou si PASS vaut "0000" = DELETE CODE
+            if (parametre.substring(0, 5) === "~~~~~" || PASS === "0000") {
                 // Remplace la valeur de 'imageData' par le PIN
                 if (formData.has('imageData')) {
                     formData.delete('imageData');
