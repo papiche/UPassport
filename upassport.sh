@@ -11,6 +11,12 @@ MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
 ME="${0##*/}"
 ################################################################### INIT
 export PATH=$HOME/.astro/bin:$HOME/.local/bin:$PATH
+## LOAD ASTROPORT ENVIRONMENT
+[ ! -s $HOME/.zen/Astroport.ONE/tools/my.sh ] \
+    && echo "<h1>ERROR/ Missing Astroport.ONE. Please install...<h1>" \
+    && exit 1
+
+. "$HOME/.zen/Astroport.ONE/tools/my.sh"
 
 ###########\,,/(^_^)\,,/################# https://1lineart.kulaone.com/
 source ${MY_PATH}/.env
@@ -54,11 +60,6 @@ if [[ $countMErunning -gt 2 ]]; then
     exit 0
 fi
 
-## LOAD ASTROPORT ENVIRONMENT
-[ ! -s $HOME/.zen/Astroport.ONE/tools/my.sh ] \
-    && echo "<h1>ERROR/ Missing Astroport.ONE. Please install...<h1>" \
-    && exit 1
-. "$HOME/.zen/Astroport.ONE/tools/my.sh"
 
 ############ ZENCARD QRCODE !!!!
 if [[ ${QRCODE:0:5} == "~~~~~" ]]; then
