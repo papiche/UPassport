@@ -612,7 +612,7 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         exit 0
       else
         ## RESEND FAC SIMILE
-        if [[ "$IMAGE" == "0000" ]]; then
+        if [[ "$IMAGE" == "0000" && ! -d ~/.zen/game/passport/${PUBKEY} ]]; then
             ## "0000" UPassport => DELETE
             sed -i "s~PRINT~DELETED~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
             sed -i "s~${PUBKEY}~~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
