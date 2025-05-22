@@ -35,6 +35,7 @@ LON="$4"
 ZLAT=$(makecoord $LAT)
 ZLON=$(makecoord $LON)
 
+## IMAGE CAN BE A FILE or 4 digit PASS
 [ ! -z "$IMAGE" ] && echo "IMAGE : $IMAGE"
 
 PUBKEY=$(echo "$QRCODE" | tr -d ' ') ## REMOVE SPACE
@@ -49,6 +50,7 @@ else
     exit 0
 fi
 
+#### AVOID MULITPLE RUN
 countMErunning=$(pgrep -au $USER -f "$ME" | wc -l)
 if [[ $countMErunning -gt 2 ]]; then
     echo "$ME already running $countMErunning time"
@@ -168,7 +170,7 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     echo "Email detected: $EMAIL"
 
     ## SEARCH FOR EXISTING Zen Card
-    if [[ -d ${HOME}/.zen/game/players/${EMAIL} ]]; then
+    if [[ -n $($HOME/.zen/Astroport.ONE/tools/search_for_this_email_in_nostr.sh ${EMAIL}) ]]; then
         cat ${MY_PATH}/templates/message.html \
         | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
              -e "s~_MESSAGE_~♥️BOX ACCOUNT~g" \
@@ -185,6 +187,16 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
         exit 0
     else
+        ## SEND "0000" FOR DELETION
+        if [[ "$IMAGE" == "0000" && ! -d ~/.zen/game/players/${PLAYER} && ! -d ~/.zen/game/passport/${PUBKEY} ]]; then
+            ## "0000" /upassport => DELETE
+            sed -i "s~PRINT~DELETED~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
+            sed -i "s~${PUBKEY}~~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
+            echo "${MY_PATH}/pdf/${PUBKEY}/_index.html"
+            ~/.zen/Astroport.ONE/tools/nostr_DESTROY_TW.sh "${EMAIL}"
+            exit 0
+        fi
+        ## SHOW AGAIN ON 1ST DAY
         if [[ "$(cat ${HOME}/.zen/game/nostr/${EMAIL}/TODATE)" == "$TODATE" ]]; then
             echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
             exit 0
@@ -612,14 +624,6 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         exit 0
       else
         ## RESEND FAC SIMILE
-        if [[ "$IMAGE" == "0000" && ! -d ~/.zen/game/passport/${PUBKEY} ]]; then
-            ## "0000" UPassport => DELETE
-            sed -i "s~PRINT~DELETED~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
-            sed -i "s~${PUBKEY}~~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
-            echo "${MY_PATH}/pdf/${PUBKEY}/_index.html"
-            rm -Rf ${MY_PATH}/pdf/${PUBKEY-null}
-            exit 0
-        fi
         echo "TX NOT FOR ZEROCARD"
         echo "${MY_PATH}/pdf/${PUBKEY}/_index.html"
         exit 0
