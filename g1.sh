@@ -41,8 +41,8 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     EMAIL="${EMAIL,,}"
     echo "Email detected: $EMAIL"
 
-    ## SEARCH FOR EXISTING Zen Card
-    if [[ -d ${HOME}/.zen/game/players/${EMAIL} ]]; then
+    ## SEARCH FOR EXISTING ACCOUNT
+    if [[ -n $($HOME/.zen/Astroport.ONE/tools/search_for_this_email_in_nostr.sh ${EMAIL}) ]]; then
         cat ${MY_PATH}/templates/message.html \
         | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
              -e "s~_MESSAGE_~♥️BOX ACCOUNT~g" \
@@ -50,6 +50,7 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
         echo "${MY_PATH}/tmp/${MOATS}.out.html"
         exit 0
     fi
+
     ### SEARCH FOR EXISTING NOSTR CARD
     if [[ ! -s ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ]]; then
         ### CREATING NOSTR CARD with SALT PEPPER
