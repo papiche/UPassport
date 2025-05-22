@@ -98,7 +98,32 @@ async def run_script(script_path, *args, log_file_path="./tmp/54321.log"):
     return return_code, last_line
 
 ## CHECK G1PUB BALANCE
-def check_balance(g1pub):
+def check_balance(identifier):
+    # Vérifier si l'identifiant est un email
+    if '@' in identifier:
+        email = identifier
+        # Essayer de trouver la g1pub dans les différents emplacements
+        g1pub = None
+        
+        # Vérifier dans le dossier nostr
+        nostr_g1pub_path = os.path.expanduser(f"~/.zen/game/nostr/{email}/G1PUBNOSTR")
+        if os.path.exists(nostr_g1pub_path):
+            with open(nostr_g1pub_path, 'r') as f:
+                g1pub = f.read().strip()
+        
+        # Si pas trouvé, vérifier dans le dossier players
+        if not g1pub:
+            players_g1pub_path = os.path.expanduser(f"~/.zen/game/players/{email}/.g1pub")
+            if os.path.exists(players_g1pub_path):
+                with open(players_g1pub_path, 'r') as f:
+                    g1pub = f.read().strip()
+        
+        if not g1pub:
+            raise ValueError(f"Impossible de trouver la g1pub pour l'email {email}")
+    else:
+        g1pub = identifier
+
+    # Vérifier le solde avec la g1pub
     result = subprocess.run(["tools/COINScheck.sh", g1pub], capture_output=True, text=True)
     if result.returncode != 0:
         raise ValueError("Erreur dans COINScheck.sh: " + result.stderr)
