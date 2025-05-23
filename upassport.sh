@@ -200,8 +200,8 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             echo "## 0000 => DELETING ACCOUNT ${EMAIL}"
             sed -i "s~PRINT~DELETED~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
             sed -i "s~${PUBKEY}~~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
+            ${HOME}/.zen/Astroport.ONE/tools/nostr_DESTROY_TW.sh "${EMAIL}" &
             echo "${MY_PATH}/pdf/${PUBKEY}/_index.html"
-            ${HOME}/.zen/Astroport.ONE/tools/nostr_DESTROY_TW.sh "${EMAIL}"
             exit 0
         fi
         ## SHOW AGAIN ON 1ST DAY
