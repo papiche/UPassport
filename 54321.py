@@ -260,11 +260,33 @@ async def scan_qr(
     if return_code == 0:
         returned_file_path = last_line.strip()
         logging.info(f"Returning file: {returned_file_path}")
-        return FileResponse(returned_file_path)
+        
+        # Vérifier si le fichier existe
+        if not os.path.exists(returned_file_path):
+            error_message = f"Le fichier {returned_file_path} n'existe pas"
+            logging.error(error_message)
+            return JSONResponse({"error": error_message}, status_code=404)
+            
+        # Vérifier si c'est bien un fichier HTML
+        if not returned_file_path.endswith('.html'):
+            error_message = f"Le fichier {returned_file_path} n'est pas un fichier HTML"
+            logging.error(error_message)
+            return JSONResponse({"error": error_message}, status_code=400)
+            
+        try:
+            return FileResponse(
+                returned_file_path,
+                media_type='text/html',
+                filename=os.path.basename(returned_file_path)
+            )
+        except Exception as e:
+            error_message = f"Erreur lors de l'envoi du fichier: {str(e)}"
+            logging.error(error_message)
+            return JSONResponse({"error": error_message}, status_code=500)
     else:
         error_message = f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs."
         logging.error(error_message)
-        return {"error": error_message}
+        return JSONResponse({"error": error_message}, status_code=500)
 
 @app.post("/sendmsg")
 async def send_message(
