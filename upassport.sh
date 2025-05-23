@@ -184,20 +184,24 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     fi
     ### SEARCH FOR EXISTING NOSTR CARD
     if [[ ! -s ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ]]; then
-        ### CREATING NOSTR CARD ZINE
+        #########################################################""
+        ### NEW USER : CREATING NOSTR CARD MULTIPASS ZINE
+        #########################################################""
         ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE" "${ZLAT}" "${ZLON}"
         ## MAILJET SEND NOSTR CARD
         ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "UPlanet NOSTR Card"
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
         exit 0
+        #########################################################""
+        #########################################################""
     else
-        ## SEND "0000" FOR DELETION
-        if [[ "$IMAGE" == "0000" && ! -d ~/.zen/game/players/${PLAYER} && ! -d ~/.zen/game/passport/${PUBKEY} ]]; then
-            ## "0000" /upassport => DELETE
+        ## DID SEND "0000" FOR DELETION ?
+        if [[ "$IMAGE" == "0000" && ! -d ~/.zen/game/players/${EMAIL} && ! -d ~/.zen/game/passport/${PUBKEY} ]]; then
+            echo "## 0000 => DELETING ACCOUNT ${EMAIL}"
             sed -i "s~PRINT~DELETED~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
             sed -i "s~${PUBKEY}~~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
             echo "${MY_PATH}/pdf/${PUBKEY}/_index.html"
-            ~/.zen/Astroport.ONE/tools/nostr_DESTROY_TW.sh "${EMAIL}"
+            ${HOME}/.zen/Astroport.ONE/tools/nostr_DESTROY_TW.sh "${EMAIL}"
             exit 0
         fi
         ## SHOW AGAIN ON 1ST DAY
