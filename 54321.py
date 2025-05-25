@@ -209,7 +209,7 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
 async def check_balance_route(g1pub: str):
     try:
         balance = check_balance(g1pub)
-        return {"balance": balance}
+        return {"balance": balance, "g1pub": g1pub}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

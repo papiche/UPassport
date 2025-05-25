@@ -79,21 +79,22 @@
              justify-content: center; /* Center the selects horizontally */
         }
         .tumbler {
-            appearance: none; /* Remove default dropdown arrow */
+            appearance: none;
             -webkit-appearance: none;
             -moz-appearance: none;
-            padding: 8px 4px; /* Adjust padding */
+            padding: 6px 2px;
             border: 1px solid #555;
             background-color: #404040;
             color: #e0e0e0;
-            font-family: 'Courier New', Courier, monospace; /* Monospace font */
-            font-size: 1.1em;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
             font-weight: bold;
             border-radius: 3px;
-            margin: 0 1px; /* Small gap */
-            text-align: center; /* Center text inside select */
+            margin: 0 1px;
+            text-align: center;
             cursor: pointer;
-            min-width: 28px; /* Ensure minimum width */
+            min-width: 24px;
+            max-width: 32px;
         }
         .tumbler:focus {
             outline: none;
@@ -109,6 +110,55 @@
         }
         #location-status {
              min-height: 1.1em; /* Prevent layout jump */
+        }
+
+        /* Ajout de media queries pour le responsive */
+        @media screen and (max-width: 480px) {
+            .container {
+                padding: 10px;
+                margin: 10px auto;
+            }
+
+            #location-controls {
+                margin-bottom: 10px;
+            }
+
+            #location-values {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .coord-control {
+                width: 100%;
+            }
+
+            .coord-control > div {
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 2px;
+            }
+
+            .tumbler {
+                padding: 4px 1px;
+                font-size: 0.85em;
+                min-width: 22px;
+                max-width: 28px;
+            }
+
+            .tumbler-dot {
+                font-size: 1em;
+                margin: 0 1px;
+            }
+        }
+
+        /* Ajustements pour les écrans très petits */
+        @media screen and (max-width: 320px) {
+            .tumbler {
+                padding: 3px 1px;
+                font-size: 0.8em;
+                min-width: 20px;
+                max-width: 24px;
+            }
         }
     </style>
 </head>
@@ -126,41 +176,41 @@
 
         <button id="connectButton" disabled>Connect with Nostr</button>
         <!-- Location Adjustment UI -->
-        <div id="location-controls" style="margin-bottom: 15px; display: none;"> <!-- Hide initially -->
-            <div id="location-values" style="display: flex; justify-content: space-around; background-color: #333; padding: 10px; border-radius: 5px;">
+        <div id="location-controls" style="margin-bottom: 15px; display: none;">
+            <div id="location-values" style="display: flex; justify-content: space-around; background-color: #333; padding: 8px; border-radius: 5px; gap: 10px;">
                 <!-- Latitude -->
                 <div class="coord-control">
                     <label for="lat-sign" style="font-size: 0.8em; display: block; text-align: center; margin-bottom: 3px;">Latitude</label>
-                    <div style="display: flex; align-items: center;">
+                    <div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px;">
                         <select id="lat-sign" class="tumbler">
                             <option value="N">N</option>
                             <option value="S">S</option>
                         </select>
-                        <select id="lat-deg1" class="tumbler"></select> <!-- 0-9 -->
-                        <select id="lat-deg0" class="tumbler"></select> <!-- 0-9 -->
+                        <select id="lat-deg1" class="tumbler"></select>
+                        <select id="lat-deg0" class="tumbler"></select>
                         <span class="tumbler-dot">.</span>
-                        <select id="lat-frac1" class="tumbler"></select> <!-- 0-9 -->
-                        <select id="lat-frac0" class="tumbler"></select> <!-- 0-9 -->
+                        <select id="lat-frac1" class="tumbler"></select>
+                        <select id="lat-frac0" class="tumbler"></select>
                     </div>
                 </div>
                 <!-- Longitude -->
                 <div class="coord-control">
-                     <label for="lon-sign" style="font-size: 0.8em; display: block; text-align: center; margin-bottom: 3px;">Longitude</label>
-                    <div style="display: flex; align-items: center;">
+                    <label for="lon-sign" style="font-size: 0.8em; display: block; text-align: center; margin-bottom: 3px;">Longitude</label>
+                    <div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px;">
                         <select id="lon-sign" class="tumbler">
                             <option value="E">E</option>
                             <option value="W">W</option>
                         </select>
-                        <select id="lon-deg2" class="tumbler"></select> <!-- 0-1 -->
-                        <select id="lon-deg1" class="tumbler"></select> <!-- 0-9 -->
-                        <select id="lon-deg0" class="tumbler"></select> <!-- 0-9 -->
-                         <span class="tumbler-dot">.</span>
-                        <select id="lon-frac1" class="tumbler"></select> <!-- 0-9 -->
-                        <select id="lon-frac0" class="tumbler"></select> <!-- 0-9 -->
+                        <select id="lon-deg2" class="tumbler"></select>
+                        <select id="lon-deg1" class="tumbler"></select>
+                        <select id="lon-deg0" class="tumbler"></select>
+                        <span class="tumbler-dot">.</span>
+                        <select id="lon-frac1" class="tumbler"></select>
+                        <select id="lon-frac0" class="tumbler"></select>
                     </div>
                 </div>
             </div>
-             <div id="location-status" style="font-size: 0.8em; text-align: center; margin-top: 5px; color: #aaa;">Fetching location...</div>
+            <div id="location-status" style="font-size: 0.8em; text-align: center; margin-top: 5px; color: #aaa;">Fetching location...</div>
         </div>
         <label for="message">Message:</label>
         <textarea id="message" placeholder="..."></textarea>
