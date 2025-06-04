@@ -160,36 +160,6 @@
                 max-width: 24px;
             }
         }
-
-        .tag-button {
-            padding: 4px 8px;
-            background-color: #444;
-            color: #fff;
-            border: 1px solid #555;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.85em;
-            transition: all 0.3s ease;
-            white-space: nowrap;
-            flex: 1;
-            max-width: 100px;
-        }
-        .sub-tags {
-            display: flex;
-            gap: 5px;
-            transition: opacity 0.3s ease;
-        }
-        .sub-tags.show {
-            display: flex !important;
-            opacity: 1 !important;
-        }
-        .tag-button:hover {
-            background-color: #555;
-        }
-        .tag-button.active {
-            background-color: #4CAF50;
-            border-color: #45a049;
-        }
     </style>
 </head>
 <body>
@@ -204,37 +174,7 @@
         </script>
         <div id="profile-display"><span>Loading profile...</span></div>
 
-        <!-- Wallet Balance Display -->
-        <div id="wallet-balance" style="margin: 15px 0; padding: 10px; background-color: #282828; border-radius: 5px; border: 1px solid #444;">
-            <div style="display: flex; justify-content: space-around; gap: 10px;">
-                <div class="balance-item" style="text-align: center; flex: 1;">
-                    <div style="font-size: 0.9em; color: #aaa;">G1 Balance</div>
-                    <div id="g1-balance" style="font-size: 1.2em; color: #4CAF50; font-weight: bold;">0 G1</div>
-                </div>
-                <div class="balance-item" style="text-align: center; flex: 1;">
-                    <div style="font-size: 0.9em; color: #aaa;">Zen Balance</div>
-                    <div id="zen-balance" style="font-size: 1.2em; color: #2196F3; font-weight: bold;">0 ZEN</div>
-                </div>
-            </div>
-        </div>
         <button id="connectButton" disabled>Connect with Nostr</button>
-
-        <label for="message">Message:</label>
-        <textarea id="message" placeholder="..."></textarea>
-        <div id="tag-buttons" style="display: flex; gap: 5px; margin: 5px 0 15px 0; justify-content: center;">
-            <button type="button" class="tag-button main-tag" data-tag="#BRO">🤖 IA</button>
-            <div class="sub-tags" style="display: none; opacity: 0; transition: opacity 0.3s ease;">
-                <button type="button" class="tag-button" data-tag="#search">🔍 Search</button>
-                <button type="button" class="tag-button" data-tag="#market">💰 Market</button>
-            </div>
-        </div>
-        <label for="imageInput" class="button-like">📸 Photo</label>
-        <input type="file" id="imageInput" accept="image/*">
-        <img id="imagePreview" src="#" alt="Image Preview"/>
-        <button id="postButton" disabled>📍 Post</button>
-        <div class="spinner" id="loadingSpinner"></div>
-        <div id="status">Initializing...</div>
-
         <!-- Location Adjustment UI -->
         <div id="location-controls" style="margin-bottom: 15px; display: none;">
             <div id="location-values" style="display: flex; justify-content: space-around; background-color: #333; padding: 8px; border-radius: 5px; gap: 10px;">
@@ -272,6 +212,15 @@
             </div>
             <div id="location-status" style="font-size: 0.8em; text-align: center; margin-top: 5px; color: #aaa;">Fetching location...</div>
         </div>
+        <label for="message">Message:</label>
+        <textarea id="message" placeholder="..."></textarea>
+        <label for="imageInput" class="button-like">📸 Photo</label>
+        <input type="file" id="imageInput" accept="image/*">
+        <img id="imagePreview" src="#" alt="Image Preview"/>
+        <button id="postButton" disabled>📍 Post</button>
+        <div class="spinner" id="loadingSpinner"></div>
+        <div id="status">Initializing...</div>
+
         <!-- Message Section -->
         <div id="message-section">
             <!-- Navigation Buttons -->
@@ -322,200 +271,12 @@
         function updateStatus(message, isError = false, isSuccess = false) { log(`Status Update: ${message}`); const el = $('#status'); el.text(message); let bg = '#333', fg = '#ccc'; if (isError) { bg = '#5c3a3a'; fg = '#ff6b6b'; } else if (isSuccess) { bg = '#3a5c3a'; fg = '#90ee90'; } el.css({ 'background-color': bg, 'color': fg }); }
         function showLoading(show) { $('#loadingSpinner').toggle(show); $('#postButton').prop('disabled', show || !publicKey); }
         function getRelayURL() { const u = new URL(window.location.href); let r = u.hostname.replace(/^u\./, 'relay.'); if (u.port === '54321' || ['localhost', '127.0.0.1'].includes(u.hostname)) return `ws://127.0.0.1:7777`; return `wss://${r}`; }
-        function updateRelayListUI() { const l = $('#relay-list').empty(); if (allRelaysToPublish.length > 0) allRelaysToPublish.forEach(r => { const li = $('<li>').text(r); if (r === userProfile?.source) { li.prepend('📌 '); } li.appendTo(l); }); log(`UI updated: ${allRelaysToPublish.length} relays.`); }
-
-        // Function to check wallet balances
-        async function checkWalletBalances(g1Address, zenAddress) {
-            try {
-                if (g1Address) {
-                    const g1Response = await fetch(`/check_balance?address=${g1Address}&currency=G1`);
-                    const g1Data = await g1Response.json();
-                    $('#g1-balance').text(`${g1Data.balance} G1`);
-                }
-                
-                if (zenAddress) {
-                    const zenResponse = await fetch(`/check_balance?address=${zenAddress}&currency=ZEN`);
-                    const zenData = await zenResponse.json();
-                    $('#zen-balance').text(`${zenData.balance} ZEN`);
-                }
-            } catch (error) {
-                log(`Error checking balances: ${error.message}`);
-                $('#g1-balance').text('Error');
-                $('#zen-balance').text('Error');
-            }
-        }
+        function updateRelayListUI() { const l = $('#relay-list').empty(); if (allRelaysToPublish.length > 0) allRelaysToPublish.forEach(r => $('<li>').text(r).appendTo(l)); else $('<li>').text("No relays configured!").appendTo(l); log(`UI updated: ${allRelaysToPublish.length} relays.`); }
 
         // --- Nostr Interaction Functions ---
         function getNostrPool() { if (!pool) { if (typeof NostrTools?.SimplePool !== 'function') { const m = "Error: NostrTools.SimplePool undef/not func!"; log(m); console.error(m, "NostrTools:", NostrTools); updateStatus(m, true); throw new Error(m); } try { log("Init SimplePool..."); pool = new NostrTools.SimplePool({ getTimeout: 6000, listTimeout: 6000 }); if (typeof pool?.list !== 'function' || typeof pool?.get !== 'function') { log("Error: Pool missing methods."); console.error("Bad pool:", pool); pool = null; throw new Error("Pool invalid."); } log("Pool init OK."); } catch (e) { log(`Pool init error: ${e.message}`); console.error("Pool Init Details:", e); updateStatus("Fail pool init.", true); throw e; } } if (!pool) { const m = "Error: Pool null after init."; log(m); updateStatus("Relay pool N/A.", true); throw new Error(m); } return pool; }
-        async function fetchProfileAndRelays(pubkey) {
-            log(`Fetching profile/relays for ${pubkey.slice(0,10)}...`);
-            let nostrPool;
-            try {
-                nostrPool = getNostrPool();
-            } catch (e) {
-                log("Pool fail in fetchProfileRelays.");
-                return {};
-            }
-
-            let profileEv = null;
-            let relayEv = null;
-            let userRelays = [];
-            let userProfile = {};
-            let profileSource = '';
-
-            try {
-                // Fetch from each relay individually to track the source
-                for (const relay of DEFAULT_RELAYS) {
-                    try {
-                        const events = await nostrPool.list([relay], [
-                            { kinds: [0], authors: [pubkey], limit: 1 }
-                        ]);
-                        
-                        if (events.length > 0) {
-                            const event = events[0];
-                            if (!profileEv || event.created_at > profileEv.created_at) {
-                                profileEv = event;
-                                profileSource = relay;
-                                log(`Profile from relay: ${profileSource}`);
-                                
-                                // Extract additional fields from tags
-                                if (event.tags) {
-                                    event.tags.forEach(tag => {
-                                        if (tag[0] === 'i') {
-                                            const [type, value] = tag[1].split(':');
-                                            switch(type) {
-                                                case 'g1pub':
-                                                    userProfile.g1_address = value;
-                                                    log(`Found G1 address: ${value}`);
-                                                    break;
-                                                case 'zencard':
-                                                    userProfile.zen_address = value;
-                                                    log(`Found Zen address: ${value}`);
-                                                    break;
-                                                case 'github':
-                                                    userProfile.github = value;
-                                                    break;
-                                                case 'twitter':
-                                                    userProfile.twitter = value;
-                                                    break;
-                                                case 'mastodon':
-                                                    userProfile.mastodon = value;
-                                                    break;
-                                                case 'telegram':
-                                                    userProfile.telegram = value;
-                                                    break;
-                                                case 'ipfs_gw':
-                                                    userProfile.ipfs_gw = value;
-                                                    break;
-                                                case 'ipns_vault':
-                                                    userProfile.ipns_vault = value;
-                                                    break;
-                                                case 'tw_feed':
-                                                    userProfile.tw_feed = value;
-                                                    break;
-                                            }
-                                        }
-                                    });
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        log(`Error fetching from ${relay}: ${e.message}`);
-                    }
-                }
-
-                // Now fetch relay list
-                const relayEvents = await nostrPool.list(DEFAULT_RELAYS, [
-                    { kinds: [10002], authors: [pubkey], limit: 1 }
-                ]);
-
-                if (relayEvents.length > 0) {
-                    relayEv = relayEvents[0];
-                    log(`Relay list event: ${relayEv.id}`);
-                    userRelays = relayEv.tags
-                        .filter(t => t[0] === 'r' && typeof t[1] === 'string' && t[1].startsWith('wss://'))
-                        .map(t => t[1]);
-                    log(`Extracted ${userRelays.length} relays.`);
-                }
-
-                if (profileEv) {
-                    log(`Profile event: ${profileEv.id}`);
-                    try {
-                        const parsedContent = JSON.parse(profileEv.content);
-                        userProfile = { ...userProfile, ...parsedContent }; // Merge with existing profile data
-                        userProfile.source = profileSource; // Add source to profile data
-                        log(`Profile data: ${JSON.stringify(userProfile, null, 2)}`);
-                    } catch (e) {
-                        log(`Profile parse error: ${e.message}`);
-                        userProfile = {};
-                    }
-                }
-
-                const dyn = getRelayURL();
-                const comb = new Set([...DEFAULT_RELAYS, dyn, ...userRelays]);
-                allRelaysToPublish = [...comb];
-                updateRelayListUI();
-                
-                // Render profile first
-                renderProfile(pubkey, userProfile);
-                
-                // Then check wallet balances if addresses are available
-                if (userProfile.g1_address || userProfile.zen_address) {
-                    log("Checking wallet balances...");
-                    await checkWalletBalances(userProfile.g1_address, userProfile.zen_address);
-                }
-                
-                return userProfile;
-            } catch (e) {
-                log(`Error fetching profile/relays: ${e}`);
-                updateStatus('Error fetching profile/relay.', true);
-                return {};
-            }
-        }
-
-        function renderProfile(pubkey, profileData) {
-            const div = $('#profile-display').empty();
-            const defPic = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
-            const pic = profileData?.picture || defPic;
-            const name = profileData?.display_name || profileData?.name || pubkey.slice(0, 16);
-            const nip05 = profileData?.nip05 || '';
-            const source = profileData?.source || 'unknown';
-
-            $('<img>').attr('src', pic).on('error', function() {
-                $(this).attr('src', defPic);
-            }).appendTo(div);
-            const infoDiv = $('<div>').attr('id', 'profile-info').appendTo(div);
-            $('<span>').addClass('profile-name').text(name).appendTo(infoDiv);
-            if (nip05) $('<span>').addClass('profile-nip05').text(nip05).appendTo(infoDiv);
-            
-            // Add source information to debug section
-            const debugInfo = $('#debug-info');
-            if (debugInfo.length) {
-                const sourceInfo = $('<div>').css({
-                    'margin-top': '10px',
-                    'padding': '5px',
-                    'background-color': '#333',
-                    'border-radius': '3px',
-                    'font-size': '0.9em',
-                    'color': '#aaa'
-                });
-                
-                // Add profile source
-                sourceInfo.append($('<div>').text(`Profile source: ${source}`));
-                
-                // Add G1 address if available
-                if (profileData.g1_address) {
-                    sourceInfo.append($('<div>').text(`G1 address: ${profileData.g1_address}`));
-                }
-                
-                // Add Zen address if available
-                if (profileData.zen_address) {
-                    sourceInfo.append($('<div>').text(`Zen address: ${profileData.zen_address}`));
-                }
-                
-                debugInfo.prepend(sourceInfo);
-            }
-        }
+        async function fetchProfileAndRelays(pubkey) { log(`Fetching profile/relays for ${pubkey.slice(0,10)}...`); let nostrPool; try { nostrPool = getNostrPool(); } catch (e) { log("Pool fail in fetchProfileRelays."); return {}; } let profileEv = null, relayEv = null, userRelays = []; try { log("Pool obj before list:", nostrPool); console.dir(nostrPool); const evs = await nostrPool.list(DEFAULT_RELAYS, [{ kinds: [0], authors: [pubkey], limit: 1 }, { kinds: [10002], authors: [pubkey], limit: 1 }]); evs.forEach(e => { if (e.kind === 0 && (!profileEv || e.created_at > profileEv.created_at)) profileEv = e; if (e.kind === 10002 && (!relayEv || e.created_at > relayEv.created_at)) relayEv = e; }); if (profileEv) { log(`Profile ev: ${profileEv.id}`); try { userProfile = JSON.parse(profileEv.content); } catch (e) { log(`Profile parse err: ${e.message}`); userProfile = {}; } } else { log(`No profile ev.`); userProfile = {}; } if (relayEv) { log(`Relay list ev: ${relayEv.id}`); userRelays = relayEv.tags.filter(t => t[0] === 'r' && typeof t[1] === 'string' && t[1].startsWith('wss://')).map(t => t[1]); log(`Extracted ${userRelays.length} relays.`); } else log(`No relay list ev.`); } catch (e) { log(`Error fetching profile/relays: ${e}`); console.error("Fetch Profile/Relay Err:", e); updateStatus('Error fetch profile/relay.', true); userProfile = {}; } const dyn = getRelayURL(); const comb = new Set([...DEFAULT_RELAYS, dyn, ...userRelays]); allRelaysToPublish = [...comb]; updateRelayListUI(); renderProfile(pubkey, userProfile); return userProfile; }
+        function renderProfile(pubkey, profileData) { const div = $('#profile-display').empty(); const defPic = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'; const pic = profileData?.picture || defPic; const name = profileData?.display_name || profileData?.name || pubkey.slice(0, 16); const nip05 = profileData?.nip05 || ''; $('<img>').attr('src', pic).on('error', function() { $(this).attr('src', defPic); }).appendTo(div); const infoDiv = $('<div>').attr('id', 'profile-info').appendTo(div); $('<span>').addClass('profile-name').text(name).appendTo(infoDiv); if (nip05) $('<span>').addClass('profile-nip05').text(nip05).appendTo(infoDiv); }
 
         // --- Location UI Helper Functions ---
 
@@ -1013,49 +774,6 @@
 
         $(document).ready(function() {
             log('Document ready.');
-
-            // Add tag button click handlers
-            $('.tag-button').on('click', function() {
-                const tag = $(this).data('tag');
-                const textarea = $('#message');
-                const currentText = textarea.val();
-                
-                // Toggle the tag
-                if (currentText.includes(tag)) {
-                    // Remove the tag if it exists
-                    textarea.val(currentText.replace(tag + ' ', '').replace(' ' + tag, ''));
-                    $(this).removeClass('active');
-                    
-                    // If IA tag is removed, hide other tags
-                    if (tag === '#BRO') {
-                        $('.sub-tags').removeClass('show');
-                    }
-                } else {
-                    // Add the tag if it doesn't exist
-                    textarea.val(currentText + (currentText ? ' ' : '') + tag + ' ');
-                    $(this).addClass('active');
-                    
-                    // If IA tag is added, show other tags
-                    if (tag === '#BRO') {
-                        $('.sub-tags').addClass('show');
-                    }
-                }
-            });
-
-            // Check for existing tags when textarea changes
-            $('#message').on('input', function() {
-                const text = $(this).val();
-                $('.tag-button').each(function() {
-                    const tag = $(this).data('tag');
-                    const isActive = text.includes(tag);
-                    $(this).toggleClass('active', isActive);
-                    
-                    // Handle sub-tags visibility based on IA tag
-                    if (tag === '#BRO') {
-                        $('.sub-tags').toggleClass('show', isActive);
-                    }
-                });
-            });
 
             initializeLocationSelects();
 

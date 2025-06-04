@@ -636,6 +636,126 @@ async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
             status_code=500
         )
 
+@app.post("/register/{stall_id}")
+async def register_stall(stall_id: str, stall_data: dict):
+    try:
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/diagonalley.sh")
+        lat = stall_data.get("lat")
+        lon = stall_data.get("lon")
+        if not lat or not lon:
+            raise HTTPException(status_code=400, detail="Latitude and longitude are required")
+        return_code, last_line = await run_script(script_path, "register", stall_id, stall_data["stall_url"], lat, lon)
+        
+        if return_code == 0:
+            return JSONResponse(content=json.loads(last_line))
+        else:
+            raise HTTPException(status_code=500, detail="Failed to register stall")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/products/{stall_id}")
+async def get_products(stall_id: str, indexer_id: str, lat: float, lon: float):
+    try:
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/diagonalley.sh")
+        return_code, last_line = await run_script(script_path, "products", stall_id, indexer_id, str(lat), str(lon))
+        
+        if return_code == 0:
+            return JSONResponse(content=json.loads(last_line))
+        else:
+            raise HTTPException(status_code=500, detail="Failed to get products")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/order/{stall_id}")
+async def place_order(stall_id: str, order_data: dict):
+    try:
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/diagonalley.sh")
+        lat = order_data.get("lat")
+        lon = order_data.get("lon")
+        if not lat or not lon:
+            raise HTTPException(status_code=400, detail="Latitude and longitude are required")
+        return_code, last_line = await run_script(script_path, "order", stall_id, json.dumps(order_data), str(lat), str(lon))
+        
+        if return_code == 0:
+            return JSONResponse(content=json.loads(last_line))
+        else:
+            raise HTTPException(status_code=500, detail="Failed to place order")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/status/{checking_id}")
+async def check_order_status(checking_id: str, lat: float, lon: float):
+    try:
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/diagonalley.sh")
+        return_code, last_line = await run_script(script_path, "status", checking_id, str(lat), str(lon))
+        
+        if return_code == 0:
+            return JSONResponse(content=json.loads(last_line))
+        else:
+            raise HTTPException(status_code=500, detail="Failed to check order status")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/verify_signature")
+async def verify_signature(data: dict):
+    try:
+        message = data["message"]
+        signature = data["signature"]
+        stall_id = data["stall_id"]
+        
+        # Get stall's public key
+        stall_dir = os.path.expanduser(f"~/.zen/game/diagonalley/stalls/{stall_id}")
+        if not os.path.exists(stall_dir):
+            raise HTTPException(status_code=404, detail="Stall not found")
+            
+        # Verify signature
+        result = subprocess.run(
+            ["openssl", "dgst", "-verify", f"{stall_dir}/public.pem", "-signature", "/dev/stdin"],
+            input=base64.b64decode(signature),
+            capture_output=True,
+            text=True
+        )
+        
+        return {"valid": result.returncode == 0}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/check_umap")
+async def check_umap(g1pub: str, lat: float, lon: float):
+    try:
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/diagonalley.sh")
+        
+        # Get UMAP directory for coordinates
+        return_code, umap_dir = await run_script(script_path, "get_umap_dir", str(lat), str(lon))
+        
+        if return_code != 0:
+            raise HTTPException(status_code=404, detail="UMAP directory not found")
+            
+        # Read cache content
+        return_code, cache_content = await run_script(script_path, "read_cache", umap_dir.strip())
+        
+        if return_code != 0:
+            raise HTTPException(status_code=500, detail="Failed to read cache")
+            
+        try:
+            cache_data = json.loads(cache_content)
+        except json.JSONDecodeError:
+            cache_data = {}
+            
+        # Add registration status and UMAP ID
+        response_data = {
+            "registered": True,
+            "umap_id": g1pub,
+            "stalls": cache_data.get("stalls", []),
+            "cache_timestamp": cache_data.get("timestamp", None)
+        }
+        
+        return JSONResponse(content=response_data)
+        
+    except Exception as e:
+        logging.error(f"Error checking UMAP: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=54321)
