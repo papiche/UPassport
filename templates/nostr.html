@@ -388,6 +388,10 @@
                                                     userProfile.g1_address = value;
                                                     log(`Found G1 address: ${value}`);
                                                     break;
+                                                case 'g1pubv2':
+                                                    userProfile.g1_address_v2 = value;
+                                                    log(`Found G1 address v2: ${value}`);
+                                                    break;
                                                 case 'zencard':
                                                     userProfile.zen_address = value;
                                                     log(`Found Zen address: ${value}`);
@@ -460,9 +464,9 @@
                 renderProfile(pubkey, userProfile);
                 
                 // Then check wallet balances if addresses are available
-                if (userProfile.g1_address || userProfile.zen_address) {
-                    log("Checking wallet balances...");
-                    await checkWalletBalances(userProfile.g1_address, userProfile.zen_address);
+                if (userProfile.g1_address || userProfile.g1_address_v2) {
+                    log("Checking G1 wallet balances...");
+                    await checkG1Balances(userProfile);
                 }
                 
                 return userProfile;
@@ -470,6 +474,27 @@
                 log(`Error fetching profile/relays: ${e}`);
                 updateStatus('Error fetching profile/relay.', true);
                 return {};
+            }
+        }
+
+        // Fonction pour vérifier les soldes G1
+        async function checkG1Balances(profileData) {
+            try {
+                if (profileData.g1_address) {
+                    const response = await fetch(`/check_balance?g1pub=${profileData.g1_address}`);
+                    const data = await response.json();
+                    $('#g1-balance-v1').text(`${data.balance || '0'} G1`);
+                    $('#g1-balance').text(`${data.balance || '0'} G1`); // Update main balance display
+                }
+                if (profileData.g1_address_v2) {
+                    const response = await fetch(`/check_balance?g1pub=${profileData.g1_address_v2}`);
+                    const data = await response.json();
+                    $('#g1-balance-v2').text(`${data.balance || '0'} G1`);
+                }
+            } catch (error) {
+                log(`Error checking G1 balances: ${error.message}`);
+                $('#g1-balance-v1, #g1-balance-v2').text('Error loading balance');
+                $('#g1-balance').text('Error loading balance');
             }
         }
 
@@ -481,40 +506,113 @@
             const nip05 = profileData?.nip05 || '';
             const source = profileData?.source || 'unknown';
 
+            // Création de la structure du profil
+            const profileContainer = $('<div>').addClass('profile-container').appendTo(div);
+            
+            // Image et info de base
+            const basicInfo = $('<div>').addClass('profile-basic-info').appendTo(profileContainer);
             $('<img>').attr('src', pic).on('error', function() {
                 $(this).attr('src', defPic);
-            }).appendTo(div);
-            const infoDiv = $('<div>').attr('id', 'profile-info').appendTo(div);
+            }).appendTo(basicInfo);
+            
+            const infoDiv = $('<div>').addClass('profile-info').appendTo(basicInfo);
             $('<span>').addClass('profile-name').text(name).appendTo(infoDiv);
             if (nip05) $('<span>').addClass('profile-nip05').text(nip05).appendTo(infoDiv);
-            
-            // Add source information to debug section
-            const debugInfo = $('#debug-info');
-            if (debugInfo.length) {
-                const sourceInfo = $('<div>').css({
-                    'margin-top': '10px',
-                    'padding': '5px',
-                    'background-color': '#333',
-                    'border-radius': '3px',
-                    'font-size': '0.9em',
-                    'color': '#aaa'
-                });
+
+            // Section des portefeuilles G1
+            if (profileData.g1_address || profileData.g1_address_v2) {
+                const walletSection = $('<div>').addClass('wallet-section').appendTo(profileContainer);
+                const g1Wallet = $('<div>').addClass('wallet-info').appendTo(walletSection);
                 
-                // Add profile source
-                sourceInfo.append($('<div>').text(`Profile source: ${source}`));
+                $('<div>').addClass('wallet-label').text('G1 Wallets').appendTo(g1Wallet);
                 
-                // Add G1 address if available
                 if (profileData.g1_address) {
-                    sourceInfo.append($('<div>').text(`G1 address: ${profileData.g1_address}`));
+                    const v1Wallet = $('<div>').addClass('wallet-version').appendTo(g1Wallet);
+                    $('<div>').addClass('wallet-address')
+                        .text(`V1: ${profileData.g1_address}`)
+                        .appendTo(v1Wallet);
+                    $('<div>').addClass('wallet-balance')
+                        .html('<span class="balance-label">Balance:</span> <span id="g1-balance-v1" class="balance-amount">Loading...</span>')
+                        .appendTo(v1Wallet);
                 }
                 
-                // Add Zen address if available
-                if (profileData.zen_address) {
-                    sourceInfo.append($('<div>').text(`Zen address: ${profileData.zen_address}`));
+                if (profileData.g1_address_v2) {
+                    const v2Wallet = $('<div>').addClass('wallet-version').appendTo(g1Wallet);
+                    $('<div>').addClass('wallet-address')
+                        .text(`V2: ${profileData.g1_address_v2}`)
+                        .appendTo(v2Wallet);
+                    $('<div>').addClass('wallet-balance')
+                        .html('<span class="balance-label">Balance:</span> <span id="g1-balance-v2" class="balance-amount">Loading...</span>')
+                        .appendTo(v2Wallet);
                 }
-                
-                debugInfo.prepend(sourceInfo);
             }
+
+            // Ajout des styles CSS
+            $('<style>').text(`
+                .profile-container {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 15px;
+                    padding: 15px;
+                    background: #232733;
+                    border-radius: 8px;
+                }
+                .profile-basic-info {
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                }
+                .wallet-section {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                    margin-top: 10px;
+                }
+                .wallet-info {
+                    background: #1e2533;
+                    padding: 15px;
+                    border-radius: 6px;
+                }
+                .wallet-label {
+                    font-weight: bold;
+                    color: #4CAF50;
+                    margin-bottom: 10px;
+                    font-size: 1.1em;
+                }
+                .wallet-version {
+                    background: #2a2f3a;
+                    padding: 10px;
+                    border-radius: 4px;
+                    margin-bottom: 10px;
+                }
+                .wallet-address {
+                    font-family: monospace;
+                    font-size: 0.9em;
+                    color: #b8c6e0;
+                    word-break: break-all;
+                    margin: 5px 0;
+                }
+                .wallet-balance {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-top: 5px;
+                    padding-top: 5px;
+                    border-top: 1px solid #333;
+                }
+                .balance-label {
+                    color: #b8c6e0;
+                }
+                .balance-amount {
+                    color: #4CAF50;
+                    font-weight: bold;
+                }
+                #g1-balance, #zen-balance {
+                    font-size: 1.2em;
+                    font-weight: bold;
+                    color: #4CAF50;
+                }
+            `).appendTo('head');
         }
 
         // --- Location UI Helper Functions ---
