@@ -281,7 +281,7 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
         DISCO=$(cat "$tmp_player" "$tmp_tail" | ssss-combine -t 2 -q 2>&1 | tail -n 1)
         #~ echo "DISCO = $DISCO"
         IFS='=&' read -r s salt p pepper <<< "$DISCO"
-        if [[ -n $pepper ]]; then
+        if [[ -n $salt && -n $pepper ]]; then
             rm "$tmp_player" "$tmp_tail"
         else
             echo "ERROR : BAD DISCO DECODING"
