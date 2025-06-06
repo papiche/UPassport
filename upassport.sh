@@ -261,10 +261,6 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
         ## DISCO DECODING
         #################################################################
         ########################## DISCO 1-DECRYPTION
-        #~ # Decrypt the middle part using CAPTAIN key
-        #~ ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.mid.captain.enc" \
-                #~ -k ~/.zen/game/players/.current/secret.dunikey -o "$tmp_mid"
-        ## useless, we received player ssss part of the key
         tmp_player=$(mktemp)
         echo "$SSSS1" > "$tmp_player"
 

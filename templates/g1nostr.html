@@ -2,71 +2,188 @@
 <html>
 <head>
     <title>MULTIPASS DISCO Respawn</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f5f5f5;
+            font-family: 'Arial', sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
             margin: 0;
-            padding: 20px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            box-sizing: border-box;
         }
         .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            padding: 30px;
+            background-color: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+            box-sizing: border-box;
+        }
+        h1, h2 {
+            background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 1.8em;
+            text-align: center;
+            margin-bottom: 20px;
         }
         h2 {
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 30px;
+            font-size: 1.3em;
+            margin-bottom: 8px;
+            margin-top: 15px;
         }
+        
+        /* Map section styles */
+        .map-section {
+            margin-bottom: 20px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #333;
+        }
+        .map-header {
+            background-color: #383838;
+            padding: 15px;
+            border-bottom: 1px solid #555;
+        }
+        .map-header h3 {
+            margin: 0;
+            color: #e0e0e0;
+            font-size: 18px;
+        }
+        .map-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .coord-input {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .coord-input label {
+            font-weight: bold;
+            color: #cccccc;
+            margin: 0;
+            min-width: 30px;
+        }
+        .coord-input input {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-size: 14px;
+            background-color: #333;
+            color: #e0e0e0;
+        }
+        .coord-input input:focus {
+            border-color: #4CAF50;
+            outline: none;
+        }
+        .map-button {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s ease;
+        }
+        .map-button:hover {
+            background-color: #45a049;
+        }
+        .map-button.secondary {
+            background-color: #2196F3;
+        }
+        .map-button.secondary:hover {
+            background-color: #1976D2;
+        }
+        #map {
+            height: 300px;
+            width: 100%;
+        }
+        .map-info {
+            padding: 10px 15px;
+            background-color: #2a2a2a;
+            font-size: 14px;
+            color: #cccccc;
+        }
+        
         form {
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 8px;
         }
         label {
-            margin-bottom: 5px;
-            font-weight: 500;
-            color: #34495e;
+            display: block;
+            margin-bottom: 4px;
+            font-weight: bold;
+            color: #cccccc;
         }
         input[type="text"],
         input[type="password"] {
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 16px;
-            transition: border-color 0.3s;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 8px;
+            box-sizing: border-box;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background-color: #333;
+            color: #e0e0e0;
+            font-size: 1em;
         }
         input[type="text"]:focus,
         input[type="password"]:focus {
-            border-color: #007bff;
+            border-color: #4CAF50;
             outline: none;
         }
         input[type="submit"] {
-            padding: 12px;
-            background-color: #007bff;
+            display: block;
+            width: 100%;
+            padding: 12px 15px;
+            background-color: #4CAF50;
             color: white;
-            cursor: pointer;
             border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 500;
-            transition: background-color 0.3s;
-            margin-top: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            text-align: center;
+            margin-top: 15px;
+            margin-bottom: 10px;
+            transition: background-color 0.3s ease;
+            box-sizing: border-box;
         }
         input[type="submit"]:hover {
-            background-color: #0056b3;
+            background-color: #45a049;
+        }
+        input[type="submit"]:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+            opacity: 0.6;
         }
         .error {
-            color: #e74c3c;
+            color: #ff6b6b;
             margin-top: 15px;
             text-align: center;
             padding: 10px;
-            background-color: #fdecea;
-            border-radius: 6px;
+            background-color: #5c3a3a;
+            border-radius: 4px;
             display: none;
         }
 
@@ -80,10 +197,11 @@
             text-align: center;
         }
         .loader {
-            width: 50px;
-            height: 50px;
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #007bff;
+            width: 40px;
+            height: 40px;
+            margin: 20px auto;
+            border: 4px solid #555;
+            border-top: 4px solid #4CAF50;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin-bottom: 20px;
@@ -93,12 +211,12 @@
             100% { transform: rotate(360deg); }
         }
         .loader-text {
-            color: #7f8c8d;
+            color: #cccccc;
             font-size: 18px;
             margin-top: 10px;
         }
         .loader-subtext {
-            color: #95a5a6;
+            color: #aaa;
             font-size: 14px;
             margin-top: 5px;
         }
@@ -111,26 +229,26 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
+            background-color: rgba(0, 0, 0, 0.8);
             z-index: 1000;
             justify-content: center;
             align-items: center;
         }
         .modal-content {
-            background-color: white;
+            background-color: #2a2a2a;
             border-radius: 10px;
             width: 90%;
             max-width: 800px;
             max-height: 90vh;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
             overflow: hidden;
         }
         .modal-header {
             padding: 15px 20px;
-            background-color: #2c3e50;
-            color: white;
+            background-color: #383838;
+            color: #e0e0e0;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -142,10 +260,13 @@
         .modal-close {
             background: none;
             border: none;
-            color: white;
+            color: #e0e0e0;
             font-size: 24px;
             cursor: pointer;
             padding: 0 10px;
+        }
+        .modal-close:hover {
+            color: #ff6b6b;
         }
         .modal-body {
             flex: 1;
@@ -154,7 +275,7 @@
         }
         .modal-footer {
             padding: 15px;
-            background-color: #f8f9fa;
+            background-color: #383838;
             display: flex;
             justify-content: flex-end;
             gap: 10px;
@@ -168,42 +289,94 @@
             transition: all 0.2s;
         }
         .modal-button-primary {
-            background-color: #007bff;
+            background-color: #4CAF50;
             color: white;
         }
         .modal-button-primary:hover {
-            background-color: #0069d9;
+            background-color: #45a049;
         }
         .modal-button-secondary {
-            background-color: #6c757d;
+            background-color: #2196F3;
             color: white;
         }
         .modal-button-secondary:hover {
-            background-color: #5a6268;
+            background-color: #1976D2;
+        }
+
+        /* Link styles */
+        a {
+            color: #2196F3;
+            text-decoration: none;
+        }
+        a:hover {
+            color: #1976D2;
+            text-decoration: underline;
+        }
+
+        /* Warning banner styles */
+        .warning {
+            background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            color: #ffffff;
+            border: 1px solid #555;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
     </style>
 </head>
 <body>
 <center>
     <div class="container">
-    <p><a id="map-link" href="https://ipfs.copylaradio.com/ipns/copylaradio.com/map_render.html?southWestLat=0.00&southWestLon=0.00&deg=0.01" target="_blank">UMAP : <span id="display-lat">0.00</span> <span id="display-lon">0.00</span></a></p>
+        <!-- Warning Banner -->
+        <div class="warning">
+            🌐️ MULTIPASS DISCO Respawn 🌐
+        </div>
+
+        <!-- Map Section -->
+        <div class="map-section">
+            <div class="map-header">
+                <h3>📍 Localisation GPS</h3>
+                <div class="map-controls">
+                    <div class="coord-input">
+                        <label>Lat:</label>
+                        <input type="number" id="lat-display" step="0.01" min="-90" max="90">
+                    </div>
+                    <div class="coord-input">
+                        <label>Lon:</label>
+                        <input type="number" id="lon-display" step="0.01" min="-180" max="180">
+                    </div>
+                    <button type="button" class="map-button" id="update-map">Y aller</button>
+                    <button type="button" class="map-button secondary" id="get-location">Ma position</button>
+                    <p><a id="map-link" href="https://ipfs.copylaradio.com/ipns/copylaradio.com/map_render.html?southWestLat=0.00&southWestLon=0.00&deg=0.01" target="_blank">UMAP</a></p>
+                </div>
+            </div>
+            <div id="map"></div>
+            <div class="map-info">
+                💡 Cliquez sur la carte pour ajuster votre position.
+            </div>
+        </div>
+
         <form id="nostr-form" action="/g1nostr" method="post">
             <input type="hidden" id="lang" name="lang" value="fr">
             <input type="hidden" id="lat" name="lat" value="0.00">
             <input type="hidden" id="lon" name="lon" value="0.00">
-        <h2>Email</h2>
-
+        
+        <h2>📧 Email</h2>
             <label for="email">Email:</label>
             <input type="text" id="email" name="email" required>
-        <h2>DISCO </h2>
-
-            <label for="salt">Salt :</label>
+        
+        <h2>🔐 GCHANGE / CESIUM</h2>
+            <label for="salt">Login :</label>
             <input type="text" id="salt" name="salt">
 
-            <label for="pepper">Pepper :</label>
+            <label for="pepper">Password :</label>
             <input type="password" id="pepper" name="pepper">
 
-            <input type="submit" value="INSCRIPTION">
+            <input type="submit" value="📝 INSCRIPTION">
         </form>
         <div id="error-message" class="error"></div>
         <div id="geo-error" class="error"></div>
@@ -250,48 +423,140 @@
             const closeResultButton = document.getElementById('close-result');
             const modalCloseButton = document.getElementById('modal-close');
 
-            // Get geolocation
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    function(position) {
-                        // Round to 2 decimal places
-                        const lat = Math.round(position.coords.latitude * 100) / 100;
-                        const lon = Math.round(position.coords.longitude * 100) / 100;
+            // Map variables
+            let map;
+            let marker;
+            const latInput = document.getElementById('lat');
+            const lonInput = document.getElementById('lon');
+            const latDisplay = document.getElementById('lat-display');
+            const lonDisplay = document.getElementById('lon-display');
+            const updateMapButton = document.getElementById('update-map');
+            const getLocationButton = document.getElementById('get-location');
+            const mapLink = document.getElementById('map-link');
 
-                        document.getElementById('lat').value = lat.toFixed(2);
-                        document.getElementById('lon').value = lon.toFixed(2);
+            // Initialize map
+            function initializeMap(lat = 0, lon = 0) {
+                map = L.map('map').setView([lat, lon], 10);
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(map);
 
-                        // Mettre à jour l'affichage des coordonnées
-                        document.getElementById('display-lat').textContent = lat.toFixed(2);
-                        document.getElementById('display-lon').textContent = lon.toFixed(2);
+                // Add marker
+                marker = L.marker([lat, lon], {
+                    draggable: true
+                }).addTo(map);
 
-                        // Mettre à jour le lien de la carte
-                        const mapLink = document.getElementById('map-link');
-                        mapLink.href = `https://ipfs.copylaradio.com/ipns/copylaradio.com/map_render.html?southWestLat=${lat.toFixed(2)}&southWestLon=${lon.toFixed(2)}&deg=0.01`;
-                    },
-                    function(error) {
-                        let errorMessage;
-                        switch(error.code) {
-                            case error.PERMISSION_DENIED:
-                                errorMessage = "La géolocalisation a été refusée. Utilisation des coordonnées par défaut.";
-                                break;
-                            case error.POSITION_UNAVAILABLE:
-                                errorMessage = "Les informations de localisation ne sont pas disponibles. Utilisation des coordonnées par défaut.";
-                                break;
-                            case error.TIMEOUT:
-                                errorMessage = "La demande de géolocalisation a expiré. Utilisation des coordonnées par défaut.";
-                                break;
-                            default:
-                                errorMessage = "Une erreur inconnue s'est produite lors de la géolocalisation. Utilisation des coordonnées par défaut.";
-                        }
-                        geoErrorDiv.innerText = errorMessage;
-                        geoErrorDiv.style.display = 'block';
-                    }
-                );
-            } else {
-                geoErrorDiv.innerText = "La géolocalisation n'est pas supportée par votre navigateur. Utilisation des coordonnées par défaut.";
-                geoErrorDiv.style.display = 'block';
+                // Handle map click
+                map.on('click', function(e) {
+                    const clickedLat = Math.round(e.latlng.lat * 100) / 100;
+                    const clickedLon = Math.round(e.latlng.lng * 100) / 100;
+                    updateCoordinates(clickedLat, clickedLon);
+                });
+
+                // Handle marker drag
+                marker.on('dragend', function(e) {
+                    const markerLat = Math.round(e.target.getLatLng().lat * 100) / 100;
+                    const markerLon = Math.round(e.target.getLatLng().lng * 100) / 100;
+                    updateCoordinates(markerLat, markerLon);
+                });
             }
+
+            // Update coordinates in all places
+            function updateCoordinates(lat, lon) {
+                const roundedLat = Math.round(lat * 100) / 100;
+                const roundedLon = Math.round(lon * 100) / 100;
+
+                // Update form inputs
+                latInput.value = roundedLat.toFixed(2);
+                lonInput.value = roundedLon.toFixed(2);
+
+                // Update display inputs
+                latDisplay.value = roundedLat.toFixed(2);
+                lonDisplay.value = roundedLon.toFixed(2);
+
+                // Update marker position
+                if (marker) {
+                    marker.setLatLng([roundedLat, roundedLon]);
+                }
+
+                // Update map link
+                mapLink.href = `https://ipfs.copylaradio.com/ipns/copylaradio.com/map_render.html?southWestLat=${roundedLat.toFixed(2)}&southWestLon=${roundedLon.toFixed(2)}&deg=0.01`;
+            }
+
+            // Initialize map with default coordinates
+            initializeMap(0, 0);
+
+            // Handle manual coordinate input
+            updateMapButton.addEventListener('click', function() {
+                const lat = parseFloat(latDisplay.value) || 0;
+                const lon = parseFloat(lonDisplay.value) || 0;
+                
+                updateCoordinates(lat, lon);
+                map.setView([lat, lon], map.getZoom());
+            });
+
+            // Handle get current location
+            getLocationButton.addEventListener('click', function() {
+                getCurrentLocation();
+            });
+
+            // Also update display inputs when hidden inputs change
+            latInput.addEventListener('change', function() {
+                latDisplay.value = this.value;
+            });
+            lonInput.addEventListener('change', function() {
+                lonDisplay.value = this.value;
+            });
+
+            // Get geolocation function
+            function getCurrentLocation() {
+                if (navigator.geolocation) {
+                    getLocationButton.textContent = 'Localisation...';
+                    getLocationButton.disabled = true;
+                    
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            const lat = Math.round(position.coords.latitude * 100) / 100;
+                            const lon = Math.round(position.coords.longitude * 100) / 100;
+
+                            updateCoordinates(lat, lon);
+                            map.setView([lat, lon], 13);
+                            
+                            getLocationButton.textContent = 'Ma position';
+                            getLocationButton.disabled = false;
+                            geoErrorDiv.style.display = 'none';
+                        },
+                        function(error) {
+                            let errorMessage;
+                            switch(error.code) {
+                                case error.PERMISSION_DENIED:
+                                    errorMessage = "La géolocalisation a été refusée.";
+                                    break;
+                                case error.POSITION_UNAVAILABLE:
+                                    errorMessage = "Les informations de localisation ne sont pas disponibles.";
+                                    break;
+                                case error.TIMEOUT:
+                                    errorMessage = "La demande de géolocalisation a expiré.";
+                                    break;
+                                default:
+                                    errorMessage = "Une erreur inconnue s'est produite lors de la géolocalisation.";
+                            }
+                            geoErrorDiv.innerText = errorMessage;
+                            geoErrorDiv.style.display = 'block';
+                            
+                            getLocationButton.textContent = 'Ma position';
+                            getLocationButton.disabled = false;
+                        }
+                    );
+                } else {
+                    geoErrorDiv.innerText = "La géolocalisation n'est pas supportée par votre navigateur.";
+                    geoErrorDiv.style.display = 'block';
+                }
+            }
+
+            // Auto-get location on page load
+            getCurrentLocation();
 
             form.addEventListener('submit', function(event) {
                 event.preventDefault();

@@ -8,6 +8,14 @@
     <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/jquery-3.6.3.min.js"></script>
     <!-- Import nostr-tools (includes SimplePool) -->
     <script src="https://ipfs.copylaradio.com/ipfs/QmXEmaPRUaGcvhuyeG99mHHNyP43nn8GtNeuDok8jdpG4a/nostr.bundle.js"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
     <style>
         /* Basic styles */
         body { font-family: 'Arial', sans-serif; margin: 0; padding: 15px; background-color: #1a1a1a; color: #e0e0e0; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; }
@@ -110,6 +118,87 @@
         }
         #location-status {
              min-height: 1.1em; /* Prevent layout jump */
+             cursor: pointer;
+             padding: 8px;
+             border-radius: 4px;
+             transition: background-color 0.3s ease;
+        }
+        #location-status:hover {
+             background-color: #383838;
+        }
+
+        /* Map accordion styles */
+        .map-accordion {
+            margin-top: 10px;
+            border: 1px solid #444;
+            border-radius: 5px;
+            background-color: #333;
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height 0.3s ease;
+        }
+        .map-accordion.open {
+            max-height: 500px;
+        }
+        .map-accordion-content {
+            padding: 15px;
+        }
+        .map-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .coord-input {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .coord-input label {
+            font-weight: bold;
+            color: #cccccc;
+            margin: 0;
+            min-width: 30px;
+            font-size: 0.8em;
+        }
+        .coord-input input {
+            width: 70px;
+            padding: 6px;
+            border: 1px solid #555;
+            border-radius: 3px;
+            font-size: 0.85em;
+            background-color: #404040;
+            color: #e0e0e0;
+        }
+        .coord-input input:focus {
+            border-color: #4CAF50;
+            outline: none;
+        }
+        .map-button {
+            padding: 6px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: background-color 0.3s ease;
+        }
+        .map-button:hover {
+            background-color: #45a049;
+        }
+        .map-button.secondary {
+            background-color: #2196F3;
+        }
+        .map-button.secondary:hover {
+            background-color: #1976D2;
+        }
+        #mini-map {
+            height: 250px;
+            width: 100%;
+            border-radius: 4px;
+            border: 1px solid #555;
         }
 
         /* Ajout de media queries pour le responsive */
@@ -148,6 +237,16 @@
             .tumbler-dot {
                 font-size: 1em;
                 margin: 0 1px;
+            }
+
+            .map-controls {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+
+            .coord-input {
+                justify-content: center;
             }
         }
 
@@ -271,6 +370,28 @@
                 </div>
             </div>
             <div id="location-status" style="font-size: 0.8em; text-align: center; margin-top: 5px; color: #aaa;">Fetching location...</div>
+            
+            <!-- Map Accordion -->
+            <div id="map-accordion" class="map-accordion">
+                <div class="map-accordion-content">
+                    <div class="map-controls">
+                        <div class="coord-input">
+                            <label>Lat:</label>
+                            <input type="number" id="lat-display" step="0.01" min="-90" max="90">
+                        </div>
+                        <div class="coord-input">
+                            <label>Lon:</label>
+                            <input type="number" id="lon-display" step="0.01" min="-180" max="180">
+                        </div>
+                        <button type="button" class="map-button" id="update-map">Y aller</button>
+                        <button type="button" class="map-button secondary" id="get-location">Ma position</button>
+                    </div>
+                    <div id="mini-map"></div>
+                    <div style="padding: 8px 0; font-size: 0.8em; color: #aaa; text-align: center;">
+                        💡 Cliquez sur la carte pour ajuster votre position
+                    </div>
+                </div>
+            </div>
         </div>
         <!-- Message Section -->
         <div id="message-section">
@@ -1166,6 +1287,33 @@
             $('#connectButton').on('click', connectToNostr);
             $('#imageInput').on('change', handleImageSelection);
             $('#postButton').on('click', postNostrEvent);
+            
+            // Map accordion event listeners
+            $('#location-status').on('click', toggleMapAccordion);
+            $('#update-map').on('click', function() {
+                const lat = parseFloat($('#lat-display').val()) || 0;
+                const lon = parseFloat($('#lon-display').val()) || 0;
+                
+                updateCoordinatesFromMap(lat, lon);
+                if (miniMap) {
+                    miniMap.setView([lat, lon], miniMap.getZoom());
+                }
+            });
+            $('#get-location').on('click', getCurrentLocationForMap);
+            
+            // Sync display inputs with tumbler changes
+            $('#lat-display, #lon-display').on('change', function() {
+                const lat = parseFloat($('#lat-display').val()) || 0;
+                const lon = parseFloat($('#lon-display').val()) || 0;
+                
+                if (miniMarker) {
+                    miniMarker.setLatLng([lat, lon]);
+                }
+                if (miniMap) {
+                    miniMap.setView([lat, lon], miniMap.getZoom());
+                }
+            });
+
             $('#refresh-button').on('click', () => {
                 if (publicKey) {
                     log("Refresh button clicked.");
@@ -1176,6 +1324,7 @@
                     updateStatus("Please connect first.", true);
                 }
             });
+
             $('#older-button').on('click', () => {
                 log("Older button clicked.");
                 if (currentMessageIndex < fetchedMessages.length - 1) {
@@ -1202,6 +1351,139 @@
                 log("No NSEC configured. Initializing normally."); initializeApp();
             }
         });
+
+        // Map variables
+        let miniMap;
+        let miniMarker;
+
+        // Initialize mini map
+        function initializeMiniMap(lat = 0, lon = 0) {
+            if (miniMap) {
+                miniMap.remove();
+            }
+            
+            miniMap = L.map('mini-map').setView([lat, lon], 10);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(miniMap);
+
+            // Add marker
+            miniMarker = L.marker([lat, lon], {
+                draggable: true
+            }).addTo(miniMap);
+
+            // Handle map click
+            miniMap.on('click', function(e) {
+                const clickedLat = Math.round(e.latlng.lat * 100) / 100;
+                const clickedLon = Math.round(e.latlng.lng * 100) / 100;
+                updateCoordinatesFromMap(clickedLat, clickedLon);
+            });
+
+            // Handle marker drag
+            miniMarker.on('dragend', function(e) {
+                const markerLat = Math.round(e.target.getLatLng().lat * 100) / 100;
+                const markerLon = Math.round(e.target.getLatLng().lng * 100) / 100;
+                updateCoordinatesFromMap(markerLat, markerLon);
+            });
+        }
+
+        // Update coordinates from map to all UI elements
+        function updateCoordinatesFromMap(lat, lon) {
+            const roundedLat = Math.round(lat * 100) / 100;
+            const roundedLon = Math.round(lon * 100) / 100;
+
+            // Update display inputs in map
+            $('#lat-display').val(roundedLat.toFixed(2));
+            $('#lon-display').val(roundedLon.toFixed(2));
+
+            // Update marker position
+            if (miniMarker) {
+                miniMarker.setLatLng([roundedLat, roundedLon]);
+            }
+
+            // Update current coordinates
+            currentLatitude = roundedLat;
+            currentLongitude = roundedLon;
+
+            // Update location UI (tumblers)
+            updateLocationUI(roundedLat, roundedLon);
+
+            log(`Map coordinates updated: ${roundedLat.toFixed(2)}, ${roundedLon.toFixed(2)}`);
+        }
+
+        // Toggle map accordion
+        function toggleMapAccordion() {
+            const accordion = $('#map-accordion');
+            const isOpen = accordion.hasClass('open');
+            
+            if (isOpen) {
+                accordion.removeClass('open');
+                log('Map accordion closed');
+            } else {
+                accordion.addClass('open');
+                log('Map accordion opened');
+                
+                // Initialize map if not already done or refresh it
+                setTimeout(() => {
+                    const lat = currentLatitude || 0;
+                    const lon = currentLongitude || 0;
+                    initializeMiniMap(lat, lon);
+                    
+                    // Update display inputs
+                    $('#lat-display').val(lat.toFixed(2));
+                    $('#lon-display').val(lon.toFixed(2));
+                    
+                    // Refresh map size after accordion animation
+                    setTimeout(() => {
+                        if (miniMap) {
+                            miniMap.invalidateSize();
+                        }
+                    }, 350);
+                }, 50);
+            }
+        }
+
+        // Get current location for mini map
+        function getCurrentLocationForMap() {
+            if (navigator.geolocation) {
+                $('#get-location').text('Localisation...').prop('disabled', true);
+                
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = Math.round(position.coords.latitude * 100) / 100;
+                        const lon = Math.round(position.coords.longitude * 100) / 100;
+
+                        updateCoordinatesFromMap(lat, lon);
+                        if (miniMap) {
+                            miniMap.setView([lat, lon], 13);
+                        }
+                        
+                        $('#get-location').text('Ma position').prop('disabled', false);
+                    },
+                    function(error) {
+                        let errorMessage;
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage = "Géolocalisation refusée.";
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage = "Position indisponible.";
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage = "Délai dépassé.";
+                                break;
+                            default:
+                                errorMessage = "Erreur géolocalisation.";
+                        }
+                        log(`Geolocation error: ${errorMessage}`);
+                        $('#get-location').text('Ma position').prop('disabled', false);
+                    }
+                );
+            } else {
+                log("Geolocation not supported by browser");
+            }
+        }
     </script>
 </body>
 </html>
