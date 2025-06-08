@@ -280,7 +280,7 @@ def is_safe_filename(filename: str) -> bool:
 def sanitize_filename(filename: str) -> str:
     """Nettoyer le nom de fichier pour qu'il soit sécurisé"""
     # Remplacer les caractères dangereux par des underscores
-    dangerous_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
+    dangerous_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '#', '|']
     clean_name = filename
     for char in dangerous_chars:
         clean_name = clean_name.replace(char, '_')
