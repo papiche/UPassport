@@ -681,7 +681,7 @@ async def verify_nostr_auth(npub: Optional[str]) -> bool:
     
     return auth_result
 
-async def run_script(script_path, *args, log_file_path="./tmp/54321.log"):
+async def run_script(script_path, *args, log_file_path=os.path.expanduser("~/.zen/tmp/54321.log")):
     """
     Fonction générique pour exécuter des scripts shell avec gestion des logs
 
@@ -695,6 +695,20 @@ async def run_script(script_path, *args, log_file_path="./tmp/54321.log"):
     """
     logging.info(f"Running script: {script_path} with args: {args}")
 
+    # Ensure log directory exists
+    os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+    
+    # Ensure log file exists - create it if it doesn't exist
+    if not os.path.exists(log_file_path):
+        try:
+            # Create the log file with initial timestamp
+            with open(log_file_path, 'w') as f:
+                f.write(f"Log file created at {datetime.now().isoformat()}\n")
+            logging.info(f"Created log file: {log_file_path}")
+        except Exception as e:
+            logging.error(f"Failed to create log file {log_file_path}: {e}")
+            # Continue without failing - we'll try to open it anyway
+
     process = await asyncio.create_subprocess_exec(
         script_path, *args,
         stdout=asyncio.subprocess.PIPE,
@@ -702,12 +716,20 @@ async def run_script(script_path, *args, log_file_path="./tmp/54321.log"):
     )
 
     last_line = ""
-    async with aiofiles.open(log_file_path, "a") as log_file:
+    try:
+        async with aiofiles.open(log_file_path, "a") as log_file:
+            async for line in process.stdout:
+                line = line.decode().strip()
+                last_line = line
+                await log_file.write(line + "\n")
+                logging.info(f"Script output: {line}")
+    except Exception as e:
+        logging.error(f"Error writing to log file {log_file_path}: {e}")
+        # Continue processing even if logging fails
         async for line in process.stdout:
             line = line.decode().strip()
             last_line = line
-            await log_file.write(line + "\n")
-            logging.info(f"Script output: {line}")
+            logging.info(f"Script output (no log file): {line}")
 
     return_code = await process.wait()
     logging.info(f"Script finished with return code: {return_code}")
