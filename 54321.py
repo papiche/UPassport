@@ -844,9 +844,11 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
         local_part = email.split('@')[0]
         base_email = local_part.split('+')[0] + '@' + email.split('@')[1]
         node_info = local_part.split('+')[1]  # format: nodeid-suffix
+        node_id = node_info.split('-')[0]  # Extraire le node ID
         
         logging.info(f"   Base email: {base_email}")
         logging.info(f"   Node info: {node_info}")
+        logging.info(f"   Node ID: {node_id}")
         
         # Enregistrer la notification d'abonnement
         subscription_dir = os.path.expanduser(f"~/.zen/tmp/{os.environ.get('IPFSNODEID', 'unknown')}")
@@ -866,6 +868,7 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
             "subscription_email": email,
             "base_email": base_email,
             "node_info": node_info,
+            "node_id": node_id,
             "received_at": datetime.now().isoformat(),
             "lat": lat,
             "lon": lon,
@@ -880,6 +883,140 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
             json.dump(notifications, f, indent=2)
         
         logging.info(f"   Subscription notification saved to: {subscription_log}")
+        
+        #######################################################################
+        # Y LEVEL : Ajouter automatiquement la clé SSH du node distant
+        #######################################################################
+        
+        # Vérifier si on est en Y Level
+        y_level_files = [
+            os.path.expanduser("~/.zen/game/secret.dunikey"),
+            os.path.expanduser("~/.zen/game/secret.june")
+        ]
+        
+        is_y_level = any(os.path.exists(f) for f in y_level_files)
+        
+        if is_y_level:
+            logging.info(f"🔑 Y Level detected - Processing SSH key for node: {node_id}")
+            
+            # Chercher le fichier JSON du node distant
+            node_json_path = os.path.expanduser(f"~/.zen/tmp/swarm/{node_id}/12345.json")
+            
+            if os.path.exists(node_json_path):
+                try:
+                    with open(node_json_path, 'r') as f:
+                        node_data = json.load(f)
+                    
+                    ssh_pub_key = node_data.get('SSHPUB', '').strip()
+                    actual_node_id = node_data.get('ipfsnodeid', '').strip()
+                    captain_email = node_data.get('captain', '').strip()
+                    
+                    if ssh_pub_key and actual_node_id:
+                        logging.info(f"   Found SSH key: {ssh_pub_key[:50]}...")
+                        logging.info(f"   Node ID from JSON: {actual_node_id}")
+                        logging.info(f"   Captain: {captain_email}")
+                        
+                        # Vérifier que le node ID correspond
+                        if actual_node_id == node_id:
+                            # Vérifier la clé SSH avec ssh_to_g1ipfs.py
+                            try:
+                                ssh_to_g1_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/ssh_to_g1ipfs.py")
+                                if os.path.exists(ssh_to_g1_script):
+                                    result = subprocess.run(
+                                        ["python3", ssh_to_g1_script, ssh_pub_key],
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=10
+                                    )
+                                    
+                                    if result.returncode == 0:
+                                        computed_ipns = result.stdout.strip()
+                                        logging.info(f"   Computed IPNS: {computed_ipns}")
+                                        
+                                        if computed_ipns == actual_node_id:
+                                            logging.info(f"✅ SSH key verification successful for {node_id}")
+                                            
+                                            # Ajouter la clé SSH au fichier My_boostrap_ssh.txt
+                                            bootstrap_ssh_file = os.path.expanduser("~/.zen/game/My_boostrap_ssh.txt")
+                                            
+                                            # Créer le fichier s'il n'existe pas
+                                            if not os.path.exists(bootstrap_ssh_file):
+                                                with open(bootstrap_ssh_file, 'w') as f:
+                                                    f.write("# My Bootstrap SSH Keys\n")
+                                                    f.write("# Generated automatically by UPlanet swarm system\n\n")
+                                            
+                                            # Vérifier si la clé existe déjà
+                                            key_exists = False
+                                            try:
+                                                with open(bootstrap_ssh_file, 'r') as f:
+                                                    existing_content = f.read()
+                                                    if ssh_pub_key in existing_content:
+                                                        key_exists = True
+                                                        logging.info(f"   SSH key already exists in bootstrap file")
+                                            except Exception as e:
+                                                logging.warning(f"   Error reading bootstrap file: {e}")
+                                            
+                                            # Ajouter la clé si elle n'existe pas déjà
+                                            if not key_exists:
+                                                try:
+                                                    with open(bootstrap_ssh_file, 'a') as f:
+                                                        f.write(f"\n# Node: {node_id} - Captain: {captain_email}\n")
+                                                        f.write(f"# Added on: {datetime.now().isoformat()}\n")
+                                                        f.write(f"{ssh_pub_key}\n")
+                                                    
+                                                    logging.info(f"✅ SSH key added to: {bootstrap_ssh_file}")
+                                                    
+                                                    # Mettre à jour la notification avec le statut SSH
+                                                    new_notification["ssh_key_added"] = True
+                                                    new_notification["ssh_key"] = ssh_pub_key[:50] + "..."
+                                                    
+                                                except Exception as e:
+                                                    logging.error(f"❌ Error writing SSH key to bootstrap file: {e}")
+                                                    new_notification["ssh_key_error"] = str(e)
+                                            else:
+                                                new_notification["ssh_key_exists"] = True
+                                        else:
+                                            logging.warning(f"❌ SSH key verification failed: {computed_ipns} != {actual_node_id}")
+                                            new_notification["ssh_verification_failed"] = f"{computed_ipns} != {actual_node_id}"
+                                    else:
+                                        logging.error(f"❌ ssh_to_g1ipfs.py failed: {result.stderr}")
+                                        new_notification["ssh_script_error"] = result.stderr
+                                else:
+                                    logging.warning(f"❌ ssh_to_g1ipfs.py script not found: {ssh_to_g1_script}")
+                                    new_notification["ssh_script_missing"] = True
+                                    
+                            except subprocess.TimeoutExpired:
+                                logging.error(f"❌ SSH verification timeout for {node_id}")
+                                new_notification["ssh_verification_timeout"] = True
+                            except Exception as e:
+                                logging.error(f"❌ SSH verification error: {e}")
+                                new_notification["ssh_verification_error"] = str(e)
+                        else:
+                            logging.warning(f"❌ Node ID mismatch: expected {node_id}, got {actual_node_id}")
+                            new_notification["node_id_mismatch"] = f"expected {node_id}, got {actual_node_id}"
+                    else:
+                        logging.warning(f"❌ Missing SSH key or node ID in JSON for {node_id}")
+                        new_notification["missing_ssh_data"] = True
+                        
+                except json.JSONDecodeError as e:
+                    logging.error(f"❌ Invalid JSON in {node_json_path}: {e}")
+                    new_notification["json_parse_error"] = str(e)
+                except Exception as e:
+                    logging.error(f"❌ Error processing node JSON {node_json_path}: {e}")
+                    new_notification["json_processing_error"] = str(e)
+            else:
+                logging.warning(f"❌ Node JSON not found: {node_json_path}")
+                new_notification["node_json_missing"] = node_json_path
+        else:
+            logging.info(f"📝 Not Y Level - SSH key processing skipped")
+            new_notification["y_level"] = False
+        
+        # Mettre à jour la notification avec les informations SSH
+        notifications["received_subscriptions"][-1] = new_notification
+        
+        # Sauvegarder les notifications mises à jour
+        with open(subscription_log, 'w') as f:
+            json.dump(notifications, f, indent=2)
     
     script_path = "./g1.sh" # Make sure g1.sh is in the same directory or adjust path
     return_code, last_line = await run_script(script_path, email, lang, lat, lon, salt, pepper)
