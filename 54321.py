@@ -19,12 +19,12 @@ import subprocess
 import magic
 import time
 import hashlib
-import mimetypes
 import websockets
 import shutil
 from datetime import datetime, timezone
 from urllib.parse import unquote, urlparse, parse_qs
 from pathlib import Path
+import mimetypes
 
 # Obtenir le timestamp Unix actuel
 unix_timestamp = int(time.time())
@@ -831,13 +831,66 @@ async def get_root(request: Request):
 async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...), lat: str = Form(...), lon: str = Form(...), salt: str = Form(...), pepper: str = Form(...)):
     """
     Endpoint to execute the g1.sh script and return the generated file.
+    Supports both regular users and swarm subscription aliases.
     """
+    
+    # Détecter si c'est un email d'abonnement inter-node (contient un +)
+    is_swarm_subscription = '+' in email and '-' in email.split('@')[0]
+    
+    if is_swarm_subscription:
+        logging.info(f"🌐 Swarm subscription detected: {email}")
+        
+        # Extraire les informations de l'alias
+        local_part = email.split('@')[0]
+        base_email = local_part.split('+')[0] + '@' + email.split('@')[1]
+        node_info = local_part.split('+')[1]  # format: nodeid-suffix
+        
+        logging.info(f"   Base email: {base_email}")
+        logging.info(f"   Node info: {node_info}")
+        
+        # Enregistrer la notification d'abonnement
+        subscription_dir = os.path.expanduser(f"~/.zen/tmp/{os.environ.get('IPFSNODEID', 'unknown')}")
+        os.makedirs(subscription_dir, exist_ok=True)
+        
+        subscription_log = os.path.join(subscription_dir, "swarm_subscriptions_received.json")
+        
+        # Charger ou créer le fichier de notifications
+        if os.path.exists(subscription_log):
+            with open(subscription_log, 'r') as f:
+                notifications = json.load(f)
+        else:
+            notifications = {"received_subscriptions": []}
+        
+        # Ajouter la nouvelle notification
+        new_notification = {
+            "subscription_email": email,
+            "base_email": base_email,
+            "node_info": node_info,
+            "received_at": datetime.now().isoformat(),
+            "lat": lat,
+            "lon": lon,
+            "salt": salt[:10] + "...",  # Ne stocker que le début pour la sécurité
+            "status": "received"
+        }
+        
+        notifications["received_subscriptions"].append(new_notification)
+        
+        # Sauvegarder les notifications
+        with open(subscription_log, 'w') as f:
+            json.dump(notifications, f, indent=2)
+        
+        logging.info(f"   Subscription notification saved to: {subscription_log}")
+    
     script_path = "./g1.sh" # Make sure g1.sh is in the same directory or adjust path
     return_code, last_line = await run_script(script_path, email, lang, lat, lon, salt, pepper)
 
     if return_code == 0:
         returned_file_path = last_line.strip()
         logging.info(f"Returning file: {returned_file_path}")
+        
+        if is_swarm_subscription:
+            logging.info(f"✅ Swarm subscription processed successfully: {email}")
+        
         return FileResponse(returned_file_path)
     else:
         error_message = f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs. Script output: {last_line}"
