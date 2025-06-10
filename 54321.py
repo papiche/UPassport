@@ -481,7 +481,7 @@ def get_nostr_relay_url() -> str:
     port = "7777"  # Port strfry par défaut
     return f"ws://{host}:{port}"
 
-async def check_nip42_auth(npub: str, timeout: int = 10) -> bool:
+async def check_nip42_auth(npub: str, timeout: int = 5) -> bool:
     """Vérifier l'authentification NIP42 sur le relai NOSTR local"""
     if not npub:
         logging.warning("check_nip42_auth: npub manquante")
@@ -497,7 +497,7 @@ async def check_nip42_auth(npub: str, timeout: int = 10) -> bool:
     logging.info(f"Vérification NIP42 sur le relai: {relay_url} pour pubkey: {hex_pubkey}")
     
     try:
-        # Se connecter au relai WebSocket
+        # Se connecter au relai WebSocket avec timeout plus court
         async with websockets.connect(relay_url, timeout=timeout) as websocket:
             logging.info(f"Connecté au relai NOSTR: {relay_url}")
             
@@ -510,7 +510,7 @@ async def check_nip42_auth(npub: str, timeout: int = 10) -> bool:
                 "kinds": [22242],  # NIP42 auth events
                 "authors": [hex_pubkey],  # Événements de cette pubkey
                 "since": since_timestamp,  # Dans les dernières 24h
-                "limit": 10
+                "limit": 5  # Réduire la limite pour éviter trop de trafic
             }
             
             req_message = json.dumps(["REQ", subscription_id, auth_filter])
@@ -518,13 +518,13 @@ async def check_nip42_auth(npub: str, timeout: int = 10) -> bool:
             
             await websocket.send(req_message)
             
-            # Collecter les événements pendant quelques secondes
+            # Collecter les événements pendant un temps réduit
             events_found = []
             end_received = False
             
             try:
                 while not end_received:
-                    response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
+                    response = await asyncio.wait_for(websocket.recv(), timeout=3.0)  # Timeout réduit
                     parsed_response = json.loads(response)
                     
                     logging.info(f"Réponse reçue: {parsed_response[0] if parsed_response else 'Invalid'}")
@@ -550,9 +550,14 @@ async def check_nip42_auth(npub: str, timeout: int = 10) -> bool:
             except asyncio.TimeoutError:
                 logging.warning("Timeout lors de la réception des événements")
             
-            # Fermer la subscription
+            # Fermer la subscription proprement
+            try:
             close_message = json.dumps(["CLOSE", subscription_id])
             await websocket.send(close_message)
+                # Petit délai pour que le serveur traite la fermeture
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                logging.warning(f"Erreur lors de la fermeture de subscription: {e}")
             
             # Analyser les événements trouvés
             if not events_found:
@@ -1871,8 +1876,8 @@ def get_myipfs_gateway() -> str:
             logging.warning(f"Script my.sh non trouvé: {my_sh_path}")
             return "http://localhost:8080"  # Fallback
         
-        # Sourcer my.sh et récupérer la variable myIPFS
-        cmd = f"source {my_sh_path} && echo $myIPFS"
+        # Utiliser bash explicitement et sourcer my.sh pour récupérer myIPFS
+        cmd = f"bash -c 'source {my_sh_path} && echo $myIPFS'"
         
         result = subprocess.run(
             cmd,
