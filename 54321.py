@@ -1945,7 +1945,7 @@ async def update_nostr_profile_website(hex_pubkey: str, new_cid: str) -> bool:
         ]
         
         logging.info(f"Mise à jour du profil NOSTR: {website_url}")
-        logging.info(f"Commande: {' '.join(cmd[:-1])} --website [URL]")  # Ne pas logger la clé privée
+        logging.info(f"Commande: {' '.join(cmd[:-2])} --website [URL]")  # Ne pas logger la clé privée
         
         # Exécuter la commande
         result = subprocess.run(
