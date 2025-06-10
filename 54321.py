@@ -26,6 +26,7 @@ from urllib.parse import unquote, urlparse, parse_qs
 from pathlib import Path
 import mimetypes
 import sys
+import httpx
 
 # Obtenir le timestamp Unix actuel
 unix_timestamp = int(time.time())
@@ -159,6 +160,19 @@ class DeleteResponse(BaseModel):
     success: bool
     message: str
     deleted_file: str
+    new_cid: Optional[str] = None
+    timestamp: str
+    auth_verified: bool
+
+class UploadFromDriveRequest(BaseModel):
+    ipfs_link: str # Format attendu : QmHASH/filename.ext
+    npub: str
+
+class UploadFromDriveResponse(BaseModel):
+    success: bool
+    message: str
+    file_path: str
+    file_type: str
     new_cid: Optional[str] = None
     timestamp: str
     auth_verified: bool
@@ -1590,36 +1604,6 @@ async def upload_file(
         
         new_cid = ipfs_result.get("final_cid") if ipfs_result["success"] else None
         
-        # Mettre à jour le profil NOSTR avec le nouveau CID si disponible
-        nostr_update_success = False
-        if new_cid:
-            logging.info(f"Mise à jour du profil NOSTR avec le nouveau CID: {new_cid}")
-            try:
-                # Convertir npub en hex pour la fonction de mise à jour
-                hex_pubkey = npub_to_hex(npub)
-                if hex_pubkey:
-                    nostr_update_success = await update_nostr_profile_website(hex_pubkey, new_cid)
-                else:
-                    logging.warning("Impossible de convertir npub en hex pour la mise à jour NOSTR")
-            except Exception as e:
-                logging.error(f"Erreur lors de la mise à jour du profil NOSTR: {e}")
-        
-        response = UploadResponse(
-            success=True,
-            message=f"Fichier {clean_filename} uploadé avec succès dans {file_type_dir} (authentifié NOSTR)",
-            file_path=str(target_file_path.relative_to(base_dir)),
-            file_type=file_type_dir,
-            target_directory=file_type_dir,
-            new_cid=new_cid,
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            auth_verified=True  # Toujours True maintenant
-        )
-        
-        if nostr_update_success:
-            response.message += f" - Profil NOSTR mis à jour"
-        elif new_cid:
-            response.message += f" - Profil NOSTR non mis à jour (voir logs)"
-        
         logging.info(f"Upload authentifié terminé avec succès. Nouveau CID: {new_cid}")
         return response
         
@@ -1628,6 +1612,114 @@ async def upload_file(
     except Exception as e:
         logging.error(f"Erreur lors de l'upload authentifié: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de l'upload: {str(e)}")
+
+@app.post("/api/upload_from_drive", response_model=UploadFromDriveResponse)
+async def upload_from_drive(request: UploadFromDriveRequest):
+    """
+    Télécharge un fichier depuis un lien IPFS externe et l'ajoute au drive IPFS de l'utilisateur authentifié.
+    """
+    try:
+        # 1. Vérifier l'authentification NOSTR
+        if not request.npub or not request.npub.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="❌ Clé publique NOSTR (npub) obligatoire pour synchroniser les fichiers."
+            )
+
+        logging.info(f"Vérification NOSTR obligatoire pour sync drive - npub: {request.npub}")
+        auth_verified = await verify_nostr_auth(request.npub)
+
+        if not auth_verified:
+            logging.warning(f"❌ Authentification NOSTR échouée pour sync drive - npub: {request.npub}")
+            raise HTTPException(
+                status_code=401,
+                detail="❌ Authentification NOSTR échouée. Impossible de synchroniser le fichier."
+            )
+        else:
+            logging.info(f"✅ Authentification NOSTR réussie pour sync drive - npub: {request.npub}")
+
+        # 2. Obtenir le répertoire utilisateur cible
+        base_dir = get_authenticated_user_directory(request.npub)
+
+        # 3. Construire l'URL IPFS complète pour le téléchargement
+        # L'ipfs_link est déjà au format "QmHASH/filename.ext"
+        ipfs_gateway = get_myipfs_gateway() # Utilise la gateway locale par défaut ou celle de my.sh
+        download_url = f"{ipfs_gateway}/ipfs/{request.ipfs_link}"
+        
+        # Extraire le nom de fichier du chemin IPFS (le dernier segment)
+        filename = Path(request.ipfs_link).name
+        clean_filename = sanitize_filename(filename) # Sécuriser le nom
+
+        logging.info(f"Tentative de téléchargement du fichier pour sync: {download_url} -> {clean_filename}")
+
+        # 4. Télécharger le contenu du fichier depuis IPFS en utilisant httpx
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(download_url)
+                response.raise_for_status()  # Lève une exception pour les codes d'erreur HTTP
+                file_content = response.content
+        except httpx.HTTPStatusError as e:
+            logging.error(f"Erreur HTTP lors du téléchargement depuis IPFS: {e}")
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=f"Échec du téléchargement du fichier depuis IPFS: {e.response.status_code} - {e.response.text}"
+            )
+        except httpx.RequestError as e:
+            logging.error(f"Erreur de requête lors du téléchargement depuis IPFS: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Échec de la connexion à la passerelle IPFS: {e}"
+            )
+        except Exception as e:
+            logging.error(f"Erreur inattendue lors du téléchargement IPFS: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erreur lors du téléchargement du fichier depuis IPFS: {e}"
+            )
+
+        logging.info(f"Fichier téléchargé. Taille: {len(file_content)} bytes")
+
+        # 5. Détecter le type de fichier et le répertoire cible
+        file_type_dir = detect_file_type(file_content, clean_filename)
+        if not file_type_dir:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Type de fichier non supporté pour '{clean_filename}'. "
+                       f"Types supportés: Images, Music, Videos, Documents"
+            )
+
+        target_dir = base_dir / file_type_dir
+        target_dir.mkdir(exist_ok=True) # S'assurer que le répertoire cible existe
+
+        target_file_path = target_dir / clean_filename
+
+        # 6. Sauvegarder le fichier dans le drive de l'utilisateur
+        # Pour l'instant, écrase le fichier existant si un fichier avec le même nom existe.
+        with open(target_file_path, 'wb') as f:
+            f.write(file_content)
+
+        logging.info(f"Fichier sauvegardé dans le drive de l'utilisateur: {target_file_path}")
+
+        # 7. Régénérer la structure IPFS du drive de l'utilisateur
+        logging.info("Régénération de la structure IPFS du drive de l'utilisateur après synchronisation...")
+        ipfs_result = run_ipfs_generation_script(base_dir, enable_logging=False)
+        new_cid = ipfs_result.get("final_cid") if ipfs_result["success"] else None
+
+        return UploadFromDriveResponse(
+            success=True,
+            message=f"Fichier '{clean_filename}' synchronisé avec succès dans votre drive IPFS.",
+            file_path=str(target_file_path.relative_to(base_dir)),
+            file_type=file_type_dir,
+            new_cid=new_cid,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            auth_verified=True
+        )
+
+    except HTTPException:
+        raise # Relever l'exception FastAPI
+    except Exception as e:
+        logging.error(f"Erreur inattendue lors de la synchronisation de drive: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur interne lors de la synchronisation: {str(e)}")
 
 @app.post("/api/delete", response_model=DeleteResponse)
 async def delete_file(request: DeleteRequest):
@@ -1902,126 +1994,6 @@ def get_myipfs_gateway() -> str:
     except Exception as e:
         logging.error(f"Erreur lors de la récupération de myIPFS: {e}")
         return "http://localhost:8080"  # Fallback
-
-async def update_nostr_profile_website(hex_pubkey: str, new_cid: str) -> bool:
-    """Mettre à jour le profil NOSTR avec le nouveau CID IPFS"""
-    try:
-        # Récupérer la clé privée NOSTR de l'utilisateur
-        nsec = get_user_nostr_private_key(hex_pubkey)
-        if not nsec:
-            logging.warning(f"Impossible de récupérer la clé privée NOSTR pour {hex_pubkey}")
-            return False
-        
-        # Construire l'URL du site web avec le nouveau CID
-        myipfs_gateway = get_myipfs_gateway()
-        website_url = f"{myipfs_gateway}/ipfs/{new_cid}"
-        
-        logging.info(f"Next IPFS Drive URL: {website_url}")
-        # Déterminer les relais à utiliser
-        relays = ["ws://127.0.0.1:7777"]  # Relai local par défaut
-        
-        # Construire la commande pour mettre à jour le profil
-        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/nostr_update_profile.py")
-        
-        if not os.path.exists(script_path):
-            logging.error(f"Script nostr_update_profile.py non trouvé: {script_path}")
-            return False
-        
-        # Importer les fonctions nécessaires
-        sys.path.append(os.path.dirname(script_path))
-        try:
-            from nostr_update_profile import update_nostr_profile, nsec_to_hex, nsec_to_npub
-            import argparse
-        except ImportError as e:
-            logging.error(f"❌ Erreur lors de l'importation des fonctions: {e}")
-            return False
-        
-        # Vérifier la clé NSEC avant de continuer
-        try:
-            hex_privkey = nsec_to_hex(nsec)
-            if not hex_privkey:
-                logging.error("❌ Clé NSEC invalide")
-                return False
-            logging.info(f"✅ Clé privée hexadécimale valide: {hex_privkey[:8]}...")
-            
-            # Essayer d'abord avec secp256k1 si disponible
-            try:
-                import secp256k1
-                private_key = secp256k1.PrivateKey(bytes.fromhex(hex_privkey))
-                public_key = private_key.pubkey.serialize(compressed=False)[1:]  # Enlever le préfixe 0x04
-                hex_pubkey = public_key.hex()
-                logging.info(f"✅ Clé publique dérivée avec secp256k1: {hex_pubkey[:8]}...")
-                
-                # Convertir en npub
-                from bech32 import bech32_encode, convertbits
-                data = convertbits(bytes.fromhex(hex_pubkey), 8, 5)
-                npub = bech32_encode("npub", data)
-                if not npub:
-                    raise ValueError("Échec de l'encodage bech32")
-                logging.info(f"✅ NPUB généré: {npub}")
-                
-            except ImportError:
-                logging.info("Module secp256k1 non disponible, tentative avec nsec_to_npub...")
-                npub = nsec_to_npub(nsec)
-                if not npub:
-                    logging.error("❌ Impossible de dériver la clé publique avec nsec_to_npub")
-                    return False
-                logging.info(f"✅ NPUB généré avec nsec_to_npub: {npub}")
-            
-        except Exception as e:
-            logging.error(f"❌ Erreur lors de la validation des clés: {str(e)}")
-            import traceback
-            logging.error(f"Détails de l'erreur: {traceback.format_exc()}")
-            return False
-        
-        # Créer les arguments pour update_nostr_profile
-        args = argparse.Namespace(
-            private_key=nsec,
-            relays=relays,
-            website=website_url,
-            name=None,
-            about=None,
-            picture=None,
-            banner=None,
-            nip05=None,
-            g1pub=None,
-            github=None,
-            twitter=None,
-            mastodon=None,
-            telegram=None,
-            ipfs_gw=None,
-            ipns_vault=None,
-            zencard=None,
-            tw_feed=None
-        )
-        
-        logging.info(f"Mise à jour du profil NOSTR: {website_url}")
-        logging.info(f"Relais configurés: {', '.join(relays)}")
-        
-        # Exécuter la mise à jour du profil
-        try:
-            # Utiliser await directement car nous sommes déjà dans un contexte asynchrone
-            success = await update_nostr_profile(nsec, relays, args, [])
-            
-            if success:
-                logging.info(f"✅ Profil NOSTR mis à jour avec succès: {website_url}")
-                return True
-            else:
-                logging.error("❌ Échec de la mise à jour du profil NOSTR")
-                return False
-                
-        except Exception as e:
-            logging.error(f"❌ Erreur lors de la mise à jour du profil NOSTR: {str(e)}")
-            import traceback
-            logging.error(f"Détails de l'erreur: {traceback.format_exc()}")
-            return False
-            
-    except subprocess.TimeoutExpired:
-        logging.error("❌ Timeout lors de la mise à jour du profil NOSTR")
-        return False
-    except Exception as e:
-        logging.error(f"❌ Erreur lors de la mise à jour du profil NOSTR: {e}")
-        return False
 
 if __name__ == "__main__":
     import uvicorn
