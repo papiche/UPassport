@@ -552,8 +552,8 @@ async def check_nip42_auth(npub: str, timeout: int = 5) -> bool:
             
             # Fermer la subscription proprement
             try:
-            close_message = json.dumps(["CLOSE", subscription_id])
-            await websocket.send(close_message)
+                close_message = json.dumps(["CLOSE", subscription_id])
+                await websocket.send(close_message)
                 # Petit délai pour que le serveur traite la fermeture
                 await asyncio.sleep(0.1)
             except Exception as e:
