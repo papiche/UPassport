@@ -1961,8 +1961,8 @@ async def update_nostr_profile_website(hex_pubkey: str, new_cid: str) -> bool:
         
         # Exécuter la mise à jour du profil
         try:
-            import asyncio
-            success = asyncio.run(update_nostr_profile(nsec, relays, args, []))
+            # Utiliser await directement car nous sommes déjà dans un contexte asynchrone
+            success = await update_nostr_profile(nsec, relays, args, [])
             
             if success:
                 logging.info(f"✅ Profil NOSTR mis à jour avec succès: {website_url}")
