@@ -1944,14 +1944,34 @@ async def update_nostr_profile_website(hex_pubkey: str, new_cid: str) -> bool:
                 return False
             logging.info(f"✅ Clé privée hexadécimale valide: {hex_privkey[:8]}...")
             
-            npub = nsec_to_npub(nsec)
-            if not npub:
-                logging.error("❌ Impossible de dériver la clé publique")
-                return False
-            logging.info(f"✅ Clé publique dérivée: {npub}")
+            # Essayer d'abord avec secp256k1 si disponible
+            try:
+                import secp256k1
+                private_key = secp256k1.PrivateKey(bytes.fromhex(hex_privkey))
+                public_key = private_key.pubkey.serialize(compressed=False)[1:]  # Enlever le préfixe 0x04
+                hex_pubkey = public_key.hex()
+                logging.info(f"✅ Clé publique dérivée avec secp256k1: {hex_pubkey[:8]}...")
+                
+                # Convertir en npub
+                from bech32 import bech32_encode, convertbits
+                data = convertbits(bytes.fromhex(hex_pubkey), 8, 5)
+                npub = bech32_encode("npub", data)
+                if not npub:
+                    raise ValueError("Échec de l'encodage bech32")
+                logging.info(f"✅ NPUB généré: {npub}")
+                
+            except ImportError:
+                logging.info("Module secp256k1 non disponible, tentative avec nsec_to_npub...")
+                npub = nsec_to_npub(nsec)
+                if not npub:
+                    logging.error("❌ Impossible de dériver la clé publique avec nsec_to_npub")
+                    return False
+                logging.info(f"✅ NPUB généré avec nsec_to_npub: {npub}")
             
         except Exception as e:
             logging.error(f"❌ Erreur lors de la validation des clés: {str(e)}")
+            import traceback
+            logging.error(f"Détails de l'erreur: {traceback.format_exc()}")
             return False
         
         # Créer les arguments pour update_nostr_profile
