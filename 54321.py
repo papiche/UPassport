@@ -1930,10 +1930,28 @@ async def update_nostr_profile_website(hex_pubkey: str, new_cid: str) -> bool:
         # Importer les fonctions nécessaires
         sys.path.append(os.path.dirname(script_path))
         try:
-            from nostr_update_profile import update_nostr_profile
+            from nostr_update_profile import update_nostr_profile, nsec_to_hex, nsec_to_npub
             import argparse
         except ImportError as e:
             logging.error(f"❌ Erreur lors de l'importation des fonctions: {e}")
+            return False
+        
+        # Vérifier la clé NSEC avant de continuer
+        try:
+            hex_privkey = nsec_to_hex(nsec)
+            if not hex_privkey:
+                logging.error("❌ Clé NSEC invalide")
+                return False
+            logging.info(f"✅ Clé privée hexadécimale valide: {hex_privkey[:8]}...")
+            
+            npub = nsec_to_npub(nsec)
+            if not npub:
+                logging.error("❌ Impossible de dériver la clé publique")
+                return False
+            logging.info(f"✅ Clé publique dérivée: {npub}")
+            
+        except Exception as e:
+            logging.error(f"❌ Erreur lors de la validation des clés: {str(e)}")
             return False
         
         # Créer les arguments pour update_nostr_profile
@@ -1958,6 +1976,7 @@ async def update_nostr_profile_website(hex_pubkey: str, new_cid: str) -> bool:
         )
         
         logging.info(f"Mise à jour du profil NOSTR: {website_url}")
+        logging.info(f"Relais configurés: {', '.join(relays)}")
         
         # Exécuter la mise à jour du profil
         try:
@@ -1972,7 +1991,9 @@ async def update_nostr_profile_website(hex_pubkey: str, new_cid: str) -> bool:
                 return False
                 
         except Exception as e:
-            logging.error(f"❌ Erreur lors de la mise à jour du profil NOSTR: {e}")
+            logging.error(f"❌ Erreur lors de la mise à jour du profil NOSTR: {str(e)}")
+            import traceback
+            logging.error(f"Détails de l'erreur: {traceback.format_exc()}")
             return False
             
     except subprocess.TimeoutExpired:
