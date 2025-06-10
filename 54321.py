@@ -872,7 +872,7 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
             "received_at": datetime.now().isoformat(),
             "lat": lat,
             "lon": lon,
-            "salt": salt[:10] + "...",  # Ne stocker que le début pour la sécurité
+            "salt": hashlib.sha256(salt.encode()).hexdigest(),  # Stocker le hash pour la sécurité
             "status": "received"
         }
         
@@ -1589,6 +1589,20 @@ async def upload_file(
         
         new_cid = ipfs_result.get("final_cid") if ipfs_result["success"] else None
         
+        # Mettre à jour le profil NOSTR avec le nouveau CID si disponible
+        nostr_update_success = False
+        if new_cid:
+            logging.info(f"Mise à jour du profil NOSTR avec le nouveau CID: {new_cid}")
+            try:
+                # Convertir npub en hex pour la fonction de mise à jour
+                hex_pubkey = npub_to_hex(npub)
+                if hex_pubkey:
+                    nostr_update_success = await update_nostr_profile_website(hex_pubkey, new_cid)
+                else:
+                    logging.warning("Impossible de convertir npub en hex pour la mise à jour NOSTR")
+            except Exception as e:
+                logging.error(f"Erreur lors de la mise à jour du profil NOSTR: {e}")
+        
         response = UploadResponse(
             success=True,
             message=f"Fichier {clean_filename} uploadé avec succès dans {file_type_dir} (authentifié NOSTR)",
@@ -1599,6 +1613,11 @@ async def upload_file(
             timestamp=datetime.now(timezone.utc).isoformat(),
             auth_verified=True  # Toujours True maintenant
         )
+        
+        if nostr_update_success:
+            response.message += f" - Profil NOSTR mis à jour"
+        elif new_cid:
+            response.message += f" - Profil NOSTR non mis à jour (voir logs)"
         
         logging.info(f"Upload authentifié terminé avec succès. Nouveau CID: {new_cid}")
         return response
@@ -1844,6 +1863,143 @@ async def regenerate_ipfs_structure(request: IPFSRegenerateRequest):
     except Exception as e:
         logging.error(f"Erreur lors de la régénération IPFS: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de la régénération: {str(e)}")
+
+def get_user_nostr_private_key(hex_pubkey: str) -> Optional[str]:
+    """Récupérer la clé privée NOSTR de l'utilisateur depuis son répertoire"""
+    try:
+        # Trouver le répertoire utilisateur correspondant à la clé publique
+        user_dir = find_user_directory_by_hex(hex_pubkey)
+        
+        # Chercher le fichier contenant les clés NOSTR
+        secret_file = user_dir / ".secret.nostr"
+        
+        if secret_file.exists():
+            with open(secret_file, 'r') as f:
+                content = f.read().strip()
+            
+            # Parser le contenu pour extraire NSEC
+            # Format: NSEC=nsec1...; NPUB=npub1...; HEX=...;
+            for line in content.split(';'):
+                line = line.strip()
+                if line.startswith('NSEC='):
+                    nsec = line.replace('NSEC=', '').strip()
+                    logging.info(f"Clé privée NOSTR trouvée pour {hex_pubkey}")
+                    return nsec
+            
+            logging.warning(f"NSEC non trouvé dans {secret_file}")
+            return None
+        else:
+            logging.warning(f"Fichier .secret.nostr non trouvé: {secret_file}")
+            return None
+            
+    except Exception as e:
+        logging.error(f"Erreur lors de la récupération de la clé privée NOSTR: {e}")
+        return None
+
+def get_myipfs_gateway() -> str:
+    """Récupérer l'adresse de la gateway IPFS en utilisant my.sh"""
+    try:
+        # Exécuter le script my.sh pour obtenir la variable myIPFS
+        my_sh_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/my.sh")
+        
+        if not os.path.exists(my_sh_path):
+            logging.warning(f"Script my.sh non trouvé: {my_sh_path}")
+            return "http://localhost:8080"  # Fallback
+        
+        # Sourcer my.sh et récupérer la variable myIPFS
+        cmd = f"source {my_sh_path} && echo $myIPFS"
+        
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode == 0 and result.stdout.strip():
+            myipfs = result.stdout.strip()
+            logging.info(f"Gateway IPFS obtenue depuis my.sh: {myipfs}")
+            return myipfs
+        else:
+            logging.warning(f"Erreur lors de l'exécution de my.sh: {result.stderr}")
+            return "http://localhost:8080"  # Fallback
+            
+    except subprocess.TimeoutExpired:
+        logging.error("Timeout lors de l'exécution de my.sh")
+        return "http://localhost:8080"  # Fallback
+    except Exception as e:
+        logging.error(f"Erreur lors de la récupération de myIPFS: {e}")
+        return "http://localhost:8080"  # Fallback
+
+async def update_nostr_profile_website(hex_pubkey: str, new_cid: str) -> bool:
+    """Mettre à jour le profil NOSTR avec le nouveau CID IPFS"""
+    try:
+        # Récupérer la clé privée NOSTR de l'utilisateur
+        nsec = get_user_nostr_private_key(hex_pubkey)
+        if not nsec:
+            logging.warning(f"Impossible de récupérer la clé privée NOSTR pour {hex_pubkey}")
+            return False
+        
+        # Construire l'URL du site web avec le nouveau CID
+        myipfs_gateway = get_myipfs_gateway()
+        website_url = f"{myipfs_gateway}/ipfs/{new_cid}"
+        
+        # Déterminer les relais à utiliser
+        relays = ["ws://127.0.0.1:7777"]  # Relai local par défaut
+        
+        # Chercher d'autres relais dans la configuration utilisateur si disponible
+        try:
+            user_dir = find_user_directory_by_hex(hex_pubkey)
+            relays_file = user_dir / "RELAYS"
+            if relays_file.exists():
+                with open(relays_file, 'r') as f:
+                    additional_relays = [line.strip() for line in f if line.strip()]
+                    relays.extend(additional_relays)
+        except:
+            pass  # Utiliser juste le relai par défaut
+        
+        # Construire la commande pour mettre à jour le profil
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/nostr_update_profile.py")
+        
+        if not os.path.exists(script_path):
+            logging.error(f"Script nostr_update_profile.py non trouvé: {script_path}")
+            return False
+        
+        # Préparer la commande
+        cmd = [
+            "python3", script_path,
+            nsec,  # clé privée
+            *relays,  # liste des relais
+            "--website", website_url  # nouveau site web
+        ]
+        
+        logging.info(f"Mise à jour du profil NOSTR: {website_url}")
+        logging.info(f"Commande: {' '.join(cmd[:-1])} --website [URL]")  # Ne pas logger la clé privée
+        
+        # Exécuter la commande
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30  # 30 secondes timeout
+        )
+        
+        if result.returncode == 0:
+            logging.info(f"✅ Profil NOSTR mis à jour avec succès: {website_url}")
+            return True
+        else:
+            logging.error(f"❌ Erreur lors de la mise à jour du profil NOSTR:")
+            logging.error(f"   stdout: {result.stdout}")
+            logging.error(f"   stderr: {result.stderr}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        logging.error("❌ Timeout lors de la mise à jour du profil NOSTR")
+        return False
+    except Exception as e:
+        logging.error(f"❌ Erreur lors de la mise à jour du profil NOSTR: {e}")
+        return False
 
 if __name__ == "__main__":
     import uvicorn
