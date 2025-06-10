@@ -152,7 +152,6 @@ class UploadResponse(BaseModel):
 
 class DeleteRequest(BaseModel):
     file_path: str
-    source_dir: Optional[str] = None
     npub: str  # Authentification NOSTR obligatoire
 
 class DeleteResponse(BaseModel):
@@ -247,11 +246,8 @@ def find_user_directory_by_hex(hex_pubkey: str) -> Path:
                f"Vérifiez que l'utilisateur est enregistré dans ~/.zen/game/nostr/"
     )
 
-def get_authenticated_user_directory(npub: str, source_dir: Optional[str] = None) -> Path:
-    """Obtenir le répertoire APP de l'utilisateur authentifié basé sur sa clé publique"""
-    if source_dir:
-        # Si un source_dir est spécifié explicitement, l'utiliser
-        return get_source_directory(source_dir)
+def get_authenticated_user_directory(npub: str) -> Path:
+    """Obtenir le répertoire APP de l'utilisateur authentifié basé sur sa clé publique NOSTR uniquement"""
     
     # Convertir npub en hex
     hex_pubkey = npub_to_hex(npub)
@@ -268,7 +264,7 @@ def get_authenticated_user_directory(npub: str, source_dir: Optional[str] = None
     app_dir = user_root_dir / "APP"
     app_dir.mkdir(exist_ok=True)  # S'assurer que APP/ existe
     
-    logging.info(f"Répertoire APP utilisateur: {app_dir}")
+    logging.info(f"Répertoire APP utilisateur (sécurisé): {app_dir}")
     return app_dir
 
 def is_safe_filename(filename: str) -> bool:
@@ -1330,7 +1326,7 @@ async def get_webhook(request: Request):
 async def upload_form(request: Request):
     return templates.TemplateResponse("upload2ipfs.html", {"request": request})
 
-
+# Old NIP96 method, still used by coracle.copylaradio.com
 @app.post("/upload2ipfs")
 async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
     if not file:
@@ -1516,8 +1512,7 @@ async def check_umap(g1pub: str, lat: float, lon: float):
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
-    source_dir: Optional[str] = Form(None),
-    npub: str = Form(...)  # Maintenant obligatoire
+    npub: str = Form(...)  # Seule npub ou hex est acceptée
 ):
     """Upload un fichier avec authentification NOSTR obligatoire"""
     try:
@@ -1545,8 +1540,8 @@ async def upload_file(
         else:
             logging.info(f"✅ Authentification NOSTR réussie pour npub: {npub}")
         
-        # Obtenir le répertoire source basé sur la clé publique de l'utilisateur authentifié
-        base_dir = get_authenticated_user_directory(npub, source_dir)
+        # Obtenir le répertoire utilisateur basé UNIQUEMENT sur la clé publique NOSTR
+        base_dir = get_authenticated_user_directory(npub)
         
         # Lire le contenu du fichier
         file_content = await file.read()
@@ -1656,8 +1651,8 @@ async def delete_file(request: DeleteRequest):
         else:
             logging.info(f"✅ Authentification NOSTR réussie pour suppression - npub: {request.npub}")
         
-        # Obtenir le répertoire source
-        base_dir = get_authenticated_user_directory(request.npub, request.source_dir)
+        # Obtenir le répertoire source basé UNIQUEMENT sur la clé publique NOSTR
+        base_dir = get_authenticated_user_directory(request.npub)
         
         # Valider et nettoyer le chemin du fichier
         file_path = request.file_path.strip()
@@ -1833,36 +1828,6 @@ async def test_nostr_auth(npub: str):
     except Exception as e:
         logging.error(f"Erreur lors du test NOSTR: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors du test: {str(e)}")
-
-# Modèle pour la régénération IPFS
-class IPFSRegenerateRequest(BaseModel):
-    npub: str  # Clé publique NOSTR obligatoire pour trouver le répertoire utilisateur
-    source_dir: Optional[str] = None
-    enable_logging: Optional[bool] = False
-
-@app.post("/api/regenerate-ipfs")
-async def regenerate_ipfs_structure(request: IPFSRegenerateRequest):
-    """Régénérer la structure IPFS"""
-    try:
-        # Vérifier l'authentification NOSTR d'abord
-        auth_verified = await verify_nostr_auth(request.npub)
-        if not auth_verified:
-            raise HTTPException(
-                status_code=401,
-                detail="❌ Authentification NOSTR échouée. "
-                       "Vérifiez que vous êtes connecté au relai NOSTR."
-            )
-        
-        source_dir = get_authenticated_user_directory(request.npub, request.source_dir)
-        
-        logging.info(f"Régénération IPFS pour: {source_dir}")
-        result = run_ipfs_generation_script(source_dir, request.enable_logging)
-        
-        return result
-        
-    except Exception as e:
-        logging.error(f"Erreur lors de la régénération IPFS: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la régénération: {str(e)}")
 
 def get_user_nostr_private_key(hex_pubkey: str) -> Optional[str]:
     """Récupérer la clé privée NOSTR de l'utilisateur depuis son répertoire"""
