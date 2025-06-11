@@ -1604,7 +1604,18 @@ async def upload_file(
         new_cid = ipfs_result.get("final_cid") if ipfs_result["success"] else None
         
         logging.info(f"Upload authentifié terminé avec succès. Nouveau CID: {new_cid}")
-        return response
+        
+        # Return an instance of UploadResponse
+        return UploadResponse(
+            success=True,
+            message=f"Fichier '{clean_filename}' uploadé avec succès.",
+            file_path=str(target_file_path.relative_to(base_dir)),
+            file_type=file_type_dir,
+            target_directory=str(target_dir.relative_to(base_dir)),
+            new_cid=new_cid,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            auth_verified=auth_verified
+        )
         
     except HTTPException:
         raise
