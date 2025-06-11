@@ -26,7 +26,6 @@ from urllib.parse import unquote, urlparse, parse_qs
 from pathlib import Path
 import mimetypes
 import sys
-import httpx
 
 # Obtenir le timestamp Unix actuel
 unix_timestamp = int(time.time())
@@ -1641,46 +1640,14 @@ async def upload_from_drive(request: UploadFromDriveRequest):
         # 2. Obtenir le répertoire utilisateur cible
         base_dir = get_authenticated_user_directory(request.npub)
 
-        # 3. Construire l'URL IPFS complète pour le téléchargement
-        # L'ipfs_link est déjà au format "QmHASH/filename.ext"
-        ipfs_gateway = get_myipfs_gateway() # Utilise la gateway locale par défaut ou celle de my.sh
-        download_url = f"{ipfs_gateway}/ipfs/{request.ipfs_link}"
-        
         # Extraire le nom de fichier du chemin IPFS (le dernier segment)
         filename = Path(request.ipfs_link).name
         clean_filename = sanitize_filename(filename) # Sécuriser le nom
 
-        logging.info(f"Tentative de téléchargement du fichier pour sync: {download_url} -> {clean_filename}")
+        logging.info(f"Tentative de téléchargement du fichier pour sync: {request.ipfs_link} (via ipfs get) -> {clean_filename}")
 
-        # 4. Télécharger le contenu du fichier depuis IPFS en utilisant httpx
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(download_url)
-                response.raise_for_status()  # Lève une exception pour les codes d'erreur HTTP
-                file_content = response.content
-        except httpx.HTTPStatusError as e:
-            logging.error(f"Erreur HTTP lors du téléchargement depuis IPFS: {e}")
-            raise HTTPException(
-                status_code=e.response.status_code,
-                detail=f"Échec du téléchargement du fichier depuis IPFS: {e.response.status_code} - {e.response.text}"
-            )
-        except httpx.RequestError as e:
-            logging.error(f"Erreur de requête lors du téléchargement depuis IPFS: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Échec de la connexion à la passerelle IPFS: {e}"
-            )
-        except Exception as e:
-            logging.error(f"Erreur inattendue lors du téléchargement IPFS: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Erreur lors du téléchargement du fichier depuis IPFS: {e}"
-            )
-
-        logging.info(f"Fichier téléchargé. Taille: {len(file_content)} bytes")
-
-        # 5. Détecter le type de fichier et le répertoire cible
-        file_type_dir = detect_file_type(file_content, clean_filename)
+        # detect_file_type se basera sur l'extension du fichier.
+        file_type_dir = detect_file_type(None, clean_filename) # Pass None for file_content
         if not file_type_dir:
             raise HTTPException(
                 status_code=400,
@@ -1693,12 +1660,41 @@ async def upload_from_drive(request: UploadFromDriveRequest):
 
         target_file_path = target_dir / clean_filename
 
-        # 6. Sauvegarder le fichier dans le drive de l'utilisateur
-        # Pour l'instant, écrase le fichier existant si un fichier avec le même nom existe.
-        with open(target_file_path, 'wb') as f:
-            f.write(file_content)
+        # Télécharger le contenu du fichier depuis IPFS
+        try:
+            # The ipfs_link is already in the format QmHASH/filename.ext, which is perfect
+            # for `ipfs get`. We specify the exact output path.
+            command = ["ipfs", "get", request.ipfs_link, "-o", str(target_file_path)]
+            logging.info(f"Exécution de la commande IPFS get: {' '.join(command)}")
 
-        logging.info(f"Fichier sauvegardé dans le drive de l'utilisateur: {target_file_path}")
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+
+            stdout, stderr = await process.communicate()
+
+            if process.returncode != 0:
+                error_output = stderr.decode().strip()
+                logging.error(f"ipfs get a échoué pour {request.ipfs_link}. Stderr: {error_output}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Échec de l'obtention du fichier IPFS via 'ipfs get': {error_output}"
+                )
+
+            logging.info(f"Fichier obtenu via ipfs get et sauvegardé à: {target_file_path}")
+
+        except HTTPException:
+            raise # Re-raise FastAPI HTTPExceptions
+        except Exception as e:
+            logging.error(f"Erreur inattendue lors de l'exécution de 'ipfs get': {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erreur lors du téléchargement du fichier depuis IPFS: {e}"
+            )
+
+        logging.info(f"Fichier synchronisé et sauvegardé dans le drive de l'utilisateur: {target_file_path}")
 
         # 7. Régénérer la structure IPFS du drive de l'utilisateur
         logging.info("Régénération de la structure IPFS du drive de l'utilisateur après synchronisation...")
