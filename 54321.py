@@ -1631,7 +1631,7 @@ async def upload_file(
         logging.info(f"File '{sanitized_filename}' saved to '{target_file_path}' (Size: {file_size} bytes)")
 
         # Run IPFS generation script
-        script_output = await run_script("H2G2/generate_ipfs_structure.sh", str(user_drive_path))
+        script_output = await run_script("generate_ipfs_structure.sh", str(user_drive_path))
         new_cid_info = None
         if script_output and "FINAL_CID" in script_output:
             new_cid_info = script_output["FINAL_CID"]
