@@ -1217,7 +1217,7 @@ async def zen_send(request: Request):
         returned_file_path = last_line.strip()
         return FileResponse(returned_file_path)
     else:
-        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ./tmp/54321.log."}
+        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ~/.zen/tmp/54321.log."}
 
 ###################################################
 ######### REC / STOP - NODE OBS STUDIO -
@@ -1608,7 +1608,7 @@ async def upload_file(
     elif file_type == "video":
         target_directory_name = "Videos"
 
-    target_directory = user_drive_path / target_directory_name
+    target_directory = user_drive_path / "uDRIVE" / target_directory_name
     target_directory.mkdir(parents=True, exist_ok=True)
 
     # Construct the full path and perform crucial path validation
@@ -1616,7 +1616,7 @@ async def upload_file(
     # Ensure the resolved path is indeed within the user's drive directory
     target_file_path = (target_directory / sanitized_filename).resolve()
 
-    if not target_file_path.is_relative_to(user_drive_path):
+    if not target_file_path.is_relative_to(user_drive_path / "uDRIVE"):
         raise HTTPException(status_code=400, detail="Invalid file path operation: attempted to write outside user's directory.")
 
     try:
