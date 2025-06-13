@@ -1582,8 +1582,6 @@ async def upload_file(
 
     try:
         user_drive_path = get_authenticated_user_directory(npub)
-        # Assurez-vous que le répertoire principal de l'utilisateur existe
-        user_drive_path.mkdir(parents=True, exist_ok=True)
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -1608,7 +1606,7 @@ async def upload_file(
     elif file_type == "video":
         target_directory_name = "Videos"
 
-    target_directory = user_drive_path / "uDRIVE" / target_directory_name
+    target_directory = user_drive_path / target_directory_name
     target_directory.mkdir(parents=True, exist_ok=True)
 
     # Construct the full path and perform crucial path validation
@@ -1616,7 +1614,7 @@ async def upload_file(
     # Ensure the resolved path is indeed within the user's drive directory
     target_file_path = (target_directory / sanitized_filename).resolve()
 
-    if not target_file_path.is_relative_to(user_drive_path / "uDRIVE"):
+    if not target_file_path.is_relative_to(user_drive_path):
         raise HTTPException(status_code=400, detail="Invalid file path operation: attempted to write outside user's directory.")
 
     try:
@@ -1659,7 +1657,6 @@ async def upload_from_drive(request: UploadFromDriveRequest):
 
     try:
         user_drive_path = get_authenticated_user_directory(request.npub)
-        user_drive_path.mkdir(parents=True, exist_ok=True)
     except HTTPException as e:
         raise e
     except Exception as e:
