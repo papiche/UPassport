@@ -1628,12 +1628,11 @@ async def upload_file(
         file_size = target_file_path.stat().st_size
         logging.info(f"File '{sanitized_filename}' saved to '{target_file_path}' (Size: {file_size} bytes)")
 
-        # Run IPFS generation script
-        script_output = await run_script("generate_ipfs_structure.sh", str(user_drive_path))
-        new_cid_info = None
-        if script_output and "FINAL_CID" in script_output:
-            new_cid_info = script_output["FINAL_CID"]
-            logging.info(f"New IPFS CID generated: {new_cid_info}")
+        # CORRECTION : Appeler la fonction spécialisée run_ipfs_generation_script
+        # qui gère le changement de répertoire de travail (cwd) pour le script.
+        ipfs_result = await run_ipfs_generation_script(user_drive_path)
+        new_cid_info = ipfs_result.get("final_cid") # Accéder à "final_cid" depuis le dictionnaire de résultat
+        logging.info(f"New IPFS CID generated: {new_cid_info}")
 
         return UploadResponse(
             success=True,
@@ -1718,12 +1717,11 @@ async def upload_from_drive(request: UploadFromDriveRequest):
         file_size = target_file_path.stat().st_size
         logging.info(f"File '{sanitized_filename}' downloaded from IPFS and saved to '{target_file_path}' (Size: {file_size} bytes)")
 
-        # Run IPFS generation script to update manifest and get new CID
-        script_output = await run_script("./generate_ipfs_structure.sh", str(user_drive_path))
-        new_cid_info = None
-        if script_output and "FINAL_CID" in script_output:
-            new_cid_info = script_output["FINAL_CID"]
-            logging.info(f"New IPFS CID generated: {new_cid_info}")
+        # CORRECTION : Appeler la fonction spécialisée run_ipfs_generation_script
+        # qui gère le changement de répertoire de travail (cwd) pour le script.
+        ipfs_result = await run_ipfs_generation_script(user_drive_path)
+        new_cid_info = ipfs_result.get("final_cid") # Accéder à "final_cid" depuis le dictionnaire de résultat
+        logging.info(f"New IPFS CID generated: {new_cid_info}")
 
         return UploadFromDriveResponse(
             success=True,
