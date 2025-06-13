@@ -26,6 +26,7 @@ from urllib.parse import unquote, urlparse, parse_qs
 from pathlib import Path
 import mimetypes
 import sys
+import unicodedata
 
 # Obtenir le timestamp Unix actuel
 unix_timestamp = int(time.time())
@@ -231,8 +232,8 @@ def find_user_directory_by_hex(hex_pubkey: str) -> Path:
                     if stored_hex == hex_pubkey:
                         logging.info(f"✅ Répertoire trouvé pour {hex_pubkey}: {email_dir}")
                         
-                        # S'assurer que le répertoire APP existe
-                        app_dir = email_dir / "APP"
+                        # S'assurer que le répertoire APP/uDRIVE existe
+                        app_dir = email_dir / "APP/uDRIVE"
                         app_dir.mkdir(exist_ok=True)
                         
                         # Vérifier la présence du script IPFS et le copier si nécessaire
@@ -240,10 +241,9 @@ def find_user_directory_by_hex(hex_pubkey: str) -> Path:
                         if not user_script.exists():
                             generic_script = Path.home() / ".zen" / "Astroport.ONE" / "tools" / "generate_ipfs_structure.sh"
                             if generic_script.exists():
-                                shutil.copy2(generic_script, user_script)
-                                # Rendre le script exécutable
-                                user_script.chmod(0o755)
-                                logging.info(f"Script IPFS copié vers {user_script}")
+                                # Créer un lien symbolique
+                                user_script.symlink_to(generic_script)
+                                logging.info(f"Lien symbolique créé vers {user_script}")
                             else:
                                 logging.warning(f"Script générique non trouvé dans {generic_script}")
                         
@@ -302,124 +302,167 @@ def sanitize_filename(filename: str) -> str:
     return clean_name
 
 def detect_file_type(file_content: bytes, filename: str) -> str:
-    """Détecter le type de fichier et retourner le répertoire cible"""
-    try:
-        # Essayer de détecter via python-magic (plus fiable)
-        mime_type = magic.from_buffer(file_content, mime=True)
-        logging.info(f"MIME type détecté via magic: {mime_type} pour {filename}")
-        
-        if mime_type in FILE_TYPE_MAPPING:
-            return FILE_TYPE_MAPPING[mime_type]
-    except Exception as e:
-        logging.warning(f"Erreur lors de la détection MIME via magic: {e}")
-    
-    # Fallback: utiliser mimetypes basé sur l'extension
-    mime_type, _ = mimetypes.guess_type(filename)
-    if mime_type and mime_type in FILE_TYPE_MAPPING:
-        logging.info(f"MIME type détecté via mimetypes: {mime_type} pour {filename}")
-        return FILE_TYPE_MAPPING[mime_type]
-    
-    # Fallback final: utiliser l'extension directement
-    file_ext = Path(filename).suffix.lower()
-    if file_ext in EXTENSION_MAPPING:
-        logging.info(f"Type détecté via extension: {file_ext} pour {filename}")
-        return EXTENSION_MAPPING[file_ext]
-    
-    # Type non supporté
-    logging.warning(f"Type de fichier non supporté: {filename} (MIME: {mime_type}, Extension: {file_ext})")
-    return None
+    """
+    Détecte le type de fichier basé sur le contenu ou l'extension.
+    Note: Pour les détections basées sur le contenu, le contenu doit être non vide.
+    """
+    # Détection par extension en premier
+    ext = filename.split('.')[-1].lower()
 
-def run_ipfs_generation_script(source_dir: Path, enable_logging: bool = False) -> Dict[str, Any]:
-    """Exécuter le script de génération IPFS spécifique à l'utilisateur"""
-    # Si source_dir est déjà le répertoire APP, l'utiliser directement
-    # Sinon, chercher le sous-répertoire APP
-    if source_dir.name == "APP":
-        app_dir = source_dir
-        user_root_dir = source_dir.parent
+    # Types de base par extension
+    if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff']:
+        return "image"
+    elif ext in ['mp4', 'avi', 'mov', 'webm', 'wmv', 'flv', 'mkv', 'm4v']:
+        return "video"
+    elif ext in ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma']:
+        return "audio"
+    elif ext in ['html', 'htm']:
+        return "html"
+    elif ext in ['js', 'mjs']:
+        return "javascript"
+    elif ext in ['css']:
+        return "stylesheet"
+    elif ext in ['json']:
+        return "json"
+    elif ext in ['txt', 'md', 'rst', 'log', 'conf', 'ini', 'cfg', 'yaml', 'yml']:
+        return "text"
+    elif ext in ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']:
+        return "document"
+    elif ext in ['zip', 'tar', 'gz', '7z', 'rar']:
+        return "archive"
+    elif ext in ['py', 'sh', 'bash', 'pl', 'rb', 'php', 'c', 'cpp', 'java', 'go', 'rs']:
+        return "script"
     else:
-        app_dir = source_dir / "APP"
-        user_root_dir = source_dir
+        return "file"
+
+def sanitize_filename_python(filename: str) -> str:
+    """
+    Sanitizes a filename to prevent directory traversal and invalid characters.
+    """
+    # Remove null bytes
+    filename = filename.replace('\0', '')
+
+    # Normalize unicode characters to their closest ASCII equivalents and remove non-ASCII
+    # This helps prevent issues with different file systems and encoding attacks.
+    filename = unicodedata.normalize('NFKD', filename).encode('ascii', 'ignore').decode('utf-8')
+
+    # Remove/replace directory traversal attempts by removing '..' and '.' path segments
+    # This specifically targets malicious path components.
+    filename = str(Path(filename).name) # Get just the filename, stripping any path components
+
+    # Replace invalid characters with an underscore
+    # Common invalid characters on Windows: < > : " / \ | ? *
+    # Linux/macOS typically only restrict / and null byte.
+    # We'll be conservative and replace common problematic characters.
+    invalid_chars_re = re.compile(r'[<>:"/\\|?*\x00]')
+    filename = invalid_chars_re.sub('_', filename)
+
+    # Ensure filename is not empty after sanitization
+    if not filename:
+        return "unnamed_file" # Or raise an error, depending on desired strictness
+
+    # Limit filename length if desired (optional but good practice)
+    # Windows max path length is 260, max filename is 255.
+    # Linux typically 255 bytes for a component.
+    filename = filename[:250] # Leave some buffer for potential extensions/prefixes
+
+    return filename
+
+async def run_ipfs_generation_script(source_dir: Path, enable_logging: bool = False) -> Dict[str, Any]:
+    """Exécuter le script de génération IPFS spécifique à l'utilisateur dans le répertoire de son uDRIVE."""
+    
+    # source_dir est déjà le chemin complet vers APP/uDRIVE
+    app_udrive_path = source_dir 
         
-    script_path = app_dir / "generate_ipfs_structure.sh"
+    script_path = app_udrive_path / "generate_ipfs_structure.sh"
     
-    # Créer le répertoire APP s'il n'existe pas
-    app_dir.mkdir(exist_ok=True)
+    # Créer le répertoire APP/uDRIVE s'il n'existe pas (par sécurité, devrait déjà être fait)
+    app_udrive_path.mkdir(parents=True, exist_ok=True)
     
-    if not script_path.exists():
-        # Copier le script générique vers le répertoire APP de l'utilisateur
+    if not script_path.exists() or not script_path.is_symlink():
         generic_script_path = Path.home() / ".zen" / "Astroport.ONE" / "tools" / "generate_ipfs_structure.sh"
         
         if generic_script_path.exists():
-            shutil.copy2(generic_script_path, script_path)
-            # Rendre le script exécutable
-            script_path.chmod(0o755)
-            logging.info(f"Script IPFS copié de {generic_script_path} vers {script_path}")
+            # Supprimer un fichier existant si ce n'est pas un lien symbolique valide
+            if script_path.exists():
+                script_path.unlink() # Supprime le fichier ou lien cassé
+                logging.warning(f"Fichier existant non symlinké ou cassé supprimé: {script_path}")
+
+            # Créer un lien symbolique. Nous ne copions plus.
+            script_path.symlink_to(generic_script_path)
+            logging.info(f"Lien symbolique créé vers {script_path}")
         else:
             # Fallback vers le script générique du SCRIPT_DIR si pas trouvé dans Astroport.ONE
             fallback_script_path = SCRIPT_DIR / "generate_ipfs_structure.sh"
             if fallback_script_path.exists():
-                shutil.copy2(fallback_script_path, script_path)
-                script_path.chmod(0o755)
-                logging.info(f"Script IPFS copié (fallback) de {fallback_script_path} vers {script_path}")
+                if script_path.exists():
+                    script_path.unlink() # Supprime le fichier ou lien cassé
+                    logging.warning(f"Fichier existant non symlinké ou cassé supprimé: {script_path} (fallback)")
+                script_path.symlink_to(fallback_script_path)
+                logging.info(f"Lien symbolique créé (fallback) de {fallback_script_path} vers {script_path}")
             else:
                 raise HTTPException(
                     status_code=500, 
                     detail=f"Script generate_ipfs_structure.sh non trouvé dans {generic_script_path} ni dans {fallback_script_path}"
                 )
     else:
-        logging.info(f"Utilisation du script utilisateur existant: {script_path}")
+        logging.info(f"Utilisation du script utilisateur existant (lien symbolique): {script_path}")
     
+    # S'assurer que le script cible du lien symbolique est exécutable
+    if not os.access(script_path.resolve(), os.X_OK):
+        # Tenter de rendre exécutable le script cible
+        try:
+            os.chmod(script_path.resolve(), 0o755)
+            logging.info(f"Rendu exécutable le script cible: {script_path.resolve()}")
+        except Exception as e:
+            logging.error(f"Impossible de rendre exécutable le script cible {script_path.resolve()}: {e}")
+            raise HTTPException(status_code=500, detail=f"Script IPFS non exécutable: {e}")
+
     # Construire la commande
     cmd = [str(script_path)]
     if enable_logging:
         cmd.append("--log")
     
-    # Si nous sommes dans APP/, traiter le répertoire APP lui-même
-    # Si nous sommes dans le répertoire racine utilisateur, traiter le répertoire parent depuis APP/
-    if source_dir.name == "APP":
-        cmd.append(".")  # Traiter le répertoire APP actuel
-    else:
-        cmd.append(".")  # Le script s'exécute depuis APP/ et traite le répertoire parent
+    # L'argument pour le script shell doit être le répertoire actuel (.),
+    # car le script sera exécuté avec cwd=app_udrive_path
+    cmd.append(".") 
     
     try:
-        # Exécuter le script dans le répertoire APP de l'utilisateur
-        working_directory = app_dir
-        
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            cwd=str(working_directory),
-            timeout=300  # 5 minutes timeout
+        # La fonction run_script elle-même doit s'assurer que cwd est défini sur app_udrive_path
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=app_udrive_path, # S'assurer que cwd est le répertoire uDRIVE
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
         )
-        
-        if result.returncode == 0:
+        stdout, stderr = await process.communicate()
+        return_code = process.returncode
+
+        if return_code == 0:
             # Le CID final est sur la dernière ligne de stdout
-            final_cid = result.stdout.strip().split('\n')[-1] if result.stdout.strip() else None
+            final_cid = stdout.decode().strip().split('\n')[-1] if stdout.strip() else None
             
-            logging.info(f"Script IPFS exécuté avec succès depuis {working_directory}")
+            logging.info(f"Script IPFS exécuté avec succès depuis {app_udrive_path}")
             logging.info(f"Nouveau CID généré: {final_cid}")
             logging.info(f"Répertoire traité: {source_dir}")
             
             return {
                 "success": True,
                 "final_cid": final_cid,
-                "stdout": result.stdout if enable_logging else None,
-                "stderr": result.stderr if result.stderr else None,
+                "stdout": stdout.decode() if enable_logging else None,
+                "stderr": stderr.decode() if stderr.strip() else None,
                 "script_used": str(script_path),
-                "working_directory": str(working_directory),
+                "working_directory": str(app_udrive_path),
                 "processed_directory": str(source_dir)
             }
         else:
-            logging.error(f"Script failed with return code {result.returncode}")
-            logging.error(f"Stderr: {result.stderr}")
+            logging.error(f"Script failed with return code {return_code}")
+            logging.error(f"Stderr: {stderr.decode()}")
             raise HTTPException(
                 status_code=500, 
-                detail=f"Erreur lors de l'exécution du script: {result.stderr}"
+                detail=f"Erreur lors de l'exécution du script: {stderr.decode()}"
             )
             
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=408, detail="Timeout lors de l'exécution du script")
     except Exception as e:
         logging.error(f"Exception lors de l'exécution du script: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
@@ -1533,200 +1576,170 @@ async def upload_file(
     file: UploadFile = File(...),
     npub: str = Form(...)  # Seule npub ou hex est acceptée
 ):
-    """Upload un fichier avec authentification NOSTR obligatoire"""
+    auth_verified = await verify_nostr_auth(npub)
+    if not auth_verified:
+        raise HTTPException(status_code=403, detail="Nostr authentication failed or not provided.")
+
     try:
-        # Vérifier que la npub est fournie
-        if not npub or not npub.strip():
-            raise HTTPException(
-                status_code=400, 
-                detail="❌ Clé publique NOSTR (npub) obligatoire pour l'upload. "
-                       "Connectez-vous à NOSTR dans l'interface et réessayez."
-            )
-        
-        # Vérifier l'authentification NOSTR (maintenant obligatoire)
-        logging.info(f"Vérification NOSTR obligatoire pour npub: {npub}")
-        auth_verified = await verify_nostr_auth(npub)
-        
-        if not auth_verified:
-            logging.warning(f"❌ Authentification NOSTR échouée pour npub: {npub}")
-            raise HTTPException(
-                status_code=401,
-                detail="❌ Authentification NOSTR échouée. "
-                       "Vérifiez que vous êtes connecté au relai NOSTR et que votre "
-                       "événement d'authentification NIP42 est récent (moins de 24h). "
-                       f"Clé publique: {npub}"
-            )
-        else:
-            logging.info(f"✅ Authentification NOSTR réussie pour npub: {npub}")
-        
-        # Obtenir le répertoire utilisateur basé UNIQUEMENT sur la clé publique NOSTR
-        base_dir = get_authenticated_user_directory(npub)
-        
-        # Lire le contenu du fichier
-        file_content = await file.read()
-        
-        # Nettoyer le nom de fichier
-        clean_filename = sanitize_filename(file.filename)
-        
-        logging.info(f"Upload authentifié du fichier: {file.filename} -> {clean_filename}")
-        logging.info(f"Taille: {len(file_content)} bytes")
-        logging.info(f"Type MIME déclaré: {file.content_type}")
-        logging.info(f"NOSTR npub: {npub}")
-        logging.info(f"Authentification NOSTR: ✅ Vérifiée et obligatoire")
-        
-        # Détecter le type de fichier
-        file_type_dir = detect_file_type(file_content, clean_filename)
-        
-        if not file_type_dir:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Type de fichier non supporté: {clean_filename}. "
-                       f"Types supportés: Images, Music, Videos, Documents"
-            )
-        
-        # Créer le répertoire cible s'il n'existe pas
-        target_dir = base_dir / file_type_dir
-        target_dir.mkdir(exist_ok=True)
-        
-        # Déterminer le chemin de fichier final
-        target_file_path = target_dir / clean_filename
-        
-        # Sauvegarder le fichier (écrase si existant)
-        with open(target_file_path, 'wb') as f:
-            f.write(file_content)
-        
-        logging.info(f"Fichier sauvegardé avec authentification: {target_file_path}")
-        
-        # Régénérer la structure IPFS
-        logging.info("Régénération de la structure IPFS...")
-        ipfs_result = run_ipfs_generation_script(base_dir, enable_logging=False)
-        
-        new_cid = ipfs_result.get("final_cid") if ipfs_result["success"] else None
-        
-        logging.info(f"Upload authentifié terminé avec succès. Nouveau CID: {new_cid}")
-        
-        # Return an instance of UploadResponse
+        user_drive_path = get_authenticated_user_directory(npub)
+        # Assurez-vous que le répertoire principal de l'utilisateur existe
+        user_drive_path.mkdir(parents=True, exist_ok=True)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error determining user directory: {e}")
+
+    # Sanitize the original filename provided by the client
+    original_filename = file.filename if file.filename else "untitled_file"
+    sanitized_filename = sanitize_filename_python(original_filename)
+
+    # Determine target directory based on file type
+    # Read a small chunk to detect type, then reset stream position
+    file_content_sample = await file.read(1024)
+    await file.seek(0) # Reset stream for full file saving
+
+    file_type = detect_file_type(file_content_sample, sanitized_filename)
+
+    target_directory_name = "Documents" # Default
+    if file_type == "image":
+        target_directory_name = "Images"
+    elif file_type == "audio":
+        target_directory_name = "Music"
+    elif file_type == "video":
+        target_directory_name = "Videos"
+
+    target_directory = user_drive_path / target_directory_name
+    target_directory.mkdir(parents=True, exist_ok=True)
+
+    # Construct the full path and perform crucial path validation
+    # Use .resolve() to get the absolute, normalized path without symlinks
+    # Ensure the resolved path is indeed within the user's drive directory
+    target_file_path = (target_directory / sanitized_filename).resolve()
+
+    if not target_file_path.is_relative_to(user_drive_path):
+        raise HTTPException(status_code=400, detail="Invalid file path operation: attempted to write outside user's directory.")
+
+    try:
+        with open(target_file_path, "wb") as buffer:
+            # Read the file in chunks to handle large files efficiently
+            while True:
+                chunk = await file.read(1024 * 1024)  # Read 1MB chunks
+                if not chunk:
+                    break
+                buffer.write(chunk)
+        file_size = target_file_path.stat().st_size
+        logging.info(f"File '{sanitized_filename}' saved to '{target_file_path}' (Size: {file_size} bytes)")
+
+        # Run IPFS generation script
+        script_output = await run_script("H2G2/generate_ipfs_structure.sh", str(user_drive_path))
+        new_cid_info = None
+        if script_output and "FINAL_CID" in script_output:
+            new_cid_info = script_output["FINAL_CID"]
+            logging.info(f"New IPFS CID generated: {new_cid_info}")
+
         return UploadResponse(
             success=True,
-            message=f"Fichier '{clean_filename}' uploadé avec succès.",
-            file_path=str(target_file_path.relative_to(base_dir)),
-            file_type=file_type_dir,
-            target_directory=str(target_dir.relative_to(base_dir)),
-            new_cid=new_cid,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            message="File uploaded successfully",
+            file_path=str(target_file_path.relative_to(user_drive_path)),
+            file_type=file_type,
+            target_directory=target_directory_name,
+            new_cid=new_cid_info,
+            timestamp=datetime.now().isoformat(),
             auth_verified=auth_verified
         )
-        
-    except HTTPException:
-        raise
     except Exception as e:
-        logging.error(f"Erreur lors de l'upload authentifié: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors de l'upload: {str(e)}")
+        logging.error(f"Error saving file or running IPFS script: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process file: {e}")
 
 @app.post("/api/upload_from_drive", response_model=UploadFromDriveResponse)
 async def upload_from_drive(request: UploadFromDriveRequest):
-    """
-    Télécharge un fichier depuis un lien IPFS externe et l'ajoute au drive IPFS de l'utilisateur authentifié.
-    """
+    auth_verified = await verify_nostr_auth(request.npub)
+    if not auth_verified:
+        raise HTTPException(status_code=403, detail="Nostr authentication failed or not provided.")
+
     try:
-        # 1. Vérifier l'authentification NOSTR
-        if not request.npub or not request.npub.strip():
-            raise HTTPException(
-                status_code=400,
-                detail="❌ Clé publique NOSTR (npub) obligatoire pour synchroniser les fichiers."
-            )
+        user_drive_path = get_authenticated_user_directory(request.npub)
+        user_drive_path.mkdir(parents=True, exist_ok=True)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error determining user directory: {e}")
 
-        logging.info(f"Vérification NOSTR obligatoire pour sync drive - npub: {request.npub}")
-        auth_verified = await verify_nostr_auth(request.npub)
+    # Extract filename from ipfs_link (e.g., "QmHASH/filename.ext" or just "filename.ext")
+    # We take the last component to handle cases where the link includes a path
+    parts = request.ipfs_link.split('/')
+    extracted_filename = parts[-1] if parts else "downloaded_file"
 
-        if not auth_verified:
-            logging.warning(f"❌ Authentification NOSTR échouée pour sync drive - npub: {request.npub}")
-            raise HTTPException(
-                status_code=401,
-                detail="❌ Authentification NOSTR échouée. Impossible de synchroniser le fichier."
-            )
-        else:
-            logging.info(f"✅ Authentification NOSTR réussie pour sync drive - npub: {request.npub}")
+    sanitized_filename = sanitize_filename_python(extracted_filename)
 
-        # 2. Obtenir le répertoire utilisateur cible
-        base_dir = get_authenticated_user_directory(request.npub)
+    # Determine target directory (e.g., from file extension)
+    # We pass an empty bytes string for content as we don't have it yet,
+    # so type detection will rely solely on the filename extension.
+    file_type = detect_file_type(b'', sanitized_filename)
 
-        # Extraire le nom de fichier du chemin IPFS (le dernier segment)
-        filename = Path(request.ipfs_link).name
-        clean_filename = sanitize_filename(filename) # Sécuriser le nom
+    target_directory_name = "Documents" # Default
+    if file_type == "image":
+        target_directory_name = "Images"
+    elif file_type == "audio":
+        target_directory_name = "Music"
+    elif file_type == "video":
+        target_directory_name = "Videos"
 
-        logging.info(f"Tentative de téléchargement du fichier pour sync: {request.ipfs_link} (via ipfs get) -> {clean_filename}")
+    target_directory = user_drive_path / target_directory_name
+    target_directory.mkdir(parents=True, exist_ok=True)
 
-        # detect_file_type se basera sur l'extension du fichier.
-        file_type_dir = detect_file_type(None, clean_filename) # Pass None for file_content
-        if not file_type_dir:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Type de fichier non supporté pour '{clean_filename}'. "
-                       f"Types supportés: Images, Music, Videos, Documents"
-            )
+    # Construct the full path and perform crucial path validation
+    # Use .resolve() to get the absolute, normalized path without symlinks
+    # Ensure the resolved path is indeed within the user's drive directory
+    target_file_path = (target_directory / sanitized_filename).resolve()
 
-        target_dir = base_dir / file_type_dir
-        target_dir.mkdir(exist_ok=True) # S'assurer que le répertoire cible existe
+    if not target_file_path.is_relative_to(user_drive_path):
+        raise HTTPException(status_code=400, detail="Invalid file path operation: attempted to write outside user's directory.")
 
-        target_file_path = target_dir / clean_filename
+    # --- IMPORTANT: Placeholder for IPFS download logic ---
+    # This part assumes you have `ipfs` CLI installed on your server (thanks to Astroport.ONE)
+    try:
+        full_ipfs_url = f"/ipfs/{request.ipfs_link}" # Construct full IPFS path for `ipfs get` if needed
+        logging.info(f"Attempting to download IPFS link: {full_ipfs_url} to {target_file_path}")
 
-        # Télécharger le contenu du fichier depuis IPFS
-        try:
-            # The ipfs_link is already in the format QmHASH/filename.ext, which is perfect
-            # for `ipfs get`. We specify the exact output path.
-            command = ["ipfs", "get", request.ipfs_link, "-o", str(target_file_path)]
-            logging.info(f"Exécution de la commande IPFS get: {' '.join(command)}")
+        # Execute `ipfs get` command to download the file
+        # -o: specify output file path
+        # Note: This is a blocking call, use an asynchronous IPFS client for production.
+        ipfs_get_command = ["ipfs", "get", "-o", str(target_file_path), full_ipfs_url]
+        process = await asyncio.create_subprocess_exec(
+            *ipfs_get_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
 
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
+        if process.returncode != 0:
+            error_message = stderr.decode().strip()
+            logging.error(f"IPFS download failed for {full_ipfs_url}: {error_message}")
+            raise Exception(f"IPFS download failed: {error_message}")
 
-            stdout, stderr = await process.communicate()
+        file_size = target_file_path.stat().st_size
+        logging.info(f"File '{sanitized_filename}' downloaded from IPFS and saved to '{target_file_path}' (Size: {file_size} bytes)")
 
-            if process.returncode != 0:
-                error_output = stderr.decode().strip()
-                logging.error(f"ipfs get a échoué pour {request.ipfs_link}. Stderr: {error_output}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Échec de l'obtention du fichier IPFS via 'ipfs get': {error_output}"
-                )
-
-            logging.info(f"Fichier obtenu via ipfs get et sauvegardé à: {target_file_path}")
-
-        except HTTPException:
-            raise # Re-raise FastAPI HTTPExceptions
-        except Exception as e:
-            logging.error(f"Erreur inattendue lors de l'exécution de 'ipfs get': {e}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Erreur lors du téléchargement du fichier depuis IPFS: {e}"
-            )
-
-        logging.info(f"Fichier synchronisé et sauvegardé dans le drive de l'utilisateur: {target_file_path}")
-
-        # 7. Régénérer la structure IPFS du drive de l'utilisateur
-        logging.info("Régénération de la structure IPFS du drive de l'utilisateur après synchronisation...")
-        ipfs_result = run_ipfs_generation_script(base_dir, enable_logging=False)
-        new_cid = ipfs_result.get("final_cid") if ipfs_result["success"] else None
+        # Run IPFS generation script to update manifest and get new CID
+        script_output = await run_script("./generate_ipfs_structure.sh", str(user_drive_path))
+        new_cid_info = None
+        if script_output and "FINAL_CID" in script_output:
+            new_cid_info = script_output["FINAL_CID"]
+            logging.info(f"New IPFS CID generated: {new_cid_info}")
 
         return UploadFromDriveResponse(
             success=True,
-            message=f"Fichier '{clean_filename}' synchronisé avec succès dans votre drive IPFS.",
-            file_path=str(target_file_path.relative_to(base_dir)),
-            file_type=file_type_dir,
-            new_cid=new_cid,
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            auth_verified=True
+            message="File synchronized successfully from IPFS",
+            file_path=str(target_file_path.relative_to(user_drive_path)),
+            file_type=file_type,
+            new_cid=new_cid_info,
+            timestamp=datetime.now().isoformat(),
+            auth_verified=auth_verified
         )
-
-    except HTTPException:
-        raise # Relever l'exception FastAPI
     except Exception as e:
-        logging.error(f"Erreur inattendue lors de la synchronisation de drive: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Erreur interne lors de la synchronisation: {str(e)}")
+        logging.error(f"Error downloading from IPFS or saving file: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to synchronize file: {e}")
 
 @app.post("/api/delete", response_model=DeleteResponse)
 async def delete_file(request: DeleteRequest):
@@ -1815,7 +1828,7 @@ async def delete_file(request: DeleteRequest):
         # Régénérer la structure IPFS
         logging.info("Régénération de la structure IPFS après suppression...")
         try:
-            ipfs_result = run_ipfs_generation_script(base_dir, enable_logging=False)
+            ipfs_result = await run_ipfs_generation_script(base_dir, enable_logging=False)
             new_cid = ipfs_result.get("final_cid") if ipfs_result["success"] else None
         except Exception as e:
             logging.warning(f"Erreur lors de la régénération IPFS: {e}")
