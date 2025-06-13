@@ -275,7 +275,7 @@ def get_authenticated_user_directory(npub: str) -> Path:
     user_root_dir = find_user_directory_by_hex(hex_pubkey)
     
     # Retourner le répertoire APP (où doivent aller les fichiers uploadés)
-    app_dir = user_root_dir / "APP"
+    app_dir = user_root_dir / "APP/uDRIVE"
     app_dir.mkdir(exist_ok=True)  # S'assurer que APP/ existe
     
     logging.info(f"Répertoire APP utilisateur (sécurisé): {app_dir}")
