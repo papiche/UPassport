@@ -5,10 +5,6 @@ pydantic
 aiofiles
 jinja2
 python-multipart
-vosk
-wave
 python-magic
-asyncio
+websockets
 email-validator
-ffmpeg-python
-tk
