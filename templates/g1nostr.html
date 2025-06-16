@@ -584,8 +584,27 @@
     <div class="container">
         <!-- Warning Banner -->
         <div class="warning">
-            🌐️ MULTIPASS DISCO Respawn 🌐
+            🌐️ Ğ1 UPlanet Enter 🌐
         </div>
+
+        <form id="nostr-form" action="/g1nostr" method="post">
+            <input type="hidden" id="lang" name="lang" value="fr">
+            <input type="hidden" id="lat" name="lat" value="0.00">
+            <input type="hidden" id="lon" name="lon" value="0.00">
+        
+        <h2>📧 Email</h2>
+            <label for="email">Email:</label>
+            <input type="text" id="email" name="email" required>
+        
+        <h2>🔐 Login Ğ1 v1</h2>
+            <label for="salt">Identifiant :</label>
+            <input type="text" id="salt" name="salt">
+
+            <label for="pepper">Password :</label>
+            <input type="password" id="pepper" name="pepper">
+
+            <input type="submit" value="📝 INSCRIPTION">
+        </form>
 
         <!-- Map Section -->
         <div class="map-section">
@@ -611,30 +630,12 @@
             </div>
         </div>
 
-        <form id="nostr-form" action="/g1nostr" method="post">
-            <input type="hidden" id="lang" name="lang" value="fr">
-            <input type="hidden" id="lat" name="lat" value="0.00">
-            <input type="hidden" id="lon" name="lon" value="0.00">
-        
-        <h2>📧 Email</h2>
-            <label for="email">Email:</label>
-            <input type="text" id="email" name="email" required>
-        
-        <h2>🔐 GCHANGE / CESIUM</h2>
-            <label for="salt">Login :</label>
-            <input type="text" id="salt" name="salt">
-
-            <label for="pepper">Password :</label>
-            <input type="password" id="pepper" name="pepper">
-
-            <input type="submit" value="📝 INSCRIPTION">
-        </form>
         <div id="error-message" class="error"></div>
         <div id="geo-error" class="error"></div>
 
         <div class="loader-container" id="loader-container">
             <div class="loader"></div>
-            <div class="loader-text">Génération de votre carte MULTIPASS</div>
+            <div class="loader-text">Génération de votre MULTIPASS</div>
             <div class="loader-subtext">Veuillez patienter, cette opération peut prendre quelques secondes...</div>
         </div>
     </div>
@@ -643,7 +644,7 @@
     <div class="modal" id="result-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <span class="modal-title">MULTIPASS</span>
+                <span class="modal-title">UPlanet MULTIPASS</span>
                 <button class="modal-close" id="modal-close">&times;</button>
             </div>
             <div class="modal-body">
