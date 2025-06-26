@@ -387,6 +387,94 @@
             text-decoration: underline;
         }
 
+        /* Credentials accordion styles */
+        .credentials-accordion {
+            margin-bottom: 20px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #333;
+        }
+        
+        .accordion-toggle {
+            width: 100%;
+            padding: 15px 20px;
+            background-color: #383838;
+            color: #e0e0e0;
+            border: none;
+            text-align: left;
+            cursor: pointer;
+            font-size: clamp(16px, 4vw, 18px);
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s ease;
+        }
+        
+        .accordion-toggle:hover {
+            background-color: #444;
+        }
+        
+        .toggle-icon {
+            font-size: 12px;
+            transition: transform 0.3s ease;
+        }
+        
+        .accordion-toggle.active .toggle-icon {
+            transform: rotate(180deg);
+        }
+        
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background-color: #2a2a2a;
+        }
+        
+        .accordion-content.active {
+            max-height: 500px;
+        }
+        
+        .credentials-info {
+            padding: 15px 20px;
+            background-color: #2a2a2a;
+            border-bottom: 1px solid #444;
+        }
+        
+        .credentials-info p {
+            margin: 0 0 15px 0;
+            color: #cccccc;
+            font-size: clamp(14px, 3vw, 16px);
+            line-height: 1.4;
+        }
+        
+        .generate-credentials-btn {
+            padding: 10px 15px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: clamp(14px, 3vw, 16px);
+            transition: background-color 0.3s ease;
+            margin-bottom: 10px;
+        }
+        
+        .generate-credentials-btn:hover {
+            background-color: #1976D2;
+        }
+        
+        .accordion-content label {
+            padding: 0 20px;
+            margin-top: 15px;
+        }
+        
+        .accordion-content input {
+            margin: 0 20px 15px 20px;
+            width: calc(100% - 40px);
+        }
+
         /* Warning banner styles */
         .warning {
             background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
@@ -596,12 +684,25 @@
             <label for="email">Email:</label>
             <input type="text" id="email" name="email" required>
         
-        <h2>🔐 Login Ğ1 v1</h2>
-            <label for="salt">Identifiant :</label>
-            <input type="text" id="salt" name="salt">
+        <!-- Accordion for optional credentials -->
+        <div class="credentials-accordion">
+            <button type="button" class="accordion-toggle" id="credentials-toggle">
+                🔐 Login Ğ1 v1 (Optionnel) <span class="toggle-icon">▼</span>
+            </button>
+            <div class="accordion-content" id="credentials-content">
+                <div class="credentials-info">
+                    <p>💡 Si vous ne fournissez pas d'identifiant et mot de passe, ils seront générés automatiquement de manière sécurisée.</p>
+                    <button type="button" class="generate-credentials-btn" id="generate-credentials">
+                        🎲 Générer aléatoirement
+                    </button>
+                </div>
+                <label for="salt">Identifiant :</label>
+                <input type="text" id="salt" name="salt" placeholder="Laissez vide pour génération automatique">
 
-            <label for="pepper">Password :</label>
-            <input type="password" id="pepper" name="pepper">
+                <label for="pepper">Password :</label>
+                <input type="password" id="pepper" name="pepper" placeholder="Laissez vide pour génération automatique">
+            </div>
+        </div>
 
             <input type="submit" value="📝 INSCRIPTION">
         </form>
@@ -809,6 +910,45 @@
 
             // Auto-get location on page load
             getCurrentLocation();
+
+            // Credentials accordion functionality
+            const credentialsToggle = document.getElementById('credentials-toggle');
+            const credentialsContent = document.getElementById('credentials-content');
+            const generateCredentialsBtn = document.getElementById('generate-credentials');
+            const saltInput = document.getElementById('salt');
+            const pepperInput = document.getElementById('pepper');
+
+            // Toggle accordion
+            credentialsToggle.addEventListener('click', function() {
+                credentialsToggle.classList.toggle('active');
+                credentialsContent.classList.toggle('active');
+            });
+
+            // Generate random credentials
+            function generateRandomCredentials() {
+                // Generate a random 42-character alphanumeric string for salt
+                const salt = Array.from({length: 42}, () => 
+                    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 62)]
+                ).join('');
+                
+                // Generate a random 42-character alphanumeric string for pepper
+                const pepper = Array.from({length: 42}, () => 
+                    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 62)]
+                ).join('');
+                
+                saltInput.value = salt;
+                pepperInput.value = pepper;
+                
+                // Show feedback
+                generateCredentialsBtn.textContent = '✅ Généré !';
+                generateCredentialsBtn.style.backgroundColor = '#4CAF50';
+                setTimeout(() => {
+                    generateCredentialsBtn.textContent = '🎲 Générer aléatoirement';
+                    generateCredentialsBtn.style.backgroundColor = '#2196F3';
+                }, 2000);
+            }
+
+            generateCredentialsBtn.addEventListener('click', generateRandomCredentials);
 
             form.addEventListener('submit', function(event) {
                 event.preventDefault();

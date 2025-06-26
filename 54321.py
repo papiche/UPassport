@@ -886,11 +886,24 @@ async def get_root(request: Request):
     return templates.TemplateResponse("g1nostr.html", {"request": request})
 
 @app.post("/g1nostr")
-async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...), lat: str = Form(...), lon: str = Form(...), salt: str = Form(...), pepper: str = Form(...)):
+async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...), lat: str = Form(...), lon: str = Form(...), salt: str = Form(default=""), pepper: str = Form(default="")):
     """
     Endpoint to execute the g1.sh script and return the generated file.
     Supports both regular users and swarm subscription aliases.
     """
+    
+    # Generate random salt and pepper if not provided or empty
+    if not salt or salt.strip() == "":
+        import secrets
+        import string
+        salt = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(42))
+        logging.info(f"Generated random salt for {email}: {salt[:10]}...")
+    
+    if not pepper or pepper.strip() == "":
+        import secrets
+        import string
+        pepper = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(42))
+        logging.info(f"Generated random pepper for {email}: {pepper[:10]}...")
     
     # Détecter si c'est un email d'abonnement inter-node (contient un +)
     is_swarm_subscription = '+' in email and '-' in email.split('@')[0]

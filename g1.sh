@@ -5,7 +5,13 @@
 # License: AGPL-3.0 (https://choosealicense.com/licenses/agpl-3.0/)
 ################################################################################
 # Output Zine Html web page and send it to email
-echo "Usage: $0 <email> <lang> <salt> <pepper>"
+echo "Usage: $0 <email> <lang> <lat> <lon> [salt] [pepper]"
+echo "  email:   Email address (required)"
+echo "  lang:    Language code (required)"
+echo "  lat:     Latitude (required)"
+echo "  lon:     Longitude (required)"
+echo "  salt:    Salt for key generation (optional, auto-generated if not provided)"
+echo "  pepper:  Pepper for key generation (optional, auto-generated if not provided)"
 MOATS=$(date -u +"%Y%m%d%H%M%S%4N")
 MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
@@ -25,17 +31,26 @@ LON="$4"
 SALT="$5"
 PEPPER="$6"
 
-if [[ "$#" -lt 6 ]]; then
-    echo "Error: Missing parameters."
+# Generate random salt and pepper if not provided
+if [[ -z "$SALT" ]]; then
+    SALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
+    echo "Generated random salt: ${SALT:0:10}..."
+fi
+
+if [[ -z "$PEPPER" ]]; then
+    PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
+    echo "Generated random pepper: ${PEPPER:0:10}..."
+fi
+
+if [[ "$#" -lt 4 ]]; then
+    echo "Error: Missing required parameters (email, lang, lat, lon)."
     cat ${MY_PATH}/templates/message.html \
     | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
-         -e "s~_MESSAGE_~Missing parameters~g" \
+         -e "s~_MESSAGE_~Missing required parameters~g" \
         > ${MY_PATH}/tmp/${MOATS}.out.html
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
 fi
-
-
 
 if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     EMAIL="${EMAIL,,}"
