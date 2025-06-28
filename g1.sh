@@ -31,17 +31,6 @@ LON="$4"
 SALT="$5"
 PEPPER="$6"
 
-# Generate random salt and pepper if not provided
-if [[ -z "$SALT" ]]; then
-    SALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
-    echo "Generated random salt: ${SALT:0:10}..."
-fi
-
-if [[ -z "$PEPPER" ]]; then
-    PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
-    echo "Generated random pepper: ${PEPPER:0:10}..."
-fi
-
 if [[ "$#" -lt 4 ]]; then
     echo "Error: Missing required parameters (email, lang, lat, lon)."
     cat ${MY_PATH}/templates/message.html \
@@ -64,6 +53,33 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             > ${MY_PATH}/tmp/${MOATS}.out.html
         echo "${MY_PATH}/tmp/${MOATS}.out.html"
         exit 0
+    fi
+
+    ## SEARCH FOR EXISTING MULTIPASS
+    if [[ -n $($HOME/.zen/Astroport.ONE/tools/search_for_this_email_in_nostr.sh ${EMAIL}) ]]; then
+        # Check if not TODATE made account
+        BIRTHDAY=$(cat ${HOME}/.zen/game/nostr/${EMAIL}/TODATE)
+        if [[ $BIRTHDAY != $TODATE ]]; then
+            cat ${MY_PATH}/templates/message.html \
+            | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
+                -e "s~_MESSAGE_~EXISTING MULTIPASS~g" \
+                > ${MY_PATH}/tmp/${MOATS}.out.html
+            echo "${MY_PATH}/tmp/${MOATS}.out.html"
+            exit 0
+        else
+            echo ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
+            exit 0
+        fi
+    fi
+    # Generate random salt and pepper if not provided
+    if [[ -z "$SALT" ]]; then
+        SALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
+        echo "Generated random salt: ${SALT:0:10}..."
+    fi
+
+    if [[ -z "$PEPPER" ]]; then
+        PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
+        echo "Generated random pepper: ${PEPPER:0:10}..."
     fi
 
     ### SEARCH FOR EXISTING NOSTR CARD

@@ -169,16 +169,19 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     EMAIL="${QRCODE,,}"
     echo "Email detected: $EMAIL"
 
-    ## SEARCH FOR EXISTING Zen Card
+    ## SEARCH FOR EXISTING MULTIPASS
     if [[ -n $($HOME/.zen/Astroport.ONE/tools/search_for_this_email_in_nostr.sh ${EMAIL}) ]]; then
         # Check if not TODATE made account
         BIRTHDAY=$(cat ${HOME}/.zen/game/nostr/${EMAIL}/TODATE)
         if [[ $BIRTHDAY != $TODATE ]]; then
             cat ${MY_PATH}/templates/message.html \
             | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
-                -e "s~_MESSAGE_~♥️BOX ACCOUNT~g" \
+                -e "s~_MESSAGE_~EXISTING MULTIPASS~g" \
                 > ${MY_PATH}/tmp/${MOATS}.out.html
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
+            exit 0
+        else
+            echo ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
             exit 0
         fi
     fi
