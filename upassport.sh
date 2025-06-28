@@ -180,10 +180,9 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
                 > ${MY_PATH}/tmp/${MOATS}.out.html
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
             exit 0
-        else
-            echo ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
-            exit 0
         fi
+        ## export NOSTR param
+        $($HOME/.zen/Astroport.ONE/tools/search_for_this_email_in_nostr.sh ${EMAIL} | tail -n 1) # export NOSTR param
     fi
     ### SEARCH FOR EXISTING NOSTR CARD
     if [[ ! -s ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ]]; then
@@ -200,13 +199,13 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
         #########################################################""
     else
         ## DID SEND "0000" FOR DELETION ?
-        if [[ "$IMAGE" == "0000" && ! -d ~/.zen/game/players/${EMAIL} && ! -d ~/.zen/game/passport/${PUBKEY} ]]; then
+        if [[ "$IMAGE" == "0000" ]]; then
             echo "## 0000 => DELETING ACCOUNT ${EMAIL}"
-            sed -i "s~PRINT~DELETED~g" ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
-            sed -i "s~${PUBKEY}~~g" ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
-            cp ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ~/.zen/tmp/${PUBKEY}.nostr.zine.html
+            sed -i "s~Print~DELETED~g" ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
+            sed -i "s~${PUBKEY}~DELETED~g" ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
+            cp ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ~/.zen/tmp/${EMAIL}.nostr.zine.html
             ${HOME}/.zen/Astroport.ONE/tools/nostr_DESTROY_TW.sh "${EMAIL}"
-            echo "${HOME}/.zen/tmp/${PUBKEY}.nostr.zine.html"
+            echo "${HOME}/.zen/tmp/${EMAIL}.nostr.zine.html"
             exit 0
         fi
         ## SHOW AGAIN ON 1ST DAY
