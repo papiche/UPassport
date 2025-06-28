@@ -248,6 +248,35 @@
         background-color: #45a049;
       }
 
+      .camera-selector {
+        display: none;
+        margin: 10px 0;
+        text-align: center;
+      }
+
+      .camera-selector select {
+        padding: 8px 12px;
+        border: none;
+        border-radius: 5px;
+        background-color: #333;
+        color: white;
+        margin-right: 10px;
+        min-width: 200px;
+      }
+
+      .camera-selector button {
+        padding: 8px 12px;
+        background-color: #2196F3;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      .camera-selector button:hover {
+        background-color: #1976D2;
+      }
+
     .captured-image-overlay {
         top: 10px;
         right: 10px;
@@ -267,7 +296,12 @@
         <button id="start-camera">🎥 ON</button>
         <button id="stop-camera">🚫 OFF</button>
         <button id="take-photo">📸 Photo</button>
-        <button id="get-location">📍</button>
+        </div>
+        <div class="camera-selector" id="camera-selector">
+            <select id="camera-select">
+                <option value="">Select camera...</option>
+            </select>
+            <button id="switch-camera">Switch Camera</button>
         </div>
             <video id="preview"></video>
         <div class="spinner" id="loadingSpinner">
@@ -500,7 +534,65 @@
     let scanner = new Instascan.Scanner(opts);
     let cameraActive = false;
     let activeCamera = null;
+    let availableCameras = [];
 
+    // Function to populate camera selector
+    function populateCameraSelector(cameras) {
+        const select = document.getElementById('camera-select');
+        const selector = document.getElementById('camera-selector');
+        
+        // Clear existing options
+        select.innerHTML = '<option value="">Select camera...</option>';
+        
+        cameras.forEach((camera, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            
+            // Try to identify camera type based on label
+            let cameraLabel = camera.name || camera.label || `Camera ${index + 1}`;
+            
+            // Common mobile camera labels
+            if (cameraLabel.toLowerCase().includes('back') || 
+                cameraLabel.toLowerCase().includes('arrière') ||
+                cameraLabel.toLowerCase().includes('rear')) {
+                cameraLabel = `📱 Back Camera (${cameraLabel})`;
+            } else if (cameraLabel.toLowerCase().includes('front') || 
+                       cameraLabel.toLowerCase().includes('avant') ||
+                       cameraLabel.toLowerCase().includes('selfie')) {
+                cameraLabel = `📱 Front Camera (${cameraLabel})`;
+            } else {
+                cameraLabel = `📷 ${cameraLabel}`;
+            }
+            
+            option.textContent = cameraLabel;
+            select.appendChild(option);
+        });
+        
+        // Show selector if multiple cameras available
+        if (cameras.length > 1) {
+            selector.style.display = 'block';
+        } else {
+            selector.style.display = 'none';
+        }
+    }
+
+    // Function to start camera with selected camera
+    function startSelectedCamera() {
+        const select = document.getElementById('camera-select');
+        const selectedIndex = parseInt(select.value);
+        
+        if (selectedIndex >= 0 && selectedIndex < availableCameras.length) {
+            if (cameraActive) {
+                scanner.stop();
+            }
+            activeCamera = availableCameras[selectedIndex];
+            scanner.start(activeCamera);
+            cameraActive = true;
+            console.log(`Started camera: ${activeCamera.name || activeCamera.label}`);
+        } else {
+            alert('Please select a camera first.');
+        }
+    }
 
     scanner.addListener('scan', function (content) {
         document.getElementById("parametre").value = content;
@@ -526,14 +618,26 @@
         if (!cameraActive) {
             Instascan.Camera.getCameras().then(function (cameras) {
                 if (cameras.length > 0) {
-                    activeCamera = cameras[0]; // Stocke la caméra active
-                    scanner.start(activeCamera);
-                    cameraActive = true;
+                    availableCameras = cameras;
+                    populateCameraSelector(cameras);
+                    
+                    // If only one camera, start it automatically
+                    if (cameras.length === 1) {
+                        activeCamera = cameras[0];
+                        scanner.start(activeCamera);
+                        cameraActive = true;
+                        console.log(`Started camera: ${activeCamera.name || activeCamera.label}`);
+                    } else {
+                        // Show camera selector for multiple cameras
+                        document.getElementById('camera-selector').style.display = 'block';
+                    }
                 } else {
                     console.error('No cameras found.');
+                    alert('No cameras found on this device.');
                 }
             }).catch(function (e) {
                 console.error(e);
+                alert('Error accessing camera: ' + e.message);
             });
         }
     });
@@ -543,9 +647,11 @@
         if (cameraActive) {
             scanner.stop();
             cameraActive = false;
+            activeCamera = null;
             $('#captured-image').hide();
             $('#captured-image').attr('src', '');
             $('#captured-image').removeClass('captured-image-overlay'); // Remove the overlay class
+            $('#camera-selector').hide(); // Hide camera selector when stopping
          }
     });
 
@@ -669,220 +775,14 @@
             window.location.href = '/nostr';
         });
 
-        // GPS Location and NOSTR HEX Button Click Handler
-        $('#get-location').click(function() {
-            // **Animation START
-            $('#loadingSpinner').show();
-            $('.result-container').hide();
-            $('#submitButton').css('background-color', '#0000FF'); // Start animation color, same as OK button click
+        // Camera selector event listeners
+        $('#switch-camera').click(function() {
+            startSelectedCamera();
+        });
 
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    const latitude = position.coords.latitude.toFixed(2);
-                    const longitude = position.coords.longitude.toFixed(2);
-                    const altitude = position.coords.altitude ? position.coords.altitude.toFixed(2) : '0';
-
-                    let locationString = `LAT${latitude}LON${longitude}`;
-                    if (position.coords.altitude) {
-                        locationString += `ALT${altitude}`;
-                    }
-
-                    $('#PASS').val(locationString);
-
-                    // Attempt to get NOSTR HEX Key after GPS is successful
-                    if (window.nostr) {
-                        window.nostr.getPublicKey()
-                            .then(function(publicKey) {
-                                $('#nostrHex').val(publicKey);
-
-                                // --- NIP-96 FILE UPLOAD START (No NIP-98 Auth) ---
-
-                                const nip96ServerUrl = 'https://g1sms.fr'; // Base URL of the NIP-96 server
-                                const wellKnownUrl = `${nip96ServerUrl}/.well-known/nostr/nip96.json`;
-
-                                $.ajax({
-                                    url: wellKnownUrl,
-                                    dataType: 'json',
-                                    success: function(nip96Config) {
-                                        const nip96ApiEndpoint = nip96Config.api_url;
-
-                                        const imageDataBase64 = $('#imageData').val();
-                                        if (!imageDataBase64) {
-                                            $('#loadingSpinner').hide();
-                                            alert("No image data to upload. Please take a photo first.");
-                                            return;
-                                        }
-
-                                        const byteString = atob(imageDataBase64.split(',')[1]);
-                                        const mimeString = imageDataBase64.split(',')[0].split(':')[1].split(';')[0];
-                                        const ab = new ArrayBuffer(byteString.length);
-                                        const ia = new Uint8Array(ab);
-                                        for (let i = 0; i < byteString.length; i++) {
-                                            ia[i] = byteString.charCodeAt(i);
-                                        }
-                                        const imageBlob = new Blob([ab], { type: mimeString });
-                                        const imageFile = new File([imageBlob], "captured-image.png", { type: mimeString }); // Create a File object
-
-                                        const formDataNip96 = new FormData();
-                                        formDataNip96.append('file', imageFile); // Append the File object
-
-                                        $.ajax({
-                                            url: nip96ApiEndpoint,
-                                            type: 'POST',
-                                            data: formDataNip96,
-                                            processData: false,
-                                            contentType: false,
-                                            success: function(nip96Response) {
-                                                console.log("NIP-96 Upload Response:", nip96Response);
-                                                if (nip96Response && nip96Response.nip94_event && nip96Response.nip94_event.tags) {
-                                                    const urlTag = nip96Response.nip94_event.tags.find(tag => tag[0] === 'url');
-                                                    const uploadedFileURL = urlTag ? urlTag[1] : null;
-
-                                                    if (uploadedFileURL) {
-                                                        // alert("File uploaded successfully to NIP-96 server! URL: " + uploadedFileURL);
-
-                                                        // --- NOSTR EVENT CREATION AND PUBLISHING START (Modified tags and content) ---
-                                                        const parametreContent = $('#parametre').val();
-                                                        const nostrContent = `${parametreContent}\n${uploadedFileURL}`;
-                                                        let nostrTags = [];
-
-                                                        // Add tags from NIP-96 response
-                                                        nostrTags = nostrTags.concat(nip96Response.nip94_event.tags);
-
-                                                        // Add app tag
-                                                        nostrTags.push(['application', 'UPlanet']);
-
-                                                        // Add location tags
-                                                        nostrTags.push(['latitude', latitude]);
-                                                        nostrTags.push(['longitude', longitude]);
-                                                        nostrTags.push(['g', `${latitude};${longitude}`]);
-
-                                                        const event = {
-                                                            kind: 1,
-                                                            tags: nostrTags,
-                                                            content: nostrContent, // Content is parametre + image URL
-                                                            pubkey: publicKey,
-                                                            created_at: Math.floor(Date.now() / 1000)
-                                                        };
-
-                                                        window.nostr.signEvent(event).then(signedEvent => {
-                                                            const relays = [
-                                                                'wss://relay.copylaradio.com',
-                                                                'ws://127.0.0.1:7777',
-                                                                getRelayURL() // Dynamically added relay
-                                                            ];
-
-                                                            $('#loadingSpinner').hide();
-                                                            $('#captured-image').hide();
-                                                            $('#captured-image').removeClass('captured-image-overlay');
-
-                                                            relays.forEach(relayUrl => {
-                                                                try {
-                                                                    const ws = new WebSocket(relayUrl);
-
-                                                                    ws.onopen = () => {
-                                                                        console.log(`Connected to relay: ${relayUrl}`);
-                                                                        const publishMessage = ['EVENT', signedEvent];
-                                                                        ws.send(JSON.stringify(publishMessage));
-                                                                        console.log(`Event sent to ${relayUrl}`, signedEvent);
-                                                                    };
-
-                                                                    ws.onerror = (error) => {
-                                                                        console.error(`WebSocket error on relay ${relayUrl}:`, error);
-                                                                    };
-
-                                                                    ws.onclose = () => {
-                                                                        console.log(`Connection closed to relay: ${relayUrl}`);
-                                                                    };
-
-                                                                    ws.onmessage = (event) => {
-                                                                        try {
-                                                                            const message = JSON.parse(event.data);
-                                                                            if (message[0] === 'OK' && message[1] === signedEvent.id) {
-                                                                                console.log(`Relay ${relayUrl} acknowledged event ID: ${signedEvent.id}`);
-                                                                            } else if (message[0] === 'NOTICE') {
-                                                                                console.log(`Relay ${relayUrl} NOTICE: ${message[1]}`);
-                                                                            }
-                                                                        } catch (e) {
-                                                                            console.error(`Error parsing relay message from ${relayUrl}:`, e, event.data);
-                                                                        }
-                                                                    };
-
-
-                                                                } catch (error) {
-                                                                    console.error(`Error connecting to relay ${relayUrl}:`, error);
-                                                                }
-                                                            });
-
-                                                        }).catch(signError => {
-                                                            $('#loadingSpinner').hide();
-                                                            console.error("Error signing Nostr event:", signError);
-                                                            alert("Failed to sign Nostr event. Please check NOSTR Connect.");
-                                                        });
-                                                        // --- NOSTR EVENT CREATION AND PUBLISHING END ---
-
-                                                    } else {
-                                                        $('#loadingSpinner').hide();
-                                                        alert("File upload successful to NIP-96, but URL not found in response.");
-                                                    }
-
-                                                } else {
-                                                    $('#loadingSpinner').hide();
-                                                    alert("File upload to NIP-96 server likely failed or response format is unexpected. Check console for details.");
-                                                }
-                                            },
-                                            error: function(jqXHR, textStatus, errorThrown) {
-                                                $('#loadingSpinner').hide();
-                                                console.error("NIP-96 Upload Error:", textStatus, errorThrown, jqXHR);
-                                                alert("File upload to NIP-96 server failed. Check console for details.");
-                                            }
-                                        });
-
-
-                                    },
-                                    error: function(jqXHR, textStatus, errorThrown) {
-                                        $('#loadingSpinner').hide();
-                                        console.error("Error fetching NIP-96 config:", textStatus, errorThrown, jqXHR);
-                                        alert("Failed to fetch NIP-96 configuration from g1sms.fr. Check console for details.");
-                                    }
-                                });
-
-
-                                // --- NIP-96 FILE UPLOAD END ---
-
-
-                            })
-                            .catch(function(err) {
-                                $('#loadingSpinner').hide();
-                                console.error("Error getting NOSTR public key:", err);
-                                alert("Error connecting to NOSTR Connect or retrieving public key.");
-                            });
-                    } else {
-                        $('#loadingSpinner').hide();
-                        alert("Missing MULTIPASS setup in NOSTR Connect.");
-                    }
-
-
-                }, function(error) {
-                    switch(error.code) {
-                        case error.PERMISSION_DENIED:
-                            alert("User denied the request for Geolocation.");
-                            break;
-                        case error.POSITION_UNAVAILABLE:
-                            alert("Location information is unavailable.");
-                            break;
-                        case error.TIMEOUT:
-                            alert("The request to get user location timed out.");
-                            break;
-                        case error.UNKNOWN_ERROR:
-                            alert("An unknown error occurred.");
-                            break;
-                    }
-                });
-            } else {
-                $('#loadingSpinner').hide();
-                $('#submitButton').css('background-color', '');
-                alert("Geolocation is not supported by this browser.");
+        $('#camera-select').change(function() {
+            if (this.value !== '') {
+                startSelectedCamera();
             }
         });
     });
