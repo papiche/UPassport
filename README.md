@@ -127,6 +127,97 @@ Before setting up UPassport, ensure you have the following prerequisites install
     *   **UPlanet Account Creation (`/uplanet` or `/uplanet.html`)**: For creating UPlanet accounts (functionality may be limited in the provided code).
     *   **API Description (`/index` or `/uplanet`)**: Provides a basic API description and welcome page.
 
+## 🌐 UPassport API (Port 54321)
+
+The UPassport API provides secure, decentralized file and identity management for your uDRIVE, leveraging NOSTR authentication (NIP42) and IPFS. All endpoints are available at `http://localhost:54321/api/`.
+
+### Endpoints Overview
+
+| Endpoint                  | Method | Description                                 | Auth Required | Example Payload/Params         |
+|---------------------------|--------|---------------------------------------------|---------------|-------------------------------|
+| `/api/upload`             | POST   | Upload a file to your uDRIVE (IPFS)         | Yes (npub)    | `file`, `npub` (form-data)    |
+| `/api/upload_from_drive`  | POST   | Sync a file from IPFS to your uDRIVE        | Yes (npub)    | `ipfs_link`, `npub` (JSON)    |
+| `/api/delete`             | POST   | Delete a file from your uDRIVE              | Yes (npub)    | `file_path`, `npub` (JSON)    |
+| `/api/test-nostr`         | POST   | Test NOSTR authentication for a pubkey      | No            | `npub` (form-data)            |
+
+---
+
+### Endpoint Details
+
+#### `POST /api/upload`
+- **Description:** Upload a file to your personal uDRIVE (IPFS-backed). The file is categorized (Images, Music, Videos, Documents) based on type.
+- **Authentication:** NOSTR (NIP42) required. Provide your `npub` (NOSTR public key).
+- **Payload:** `multipart/form-data` with fields:
+  - `file`: The file to upload.
+  - `npub`: Your NOSTR public key (npub1... or 64-char hex).
+- **Returns:** JSON with upload status, file path, file type, target directory, new IPFS CID, and authentication status.
+
+**Example (curl):**
+```bash
+curl -F "file=@myphoto.jpg" -F "npub=npub1..." http://localhost:54321/api/upload
+```
+
+---
+
+#### `POST /api/upload_from_drive`
+- **Description:** Download a file from IPFS and add it to your uDRIVE.
+- **Authentication:** NOSTR (NIP42) required.
+- **Payload:** JSON body:
+  - `ipfs_link`: The IPFS path (e.g., QmHASH/filename.ext).
+  - `npub`: Your NOSTR public key.
+- **Returns:** JSON with sync status, file path, file type, new IPFS CID, and authentication status.
+
+**Example:**
+```bash
+curl -X POST http://localhost:54321/api/upload_from_drive \
+  -H "Content-Type: application/json" \
+  -d '{"ipfs_link":"QmHASH/filename.jpg","npub":"npub1..."}'
+```
+
+---
+
+#### `POST /api/delete`
+- **Description:** Delete a file from your uDRIVE (requires NOSTR authentication).
+- **Authentication:** NOSTR (NIP42) required.
+- **Payload:** JSON body:
+  - `file_path`: Relative path to the file in your uDRIVE (e.g., `Images/myphoto.jpg`).
+  - `npub`: Your NOSTR public key.
+- **Returns:** JSON with deletion status, deleted file, new IPFS CID, and authentication status.
+
+**Example:**
+```bash
+curl -X POST http://localhost:54321/api/delete \
+  -H "Content-Type: application/json" \
+  -d '{"file_path":"Images/myphoto.jpg","npub":"npub1..."}'
+```
+
+---
+
+#### `POST /api/test-nostr`
+- **Description:** Test NOSTR authentication for a given public key. Returns status and diagnostic info.
+- **Authentication:** Not required.
+- **Payload:** Form-data:
+  - `npub`: NOSTR public key (npub1... or 64-char hex).
+- **Returns:** JSON with authentication status, relay info, and recommendations.
+
+**Example:**
+```bash
+curl -F "npub=npub1..." http://localhost:54321/api/test-nostr
+```
+
+---
+
+### Authentication Notes
+- All user-specific actions require a recent NOSTR NIP42 authentication event on the local relay (`ws://127.0.0.1:7777`).
+- If authentication fails, ensure your NOSTR client has published a kind 22242 event within the last 24 hours.
+
+---
+
+### See Also
+- [Astroport.ONE API & UPlanet Swarm – Developer Guide](../Astroport.ONE/API.NOSTRAuth.readme.md)
+- [NOSTR Protocol](https://github.com/nostr-protocol/nostr)
+- [NIP42 - Authentication](https://github.com/nostr-protocol/nips/blob/master/42.md)
+
 ## 🛠️ Configuration
 
 *   **`.env` File**: Configure environment-specific settings in the `.env` file located in the root directory. This file is crucial for setting:
@@ -294,3 +385,101 @@ Avant de configurer UPassport, assurez-vous d'avoir installé et configuré les 
 *   **Personnalisation** : UPassport est conçu pour être extensible. Vous pouvez personnaliser et étendre ses fonctionnalités en modifiant le code Python, les scripts Bash et les modèles HTML.
 
 En configurant UPassport, vous accédez à un terminal puissant pour interagir avec l'écosystème Ğ1 décentralisé, gérer votre identité numérique et tirer parti des capacités multimédias dans un cadre sécurisé et open source.
+
+### Voir Aussi
+- [Guide Développeur API Astroport.ONE & UPlanet Swarm](../Astroport.ONE/API.NOSTRAuth.readme.md)
+- [Protocole NOSTR](https://github.com/nostr-protocol/nostr)
+- [NIP42 - Authentification](https://github.com/nostr-protocol/nips/blob/master/42.md)
+
+---
+
+## 🌐 API UPassport (Port 54321)
+
+L'API UPassport fournit une gestion sécurisée et décentralisée des fichiers et de l'identité pour votre uDRIVE, en tirant parti de l'authentification NOSTR (NIP42) et d'IPFS. Tous les endpoints sont disponibles sur `http://localhost:54321/api/`.
+
+### Aperçu des Endpoints
+
+| Endpoint                  | Méthode | Description                                 | Auth Requise | Exemple Payload/Params         |
+|---------------------------|---------|---------------------------------------------|--------------|-------------------------------|
+| `/api/upload`             | POST    | Téléverser un fichier vers votre uDRIVE (IPFS) | Oui (npub) | `file`, `npub` (form-data)    |
+| `/api/upload_from_drive`  | POST    | Synchroniser un fichier depuis IPFS vers votre uDRIVE | Oui (npub) | `ipfs_link`, `npub` (JSON)    |
+| `/api/delete`             | POST    | Supprimer un fichier de votre uDRIVE        | Oui (npub) | `file_path`, `npub` (JSON)    |
+| `/api/test-nostr`         | POST    | Tester l'authentification NOSTR pour une clé publique | Non | `npub` (form-data)            |
+
+---
+
+### Détails des Endpoints
+
+#### `POST /api/upload`
+- **Description :** Téléverser un fichier vers votre uDRIVE personnel (basé sur IPFS). Le fichier est catégorisé (Images, Musique, Vidéos, Documents) selon son type.
+- **Authentification :** NOSTR (NIP42) requise. Fournissez votre `npub` (clé publique NOSTR).
+- **Payload :** `multipart/form-data` avec les champs :
+  - `file` : Le fichier à téléverser.
+  - `npub` : Votre clé publique NOSTR (npub1... ou hex 64 caractères).
+- **Retourne :** JSON avec le statut de téléversement, le chemin du fichier, le type de fichier, le répertoire cible, le nouveau CID IPFS et le statut d'authentification.
+
+**Exemple (curl) :**
+```bash
+curl -F "file=@maphoto.jpg" -F "npub=npub1..." http://localhost:54321/api/upload
+```
+
+---
+
+#### `POST /api/upload_from_drive`
+- **Description :** Télécharger un fichier depuis IPFS et l'ajouter à votre uDRIVE.
+- **Authentification :** NOSTR (NIP42) requise.
+- **Payload :** Corps JSON :
+  - `ipfs_link` : Le chemin IPFS (ex : QmHASH/fichier.ext).
+  - `npub` : Votre clé publique NOSTR.
+- **Retourne :** JSON avec le statut de synchronisation, le chemin du fichier, le type de fichier, le nouveau CID IPFS et le statut d'authentification.
+
+**Exemple :**
+```bash
+curl -X POST http://localhost:54321/api/upload_from_drive \
+  -H "Content-Type: application/json" \
+  -d '{"ipfs_link":"QmHASH/fichier.jpg","npub":"npub1..."}'
+```
+
+---
+
+#### `POST /api/delete`
+- **Description :** Supprimer un fichier de votre uDRIVE (nécessite une authentification NOSTR).
+- **Authentification :** NOSTR (NIP42) requise.
+- **Payload :** Corps JSON :
+  - `file_path` : Chemin relatif vers le fichier dans votre uDRIVE (ex : `Images/maphoto.jpg`).
+  - `npub` : Votre clé publique NOSTR.
+- **Retourne :** JSON avec le statut de suppression, le fichier supprimé, le nouveau CID IPFS et le statut d'authentification.
+
+**Exemple :**
+```bash
+curl -X POST http://localhost:54321/api/delete \
+  -H "Content-Type: application/json" \
+  -d '{"file_path":"Images/maphoto.jpg","npub":"npub1..."}'
+```
+
+---
+
+#### `POST /api/test-nostr`
+- **Description :** Tester l'authentification NOSTR pour une clé publique donnée. Retourne le statut et les informations de diagnostic.
+- **Authentification :** Non requise.
+- **Payload :** Form-data :
+  - `npub` : Clé publique NOSTR (npub1... ou hex 64 caractères).
+- **Retourne :** JSON avec le statut d'authentification, les informations du relai et les recommandations.
+
+**Exemple :**
+```bash
+curl -F "npub=npub1..." http://localhost:54321/api/test-nostr
+```
+
+---
+
+### Notes d'Authentification
+- Toutes les actions spécifiques à l'utilisateur nécessitent un événement d'authentification NOSTR NIP42 récent sur le relai local (`ws://127.0.0.1:7777`).
+- Si l'authentification échoue, assurez-vous que votre client NOSTR a publié un événement de type 22242 dans les dernières 24 heures.
+
+---
+
+### Voir Aussi
+- [Guide Développeur API Astroport.ONE & UPlanet Swarm](../Astroport.ONE/API.NOSTRAuth.readme.md)
+- [Protocole NOSTR](https://github.com/nostr-protocol/nostr)
+- [NIP42 - Authentification](https://github.com/nostr-protocol/nips/blob/master/42.md)
