@@ -49,7 +49,7 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     if [[ -n $($HOME/.zen/Astroport.ONE/tools/search_for_this_email_in_nostr.sh ${EMAIL}) ]]; then
         cat ${MY_PATH}/templates/message.html \
         | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
-             -e "s~_MESSAGE_~♥️BOX ACCOUNT~g" \
+             -e "s~_MESSAGE_~EXISTING ACCOUNT~g" \
             > ${MY_PATH}/tmp/${MOATS}.out.html
         echo "${MY_PATH}/tmp/${MOATS}.out.html"
         exit 0
