@@ -883,13 +883,13 @@
                             let errorMessage;
                             switch(error.code) {
                                 case error.PERMISSION_DENIED:
-                                    errorMessage = "La géolocalisation a été refusée.";
+                                    errorMessage = "Choisissez votre position sur la carte.";
                                     break;
                                 case error.POSITION_UNAVAILABLE:
-                                    errorMessage = "Les informations de localisation ne sont pas disponibles.";
+                                    errorMessage = "Localisation indisponible. Choisissez votre position sur la carte.";
                                     break;
                                 case error.TIMEOUT:
-                                    errorMessage = "La demande de géolocalisation a expiré.";
+                                    errorMessage = "La demande de géolocalisation a expiré. Choisissez votre position sur la carte.";
                                     break;
                                 default:
                                     errorMessage = "Une erreur inconnue s'est produite lors de la géolocalisation.";
