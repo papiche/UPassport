@@ -21,12 +21,15 @@ import time
 import hashlib
 import websockets
 import shutil
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from urllib.parse import unquote, urlparse, parse_qs
 from pathlib import Path
 import mimetypes
 import sys
 import unicodedata
+from collections import defaultdict, deque
+import threading
+import ipaddress
 
 # Obtenir le timestamp Unix actuel
 unix_timestamp = int(time.time())
@@ -44,6 +47,170 @@ DEFAULT_PORT = 54321
 DEFAULT_HOST = "127.0.0.1"
 SCRIPT_DIR = Path(__file__).parent
 DEFAULT_SOURCE_DIR = SCRIPT_DIR
+
+# Rate Limiting Configuration
+RATE_LIMIT_REQUESTS = 12  # Maximum requests per minute
+RATE_LIMIT_WINDOW = 60    # Time window in seconds (1 minute)
+RATE_LIMIT_CLEANUP_INTERVAL = 300  # Cleanup old entries every 5 minutes
+
+# Trusted IPs that are exempt from rate limiting (add your trusted IPs here)
+TRUSTED_IPS = {
+    "127.0.0.1",      # localhost
+    "::1",            # localhost IPv6
+    "192.168.1.1",    # Example: your router
+    # Add more trusted IPs as needed
+}
+# Trusted IP ranges (CIDR)
+TRUSTED_IP_RANGES = [
+    "10.99.99.0/24",
+]
+
+def is_trusted_ip(ip: str) -> bool:
+    # Check direct match
+    if ip in TRUSTED_IPS:
+        return True
+    # Check CIDR ranges
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        for cidr in TRUSTED_IP_RANGES:
+            if ip_obj in ipaddress.ip_network(cidr):
+                return True
+    except Exception:
+        pass
+    return False
+
+# Global rate limiting storage
+class RateLimiter:
+    def __init__(self):
+        self.requests = defaultdict(deque)  # IP -> deque of timestamps
+        self.lock = threading.Lock()
+        self.last_cleanup = time.time()
+    
+    def is_allowed(self, ip: str) -> bool:
+        """Check if the IP is allowed to make a request"""
+        current_time = time.time()
+        
+        with self.lock:
+            # Cleanup old entries periodically
+            if current_time - self.last_cleanup > RATE_LIMIT_CLEANUP_INTERVAL:
+                self._cleanup_old_entries(current_time)
+                self.last_cleanup = current_time
+            
+            # Get timestamps for this IP
+            timestamps = self.requests[ip]
+            
+            # Remove timestamps older than the window
+            while timestamps and timestamps[0] < current_time - RATE_LIMIT_WINDOW:
+                timestamps.popleft()
+            
+            # Check if we're under the limit
+            if len(timestamps) < RATE_LIMIT_REQUESTS:
+                timestamps.append(current_time)
+                return True
+            
+            return False
+    
+    def get_remaining_requests(self, ip: str) -> int:
+        """Get remaining requests for an IP"""
+        current_time = time.time()
+        
+        with self.lock:
+            timestamps = self.requests[ip]
+            
+            # Remove old timestamps
+            while timestamps and timestamps[0] < current_time - RATE_LIMIT_WINDOW:
+                timestamps.popleft()
+            
+            return max(0, RATE_LIMIT_REQUESTS - len(timestamps))
+    
+    def get_reset_time(self, ip: str) -> Optional[float]:
+        """Get the time when the rate limit will reset for an IP"""
+        with self.lock:
+            timestamps = self.requests[ip]
+            if not timestamps:
+                return None
+            
+            # Return the time when the oldest request will expire
+            return timestamps[0] + RATE_LIMIT_WINDOW
+    
+    def _cleanup_old_entries(self, current_time: float):
+        """Remove old entries to prevent memory leaks"""
+        cutoff_time = current_time - RATE_LIMIT_WINDOW
+        
+        # Remove IPs with no recent requests
+        ips_to_remove = []
+        for ip, timestamps in self.requests.items():
+            # Remove old timestamps
+            while timestamps and timestamps[0] < cutoff_time:
+                timestamps.popleft()
+            
+            # If no timestamps left, mark for removal
+            if not timestamps:
+                ips_to_remove.append(ip)
+        
+        # Remove empty entries
+        for ip in ips_to_remove:
+            del self.requests[ip]
+        
+        logging.info(f"Rate limiter cleanup: removed {len(ips_to_remove)} IPs, {len(self.requests)} active IPs")
+
+# Create global rate limiter instance
+rate_limiter = RateLimiter()
+
+def get_client_ip(request: Request) -> str:
+    """Extract the real client IP address, handling proxies"""
+    # Check for forwarded headers (common with proxies/load balancers)
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        # Take the first IP in the chain (original client)
+        return forwarded_for.split(",")[0].strip()
+    
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+    
+    # Fallback to direct connection IP
+    return request.client.host if request.client else "unknown"
+
+def check_rate_limit(request: Request) -> Dict[str, Any]:
+    """Check rate limit for the current request"""
+    client_ip = get_client_ip(request)
+    
+    # Skip rate limiting for trusted IPs
+    if is_trusted_ip(client_ip):
+        logging.info(f"Trusted IP {client_ip} - skipping rate limiting")
+        return {
+            "remaining_requests": float('inf'),  # Unlimited for trusted IPs
+            "reset_time": None,
+            "client_ip": client_ip,
+            "trusted": True
+        }
+    
+    if not rate_limiter.is_allowed(client_ip):
+        reset_time = rate_limiter.get_reset_time(client_ip)
+        remaining_time = int(reset_time - time.time()) if reset_time else 0
+        
+        # Log the rate limit violation
+        logging.warning(f"Rate limit exceeded for IP {client_ip}: {RATE_LIMIT_REQUESTS} requests per minute limit")
+        
+        raise HTTPException(
+            status_code=429,  # Too Many Requests
+            detail={
+                "error": "Rate limit exceeded",
+                "message": f"Too many requests. Limit: {RATE_LIMIT_REQUESTS} requests per minute.",
+                "remaining_time": remaining_time,
+                "reset_time": reset_time,
+                "client_ip": client_ip,
+                "trusted": False
+            }
+        )
+    
+    return {
+        "remaining_requests": rate_limiter.get_remaining_requests(client_ip),
+        "reset_time": rate_limiter.get_reset_time(client_ip),
+        "client_ip": client_ip,
+        "trusted": False
+    }
 
 # Configuration pour les types de fichiers et répertoires
 FILE_TYPE_MAPPING = {
@@ -129,6 +296,52 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
+# Middleware pour appliquer le rate limiting sur toutes les routes
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """Middleware to apply rate limiting to all requests"""
+    try:
+        # Skip rate limiting for static files only
+        if request.url.path.startswith("/static"):
+            response = await call_next(request)
+            return response
+        
+        # Apply rate limiting (including health endpoint for testing)
+        rate_info = check_rate_limit(request)
+        
+        # Add rate limit headers to response
+        response = await call_next(request)
+        
+        # Add rate limiting headers
+        response.headers["X-RateLimit-Limit"] = str(RATE_LIMIT_REQUESTS)
+        
+        # Handle trusted IPs (infinite remaining)
+        if rate_info.get("trusted", False):
+            response.headers["X-RateLimit-Remaining"] = "unlimited"
+        else:
+            response.headers["X-RateLimit-Remaining"] = str(rate_info["remaining_requests"])
+        
+        if rate_info["reset_time"]:
+            response.headers["X-RateLimit-Reset"] = str(int(rate_info["reset_time"]))
+        response.headers["X-RateLimit-Client-IP"] = rate_info["client_ip"]
+        
+        return response
+        
+    except HTTPException as e:
+        if e.status_code == 429:
+            # Rate limit exceeded - return proper headers
+            response = JSONResponse(
+                status_code=429,
+                content=e.detail
+            )
+            response.headers["X-RateLimit-Limit"] = str(RATE_LIMIT_REQUESTS)
+            response.headers["X-RateLimit-Remaining"] = "0"
+            if e.detail.get("reset_time"):
+                response.headers["X-RateLimit-Reset"] = str(int(e.detail["reset_time"]))
+            response.headers["X-RateLimit-Client-IP"] = e.detail.get("client_ip", "unknown")
+            return response
+        raise e
 
 # Modèles Pydantic existants
 class MessageData(BaseModel):
@@ -1210,7 +1423,7 @@ async def ssss(request: Request):
         returned_file_path = last_line.strip()
         return FileResponse(returned_file_path)
     else:
-        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs."}
+        return JSONResponse({"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs."})
 
 @app.post("/zen_send")
 async def zen_send(request: Request):
@@ -1230,7 +1443,7 @@ async def zen_send(request: Request):
         returned_file_path = last_line.strip()
         return FileResponse(returned_file_path)
     else:
-        return {"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ~/.zen/tmp/54321.log."}
+        return JSONResponse({"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ~/.zen/tmp/54321.log."})
 
 ###################################################
 ######### REC / STOP - NODE OBS STUDIO -
@@ -1356,6 +1569,36 @@ async def stop_recording(request: Request, player: Optional[str] = None):
         )
 
 ############# API DESCRIPTION PAGE
+@app.get("/health")
+async def health_check():
+    """Health check endpoint that doesn't count towards rate limits"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "rate_limiter_stats": {
+            "active_ips": len(rate_limiter.requests),
+            "rate_limit": RATE_LIMIT_REQUESTS,
+            "window_seconds": RATE_LIMIT_WINDOW
+        }
+    }
+
+@app.get("/rate-limit-status")
+async def rate_limit_status(request: Request):
+    """Get current rate limit status for the requesting IP"""
+    client_ip = get_client_ip(request)
+    remaining = rate_limiter.get_remaining_requests(client_ip)
+    reset_time = rate_limiter.get_reset_time(client_ip)
+    
+    return {
+        "client_ip": client_ip,
+        "remaining_requests": remaining,
+        "rate_limit": RATE_LIMIT_REQUESTS,
+        "window_seconds": RATE_LIMIT_WINDOW,
+        "reset_time": reset_time,
+        "reset_time_iso": datetime.fromtimestamp(reset_time).isoformat() if reset_time else None,
+        "is_blocked": remaining == 0
+    }
+
 @app.get("/index", response_class=HTMLResponse)
 async def welcomeuplanet(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})

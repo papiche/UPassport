@@ -4,6 +4,136 @@
 # Version: 1.0
 # License: AGPL-3.0 (https://choosealicense.com/licenses/agpl-3.0/)
 ################################################################################
+
+# Rate Limiting Configuration
+RATE_LIMIT_REQUESTS=12  # Maximum requests per minute
+RATE_LIMIT_WINDOW=60    # Time window in seconds (1 minute)
+RATE_LIMIT_DIR="~/.zen/tmp/upassport_rate_limit"
+
+# Trusted IPs that are exempt from rate limiting
+TRUSTED_IPS="127.0.0.1 ::1 192.168.1.1"
+TRUSTED_IP_RANGES="10.99.99.0/24"
+
+# Function to check if IP is trusted
+is_trusted_ip() {
+    local ip="$1"
+    
+    # Check direct match
+    for trusted_ip in $TRUSTED_IPS; do
+        if [ "$ip" = "$trusted_ip" ]; then
+            return 0  # Trusted
+        fi
+    done
+    
+    # Check CIDR ranges
+    for cidr in $TRUSTED_IP_RANGES; do
+        if command -v ipcalc >/dev/null 2>&1; then
+            if ipcalc -c "$ip" | grep -q "within network $cidr"; then
+                return 0  # Trusted
+            fi
+        fi
+    done
+    
+    return 1  # Not trusted
+}
+
+# Function to get client IP from environment variables
+get_client_ip() {
+    # Check for forwarded headers (common with proxies/load balancers)
+    if [ -n "$HTTP_X_FORWARDED_FOR" ]; then
+        echo "$HTTP_X_FORWARDED_FOR" | cut -d',' -f1 | tr -d ' '
+        return
+    fi
+    
+    if [ -n "$HTTP_X_REAL_IP" ]; then
+        echo "$HTTP_X_REAL_IP" | tr -d ' '
+        return
+    fi
+    
+    # Fallback to remote address
+    if [ -n "$REMOTE_ADDR" ]; then
+        echo "$REMOTE_ADDR"
+        return
+    fi
+    
+    # Default fallback
+    echo "unknown"
+}
+
+# Function to check rate limit
+check_rate_limit() {
+    local client_ip="$1"
+    local current_time=$(date +%s)
+    local rate_limit_file="$RATE_LIMIT_DIR/${client_ip//[^a-zA-Z0-9]/_}"
+    
+    # Create rate limit directory if it doesn't exist
+    mkdir -p "$RATE_LIMIT_DIR"
+    
+    # Check if IP is trusted
+    if is_trusted_ip "$client_ip"; then
+        echo "TRUSTED_IP"
+        return 0
+    fi
+    
+    # Read existing timestamps
+    local timestamps=""
+    if [ -f "$rate_limit_file" ]; then
+        timestamps=$(cat "$rate_limit_file")
+    fi
+    
+    # Remove timestamps older than the window
+    local valid_timestamps=""
+    if [ -n "$timestamps" ]; then
+        while IFS= read -r timestamp; do
+            if [ -n "$timestamp" ] && [ "$((current_time - timestamp))" -lt "$RATE_LIMIT_WINDOW" ]; then
+                valid_timestamps="${valid_timestamps}${timestamp}"$'\n'
+            fi
+        done <<< "$timestamps"
+    fi
+    
+    # Count current requests
+    local request_count=$(echo "$valid_timestamps" | grep -c .)
+    
+    # Check if under limit
+    if [ "$request_count" -lt "$RATE_LIMIT_REQUESTS" ]; then
+        # Add current timestamp
+        echo "$current_time" >> "$rate_limit_file"
+        echo "ALLOWED"
+        return 0
+    else
+        echo "RATE_LIMITED"
+        return 1
+    fi
+}
+
+# Get client IP and check rate limit
+CLIENT_IP=$(get_client_ip)
+RATE_LIMIT_RESULT=$(check_rate_limit "$CLIENT_IP")
+
+if [ "$RATE_LIMIT_RESULT" = "RATE_LIMITED" ]; then
+    # Return rate limit error
+    cat > $HOME/.zen/tmp/rate_limit_error.html << EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rate Limit Exceeded</title>
+    <meta charset="utf-8">
+</head>
+<body>
+    <h1>Rate Limit Exceeded</h1>
+    <p>Too many requests from IP: $CLIENT_IP</p>
+    <p>Limit: $RATE_LIMIT_REQUESTS requests per minute</p>
+    <p>Please wait before making another request.</p>
+</body>
+</html>
+EOF
+    echo "$HOME/.zen/tmp/rate_limit_error.html"
+    exit 0
+fi
+
+# Cleanup old rate limit files (older than 1 hour)
+find "$RATE_LIMIT_DIR" -type f -mmin +60 -delete 2>/dev/null
+
 echo "Usage: $0 <qrcode> (<image_path or pass>)"
 MOATS=$(date -u +"%Y%m%d%H%M%S%4N")
 MY_PATH="`dirname \"$0\"`"              # relative
@@ -791,17 +921,17 @@ convert ${MY_PATH}/tmp/${PUBKEY}.UID.png \
 # CREATE FRIENDS PAGES INTO PDF & png
 ## Moving Related UID into ${MY_PATH}/pdf/${PUBKEY}/N1/
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## Peer to Peer “Followers/Following”
+## Peer to Peer "Followers/Following"
 nb_fichiers=$(ls ${MY_PATH}/pdf/${PUBKEY}/N1/*.p2p*.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ${MY_PATH}/pdf/${PUBKEY}/N1/*.p2p*.png ${MY_PATH}/pdf/${PUBKEY}/P2P.${PUBKEY}.pdf
 echo "convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P2P.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P2P.png"
 convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P2P.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P2P.png
-## Peer to One “Followers”
+## Peer to One "Followers"
 nb_fichiers=$(ls ${MY_PATH}/pdf/${PUBKEY}/N1/*.certin*.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ${MY_PATH}/pdf/${PUBKEY}/N1/*.certin*.png ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf
 echo "convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P21.png"
 convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P21.png
-## One to Peer “Following”
+## One to Peer "Following"
 nb_fichiers=$(ls ${MY_PATH}/pdf/${PUBKEY}/N1/*.certout*.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ${MY_PATH}/pdf/${PUBKEY}/N1/*.certout*.png ${MY_PATH}/pdf/${PUBKEY}/12P.${PUBKEY}.pdf
 echo "convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/12P.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/12P.png"
