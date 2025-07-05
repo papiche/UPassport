@@ -371,7 +371,7 @@
     </div>
     <div class="description">
         <h2><center>
-        <- <span id="UPlanet">UPlanet</span> <-> <span id="coeurBOX"><b>♥BOX</b></span> <-> <span id="NOSTR">NOSTR</span> ->
+        <- <span id="UPlanet">UPlanet</span> <-> <span id="NOSTR"><button onclick= 'window.location.href = "/g1";' title="Registration">✨</button></span> <-> <span id="coeurBOX"><b>♥BOX</b></span> ->
         </center></h2>
 
 <!--
@@ -384,9 +384,6 @@
             </ul>
 
         <br>
-        <br><b>NOSTR</b> (<span id="NOSTR">NostrCard</span>) ~ Explorer et communiquer sur le Web3 ~
-        <br><b>UPASSPORT</b> (<span id="UPassport">0Card</span>) ~ Révéler et batir vos toiles de confiance ~
-        <br><b>MULTIPASS</b> (<span id="MULTIPASS">ZenCard</span>) ~ Recevoir et échanger des Ẑen ~
 -->
    </div>
     <div class="result-container">
@@ -745,7 +742,6 @@
         $('#coeurBOX').html(`<a href="${swarmUrl}"><b>♥BOX</b></a>`);
         $('#Astroport').html(`<a href="${astroportUrl}" ><b>Astroport</b></a>`);
         $('#UPlanet').html(`<a href="${UPlanetUrl}"><b>UPlanet</b></a>`);
-        $('#NOSTR').html(`<button onclick= 'window.location.href = "/g1";' title="Registration">✨</button>`);
 
         $('#qr-form').submit(function(e) {
           e.preventDefault();
