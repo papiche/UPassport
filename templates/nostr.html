@@ -445,26 +445,7 @@
         function getRelayURL() { const u = new URL(window.location.href); let r = u.hostname.replace(/^u\./, 'relay.'); if (u.port === '54321' || ['localhost', '127.0.0.1'].includes(u.hostname)) return `ws://127.0.0.1:7777`; return `wss://${r}`; }
         function updateRelayListUI() { const l = $('#relay-list').empty(); if (allRelaysToPublish.length > 0) allRelaysToPublish.forEach(r => { const li = $('<li>').text(r); if (r === userProfile?.source) { li.prepend('📌 '); } li.appendTo(l); }); log(`UI updated: ${allRelaysToPublish.length} relays.`); }
 
-        // Function to check wallet balances
-        async function checkWalletBalances(g1Address, zenAddress) {
-            try {
-                if (g1Address) {
-                    const g1Response = await fetch(`/check_balance?address=${g1Address}&currency=G1`);
-                    const g1Data = await g1Response.json();
-                    $('#g1-balance').text(`${g1Data.balance} G1`);
-                }
-                
-                if (zenAddress) {
-                    const zenResponse = await fetch(`/check_balance?address=${zenAddress}&currency=ZEN`);
-                    const zenData = await zenResponse.json();
-                    $('#zen-balance').text(`${zenData.balance} ZEN`);
-                }
-            } catch (error) {
-                log(`Error checking balances: ${error.message}`);
-                $('#g1-balance').text('Error');
-                $('#zen-balance').text('Error');
-            }
-        }
+
 
         // --- Nostr Interaction Functions ---
         function getNostrPool() { if (!pool) { if (typeof NostrTools?.SimplePool !== 'function') { const m = "Error: NostrTools.SimplePool undef/not func!"; log(m); console.error(m, "NostrTools:", NostrTools); updateStatus(m, true); throw new Error(m); } try { log("Init SimplePool..."); pool = new NostrTools.SimplePool({ getTimeout: 6000, listTimeout: 6000 }); if (typeof pool?.list !== 'function' || typeof pool?.get !== 'function') { log("Error: Pool missing methods."); console.error("Bad pool:", pool); pool = null; throw new Error("Pool invalid."); } log("Pool init OK."); } catch (e) { log(`Pool init error: ${e.message}`); console.error("Pool Init Details:", e); updateStatus("Fail pool init.", true); throw e; } } if (!pool) { const m = "Error: Pool null after init."; log(m); updateStatus("Relay pool N/A.", true); throw new Error(m); } return pool; }
@@ -598,24 +579,39 @@
             }
         }
 
-        // Fonction pour vérifier les soldes G1
+        // Fonction pour vérifier les soldes G1 et calculer ZEN
         async function checkG1Balances(profileData) {
             try {
+                let g1Balance = 0;
+                
                 if (profileData.g1_address) {
                     const response = await fetch(`/check_balance?g1pub=${profileData.g1_address}`);
                     const data = await response.json();
-                    $('#g1-balance-v1').text(`${data.balance || '0'} G1`);
-                    $('#g1-balance').text(`${data.balance || '0'} G1`); // Update main balance display
+                    const balance = parseFloat(data.balance) || 0;
+                    $('#g1-balance-v1').text(`${balance} G1`);
+                    $('#g1-balance').text(`${balance} G1`); // Update main balance display
+                    g1Balance = balance; // Use this balance for ZEN calculation
                 }
                 if (profileData.g1_address_v2) {
                     const response = await fetch(`/check_balance?g1pub=${profileData.g1_address_v2}`);
                     const data = await response.json();
-                    $('#g1-balance-v2').text(`${data.balance || '0'} G1`);
+                    const balance = parseFloat(data.balance) || 0;
+                    $('#g1-balance-v2').text(`${balance} G1`);
+                    // Use V2 balance for ZEN calculation if V1 is not available
+                    if (!profileData.g1_address) {
+                        g1Balance = balance;
+                    }
                 }
+                
+                // Calculate ZEN balance using the formula: (G1_BALANCE - 1) * 10
+                const zenBalance = Math.floor((g1Balance - 1) * 10);
+                $('#zen-balance').text(`${zenBalance} ZEN`);
+                
             } catch (error) {
                 log(`Error checking G1 balances: ${error.message}`);
                 $('#g1-balance-v1, #g1-balance-v2').text('Error loading balance');
                 $('#g1-balance').text('Error loading balance');
+                $('#zen-balance').text('Error');
             }
         }
 
