@@ -200,16 +200,28 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     else
         ## DID SEND "0000" FOR DELETION ?
         if [[ "$IMAGE" == "0000" ]]; then
-            echo "## 0000 => DELETING ACCOUNT ${EMAIL}"
-            sed -i "s~Print~DELETED~g" ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
-            sed -i "s~${PUBKEY}~DELETED~g" ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
-            cp ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ~/.zen/tmp/${EMAIL}.nostr.zine.html
-            ${HOME}/.zen/Astroport.ONE/tools/nostr_DESTROY_TW.sh "${EMAIL}"
-            echo "${HOME}/.zen/tmp/${EMAIL}.nostr.zine.html"
-            exit 0
+            echo "## 0000 => CHECKING FOR DELETION ${EMAIL}"
+            ## Check if account was created today (TODATE matches current date)
+            if [[ -f "${HOME}/.zen/game/nostr/${EMAIL}/TODATE" ]] && [[ "$(cat ${HOME}/.zen/game/nostr/${EMAIL}/TODATE)" == "$TODATE" ]]; then
+                echo "## 0000 => DELETING ACCOUNT ${EMAIL} (created today)"
+                sed -i "s~Print~DELETED~g" ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
+                sed -i "s~${PUBKEY}~DELETED~g" ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
+                cp ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ~/.zen/tmp/${EMAIL}.nostr.zine.html
+                ${HOME}/.zen/Astroport.ONE/tools/nostr_DESTROY_TW.sh "${EMAIL}"
+                echo "${HOME}/.zen/tmp/${EMAIL}.nostr.zine.html"
+                exit 0
+            else
+                echo "## 0000 => ACCOUNT NOT CREATED TODAY, CANNOT DELETE"
+                cat ${MY_PATH}/templates/message.html \
+                | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
+                     -e "s~_MESSAGE_~ACCOUNT NOT CREATED TODAY<br>CANNOT DELETE~g" \
+                    > ${MY_PATH}/tmp/${MOATS}.out.html
+                echo "${MY_PATH}/tmp/${MOATS}.out.html"
+                exit 0
+            fi
         fi
         ## SHOW AGAIN ON 1ST DAY
-        if [[ "$(cat ${HOME}/.zen/game/nostr/${EMAIL}/TODATE)" == "$TODATE" ]]; then
+        if [[ -f "${HOME}/.zen/game/nostr/${EMAIL}/TODATE" ]] && [[ "$(cat ${HOME}/.zen/game/nostr/${EMAIL}/TODATE)" == "$TODATE" ]]; then
             echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
             exit 0
         fi
