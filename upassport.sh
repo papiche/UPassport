@@ -314,6 +314,7 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
             ## DUNIKEY PRIVATE KEY for CASH BACK
             ${MY_PATH}/tools/keygen -t duniter -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
             G1PUBNOSTR=$(cat ~/.zen/game/nostr/${PLAYER}/G1PUBNOSTR) ## NOSTR G1PUB READING
+            G1PRIME=$(cat ~/.zen/tmp/coucou/$G1PUBNOSTR.primal) ## NOSTR G1PRIME READING
             AMOUNT=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${G1PUBNOSTR} | tail -n 1)
             echo "______ AMOUNT = ${AMOUNT} G1"
             ## EMPTY AMOUNT G1 to PRIMAL
