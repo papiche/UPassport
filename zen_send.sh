@@ -71,7 +71,7 @@ if [[ -s ${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey ]]; then
         if [[ "$srcprime8" == "$dstprime8" && "$srcprime8" != "" ]]; then
             ## SAME UPLANET ZENCARD : TX AUTHORIZED
             ZEN2G1=$(echo "scale=1; $ZEN / 10" | bc)
-            ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey" "$ZEN2G1" "${G1DEST}" "UPLANET$srcprime8:ZENCARD TX"
+            ~/.zen/Astroport.ONE/tools/PAYforSURE.sh "${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey" "$ZEN2G1" "${G1DEST}" "UPLANET$srcprime8:ZENCARD TX"
             echo "¸¸♬·¯·♩¸¸♪·¯·♫¸¸ $ZEN ¸¸♬·¯·♩¸¸♪·¯·♫¸¸ sent on UPLANET$srcprime8"
             cat ${MY_PATH}/templates/message.html \
             | sed -e "s~_TITLE_~$(date -u) <br> ${G1SOURCE}<br>>>> ${G1DEST}~g" \
@@ -104,7 +104,7 @@ if [[ -s ${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey ]]; then
             exit 0
         else
             ZEN2G1=$(echo "scale=1; $ZEN / 10" | bc)
-            ~/.zen/Astroport.ONE/tools/PAY4SURE.sh "${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey" "$ZEN2G1" "${ASTROG1}" "UPLANET$srcprime8:ZENCARD TX"
+            ~/.zen/Astroport.ONE/tools/PAYforSURE.sh "${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey" "$ZEN2G1" "${ASTROG1}" "UPLANET$srcprime8:ZENCARD TX"
 
             echo "¸¸♬·¯·♩¸¸♪·¯·♫¸¸ $ZEN ¸¸♬·¯·♩¸¸♪·¯·♫¸¸ sent on PALPAY"
             cat ${MY_PATH}/templates/message.html \

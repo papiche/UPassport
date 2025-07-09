@@ -25,7 +25,7 @@ UPassport offers a range of functionalities centered around decentralized identi
 *   **Ğ1 (Duniter) Ecosystem Interaction**:
     *   **Balance Checking**: Verifies Ğ1 account balances using public keys via the `COINScheck.sh` script.
     *   **ZEN Payments (PalPay)**: Facilitates ZEN (Ẑen) cryptocurrency transactions using ZenCards, with a dedicated "PalPay" terminal.
-    *   **Transaction Processing**: Executes DUNITER payments securely using the `PAY4SURE.sh` script.
+    *   **Transaction Processing**: Executes DUNITER payments securely using the `PAYforSURE.sh` script.
     *   **Wallet History**: Retrieves and displays transaction history for Ğ1 public keys.
 
 *   **Multimedia Processing & Recording**:
@@ -266,7 +266,7 @@ UPassport offre une gamme de fonctionnalités centrées sur l'identité décentr
 *   **Interaction avec l'Écosystème Ğ1 (Duniter)** :
     *   **Vérification de Solde** : Vérifie les soldes des comptes Ğ1 en utilisant les clés publiques via le script `COINScheck.sh`.
     *   **Paiements ZEN (PalPay)** : Facilite les transactions en cryptomonnaie ZEN (Ẑen) en utilisant les ZenCards, avec un terminal "PalPay" dédié.
-    *   **Traitement des Transactions** : Exécute les paiements DUNITER de manière sécurisée en utilisant le script `PAY4SURE.sh`.
+    *   **Traitement des Transactions** : Exécute les paiements DUNITER de manière sécurisée en utilisant le script `PAYforSURE.sh`.
     *   **Historique du Portefeuille** : Récupère et affiche l'historique des transactions pour les clés publiques Ğ1.
 
 *   **Traitement et Enregistrement Multimédia** :
