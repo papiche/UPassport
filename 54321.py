@@ -2198,6 +2198,7 @@ async def test_nostr_auth(npub: str):
         logging.error(f"Erreur lors du test NOSTR: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors du test: {str(e)}")
 
+## FOR DOCUMENTATION ONLY DO NOT USE THIS FUNCTION
 def get_user_nostr_private_key(hex_pubkey: str) -> Optional[str]:
     """Récupérer la clé privée NOSTR de l'utilisateur depuis son répertoire"""
     try:
