@@ -1032,9 +1032,8 @@ def check_balance(identifier):
             raise ValueError(f"Impossible de trouver la g1pub pour l'email {email}")
     else:
         g1pub = identifier
-
     # Vérifier le solde avec la g1pub
-    result = subprocess.run(["tools/COINScheck.sh", g1pub], capture_output=True, text=True)
+    result = subprocess.run([os.path.expanduser("~/.zen/Astroport.ONE/tools/COINScheck.sh"), g1pub], capture_output=True, text=True)
     if result.returncode != 0:
         raise ValueError("Erreur dans COINScheck.sh: " + result.stderr)
     balance_line = result.stdout.strip().splitlines()[-1]

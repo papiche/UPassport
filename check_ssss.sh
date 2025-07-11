@@ -44,7 +44,7 @@ else
     VALID="INVALID"
 fi
 
-[ -z $(${MY_PATH}/tools/g1_to_ipfs.py ${ZEROCARD} 2>/dev/null) ] && VALID="INVALID"
+[ -z $($HOME/.zen/Astroport.ONE/tools/g1_to_ipfs.py ${ZEROCARD} 2>/dev/null) ] && VALID="INVALID"
 
 ## GET CARDNS
 echo "GETTING CARDNS ${CARDNS} CARDPORTAL LOCATION.........."
@@ -64,7 +64,7 @@ fi
 MEMBERPUB=$(grep -h -r -l --dereference "$CARDNS" ${MY_PATH}/pdf/ | grep IPNS12D | rev | cut -d '/' -f 2 | rev)
 echo "MEMBERPUB=$MEMBERPUB"
 ## CAPTAIN DECRYPT MIDDLE PART ${MY_PATH}/pdf/${PUBKEY}/ssss.mid.captain.enc
-${MY_PATH}/tools/natools.py decrypt -f pubsec \
+$HOME/.zen/Astroport.ONE/tools/natools.py decrypt -f pubsec \
         -i ${MY_PATH}/pdf/${MEMBERPUB}/ssss.mid.captain.enc \
         -k ~/.zen/game/players/.current/secret.dunikey \
         -o ${MY_PATH}/tmp/${ZEROCARD}.ssss.mid
