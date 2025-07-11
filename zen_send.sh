@@ -30,7 +30,7 @@ G1DEST=$3
 if [[ -s ${MY_PATH}/tmp/${G1SOURCE}.zencard.dunikey ]]; then
 
     echo "# getting ${G1SOURCE} balance : "
-    SRCCOINS=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${G1SOURCE} | tail -n 1)
+    SRCCOINS=$(~/.zen/Astroport.ONE/tools/G1check.sh ${G1SOURCE} | tail -n 1)
     SRCZEN=$(echo "($SRCCOINS - 1) * 10" | bc | cut -d '.' -f 1)
     echo "# verify $SRCZEN > $ZEN ? "
     if [[ $(echo "$SRCZEN < $ZEN" | bc) == 1 || $(echo "$SRCZEN < 10" | bc) == 1 ]]; then

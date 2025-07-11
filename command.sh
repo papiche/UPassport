@@ -140,10 +140,10 @@ case "$COMMENT" in
         # UPLANETNAME Extract ZEROCARD secret
         cat ${MY_PATH}/pdf/${PUBKEY}/zerocard.planet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ${MY_PATH}/tmp/${MOATS}.secret
         # ZEROCARD amount
-        solde=$(${MY_PATH}/tools/timeout.sh -t 5 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${ZEROCARD})
+        solde=$($HOME/.zen/Astroport.ONE/tools/G1check.sh ${ZEROCARD} | tail -n 1)
         echo "EMPTYING $solde G1 to ${PUBKEY}"
         # Pay Back
-        ${MY_PATH}/tools/timeout.sh -t 5 ${MY_PATH}/tools/jaklis/jaklis.py -k ${MY_PATH}/tmp/${MOATS}.secret pay -a ${solde} -p ${PUBKEY} -c "BYE" -m
+        $HOME/.zen/Astroport.ONE/tools/PAYforSURE.sh ${MY_PATH}/tmp/${MOATS}.secret pay ${solde} ${PUBKEY} "BYE BYE" 2>/dev/null
         [ $? -eq 0 ] \
             && rm -Rf ${MY_PATH}/pdf/${PUBKEY}/ && rm ${MY_PATH}/pdf/${PUBKEY} && rmdir ~/.zen/game/passport/${PUBKEY} \
                 && echo "${MY_PATH}/static/img/nature_cloud_face.png" \
@@ -154,7 +154,7 @@ case "$COMMENT" in
     "MAJ")
         echo "Mise à jour MEMBER wallet AMOUNT ${PUBKEY}"
         ZEROCARD=$(cat ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD)
-        SOLDE=$(${MY_PATH}/tools/timeout.sh -t 6 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${PUBKEY})
+        SOLDE=$($HOME/.zen/Astroport.ONE/tools/G1check.sh ${PUBKEY} | tail -n 1)
         AMOUNT="$SOLDE Ğ1"
         cat ${MY_PATH}/templates/message.html \
         | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \

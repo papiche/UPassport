@@ -43,13 +43,13 @@ if [[ -L ${MY_PATH}/pdf/${PUBKEY} ]]; then
     arr=(${DISCO//[=&]/ })
     salt=$(urldecode ${arr[1]} | xargs)
     pepper=$(urldecode ${arr[3]} | xargs)
-    ${MY_PATH}/tools/keygen -t duniter -o ${MY_PATH}/tmp/${MOATS}.secret "$salt" "$pepper"
+    $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ${MY_PATH}/tmp/${MOATS}.secret "$salt" "$pepper"
 
     # ZEROCARD amount
-    solde=$(${MY_PATH}/tools/timeout.sh -t 5 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${ZEROCARD})
+    solde=$($HOME/.zen/Astroport.ONE/tools/G1check.sh ${ZEROCARD} | tail -n 1)
     echo "EMPTYING $solde G1 to ${PUBKEY}"
     # Pay Back
-    ${MY_PATH}/tools/timeout.sh -t 5 ${MY_PATH}/tools/jaklis/jaklis.py -k ${MY_PATH}/tmp/${MOATS}.secret pay -a ${solde} -p ${PUBKEY} -c "UPASSPORT:UNPLUG:/ipfs/$IPFSPORTAL" -m
+    $HOME/.zen/Astroport.ONE/tools/PAYforSURE.sh ${MY_PATH}/tmp/${MOATS}.secret pay ${solde} ${PUBKEY} "UPASSPORT:UNPLUG:/ipfs/$IPFSPORTAL" 2>/dev/null
     [ $? -eq 0 ] \
         && rm -Rf ${MY_PATH}/pdf/${PUBKEY}/ && rm ${MY_PATH}/pdf/${PUBKEY} && rmdir ~/.zen/game/passport/${PUBKEY} \
             && echo "${MY_PATH}/static/img/nature_cloud_face.png" \

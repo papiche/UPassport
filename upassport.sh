@@ -90,8 +90,8 @@ if [[ ${QRCODE:0:5} == "~~~~~" ]]; then
     p=$(urldecode ${arr[2]} | xargs)
     pepper=$(urldecode ${arr[3]} | xargs)
     ## CREATE WALLET KEY
-    TWNS=$(${MY_PATH}/tools/keygen -t ipfs "${salt}" "${pepper}")
-    ${MY_PATH}/tools/keygen -t duniter -o ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey "${salt}" "${pepper}"
+    TWNS=$($HOME/.zen/Astroport.ONE/tools/keygen -t ipfs "${salt}" "${pepper}")
+    $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey "${salt}" "${pepper}"
     g1source=$(cat ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
     SRCCOINS=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${g1source} | tail -n 1)
     SRCZEN=$(echo "($SRCCOINS - 1) * 10" | bc | cut -d '.' -f 1)
@@ -139,7 +139,7 @@ if [[ ${PUBKEY:0:4} == "http" ]]; then
     else
         ## ZEROCARD IPNS LINK DETECTED
         CARDNS="12D3Koo"$ipns12D
-        CARDG1=$(${MY_PATH}/tools/ipfs_to_g1.py $CARDNS)
+        CARDG1=$($HOME/.zen/Astroport.ONE/tools/ipfs_to_g1.py $CARDNS)
         echo "ZEROCARD IPNS12D QRCODE : /ipns/$CARDNS ($CARDG1)"
         # FIND MEMBER & ZEROCARD
         MEMBERPUB=$(grep -h -r -l --dereference "$CARDNS" ${MY_PATH}/pdf/ | grep IPNS12D | cut -d '/' -f 3)
@@ -286,8 +286,8 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
 
         # Decrypt the tail part using UPLANET key
         tmp_tail=$(mktemp)
-        ${MY_PATH}/tools/keygen -t duniter -o $HOME/.zen/tmp/$MOATS/uplanet.dunikey "${UPLANETNAME}" "${UPLANETNAME}"
-        ${MY_PATH}/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.tail.uplanet.enc" \
+        $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o $HOME/.zen/tmp/$MOATS/uplanet.dunikey "${UPLANETNAME}" "${UPLANETNAME}"
+        $HOME/.zen/Astroport.ONE/tools/natools.py decrypt -f pubsec -i "$HOME/.zen/game/nostr/${PLAYER}/ssss.tail.uplanet.enc" \
                 -k $HOME/.zen/tmp/$MOATS/uplanet.dunikey -o "$tmp_tail"
 
         rm $HOME/.zen/tmp/$MOATS/uplanet.dunikey
@@ -312,10 +312,10 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
         ### CASH BACK => EMPTY WALLET CLOSE ACCOUNT
         if [[ "$IMAGE" == "0000" ]]; then
             ## DUNIKEY PRIVATE KEY for CASH BACK
-            ${MY_PATH}/tools/keygen -t duniter -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
+            $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
             G1PUBNOSTR=$(cat ~/.zen/game/nostr/${PLAYER}/G1PUBNOSTR) ## NOSTR G1PUB READING
             G1PRIME=$(cat ~/.zen/tmp/coucou/$G1PUBNOSTR.primal) ## NOSTR G1PRIME READING
-            AMOUNT=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${G1PUBNOSTR} | tail -n 1)
+            AMOUNT=$(~/.zen/Astroport.ONE/tools/G1check.sh ${G1PUBNOSTR} | tail -n 1)
             echo "______ AMOUNT = ${AMOUNT} G1"
             ## EMPTY AMOUNT G1 to PRIMAL
             ~/.zen/Astroport.ONE/tools/PAYforSURE.sh "${HOME}/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey" "$AMOUNT" "${G1PRIME}" "NOSTR:EXIT"
@@ -325,14 +325,14 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
 
             cat ${MY_PATH}/templates/message.html \
             | sed -e "s~_TITLE_~$(date -u) <br> ${G1PRIME}~g" \
-                 -e "s~_MESSAGE_~PRIMAL PAY BACK <br> $AMOUNT~g" \
+                  -e "s~_MESSAGE_~PRIMAL PAY BACK <br> $AMOUNT~g" \
                 > ${MY_PATH}/tmp/${MOATS}.out.html
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
             exit 0
         else
         ### OPEN UPLANET GEO KEY MESSAGE
             ### Filling UPassport API template with nsec
-            NSEC=$(${MY_PATH}/tools/keygen -t nostr "${salt}" "${pepper}" -s)
+            NSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${salt}" "${pepper}" -s)
             cat ~/.zen/UPassport/templates/nostr.html \
                 | sed "s/const userNsec = '';/const userNsec = '${NSEC}';/" \
                 > ${MY_PATH}/tmp/${MOATS}.out.html
@@ -353,7 +353,7 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
 fi
 
 # CHECK G1 PUBKEY FORMAT
-if [[ -z $(${MY_PATH}/tools/g1_to_ipfs.py ${PUBKEY} 2>/dev/null) ]]; then
+if [[ -z $($HOME/.zen/Astroport.ONE/tools/g1_to_ipfs.py ${PUBKEY} 2>/dev/null) ]]; then
     cat ${MY_PATH}/templates/message.html \
     | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
          -e "s~_MESSAGE_~QR CODE Error<br><a target=_new href=https://pad.p2p.legal/HELP>HELP</a>?!~g" \
@@ -373,11 +373,11 @@ generate_qr_with_uid() {
     local member_uid=$2
     ## Extract wallet balance
     if [[ ! -s ${MY_PATH}/tmp/${pubkey}.solde ]]; then
-        solde=$(${MY_PATH}/tools/timeout.sh -t 5 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${pubkey})
+        solde=$($HOME/.zen/Astroport.ONE/tools/timeout.sh -t 5 $HOME/.zen/Astroport.ONE/tools/jaklis/jaklis.py balance -p ${pubkey})
         [ ! $? -eq 0 ] \
             && GVA=$(~/.zen/Astroport.ONE/tools/duniter_getnode.sh | tail -n 1) \
-            && [[ ! -z $GVA ]] && sed -i '/^NODE=/d' ${MY_PATH}/tools/jaklis/.env \
-            && echo "NODE=$GVA" >> ${MY_PATH}/tools/jaklis/.env \
+            && [[ ! -z $GVA ]] && sed -i '/^NODE=/d' $HOME/.zen/Astroport.ONE/tools/jaklis/.env \
+            && echo "NODE=$GVA" >> $HOME/.zen/Astroport.ONE/tools/jaklis/.env \
             && echo "GVA RELAY: $GVA" ## GVA RELAY SWITCHING
         echo "$solde" > ${MY_PATH}/tmp/${pubkey}.solde
         sleep 2
@@ -398,7 +398,7 @@ generate_qr_with_uid() {
     if [ ! -s ${MY_PATH}/tmp/${pubkey}.UID.png ]; then
         echo "___________ CESIUM+ ${member_uid} [${zen} ẑ] : ${pubkey} "
         [[ ! -s ${MY_PATH}/tmp/$pubkey.cesium.json ]] \
-        && ${MY_PATH}/tools/timeout.sh -t 6 \
+        && $HOME/.zen/Astroport.ONE/tools/timeout.sh -t 6 \
         curl -s ${myCESIUM}/user/profile/${pubkey} > ${MY_PATH}/tmp/${pubkey}.cesium.json 2>/dev/null
 
         if [ ! -s "${MY_PATH}/tmp/$pubkey.cesium.json" ]; then
@@ -461,18 +461,18 @@ find ${MY_PATH}/pdf -type d -mtime +7 -not -xtype l -exec rm -r {} \;
 
 ## GET PUBKEY TX HISTORY
 echo "LOADING WALLET HISTORY"
-${MY_PATH}/tools/timeout.sh -t 6 ${MY_PATH}/tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ${MY_PATH}/tmp/$PUBKEY.TX.json
+$HOME/.zen/Astroport.ONE/tools/timeout.sh -t 6 $HOME/.zen/Astroport.ONE/tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ${MY_PATH}/tmp/$PUBKEY.TX.json
 [ ! $? -eq 0 ] \
     && GVA=$(~/.zen/Astroport.ONE/tools/duniter_getnode.sh | tail -n 1) \
-    && [[ ! -z $GVA ]] && sed -i '/^NODE=/d' ${MY_PATH}/tools/jaklis/.env \
-    && echo "NODE=$GVA" >> ${MY_PATH}/tools/jaklis/.env \
-    && ${MY_PATH}/tools/timeout.sh -t 6 ${MY_PATH}/tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ${MY_PATH}/tmp/$PUBKEY.TX.json
+    && [[ ! -z $GVA ]] && sed -i '/^NODE=/d' $HOME/.zen/Astroport.ONE/tools/jaklis/.env \
+    && echo "NODE=$GVA" >> $HOME/.zen/Astroport.ONE/tools/jaklis/.env \
+    && $HOME/.zen/Astroport.ONE/tools/timeout.sh -t 6 $HOME/.zen/Astroport.ONE/tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ${MY_PATH}/tmp/$PUBKEY.TX.json
     ## TEST AND SWITCH GVA SERVER
 
 
 ## EXTRACT SOLDE & ZEN
 if [[ -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]]; then
-    SOLDE=$(${MY_PATH}/tools/timeout.sh -t 20 ${MY_PATH}/tools/jaklis/jaklis.py balance -p ${PUBKEY})
+    SOLDE=$($HOME/.zen/Astroport.ONE/tools/timeout.sh -t 20 $HOME/.zen/Astroport.ONE/tools/jaklis/jaklis.py balance -p ${PUBKEY})
     ZEN=$(echo "($SOLDE - 1) * 10" | bc | cut -d '.' -f 1)
 
     AMOUNT="$SOLDE Ğ1"
@@ -585,7 +585,7 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         ipfs pin rm ${IPFSPORTAL}
 
         ### EXTEND IPNS QR with CAPTAIN ssss key part
-        ${MY_PATH}/tools/natools.py decrypt -f pubsec -i ${MY_PATH}/pdf/${PUBKEY}/ssss.tail.2U.enc -k ~/.zen/game/players/.current/secret.dunikey -o ${MY_PATH}/tmp/${PUBKEY}.2U
+        $HOME/.zen/Astroport.ONE/tools/natools.py decrypt -f pubsec -i ${MY_PATH}/pdf/${PUBKEY}/ssss.tail.2U.enc -k ~/.zen/game/players/.current/secret.dunikey -o ${MY_PATH}/tmp/${PUBKEY}.2U
             amzqr "$(cat ${MY_PATH}/tmp/${PUBKEY}.2U)" -l H -n ${PUBKEY}.2U.png -d ${MY_PATH}/tmp/ 2>/dev/null
 
             CAPTAINTAIL=$(ipfs add -q ${MY_PATH}/tmp/${PUBKEY}.2U.png)
@@ -668,7 +668,7 @@ fi
 ### FRESH PUBKEY... IS IT A MEMBER 0R A WALLET ?
 echo "## GETTING CESIUM+ PROFILE"
 [[ ! -s ${MY_PATH}/tmp/$PUBKEY.me.json ]] \
-&& ${MY_PATH}/tools/timeout.sh -t 8 \
+&& $HOME/.zen/Astroport.ONE/tools/timeout.sh -t 8 \
 wget -q -O ${MY_PATH}/tmp/$PUBKEY.me.json ${myDUNITER}/wot/lookup/$PUBKEY
 
 echo "# GET MEMBER UID"
@@ -788,7 +788,7 @@ TOTAL=$((TOTP2P + TOT12P + TOTP21))
 echo $TOTAL > ${MY_PATH}/pdf/${PUBKEY}/TOTAL
 
 # Create manifest.json add App for N1 level
-${MY_PATH}/tools/createN1json.sh ${MY_PATH}/pdf/${PUBKEY}/N1/
+$HOME/.zen/Astroport.ONE/tools/createN1json.sh ${MY_PATH}/pdf/${PUBKEY}/N1/
 cp ${MY_PATH}/static/N1/index.html ${MY_PATH}/pdf/${PUBKEY}/N1/_index.html
 
 # Generate PUBKEY and MEMBERUID "QRCODE" add TOTAL
@@ -829,12 +829,12 @@ echo "############################################################"
 echo "# CREATE ZEROCARD ......... TOTAL = $TOTAL Z"
 echo "############################################################"
 ############################################## PREPARE SALT PEPPER
-prime=$(${MY_PATH}/tools/diceware.sh 1 | xargs)
+prime=$($HOME/.zen/Astroport.ONE/tools/diceware.sh 1 | xargs)
 SALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
-second=$(${MY_PATH}/tools/diceware.sh 1 | xargs)
+second=$($HOME/.zen/Astroport.ONE/tools/diceware.sh 1 | xargs)
 PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
 ################################################################# DUNITER
-${MY_PATH}/tools/keygen -t duniter -o ${MY_PATH}/tmp/${PUBKEY}.zerocard.dunikey "${SALT}" "${PEPPER}"
+$HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ${MY_PATH}/tmp/${PUBKEY}.zerocard.dunikey "${SALT}" "${PEPPER}"
 G1PUBZERO=$(cat ${MY_PATH}/tmp/${PUBKEY}.zerocard.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
 
 ## ENCRYPT WITH UPLANETNAME PASSWORD
@@ -845,7 +845,7 @@ fi
 
 rm -f ${MY_PATH}/pdf/${PUBKEY}/zerocard.member.enc
 ## zerocard.dunikey PUBKEY encryption
-${MY_PATH}/tools/natools.py encrypt -p $PUBKEY -i ${MY_PATH}/tmp/${PUBKEY}.zerocard.dunikey -o ${MY_PATH}/pdf/${PUBKEY}/zerocard.member.enc
+$HOME/.zen/Astroport.ONE/tools/natools.py encrypt -p $PUBKEY -i ${MY_PATH}/tmp/${PUBKEY}.zerocard.dunikey -o ${MY_PATH}/pdf/${PUBKEY}/zerocard.member.enc
 echo "ZEN _WALLET: $G1PUBZERO"
 rm -f ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD_*.QR.jpg # cleaning & provisionning
 echo "${G1PUBZERO}" > ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD
@@ -863,14 +863,14 @@ amzqr "${G1PUBZERO}" -l H -p ${MY_PATH}/static/img/GZen.png -c -n ZEROCARD_${G1P
 
 ################################################################# IPNS
 #~ ## CREATE IPNS KEY
-${MY_PATH}/tools/keygen -t ipfs -o ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key "${SALT}" "${PEPPER}"
-IPNS12D=$(${MY_PATH}/tools/keygen -t ipfs "${SALT}" "${PEPPER}")
+$HOME/.zen/Astroport.ONE/tools/keygen -t ipfs -o ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key "${SALT}" "${PEPPER}"
+IPNS12D=$($HOME/.zen/Astroport.ONE/tools/keygen -t ipfs "${SALT}" "${PEPPER}")
 ipfs key rm ${G1PUBZERO} > /dev/null 2>&1
 WALLETNS=$(ipfs key import ${G1PUBZERO} -f pem-pkcs8-cleartext ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key)
 
 ## ENCODE IPNS KEY WITH CAPTAING1PUB
-echo "${MY_PATH}/tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key -o ${MY_PATH}/pdf/${PUBKEY}/IPNS.captain.enc"
-${MY_PATH}/tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key -o ${MY_PATH}/pdf/${PUBKEY}/IPNS.captain.enc
+echo "$HOME/.zen/Astroport.ONE/tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key -o ${MY_PATH}/pdf/${PUBKEY}/IPNS.captain.enc"
+$HOME/.zen/Astroport.ONE/tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.IPNS.key -o ${MY_PATH}/pdf/${PUBKEY}/IPNS.captain.enc
 
 ## ENCRYPT WITH UPLANETNAME PASSWORD
 if [[ ! -z ${UPLANETNAME} ]]; then
@@ -915,11 +915,11 @@ $TAIL" | ssss-combine -t 2 -q
 ##########################################################################
 ### CRYPTO ZONE
 ## ENCODE HEAD SSSS SECRET WITH MEMBER PUBKEY
-echo "${MY_PATH}/tools/natools.py encrypt -p $PUBKEY -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.head -o ${MY_PATH}/pdf/${PUBKEY}/ssss.member.enc"
-${MY_PATH}/tools/natools.py encrypt -p $PUBKEY -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.head -o ${MY_PATH}/pdf/${PUBKEY}/ssss.head.member.enc
+echo "$HOME/.zen/Astroport.ONE/tools/natools.py encrypt -p $PUBKEY -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.head -o ${MY_PATH}/pdf/${PUBKEY}/ssss.member.enc"
+$HOME/.zen/Astroport.ONE/tools/natools.py encrypt -p $PUBKEY -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.head -o ${MY_PATH}/pdf/${PUBKEY}/ssss.head.member.enc
 
-echo "${MY_PATH}/tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.mid -o ${MY_PATH}/pdf/${PUBKEY}/ssss.mid.captain.enc"
-${MY_PATH}/tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.mid -o ${MY_PATH}/pdf/${PUBKEY}/ssss.mid.captain.enc
+echo "$HOME/.zen/Astroport.ONE/tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.mid -o ${MY_PATH}/pdf/${PUBKEY}/ssss.mid.captain.enc"
+$HOME/.zen/Astroport.ONE/tools/natools.py encrypt -p $CAPTAING1PUB -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.mid -o ${MY_PATH}/pdf/${PUBKEY}/ssss.mid.captain.enc
 
 ## MIDDLE ENCRYPT WITH UPLANETNAME
 if [[ ! -z ${UPLANETNAME} ]]; then
@@ -931,7 +931,7 @@ if [[ ! -z ${UPLANETNAME} ]]; then
 fi
 
 ## ENCODE TAIL SSSS SECRET WITH CAPTAING1PUB
-${MY_PATH}/tools/natools.py encrypt -p ${CAPTAING1PUB} -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.tail -o ${MY_PATH}/pdf/${PUBKEY}/ssss.tail.2U.enc
+$HOME/.zen/Astroport.ONE/tools/natools.py encrypt -p ${CAPTAING1PUB} -i ${MY_PATH}/tmp/${G1PUBZERO}.ssss.tail -o ${MY_PATH}/pdf/${PUBKEY}/ssss.tail.2U.enc
 
 ## REMOVE SENSIBLE DATA FROM CACHE
 # DEEPER SECURITY CONCERN ? mount ${MY_PATH}/tmp as encrypted RAM disk
