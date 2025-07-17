@@ -788,7 +788,7 @@ TOTAL=$((TOTP2P + TOT12P + TOTP21))
 echo $TOTAL > ${MY_PATH}/pdf/${PUBKEY}/TOTAL
 
 # Create manifest.json add App for N1 level
-$HOME/.zen/Astroport.ONE/tools/createN1json.sh ${MY_PATH}/pdf/${PUBKEY}/N1/
+${MY_PATH}/tools/createN1json.sh ${MY_PATH}/pdf/${PUBKEY}/N1/
 cp ${MY_PATH}/static/N1/index.html ${MY_PATH}/pdf/${PUBKEY}/N1/_index.html
 
 # Generate PUBKEY and MEMBERUID "QRCODE" add TOTAL
