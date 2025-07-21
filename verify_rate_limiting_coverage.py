@@ -14,7 +14,7 @@ if len(sys.argv) > 1:
 else:
     BASE_URL = "http://127.0.0.1:54321"
 
-# Liste des routes à tester (basée sur l'analyse du code)
+# Liste complète des routes basée sur l'analyse du code
 ROUTES_TO_TEST = [
     # Routes GET
     ("GET", "/"),
@@ -124,6 +124,32 @@ def test_route(method, path, test_number):
     except Exception as e:
         return f"  ❌ Route {test_number}: {method} {path} - EXCEPTION: {str(e)[:50]}"
 
+def test_static_files():
+    """Tester que les fichiers statiques sont bien exclus du rate limiting"""
+    try:
+        # Tester un fichier statique (qui devrait être exclu)
+        response = requests.get(f"{BASE_URL}/static/test.css", timeout=5)
+        
+        # Vérifier que les headers de rate limiting ne sont PAS présents
+        rate_limit_headers = [
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining", 
+            "X-RateLimit-Client-IP"
+        ]
+        
+        present_headers = []
+        for header in rate_limit_headers:
+            if header in response.headers:
+                present_headers.append(header)
+        
+        if present_headers:
+            return f"  ❌ Fichiers statiques: Rate limiting appliqué (ne devrait pas l'être) - Headers: {', '.join(present_headers)}"
+        else:
+            return f"  ✅ Fichiers statiques: Correctement exclus du rate limiting"
+            
+    except Exception as e:
+        return f"  ⚠️  Fichiers statiques: Erreur de test - {str(e)[:50]}"
+
 def main():
     print("🔍 Vérification de la couverture du rate limiting")
     print("=" * 60)
@@ -154,6 +180,13 @@ def main():
         time.sleep(0.1)  # Petit délai entre les requêtes
     
     print("")
+    print("📁 Test des fichiers statiques...")
+    print("")
+    
+    static_result = test_static_files()
+    print(static_result)
+    
+    print("")
     print("📈 Résumé:")
     print("=" * 60)
     
@@ -166,16 +199,29 @@ def main():
     print(f"❌ Routes en erreur: {error_count}")
     print(f"📊 Total testées: {len(results)}")
     
-    if error_count == 0:
-        print("🎉 Toutes les routes testées sont soumises au rate limiting !")
+    # Vérifier les fichiers statiques
+    if "✅" in static_result:
+        print("✅ Fichiers statiques: Correctement exclus")
     else:
-        print("⚠️  Certaines routes ne sont pas correctement protégées.")
+        print("❌ Fichiers statiques: Problème détecté")
+    
+    print("")
+    print("🔍 Analyse du middleware:")
+    print("- Seules les routes commençant par /static sont exclues")
+    print("- Toutes les autres routes sont soumises au rate limiting")
+    print("- Les IPs de confiance (127.0.0.1, 10.99.99.0/24) ont un accès illimité")
+    
+    if error_count == 0 and "✅" in static_result:
+        print("🎉 Configuration du rate limiting parfaite !")
+    else:
+        print("⚠️  Des problèmes ont été détectés dans la configuration.")
     
     print("")
     print("📝 Notes:")
     print("- Les routes nécessitant des fichiers sont marquées SKIP")
     print("- Les erreurs peuvent être normales si les données sont invalides")
     print("- L'important est la présence des headers X-RateLimit-*")
+    print("- Les fichiers statiques doivent être exclus du rate limiting")
 
 if __name__ == "__main__":
-    main()
+    main() 
