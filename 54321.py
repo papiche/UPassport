@@ -1085,18 +1085,22 @@ async def ustats(request: Request, lat: str = None, lon: str = None, deg: str = 
 async def get_root(request: Request):
     return templates.TemplateResponse("scan_new.html", {"request": request})
 
+# UPlanet Geo Message
 @app.get("/nostr")
 async def get_root(request: Request):
     return templates.TemplateResponse("nostr.html", {"request": request})
 
+# ---DEV--- NOSTR BLOG MESSAGE
 @app.get("/blog")
 async def get_root(request: Request):
     return templates.TemplateResponse("nostr_blog.html", {"request": request})
 
+# UPlanet G1 Registration
 @app.get("/g1", response_class=HTMLResponse)
 async def get_root(request: Request):
     return templates.TemplateResponse("g1nostr.html", {"request": request})
 
+# Beside /g1
 @app.post("/g1nostr")
 async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...), lat: str = Form(...), lon: str = Form(...), salt: str = Form(default=""), pepper: str = Form(default="")):
     """

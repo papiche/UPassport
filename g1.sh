@@ -4,7 +4,7 @@
 # Version: 1.0
 # License: AGPL-3.0 (https://choosealicense.com/licenses/agpl-3.0/)
 ################################################################################
-# Output Zine Html web page and send it to email
+# Output is an HTML file - sent back to user through 54321 API
 echo "Usage: $0 <email> <lang> <lat> <lon> [salt] [pepper]"
 echo "  email:   Email address (required)"
 echo "  lang:    Language code (required)"
@@ -32,7 +32,7 @@ SALT="$5"
 PEPPER="$6"
 
 if [[ "$#" -lt 4 ]]; then
-    echo "Error: Missing required parameters (email, lang, lat, lon)."
+    echo "Error: Missing required parameters (email, lang, lat, lon)." >&2
     cat ${MY_PATH}/templates/message.html \
     | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
          -e "s~_MESSAGE_~Missing required parameters~g" \
@@ -44,16 +44,6 @@ fi
 if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     EMAIL="${EMAIL,,}"
     echo "Email detected: $EMAIL"
-
-    ## SEARCH FOR EXISTING ACCOUNT
-    if [[ -n $($HOME/.zen/Astroport.ONE/tools/search_for_this_email_in_nostr.sh ${EMAIL}) ]]; then
-        cat ${MY_PATH}/templates/message.html \
-        | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
-             -e "s~_MESSAGE_~EXISTING ACCOUNT~g" \
-            > ${MY_PATH}/tmp/${MOATS}.out.html
-        echo "${MY_PATH}/tmp/${MOATS}.out.html"
-        exit 0
-    fi
 
     ## SEARCH FOR EXISTING MULTIPASS
     if [[ -n $($HOME/.zen/Astroport.ONE/tools/search_for_this_email_in_nostr.sh ${EMAIL}) ]]; then
@@ -74,12 +64,12 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     # Generate random salt and pepper if not provided
     if [[ -z "$SALT" ]]; then
         SALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
-        echo "Generated random salt: ${SALT:0:10}..."
+        echo "Generated random salt: ${SALT:0:10}..." >&2
     fi
 
     if [[ -z "$PEPPER" ]]; then
         PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
-        echo "Generated random pepper: ${PEPPER:0:10}..."
+        echo "Generated random pepper: ${PEPPER:0:10}..." >&2
     fi
 
     ### SEARCH FOR EXISTING NOSTR CARD
@@ -98,18 +88,10 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
         fi
     fi
 
-    ## ALREADY EXISTING
-    cat ${MY_PATH}/templates/message.html \
-    | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
-         -e "s~_MESSAGE_~NOSTR CARD ALREADY EXISTING~g" \
-        > ${MY_PATH}/tmp/${MOATS}.out.html
-    echo "${MY_PATH}/tmp/${MOATS}.out.html"
-    exit 0
-
 else
     cat ${MY_PATH}/templates/message.html \
     | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
-         -e "s~_MESSAGE_~ERROR~g" \
+         -e "s~_MESSAGE_~SYNTAX ERROR~g" \
         > ${MY_PATH}/tmp/${MOATS}.out.html
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
