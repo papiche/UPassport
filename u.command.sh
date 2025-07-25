@@ -1,5 +1,5 @@
 #!/bin/bash
-################################################################### command.sh
+################################################################### u.command.sh
 # Author: Fred (DsEx1pS33vzYZg4MroyBV9hCw98j1gtHEhwiZ5tK7ech)
 # Version: 1.0
 # License: AGPL-3.0 (https://choosealicense.com/licenses/agpl-3.0/)
@@ -22,7 +22,7 @@ if [ $# -ne 7 ]; then
 fi
 
 source ${MY_PATH}/.env
-[[ -z $myIPFS ]] && myIPFS="https://ipfs.astroport.com" # IPFS
+[[ -z $myIPFS ]] && myIPFS="https://ipfs.copylaradio.com" # IPFS
 MOATS=$(date -u +"%Y%m%d%H%M%S%4N")
 
 ## LOAD ASTROPORT ENVIRONMENT
@@ -59,7 +59,7 @@ echo "ZEROCARD: $ZEROCARD" # EMAIL OR MEMBERG1PUB
 
 #########################################################################
 ### ZEROCARD EMAIL <=> PLAYER ACCOUNT
-### PRIVILEGE ESCALADE
+### PRIVILEGE ESCALADE -- PRIMAL TX with ZENCARD EMAIL IN COMMENT
 isEMAIL=$(echo "$ZEROCARD" | grep -E -o "\b[a-zA-Z0-9.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}\b")
 if [ ! -z $isEMAIL ]; then
     echo "ZenCard challenge... $isEMAIL"
@@ -67,28 +67,39 @@ if [ ! -z $isEMAIL ]; then
         echo "////////////// REGISTERED ZENCARD \\\\\\\\\\\\\\"
         ~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL"
         $(~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL" | tail -n 1)
-        ## ## ## ##
+        ## https://opencollective.com/uplanet-zero <-> Corresponding Ẑen from "$UPLANETNAME.SOCIETY" wallet
+        echo "$TODATE" > ~/.zen/game/players/$isEMAIL/U.SOCIETY
+        ln -s ~/.zen/game/players/$isEMAIL/U.SOCIETY ~/.zen/game/nostr/$isEMAIL/U.SOCIETY
+        ## ## ## ## UPASSPORT will receive Ẑen from "UPLANETNAME.SOCIETY" wallet 
+            # Satellite = 50 Ẑ / an : https://opencollective.com/uplanet-zero/contribute/achat-128-go-sur-nanopi5-86611
+            # PC GAMER = 540 Ẑ / 3 ans : https://opencollective.com/uplanet-zero/contribute/proprio-128-go-71400
+        ## SEND ACTIVATED UPASSPORT to PLAYER -- OC2UPLANET STUFF --
+        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${isEMAIL}" "$HOME/.zen/game/passport/${PUBKEY}/.passport.html" "UPlanet SOCIETY Welcome"
+        ###################################################################################################""
     else
-        echo "PLAYER NOT FOUND ON THIS ASTROPORT..........."
+        echo "$isEMAIL ZENCARD NOT FOUND ON THIS ASTROPORT..........."
         # Check actual member PLAYER file
         if [ -s ${MY_PATH}/pdf/${PUBKEY}/PLAYER ]; then
             echo "DECLARED PLAYER = $(cat ${MY_PATH}/pdf/${PUBKEY}/PLAYER) .... SEARCH IN SWARM"
             ~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL"
             $(~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL" | tail -n 1)
-            # DO SOMETHING...
-        else
-            if [[ "$COMMENT" != "" ]]; then
+            ## WHAT TO DO NEXT ?? Same email on !=Astroport should not be possible... 
+
+        else    
+            ## In case ZENCARD is not existing : Creating it with MULTIPASS Linking - deprecated
+            source ~/.zen/game/nostr/$isEMAIL/.secret.nostr 2>/dev/null
+            if [[ -n "$COMMENT" && -n "$HEX" && -n "$NPUB" ]]; then
                 comment="${COMMENT,,}"
                 ulang="${comment:0:2}"
                 echo "CREATING UPLANET PLAYER ACCOUNT : $ulang"
-                ## CREATE PLAYER via ASTROPORT CLI API CMD="" THAT="" AND="" THIS="" APPNAME="" WHAT="" OBJ="" VAL=""
+                ## CREATE ZENCARD VISA via ASTROPORT CLI API CMD="" THAT="" AND="" THIS="" APPNAME="" WHAT="" OBJ="" VAL=""
                 # http://127.0.0.1:1234/?uplanet=dev%40g1sms.fr&zlat=0.00&zlon=0.00&g1pub=fr
-                # ~/.zen/Astroport.ONE/API/UPLANET.sh 45783 dev@g1sms.fr zlat 0.00 zlon 0.00 g1pub fr 202410121305468792 123460:
-                exec ~/.zen/Astroport.ONE/API/UPLANET.sh "45791" "$isEMAIL" "zlat" "$ZLAT" "zlon" "$ZLON" "g1pub" "${ulang}" "${MOATS}" "$COOKIE" &
+                # ~/.zen/Astroport.ONE/API/UPLANET.sh uplanet dev@g1sms.fr zlat 0.00 zlon 0.00 g1pub fr 202410121305468792 123460:
+                exec ~/.zen/Astroport.ONE/API/UPLANET.sh "uplanet" "$isEMAIL" "zlat" "$ZLAT" "zlon" "$ZLON" "g1pub" "${ulang}" "${HEX}" "${NPUB}" &
                 ## WRITE PLAYER into ZEROCARD APP
                 echo "$isEMAIL" > ${MY_PATH}/pdf/${PUBKEY}/PLAYER
             else
-                echo "COMMENT=$COMMENT"
+                echo "MISSING MULTIPASS received COMMENT=$COMMENT"
             fi
         fi
 

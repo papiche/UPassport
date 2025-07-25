@@ -196,7 +196,7 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
         ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE" "${ZLAT}" "${ZLON}"
         ## MAILJET SEND NOSTR CARD
         YOUSER=$(${HOME}/.zen/Astroport.ONE/tools/clyuseryomail.sh ${EMAIL})
-        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "UPlanet MULTIPASS - $YOUSER"
+        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "UPlanet MULTIPASS"
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
         exit 0
         #########################################################""
@@ -256,7 +256,7 @@ get_NOSTRNS_directory() {
     done < <(find "$HOME/.zen/game/nostr" -type f -name "NOSTRNS" -print0)
 }
 ########################################################################
-############ NOSTRCARD SSSS 1-xxx:ipns EMPTY KEY QRCODE RECEIVED
+############ MULTIPASS SSSS 1-xxx:ipns KEY QRCODE RECEIVED
 ########################################################################
 if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
     echo "NOSTR CARD SSSS KEY verification......"
@@ -266,9 +266,9 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
 
     if [[ ${ipnsk51} != "" ]]; then
         VAULTNS="k51qzi5uqu5d"$ipnsk51
-        ## SEARCHING FOR LOCAL NOSTR CARD
+        ## SEARCHING FOR LOCAL NOSTR CARD : todo extend search to all swarm => allow MULTIPASS on all Astroport
         PLAYER=$(get_NOSTRNS_directory ${VAULTNS})
-        #################################################################
+        #################################################### NOT FOUND #
         if [[ -z $PLAYER ]]; then
             cat ${MY_PATH}/templates/message.html \
             | sed -e "s~_TITLE_~$(date -u) <br> ${IPNSVAULT}~g" \
@@ -279,7 +279,7 @@ if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
         fi
         mkdir -p $HOME/.zen/tmp/$MOATS/$IPNSVAULT/$PLAYER
         ## DISCO DECODING
-        #################################################################
+        ######################################################## FOUND ##
         ########################## DISCO 1-DECRYPTION
         tmp_player=$(mktemp)
         echo "$SSSS1" > "$tmp_player"
@@ -456,10 +456,10 @@ mkdir -p ${MY_PATH}/tmp
 mkdir -p ${MY_PATH}/pdf
 # Delete older than 3 days files from ${MY_PATH}/tmp
 find ${MY_PATH}/tmp -mtime +3 -type f -exec rm '{}' \;
-# Detect older than 7 days "fac-simile" from ${MY_PATH}/pdf (not ls)
+# Detect older than 7 days "fac-simile" from ${MY_PATH}/pdf (not ls with game/passport)
 find ${MY_PATH}/pdf -type d -mtime +7 -not -xtype l -exec rm -r {} \;
 
-## GET PUBKEY TX HISTORY
+## GET PUBKEY TX HISTORY : working with jaklis (TODO use silkaj?)
 echo "LOADING WALLET HISTORY"
 $HOME/.zen/Astroport.ONE/tools/timeout.sh -t 6 $HOME/.zen/Astroport.ONE/tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ${MY_PATH}/tmp/$PUBKEY.TX.json
 [ ! $? -eq 0 ] \
@@ -483,13 +483,13 @@ else
     cat ${MY_PATH}/templates/message.html \
     | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
          -e "s~#000~#F00~g" \
-         -e "s~_MESSAGE_~╭∩╮ (òÓ,) ╭∩╮~g" \
+         -e "s~_MESSAGE_~PRIMAL EXTRACT ERROR<br>╭∩╮ (òÓ,) ╭∩╮~g" \
         > ${MY_PATH}/tmp/${MOATS}.out.html
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
 fi
 echo "$AMOUNT G1 ($ZCHK) $ZEN ẑ€N"
-echo "------------------------------------- $ROUND -"
+echo "--------------------------------------"
 echo
 ##################################### SCAN N°
 ## CHECK LAST TX IF ZEROCARD EXISTING
@@ -513,7 +513,7 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         ############################ TRANSMIT TX COMMENT AS COMMAND TO ZEROCARD
         if [[ $COMM != "" && "$DEST" == "$ZEROCARD" ]]; then
             source ${MY_PATH}/pdf/${PUBKEY}/GPS
-            ${MY_PATH}/command.sh "$PUBKEY" "$COMM" "$LASTX" "$TXDATE" "$ZEROCARD" "$ulan" "$ulon"
+            ${MY_PATH}/u.command.sh "$PUBKEY" "$COMM" "$LASTX" "$TXDATE" "$ZEROCARD" "$ulan" "$ulon"
             [ ! $? -eq 0 ] && echo ">>>>>>>>>>>> ERROR"
         fi
         ##################################### 4TH SCAN : DRIVESTATE REDIRECT
@@ -639,7 +639,8 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         mkdir -p ~/.zen/game/passport
         mv ${MY_PATH}/pdf/${PUBKEY} ~/.zen/game/passport/
         ln -s ~/.zen/game/passport/${PUBKEY} ${MY_PATH}/pdf/${PUBKEY}
-        ## UPLANETNAME UPASSPORT.asc
+        cp ~/.zen/game/passport/${PUBKEY}/_index.html ~/.zen/game/passport/${PUBKEY}/.passport.html ## Hide from IPFS publish 
+        ## UPLANETNAME SECURIZE UPASSPORT.asc
         rm -f ${MY_PATH}/pdf/${PUBKEY}/UPASSPORT.asc
         cat ${MY_PATH}/pdf/${PUBKEY}/_index.html | gpg --symmetric --armor --batch --passphrase "${UPLANETNAME}" -o ${MY_PATH}/pdf/${PUBKEY}/UPASSPORT.asc
         ## REMOVE FROM PORTAL DIRECTORY

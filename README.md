@@ -36,7 +36,7 @@ UPassport offers a range of functionalities centered around decentralized identi
     *   **IPFS Integration for Media**: Integrates with IPFS for decentralized storage and distribution of recorded and processed multimedia content.
 
 *   **Backend Scripting & Asynchronous Operations**:
-    *   **Shell Script Execution**: Relies on Bash scripts (`upassport.sh`, `zen_send.sh`, `check_ssss.sh`, `startrec.sh`, `stoprec.sh`, `command.sh`, `upload2ipfs.sh`) for core functionalities, ensuring robust and secure operations.
+    *   **Shell Script Execution**: Relies on Bash scripts (`upassport.sh`, `zen_send.sh`, `check_ssss.sh`, `startrec.sh`, `stoprec.sh`, `u.command.sh`, `upload2ipfs.sh`) for core functionalities, ensuring robust and secure operations.
     *   **Asynchronous Task Handling**: Uses `asyncio` in the Python backend to manage concurrent requests and script executions, maintaining a responsive user experience.
     *   **Comprehensive Logging**: Implements detailed logging for all backend operations and script executions, aiding in debugging and monitoring.
 
@@ -277,7 +277,7 @@ UPassport offre une gamme de fonctionnalités centrées sur l'identité décentr
     *   **Intégration IPFS pour le Multimédia** : Intègre IPFS pour le stockage et la distribution décentralisés des contenus multimédias enregistrés et traités.
 
 *   **Scripts Backend et Opérations Asynchrones** :
-    *   **Exécution de Scripts Shell** : Repose sur des scripts Bash (`upassport.sh`, `zen_send.sh`, `check_ssss.sh`, `startrec.sh`, `stoprec.sh`, `command.sh`, `upload2ipfs.sh`) pour les fonctionnalités de base, assurant des opérations robustes et sécurisées.
+    *   **Exécution de Scripts Shell** : Repose sur des scripts Bash (`upassport.sh`, `zen_send.sh`, `check_ssss.sh`, `startrec.sh`, `stoprec.sh`, `u.command.sh`, `upload2ipfs.sh`) pour les fonctionnalités de base, assurant des opérations robustes et sécurisées.
     *   **Gestion des Tâches Asynchrones** : Utilise `asyncio` dans le backend Python pour gérer les requêtes concurrentes et les exécutions de scripts, maintenant une expérience utilisateur réactive.
     *   **Journalisation Complète** : Met en œuvre une journalisation détaillée pour toutes les opérations backend et les exécutions de scripts, facilitant le débogage et la surveillance.
 
