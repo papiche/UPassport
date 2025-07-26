@@ -1899,7 +1899,7 @@ async def upload_file(
             file_path=str(target_file_path.relative_to(user_drive_path)),
             file_type=file_type,
             target_directory=target_directory_name,
-            new_cid=new_cid_info + "/_index.html",
+            new_cid=new_cid_info,
             timestamp=datetime.now().isoformat(),
             auth_verified=auth_verified
         )
