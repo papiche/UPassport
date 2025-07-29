@@ -1,7 +1,7 @@
 #!/usr/bin/env python3*
 import uuid
 import re
-from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException, Response
+from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,10 +30,6 @@ import unicodedata
 from collections import defaultdict, deque
 import threading
 import ipaddress
-
-# Prometheus metrics imports
-from prometheus_client import Counter, Histogram, Gauge, Summary, generate_latest, CONTENT_TYPE_LATEST
-from prometheus_client.exposition import start_http_server
 
 # Obtenir le timestamp Unix actuel
 unix_timestamp = int(time.time())
@@ -68,125 +64,6 @@ TRUSTED_IPS = {
 TRUSTED_IP_RANGES = [
     "10.99.99.0/24",
 ]
-
-# Prometheus Metrics Configuration
-# HTTP Request Metrics
-http_requests_total = Counter(
-    'http_requests_total', 
-    'Total HTTP requests', 
-    ['method', 'endpoint', 'status_code']
-)
-
-http_request_duration_seconds = Histogram(
-    'http_request_duration_seconds', 
-    'HTTP request duration in seconds',
-    ['method', 'endpoint'],
-    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0]
-)
-
-# Rate Limiting Metrics
-rate_limit_hits_total = Counter(
-    'rate_limit_hits_total',
-    'Total rate limit hits',
-    ['ip_address', 'endpoint']
-)
-
-rate_limit_remaining_requests = Gauge(
-    'rate_limit_remaining_requests',
-    'Remaining requests for IP',
-    ['ip_address']
-)
-
-# File Upload Metrics
-file_uploads_total = Counter(
-    'file_uploads_total',
-    'Total file uploads',
-    ['file_type', 'status', 'user_type']
-)
-
-file_upload_size_bytes = Histogram(
-    'file_upload_size_bytes',
-    'File upload size in bytes',
-    ['file_type'],
-    buckets=[1024, 10240, 102400, 1048576, 10485760, 104857600, 1073741824]  # 1KB to 1GB
-)
-
-# Authentication Metrics
-nostr_auth_attempts_total = Counter(
-    'nostr_auth_attempts_total',
-    'Total NOSTR authentication attempts',
-    ['status', 'npub_format']
-)
-
-g1_balance_checks_total = Counter(
-    'g1_balance_checks_total',
-    'Total G1 balance checks',
-    ['input_type', 'status']  # input_type: email, g1pub
-)
-
-# SSH Key Processing Metrics
-ssh_key_processing_total = Counter(
-    'ssh_key_processing_total',
-    'Total SSH key processing attempts',
-    ['node_id', 'status', 'key_type']
-)
-
-# IPFS Operations Metrics
-ipfs_operations_total = Counter(
-    'ipfs_operations_total',
-    'Total IPFS operations',
-    ['operation_type', 'status']  # operation_type: upload, download, generate_cid
-)
-
-ipfs_operation_duration_seconds = Histogram(
-    'ipfs_operation_duration_seconds',
-    'IPFS operation duration in seconds',
-    ['operation_type'],
-    buckets=[1.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0]
-)
-
-# System Health Metrics
-active_connections = Gauge(
-    'active_connections',
-    'Number of active connections'
-)
-
-memory_usage_bytes = Gauge(
-    'memory_usage_bytes',
-    'Memory usage in bytes'
-)
-
-disk_usage_bytes = Gauge(
-    'disk_usage_bytes',
-    'Disk usage in bytes',
-    ['directory']
-)
-
-# Error Metrics
-errors_total = Counter(
-    'errors_total',
-    'Total errors by type',
-    ['error_type', 'endpoint']
-)
-
-# Business Logic Metrics
-upassport_scans_total = Counter(
-    'upassport_scans_total',
-    'Total UPassport scans',
-    ['status', 'scan_type']
-)
-
-ssss_operations_total = Counter(
-    'ssss_operations_total',
-    'Total SSSS operations',
-    ['operation_type', 'status']
-)
-
-zen_send_operations_total = Counter(
-    'zen_send_operations_total',
-    'Total Zen send operations',
-    ['status']
-)
 
 def is_trusted_ip(ip: str) -> bool:
     # Check direct match
@@ -465,88 +342,6 @@ async def rate_limit_middleware(request: Request, call_next):
             response.headers["X-RateLimit-Client-IP"] = e.detail.get("client_ip", "unknown")
             return response
         raise e
-
-# Prometheus Metrics Middleware
-@app.middleware("http")
-async def prometheus_metrics_middleware(request: Request, call_next):
-    """Middleware to collect Prometheus metrics for all requests"""
-    start_time = time.time()
-    
-    try:
-        # Process the request
-        response = await call_next(request)
-        
-        # Calculate duration
-        duration = time.time() - start_time
-        
-        # Extract endpoint (simplify path for metrics)
-        endpoint = request.url.path
-        if endpoint.startswith("/static"):
-            endpoint = "/static/*"
-        elif endpoint.startswith("/api/"):
-            # Keep API endpoints as-is for detailed monitoring
-            pass
-        else:
-            # Simplify other endpoints
-            endpoint = endpoint.split("/")[1] if len(endpoint.split("/")) > 1 else endpoint
-        
-        # Record metrics
-        http_requests_total.labels(
-            method=request.method,
-            endpoint=endpoint,
-            status_code=response.status_code
-        ).inc()
-        
-        http_request_duration_seconds.labels(
-            method=request.method,
-            endpoint=endpoint
-        ).observe(duration)
-        
-        # Update rate limiting metrics
-        client_ip = get_client_ip(request)
-        rate_info = rate_limiter.get_remaining_requests(client_ip)
-        rate_limit_remaining_requests.labels(ip_address=client_ip).set(rate_info)
-        
-        # Record rate limit hits if applicable
-        if response.status_code == 429:
-            rate_limit_hits_total.labels(
-                ip_address=client_ip,
-                endpoint=endpoint
-            ).inc()
-        
-        # Update system metrics
-        try:
-            import psutil
-            memory_usage_bytes.set(psutil.virtual_memory().used)
-            active_connections.set(len(psutil.net_connections()))
-        except ImportError:
-            # psutil not available, skip system metrics
-            pass
-        
-        return response
-        
-    except Exception as e:
-        # Record error metrics
-        duration = time.time() - start_time
-        endpoint = request.url.path
-        
-        errors_total.labels(
-            error_type=type(e).__name__,
-            endpoint=endpoint
-        ).inc()
-        
-        http_requests_total.labels(
-            method=request.method,
-            endpoint=endpoint,
-            status_code=500
-        ).inc()
-        
-        http_request_duration_seconds.labels(
-            method=request.method,
-            endpoint=endpoint
-        ).observe(duration)
-        
-        raise
 
 # Modèles Pydantic existants
 class MessageData(BaseModel):
@@ -1127,32 +922,35 @@ def validate_nip42_event(event: Dict[str, Any], expected_relay_url: str) -> bool
         return False
 
 async def verify_nostr_auth(npub: Optional[str]) -> bool:
-    """Vérifier l'authentification NOSTR via NIP42"""
+    """Vérifier l'authentification NOSTR si une npub est fournie"""
     if not npub:
-        nostr_auth_attempts_total.labels(status="failed", npub_format="none").inc()
+        logging.info("Aucune npub fournie, pas de vérification NOSTR")
         return False
     
-    try:
-        # Convertir npub en hex si nécessaire
+    logging.info(f"Vérification de l'authentification NOSTR pour: {npub}")
+    
+    # Déterminer si c'est une npub ou déjà du hex
+    if len(npub) == 64:
+        logging.info("Clé fournie semble être en format hex (64 caractères)")
+        hex_pubkey = npub_to_hex(npub)  # Va la valider et normaliser
+    elif npub.startswith('npub1'):
+        logging.info("Clé fournie est en format npub, conversion nécessaire")
         hex_pubkey = npub_to_hex(npub)
-    if not hex_pubkey:
-            nostr_auth_attempts_total.labels(status="failed", npub_format="invalid").inc()
+    else:
+        logging.error(f"Format de clé non reconnu: {npub} (longueur: {len(npub)})")
         return False
     
-        # Vérifier l'authentification NIP42
+    if not hex_pubkey:
+        logging.error("Impossible de convertir la clé en format hex")
+        return False
+    
+    logging.info(f"Clé publique hex validée: {hex_pubkey}")
+    
+    # Vérifier NIP42 sur le relai local
     auth_result = await check_nip42_auth(hex_pubkey)
-        
-        if auth_result:
-            nostr_auth_attempts_total.labels(status="success", npub_format="valid").inc()
-        else:
-            nostr_auth_attempts_total.labels(status="failed", npub_format="valid").inc()
+    logging.info(f"Résultat de la vérification NIP42: {auth_result}")
     
     return auth_result
-        
-    except Exception as e:
-        nostr_auth_attempts_total.labels(status="error", npub_format="unknown").inc()
-        logging.error(f"Erreur lors de la vérification NOSTR: {e}")
-        return False
 
 async def run_script(script_path, *args, log_file_path=os.path.expanduser("~/.zen/tmp/54321.log")):
     """
@@ -1611,13 +1409,6 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
                         logging.info(f"   Node ID from JSON: {actual_node_id}")
                         logging.info(f"   Captain: {captain_email}")
                         
-                        # Record SSH key processing metrics
-                        ssh_key_processing_total.labels(
-                            node_id=actual_node_id,
-                            status="found",
-                            key_type="ed25519"
-                        ).inc()
-                        
                         # Vérifier que le node ID correspond
                         if actual_node_id == node_id:
                             # Vérifier la clé SSH avec ssh_to_g1ipfs.py
@@ -1629,12 +1420,12 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
                                         logging.warning(f"❌ SSH key format invalide pour {node_id}")
                                         new_notification["ssh_key_invalid"] = True
                                     else:
-                                    result = subprocess.run(
-                                        ["python3", ssh_to_g1_script, ssh_pub_key],
-                                        capture_output=True,
-                                        text=True,
-                                        timeout=10
-                                    )
+                                        result = subprocess.run(
+                                            ["python3", ssh_to_g1_script, ssh_pub_key],
+                                            capture_output=True,
+                                            text=True,
+                                            timeout=10
+                                        )
                                     
                                     if result.returncode == 0:
                                         computed_ipns = result.stdout.strip()
@@ -1750,7 +1541,6 @@ async def check_balance_route(g1pub: str):
             
             # Validation de sécurité pour l'email
             if not is_safe_email(email):
-                g1_balance_checks_total.labels(input_type="email", status="invalid_format").inc()
                 raise HTTPException(status_code=400, detail="Format d'email invalide")
             
             # Récupérer la g1pub du joueur (NOSTR)
@@ -1775,7 +1565,6 @@ async def check_balance_route(g1pub: str):
             
             # Vérifier qu'on a au moins une g1pub
             if not nostr_g1pub and not zencard_g1pub:
-                g1_balance_checks_total.labels(input_type="email", status="no_g1pub_found").inc()
                 raise HTTPException(status_code=404, detail="Aucune g1pub trouvée pour cet email")
             
             # Récupérer les balances
@@ -1809,26 +1598,21 @@ async def check_balance_route(g1pub: str):
                         "balance_zencard": "error"
                     })
             
-            g1_balance_checks_total.labels(input_type="email", status="success").inc()
             return result
         else:
             # Si c'est une g1pub, faire directement la demande de balance
             # Validation de sécurité pour la g1pub
             if not is_safe_g1pub(g1pub):
-                g1_balance_checks_total.labels(input_type="g1pub", status="invalid_format").inc()
                 raise HTTPException(status_code=400, detail="Format de g1pub invalide")
             
-        balance = check_balance(g1pub)
-            g1_balance_checks_total.labels(input_type="g1pub", status="success").inc()
-        return {"balance": balance, "g1pub": g1pub}
+            balance = check_balance(g1pub)
+            return {"balance": balance, "g1pub": g1pub}
             
     except HTTPException:
         raise
     except ValueError as e:
-        g1_balance_checks_total.labels(input_type="g1pub" if '@' not in g1pub else "email", status="value_error").inc()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        g1_balance_checks_total.labels(input_type="g1pub" if '@' not in g1pub else "email", status="server_error").inc()
         logging.error(f"Erreur inattendue dans check_balance_route: {e}")
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
@@ -1926,11 +1710,9 @@ async def ssss(request: Request):
     return_code, last_line = await run_script(script_path, cardns, ssss, zerocard)
 
     if return_code == 0:
-        ssss_operations_total.labels(operation_type="check_ssss", status="success").inc()
         returned_file_path = last_line.strip()
         return FileResponse(returned_file_path)
     else:
-        ssss_operations_total.labels(operation_type="check_ssss", status="failed").inc()
         return JSONResponse({"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs."})
 
 @app.post("/zen_send")
@@ -1948,11 +1730,9 @@ async def zen_send(request: Request):
     return_code, last_line = await run_script(script_path, zen, g1source, g1dest)
 
     if return_code == 0:
-        zen_send_operations_total.labels(status="success").inc()
         returned_file_path = last_line.strip()
         return FileResponse(returned_file_path)
     else:
-        zen_send_operations_total.labels(status="failed").inc()
         return JSONResponse({"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ~/.zen/tmp/54321.log."})
 
 ###################################################
@@ -2081,83 +1861,16 @@ async def stop_recording(request: Request, player: Optional[str] = None):
 ############# API DESCRIPTION PAGE
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    try:
-        # Basic health checks
-        health_status = {
+    """Health check endpoint that doesn't count towards rate limits"""
+    return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-            "version": "1.0.0",
-            "uptime": time.time() - unix_timestamp,
-            "services": {
-                "api": "ok",
-                "rate_limiting": "ok",
-                "file_operations": "ok"
-            }
+        "rate_limiter_stats": {
+            "active_ips": len(rate_limiter.requests),
+            "rate_limit": RATE_LIMIT_REQUESTS,
+            "window_seconds": RATE_LIMIT_WINDOW
         }
-        
-        # Check disk space
-        try:
-            import psutil
-            disk_usage = psutil.disk_usage('/')
-            health_status["disk"] = {
-                "total": disk_usage.total,
-                "used": disk_usage.used,
-                "free": disk_usage.free,
-                "percent": disk_usage.percent
-            }
-            
-            # Update disk usage metrics
-            disk_usage_bytes.labels(directory="/").set(disk_usage.used)
-            
-        except ImportError:
-            health_status["disk"] = "psutil not available"
-        
-        return health_status
-        
-    except Exception as e:
-        logging.error(f"Health check failed: {e}")
-        return JSONResponse(
-            status_code=503,
-            content={"status": "unhealthy", "error": str(e)}
-        )
-
-@app.get("/metrics")
-async def prometheus_metrics():
-    """Prometheus metrics endpoint"""
-    try:
-        # Update system metrics
-        try:
-            import psutil
-            memory_usage_bytes.set(psutil.virtual_memory().used)
-            active_connections.set(len(psutil.net_connections()))
-            
-            # Update disk usage for key directories
-            zen_dir = os.path.expanduser("~/.zen")
-            if os.path.exists(zen_dir):
-                disk_usage = psutil.disk_usage(zen_dir)
-                disk_usage_bytes.labels(directory="zen").set(disk_usage.used)
-                
-        except ImportError:
-            pass
-        
-        # Generate Prometheus metrics
-        metrics_data = generate_latest()
-        
-        return Response(
-            content=metrics_data,
-            media_type=CONTENT_TYPE_LATEST,
-            headers={
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Pragma": "no-cache",
-                "Expires": "0"
-            }
-        )
-        
-    except Exception as e:
-        logging.error(f"Error generating metrics: {e}")
-        errors_total.labels(error_type="metrics_generation", endpoint="/metrics").inc()
-        raise HTTPException(status_code=500, detail="Error generating metrics")
+    }
 
 @app.get("/rate-limit-status")
 async def rate_limit_status(request: Request):
@@ -2303,13 +2016,8 @@ async def upload_file(
     # Validation sécurisée du fichier uploadé
     validation_result = await validate_uploaded_file(file, max_size_mb=720)
     if not validation_result["is_valid"]:
-        file_uploads_total.labels(
-            file_type=validation_result.get("file_type", "unknown"),
-            status="validation_failed",
-            user_type="authenticated"
-        ).inc()
         raise HTTPException(status_code=400, detail=validation_result["error"])
-
+    
     # Sanitize the original filename provided by the client
     original_filename = file.filename if file.filename else "untitled_file"
     sanitized_filename = sanitize_filename_python(original_filename)
@@ -2347,33 +2055,11 @@ async def upload_file(
         file_size = target_file_path.stat().st_size
         logging.info(f"File '{sanitized_filename}' saved to '{target_file_path}' (Size: {file_size} bytes)")
 
-        # Record file upload metrics
-        file_uploads_total.labels(
-            file_type=file_type,
-            status="success",
-            user_type="authenticated"
-        ).inc()
-        
-        file_upload_size_bytes.labels(file_type=file_type).observe(file_size)
-
         # CORRECTION : Appeler la fonction spécialisée run_ipfs_generation_script
         # qui gère le changement de répertoire de travail (cwd) pour le script.
-        ipfs_start_time = time.time()
         ipfs_result = await run_ipfs_generation_script(user_drive_path)
-        ipfs_duration = time.time() - ipfs_start_time
-        
         new_cid_info = ipfs_result.get("final_cid") # Accéder à "final_cid" depuis le dictionnaire de résultat
         logging.info(f"New IPFS CID generated: {new_cid_info}")
-
-        # Record IPFS operation metrics
-        ipfs_operations_total.labels(
-            operation_type="generate_cid",
-            status="success"
-        ).inc()
-        
-        ipfs_operation_duration_seconds.labels(
-            operation_type="generate_cid"
-        ).observe(ipfs_duration)
 
         return UploadResponse(
             success=True,
