@@ -40,6 +40,8 @@ except ImportError:
     PROMETHEUS_AVAILABLE = False
     # Create dummy classes for when prometheus_client is not available
     class DummyMetric:
+        def __init__(self, *args, **kwargs):
+            pass
         def labels(self, **kwargs):
             return self
         def inc(self):
@@ -1165,19 +1167,19 @@ async def verify_nostr_auth(npub: Optional[str]) -> bool:
     try:
         # Convertir npub en hex si nécessaire
         hex_pubkey = npub_to_hex(npub)
-        if not hex_pubkey:
+    if not hex_pubkey:
             nostr_auth_attempts_total.labels(status="failed", npub_format="invalid").inc()
-            return False
-        
+        return False
+    
         # Vérifier l'authentification NIP42
-        auth_result = await check_nip42_auth(hex_pubkey)
+    auth_result = await check_nip42_auth(hex_pubkey)
         
         if auth_result:
             nostr_auth_attempts_total.labels(status="success", npub_format="valid").inc()
         else:
             nostr_auth_attempts_total.labels(status="failed", npub_format="valid").inc()
-        
-        return auth_result
+    
+    return auth_result
         
     except Exception as e:
         nostr_auth_attempts_total.labels(status="error", npub_format="unknown").inc()
@@ -1659,12 +1661,12 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
                                         logging.warning(f"❌ SSH key format invalide pour {node_id}")
                                         new_notification["ssh_key_invalid"] = True
                                     else:
-                                        result = subprocess.run(
-                                            ["python3", ssh_to_g1_script, ssh_pub_key],
-                                            capture_output=True,
-                                            text=True,
-                                            timeout=10
-                                        )
+                                    result = subprocess.run(
+                                        ["python3", ssh_to_g1_script, ssh_pub_key],
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=10
+                                    )
                                     
                                     if result.returncode == 0:
                                         computed_ipns = result.stdout.strip()
@@ -1848,9 +1850,9 @@ async def check_balance_route(g1pub: str):
                 g1_balance_checks_total.labels(input_type="g1pub", status="invalid_format").inc()
                 raise HTTPException(status_code=400, detail="Format de g1pub invalide")
             
-            balance = check_balance(g1pub)
+        balance = check_balance(g1pub)
             g1_balance_checks_total.labels(input_type="g1pub", status="success").inc()
-            return {"balance": balance, "g1pub": g1pub}
+        return {"balance": balance, "g1pub": g1pub}
             
     except HTTPException:
         raise
@@ -2115,8 +2117,8 @@ async def health_check():
     try:
         # Basic health checks
         health_status = {
-            "status": "healthy",
-            "timestamp": datetime.now().isoformat(),
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
             "version": "1.0.0",
             "uptime": time.time() - unix_timestamp,
             "services": {
@@ -2352,7 +2354,7 @@ async def upload_file(
             user_type="authenticated"
         ).inc()
         raise HTTPException(status_code=400, detail=validation_result["error"])
-    
+
     # Sanitize the original filename provided by the client
     original_filename = file.filename if file.filename else "untitled_file"
     sanitized_filename = sanitize_filename_python(original_filename)
