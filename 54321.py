@@ -32,14 +32,39 @@ import threading
 import ipaddress
 
 # Prometheus metrics imports
-from prometheus_client import Counter, Histogram, Gauge, Summary, generate_latest, CONTENT_TYPE_LATEST
-from prometheus_client.exposition import start_http_server
+try:
+    from prometheus_client import Counter, Histogram, Gauge, Summary, generate_latest, CONTENT_TYPE_LATEST
+    from prometheus_client.exposition import start_http_server
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+    # Create dummy classes for when prometheus_client is not available
+    class DummyMetric:
+        def labels(self, **kwargs):
+            return self
+        def inc(self):
+            pass
+        def set(self, value):
+            pass
+        def observe(self, value):
+            pass
+    
+    Counter = Histogram = Gauge = Summary = DummyMetric
+    generate_latest = lambda: b"# Prometheus metrics not available\n"
+    CONTENT_TYPE_LATEST = "text/plain"
 
 # Obtenir le timestamp Unix actuel
 unix_timestamp = int(time.time())
 
 # Configure le logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Log Prometheus availability
+if PROMETHEUS_AVAILABLE:
+    logging.info("✅ Prometheus metrics enabled - prometheus-client available")
+else:
+    logging.warning("⚠️ Prometheus metrics disabled - prometheus-client not available")
+    logging.info("💡 Install with: pip install prometheus-client")
 
 # Charger les variables d'environnement depuis le fichier .env
 load_dotenv()
@@ -479,6 +504,10 @@ async def prometheus_metrics_middleware(request: Request, call_next):
         # Calculate duration
         duration = time.time() - start_time
         
+        # Only collect metrics if Prometheus is available
+        if not PROMETHEUS_AVAILABLE:
+            return response
+        
         # Extract endpoint (simplify path for metrics)
         endpoint = request.url.path
         if endpoint.startswith("/static"):
@@ -530,21 +559,22 @@ async def prometheus_metrics_middleware(request: Request, call_next):
         duration = time.time() - start_time
         endpoint = request.url.path
         
-        errors_total.labels(
-            error_type=type(e).__name__,
-            endpoint=endpoint
-        ).inc()
-        
-        http_requests_total.labels(
-            method=request.method,
-            endpoint=endpoint,
-            status_code=500
-        ).inc()
-        
-        http_request_duration_seconds.labels(
-            method=request.method,
-            endpoint=endpoint
-        ).observe(duration)
+        if PROMETHEUS_AVAILABLE:
+            errors_total.labels(
+                error_type=type(e).__name__,
+                endpoint=endpoint
+            ).inc()
+            
+            http_requests_total.labels(
+                method=request.method,
+                endpoint=endpoint,
+                status_code=500
+            ).inc()
+            
+            http_request_duration_seconds.labels(
+                method=request.method,
+                endpoint=endpoint
+            ).observe(duration)
         
         raise
 
@@ -2126,6 +2156,18 @@ async def health_check():
 async def prometheus_metrics():
     """Prometheus metrics endpoint"""
     try:
+        # Check if Prometheus is available
+        if not PROMETHEUS_AVAILABLE:
+            return Response(
+                content=b"# Prometheus metrics not available\n# Install prometheus-client to enable metrics\n",
+                media_type="text/plain",
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
+        
         # Update system metrics
         try:
             import psutil
@@ -2156,7 +2198,8 @@ async def prometheus_metrics():
         
     except Exception as e:
         logging.error(f"Error generating metrics: {e}")
-        errors_total.labels(error_type="metrics_generation", endpoint="/metrics").inc()
+        if PROMETHEUS_AVAILABLE:
+            errors_total.labels(error_type="metrics_generation", endpoint="/metrics").inc()
         raise HTTPException(status_code=500, detail="Error generating metrics")
 
 @app.get("/rate-limit-status")
