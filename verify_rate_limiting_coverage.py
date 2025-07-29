@@ -30,9 +30,6 @@ ROUTES_TO_TEST = [
     ("GET", "/rate-limit-status"),
     ("GET", "/index"),
     ("GET", "/upload"),
-    ("GET", "/products/test"),
-    ("GET", "/status/test"),
-    ("GET", "/check_umap"),
     
     # Routes POST (avec données minimales)
     ("POST", "/g1nostr"),
@@ -42,9 +39,6 @@ ROUTES_TO_TEST = [
     ("POST", "/rec"),
     ("POST", "/ping"),
     ("POST", "/upload2ipfs"),
-    ("POST", "/register/test"),
-    ("POST", "/order/test"),
-    ("POST", "/verify_signature"),
     ("POST", "/api/upload"),
     ("POST", "/api/upload_from_drive"),
     ("POST", "/api/delete"),
@@ -77,12 +71,6 @@ def test_route(method, path, test_number):
             elif path == "/upload2ipfs":
                 # Skip - nécessite un fichier
                 return f"  ⏭️  Route {test_number}: {method} {path} - SKIP (nécessite fichier)"
-            elif path == "/register/test":
-                data = {"stall_url": "test", "lat": 0, "lon": 0}
-            elif path == "/order/test":
-                data = {"lat": 0, "lon": 0}
-            elif path == "/verify_signature":
-                data = {"message": "test", "signature": "test", "stall_id": "test"}
             elif path == "/api/upload":
                 # Skip - nécessite un fichier
                 return f"  ⏭️  Route {test_number}: {method} {path} - SKIP (nécessite fichier)"
