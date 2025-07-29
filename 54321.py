@@ -1,4 +1,34 @@
 #!/usr/bin/env python3*
+
+import sys
+import os
+
+# This is a workaround for systemd environments where the virtualenv's site-packages
+# might not be in the Python path.
+# It ensures that the packages installed in the '.astro' virtual environment are found.
+try:
+    # Find the python executable's path to derive the site-packages path
+    # sys.executable should be something like /home/user/.astro/bin/python
+    venv_python_path = sys.executable
+    if '.astro/bin/python' in venv_python_path:
+        # Go from /home/user/.astro/bin/python to /home/user/.astro/lib/pythonX.Y/site-packages
+        path_parts = venv_python_path.split(os.sep)
+        # Find 'lib' directory at the same level as 'bin'
+        astro_base_index = path_parts.index('.astro')
+        astro_base_path = os.sep.join(path_parts[:astro_base_index+1])
+        lib_path = os.path.join(astro_base_path, 'lib')
+
+        if os.path.isdir(lib_path):
+            python_version_dir = [d for d in os.listdir(lib_path) if d.startswith('python')]
+            if python_version_dir:
+                site_packages = os.path.join(lib_path, python_version_dir[0], 'site-packages')
+                if os.path.isdir(site_packages) and site_packages not in sys.path:
+                    sys.path.insert(0, site_packages)
+                    # Use print for logging at this early stage as logger is not configured yet
+                    print(f"INFO: Manually added '{site_packages}' to sys.path for systemd compatibility.")
+except Exception as e:
+    print(f"WARNING: Could not dynamically add site-packages to path. This might be fine if running in an activated venv. Error: {e}")
+
 import uuid
 import re
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
