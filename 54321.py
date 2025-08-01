@@ -1654,6 +1654,9 @@ async def scan_qr(
     zlon: str = Form(None)
 ):
     image_dir = "./tmp"
+    # Assign default 0.00 values if zlat or zlon are empty
+    zlat = zlat if zlat is not None else "0.00"
+    zlon = zlon if zlon is not None else "0.00"
 
     # Ensure the image directory exists
     os.makedirs(image_dir, exist_ok=True)
