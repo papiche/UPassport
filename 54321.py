@@ -1080,7 +1080,7 @@ def is_safe_g1pub(g1pub: str) -> bool:
     
     # Vérifier qu'il n'y a que des caractères alphanumériques et quelques caractères spéciaux
     import re
-    safe_pattern = re.compile(r'^[a-zA-Z0-9+/=]+$')
+    safe_pattern = re.compile(r'^[a-zA-Z0-9+/=]+(:ZEN)?$')
     return bool(safe_pattern.match(g1pub))
 
 def get_safe_user_path(user_type: str, email: str, filename: str) -> Optional[str]:
