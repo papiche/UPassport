@@ -51,6 +51,7 @@ import time
 import hashlib
 import websockets
 import shutil
+import zipfile
 from datetime import datetime, timezone, timedelta
 from urllib.parse import unquote, urlparse, parse_qs
 from pathlib import Path
@@ -785,7 +786,6 @@ async def check_nip42_auth(npub: str, timeout: int = 5) -> bool:
     """Vérifier l'authentification NIP42 sur le relai NOSTR local"""
     if not npub:
         logging.warning("check_nip42_auth: npub manquante")
-        return False
     
     # Convertir npub en hex
     hex_pubkey = npub_to_hex(npub)
@@ -1195,7 +1195,8 @@ async def validate_uploaded_file(file: UploadFile, max_size_mb: int = 100) -> Di
             "application/zip", "application/x-rar-compressed", "application/x-7z-compressed",
             # Code
             "text/javascript", "application/json", "text/css", "text/xml",
-            "application/x-python-code", "text/x-python", "text/markdown"
+            "application/x-python-code", "text/x-python", "text/markdown",
+            "audio/mp3", "application/octet-stream"
         }
         
         # Détecter le type MIME réel du contenu
@@ -2056,16 +2057,69 @@ async def upload_file(
     sanitized_filename = sanitize_filename_python(original_filename)
 
     # Determine target directory based on validated file type
-    file_type = validation_result["file_type"]
+    mime_type = validation_result["file_type"]
 
-    target_directory_name = "Documents" # Default
-    if file_type == "image":
+    # Special handling for ZIP files
+    if mime_type == 'application/zip' or sanitized_filename.lower().endswith('.zip'):
+        apps_dir = user_drive_path / "Apps"
+        apps_dir.mkdir(parents=True, exist_ok=True)
+        
+        temp_zip_path = apps_dir / sanitized_filename
+        
+        try:
+            # Save the zip file temporarily
+            with open(temp_zip_path, "wb") as buffer:
+                await file.seek(0)  # Rewind file pointer after validation read
+                while True:
+                    chunk = await file.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    buffer.write(chunk)
+            
+            # Create subdirectory for unzipping
+            unzip_dir_name = sanitized_filename.rsplit('.', 1)[0]
+            unzip_path = apps_dir / unzip_dir_name
+            unzip_path.mkdir(exist_ok=True)
+
+            # Unzip the file
+            with zipfile.ZipFile(temp_zip_path, 'r') as zip_ref:
+                zip_ref.extractall(unzip_path)
+            logging.info(f"Unzipped '{temp_zip_path}' to '{unzip_path}'")
+
+        except Exception as e:
+            logging.error(f"Failed to process ZIP file: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to process ZIP file: {e}")
+        finally:
+            # Clean up the temporary zip file
+            if temp_zip_path.exists():
+                temp_zip_path.unlink()
+
+        # Regenerate IPFS structure
+        ipfs_result = await run_ipfs_generation_script(user_drive_path)
+        new_cid_info = ipfs_result.get("final_cid")
+        
+        return UploadResponse(
+            success=True,
+            message="ZIP file uploaded and extracted successfully.",
+            file_path=str(unzip_path.relative_to(user_drive_path)),
+            file_type="application/zip",
+            target_directory="Apps",
+            new_cid=new_cid_info,
+            timestamp=datetime.now().isoformat(),
+            auth_verified=auth_verified
+        )
+
+    # Determine target directory for other files
+    target_directory_name = "Documents"  # Default
+    if mime_type == 'text/html' or sanitized_filename.lower().endswith('.html'):
+        target_directory_name = "Apps"
+    elif mime_type.startswith("image/"):
         target_directory_name = "Images"
-    elif file_type == "audio":
+    elif mime_type.startswith("audio/"):
         target_directory_name = "Music"
-    elif file_type == "video":
+    elif mime_type.startswith("video/"):
         target_directory_name = "Videos"
-
+    
     target_directory = user_drive_path / target_directory_name
     target_directory.mkdir(parents=True, exist_ok=True)
 
@@ -2074,12 +2128,13 @@ async def upload_file(
     # Ensure the resolved path is indeed within the user's drive directory
     target_file_path = (target_directory / sanitized_filename).resolve()
 
-    if not target_file_path.is_relative_to(user_drive_path):
+    if not target_file_path.is_relative_to(user_drive_path.resolve()):
         raise HTTPException(status_code=400, detail="Invalid file path operation: attempted to write outside user's directory.")
 
     try:
         with open(target_file_path, "wb") as buffer:
             # Read the file in chunks to handle large files efficiently
+            await file.seek(0)
             while True:
                 chunk = await file.read(1024 * 1024)  # Read 1MB chunks
                 if not chunk:
@@ -2098,7 +2153,7 @@ async def upload_file(
             success=True,
             message="File uploaded successfully",
             file_path=str(target_file_path.relative_to(user_drive_path)),
-            file_type=file_type,
+            file_type=mime_type,
             target_directory=target_directory_name,
             new_cid=new_cid_info,
             timestamp=datetime.now().isoformat(),
