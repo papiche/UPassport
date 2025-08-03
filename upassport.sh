@@ -167,6 +167,7 @@ fi
 ########################################################################
 if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     EMAIL="${QRCODE,,}"
+    EMAIL="${EMAIL// }" # Remove all spaces
     echo "Email detected: $EMAIL"
 
     ## SEARCH FOR EXISTING MULTIPASS
@@ -196,7 +197,7 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
         ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE" "${ZLAT}" "${ZLON}"
         ## MAILJET SEND NOSTR CARD
         YOUSER=$(${HOME}/.zen/Astroport.ONE/tools/clyuseryomail.sh ${EMAIL})
-        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "MULTIPASS [UPlanet:${UPLANETG1PUB:0:8}:${ZLAT}:${ZLON}]]"
+        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "MULTIPASS [UPlanet:${UPLANETG1PUB:0:8}:${ZLAT}:${ZLON}]"
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
         exit 0
         #########################################################""
