@@ -43,6 +43,7 @@ fi
 
 if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     EMAIL="${EMAIL,,}"
+    EMAIL="${EMAIL// }" 
     echo "Email detected: $EMAIL"
 
     ## SEARCH FOR EXISTING MULTIPASS
