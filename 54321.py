@@ -1564,7 +1564,7 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
         return JSONResponse({"error": error_message}, status_code=500) # Return 500 for server error
 
 @app.get("/check_balance")
-async def check_balance_route(g1pub: str):
+async def check_balance_route(g1pub: str, html: Optional[str] = None):
     try:
         # Si c'est un email (contient '@'), récupérer les 2 g1pub et leurs balances
         if '@' in g1pub:
@@ -1629,6 +1629,10 @@ async def check_balance_route(g1pub: str):
                         "balance_zencard": "error"
                     })
             
+            # Si html=1, retourner une page HTML
+            if html == "1":
+                return generate_balance_html_page(email, result)
+            
             return result
         else:
             # Si c'est une g1pub, faire directement la demande de balance
@@ -1637,7 +1641,13 @@ async def check_balance_route(g1pub: str):
                 raise HTTPException(status_code=400, detail="Format de g1pub invalide")
             
             balance = check_balance(g1pub)
-            return {"balance": balance, "g1pub": g1pub}
+            result = {"balance": balance, "g1pub": g1pub}
+            
+            # Si html=1, retourner une page HTML
+            if html == "1":
+                return generate_balance_html_page(g1pub, result)
+            
+            return result
             
     except HTTPException:
         raise
@@ -2456,6 +2466,52 @@ async def test_nostr_auth(npub: str):
     except Exception as e:
         logging.error(f"Erreur lors du test NOSTR: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors du test: {str(e)}")
+
+def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) -> HTMLResponse:
+    """Générer une page HTML pour afficher les balances en utilisant le template message.html"""
+    try:
+        # Lire le template message.html
+        template_path = Path(__file__).parent / "templates" / "message.html"
+        
+        if not template_path.exists():
+            logging.error(f"Template message.html non trouvé: {template_path}")
+            raise HTTPException(status_code=500, detail="Template HTML non trouvé")
+        
+        with open(template_path, 'r', encoding='utf-8') as f:
+            template_content = f.read()
+        
+        # Préparer le titre
+        title = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {identifier}"
+        
+        # Préparer le message avec les balances en HTML
+        message_parts = []
+        
+        if "balance" in balance_data and "g1pub" in balance_data:
+            # Cas d'une g1pub simple
+            message_parts.append(f"<strong>Balance:</strong> {balance_data['balance']}")
+            message_parts.append(f"<small>G1PUB: {balance_data['g1pub'][:20]}...</small>")
+        else:
+            # Cas d'un email avec plusieurs balances
+            if "balance" in balance_data:
+                message_parts.append(f"<strong>MULTIPASS:</strong> {balance_data['balance']}")
+                if "g1pub" in balance_data:
+                    message_parts.append(f"<small>({balance_data['g1pub'][:20]}...)</small>")
+            
+            if "balance_zencard" in balance_data:
+                message_parts.append(f"<strong>ZEN Card:</strong> {balance_data['balance_zencard']}")
+                if "g1pub_zencard" in balance_data:
+                    message_parts.append(f"<small>({balance_data['g1pub_zencard'][:20]}...)</small>")
+        
+        message = "<br>".join(message_parts)
+        
+        # Remplacer les variables dans le template
+        html_content = template_content.replace("_TITLE_", title).replace("_MESSAGE_", message)
+        
+        return HTMLResponse(content=html_content)
+        
+    except Exception as e:
+        logging.error(f"Erreur lors de la génération de la page HTML: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la génération HTML: {str(e)}")
 
 def get_myipfs_gateway() -> str:
     """Récupérer l'adresse de la gateway IPFS en utilisant my.sh"""
