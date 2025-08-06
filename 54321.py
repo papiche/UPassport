@@ -1079,7 +1079,6 @@ def is_safe_g1pub(g1pub: str) -> bool:
         return False
     
     # Vérifier qu'il n'y a que des caractères alphanumériques et quelques caractères spéciaux
-    import re
     safe_pattern = re.compile(r'^[a-zA-Z0-9+/=]+(:ZEN)?$')
     return bool(safe_pattern.match(g1pub))
 
@@ -1116,7 +1115,6 @@ def is_safe_ssh_key(ssh_key: str) -> bool:
         return False
     
     # Vérifier qu'il n'y a que des caractères autorisés dans une clé SSH
-    import re
     # Format: ssh-rsa AAAAB3NzaC1yc2E... comment@host
     ssh_pattern = re.compile(r'^ssh-ed25519 [A-Za-z0-9+/=]+(\s+[^@\s]+@[^@\s]+)?$')
     return bool(ssh_pattern.match(ssh_key))
@@ -1127,7 +1125,6 @@ def is_safe_node_id(node_id: str) -> bool:
         return False
     
     # Vérifier qu'il n'y a que des caractères alphanumériques et quelques caractères spéciaux
-    import re
     node_pattern = re.compile(r'^[a-zA-Z0-9_-]+$')
     return bool(node_pattern.match(node_id))
 
@@ -1569,14 +1566,17 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
         # Si c'est un email (contient '@'), récupérer les 2 g1pub et leurs balances
         if '@' in g1pub:
             email = g1pub
+            logging.info(f"Check balance pour email: {email}")
             
             # Validation de sécurité pour l'email
             if not is_safe_email(email):
+                logging.error(f"Email non sécurisé: {email}")
                 raise HTTPException(status_code=400, detail="Format d'email invalide")
             
             # Récupérer la g1pub du joueur (NOSTR)
             nostr_g1pub = None
             nostr_g1pub_path = get_safe_user_path("nostr", email, "G1PUBNOSTR")
+            
             if nostr_g1pub_path and os.path.exists(nostr_g1pub_path):
                 try:
                     with open(nostr_g1pub_path, 'r') as f:
@@ -1587,6 +1587,7 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
             # Récupérer la g1pub du zencard
             zencard_g1pub = None
             zencard_g1pub_path = get_safe_user_path("players", email, ".g1pub")
+            
             if zencard_g1pub_path and os.path.exists(zencard_g1pub_path):
                 try:
                     with open(zencard_g1pub_path, 'r') as f:
@@ -1596,6 +1597,7 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
             
             # Vérifier qu'on a au moins une g1pub
             if not nostr_g1pub and not zencard_g1pub:
+                logging.error(f"Aucune g1pub trouvée pour {email}")
                 raise HTTPException(status_code=404, detail="Aucune g1pub trouvée pour cet email")
             
             # Récupérer les balances
@@ -1629,23 +1631,17 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
                         "balance_zencard": "error"
                     })
             
-            # Si html=1, retourner une page HTML
-            if html == "1":
-                return generate_balance_html_page(email, result)
+            return generate_balance_html_page(email, result)
             
-            return result
         else:
             # Si c'est une g1pub, faire directement la demande de balance
             # Validation de sécurité pour la g1pub
             if not is_safe_g1pub(g1pub):
+                logging.error(f"G1PUB non sécurisée: {g1pub}")
                 raise HTTPException(status_code=400, detail="Format de g1pub invalide")
             
             balance = check_balance(g1pub)
             result = {"balance": balance, "g1pub": g1pub}
-            
-            # Si html=1, retourner une page HTML
-            if html == "1":
-                return generate_balance_html_page(g1pub, result)
             
             return result
             
@@ -2467,6 +2463,25 @@ async def test_nostr_auth(npub: str):
         logging.error(f"Erreur lors du test NOSTR: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors du test: {str(e)}")
 
+def convert_g1_to_zen(g1_balance: str) -> str:
+    """Convertir une balance Ğ1 en ẐEN en utilisant la formule (balance - 1) * 10"""
+    try:
+        # Nettoyer la balance (enlever les unités et espaces)
+        clean_balance = g1_balance.replace('Ğ1', '').replace('G1', '').strip()
+        
+        # Convertir en float
+        balance_float = float(clean_balance)
+        
+        # Appliquer la formule: (balance - 1) * 10
+        zen_amount = (balance_float - 1) * 10
+        
+        # Retourner en format entier
+        return f"{int(zen_amount)} Ẑ"
+        
+    except (ValueError, TypeError):
+        # Si la conversion échoue, retourner la valeur originale
+        return g1_balance
+
 def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) -> HTMLResponse:
     """Générer une page HTML pour afficher les balances en utilisant le template message.html"""
     try:
@@ -2483,24 +2498,29 @@ def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) ->
         # Préparer le titre
         title = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {identifier}"
         
-        # Préparer le message avec les balances en HTML
+        # Préparer le message avec les balances en HTML (converties en ẐEN)
         message_parts = []
         
-        if "balance" in balance_data and "g1pub" in balance_data:
+        # Détecter si c'est un email avec plusieurs balances ou une g1pub simple
+        has_multiple_balances = "balance_zencard" in balance_data
+        
+        if not has_multiple_balances:
             # Cas d'une g1pub simple
-            message_parts.append(f"<strong>Balance:</strong> {balance_data['balance']}")
-            message_parts.append(f"<small>🎫 : {balance_data['g1pub'][:20]}...</small>")
+            zen_balance = convert_g1_to_zen(balance_data['balance'])
+            message_parts.append(f"<center>MULTIPASS 👛 <br><strong>{zen_balance}</strong></center>")
         else:
             # Cas d'un email avec plusieurs balances
             if "balance" in balance_data:
-                message_parts.append(f"<strong>MULTIPASS:</strong> {balance_data['balance']}")
+                zen_balance = convert_g1_to_zen(balance_data['balance'])
+                message_parts.append(f"<center>MULTIPASS 👛 <br><strong>{zen_balance}</strong></center>")
                 if "g1pub" in balance_data:
-                    message_parts.append(f"<small>({balance_data['g1pub'][:20]}...)</small>")
+                    title += f" / 👛 <small>{balance_data['g1pub'][:20]}...:ZEN:{zen_balance}</small>"
             
             if "balance_zencard" in balance_data:
-                message_parts.append(f"<strong>ZEN Card:</strong> {balance_data['balance_zencard']}")
+                zen_balance_zencard = convert_g1_to_zen(balance_data['balance_zencard'])
+                message_parts.append(f"<br><center>ZEN Card 💳 <br><strong>{zen_balance_zencard}</strong></center>")
                 if "g1pub_zencard" in balance_data:
-                    message_parts.append(f"<small>({balance_data['g1pub_zencard'][:20]}...)</small>")
+                    title += f" / 💳 <small>{balance_data['g1pub_zencard'][:20]}...:ZEN:{zen_balance_zencard}</small>"
         
         message = "<br>".join(message_parts)
         
