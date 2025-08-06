@@ -2489,7 +2489,7 @@ def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) ->
         if "balance" in balance_data and "g1pub" in balance_data:
             # Cas d'une g1pub simple
             message_parts.append(f"<strong>Balance:</strong> {balance_data['balance']}")
-            message_parts.append(f"<small>G1PUB: {balance_data['g1pub'][:20]}...</small>")
+            message_parts.append(f"<small>🎫 : {balance_data['g1pub'][:20]}...</small>")
         else:
             # Cas d'un email avec plusieurs balances
             if "balance" in balance_data:
