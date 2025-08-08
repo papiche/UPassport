@@ -41,8 +41,9 @@ ZLON=$(makecoord $LON)
 PUBKEY=$(echo "$QRCODE" | tr -d ' ') ## REMOVE SPACE
 ZCHK="$(echo $PUBKEY | cut -d ':' -f 2-)" # :G1CHK or :ZEN or :NOSTRNS
 [[ $ZCHK == $PUBKEY ]] && ZCHK=""
+
 PUBKEY="$(echo $PUBKEY | cut -d ':' -f 1)" # ":" split
-echo "PUBKEY ? $PUBKEY ($ZCHK)"
+echo "PUBKEY : $PUBKEY ($ZCHK)"
 if [ -n "$PUBKEY" ]; then
     PUBKEY="${PUBKEY:0:256}" ## cut
 else
@@ -259,12 +260,17 @@ get_NOSTRNS_directory() {
 ########################################################################
 ############ MULTIPASS SSSS 1-xxx:ipns KEY QRCODE RECEIVED
 ########################################################################
-if [[ ${PUBKEY:0:2} == "1-" && ${ZCHK:0:6} == "k51qzi" ]]; then
-    echo "NOSTR CARD SSSS KEY verification......"
-    SSSS1=$(echo ${QRCODE} | cut -d ':' -f 1)
-    IPNSVAULT=${ZCHK}
+if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51qzi" ]]; then
+    echo "MULTIPASS SSSS KEY verification......"
+    ## Decode Base58 encoded QR code
+    # ex: M-3geE2ktuVKGUoEuv3FQEtiCAZDa69PN2kiT8d4UhAH3RbMkgPbooz7W:k51qzi5uqu5dhwr9cp52nhe7w13y9g58kg4l7m45ojka0tx92s72bise85sjn0
+    [[ ${PUBKEY:0:2} == "M-" ]] && DECODED_QRCODE=$($HOME/.zen/Astroport.ONE/tools/base58.py decode "${QRCODE:2}")
+    # ex: 1-3601d4a82fc6d8f9033066da40a9d14693737ca12479b3a601a7be319d4b77b2df4477a0d148d7cd:k51qzi5uqu5dhwr9cp52nhe7w13y9g58kg4l7m45ojka0tx92s72bise85sjn0
+    [[ ${PUBKEY:0:2} == "1-" ]] && DECODED_QRCODE="${QRCODE}"
+    SSSS1=$(echo ${DECODED_QRCODE} | cut -d ':' -f 1)
+    IPNSVAULT=$(echo ${DECODED_QRCODE} | cut -d ':' -f 2-)
     ipnsk51=$(echo "$IPNSVAULT" | grep -oP "(?<=k51qzi5uqu5d)[^/]*")
-
+    
     if [[ ${ipnsk51} != "" ]]; then
         VAULTNS="k51qzi5uqu5d"$ipnsk51
         ## SEARCHING FOR LOCAL NOSTR CARD : todo extend search to all swarm => allow MULTIPASS on all Astroport
