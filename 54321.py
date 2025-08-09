@@ -519,7 +519,7 @@ def get_authenticated_user_directory(npub: str) -> Path:
     user_root_dir = find_user_directory_by_hex(hex_pubkey)
     
     # Retourner le répertoire APP (où doivent aller les fichiers uploadés)
-    app_dir = user_root_dir / "APP/uDRIVE"
+    app_dir = user_root_dir / "APP"
     app_dir.mkdir(exist_ok=True)  # S'assurer que APP/ existe
     
     logging.info(f"Répertoire APP utilisateur (sécurisé): {app_dir}")
@@ -612,7 +612,7 @@ def sanitize_filename_python(filename: str) -> str:
 
     return filename
 
-async def run_ipfs_generation_script(source_dir: Path, enable_logging: bool = False) -> Dict[str, Any]:
+async def run_uDRIVE_generation_script(source_dir: Path, enable_logging: bool = False) -> Dict[str, Any]:
     """Exécuter le script de génération IPFS spécifique à l'utilisateur dans le répertoire de son uDRIVE."""
     
     # source_dir est déjà le chemin complet vers APP/uDRIVE
@@ -2047,7 +2047,8 @@ async def upload_file(
         raise HTTPException(status_code=403, detail="Nostr authentication failed or not provided.")
 
     try:
-        user_drive_path = get_authenticated_user_directory(npub)
+        user_APP_path = get_authenticated_user_directory(npub)
+        user_drive_path = user_APP_path / "uDRIVE"
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -2101,7 +2102,7 @@ async def upload_file(
                 temp_zip_path.unlink()
 
         # Regenerate IPFS structure
-        ipfs_result = await run_ipfs_generation_script(user_drive_path)
+        ipfs_result = await run_uDRIVE_generation_script(user_drive_path)
         new_cid_info = ipfs_result.get("final_cid")
         
         return UploadResponse(
@@ -2149,9 +2150,9 @@ async def upload_file(
         file_size = target_file_path.stat().st_size
         logging.info(f"File '{sanitized_filename}' saved to '{target_file_path}' (Size: {file_size} bytes)")
 
-        # CORRECTION : Appeler la fonction spécialisée run_ipfs_generation_script
+        # CORRECTION : Appeler la fonction spécialisée run_uDRIVE_generation_script
         # qui gère le changement de répertoire de travail (cwd) pour le script.
-        ipfs_result = await run_ipfs_generation_script(user_drive_path)
+        ipfs_result = await run_uDRIVE_generation_script(user_drive_path)
         new_cid_info = ipfs_result.get("final_cid") # Accéder à "final_cid" depuis le dictionnaire de résultat
         logging.info(f"New IPFS CID generated: {new_cid_info}")
 
@@ -2176,7 +2177,9 @@ async def upload_from_drive(request: UploadFromDriveRequest):
         raise HTTPException(status_code=403, detail="Nostr authentication failed or not provided.")
 
     try:
-        user_drive_path = get_authenticated_user_directory(request.npub)
+        user_APP_path = get_authenticated_user_directory(request.npub)
+        user_drive_path = user_APP_path / "uDRIVE"
+
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -2238,9 +2241,9 @@ async def upload_from_drive(request: UploadFromDriveRequest):
         file_size = target_file_path.stat().st_size
         logging.info(f"File '{sanitized_filename}' downloaded from IPFS and saved to '{target_file_path}' (Size: {file_size} bytes)")
 
-        # CORRECTION : Appeler la fonction spécialisée run_ipfs_generation_script
+        # CORRECTION : Appeler la fonction spécialisée run_uDRIVE_generation_script
         # qui gère le changement de répertoire de travail (cwd) pour le script.
-        ipfs_result = await run_ipfs_generation_script(user_drive_path)
+        ipfs_result = await run_uDRIVE_generation_script(user_drive_path)
         new_cid_info = ipfs_result.get("final_cid") # Accéder à "final_cid" depuis le dictionnaire de résultat
         logging.info(f"New IPFS CID generated: {new_cid_info}")
 
@@ -2344,7 +2347,7 @@ async def delete_file(request: DeleteRequest):
         # Régénérer la structure IPFS
         logging.info("Régénération de la structure IPFS après suppression...")
         try:
-            ipfs_result = await run_ipfs_generation_script(base_dir, enable_logging=False)
+            ipfs_result = await run_uDRIVE_generation_script(base_dir, enable_logging=False)
             new_cid = ipfs_result.get("final_cid") if ipfs_result["success"] else None
         except Exception as e:
             logging.warning(f"Erreur lors de la régénération IPFS: {e}")
@@ -2367,6 +2370,194 @@ async def delete_file(request: DeleteRequest):
     except Exception as e:
         logging.error(f"Erreur lors de la suppression authentifiée: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de la suppression: {str(e)}")
+
+# Nouveaux modèles pour les ressources Urbanivore
+class UrbanivoreResource(BaseModel):
+    type: str  # 'tree' ou 'recipe'
+    title: str
+    description: str
+    latitude: float
+    longitude: float
+    species: Optional[str] = None  # Pour les arbres
+    season: Optional[str] = None   # Pour les arbres
+    difficulty: Optional[str] = None  # Pour les recettes
+    time: Optional[str] = None     # Pour les recettes
+    images: List[str] = []
+    npub: str  # Authentification NOSTR
+
+class UrbanivoreResourceResponse(BaseModel):
+    success: bool
+    message: str
+    resource_id: str
+    cid: str
+    ipfs_url: str
+    nostr_event_id: Optional[str] = None
+    timestamp: str
+    auth_verified: bool
+
+@app.post("/api/urbanivore/resource", response_model=UrbanivoreResourceResponse)
+async def create_urbanivore_resource(resource: UrbanivoreResource):
+    """Créer une ressource Urbanivore et la publier sur IPFS + NOSTR"""
+    try:
+        # Vérifier l'authentification NOSTR
+        auth_verified = await verify_nostr_auth(resource.npub)
+        if not auth_verified:
+            raise HTTPException(status_code=403, detail="Authentification NOSTR requise")
+        
+        # Créer le répertoire utilisateur
+        user_drive_path = get_authenticated_user_directory(resource.npub)
+        urbanivore_dir = user_drive_path / "Urbanivore"
+        urbanivore_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Générer un ID unique
+        resource_id = f"{resource.type}_{int(time.time())}_{resource.npub[:8]}"
+        
+        # Créer le fichier JSON de la ressource
+        resource_data = {
+            "id": resource_id,
+            "type": resource.type,
+            "title": resource.title,
+            "description": resource.description,
+            "latitude": resource.latitude,
+            "longitude": resource.longitude,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "npub": resource.npub,
+            "images": resource.images
+        }
+        
+        # Ajouter les champs spécifiques
+        if resource.type == "tree":
+            resource_data.update({
+                "species": resource.species,
+                "season": resource.season
+            })
+        elif resource.type == "recipe":
+            resource_data.update({
+                "difficulty": resource.difficulty,
+                "time": resource.time
+            })
+        
+        # Sauvegarder le fichier JSON
+        resource_file = urbanivore_dir / f"{resource_id}.json"
+        with open(resource_file, 'w', encoding='utf-8') as f:
+            json.dump(resource_data, f, indent=2, ensure_ascii=False)
+        
+        # Régénérer la structure IPFS
+        ipfs_result = await run_Urbanivore_generation_script(user_drive_path)
+        new_cid = ipfs_result.get("final_cid") if ipfs_result["success"] else None
+        
+        if not new_cid:
+            raise HTTPException(status_code=500, detail="Erreur lors de la génération IPFS")
+        
+        # Construire l'URL IPFS
+        ipfs_url = f"http://127.0.0.1:8080/ipfs/{new_cid}/Urbanivore/{resource_id}.json"
+        
+        # Publier l'événement NOSTR (optionnel)
+        nostr_event_id = await publish_nostr_event(resource_data, resource.npub)
+        
+        return UrbanivoreResourceResponse(
+            success=True,
+            message=f"Ressource {resource.type} créée avec succès",
+            resource_id=resource_id,
+            cid=new_cid,
+            ipfs_url=ipfs_url,
+            nostr_event_id=nostr_event_id,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            auth_verified=True
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Erreur création ressource Urbanivore: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+
+async def publish_nostr_event(resource_data: dict, npub: str) -> Optional[str]:
+    """Publier un événement NOSTR pour la ressource Urbanivore"""
+    try:
+        # Créer l'événement NOSTR
+        event = {
+            "kind": 1,
+            "pubkey": npub,
+            "created_at": int(time.time()),
+            "content": f"{resource_data['type']}: {resource_data['title']}\n\n{resource_data['description']}",
+            "tags": [
+                ["application", "Urbanivore"],
+                ["type", resource_data["type"]],
+                ["latitude", str(resource_data["latitude"])],
+                ["longitude", str(resource_data["longitude"])],
+                ["g", f"{resource_data['latitude']};{resource_data['longitude']}"],
+                ["resource_id", resource_data["id"]]
+            ]
+        }
+        
+        # Ajouter les tags spécifiques
+        if resource_data["type"] == "tree":
+            event["tags"].extend([
+                ["species", resource_data.get("species", "")],
+                ["season", resource_data.get("season", "")]
+            ])
+        elif resource_data["type"] == "recipe":
+            event["tags"].extend([
+                ["title", resource_data.get("title", "")],
+                ["difficulty", resource_data.get("difficulty", "")]
+            ])
+        
+        # Publier sur le relai local
+        relay_url = get_nostr_relay_url()
+        async with websockets.connect(relay_url) as websocket:
+            await websocket.send(json.dumps(["EVENT", event]))
+            response = await websocket.recv()
+            response_data = json.loads(response)
+            
+            if response_data[0] == "OK" and response_data[2]:
+                return event.get("id")
+        
+        return None
+        
+    except Exception as e:
+        logging.warning(f"Erreur publication NOSTR: {e}")
+        return None
+
+@app.get("/api/urbanivore/resources")
+async def list_urbanivore_resources(npub: str, limit: int = 50):
+    """Lister les ressources Urbanivore d'un utilisateur"""
+    try:
+        # Vérifier l'authentification NOSTR
+        auth_verified = await verify_nostr_auth(npub)
+        if not auth_verified:
+            raise HTTPException(status_code=403, detail="Authentification NOSTR requise")
+        
+        # Obtenir le répertoire utilisateur
+        user_drive_path = get_authenticated_user_directory(npub)
+        urbanivore_dir = user_drive_path / "Urbanivore"
+        
+        if not urbanivore_dir.exists():
+            return {"resources": [], "total": 0}
+        
+        # Lister les fichiers JSON
+        resources = []
+        for json_file in urbanivore_dir.glob("*.json"):
+            try:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    resource_data = json.load(f)
+                    resources.append(resource_data)
+            except Exception as e:
+                logging.warning(f"Erreur lecture {json_file}: {e}")
+        
+        # Trier par date de création (plus récent en premier)
+        resources.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        
+        return {
+            "resources": resources[:limit],
+            "total": len(resources)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Erreur liste ressources: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
 
 @app.post("/api/test-nostr")
 async def test_nostr_auth(npub: str = Form(...)):
