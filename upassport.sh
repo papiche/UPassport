@@ -258,7 +258,7 @@ get_NOSTRNS_directory() {
     done < <(find "$HOME/.zen/game/nostr" -type f -name "NOSTRNS" -print0)
 }
 ########################################################################
-############ MULTIPASS SSSS 1-xxx:ipns KEY QRCODE RECEIVED
+############ MULTIPASS SSSS M-base58(1-xxx):ipns KEY QRCODE RECEIVED
 ########################################################################
 if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51qzi" ]]; then
     echo "MULTIPASS SSSS KEY verification......"

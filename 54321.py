@@ -2369,7 +2369,7 @@ async def delete_file(request: DeleteRequest):
         raise HTTPException(status_code=500, detail=f"Erreur lors de la suppression: {str(e)}")
 
 @app.post("/api/test-nostr")
-async def test_nostr_auth(npub: str):
+async def test_nostr_auth(npub: str = Form(...)):
     """Tester l'authentification NOSTR pour une npub donnée"""
     try:
         logging.info(f"Test d'authentification NOSTR pour: {npub}")
