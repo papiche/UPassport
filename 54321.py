@@ -1850,14 +1850,9 @@ async def zen_send(request: Request):
     if not npub or not str(npub).strip():
         raise HTTPException(status_code=400, detail="Nostr public key (npub) is required")
 
-    # Resolve destination if requested CAPTAIN
-    if not g1dest or g1dest.strip().upper() == "CAPTAIN":
-        captain_g1 = os.getenv("CAPTAING1PUB")
-        if not captain_g1:
-            logging.error("CAPTAING1PUB is not set in environment")
-            raise HTTPException(status_code=500, detail="CAPTAIN_G1PUB is not configured on server")
-        g1dest = captain_g1
-        logging.info(f"Resolved CAPTAIN G1 destination: {g1dest[:12]}...")
+    # Do not resolve CAPTAIN here; let zen_send.sh handle CAPTAIN/PLAYER mapping
+    if not g1dest:
+        raise HTTPException(status_code=400, detail="Missing destination (g1dest)")
 
     sender_hex = None
     # Convert to hex if needed
@@ -1909,29 +1904,61 @@ async def zen_send(request: Request):
 
     return_code, last_line = await run_script(script_path, *args)
 
-    if return_code == 0:
-        # Build a short-lived game token (5 minutes) after successful payment
-        session_id = uuid.uuid4().hex
-        exp = int(time.time()) + 300
-        token = sign_token({"npub": sender_hex, "sid": session_id, "exp": exp})
-        # Initialize session server state
-        COINFLIP_SESSIONS[session_id] = {
-            "npub": sender_hex,
-            "consecutive": 1,
-            "paid": True,
-            "created_at": int(time.time()),
-        }
-        returned_file_path = last_line.strip()
-        # Return both the original HTML path (for compatibility) and the token/session
+    try:
+        # Parse the JSON response from zen_send.sh
+        script_output = last_line.strip()
+        if script_output.startswith('{'):
+            # JSON response from zen_send.sh
+            result = json.loads(script_output)
+            if result.get("success"):
+                # Build a short-lived game token (5 minutes) after successful payment
+                session_id = uuid.uuid4().hex
+                exp = int(time.time()) + 300
+                token = sign_token({"npub": sender_hex, "sid": session_id, "exp": exp})
+                # Initialize session server state
+                COINFLIP_SESSIONS[session_id] = {
+                    "npub": sender_hex,
+                    "consecutive": 1,
+                    "paid": True,
+                    "created_at": int(time.time()),
+                }
+                # Return the JSON response from zen_send.sh along with the token/session
+                return JSONResponse({
+                    "ok": True,
+                    "zen_send_result": result,
+                    "token": token,
+                    "sid": session_id,
+                    "exp": exp
+                })
+            else:
+                # Error from zen_send.sh
+                return JSONResponse({
+                    "ok": False,
+                    "error": result.get("error", "Unknown error"),
+                    "type": result.get("type", "unknown_error")
+                })
+        else:
+            # Fallback for non-JSON responses (legacy compatibility)
+            returned_file_path = script_output
+            return JSONResponse({
+                "ok": True,
+                "html": returned_file_path,
+                "message": "Legacy response format"
+            })
+    except json.JSONDecodeError as e:
+        logging.error(f"Failed to parse zen_send.sh output as JSON: {e}")
         return JSONResponse({
-            "ok": True,
-            "html": returned_file_path,
-            "token": token,
-            "sid": session_id,
-            "exp": exp
+            "ok": False,
+            "error": f"Failed to parse script output: {script_output}",
+            "type": "parse_error"
         })
-    else:
-        return JSONResponse({"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ~/.zen/tmp/54321.log."})
+    except Exception as e:
+        logging.error(f"Error processing zen_send.sh response: {e}")
+        return JSONResponse({
+            "ok": False,
+            "error": f"Script execution failed: {last_line.strip()}",
+            "type": "execution_error"
+        })
 
 ###################################################
 ######### REC / STOP - NODE OBS STUDIO -
