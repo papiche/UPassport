@@ -30,6 +30,7 @@ except Exception as e:
     print(f"WARNING: Could not dynamically add site-packages to path. This might be fine if running in an activated venv. Error: {e}")
 
 import uuid
+import hmac
 import re
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
@@ -61,6 +62,7 @@ import unicodedata
 from collections import defaultdict, deque
 import threading
 import ipaddress
+import secrets
 
 # Obtenir le timestamp Unix actuel
 unix_timestamp = int(time.time())
@@ -328,6 +330,37 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+# --- Coinflip server-authoritative state ---
+COINFLIP_SECRET = os.getenv("COINFLIP_SECRET") or base64.urlsafe_b64encode(os.urandom(32)).decode()
+COINFLIP_SESSIONS: Dict[str, Dict[str, Any]] = {}
+
+def sign_token(payload: Dict[str, Any]) -> str:
+    """Create a compact HMAC token for small payloads (npub, exp, sessionId)."""
+    body = json.dumps(payload, separators=(",", ":")).encode()
+    sig = hmac.new(COINFLIP_SECRET.encode(), body, hashlib.sha256).digest()
+    token = base64.urlsafe_b64encode(body).decode().rstrip('=') + "." + base64.urlsafe_b64encode(sig).decode().rstrip('=')
+    return token
+
+def verify_token(token: str) -> Optional[Dict[str, Any]]:
+    try:
+        parts = token.split(".")
+        if len(parts) != 2:
+            return None
+        body_b64, sig_b64 = parts
+        # pad
+        pad = lambda s: s + "=" * (-len(s) % 4)
+        body = base64.urlsafe_b64decode(pad(body_b64))
+        sig = base64.urlsafe_b64decode(pad(sig_b64))
+        expected = hmac.new(COINFLIP_SECRET.encode(), body, hashlib.sha256).digest()
+        if not hmac.compare_digest(sig, expected):
+            return None
+        payload = json.loads(body.decode())
+        if int(payload.get("exp", 0)) < int(time.time()):
+            return None
+        return payload
+    except Exception:
+        return None
+
 # Middleware pour appliquer le rate limiting sur toutes les routes
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
@@ -407,6 +440,34 @@ class DeleteResponse(BaseModel):
     new_cid: Optional[str] = None
     timestamp: str
     auth_verified: bool
+
+class CoinflipStartRequest(BaseModel):
+    token: str
+
+class CoinflipStartResponse(BaseModel):
+    ok: bool
+    sid: str
+    exp: int
+
+class CoinflipFlipRequest(BaseModel):
+    token: str
+
+class CoinflipFlipResponse(BaseModel):
+    ok: bool
+    sid: str
+    result: str  # "Heads" or "Tails"
+    consecutive: int
+
+class CoinflipPayoutRequest(BaseModel):
+    token: str
+    player_id: Optional[str] = None  # email or hex when paying to PLAYER
+
+class CoinflipPayoutResponse(BaseModel):
+    ok: bool
+    sid: str
+    zen: int
+    g1_amount: str
+    tx: Optional[str] = None
 
 class UploadFromDriveRequest(BaseModel):
     ipfs_link: str # Format attendu : QmHASH/filename.ext
@@ -710,6 +771,11 @@ async def run_uDRIVE_generation_script(source_dir: Path, enable_logging: bool = 
     except Exception as e:
         logging.error(f"Exception lors de l'exécution du script: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
+
+# Backward-compatible alias used by Urbanivore endpoints --- WORK IN PROGRESS ---
+async def run_Urbanivore_generation_script(source_dir: Path, enable_logging: bool = False) -> Dict[str, Any]:
+    """Alias to generate IPFS structure for Urbanivore using the same uDRIVE generator."""
+    return await run_uDRIVE_generation_script(source_dir, enable_logging=enable_logging)
 
 # NOSTR and NIP42 Functions
 def npub_to_hex(npub: str) -> Optional[str]:
@@ -1757,21 +1823,113 @@ async def ssss(request: Request):
 
 @app.post("/zen_send")
 async def zen_send(request: Request):
+    """
+    Send ZEN using the sender's ZEN card. Nostr authentication (NIP-42) is mandatory.
+
+    Required form fields:
+      - zen: amount in ZEN
+      - g1dest: destination G1 pubkey; if omitted or equal to 'CAPTAIN', uses env CAPTAIN_G1PUB
+      - npub: sender pubkey (npub1... or 64-hex). We verify NIP-42 and resolve the sender's
+              G1 source wallet from ~/.zen/game/nostr/<email>/G1PUBNOSTR when available.
+
+    Optional form fields:
+      - g1source: suggested source G1 pubkey; will be validated against npub mapping by the shell
+    """
     form_data = await request.form()
     zen = form_data.get("zen")
     g1source = form_data.get("g1source")
     g1dest = form_data.get("g1dest")
+    npub = form_data.get("npub")  # mandatory; NIP-42 verification and source resolution
 
     logging.info(f"Zen Amount : {zen}")
-    logging.info(f"Source : {g1source}")
-    logging.info(f"Destination : {g1dest}")
+    logging.info(f"Source (pre) : {g1source}")
+    logging.info(f"Destination (pre) : {g1dest}")
+    logging.info(f"Nostr pubkey provided: {('yes' if npub else 'no')}")
 
+    # npub is mandatory
+    if not npub or not str(npub).strip():
+        raise HTTPException(status_code=400, detail="Nostr public key (npub) is required")
+
+    # Resolve destination if requested CAPTAIN
+    if not g1dest or g1dest.strip().upper() == "CAPTAIN":
+        captain_g1 = os.getenv("CAPTAING1PUB")
+        if not captain_g1:
+            logging.error("CAPTAING1PUB is not set in environment")
+            raise HTTPException(status_code=500, detail="CAPTAIN_G1PUB is not configured on server")
+        g1dest = captain_g1
+        logging.info(f"Resolved CAPTAIN G1 destination: {g1dest[:12]}...")
+
+    sender_hex = None
+    # Convert to hex if needed
+    is_hex_format = len(npub) == 64 and all(c in '0123456789abcdefABCDEF' for c in npub)
+    sender_hex = npub.lower() if is_hex_format else npub_to_hex(npub)
+    if not sender_hex or len(sender_hex) != 64:
+        logging.error("Invalid npub/hex provided to /zen_send")
+        raise HTTPException(status_code=400, detail="Invalid Nostr public key format")
+
+    # Verify NIP-42 recent auth
+    auth_ok = await verify_nostr_auth(sender_hex)
+    if not auth_ok:
+        logging.warning("NIP-42 verification failed for /zen_send request")
+        raise HTTPException(status_code=401, detail="Nostr authentication failed (NIP-42)")
+
+    # Map Nostr pubkey to user directory and G1 source if available
+    try:
+        user_dir = find_user_directory_by_hex(sender_hex)
+        g1pubnostr_path = user_dir / "G1PUBNOSTR"
+        if g1pubnostr_path.exists():
+            with open(g1pubnostr_path, 'r') as f:
+                resolved_g1source = f.read().strip()
+            logging.info(f"Resolved sender G1SOURCE from Nostr: {resolved_g1source[:12]}...")
+            g1source = resolved_g1source
+        else:
+            logging.warning(f"G1PUBNOSTR not found for user {user_dir}. Will validate provided g1source in shell")
+    except HTTPException as e:
+        logging.error(f"Failed to locate user directory for hex {sender_hex}: {e.detail}")
+    except Exception as e:
+        logging.error(f"Unexpected error resolving G1 source from npub: {e}")
+
+    # Create a short-lived auth marker for the shell script to verify
+    try:
+        marker_path = os.path.expanduser(f"~/.zen/tmp/nostr_auth_ok_{sender_hex}")
+        os.makedirs(os.path.dirname(marker_path), exist_ok=True)
+        with open(marker_path, 'w') as marker:
+            marker.write(str(int(time.time())))
+        logging.info(f"Created Nostr auth marker: {marker_path}")
+    except Exception as e:
+        logging.warning(f"Failed to write Nostr auth marker: {e}")
+
+    # Final validations
+    if not zen or not g1dest:
+        raise HTTPException(status_code=400, detail="Missing required fields: zen, g1dest, npub")
+
+    # Execute payment script, passing sender_hex when available so shell can double-check mapping
     script_path = "./zen_send.sh"
-    return_code, last_line = await run_script(script_path, zen, g1source, g1dest)
+    args = [zen, g1source or "", g1dest, sender_hex]
+
+    return_code, last_line = await run_script(script_path, *args)
 
     if return_code == 0:
+        # Build a short-lived game token (5 minutes) after successful payment
+        session_id = uuid.uuid4().hex
+        exp = int(time.time()) + 300
+        token = sign_token({"npub": sender_hex, "sid": session_id, "exp": exp})
+        # Initialize session server state
+        COINFLIP_SESSIONS[session_id] = {
+            "npub": sender_hex,
+            "consecutive": 1,
+            "paid": True,
+            "created_at": int(time.time()),
+        }
         returned_file_path = last_line.strip()
-        return FileResponse(returned_file_path)
+        # Return both the original HTML path (for compatibility) and the token/session
+        return JSONResponse({
+            "ok": True,
+            "html": returned_file_path,
+            "token": token,
+            "sid": session_id,
+            "exp": exp
+        })
     else:
         return JSONResponse({"error": f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ~/.zen/tmp/54321.log."})
 
@@ -2169,6 +2327,76 @@ async def upload_file(
     except Exception as e:
         logging.error(f"Error saving file or running IPFS script: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to process file: {e}")
+
+
+# --- Coinflip endpoints ---
+@app.post("/coinflip/start", response_model=CoinflipStartResponse)
+async def coinflip_start(payload: CoinflipStartRequest):
+    data = verify_token(payload.token)
+    if not data:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    sid = data.get("sid")
+    if not sid or sid not in COINFLIP_SESSIONS:
+        raise HTTPException(status_code=400, detail="Unknown session")
+    sess = COINFLIP_SESSIONS[sid]
+    # refresh exp short time to allow play window
+    exp = int(time.time()) + 300
+    token = sign_token({"npub": sess["npub"], "sid": sid, "exp": exp})
+    return CoinflipStartResponse(ok=True, sid=sid, exp=exp)
+
+
+@app.post("/coinflip/flip", response_model=CoinflipFlipResponse)
+async def coinflip_flip(payload: CoinflipFlipRequest):
+    data = verify_token(payload.token)
+    if not data:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    sid = data.get("sid")
+    if not sid or sid not in COINFLIP_SESSIONS:
+        raise HTTPException(status_code=400, detail="Unknown session")
+    sess = COINFLIP_SESSIONS[sid]
+    if not sess.get("paid"):
+        raise HTTPException(status_code=402, detail="Payment required")
+    # cryptographically strong coin flip
+    result = 'Heads' if secrets.randbits(1) == 0 else 'Tails'
+    if result == 'Heads':
+        sess["consecutive"] = int(sess.get("consecutive", 1)) + 1
+    return CoinflipFlipResponse(ok=True, sid=sid, result=result, consecutive=int(sess["consecutive"]))
+
+
+@app.post("/coinflip/payout", response_model=CoinflipPayoutResponse)
+async def coinflip_payout(payload: CoinflipPayoutRequest):
+    data = verify_token(payload.token)
+    if not data:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    sid = data.get("sid")
+    if not sid or sid not in COINFLIP_SESSIONS:
+        raise HTTPException(status_code=400, detail="Unknown session")
+    sess = COINFLIP_SESSIONS[sid]
+    if not sess.get("paid"):
+        raise HTTPException(status_code=402, detail="Payment required")
+    consecutive = int(sess.get("consecutive", 1))
+    raw = 2 ** (consecutive - 1)
+    # Apply MAX cap if the client provided at payment time via future extension; for now no cap
+    zen_amount = raw
+    g1_amount = f"{zen_amount / 10:.1f}"
+    # Trigger payout from captain to player if requested
+    # We reuse zen_send.sh with g1dest=PLAYER; player_id can be email or hex
+    player_id = payload.player_id or ""
+    script_path = os.path.join(SCRIPT_DIR, "zen_send.sh")
+    # captain sender hex is the npub asserted in token
+    sender_hex = data.get("npub")
+    args = [str(zen_amount), "", "PLAYER", sender_hex]
+    if player_id:
+        args.append(player_id)
+    return_code, last_line = await run_script(script_path, *args)
+    if return_code != 0:
+        raise HTTPException(status_code=500, detail="Payout script failed")
+    # Invalidate session
+    try:
+        del COINFLIP_SESSIONS[sid]
+    except Exception:
+        pass
+    return CoinflipPayoutResponse(ok=True, sid=sid, zen=zen_amount, g1_amount=g1_amount, tx=last_line.strip())
 
 @app.post("/api/upload_from_drive", response_model=UploadFromDriveResponse)
 async def upload_from_drive(request: UploadFromDriveRequest):
