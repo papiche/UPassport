@@ -117,7 +117,8 @@ Before setting up UPassport, ensure you have the following prerequisites install
 
 3.  **Explore UPassport Functionalities**: The UPassport web interface provides access to various terminals and tools:
 
-    *   **Main Terminal (`/scan` or `/`)**:  For general QR code scanning, UPassport actions, and NOSTR Card interactions.
+    *   **UPlanet Status API (`/`)**:  Returns JSON data about the local UPlanet ecosystem (players, NOSTR multipass, UMAPs, swarm nodes). Supports geographic filtering with query parameters: `?lat=XX.XX&lon=YY.YY&deg=Z.Z` to filter results by geographic area.
+    *   **QR Code Scanner (`/scan`)**: Web interface for general QR code scanning, UPassport actions, and NOSTR Card interactions.
     *   **ZenCard Terminal (`/scan_zen.html` - accessed internally)**: For initiating ZEN (Ẑen) payments using ZenCards.
     *   **Security Scanner (`/scan_ssss.html` - accessed internally)**: For UPassport security verification, used by station CAPTAINs.
     *   **NOSTR Card Interface (`/nostr`)**: For exploring NOSTR functionalities and potentially managing NOSTR Cards (functionality may be limited in the provided code).
@@ -135,6 +136,7 @@ The UPassport API provides secure, decentralized file and identity management fo
 
 | Endpoint                  | Method | Description                                 | Auth Required | Example Payload/Params         |
 |---------------------------|--------|---------------------------------------------|---------------|-------------------------------|
+| `/`                       | GET    | UPlanet ecosystem status (Ustats.sh)       | No            | `lat`, `lon`, `deg` (query params) |
 | `/api/upload`             | POST   | Upload a file to your uDRIVE (IPFS)         | Yes (npub)    | `file`, `npub` (form-data)    |
 | `/api/upload_from_drive`  | POST   | Sync a file from IPFS to your uDRIVE        | Yes (npub)    | `ipfs_link`, `npub` (JSON)    |
 | `/api/delete`             | POST   | Delete a file from your uDRIVE              | Yes (npub)    | `file_path`, `npub` (JSON)    |
@@ -144,6 +146,51 @@ The UPassport API provides secure, decentralized file and identity management fo
 ---
 
 ### Endpoint Details
+
+#### `GET /`
+- **Description:** Returns comprehensive JSON data about the local UPlanet ecosystem, including active players, NOSTR multipass holders, UMAPs (Universal Maps), and swarm nodes. This endpoint executes the `Ustats.sh` script and provides real-time statistics about the decentralized network.
+- **Authentication:** Not required.
+- **Query Parameters:**
+  - `lat`: Latitude coordinate for geographic filtering (optional, decimal format).
+  - `lon`: Longitude coordinate for geographic filtering (optional, decimal format).
+  - `deg`: Degree range for geographic area filtering (optional, decimal format).
+- **Returns:** JSON object containing ecosystem statistics, player data, NOSTR profiles, UMAPs, and swarm information.
+
+**Examples:**
+```bash
+# Get all ecosystem data
+curl "http://localhost:54321/"
+
+# Filter by geographic area (latitude 45.75, longitude 4.85, 1 degree range)
+curl "http://localhost:54321/?lat=45.75&lon=4.85&deg=1.0"
+```
+
+**JSON Response Structure:**
+```json
+{
+  "version": "1.1",
+  "DATE": "2024-01-15 10:30:00 UTC",
+  "IPFSNODEID": "12D3KooW...",
+  "myIPFS": "http://127.0.0.1:8080",
+  "UPLANETG1PUB": "...",
+  "G1": "150.45",
+  "ZEN": "1494",
+  "BILAN": "42",
+  "CENTER": {
+    "LAT": "45.75",
+    "LON": "4.85", 
+    "DEG": "1.0"
+  },
+  "CLOSEST_UMAPs": [...],
+  "SWARM": [...],
+  "NOSTR": [...],
+  "PLAYERs": [...],
+  "UMAPs": [...],
+  "GENERATION_TIME": "3"
+}
+```
+
+---
 
 #### `POST /api/upload`
 - **Description:** Upload a file to your personal uDRIVE (IPFS-backed). The file is categorized (Images, Music, Videos, Documents) based on type.
@@ -410,7 +457,8 @@ Avant de configurer UPassport, assurez-vous d'avoir installé et configuré les 
 
 3.  **Explorez les Fonctionnalités d'UPassport** : L'interface web d'UPassport donne accès à divers terminaux et outils :
 
-    *   **Terminal Principal (`/scan` ou `/`)** : Pour le scan de QR codes général, les actions UPassport et les interactions avec les Cartes NOSTR.
+    *   **API Statut UPlanet (`/`)** : Retourne des données JSON sur l'écosystème UPlanet local (joueurs, multipass NOSTR, UMAPs, nœuds swarm). Supporte le filtrage géographique avec les paramètres de requête : `?lat=XX.XX&lon=YY.YY&deg=Z.Z` pour filtrer les résultats par zone géographique.
+    *   **Scanner QR Code (`/scan`)** : Interface web pour le scan de QR codes général, les actions UPassport et les interactions avec les Cartes NOSTR.
     *   **Terminal ZenCard (`/scan_zen.html` - accessible en interne)** : Pour initier des paiements ZEN (Ẑen) en utilisant les ZenCards.
     *   **Scanner de Sécurité (`/scan_ssss.html` - accessible en interne)** : Pour la vérification de sécurité UPassport, utilisé par les CAPITAINES de station.
     *   **Interface Carte NOSTR (`/nostr`)** : Pour explorer les fonctionnalités NOSTR et potentiellement gérer les Cartes NOSTR (la fonctionnalité peut être limitée dans le code fourni).
@@ -453,6 +501,7 @@ L'API UPassport fournit une gestion sécurisée et décentralisée des fichiers 
 
 | Endpoint                  | Méthode | Description                                 | Auth Requise | Exemple Payload/Params         |
 |---------------------------|---------|---------------------------------------------|--------------|-------------------------------|
+| `/`                       | GET     | Statut écosystème UPlanet (Ustats.sh)      | Non          | `lat`, `lon`, `deg` (query params) |
 | `/api/upload`             | POST    | Téléverser un fichier vers votre uDRIVE (IPFS) | Oui (npub) | `file`, `npub` (form-data)    |
 | `/api/upload_from_drive`  | POST    | Synchroniser un fichier depuis IPFS vers votre uDRIVE | Oui (npub) | `ipfs_link`, `npub` (JSON)    |
 | `/api/delete`             | POST    | Supprimer un fichier de votre uDRIVE        | Oui (npub) | `file_path`, `npub` (JSON)    |
@@ -462,6 +511,51 @@ L'API UPassport fournit une gestion sécurisée et décentralisée des fichiers 
 ---
 
 ### Détails des Endpoints
+
+#### `GET /`
+- **Description :** Retourne des données JSON complètes sur l'écosystème UPlanet local, incluant les joueurs actifs, les détenteurs de multipass NOSTR, les UMAPs (Cartes Universelles), et les nœuds swarm. Cet endpoint exécute le script `Ustats.sh` et fournit des statistiques en temps réel sur le réseau décentralisé.
+- **Authentification :** Non requise.
+- **Paramètres de requête :**
+  - `lat` : Coordonnée de latitude pour le filtrage géographique (optionnel, format décimal).
+  - `lon` : Coordonnée de longitude pour le filtrage géographique (optionnel, format décimal).
+  - `deg` : Plage de degrés pour le filtrage de zone géographique (optionnel, format décimal).
+- **Retourne :** Objet JSON contenant les statistiques de l'écosystème, données des joueurs, profils NOSTR, UMAPs, et informations swarm.
+
+**Exemples :**
+```bash
+# Obtenir toutes les données de l'écosystème
+curl "http://localhost:54321/"
+
+# Filtrer par zone géographique (latitude 45.75, longitude 4.85, plage de 1 degré)
+curl "http://localhost:54321/?lat=45.75&lon=4.85&deg=1.0"
+```
+
+**Structure de réponse JSON :**
+```json
+{
+  "version": "1.1",
+  "DATE": "2024-01-15 10:30:00 UTC",
+  "IPFSNODEID": "12D3KooW...",
+  "myIPFS": "http://127.0.0.1:8080",
+  "UPLANETG1PUB": "...",
+  "G1": "150.45",
+  "ZEN": "1494",
+  "BILAN": "42",
+  "CENTER": {
+    "LAT": "45.75",
+    "LON": "4.85", 
+    "DEG": "1.0"
+  },
+  "CLOSEST_UMAPs": [...],
+  "SWARM": [...],
+  "NOSTR": [...],
+  "PLAYERs": [...],
+  "UMAPs": [...],
+  "GENERATION_TIME": "3"
+}
+```
+
+---
 
 #### `POST /api/upload`
 - **Description :** Téléverser un fichier vers votre uDRIVE personnel (basé sur IPFS). Le fichier est catégorisé (Images, Musique, Vidéos, Documents) selon son type.
