@@ -127,6 +127,69 @@
             border: 1px solid rgba(0, 255, 136, 0.3);
         }
         
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal-content {
+            position: relative;
+            background-color: #1a1a2e;
+            margin: 2% auto;
+            padding: 0;
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            width: 90%;
+            height: 90%;
+            box-shadow: 0 20px 40px rgba(0, 255, 136, 0.3);
+        }
+        
+        .modal-header {
+            background: linear-gradient(45deg, #00ff88, #00cc6a);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .close {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+        
+        .close:hover {
+            color: #ff6b6b;
+        }
+        
+        .modal-iframe {
+            width: 100%;
+            height: calc(100% - 60px);
+            border: none;
+            border-radius: 0 0 8px 8px;
+        }
+        
+        .node-clickable {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .node-clickable:hover {
+            filter: brightness(1.3);
+            transform: scale(1.1);
+        }
+        
         .pubkey {
             font-family: monospace;
             font-size: 0.8em;
@@ -203,25 +266,40 @@
         </div>
         <div class="legend-item">
             <div class="legend-color" style="background: #4ecdc4;"></div>
-            <span>N1 (Mutual)</span>
+            <span>N1 (Mutual) 🔍</span>
         </div>
         <div class="legend-item">
             <div class="legend-color" style="background: #45b7d1;"></div>
-            <span>N1 (Following)</span>
+            <span>N1 (Following) 🔍</span>
         </div>
         <div class="legend-item">
             <div class="legend-color" style="background: #96ceb4;"></div>
-            <span>N1 (Follower)</span>
+            <span>N1 (Follower) 🔍</span>
         </div>
         <div class="legend-item">
             <div class="legend-color" style="background: #feca57;"></div>
-            <span>N2 Nodes</span>
+            <span>N2 Nodes 🔍</span>
         </div>
+    </div>
+    
+    <div style="text-align: center; margin-top: 10px; opacity: 0.8; font-size: 0.9em;">
+        🔍 Click on N1/N2 nodes to view NOSTR profiles
     </div>
     
     <div class="info-panel" id="info-panel">
         <h3>Node Information</h3>
         <div id="node-info"></div>
+    </div>
+
+    <!-- Modal for NOSTR Profile Viewer -->
+    <div id="profileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🔍 NOSTR Profile Viewer</h2>
+                <span class="close" onclick="closeProfileModal()">&times;</span>
+            </div>
+            <iframe id="profileIframe" class="modal-iframe" src=""></iframe>
+        </div>
     </div>
 
     <script>
@@ -234,6 +312,69 @@
         let showLabels = false;
         let animationEnabled = true;
         let selectedNode = null;
+        
+        // IPFS Gateway detection
+        function getIPFSGateway() {
+            const currentHost = window.location.host;
+            const currentProtocol = window.location.protocol;
+            
+            // If we're on a subdomain like u.copylaradio.com, replace with ipfs.copylaradio.com
+            if (currentHost.startsWith('u.')) {
+                return currentProtocol + '//ipfs.' + currentHost.substring(2);
+            }
+            // If we're on localhost:54321, use localhost:8080
+            else if (currentHost.includes(':54321')) {
+                return currentProtocol + '//' + currentHost.replace(':54321', ':8080');
+            }
+            // Default fallback
+            else {
+                return 'https://ipfs.copylaradio.com';
+            }
+        }
+        
+        // Open NOSTR profile in modal
+        function openNostrProfile(pubkeyHex) {
+            const ipfsGateway = getIPFSGateway();
+            const profileUrl = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${pubkeyHex}`;
+            
+            console.log('Opening NOSTR profile:', profileUrl);
+            
+            const modal = document.getElementById('profileModal');
+            const iframe = document.getElementById('profileIframe');
+            
+            iframe.src = profileUrl;
+            modal.style.display = 'block';
+            
+            // Add escape key listener
+            document.addEventListener('keydown', handleEscapeKey);
+        }
+        
+        // Close profile modal
+        function closeProfileModal() {
+            const modal = document.getElementById('profileModal');
+            const iframe = document.getElementById('profileIframe');
+            
+            modal.style.display = 'none';
+            iframe.src = '';
+            
+            // Remove escape key listener
+            document.removeEventListener('keydown', handleEscapeKey);
+        }
+        
+        // Handle escape key to close modal
+        function handleEscapeKey(event) {
+            if (event.key === 'Escape') {
+                closeProfileModal();
+            }
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('profileModal');
+            if (event.target === modal) {
+                closeProfileModal();
+            }
+        }
         
         // Physics simulation
         let centerForce = 0.02;
@@ -396,11 +537,31 @@
         
         function drawNodes() {
             nodes.forEach(node => {
+                // Check if mouse is hovering over clickable nodes (N1, N2)
+                let isHovering = false;
+                if (node.level > 0) {
+                    let distance = dist(mouseX, mouseY, node.x, node.y);
+                    isHovering = distance < node.radius;
+                }
+                
                 // Highlight selected node
                 if (selectedNode && selectedNode.id === node.id) {
                     fill(255, 255, 255, 100);
                     noStroke();
                     ellipse(node.x, node.y, node.radius * 3);
+                }
+                
+                // Add hover effect for clickable nodes
+                if (isHovering && node.level > 0) {
+                    fill(255, 255, 255, 50);
+                    noStroke();
+                    ellipse(node.x, node.y, node.radius * 2.5);
+                    
+                    // Change cursor to pointer
+                    cursor(HAND);
+                } else if (node.level > 0) {
+                    // Reset cursor for clickable nodes when not hovering
+                    cursor(ARROW);
                 }
                 
                 // Draw node
@@ -414,6 +575,19 @@
                     stroke(255, 255, 255, 200);
                     strokeWeight(3);
                     ellipse(node.x, node.y, node.radius * 2 + 6);
+                }
+                
+                // Add clickable indicator for N1 and N2 nodes
+                if (node.level > 0) {
+                    // Small click indicator
+                    fill(255, 255, 255, isHovering ? 200 : 100);
+                    noStroke();
+                    ellipse(node.x + node.radius * 0.7, node.y - node.radius * 0.7, 6);
+                    
+                    // Click icon (small dot)
+                    fill(0, 255, 136, isHovering ? 255 : 150);
+                    noStroke();
+                    ellipse(node.x + node.radius * 0.7, node.y - node.radius * 0.7, 3);
                 }
             });
         }
@@ -448,6 +622,9 @@
                         <p><strong>Following:</strong> ${selectedNode.is_followed ? 'Yes' : 'No'}</p>
                         <p><strong>Follower:</strong> ${selectedNode.is_follower ? 'Yes' : 'No'}</p>
                     ` : ''}
+                    ${selectedNode.level > 0 ? `
+                        <p><strong>🔍 Click to view NOSTR profile</strong></p>
+                    ` : ''}
                 `;
                 infoPanel.style.display = 'block';
             } else {
@@ -457,14 +634,25 @@
         
         function mousePressed() {
             // Check if mouse is over a node
-            selectedNode = null;
+            let clickedNode = null;
             
             nodes.forEach(node => {
                 let distance = dist(mouseX, mouseY, node.x, node.y);
                 if (distance < node.radius) {
-                    selectedNode = node;
+                    clickedNode = node;
                 }
             });
+            
+            if (clickedNode) {
+                // If it's a N1 or N2 node (not center), open profile modal
+                if (clickedNode.level > 0) {
+                    openNostrProfile(clickedNode.id);
+                }
+                // Set as selected node for info panel
+                selectedNode = clickedNode;
+            } else {
+                selectedNode = null;
+            }
         }
         
         function mouseDragged() {
