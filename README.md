@@ -138,6 +138,7 @@ The UPassport API provides secure, decentralized file and identity management fo
 | `/api/upload`             | POST   | Upload a file to your uDRIVE (IPFS)         | Yes (npub)    | `file`, `npub` (form-data)    |
 | `/api/upload_from_drive`  | POST   | Sync a file from IPFS to your uDRIVE        | Yes (npub)    | `ipfs_link`, `npub` (JSON)    |
 | `/api/delete`             | POST   | Delete a file from your uDRIVE              | Yes (npub)    | `file_path`, `npub` (JSON)    |
+| `/api/getN2`              | GET    | Analyze N2 network (friends of friends)     | No            | `hex`, `range`, `output` (query params) |
 | `/api/test-nostr`         | POST   | Test NOSTR authentication for a pubkey      | No            | `npub` (form-data)            |
 
 ---
@@ -189,6 +190,57 @@ curl -X POST http://localhost:54321/api/upload_from_drive \
 curl -X POST http://localhost:54321/api/delete \
   -H "Content-Type: application/json" \
   -d '{"file_path":"Images/myphoto.jpg","npub":"npub1..."}'
+```
+
+---
+
+#### `GET /api/getN2`
+- **Description:** Analyze the N2 network (friends of friends) for a given NOSTR public key. Returns network topology with N1 (direct connections) and N2 (friends of friends) relationships.
+- **Authentication:** Not required.
+- **Query Parameters:**
+  - `hex`: NOSTR public key in hexadecimal format (64 characters, required).
+  - `range`: Analysis mode - `"default"` (only mutual connections) or `"full"` (all N1 connections). Default: `"default"`.
+  - `output`: Response format - `"json"` (JSON data) or `"html"` (interactive visualization). Default: `"json"`.
+- **Returns:** 
+  - **JSON mode:** Network analysis with nodes, connections, statistics, and processing time.
+  - **HTML mode:** Interactive p5.js visualization with network graph, controls, and node information.
+
+**Examples:**
+```bash
+# Basic N2 analysis (JSON)
+curl "http://localhost:54321/api/getN2?hex=$CAPTAINHEX"
+
+# Full network analysis (JSON)
+curl "http://localhost:54321/api/getN2?hex=$CAPTAINHEX&range=full"
+
+# Interactive visualization (HTML)
+curl "http://localhost:54321/api/getN2?hex=$CAPTAINHEX&output=html"
+```
+
+**JSON Response Structure:**
+```json
+{
+  "center_pubkey": "$CAPTAINHEX",
+  "total_n1": 25,
+  "total_n2": 150,
+  "total_nodes": 176,
+  "range_mode": "default",
+  "nodes": [
+    {
+      "pubkey": "...",
+      "level": 1,
+      "is_follower": true,
+      "is_followed": true,
+      "mutual": true,
+      "connections": ["..."]
+    }
+  ],
+  "connections": [
+    {"from": "...", "to": "..."}
+  ],
+  "timestamp": "2024-01-15T10:30:00Z",
+  "processing_time_ms": 1250
+}
 ```
 
 ---
@@ -404,6 +456,7 @@ L'API UPassport fournit une gestion sécurisée et décentralisée des fichiers 
 | `/api/upload`             | POST    | Téléverser un fichier vers votre uDRIVE (IPFS) | Oui (npub) | `file`, `npub` (form-data)    |
 | `/api/upload_from_drive`  | POST    | Synchroniser un fichier depuis IPFS vers votre uDRIVE | Oui (npub) | `ipfs_link`, `npub` (JSON)    |
 | `/api/delete`             | POST    | Supprimer un fichier de votre uDRIVE        | Oui (npub) | `file_path`, `npub` (JSON)    |
+| `/api/getN2`              | GET     | Analyser le réseau N2 (amis d'amis)        | Non          | `hex`, `range`, `output` (query params) |
 | `/api/test-nostr`         | POST    | Tester l'authentification NOSTR pour une clé publique | Non | `npub` (form-data)            |
 
 ---
@@ -455,6 +508,57 @@ curl -X POST http://localhost:54321/api/upload_from_drive \
 curl -X POST http://localhost:54321/api/delete \
   -H "Content-Type: application/json" \
   -d '{"file_path":"Images/maphoto.jpg","npub":"npub1..."}'
+```
+
+---
+
+#### `GET /api/getN2`
+- **Description :** Analyser le réseau N2 (amis d'amis) pour une clé publique NOSTR donnée. Retourne la topologie du réseau avec les relations N1 (connexions directes) et N2 (amis d'amis).
+- **Authentification :** Non requise.
+- **Paramètres de requête :**
+  - `hex` : Clé publique NOSTR en format hexadécimal (64 caractères, requis).
+  - `range` : Mode d'analyse - `"default"` (connexions mutuelles uniquement) ou `"full"` (toutes les connexions N1). Défaut : `"default"`.
+  - `output` : Format de réponse - `"json"` (données JSON) ou `"html"` (visualisation interactive). Défaut : `"json"`.
+- **Retourne :** 
+  - **Mode JSON :** Analyse du réseau avec nœuds, connexions, statistiques et temps de traitement.
+  - **Mode HTML :** Visualisation interactive p5.js avec graphique réseau, contrôles et informations des nœuds.
+
+**Exemples :**
+```bash
+# Analyse N2 basique (JSON)
+curl "http://localhost:54321/api/getN2?hex=$CAPTAINHEX"
+
+# Analyse réseau complète (JSON)
+curl "http://localhost:54321/api/getN2?hex=$CAPTAINHEX&range=full"
+
+# Visualisation interactive (HTML)
+curl "http://localhost:54321/api/getN2?hex=$CAPTAINHEX&output=html"
+```
+
+**Structure de réponse JSON :**
+```json
+{
+  "center_pubkey": "$CAPTAINHEX",
+  "total_n1": 25,
+  "total_n2": 150,
+  "total_nodes": 176,
+  "range_mode": "default",
+  "nodes": [
+    {
+      "pubkey": "...",
+      "level": 1,
+      "is_follower": true,
+      "is_followed": true,
+      "mutual": true,
+      "connections": ["..."]
+    }
+  ],
+  "connections": [
+    {"from": "...", "to": "..."}
+  ],
+  "timestamp": "2024-01-15T10:30:00Z",
+  "processing_time_ms": 1250
+}
 ```
 
 ---

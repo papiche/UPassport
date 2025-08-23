@@ -2626,6 +2626,26 @@ async def delete_file(request: DeleteRequest):
         logging.error(f"Erreur lors de la suppression authentifiée: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de la suppression: {str(e)}")
 
+# Nouveaux modèles pour l'analyse des réseaux NOSTR N2
+class N2NetworkNode(BaseModel):
+    pubkey: str
+    level: int  # 0 = center, 1 = N1, 2 = N2
+    is_follower: bool = False  # True si cette clé suit la clé centrale
+    is_followed: bool = False  # True si la clé centrale suit cette clé
+    mutual: bool = False  # True si c'est un suivi mutuel
+    connections: List[str] = []  # Liste des pubkeys auxquels ce nœud est connecté
+
+class N2NetworkResponse(BaseModel):
+    center_pubkey: str
+    total_n1: int
+    total_n2: int
+    total_nodes: int
+    range_mode: str  # "default" ou "full"
+    nodes: List[N2NetworkNode]
+    connections: List[Dict[str, str]]  # Liste des connexions {from: pubkey, to: pubkey}
+    timestamp: str
+    processing_time_ms: int
+
 # Nouveaux modèles pour les ressources Urbanivore
 class UrbanivoreResource(BaseModel):
     type: str  # 'tree' ou 'recipe'
@@ -2813,6 +2833,94 @@ async def list_urbanivore_resources(npub: str, limit: int = 50):
     except Exception as e:
         logging.error(f"Erreur liste ressources: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+
+@app.get("/api/getN2", response_model=N2NetworkResponse)
+async def get_n2_network(
+    request: Request,
+    hex: str,
+    range: str = "default",
+    output: str = "json"
+):
+    """
+    Analyser le réseau N2 (amis d'amis) d'une clé publique NOSTR
+    
+    Paramètres:
+    - hex: Clé publique en format hexadécimal (64 caractères)
+    - range: "default" (seulement les connexions mutuelles) ou "full" (toutes les connexions N1)
+    - output: "json" (réponse JSON) ou "html" (visualisation avec p5.js)
+    """
+    try:
+        # Validation de la clé hex
+        if not hex or len(hex) != 64:
+            raise HTTPException(
+                status_code=400,
+                detail="Paramètre 'hex' requis: clé publique hexadécimale de 64 caractères"
+            )
+        
+        # Validation du hex
+        try:
+            int(hex, 16)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Format hexadécimal invalide pour le paramètre 'hex'"
+            )
+        
+        # Validation des paramètres
+        if range not in ["default", "full"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Paramètre 'range' doit être 'default' ou 'full'"
+            )
+        
+        if output not in ["json", "html"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Paramètre 'output' doit être 'json' ou 'html'"
+            )
+        
+        logging.info(f"Analyse N2 pour {hex[:12]}... (range={range}, output={output})")
+        
+        # Analyser le réseau N2
+        network_data = await analyze_n2_network(hex, range)
+        
+        # Si output=html, retourner la page de visualisation
+        if output == "html":
+            # Convertir les objets Pydantic en dictionnaires pour la sérialisation JSON
+            serializable_data = {
+                "center_pubkey": network_data["center_pubkey"],
+                "total_n1": network_data["total_n1"],
+                "total_n2": network_data["total_n2"],
+                "total_nodes": network_data["total_nodes"],
+                "range_mode": network_data["range_mode"],
+                "nodes": [node.dict() for node in network_data["nodes"]],
+                "connections": network_data["connections"],
+                "timestamp": network_data["timestamp"],
+                "processing_time_ms": network_data["processing_time_ms"]
+            }
+            
+            return templates.TemplateResponse(
+                "n2.html",
+                {
+                    "request": request,
+                    "network_data": json.dumps(serializable_data),
+                    "center_pubkey": hex,
+                    "range_mode": range,
+                    "total_n1": network_data["total_n1"],
+                    "total_n2": network_data["total_n2"],
+                    "total_nodes": network_data["total_nodes"],
+                    "processing_time": network_data["processing_time_ms"]
+                }
+            )
+        
+        # Retourner la réponse JSON
+        return N2NetworkResponse(**network_data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Erreur lors de l'analyse N2: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur lors de l'analyse: {str(e)}")
 
 @app.post("/api/test-nostr")
 async def test_nostr_auth(npub: str = Form(...)):
@@ -3014,6 +3122,166 @@ def get_myipfs_gateway() -> str:
     except Exception as e:
         logging.error(f"Erreur lors de la récupération de myIPFS: {e}")
         return "http://localhost:8080"  # Fallback
+
+async def get_n1_follows(pubkey_hex: str) -> List[str]:
+    """Récupérer la liste N1 (personnes suivies) d'une clé publique"""
+    try:
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/nostr_get_N1.sh")
+        
+        if not os.path.exists(script_path):
+            logging.error(f"Script nostr_get_N1.sh non trouvé: {script_path}")
+            return []
+        
+        process = await asyncio.create_subprocess_exec(
+            script_path, pubkey_hex,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode == 0:
+            follows = [line.strip() for line in stdout.decode().strip().split('\n') if line.strip()]
+            logging.info(f"N1 follows pour {pubkey_hex[:12]}...: {len(follows)} clés")
+            return follows
+        else:
+            logging.error(f"Erreur nostr_get_N1.sh: {stderr.decode()}")
+            return []
+            
+    except Exception as e:
+        logging.error(f"Erreur lors de la récupération N1: {e}")
+        return []
+
+async def get_followers(pubkey_hex: str) -> List[str]:
+    """Récupérer la liste des followers d'une clé publique"""
+    try:
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/nostr_followers.sh")
+        
+        if not os.path.exists(script_path):
+            logging.error(f"Script nostr_followers.sh non trouvé: {script_path}")
+            return []
+        
+        process = await asyncio.create_subprocess_exec(
+            script_path, pubkey_hex,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode == 0:
+            followers = [line.strip() for line in stdout.decode().strip().split('\n') if line.strip()]
+            logging.info(f"Followers pour {pubkey_hex[:12]}...: {len(followers)} clés")
+            return followers
+        else:
+            logging.error(f"Erreur nostr_followers.sh: {stderr.decode()}")
+            return []
+            
+    except Exception as e:
+        logging.error(f"Erreur lors de la récupération des followers: {e}")
+        return []
+
+async def analyze_n2_network(center_pubkey: str, range_mode: str = "default") -> Dict[str, Any]:
+    """Analyser le réseau N2 d'une clé publique"""
+    start_time = time.time()
+    
+    # Récupérer N1 (personnes suivies par le centre)
+    n1_follows_raw = await get_n1_follows(center_pubkey)
+    
+    # Filtrer le nœud central de sa propre liste (éviter l'auto-référence)
+    n1_follows = [pubkey for pubkey in n1_follows_raw if pubkey != center_pubkey]
+    
+    # Récupérer les followers du centre
+    center_followers = await get_followers(center_pubkey)
+    
+    # Créer les nœuds N1
+    nodes = {}
+    connections = []
+    
+    # Nœud central
+    nodes[center_pubkey] = N2NetworkNode(
+        pubkey=center_pubkey,
+        level=0,
+        is_follower=False,
+        is_followed=False,
+        mutual=False,
+        connections=n1_follows.copy()
+    )
+    
+    # Ajouter les connexions du centre vers N1
+    for follow in n1_follows:
+        connections.append({"from": center_pubkey, "to": follow})
+    
+    # Traiter les nœuds N1 (exclure le nœud central)
+    for pubkey in n1_follows:
+        if pubkey != center_pubkey:  # Éviter d'écraser le nœud central
+            is_follower = pubkey in center_followers
+            nodes[pubkey] = N2NetworkNode(
+                pubkey=pubkey,
+                level=1,
+                is_follower=is_follower,
+                is_followed=True,
+                mutual=is_follower,
+                connections=[]
+            )
+    
+    # Déterminer quelles clés N1 explorer pour N2
+    if range_mode == "full":
+        # Explorer toutes les clés N1
+        keys_to_explore = n1_follows
+        logging.info(f"Mode full: exploration de {len(keys_to_explore)} clés N1")
+    else:
+        # Explorer seulement les clés N1 qui sont aussi followers (mutuelles)
+        keys_to_explore = [key for key in n1_follows if key in center_followers]
+        logging.info(f"Mode default: exploration de {len(keys_to_explore)} clés mutuelles")
+    
+    # Analyser N2 pour chaque clé sélectionnée
+    n2_keys = set()
+    
+    for n1_key in keys_to_explore:
+        try:
+            # Récupérer les follows de cette clé N1
+            n1_key_follows = await get_n1_follows(n1_key)
+            
+            # Ajouter les connexions N1 -> N2
+            nodes[n1_key].connections = n1_key_follows.copy()
+            
+            for n2_key in n1_key_follows:
+                # Éviter d'ajouter le centre, les clés déjà en N1, ou l'auto-référence
+                if (n2_key != center_pubkey and 
+                    n2_key not in n1_follows and 
+                    n2_key != n1_key):
+                    n2_keys.add(n2_key)
+                    connections.append({"from": n1_key, "to": n2_key})
+                    
+        except Exception as e:
+            logging.warning(f"Erreur lors de l'analyse N2 pour {n1_key[:12]}...: {e}")
+    
+    # Créer les nœuds N2
+    for n2_key in n2_keys:
+        if n2_key not in nodes:
+            nodes[n2_key] = N2NetworkNode(
+                pubkey=n2_key,
+                level=2,
+                is_follower=False,
+                is_followed=False,
+                mutual=False,
+                connections=[]
+            )
+    
+    processing_time = int((time.time() - start_time) * 1000)
+    
+    return {
+        "center_pubkey": center_pubkey,
+        "total_n1": len(n1_follows),
+        "total_n2": len(n2_keys),
+        "total_nodes": len(nodes),
+        "range_mode": range_mode,
+        "nodes": list(nodes.values()),
+        "connections": connections,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "processing_time_ms": processing_time
+    }
 
 if __name__ == "__main__":
     import uvicorn

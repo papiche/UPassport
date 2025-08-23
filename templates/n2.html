@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOSTR N2 Network Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: #eee;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .stat-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            min-width: 120px;
+            margin: 5px;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+        
+        .control-group {
+            display: inline-block;
+            margin: 0 15px;
+        }
+        
+        button {
+            background: linear-gradient(45deg, #00ff88, #00cc6a);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.4);
+        }
+        
+        button:active {
+            background: linear-gradient(45deg, #00cc6a, #00aa55);
+        }
+        
+        .canvas-container {
+            text-align: center;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .legend {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 0 15px 10px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 12px;
+            border-radius: 5px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .info-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 300px;
+            display: none;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+        
+        .pubkey {
+            font-family: monospace;
+            font-size: 0.8em;
+            color: #00ff88;
+            word-break: break-all;
+        }
+        
+        @media (max-width: 768px) {
+            .stats {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .controls {
+                padding: 10px;
+            }
+            
+            .control-group {
+                display: block;
+                margin: 10px 0;
+            }
+            
+            .info-panel {
+                position: relative;
+                right: auto;
+                top: auto;
+                margin-top: 20px;
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌐 NOSTR N2 Network Analysis</h1>
+        <div class="pubkey">Center: {{ center_pubkey }}</div>
+        <p>Range Mode: <strong>{{ range_mode }}</strong> | Processing Time: <strong>{{ processing_time }}ms</strong></p>
+    </div>
+    
+    <div class="stats">
+        <div class="stat-item">
+            <div class="stat-value">{{ total_n1 }}</div>
+            <div class="stat-label">N1 Connections</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">{{ total_n2 }}</div>
+            <div class="stat-label">N2 Connections</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">{{ total_nodes }}</div>
+            <div class="stat-label">Total Nodes</div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <div class="control-group">
+            <button onclick="resetView()">🎯 Reset View</button>
+            <button onclick="toggleAnimation()">⏯️ Toggle Animation</button>
+        </div>
+        <div class="control-group">
+            <button onclick="toggleLabels()">🏷️ Toggle Labels</button>
+            <button onclick="exportNetwork()">💾 Export Data</button>
+        </div>
+    </div>
+    
+    <div class="canvas-container">
+        <div id="p5-canvas"></div>
+    </div>
+    
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-color" style="background: #ff6b6b;"></div>
+            <span>Center Node</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4ecdc4;"></div>
+            <span>N1 (Mutual)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #45b7d1;"></div>
+            <span>N1 (Following)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #96ceb4;"></div>
+            <span>N1 (Follower)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #feca57;"></div>
+            <span>N2 Nodes</span>
+        </div>
+    </div>
+    
+    <div class="info-panel" id="info-panel">
+        <h3>Node Information</h3>
+        <div id="node-info"></div>
+    </div>
+
+    <script>
+        // Network data from server
+        const networkData = {{ network_data | safe }};
+        
+        // Visualization variables
+        let nodes = [];
+        let connections = [];
+        let showLabels = false;
+        let animationEnabled = true;
+        let selectedNode = null;
+        
+        // Physics simulation
+        let centerForce = 0.02;
+        let repelForce = 50;
+        let attractForce = 0.1;
+        
+        function setup() {
+            let canvas = createCanvas(windowWidth - 40, 600);
+            canvas.parent('p5-canvas');
+            
+            // Initialize nodes with positions
+            initializeNetwork();
+        }
+        
+        function draw() {
+            background(26, 26, 46);
+            
+            // Apply forces if animation is enabled
+            if (animationEnabled) {
+                applyForces();
+            }
+            
+            // Draw connections
+            drawConnections();
+            
+            // Draw nodes
+            drawNodes();
+            
+            // Draw labels if enabled
+            if (showLabels) {
+                drawLabels();
+            }
+            
+            // Update info panel
+            updateInfoPanel();
+        }
+        
+        function initializeNetwork() {
+            nodes = [];
+            connections = networkData.connections;
+            
+            // Create nodes from network data
+            networkData.nodes.forEach((nodeData, index) => {
+                let angle = (index / networkData.nodes.length) * TWO_PI;
+                let radius = nodeData.level === 0 ? 0 : (nodeData.level === 1 ? 150 : 250);
+                
+                let node = {
+                    id: nodeData.pubkey,
+                    x: width/2 + cos(angle) * radius,
+                    y: height/2 + sin(angle) * radius,
+                    vx: 0,
+                    vy: 0,
+                    level: nodeData.level,
+                    is_follower: nodeData.is_follower,
+                    is_followed: nodeData.is_followed,
+                    mutual: nodeData.mutual,
+                    connections: nodeData.connections,
+                    radius: nodeData.level === 0 ? 20 : (nodeData.level === 1 ? 12 : 8),
+                    color: getNodeColor(nodeData)
+                };
+                
+                nodes.push(node);
+            });
+        }
+        
+        function getNodeColor(nodeData) {
+            if (nodeData.level === 0) {
+                return color(255, 107, 107); // Center - Red
+            } else if (nodeData.level === 1) {
+                if (nodeData.mutual) {
+                    return color(78, 205, 196); // Mutual - Teal
+                } else if (nodeData.is_followed) {
+                    return color(69, 183, 209); // Following - Blue
+                } else if (nodeData.is_follower) {
+                    return color(150, 206, 180); // Follower - Green
+                }
+            } else if (nodeData.level === 2) {
+                return color(254, 202, 87); // N2 - Yellow
+            }
+            return color(200, 200, 200); // Default - Gray
+        }
+        
+        function applyForces() {
+            // Reset forces
+            nodes.forEach(node => {
+                node.vx *= 0.9; // Damping
+                node.vy *= 0.9;
+            });
+            
+            // Center attraction for all nodes
+            nodes.forEach(node => {
+                if (node.level > 0) {
+                    let dx = width/2 - node.x;
+                    let dy = height/2 - node.y;
+                    let distance = sqrt(dx*dx + dy*dy);
+                    
+                    if (distance > 0) {
+                        let force = centerForce * (distance - node.level * 100) / distance;
+                        node.vx += dx * force;
+                        node.vy += dy * force;
+                    }
+                }
+            });
+            
+            // Repulsion between nodes
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    let dx = nodes[j].x - nodes[i].x;
+                    let dy = nodes[j].y - nodes[i].y;
+                    let distance = sqrt(dx*dx + dy*dy);
+                    
+                    if (distance > 0 && distance < 100) {
+                        let force = repelForce / (distance * distance);
+                        let fx = (dx / distance) * force;
+                        let fy = (dy / distance) * force;
+                        
+                        nodes[i].vx -= fx;
+                        nodes[i].vy -= fy;
+                        nodes[j].vx += fx;
+                        nodes[j].vy += fy;
+                    }
+                }
+            }
+            
+            // Apply velocities
+            nodes.forEach(node => {
+                if (node.level > 0) { // Don't move center node
+                    node.x += node.vx;
+                    node.y += node.vy;
+                    
+                    // Keep nodes on screen
+                    node.x = constrain(node.x, node.radius, width - node.radius);
+                    node.y = constrain(node.y, node.radius, height - node.radius);
+                }
+            });
+        }
+        
+        function drawConnections() {
+            stroke(255, 255, 255, 30);
+            strokeWeight(1);
+            
+            connections.forEach(conn => {
+                let fromNode = nodes.find(n => n.id === conn.from);
+                let toNode = nodes.find(n => n.id === conn.to);
+                
+                if (fromNode && toNode) {
+                    // Highlight connections involving selected node
+                    if (selectedNode && (conn.from === selectedNode.id || conn.to === selectedNode.id)) {
+                        stroke(0, 255, 136, 150);
+                        strokeWeight(2);
+                    } else {
+                        stroke(255, 255, 255, 30);
+                        strokeWeight(1);
+                    }
+                    
+                    line(fromNode.x, fromNode.y, toNode.x, toNode.y);
+                }
+            });
+        }
+        
+        function drawNodes() {
+            nodes.forEach(node => {
+                // Highlight selected node
+                if (selectedNode && selectedNode.id === node.id) {
+                    fill(255, 255, 255, 100);
+                    noStroke();
+                    ellipse(node.x, node.y, node.radius * 3);
+                }
+                
+                // Draw node
+                fill(node.color);
+                noStroke();
+                ellipse(node.x, node.y, node.radius * 2);
+                
+                // Add border for center node
+                if (node.level === 0) {
+                    noFill();
+                    stroke(255, 255, 255, 200);
+                    strokeWeight(3);
+                    ellipse(node.x, node.y, node.radius * 2 + 6);
+                }
+            });
+        }
+        
+        function drawLabels() {
+            fill(255, 255, 255, 200);
+            textAlign(CENTER, CENTER);
+            textSize(10);
+            
+            nodes.forEach(node => {
+                if (node.level <= 1 || (selectedNode && selectedNode.id === node.id)) {
+                    text(node.id.substring(0, 8) + '...', node.x, node.y + node.radius + 15);
+                }
+            });
+        }
+        
+        function updateInfoPanel() {
+            let infoPanel = document.getElementById('info-panel');
+            let nodeInfo = document.getElementById('node-info');
+            
+            if (selectedNode) {
+                let connectionCount = connections.filter(c => 
+                    c.from === selectedNode.id || c.to === selectedNode.id
+                ).length;
+                
+                nodeInfo.innerHTML = `
+                    <p><strong>Pubkey:</strong><br><span class="pubkey">${selectedNode.id}</span></p>
+                    <p><strong>Level:</strong> ${selectedNode.level === 0 ? 'Center' : 'N' + selectedNode.level}</p>
+                    <p><strong>Connections:</strong> ${connectionCount}</p>
+                    ${selectedNode.level === 1 ? `
+                        <p><strong>Mutual:</strong> ${selectedNode.mutual ? 'Yes' : 'No'}</p>
+                        <p><strong>Following:</strong> ${selectedNode.is_followed ? 'Yes' : 'No'}</p>
+                        <p><strong>Follower:</strong> ${selectedNode.is_follower ? 'Yes' : 'No'}</p>
+                    ` : ''}
+                `;
+                infoPanel.style.display = 'block';
+            } else {
+                infoPanel.style.display = 'none';
+            }
+        }
+        
+        function mousePressed() {
+            // Check if mouse is over a node
+            selectedNode = null;
+            
+            nodes.forEach(node => {
+                let distance = dist(mouseX, mouseY, node.x, node.y);
+                if (distance < node.radius) {
+                    selectedNode = node;
+                }
+            });
+        }
+        
+        function mouseDragged() {
+            if (selectedNode && selectedNode.level > 0) {
+                selectedNode.x = mouseX;
+                selectedNode.y = mouseY;
+                selectedNode.vx = 0;
+                selectedNode.vy = 0;
+            }
+        }
+        
+        function windowResized() {
+            resizeCanvas(windowWidth - 40, 600);
+        }
+        
+        // Control functions
+        function resetView() {
+            initializeNetwork();
+            selectedNode = null;
+        }
+        
+        function toggleAnimation() {
+            animationEnabled = !animationEnabled;
+        }
+        
+        function toggleLabels() {
+            showLabels = !showLabels;
+        }
+        
+        function exportNetwork() {
+            let dataStr = JSON.stringify(networkData, null, 2);
+            let dataBlob = new Blob([dataStr], {type: 'application/json'});
+            let url = URL.createObjectURL(dataBlob);
+            let link = document.createElement('a');
+            link.href = url;
+            link.download = `n2_network_${networkData.center_pubkey.substring(0, 8)}.json`;
+            link.click();
+        }
+    </script>
+</body>
+</html>
