@@ -472,6 +472,8 @@ class CoinflipPayoutResponse(BaseModel):
 class UploadFromDriveRequest(BaseModel):
     ipfs_link: str # Format attendu : QmHASH/filename.ext
     npub: str
+    owner_hex_pubkey: Optional[str] = None  # Clé publique hex du propriétaire du drive source
+    owner_email: Optional[str] = None       # Email du propriétaire du drive source
 
 class UploadFromDriveResponse(BaseModel):
     success: bool
@@ -2427,6 +2429,10 @@ async def coinflip_payout(payload: CoinflipPayoutRequest):
 
 @app.post("/api/upload_from_drive", response_model=UploadFromDriveResponse)
 async def upload_from_drive(request: UploadFromDriveRequest):
+    # Log les données du propriétaire du drive source si fournies
+    if request.owner_hex_pubkey or request.owner_email:
+        logging.info(f"Sync from drive - Source owner: {request.owner_email} (hex: {request.owner_hex_pubkey[:12] if request.owner_hex_pubkey else 'N/A'}...)")
+    
     auth_verified = await verify_nostr_auth(request.npub)
     if not auth_verified:
         raise HTTPException(status_code=403, detail="Nostr authentication failed or not provided.")
@@ -2440,7 +2446,7 @@ async def upload_from_drive(request: UploadFromDriveRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error determining user directory: {e}")
 
-    # Extract filename from ipfs_link (e.g., "QmHASH/filename.ext" or just "filename.ext")
+    # Extract filename from ipfs_link (e.g., "QmHASH/filename.ext")
     # We take the last component to handle cases where the link includes a path
     parts = request.ipfs_link.split('/')
     extracted_filename = parts[-1] if parts else "downloaded_file"

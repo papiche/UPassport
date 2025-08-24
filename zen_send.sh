@@ -49,9 +49,9 @@ if [[ -n "$SENDER_HEX" ]]; then
         fi
     fi
 
-    # 2) Resolve expected G1 pubkey from Nostr hex (sender wallet mapping)
-    EXPECTED_G1=$(~/.zen/Astroport.ONE/tools/search_for_this_hex_in_uplanet.sh "$SENDER_HEX" 2>/dev/null)
-    if [[ -z "$EXPECTED_G1" ]]; then
+    # 2) Resolve sender G1 pubkey from Nostr hex (sender wallet mapping)
+    SENDER_G1=$(~/.zen/Astroport.ONE/tools/search_for_this_hex_in_uplanet.sh "$SENDER_HEX" 2>/dev/null)
+    if [[ -z "$SENDER_G1" ]]; then
         echo "{\"success\": false, \"error\": \"No G1 wallet found for this Nostr key on UPlanet.\", \"type\": \"auth_error\"}"
         exit 0
     fi
@@ -59,9 +59,9 @@ if [[ -n "$SENDER_HEX" ]]; then
     # 3) If no source provided, adopt resolved wallet; otherwise ensure match
     if [[ -z "$G1SOURCE" ]]; then
         echo "# No G1SOURCE provided. Adopting resolved wallet from Nostr mapping"
-        G1SOURCE="$EXPECTED_G1"
-    elif [[ "$EXPECTED_G1" != "$G1SOURCE" ]]; then
-        echo "{\"success\": false, \"error\": \"Source wallet mismatch. Expected: ${EXPECTED_G1:0:12}..., Provided: ${G1SOURCE:0:12}...\", \"type\": \"wallet_mismatch\"}"
+        G1SOURCE="$SENDER_G1"
+    elif [[ "$SENDER_G1" != "$G1SOURCE" ]]; then
+        echo "{\"success\": false, \"error\": \"Source wallet mismatch. Expected: ${SENDER_G1:0:12}..., Provided: ${G1SOURCE:0:12}...\", \"type\": \"wallet_mismatch\"}"
         exit 0
     fi
 fi
