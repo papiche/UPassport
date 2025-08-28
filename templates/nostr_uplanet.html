@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+    <title>UPlanet - SCIC Cooperative Project Proposals</title>
+    <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/jquery-3.6.3.min.js"></script>
+    <!-- Import nostr-tools (includes SimplePool) -->
+    <script src="https://ipfs.copylaradio.com/ipfs/QmXEmaPRUaGcvhuyeG99mHHNyP43nn8GtNeuDok8jdpG4a/nostr.bundle.js"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <style>
+        /* Basic styles */
+        body { font-family: 'Arial', sans-serif; margin: 0; padding: 15px; background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460); color: #e0e0e0; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; }
+        .container { background: linear-gradient(145deg, #2a2a3a, #1e1e2e); padding: 25px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); width: 100%; max-width: 500px; margin: 20px auto; box-sizing: border-box; border: 1px solid rgba(76, 175, 80, 0.2); }
+        h1 { background: linear-gradient(to right, #4CAF50, #45a049, #66bb6a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 1.8em; text-align: center; margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #cccccc; }
+        textarea { width: 100%; height: 100px; padding: 10px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #555; border-radius: 4px; background-color: #333; color: #e0e0e0; font-size: 1em; }
+        button, .button-like { display: block; width: 100%; padding: 15px 20px; background: linear-gradient(145deg, #4CAF50, #45a049); color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 1.1em; text-align: center; margin-bottom: 15px; transition: all 0.3s ease; box-sizing: border-box; font-weight: bold; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3); }
+        button:hover, .button-like:hover { background: linear-gradient(145deg, #45a049, #4CAF50); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4); }
+        button:disabled { background: linear-gradient(145deg, #555, #444); cursor: not-allowed; opacity: 0.6; transform: none; box-shadow: none; }
+        .button-like { background: linear-gradient(145deg, #2196F3, #1976D2); }
+        .button-like:hover { background: linear-gradient(145deg, #1976D2, #2196F3); }
+        input[type="file"] { display: none; }
+        #imagePreview { display: none; max-width: 100%; height: auto; margin-top: 15px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #444; }
+        #status { margin-top: 15px; font-weight: bold; text-align: center; padding: 10px; border-radius: 4px; background-color: #333; min-height: 20px; color: #ccc; word-wrap: break-word; }
+        .spinner { display: none; width: 40px; height: 40px; margin: 20px auto; border: 4px solid #555; border-top: 4px solid #4CAF50; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .warning {
+    background: linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8b00ff);
+    color: #ffffff; /* Change la couleur du texte pour qu'il soit lisible sur le dégradé */
+    border: 1px solid #ffcc00;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    text-align: center;
+    font-weight: bold;
+    -webkit-background-clip: text; /* Pour s'assurer que le texte est coloré par le dégradé */
+    -webkit-text-fill-color: transparent; /* Rend le texte transparent pour que le dégradé soit visible */
+}
+
+        details { background-color: #333; padding: 5px; border-radius: 4px; margin-top: 15px;}
+        details summary { cursor: pointer; color: #aaa; font-size: 0.9em; }
+        #debug-info { margin-top: 10px; border: 1px dashed #555; padding: 10px; font-size: 0.8em; white-space: pre-wrap; word-wrap: break-word; max-height: 200px; overflow-y: auto; background-color: #222; color: #bbb; }
+        #relay-list { font-size: 0.8em; margin-top: 5px; max-height: 100px; overflow-y: auto; padding-left: 15px; color: #aaa; }
+        #relay-list li { margin-bottom: 3px; }
+
+        /* Profile & Message Area Styles */
+        #profile-display { display: flex; align-items: center; padding: 10px; margin-bottom: 15px; background-color: #383838; border-radius: 5px; min-height: 50px; color: #ccc; font-size: 0.9em; }
+        #profile-display img { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; border: 1px solid #555; object-fit: cover; }
+        #profile-info { display: flex; flex-direction: column; }
+        #profile-info span { display: block; }
+        #profile-info .profile-name { font-weight: bold; color: #eee; }
+        #profile-info .profile-nip05 { font-size: 0.85em; color: #aaa; }
+        #message-section { margin-top: 20px; padding: 15px; background-color: #333; border-radius: 5px; display: none; }
+        #message-section h2 { margin-top: 0; font-size: 1.1em; color: #ddd; border-bottom: 1px solid #555; padding-bottom: 5px;}
+        #message-navigation { display: flex; justify-content: space-between; margin-bottom: 15px; }
+        #message-navigation button { width: auto; padding: 8px 12px; font-size: 0.9em; background-color: #555; flex-grow: 1; margin: 0 5px; } /* Style nav buttons */
+        #message-navigation button:first-child { margin-left: 0; }
+        #message-navigation button:last-child { margin-right: 0; }
+        #message-navigation button:hover:not(:disabled) { background-color: #666; }
+        #last-message-area, #replies-area { margin-top: 10px; }
+        .message-item, .reply-item { background-color: #2a2a2a; border: 1px solid #444; padding: 10px; border-radius: 4px; margin-bottom: 10px; word-wrap: break-word; }
+        .message-content img, .reply-content img { max-width: 100%; height: auto; border-radius: 4px; margin-top: 5px; }
+        .reply-author { font-size: 0.85em; color: #aaa; margin-bottom: 5px; }
+        .reply-author code { background-color: #444; padding: 1px 3px; border-radius: 3px;}
+        .reply-content { font-size: 0.95em; color: #ddd;}
+        #replies-list { padding-left: 0; list-style: none; }
+        /* Location Tumbler Styles */
+        #location-controls {
+             border: 1px solid #444;
+             border-radius: 5px;
+             padding: 10px;
+             background-color: #282828; /* Slightly different bg */
+        }
+        .coord-control {
+            text-align: center; /* Center the label */
+        }
+        .coord-control > div {
+             justify-content: center; /* Center the selects horizontally */
+        }
+        .tumbler {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding: 6px 2px;
+            border: 1px solid #555;
+            background-color: #404040;
+            color: #e0e0e0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+            font-weight: bold;
+            border-radius: 3px;
+            margin: 0 1px;
+            text-align: center;
+            cursor: pointer;
+            min-width: 24px;
+            max-width: 32px;
+        }
+        .tumbler:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+        }
+        .tumbler-dot {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin: 0 2px;
+            align-self: center; /* Vertically align the dot */
+            color: #aaa;
+        }
+        #location-status {
+             min-height: 1.1em; /* Prevent layout jump */
+             cursor: pointer;
+             padding: 8px;
+             border-radius: 4px;
+             transition: background-color 0.3s ease;
+        }
+        #location-status:hover {
+             background-color: #383838;
+        }
+
+        /* Map accordion styles */
+        .map-accordion {
+            margin-top: 10px;
+            border: 1px solid #444;
+            border-radius: 5px;
+            background-color: #333;
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height 0.3s ease;
+        }
+        .map-accordion.open {
+            max-height: 500px;
+        }
+        .map-accordion-content {
+            padding: 15px;
+        }
+        .map-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .coord-input {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .coord-input label {
+            font-weight: bold;
+            color: #cccccc;
+            margin: 0;
+            min-width: 30px;
+            font-size: 0.8em;
+        }
+        .coord-input input {
+            width: 70px;
+            padding: 6px;
+            border: 1px solid #555;
+            border-radius: 3px;
+            font-size: 0.85em;
+            background-color: #404040;
+            color: #e0e0e0;
+        }
+        .coord-input input:focus {
+            border-color: #4CAF50;
+            outline: none;
+        }
+        .map-button {
+            padding: 6px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: background-color 0.3s ease;
+        }
+        .map-button:hover {
+            background-color: #45a049;
+        }
+        .map-button.secondary {
+            background-color: #2196F3;
+        }
+        .map-button.secondary:hover {
+            background-color: #1976D2;
+        }
+        #mini-map {
+            height: 250px;
+            width: 100%;
+            border-radius: 4px;
+            border: 1px solid #555;
+        }
+
+        /* Ajout de media queries pour le responsive */
+        @media screen and (max-width: 480px) {
+            .container {
+                padding: 10px;
+                margin: 10px auto;
+            }
+
+            #location-controls {
+                margin-bottom: 10px;
+            }
+
+            #location-values {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .coord-control {
+                width: 100%;
+            }
+
+            .coord-control > div {
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 2px;
+            }
+
+            .tumbler {
+                padding: 4px 1px;
+                font-size: 0.85em;
+                min-width: 22px;
+                max-width: 28px;
+            }
+
+            .tumbler-dot {
+                font-size: 1em;
+                margin: 0 1px;
+            }
+
+            .map-controls {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+
+            .coord-input {
+                justify-content: center;
+            }
+        }
+
+        /* Ajustements pour les écrans très petits */
+        @media screen and (max-width: 320px) {
+            .tumbler {
+                padding: 3px 1px;
+                font-size: 0.8em;
+                min-width: 20px;
+                max-width: 24px;
+            }
+        }
+
+        .tag-button {
+            padding: 8px 12px;
+            background: linear-gradient(145deg, #444, #333);
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            flex: 1;
+            max-width: 150px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .tag-button:hover {
+            background: linear-gradient(145deg, #555, #444);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .tag-button.active {
+            background: linear-gradient(145deg, #4CAF50, #45a049);
+            border-color: #66bb6a;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="nsec-warning" class="warning">
+             🌍 UPlanet SCIC Cooperative 🌍
+        </div>
+        <script>
+        document.getElementById('nsec-warning').addEventListener('click', function() {
+            history.go(-1);
+        });
+        </script>
+        <div id="profile-display"><span>Loading profile...</span></div>
+
+        <!-- Wallet Balance Display -->
+        <div id="wallet-balance" style="margin: 15px 0; padding: 10px; background-color: #282828; border-radius: 5px; border: 1px solid #444;">
+            <div style="display: flex; justify-content: space-around; gap: 10px;">
+                <div class="balance-item" style="text-align: center; flex: 1;">
+                    <div style="font-size: 0.9em; color: #aaa;">G1 Balance</div>
+                    <div id="g1-balance" style="font-size: 1.2em; color: #4CAF50; font-weight: bold;">0 G1</div>
+                </div>
+                <div class="balance-item" style="text-align: center; flex: 1;">
+                    <div style="font-size: 0.9em; color: #aaa;">Zen Balance</div>
+                    <div id="zen-balance" style="font-size: 1.2em; color: #2196F3; font-weight: bold;">0 ZEN</div>
+                </div>
+            </div>
+        </div>
+        <button id="connectButton" disabled>Connect with Nostr</button>
+
+        <label for="message">Project Proposal:</label>
+        <textarea id="message" placeholder="Describe your uplanet project for the SCIC cooperative..."></textarea>
+        <div id="tag-buttons" style="display: flex; gap: 5px; margin: 5px 0 15px 0; justify-content: center;">
+            <button type="button" class="tag-button main-tag" data-tag="#BRO">🤖 IA</button>
+            <button type="button" class="tag-button" data-tag="#uplanet">💭 UPlanet Project</button>
+        </div>
+        <label for="imageInput" class="button-like">📸 Photo</label>
+        <input type="file" id="imageInput" accept="image/*">
+        <img id="imagePreview" src="#" alt="Image Preview"/>
+        <button id="postButton" disabled>🌱 Propose Project</button>
+        <div class="spinner" id="loadingSpinner"></div>
+        <div id="status">Initializing UPlanet SCIC Cooperative...</div>
+
+        <!-- Location Adjustment UI -->
+        <div id="location-controls" style="margin-bottom: 15px; display: none;">
+            <div id="location-values" style="display: flex; justify-content: space-around; background-color: #333; padding: 8px; border-radius: 5px; gap: 10px;">
+                <!-- Latitude -->
+                <div class="coord-control">
+                    <label for="lat-sign" style="font-size: 0.8em; display: block; text-align: center; margin-bottom: 3px;">Latitude</label>
+                    <div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px;">
+                        <select id="lat-sign" class="tumbler">
+                            <option value="N">N</option>
+                            <option value="S">S</option>
+                        </select>
+                        <select id="lat-deg1" class="tumbler"></select>
+                        <select id="lat-deg0" class="tumbler"></select>
+                        <span class="tumbler-dot">.</span>
+                        <select id="lat-frac1" class="tumbler"></select>
+                        <select id="lat-frac0" class="tumbler"></select>
+                    </div>
+                </div>
+                <!-- Longitude -->
+                <div class="coord-control">
+                    <label for="lon-sign" style="font-size: 0.8em; display: block; text-align: center; margin-bottom: 3px;">Longitude</label>
+                    <div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px;">
+                        <select id="lon-sign" class="tumbler">
+                            <option value="E">E</option>
+                            <option value="W">W</option>
+                        </select>
+                        <select id="lon-deg2" class="tumbler"></select>
+                        <select id="lon-deg1" class="tumbler"></select>
+                        <select id="lon-deg0" class="tumbler"></select>
+                        <span class="tumbler-dot">.</span>
+                        <select id="lon-frac1" class="tumbler"></select>
+                        <select id="lon-frac0" class="tumbler"></select>
+                    </div>
+                </div>
+            </div>
+            <div id="location-status" style="font-size: 0.8em; text-align: center; margin-top: 5px; color: #aaa;">Fetching location...</div>
+            
+            <!-- Map Accordion -->
+            <div id="map-accordion" class="map-accordion">
+                <div class="map-accordion-content">
+                    <div class="map-controls">
+                        <div class="coord-input">
+                            <label>Lat:</label>
+                            <input type="number" id="lat-display" step="0.01" min="-90" max="90">
+                        </div>
+                        <div class="coord-input">
+                            <label>Lon:</label>
+                            <input type="number" id="lon-display" step="0.01" min="-180" max="180">
+                        </div>
+                        <button type="button" class="map-button" id="update-map">Y aller</button>
+                        <button type="button" class="map-button secondary" id="get-location">Ma position</button>
+                    </div>
+                    <div id="mini-map"></div>
+                    <div style="padding: 8px 0; font-size: 0.8em; color: #aaa; text-align: center;">
+                        💡 Cliquez sur la carte pour ajuster votre position
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Project Proposals Section -->
+        <div id="message-section">
+            <!-- Mode Toggle Button -->
+            <div style="margin-bottom: 15px; text-align: center;">
+                <button id="mode-toggle" style="background: linear-gradient(145deg, #2196F3, #1976D2); padding: 8px 16px; font-size: 0.9em; border-radius: 6px; border: none; color: white; cursor: pointer; transition: all 0.3s ease;">
+                    🌍 Mode UMAP (Zones voisines)
+                </button>
+            </div>
+            <!-- Navigation Buttons -->
+            <div id="message-navigation">
+                <button id="older-button" disabled> < </button>
+                <button id="refresh-button">___</button>
+                <button id="newer-button" disabled> > </button>
+            </div>
+            <div id="last-message-area">Loading project proposals...</div>
+            <div id="replies-area">
+                <h3>Community Feedback</h3>
+                <ul id="replies-list"><li>Select a project to see community feedback...</li></ul>
+            </div>
+        </div>
+
+        <details>
+            <summary>Show Relays & Debug</summary>
+            <div id="relay-list-container" style="margin-top: 10px;">
+                <span style="font-size: 0.9em; color: #bbb;">Publishing to:</span>
+                <ul id="relay-list"><li>Loading relays...</li></ul>
+            </div>
+            <div id="debug-info"></div>
+        </details>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const userNsec = ''; // Leave empty for extension
+        const MESSAGES_PER_PAGE = 10; // How many messages to fetch at once
+        let manualLocationSet = false; // Flag to track if UI is populated
+        // --- Global Variables ---
+        let debugInfo = '';
+        let nostrExtensionAvailable = false;
+        let privateKeyHex = null;
+        let publicKey = '';
+        let userProfile = null;
+        let fetchedMessages = []; // Store the batch of fetched messages
+        let currentMessageIndex = 0; // Index of the currently displayed message
+        let pool = null;
+        let selectedImageDataUrl = null;
+        let currentLatitude = null;
+        let currentLongitude = null;
+        let umapMode = false; // Mode UMAP activé ou non
+        const DEFAULT_RELAYS = ['wss://relay.copylaradio.com', 'ws://127.0.0.1:7777'];
+        let allRelaysToPublish = [...DEFAULT_RELAYS];
+
+        // --- Helper Functions ---
+        function log(message) { console.log(message); const ts = new Date().toLocaleTimeString(); debugInfo += `[${ts}] ${message}\n`; const lines = debugInfo.split('\n'); if (lines.length > 150) debugInfo = lines.slice(-150).join('\n'); $('#debug-info').text(debugInfo); const el = document.getElementById('debug-info'); if (el) el.scrollTop = el.scrollHeight; }
+        function updateStatus(message, isError = false, isSuccess = false) { log(`Status Update: ${message}`); const el = $('#status'); el.text(message); let bg = '#333', fg = '#ccc'; if (isError) { bg = '#5c3a3a'; fg = '#ff6b6b'; } else if (isSuccess) { bg = '#3a5c3a'; fg = '#90ee90'; } el.css({ 'background-color': bg, 'color': fg }); }
+        function showLoading(show) { $('#loadingSpinner').toggle(show); $('#postButton').prop('disabled', show || !publicKey); }
+        function getRelayURL() { const u = new URL(window.location.href); let r = u.hostname.replace(/^u\./, 'relay.'); if (u.port === '54321' || ['localhost', '127.0.0.1'].includes(u.hostname)) return `ws://127.0.0.1:7777`; return `wss://${r}`; }
+        function updateRelayListUI() { const l = $('#relay-list').empty(); if (allRelaysToPublish.length > 0) allRelaysToPublish.forEach(r => { const li = $('<li>').text(r); if (r === userProfile?.source) { li.prepend('📌 '); } li.appendTo(l); }); log(`UI updated: ${allRelaysToPublish.length} relays.`); }
+
+
+
+        // --- Nostr Interaction Functions ---
+        function getNostrPool() { if (!pool) { if (typeof NostrTools?.SimplePool !== 'function') { const m = "Error: NostrTools.SimplePool undef/not func!"; log(m); console.error(m, "NostrTools:", NostrTools); updateStatus(m, true); throw new Error(m); } try { log("Init SimplePool..."); pool = new NostrTools.SimplePool({ getTimeout: 6000, listTimeout: 6000 }); if (typeof pool?.list !== 'function' || typeof pool?.get !== 'function') { log("Error: Pool missing methods."); console.error("Bad pool:", pool); pool = null; throw new Error("Pool invalid."); } log("Pool init OK."); } catch (e) { log(`Pool init error: ${e.message}`); console.error("Pool Init Details:", e); updateStatus("Fail pool init.", true); throw e; } } if (!pool) { const m = "Error: Pool null after init."; log(m); updateStatus("Relay pool N/A.", true); throw new Error(m); } return pool; }
+        async function fetchProfileAndRelays(pubkey) {
+            log(`Fetching profile/relays for ${pubkey.slice(0,10)}...`);
+            let nostrPool;
+            try {
+                nostrPool = getNostrPool();
+            } catch (e) {
+                log("Pool fail in fetchProfileRelays.");
+                return {};
+            }
+
+            let profileEv = null;
+            let relayEv = null;
+            let userRelays = [];
+            let userProfile = {};
+            let profileSource = '';
+
+            try {
+                // Fetch from each relay individually to track the source
+                for (const relay of DEFAULT_RELAYS) {
+                    try {
+                        const events = await nostrPool.list([relay], [
+                            { kinds: [0], authors: [pubkey], limit: 1 }
+                        ]);
+                        
+                        if (events.length > 0) {
+                            const event = events[0];
+                            if (!profileEv || event.created_at > profileEv.created_at) {
+                                profileEv = event;
+                                profileSource = relay;
+                                log(`Profile from relay: ${profileSource}`);
+                                
+                                // Extract additional fields from tags
+                                if (event.tags) {
+                                    event.tags.forEach(tag => {
+                                        if (tag[0] === 'i') {
+                                            const [type, value] = tag[1].split(':');
+                                            switch(type) {
+                                                case 'g1pub':
+                                                    userProfile.g1_address = value;
+                                                    log(`Found G1 address: ${value}`);
+                                                    break;
+                                                case 'g1pubv2':
+                                                    userProfile.g1_address_v2 = value;
+                                                    log(`Found G1 address v2: ${value}`);
+                                                    break;
+                                                case 'zencard':
+                                                    userProfile.zen_address = value;
+                                                    log(`Found Zen address: ${value}`);
+                                                    break;
+                                                case 'github':
+                                                    userProfile.github = value;
+                                                    break;
+                                                case 'twitter':
+                                                    userProfile.twitter = value;
+                                                    break;
+                                                case 'mastodon':
+                                                    userProfile.mastodon = value;
+                                                    break;
+                                                case 'telegram':
+                                                    userProfile.telegram = value;
+                                                    break;
+                                                case 'ipfs_gw':
+                                                    userProfile.ipfs_gw = value;
+                                                    break;
+                                                case 'ipns_vault':
+                                                    userProfile.ipns_vault = value;
+                                                    break;
+                                                case 'tw_feed':
+                                                    userProfile.tw_feed = value;
+                                                    break;
+                                            }
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        log(`Error fetching from ${relay}: ${e.message}`);
+                    }
+                }
+
+                // Now fetch relay list
+                const relayEvents = await nostrPool.list(DEFAULT_RELAYS, [
+                    { kinds: [10002], authors: [pubkey], limit: 1 }
+                ]);
+
+                if (relayEvents.length > 0) {
+                    relayEv = relayEvents[0];
+                    log(`Relay list event: ${relayEv.id}`);
+                    userRelays = relayEv.tags
+                        .filter(t => t[0] === 'r' && typeof t[1] === 'string' && t[1].startsWith('wss://'))
+                        .map(t => t[1]);
+                    log(`Extracted ${userRelays.length} relays.`);
+                }
+
+                if (profileEv) {
+                    log(`Profile event: ${profileEv.id}`);
+                    try {
+                        const parsedContent = JSON.parse(profileEv.content);
+                        userProfile = { ...userProfile, ...parsedContent }; // Merge with existing profile data
+                        userProfile.source = profileSource; // Add source to profile data
+                        log(`Profile data: ${JSON.stringify(userProfile, null, 2)}`);
+                    } catch (e) {
+                        log(`Profile parse error: ${e.message}`);
+                        userProfile = {};
+                    }
+                }
+
+                const dyn = getRelayURL();
+                const comb = new Set([...DEFAULT_RELAYS, dyn, ...userRelays]);
+                allRelaysToPublish = [...comb];
+                updateRelayListUI();
+                
+                // Render profile first
+                renderProfile(pubkey, userProfile);
+                
+                // Then check wallet balances if addresses are available
+                if (userProfile.g1_address || userProfile.g1_address_v2) {
+                    log("Checking G1 wallet balances...");
+                    await checkG1Balances(userProfile);
+                }
+                
+                return userProfile;
+            } catch (e) {
+                log(`Error fetching profile/relays: ${e}`);
+                updateStatus('Error fetching profile/relay.', true);
+                return {};
+            }
+        }
+
+        // Fonction pour vérifier les soldes G1 et calculer ZEN
+        async function checkG1Balances(profileData) {
+            try {
+                let g1Balance = 0;
+                
+                if (profileData.g1_address) {
+                    const response = await fetch(`/check_balance?g1pub=${profileData.g1_address}`);
+                    const data = await response.json();
+                    const balance = parseFloat(data.balance) || 0;
+                    $('#g1-balance-v1').text(`${balance} G1`);
+                    $('#g1-balance').text(`${balance} G1`); // Update main balance display
+                    g1Balance = balance; // Use this balance for ZEN calculation
+                }
+                if (profileData.g1_address_v2) {
+                    const response = await fetch(`/check_balance?g1pub=${profileData.g1_address_v2}`);
+                    const data = await response.json();
+                    const balance = parseFloat(data.balance) || 0;
+                    $('#g1-balance-v2').text(`${balance} G1`);
+                    // Use V2 balance for ZEN calculation if V1 is not available
+                    if (!profileData.g1_address) {
+                        g1Balance = balance;
+                    }
+                }
+                
+                // Calculate ZEN balance using the formula: (G1_BALANCE - 1) * 10
+                const zenBalance = Math.floor((g1Balance - 1) * 10);
+                $('#zen-balance').text(`${zenBalance} ZEN`);
+                
+            } catch (error) {
+                log(`Error checking G1 balances: ${error.message}`);
+                $('#g1-balance-v1, #g1-balance-v2').text('Error loading balance');
+                $('#g1-balance').text('Error loading balance');
+                $('#zen-balance').text('Error');
+            }
+        }
+
+        function renderProfile(pubkey, profileData) {
+            const div = $('#profile-display').empty();
+            const defPic = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            const pic = profileData?.picture || defPic;
+            const name = profileData?.display_name || profileData?.name || pubkey.slice(0, 16);
+            const nip05 = profileData?.nip05 || '';
+            const source = profileData?.source || 'unknown';
+
+            // Création de la structure du profil
+            const profileContainer = $('<div>').addClass('profile-container').appendTo(div);
+            
+            // Image et info de base
+            const basicInfo = $('<div>').addClass('profile-basic-info').appendTo(profileContainer);
+            $('<img>').attr('src', pic).on('error', function() {
+                $(this).attr('src', defPic);
+            }).appendTo(basicInfo);
+            
+            const infoDiv = $('<div>').addClass('profile-info').appendTo(basicInfo);
+            $('<span>').addClass('profile-name').text(name).appendTo(infoDiv);
+            if (nip05) $('<span>').addClass('profile-nip05').text(nip05).appendTo(infoDiv);
+
+            // Section des portefeuilles G1
+            if (profileData.g1_address || profileData.g1_address_v2) {
+                const walletSection = $('<div>').addClass('wallet-section').appendTo(profileContainer);
+                const g1Wallet = $('<div>').addClass('wallet-info').appendTo(walletSection);
+                
+                $('<div>').addClass('wallet-label').text('G1 Wallets').appendTo(g1Wallet);
+                
+                if (profileData.g1_address) {
+                    const v1Wallet = $('<div>').addClass('wallet-version').appendTo(g1Wallet);
+                    $('<div>').addClass('wallet-address')
+                        .text(`V1: ${profileData.g1_address}`)
+                        .appendTo(v1Wallet);
+                    $('<div>').addClass('wallet-balance')
+                        .html('<span class="balance-label">Balance:</span> <span id="g1-balance-v1" class="balance-amount">Loading...</span>')
+                        .appendTo(v1Wallet);
+                }
+                
+                if (profileData.g1_address_v2) {
+                    const v2Wallet = $('<div>').addClass('wallet-version').appendTo(g1Wallet);
+                    $('<div>').addClass('wallet-address')
+                        .text(`V2: ${profileData.g1_address_v2}`)
+                        .appendTo(v2Wallet);
+                    $('<div>').addClass('wallet-balance')
+                        .html('<span class="balance-label">Balance:</span> <span id="g1-balance-v2" class="balance-amount">Loading...</span>')
+                        .appendTo(v2Wallet);
+                }
+            }
+
+            // Ajout des styles CSS
+            $('<style>').text(`
+                .profile-container {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 15px;
+                    padding: 15px;
+                    background: #232733;
+                    border-radius: 8px;
+                }
+                .profile-basic-info {
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                }
+                .wallet-section {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                    margin-top: 10px;
+                }
+                .wallet-info {
+                    background: #1e2533;
+                    padding: 15px;
+                    border-radius: 6px;
+                }
+                .wallet-label {
+                    font-weight: bold;
+                    color: #4CAF50;
+                    margin-bottom: 10px;
+                    font-size: 1.1em;
+                }
+                .wallet-version {
+                    background: #2a2f3a;
+                    padding: 10px;
+                    border-radius: 4px;
+                    margin-bottom: 10px;
+                }
+                .wallet-address {
+                    font-family: monospace;
+                    font-size: 0.9em;
+                    color: #b8c6e0;
+                    word-break: break-all;
+                    margin: 5px 0;
+                }
+                .wallet-balance {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-top: 5px;
+                    padding-top: 5px;
+                    border-top: 1px solid #333;
+                }
+                .balance-label {
+                    color: #b8c6e0;
+                }
+                .balance-amount {
+                    color: #4CAF50;
+                    font-weight: bold;
+                }
+                #g1-balance, #zen-balance {
+                    font-size: 1.2em;
+                    font-weight: bold;
+                    color: #4CAF50;
+                }
+            `).appendTo('head');
+        }
+
+        // --- Location UI Helper Functions ---
+
+        // Populate a select dropdown with numbers
+        function populateSelect(selectId, start, end) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            select.innerHTML = ''; // Clear existing options
+            for (let i = start; i <= end; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i.toString().padStart(end.toString().length > 1 && i < 10 ? end.toString().length : 1, '0'); // Pad with 0 if needed (e.g., 0-9 -> 0,1..9; 0-10 -> 00,01..10)
+                select.appendChild(option);
+            }
+        }
+
+        // Populate all location selects with default ranges
+        function initializeLocationSelects() {
+            populateSelect('lat-deg1', 0, 9);
+            populateSelect('lat-deg0', 0, 9);
+            populateSelect('lat-frac1', 0, 9);
+            populateSelect('lat-frac0', 0, 9);
+
+            populateSelect('lon-deg2', 0, 1);
+            populateSelect('lon-deg1', 0, 9);
+            populateSelect('lon-deg0', 0, 9);
+            populateSelect('lon-frac1', 0, 9);
+            populateSelect('lon-frac0', 0, 9);
+
+            // Add change listener to longitude hundreds digit to restrict next digit
+            $('#lon-deg2').on('change', function() {
+                const hundreds = parseInt($(this).val(), 10);
+                const lonDeg1Select = $('#lon-deg1');
+                const currentLonDeg1 = parseInt(lonDeg1Select.val() || '0', 10);
+                lonDeg1Select.empty(); // Clear options
+
+                let maxTens = 9;
+                if (hundreds === 1) {
+                    maxTens = 8; // Max longitude is 180
+                }
+
+                for (let i = 0; i <= maxTens; i++) {
+                    $('<option>').val(i).text(i).appendTo(lonDeg1Select);
+                }
+                // Try to restore previous value if valid, else set to 0
+                lonDeg1Select.val(currentLonDeg1 <= maxTens ? currentLonDeg1 : '0');
+                lonDeg1Select.trigger('change'); // Trigger change for the next digit
+            });
+
+             // Add change listener to longitude tens digit to restrict units digit if hundreds is 1
+             $('#lon-deg1').on('change', function() {
+                 const hundreds = parseInt($('#lon-deg2').val(), 10);
+                 const tens = parseInt($(this).val(), 10);
+                 const lonDeg0Select = $('#lon-deg0');
+                 const currentLonDeg0 = parseInt(lonDeg0Select.val() || '0', 10);
+                 lonDeg0Select.empty(); // Clear options
+
+                 let maxUnits = 9;
+                 if (hundreds === 1 && tens === 8) {
+                     maxUnits = 0; // Max longitude is 180.00
+                 }
+
+                 for (let i = 0; i <= maxUnits; i++) {
+                     $('<option>').val(i).text(i).appendTo(lonDeg0Select);
+                 }
+                 // Try to restore previous value if valid, else set to 0
+                 lonDeg0Select.val(currentLonDeg0 <= maxUnits ? currentLonDeg0 : '0');
+             });
+
+
+            // Add change listener to latitude tens digit to restrict next digit (max 90)
+            $('#lat-deg1').on('change', function() {
+                const tens = parseInt($(this).val(), 10);
+                const latDeg0Select = $('#lat-deg0');
+                const currentLatDeg0 = parseInt(latDeg0Select.val() || '0', 10);
+                 latDeg0Select.empty();
+
+                 let maxUnits = 9;
+                 if (tens === 9) {
+                     maxUnits = 0; // Max latitude is 90
+                 }
+                for (let i = 0; i <= maxUnits; i++) {
+                    $('<option>').val(i).text(i).appendTo(latDeg0Select);
+                }
+                latDeg0Select.val(currentLatDeg0 <= maxUnits ? currentLatDeg0 : '0');
+
+                // If 90 is selected, force fractions to 0
+                if (tens === 9 && maxUnits === 0) {
+                    $('#lat-frac1').val('0').prop('disabled', true);
+                    $('#lat-frac0').val('0').prop('disabled', true);
+                } else {
+                     $('#lat-frac1').prop('disabled', false);
+                     $('#lat-frac0').prop('disabled', false);
+                }
+            });
+
+            // Initial population based on default tens value (0)
+            $('#lat-deg1').trigger('change');
+            $('#lon-deg2').trigger('change'); // This will trigger the chain for lon-deg1 change
+        }
+
+
+        // Update the location UI selects based on numeric lat/lon
+        function updateLocationUI(latitude, longitude) {
+            if (latitude == null || longitude == null) {
+                log("Cannot update location UI: Invalid coordinates.");
+                 $('#location-status').text('Location unavailable.');
+                // Optionally set UI to 0.00 N, 0.00 E
+                $('#lat-sign').val('N');
+                $('#lat-deg1').val(0); $('#lat-deg0').val(0);
+                $('#lat-frac1').val(0); $('#lat-frac0').val(0);
+                $('#lon-sign').val('E');
+                $('#lon-deg2').val(0); $('#lon-deg1').val(0); $('#lon-deg0').val(0);
+                $('#lon-frac1').val(0); $('#lon-frac0').val(0);
+                $('#lat-deg1').trigger('change'); // Update constraints
+                $('#lon-deg2').trigger('change'); // Update constraints
+                 manualLocationSet = true;
+                $('#location-controls').show();
+                return;
+            }
+
+            log(`Updating Location UI: Lat ${latitude.toFixed(6)}, Lon ${longitude.toFixed(6)}`);
+
+            // Latitude
+            const latAbs = Math.abs(latitude);
+            const latDeg = Math.floor(latAbs);
+            const latFrac = Math.round((latAbs - latDeg) * 100); // Get 2 decimal places
+
+            $('#lat-sign').val(latitude >= 0 ? 'N' : 'S');
+            $('#lat-deg1').val(Math.floor(latDeg / 10) % 10);
+            $('#lat-deg0').val(latDeg % 10);
+            $('#lat-frac1').val(Math.floor(latFrac / 10) % 10);
+            $('#lat-frac0').val(latFrac % 10);
+
+            // Longitude
+            const lonAbs = Math.abs(longitude);
+            const lonDeg = Math.floor(lonAbs);
+            const lonFrac = Math.round((lonAbs - lonDeg) * 100); // Get 2 decimal places
+
+            $('#lon-sign').val(longitude >= 0 ? 'E' : 'W');
+            $('#lon-deg2').val(Math.floor(lonDeg / 100) % 10);
+            $('#lon-deg1').val(Math.floor(lonDeg / 10) % 10);
+            $('#lon-deg0').val(lonDeg % 10);
+            $('#lon-frac1').val(Math.floor(lonFrac / 10) % 10);
+            $('#lon-frac0').val(lonFrac % 10);
+
+            // Trigger change events to ensure constraints (like 180 deg) are applied correctly
+            $('#lat-deg1').trigger('change');
+            $('#lon-deg2').trigger('change'); // This triggers lon-deg1 check too
+
+
+            $('#location-status').text(`Location Acquired: ${latitude.toFixed(2)}, ${longitude.toFixed(2)}`);
+            manualLocationSet = true; // Mark UI as populated
+            $('#location-controls').show(); // Show the controls
+        }
+
+        // Read the adjusted location from the UI selects
+        function readLocationFromUI() {
+            if (!manualLocationSet) {
+                 log("Location UI not initialized, cannot read values.");
+                 return null; // Or throw error, or return default? Returning null is safest.
+            }
+
+            // Latitude
+            const latSign = $('#lat-sign').val() === 'N' ? 1 : -1;
+            const latDeg1 = parseInt($('#lat-deg1').val(), 10);
+            const latDeg0 = parseInt($('#lat-deg0').val(), 10);
+            const latFrac1 = parseInt($('#lat-frac1').val(), 10);
+            const latFrac0 = parseInt($('#lat-frac0').val(), 10);
+            const latitude = latSign * (latDeg1 * 10 + latDeg0 + (latFrac1 * 10 + latFrac0) / 100.0);
+
+            // Longitude
+            const lonSign = $('#lon-sign').val() === 'E' ? 1 : -1;
+            const lonDeg2 = parseInt($('#lon-deg2').val(), 10);
+            const lonDeg1 = parseInt($('#lon-deg1').val(), 10);
+            const lonDeg0 = parseInt($('#lon-deg0').val(), 10);
+            const lonFrac1 = parseInt($('#lon-frac1').val(), 10);
+            const lonFrac0 = parseInt($('#lon-frac0').val(), 10);
+            const longitude = lonSign * (lonDeg2 * 100 + lonDeg1 * 10 + lonDeg0 + (lonFrac1 * 10 + lonFrac0) / 100.0);
+
+             // Validate ranges (redundant due to select limits, but good practice)
+             const finalLat = Math.max(-90, Math.min(90, latitude));
+             const finalLon = Math.max(-180, Math.min(180, longitude));
+
+
+            log(`Read Location from UI: Lat ${finalLat.toFixed(2)}, Lon ${finalLon.toFixed(2)}`);
+            return { latitude: finalLat, longitude: finalLon };
+        }
+        // Fetch and display a batch of project proposals
+        async function fetchAndDisplayMessages(pubkey, useUmapMode = false) {
+            log(`Fetching batch of project proposals (limit ${MESSAGES_PER_PAGE}) for ${pubkey.slice(0, 10)}... ${useUmapMode ? '(UMAP mode)' : ''}`);
+            $('#message-section').show();
+            const messageArea = $('#last-message-area').html('<i>Loading project proposals...</i>');
+            const repliesList = $('#replies-list').empty().html('<li><i>Select a message...</i></li>');
+            $('#older-button').prop('disabled', true);
+            $('#newer-button').prop('disabled', true);
+            fetchedMessages = []; // Clear previous batch
+            currentMessageIndex = 0;
+
+            let nostrPool;
+            try {
+                nostrPool = getNostrPool();
+            } catch (e) {
+                log("Failed to get Nostr pool in fetchAndDisplayMessages.");
+                messageArea.html('<i>Error initializing relay pool.</i>');
+                return;
+            }
+
+            try {
+                let events = [];
+                
+                if (useUmapMode && currentLatitude !== null && currentLongitude !== null) {
+                    // Mode UMAP: récupérer les messages des UMAPs voisines
+                    log("Mode UMAP activé - récupération des messages des zones voisines");
+                    
+                    // Récupérer les liens géographiques des UMAPs
+                    const geolinks = await fetchUmapGeolinks(currentLatitude, currentLongitude);
+                    
+                    if (geolinks) {
+                        // Récupérer les messages des UMAPs voisines
+                        events = await fetchUmapMessages(geolinks);
+                    } else {
+                        log("Impossible de récupérer les liens UMAP, fallback vers les messages utilisateur");
+                        events = await nostrPool.list(allRelaysToPublish, [{
+                            kinds: [1],
+                            authors: [pubkey],
+                            limit: MESSAGES_PER_PAGE
+                        }]);
+                    }
+                } else {
+                    // Mode normal: récupérer les messages de l'utilisateur connecté
+                    log("Mode normal - récupération des messages utilisateur");
+                    events = await nostrPool.list(allRelaysToPublish, [{
+                        kinds: [1],
+                        authors: [pubkey],
+                        limit: MESSAGES_PER_PAGE
+                    }]);
+                }
+
+                if (events.length > 0) {
+                    log(`Fetched ${events.length} project proposals.`);
+                    // Sort newest first
+                    fetchedMessages = events.sort((a, b) => b.created_at - a.created_at);
+                    displayMessageAtIndex(0); // Display the first (newest) project
+                } else {
+                    log('No project proposals found.');
+                    messageArea.html('<i>No project proposals found.</i>');
+                    $('#replies-list').empty().html('<li><i>N/A</i></li>');
+                    // Keep buttons disabled
+                }
+            } catch (error) {
+                log(`Error fetching project proposals: ${error}`);
+                console.error("Fetch Project Proposals Error Details:", error);
+                messageArea.html('<i>Error loading project proposals.</i>');
+                $('#replies-list').empty().html('<li><i>Error loading community feedback.</i></li>');
+            }
+        }
+
+        // Display message at a specific index and update controls
+        function displayMessageAtIndex(index) {
+             log(`Displaying project proposal at index: ${index}`);
+             const messageArea = $('#last-message-area');
+             const repliesList = $('#replies-list');
+
+             if (index < 0 || index >= fetchedMessages.length) {
+                 log(`Index ${index} out of bounds (0-${fetchedMessages.length - 1}).`);
+                 messageArea.html(`<i>Invalid project proposal index: ${index}</i>`);
+                 repliesList.empty().html('<li><i>N/A</i></li>');
+                 // Update button states based on potential valid range
+                 $('#newer-button').prop('disabled', fetchedMessages.length === 0 || currentMessageIndex <= 0);
+                 $('#older-button').prop('disabled', fetchedMessages.length === 0 || currentMessageIndex >= fetchedMessages.length - 1);
+                 return;
+             }
+
+             currentMessageIndex = index;
+             const currentMessage = fetchedMessages[currentMessageIndex];
+             renderMessage(messageArea, currentMessage);
+             fetchAndDisplayReplies(currentMessage.id); // Fetch community feedback for the current project
+
+             // Update navigation buttons
+             $('#newer-button').prop('disabled', currentMessageIndex <= 0);
+             $('#older-button').prop('disabled', currentMessageIndex >= fetchedMessages.length - 1);
+             log(`Navigation updated: Newer ${$('#newer-button').prop('disabled')}, Older ${$('#older-button').prop('disabled')}`);
+        }
+
+        // Render a single project proposal
+        function renderMessage(container, event) { container.empty(); const item = $('<div>').addClass('message-item').appendTo(container); const contentDiv = $('<div>').addClass('message-content').appendTo(item); const lines = event.content.split('\n'); lines.forEach((line, i) => { const trimmed = line.trim(); if (/\.(jpg|jpeg|png|gif|webp)$/i.test(trimmed)) $('<img>').attr('src', trimmed).appendTo(contentDiv); else if (/^https?:\/\//.test(trimmed)) $('<a>').attr({href: trimmed, target: '_blank'}).text(trimmed).appendTo(contentDiv); else contentDiv.append(document.createTextNode(line)); if (i < lines.length - 1) contentDiv.append('<br>'); }); $('<div>').css({fontSize:'0.8em',color:'#888',marginTop:'5px'}).text(`Project ${currentMessageIndex + 1}/${fetchedMessages.length} | ID: ${event.id.slice(0,10)}... At: ${new Date(event.created_at*1000).toLocaleString()}`).appendTo(item); }
+
+        // Fetch and display community feedback
+        async function fetchAndDisplayReplies(eventId) {
+            log(`Fetching community feedback for project ${eventId.slice(0, 10)}...`);
+            const list = $('#replies-list').empty().html('<li><i>Loading community feedback...</i></li>'); if (!eventId) { list.html('<li><i>No parent ID.</i></li>'); return; }
+            let nostrPool; try { nostrPool = getNostrPool(); } catch (e) { log("Pool fail in fetchReplies."); list.html('<li><i>Relay pool error.</i></li>'); return; }
+            try { log("Pool object before list call in fetchReplies:", nostrPool); console.dir(nostrPool); const replies = await nostrPool.list(allRelaysToPublish, [{ kinds: [1], '#e': [eventId], limit: 20 }]); if (replies.length > 0) { log(`Found ${replies.length} community feedback items.`); list.empty(); replies.sort((a, b) => a.created_at - b.created_at).forEach(r => renderReply(list, r)); } else { log('No community feedback found.'); list.html('<li><i>No community feedback yet.</i></li>'); } } catch (e) { log(`Error fetching community feedback: ${e}`); list.html('<li><i>Error loading community feedback.</i></li>'); }
+        }
+
+        // Render a single community feedback
+        function renderReply(list, event) { const item = $('<li>').addClass('reply-item').appendTo(list); const authorP = $('<p>').addClass('reply-author').appendTo(item); authorP.append('Feedback by: '); $('<code>').text(event.pubkey.slice(0, 10) + '...').appendTo(authorP); authorP.append(` at ${new Date(event.created_at * 1000).toLocaleTimeString()}`); const contentDiv = $('<div>').addClass('reply-content').appendTo(item); const lines = event.content.split('\n'); lines.forEach((line, i) => { const trimmed = line.trim(); if (/\.(jpg|jpeg|png|gif|webp)$/i.test(trimmed)) $('<img>').attr('src', trimmed).appendTo(contentDiv); else if (/^https?:\/\//.test(trimmed)) $('<a>').attr({href: trimmed, target: '_blank'}).text(trimmed).appendTo(contentDiv); else contentDiv.append(document.createTextNode(line)); if (i < lines.length - 1) contentDiv.append('<br>'); }); }
+
+        // checkNostrExtension, connectToNostr
+        function checkNostrExtension() { log('Checking extension...'); if (typeof window.nostr !== 'undefined') { nostrExtensionAvailable = true; log('Extension OK.'); $('#connectButton').prop('disabled', false).text('Connect'); updateStatus('Extension ready.'); } else { nostrExtensionAvailable = false; log('Extension fail.'); $('#connectButton').prop('disabled', true).text('Extension Needed'); updateStatus('Extension not found or NSEC needed.', true); } }
+        async function connectToNostr() { if (!nostrExtensionAvailable) return; log('Connecting via extension...'); updateStatus('Connecting extension...'); $('#connectButton').prop('disabled', true); try { publicKey = await window.nostr.getPublicKey(); log(`Ext connected. Pubkey: ${publicKey.slice(0, 10)}...`); $('#connectButton').hide(); $('#postButton').prop('disabled', false); updateStatus(`Ext Connected! ${publicKey.slice(0, 10)}...`, false, true); await fetchProfileAndRelays(publicKey); await fetchAndDisplayMessages(publicKey, umapMode); } catch (e) { log(`Ext connection fail: ${e.message || e}`); updateStatus(`Ext connect failed.`, true); $('#connectButton').prop('disabled', false).show(); publicKey = ''; } }
+
+        // handleImageSelection, getLocation, uploadImageNip96, publishToRelay
+        function handleImageSelection(event) { const f = event.target.files[0]; if (f) { log(`Image selected: ${f.name}, size: ${f.size}`); const r = new FileReader(); r.onload = (e) => { selectedImageDataUrl = e.target.result; $('#imagePreview').attr('src', selectedImageDataUrl).show(); log('Preview updated.'); }; r.onerror = (e) => { log(`File read error: ${e}`); updateStatus('Error reading image.', true); selectedImageDataUrl = null; $('#imagePreview').hide().attr('src', '#'); }; r.readAsDataURL(f); } else { log('No image selected.'); selectedImageDataUrl = null; $('#imagePreview').hide().attr('src', '#'); } }
+        function getLocation() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    const m = "Geolocation unsupported.";
+                    log(m);
+                    updateStatus(m, true);
+                    return reject(m);
+                }
+                log('Requesting location...');
+                updateStatus('Getting location...');
+                navigator.geolocation.getCurrentPosition(
+                    (p) => {
+                        currentLatitude = p.coords.latitude;
+                        currentLongitude = p.coords.longitude;
+                        log(`Location: Lat ${currentLatitude.toFixed(6)}, Lon ${currentLongitude.toFixed(6)}`);
+                        // updateStatus(`Location: ${currentLatitude.toFixed(2)}, ${currentLongitude.toFixed(2)}`); // Replaced by updateLocationUI status
+                        updateLocationUI(currentLatitude, currentLongitude);
+                        resolve({ latitude: currentLatitude, longitude: currentLongitude });
+                    },
+                    (e) => {
+                        log(`Location error: ${e.message} (Code: ${e.code})`);
+                        const m = ["Permission denied.", "Position unavailable.", "Timeout."][e.code-1] || "Location error.";
+                        updateStatus(m, true); // Keep general status update
+                        updateLocationUI(null, null);
+                        reject(m);
+                    },
+                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+                );
+            });
+        }
+
+        function uploadImageNip96(imageDataBase64) { return new Promise(async (resolve, reject) => { log("NIP-96 Upload start..."); const server = 'https://g1sms.fr'; const wk = `${server}/.well-known/nostr/nip96.json`; try { const cfg = await $.ajax({ url: wk, dataType: 'json' }); const ep = cfg.api_url; if (!ep) throw new Error("No api_url"); log(`NIP-96 EP: ${ep}`); const bs = atob(imageDataBase64.split(',')[1]); const mime = imageDataBase64.split(',')[0].split(':')[1].split(';')[0]; const ab = new ArrayBuffer(bs.length); const ia = new Uint8Array(ab); for (let i=0; i<bs.length; i++) ia[i]=bs.charCodeAt(i); const blob = new Blob([ab],{type:mime}); const file = new File([blob],`mobile-${Date.now()}.png`,{type:mime}); const fd = new FormData(); fd.append('file', file); log(`Uploading to ${ep}...`); const r = await $.ajax({ url: ep, type: 'POST', data: fd, processData: false, contentType: false }); log("NIP-96 Resp:", r); if (r?.status === "success" && r.nip94_event?.tags) { const ut = r.nip94_event.tags.find(t => t[0] === 'url'); const url = ut?.[1]; const tags = r.nip94_event.tags; const size = r.fileSize; if (url) { log(`Upload OK: ${url}, Size: ${size||'N/A'}`); resolve({ uploadedFileURL: url, nip94Tags: tags, fileSize: size }); } else throw new Error("No URL tag."); } else throw new Error(r?.message || "Invalid NIP-96 response."); } catch (e) { let m = e?.message || 'Unknown upload error'; if (e?.responseJSON?.message) m = e.responseJSON.message; else if (e?.statusText) m = `HTTP ${e.status}: ${e.statusText}`; log(`NIP-96 Err: ${m}`); console.error("NIP-96 Details:", e); reject(`Upload fail: ${m}`); } }); }
+        async function publishToRelay(relayUrl, signedEvent) { return new Promise((resolve) => { log(`Publish to ${relayUrl}`); let ws = null; let timer = null; try { ws = new WebSocket(relayUrl); const close = (ok, msg) => { clearTimeout(timer); if (ws?.readyState === WebSocket.OPEN) ws.close(); log(msg); resolve(ok); }; ws.onopen = () => { log(`Connected ${relayUrl}. Send.`); ws.send(JSON.stringify(['EVENT', signedEvent])); timer = setTimeout(() => close(true, `Sent ${relayUrl}, no OK/Notice.`), 3000); }; ws.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m[0]==='OK' && m[1]===signedEvent.id) close(true, `OK ${relayUrl}: ${m[1].slice(0,8)}...`); else if (m[0]==='NOTICE') { log(`NOTICE ${relayUrl}: ${m[1]}`); clearTimeout(timer); timer = setTimeout(() => close(true, `NOTICE ${relayUrl}, closing.`), 500); } } catch (e) { log(`Msg parse err ${relayUrl}: ${e.message}`); } }; ws.onerror = (e) => close(false, `Error ${relayUrl}: ${e.message || 'Unknown'}`); ws.onclose = (e) => { log(`Closed ${relayUrl}. Code: ${e.code}`); if (timer) { clearTimeout(timer); resolve(false); } }; timer = setTimeout(() => close(false, `Timeout ${relayUrl}`), 7000); } catch (e) { log(`Connect err ${relayUrl}: ${e.message}`); resolve(false); } }); }
+
+        // postNostrEvent
+        async function postNostrEvent() {
+            if (!publicKey) { updateStatus("Not connected.", true); return; }
+            const msg = $('#message').val().trim();
+            if (!msg && !selectedImageDataUrl) { updateStatus("Need project description or image.", true); return; }
+
+            showLoading(true);
+            updateStatus("Reading location from UI...");
+
+            const adjustedLocation = readLocationFromUI();
+
+            // Check if location is available from UI
+            if (!adjustedLocation) {
+                updateStatus("Location not available or not set. Cannot post.", true);
+                log("Post aborted: Location UI did not provide valid coordinates.");
+                showLoading(false);
+                return; // Stop posting if location isn't set in the UI
+            }
+
+            const lat = adjustedLocation.latitude.toFixed(2); // Use adjusted value
+            const lon = adjustedLocation.longitude.toFixed(2); // Use adjusted value
+
+            updateStatus("Preparing project proposal...");
+            log(`Using adjusted location: Lat ${lat}, Lon ${lon}`);
+
+            try {
+                // The rest of the function remains largely the same,
+                // but uses the lat/lon derived from readLocationFromUI()
+
+                let content = msg;
+                let tags = [
+                    ['application', 'UPlanet'],
+                    ['latitude', lat],      // Use adjusted lat
+                    ['longitude', lon],     // Use adjusted lon
+                    ['g', `${adjustedLocation.latitude.toFixed(6)};${adjustedLocation.longitude.toFixed(6)}`] // Use higher precision 'g' tag if desired
+                    // Consider adding ['geohash', geohashValue] if you implement geohashing
+                ];
+
+                if (selectedImageDataUrl) {
+                    updateStatus("Uploading image...");
+                    try {
+                        const up = await uploadImageNip96(selectedImageDataUrl);
+                        content += `\n${up.uploadedFileURL}`;
+                        if (up.nip94Tags) tags = tags.concat(up.nip94Tags.filter(t => Array.isArray(t) && t.length >= 2));
+                        if (up.fileSize != null) tags.push(['fileSize', String(up.fileSize)]);
+                        updateStatus("Image uploaded.", false, true);
+                    } catch (e) {
+                        updateStatus(`Upload failed: ${e}. Posting text only.`, true);
+                        // Continue without image, location is still set
+                    }
+                }
+
+                const event = { kind: 1, pubkey: publicKey, created_at: Math.floor(Date.now() / 1000), tags: tags, content: content };
+                log("Unsigned event:"); console.log(JSON.stringify(event, null, 2));
+
+                let signedEvent = null;
+
+                if (privateKeyHex) {
+                    log("Attempting local signing with NSEC..."); // More specific log
+                    try {
+                        if (typeof NostrTools === 'undefined' || typeof NostrTools.getEventHash !== 'function' || typeof NostrTools.getSignature !== 'function') {
+                            throw new Error("NostrTools crypto functions missing or not loaded!");
+                        }
+                        // It's generally safer to work with a copy if you modify it,
+                        // but in this case, modifying the original 'event' and assigning it works.
+                        // Let's stick to the original method but add checks.
+                        event.id = NostrTools.getEventHash(event);
+                        if (!event.id) throw new Error("Failed to generate event hash.");
+
+                        event.sig = NostrTools.getSignature(event, privateKeyHex);
+                         if (!event.sig) throw new Error("Failed to generate signature.");
+
+                        signedEvent = event; // Assign the fully signed event object
+
+                        if (!signedEvent || !signedEvent.id || !signedEvent.sig) {
+                            // Double-check after assignment
+                            throw new Error("Signed event object is incomplete after signing.");
+                        }
+
+                        log(`Signed locally. ID: ${signedEvent.id}`);
+                        updateStatus("Signed. Publishing project proposal...");
+
+                    } catch (signError) {
+                        log(`Local signing error: ${signError.message}`);
+                        console.error("Local Signing Error Details:", signError);
+                        updateStatus(`Local signing error: ${signError.message}`, true);
+                        showLoading(false); // Stop loading
+                        return; // Exit the function, don't proceed to publish
+                    }
+
+                } else if (window.nostr) {
+                    updateStatus("Confirm in extension...");
+                    log("Requesting signature via extension...");
+                    try {
+                         signedEvent = await window.nostr.signEvent(event);
+                         if (!signedEvent || !signedEvent.id || !signedEvent.sig) {
+                             throw new Error("Extension returned incomplete signed event.");
+                         }
+                         log(`Signed via extension. ID: ${signedEvent.id}`);
+                         updateStatus("Signed. Publishing project proposal...");
+                    } catch (extSignError) {
+                        log(`Extension signing error: ${extSignError.message}`);
+                        console.error("Extension Signing Error Details:", extSignError);
+                        updateStatus(`Extension signing error: ${extSignError.message}`, true);
+                        showLoading(false); // Stop loading
+                        $('#connectButton').prop('disabled', false).show(); // Re-enable connect button maybe?
+                        return; // Exit the function
+                    }
+                } else {
+                     // This case should ideally not be reached if init logic is correct
+                    log("Error: Cannot sign event - No private key and no extension available.");
+                    updateStatus("Cannot sign event: No key/extension.", true);
+                    showLoading(false);
+                    return; // Exit
+                    // Old: throw new Error("Cannot sign.");
+                }
+
+                // --- Crucial Check ---
+                if (!signedEvent) {
+                    log("Error: signedEvent is null or undefined before publishing. Aborting.");
+                    updateStatus("Failed to prepare event for publishing.", true);
+                    showLoading(false);
+                    return; // Exit explicitly if signing failed somehow
+                }
+                // --- End Crucial Check ---
+                log(`Publishing project proposal to ${allRelaysToPublish.length} relays...`);
+                updateRelayListUI();
+                let success = 0;
+                const results = await Promise.all(allRelaysToPublish.map(r => publishToRelay(r, signedEvent)));
+                success = results.filter(Boolean).length;
+                log(`Published. Success: ${success}/${allRelaysToPublish.length}`);
+
+                if (success > 0) {
+                    updateStatus(`Project proposal published to ${success}/${allRelaysToPublish.length}. ID: ${signedEvent.id.slice(0,10)}...`, false, true);
+                    $('#message').val('');
+                    $('#imageInput').val('');
+                    $('#imagePreview').hide().attr('src', '#');
+                    selectedImageDataUrl = null;
+                    log("Scheduling project proposals refresh...");
+                    setTimeout(() => { log("Refreshing project proposals..."); fetchAndDisplayMessages(publicKey, umapMode); }, 4000);
+                } else {
+                    updateStatus(`Failed to publish project proposal to any relays.`, true);
+                }
+            } catch (e) {
+                log(`Post error: ${e?.message || e}`); console.error("Post Details:", e);
+                updateStatus(`Error: ${e?.message || 'Unknown error'}`, true);
+            } finally {
+                showLoading(false);
+            }
+        }
+        // --- UMAP Geolinks Functions ---
+        async function fetchUmapGeolinks(lat, lon) {
+            try {
+                log(`Fetching UMAP geolinks for coordinates: (${lat}, ${lon})`);
+                updateStatus("Récupération des UMAPs voisines...");
+                
+                const response = await fetch(`/api/umap/geolinks?lat=${lat}&lon=${lon}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.message || "Erreur lors de la récupération des liens UMAP");
+                }
+                
+                log(`UMAP geolinks récupérés: ${data.total_adjacent} UMAPs adjacentes`);
+                updateStatus(`UMAPs voisines récupérées: ${data.total_adjacent} zones`, false, true);
+                
+                return data.geolinks;
+                
+            } catch (error) {
+                log(`Erreur lors de la récupération des liens UMAP: ${error.message}`);
+                updateStatus(`Erreur liens UMAP: ${error.message}`, true);
+                return null;
+            }
+        }
+
+        async function fetchUmapMessages(geolinks) {
+            if (!geolinks || !nostrPool) {
+                log("Impossible de récupérer les messages UMAP: geolinks ou pool manquant");
+                return [];
+            }
+            
+            try {
+                log("Récupération des messages des UMAPs voisines...");
+                updateStatus("Récupération des messages des zones voisines...");
+                
+                // Extraire toutes les clés hex des UMAPs (exclure 'here' si nécessaire)
+                const umapKeys = Object.values(geolinks).filter(key => key && key.length === 64);
+                
+                if (umapKeys.length === 0) {
+                    log("Aucune clé UMAP valide trouvée");
+                    return [];
+                }
+                
+                log(`Récupération des messages de ${umapKeys.length} UMAPs`);
+                
+                // Récupérer les messages de toutes les UMAPs en parallèle
+                const events = await nostrPool.list(allRelaysToPublish, [{
+                    kinds: [1],
+                    authors: umapKeys,
+                    limit: 50  // Limite par UMAP
+                }]);
+                
+                if (events.length > 0) {
+                    log(`Récupéré ${events.length} messages des UMAPs voisines`);
+                    updateStatus(`${events.length} messages récupérés des zones voisines`, false, true);
+                    
+                    // Trier par date (plus récent en premier)
+                    return events.sort((a, b) => b.created_at - a.created_at);
+                } else {
+                    log("Aucun message trouvé dans les UMAPs voisines");
+                    updateStatus("Aucun message dans les zones voisines", false, true);
+                    return [];
+                }
+                
+            } catch (error) {
+                log(`Erreur lors de la récupération des messages UMAP: ${error.message}`);
+                updateStatus(`Erreur messages UMAP: ${error.message}`, true);
+                return [];
+            }
+        }
+
+        // --- Mode Toggle Function ---
+        function toggleUmapMode() {
+            umapMode = !umapMode;
+            const button = $('#mode-toggle');
+            
+            if (umapMode) {
+                button.text('👤 Mode Utilisateur').css('background', 'linear-gradient(145deg, #FF9800, #F57C00)');
+                log("Mode UMAP activé - affichage des messages des zones voisines");
+                updateStatus("Mode UMAP activé - zones voisines", false, true);
+            } else {
+                button.text('🌍 Mode UMAP (Zones voisines)').css('background', 'linear-gradient(145deg, #2196F3, #1976D2)');
+                log("Mode utilisateur activé - affichage des messages personnels");
+                updateStatus("Mode utilisateur activé", false, true);
+            }
+            
+            // Recharger les messages avec le nouveau mode
+            if (publicKey) {
+                fetchAndDisplayMessages(publicKey, umapMode);
+            }
+        }
+
+        // --- Initialization ---
+        async function initializeApp() {
+            log('initializeApp called.');
+            if (userNsec) {
+                log("NSEC provided. Init local key.");
+                 if (typeof NostrTools === 'undefined') { updateStatus("Error: NostrTools unloaded.", true); log("Fatal: NostrTools missing."); return; }
+                try {
+                    const decoded = NostrTools.nip19.decode(userNsec);
+                    if (decoded.type !== 'nsec' || !decoded.data) throw new Error('Invalid NSEC format');
+                    privateKeyHex = decoded.data; publicKey = NostrTools.getPublicKey(privateKeyHex);
+                    log(`Init NSEC OK. Pubkey: ${publicKey.slice(0, 10)}...`); updateStatus(`Using NSEC key. Pubkey: ${publicKey.slice(0, 10)}...`, false, true);
+                    $('#connectButton').hide(); $('#postButton').prop('disabled', false);
+                    await fetchProfileAndRelays(publicKey);
+                    await fetchAndDisplayMessages(publicKey, umapMode); // Fetch initial batch with current mode
+                } catch (e) {
+                    log(`Error initializing NSEC: ${e.message}. Falling back.`); updateStatus('Error NSEC. Trying extension...', true);
+                    privateKeyHex = null; publicKey = '';
+                    updateStatus("Checking extension (fallback)...");
+                    setTimeout(() => { log("Executing delayed check (fallback)."); checkNostrExtension(); }, 500);
+                }
+            } else {
+                log("No NSEC. Scheduling extension check..."); updateStatus("Checking extension...");
+                setTimeout(() => { log("Executing delayed check."); checkNostrExtension(); }, 500);
+            }
+            updateRelayListUI();
+        }
+
+        $(document).ready(function() {
+            log('Document ready.');
+
+            // Add tag button click handlers
+            $('.tag-button').on('click', function() {
+                const tag = $(this).data('tag');
+                const textarea = $('#message');
+                const currentText = textarea.val();
+                
+                // Toggle the tag
+                if (currentText.includes(tag)) {
+                    // Remove the tag if it exists
+                    textarea.val(currentText.replace(tag + ' ', '').replace(' ' + tag, ''));
+                    $(this).removeClass('active');
+                } else {
+                    // Add the tag if it doesn't exist
+                    textarea.val(currentText + (currentText ? ' ' : '') + tag + ' ');
+                    $(this).addClass('active');
+                }
+            });
+
+            // Check for existing tags when textarea changes
+            $('#message').on('input', function() {
+                const text = $(this).val();
+                $('.tag-button').each(function() {
+                    const tag = $(this).data('tag');
+                    const isActive = text.includes(tag);
+                    $(this).toggleClass('active', isActive);
+                });
+            });
+
+            initializeLocationSelects();
+
+            log("Requesting initial location for UI...");
+            getLocation().catch(err => {
+                log(`Initial getLocation failed: ${err}. UI will show defaults/error state.`);
+            });
+
+            // Setup common event listeners immediately
+            $('#connectButton').on('click', connectToNostr);
+            $('#imageInput').on('change', handleImageSelection);
+            $('#postButton').on('click', postNostrEvent);
+            $('#mode-toggle').on('click', toggleUmapMode);
+            
+            // Map accordion event listeners
+            $('#location-status').on('click', toggleMapAccordion);
+            $('#update-map').on('click', function() {
+                const lat = parseFloat($('#lat-display').val()) || 0;
+                const lon = parseFloat($('#lon-display').val()) || 0;
+                
+                updateCoordinatesFromMap(lat, lon);
+                if (miniMap) {
+                    miniMap.setView([lat, lon], miniMap.getZoom());
+                }
+            });
+            $('#get-location').on('click', getCurrentLocationForMap);
+            
+            // Sync display inputs with tumbler changes
+            $('#lat-display, #lon-display').on('change', function() {
+                const lat = parseFloat($('#lat-display').val()) || 0;
+                const lon = parseFloat($('#lon-display').val()) || 0;
+                
+                if (miniMarker) {
+                    miniMarker.setLatLng([lat, lon]);
+                }
+                if (miniMap) {
+                    miniMap.setView([lat, lon], miniMap.getZoom());
+                }
+            });
+
+            $('#refresh-button').on('click', () => {
+                if (publicKey) {
+                    log("Refresh button clicked.");
+                    updateStatus("Refreshing project proposals...");
+                    fetchAndDisplayMessages(publicKey, umapMode);
+                } else {
+                    log("Refresh clicked, but no public key.");
+                    updateStatus("Please connect first.", true);
+                }
+            });
+
+            $('#older-button').on('click', () => {
+                log("Older button clicked.");
+                                 if (currentMessageIndex < fetchedMessages.length - 1) {
+                     displayMessageAtIndex(currentMessageIndex + 1);
+                 } else {
+                     log("Already at the oldest fetched project proposal.");
+                 }
+            });
+            $('#newer-button').on('click', () => {
+                 log("Newer button clicked.");
+                 if (currentMessageIndex > 0) {
+                     displayMessageAtIndex(currentMessageIndex - 1);
+                 } else {
+                     log("Already at the newest fetched project proposal.");
+                 }
+            });
+            $('#debug-info').hide(); $('details summary').on('click', () => setTimeout(() => log(`Debug visibility: ${$('#debug-info').is(':visible')}`), 0));
+
+            // --- Conditional Initialization ---
+            if (userNsec) {
+                log("NSEC configured. Waiting for NostrTools..."); updateStatus("Loading crypto library...");
+                let attempts = 0; const maxAttempts = 50; const intervalId = setInterval(() => { attempts++; if (typeof NostrTools !== 'undefined') { clearInterval(intervalId); log("NostrTools library loaded."); initializeApp(); } else if (attempts >= maxAttempts) { clearInterval(intervalId); log("Error: NostrTools timeout."); updateStatus("Error loading crypto library.", true); } else { /* log(`Waiting NostrTools... (${attempts})`); */ } }, 100);
+            } else {
+                log("No NSEC configured. Initializing normally."); initializeApp();
+            }
+        });
+
+        // Map variables
+        let miniMap;
+        let miniMarker;
+
+        // Initialize mini map
+        function initializeMiniMap(lat = 0, lon = 0) {
+            if (miniMap) {
+                miniMap.remove();
+            }
+            
+            miniMap = L.map('mini-map').setView([lat, lon], 10);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(miniMap);
+
+            // Add marker
+            miniMarker = L.marker([lat, lon], {
+                draggable: true
+            }).addTo(miniMap);
+
+            // Handle map click
+            miniMap.on('click', function(e) {
+                const clickedLat = Math.round(e.latlng.lat * 100) / 100;
+                const clickedLon = Math.round(e.latlng.lng * 100) / 100;
+                updateCoordinatesFromMap(clickedLat, clickedLon);
+            });
+
+            // Handle marker drag
+            miniMarker.on('dragend', function(e) {
+                const markerLat = Math.round(e.target.getLatLng().lat * 100) / 100;
+                const markerLon = Math.round(e.target.getLatLng().lng * 100) / 100;
+                updateCoordinatesFromMap(markerLat, markerLon);
+            });
+        }
+
+        // Update coordinates from map to all UI elements
+        function updateCoordinatesFromMap(lat, lon) {
+            const roundedLat = Math.round(lat * 100) / 100;
+            const roundedLon = Math.round(lon * 100) / 100;
+
+            // Update display inputs in map
+            $('#lat-display').val(roundedLat.toFixed(2));
+            $('#lon-display').val(roundedLon.toFixed(2));
+
+            // Update marker position
+            if (miniMarker) {
+                miniMarker.setLatLng([roundedLat, roundedLon]);
+            }
+
+            // Update current coordinates
+            currentLatitude = roundedLat;
+            currentLongitude = roundedLon;
+
+            // Update location UI (tumblers)
+            updateLocationUI(roundedLat, roundedLon);
+
+            log(`Map coordinates updated: ${roundedLat.toFixed(2)}, ${roundedLon.toFixed(2)}`);
+        }
+
+        // Toggle map accordion
+        function toggleMapAccordion() {
+            const accordion = $('#map-accordion');
+            const isOpen = accordion.hasClass('open');
+            
+            if (isOpen) {
+                accordion.removeClass('open');
+                log('Map accordion closed');
+            } else {
+                accordion.addClass('open');
+                log('Map accordion opened');
+                
+                // Initialize map if not already done or refresh it
+                setTimeout(() => {
+                    const lat = currentLatitude || 0;
+                    const lon = currentLongitude || 0;
+                    initializeMiniMap(lat, lon);
+                    
+                    // Update display inputs
+                    $('#lat-display').val(lat.toFixed(2));
+                    $('#lon-display').val(lon.toFixed(2));
+                    
+                    // Refresh map size after accordion animation
+                    setTimeout(() => {
+                        if (miniMap) {
+                            miniMap.invalidateSize();
+                        }
+                    }, 350);
+                }, 50);
+            }
+        }
+
+        // Get current location for mini map
+        function getCurrentLocationForMap() {
+            if (navigator.geolocation) {
+                $('#get-location').text('Localisation...').prop('disabled', true);
+                
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = Math.round(position.coords.latitude * 100) / 100;
+                        const lon = Math.round(position.coords.longitude * 100) / 100;
+
+                        updateCoordinatesFromMap(lat, lon);
+                        if (miniMap) {
+                            miniMap.setView([lat, lon], 13);
+                        }
+                        
+                        $('#get-location').text('Ma position').prop('disabled', false);
+                    },
+                    function(error) {
+                        let errorMessage;
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage = "Géolocalisation refusée.";
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage = "Position indisponible.";
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage = "Délai dépassé.";
+                                break;
+                            default:
+                                errorMessage = "Erreur géolocalisation.";
+                        }
+                        log(`Geolocation error: ${errorMessage}`);
+                        $('#get-location').text('Ma position').prop('disabled', false);
+                    }
+                );
+            } else {
+                log("Geolocation not supported by browser");
+            }
+        }
+    </script>
+</body>
+</html>

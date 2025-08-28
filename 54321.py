@@ -1380,8 +1380,47 @@ async def get_root(request: Request):
 
 # UPlanet Geo Message
 @app.get("/nostr")
-async def get_root(request: Request):
-    return templates.TemplateResponse("nostr.html", {"request": request})
+async def get_nostr(request: Request, type: str = "default"):
+    """
+    Route NOSTR avec support de différents types de templates
+    
+    Paramètres:
+    - type: "default" (nostr.html) ou "uplanet" (nostr_uplanet.html)
+    """
+    try:
+        # Validation du paramètre type
+        if type not in ["default", "uplanet"]:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Type invalide: '{type}'. Types supportés: 'default', 'uplanet'"
+            )
+        
+        # Déterminer le template à utiliser
+        if type == "default":
+            template_name = "nostr.html"
+        elif type == "uplanet":
+            template_name = "nostr_uplanet.html"
+        
+        # Vérifier que le template existe
+        template_path = Path(__file__).parent / "templates" / template_name
+        if not template_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Template '{template_name}' non trouvé. Vérifiez que le fichier existe dans le répertoire templates."
+            )
+        
+        logging.info(f"Serving NOSTR template: {template_name} (type={type})")
+        
+        return templates.TemplateResponse(template_name, {"request": request})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Erreur lors du chargement du template NOSTR: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Erreur interne lors du chargement du template: {str(e)}"
+        )
 
 # ---DEV--- NOSTR BLOG MESSAGE
 @app.get("/blog")
@@ -2652,6 +2691,16 @@ class N2NetworkResponse(BaseModel):
     timestamp: str
     processing_time_ms: int
 
+# Nouveaux modèles pour les liens géographiques UMAP
+class UmapGeolinksResponse(BaseModel):
+    success: bool
+    message: str
+    umap_coordinates: Dict[str, float]  # lat, lon
+    geolinks: Dict[str, str]  # direction -> hex_pubkey
+    total_adjacent: int
+    timestamp: str
+    processing_time_ms: int
+
 # Nouveaux modèles pour les ressources Urbanivore
 class UrbanivoreResource(BaseModel):
     type: str  # 'tree' ou 'recipe'
@@ -2840,6 +2889,62 @@ async def list_urbanivore_resources(npub: str, limit: int = 50):
         logging.error(f"Erreur liste ressources: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
 
+@app.get("/api/umap/geolinks", response_model=UmapGeolinksResponse)
+async def get_umap_geolinks_api(lat: float, lon: float):
+    """
+    Récupérer les liens géographiques des UMAPs adjacentes
+    
+    Cette route utilise le script Umap_geonostr.sh pour calculer les clés hex
+    des UMAPs voisines (nord, sud, est, ouest, etc.) à partir des coordonnées
+    de l'UMAP centrale.
+    
+    L'application cliente peut ensuite utiliser ces clés hex pour faire des
+    requêtes NOSTR directement sur les relais auxquels elle est connectée.
+    
+    Paramètres:
+    - lat: Latitude de l'UMAP centrale (format décimal, -90 à 90)
+    - lon: Longitude de l'UMAP centrale (format décimal, -180 à 180)
+    
+    Retourne:
+    - Les clés hex des 8 UMAPs adjacentes + l'UMAP centrale
+    - Métadonnées sur les coordonnées et le traitement
+    """
+    try:
+        logging.info(f"Requête liens UMAP pour coordonnées: ({lat}, {lon})")
+        
+        # Récupérer les liens géographiques
+        result = await get_umap_geolinks(lat, lon)
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=500,
+                detail=result["message"]
+            )
+        
+        # Convertir en modèle de réponse
+        response = UmapGeolinksResponse(
+            success=True,
+            message=result["message"],
+            umap_coordinates=result["umap_coordinates"],
+            geolinks=result["geolinks"],
+            total_adjacent=result["total_adjacentes"],
+            timestamp=result["timestamp"],
+            processing_time_ms=result["processing_time_ms"]
+        )
+        
+        logging.info(f"Liens UMAP récupérés avec succès: {result['total_adjacentes']} UMAPs adjacentes")
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Erreur inattendue dans get_umap_geolinks_api: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur interne: {str(e)}"
+        )
+
 @app.get("/api/getN2", response_model=N2NetworkResponse)
 async def get_n2_network(
     request: Request,
@@ -3022,6 +3127,98 @@ async def test_nostr_auth(npub: str = Form(...)):
     except Exception as e:
         logging.error(f"Erreur lors du test NOSTR: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors du test: {str(e)}")
+
+async def get_umap_geolinks(lat: float, lon: float) -> Dict[str, Any]:
+    """
+    Récupérer les liens géographiques des UMAPs adjacentes en utilisant Umap_geonostr.sh
+    
+    Args:
+        lat: Latitude de l'UMAP centrale
+        lon: Longitude de l'UMAP centrale
+    
+    Returns:
+        Dictionnaire contenant les liens géographiques et métadonnées
+    """
+    start_time = time.time()
+    
+    try:
+        # Validation des coordonnées
+        if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+            raise ValueError("Latitude et longitude doivent être des nombres")
+        
+        if lat < -90 or lat > 90:
+            raise ValueError("Latitude doit être entre -90 et 90")
+        
+        if lon < -180 or lon > 180:
+            raise ValueError("Longitude doit être entre -180 et 180")
+        
+        # Chemin vers le script Umap_geonostr.sh
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/Umap_geonostr.sh")
+        
+        if not os.path.exists(script_path):
+            raise FileNotFoundError(f"Script Umap_geonostr.sh non trouvé: {script_path}")
+        
+        # Vérifier que le script est exécutable
+        if not os.access(script_path, os.X_OK):
+            os.chmod(script_path, 0o755)
+            logging.info(f"Rendu exécutable le script: {script_path}")
+        
+        # Exécuter le script avec les coordonnées
+        process = await asyncio.create_subprocess_exec(
+            script_path, str(lat), str(lon),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            error_msg = stderr.decode().strip() if stderr else "Erreur inconnue"
+            logging.error(f"Erreur Umap_geonostr.sh: {error_msg}")
+            raise RuntimeError(f"Script Umap_geonostr.sh a échoué: {error_msg}")
+        
+        # Parser la sortie JSON du script
+        try:
+            geolinks_data = json.loads(stdout.decode().strip())
+        except json.JSONDecodeError as e:
+            logging.error(f"Erreur parsing JSON de Umap_geonostr.sh: {e}")
+            raise ValueError(f"Sortie JSON invalide du script: {e}")
+        
+        # Validation de la structure attendue
+        expected_keys = ['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'here']
+        missing_keys = [key for key in expected_keys if key not in geolinks_data]
+        
+        if missing_keys:
+            raise ValueError(f"Clés manquantes dans la réponse: {missing_keys}")
+        
+        # Compter les UMAPs adjacentes (exclure 'here')
+        adjacent_count = len([k for k in geolinks_data.keys() if k != 'here'])
+        
+        processing_time = int((time.time() - start_time) * 1000)
+        
+        return {
+            "success": True,
+            "message": f"Liens géographiques récupérés pour UMAP ({lat}, {lon})",
+            "umap_coordinates": {"lat": lat, "lon": lon},
+            "geolinks": geolinks_data,
+            "total_adjacentes": adjacent_count,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "processing_time_ms": processing_time
+        }
+        
+    except Exception as e:
+        processing_time = int((time.time() - start_time) * 1000)
+        logging.error(f"Erreur lors de la récupération des liens UMAP: {str(e)}")
+        
+        return {
+            "success": False,
+            "message": f"Erreur: {str(e)}",
+            "umap_coordinates": {"lat": lat, "lon": lon},
+            "geolinks": {},
+            "total_adjacentes": 0,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "processing_time_ms": processing_time
+        }
 
 def convert_g1_to_zen(g1_balance: str) -> str:
     """Convertir une balance Ğ1 en ẐEN en utilisant la formule (balance - 1) * 10"""

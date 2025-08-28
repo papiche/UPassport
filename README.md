@@ -21,6 +21,7 @@ UPassport offers a range of functionalities centered around decentralized identi
     *   **NOSTR Profile Management**: Sets up and updates NOSTR profiles, including metadata and links to IPFS-hosted content.
     *   **NOSTR Vault Storage**: Utilizes IPFS for decentralized storage of NOSTR Card data and related assets.
     *   **NOSTR Event Publishing**: Enables publishing of NOSTR events, including location data and uploaded images, to NOSTR relays.
+    *   **UMAP Geographic Discovery**: Provides geographic-based NOSTR message discovery using adjacent UMAPs (Universal Maps), enabling local community building and geographic social networks.
 
 *   **Ğ1 (Duniter) Ecosystem Interaction**:
     *   **Balance Checking**: Verifies Ğ1 account balances using public keys via the `COINScheck.sh` script.
@@ -121,7 +122,8 @@ Before setting up UPassport, ensure you have the following prerequisites install
     *   **QR Code Scanner (`/scan`)**: Web interface for general QR code scanning, UPassport actions, and NOSTR Card interactions.
     *   **ZenCard Terminal (`/scan_zen.html` - accessed internally)**: For initiating ZEN (Ẑen) payments using ZenCards.
     *   **Security Scanner (`/scan_ssss.html` - accessed internally)**: For UPassport security verification, used by station CAPTAINs.
-    *   **NOSTR Card Interface (`/nostr`)**: For exploring NOSTR functionalities and potentially managing NOSTR Cards (functionality may be limited in the provided code).
+    *   **NOSTR Card Interface (`/nostr`)**: For exploring NOSTR functionalities and potentially managing NOSTR Cards. Includes UMAP geographic discovery mode for finding messages from adjacent geographic zones.
+    *   **NOSTR UPlanet Interface (`/nostr?type=uplanet`)**: Specialized interface for UPlanet SCIC Cooperative project proposals with UMAP geographic discovery capabilities.
     *   **Recording Interface (`/rec`)**: For starting and stopping OBS Studio recordings, uploading video files, or processing YouTube links.
     *   **Webcam Recording (`/webcam`)**: For capturing and processing video directly from your webcam.
     *   **File Upload to IPFS (`/upload`)**: For uploading files to IPFS and obtaining IPFS links.
@@ -142,6 +144,7 @@ The UPassport API provides secure, decentralized file and identity management fo
 | `/api/delete`             | POST   | Delete a file from your uDRIVE              | Yes (npub)    | `file_path`, `npub` (JSON)    |
 | `/api/getN2`              | GET    | Analyze N2 network (friends of friends)     | No            | `hex`, `range`, `output` (query params) |
 | `/api/test-nostr`         | POST   | Test NOSTR authentication for a pubkey      | No            | `npub` (form-data)            |
+| `/api/umap/geolinks`      | GET    | Get UMAP adjacent zones geolinks            | No            | `lat`, `lon` (query params)   |
 
 ---
 
@@ -306,6 +309,56 @@ curl -F "npub=npub1..." http://localhost:54321/api/test-nostr
 
 ---
 
+#### `GET /api/umap/geolinks`
+- **Description:** Retrieve geographic links of adjacent UMAPs (Universal Maps) using the `Umap_geonostr.sh` script. This endpoint calculates the hex public keys of neighboring UMAPs (north, south, east, west, etc.) from the central UMAP coordinates. The client application can then use these hex keys to make NOSTR queries directly on the relays it's already connected to.
+- **Authentication:** Not required.
+- **Query Parameters:**
+  - `lat`: Latitude of the central UMAP (decimal format, -90 to 90, required).
+  - `lon`: Longitude of the central UMAP (decimal format, -180 to 180, required).
+- **Returns:** JSON with UMAP geolinks, coordinates metadata, and processing information.
+
+**Example:**
+```bash
+curl "http://localhost:54321/api/umap/geolinks?lat=48.8566&lon=2.3522"
+```
+
+**JSON Response Structure:**
+```json
+{
+  "success": true,
+  "message": "Liens géographiques récupérés pour UMAP (48.8566, 2.3522)",
+  "umap_coordinates": {
+    "lat": 48.8566,
+    "lon": 2.3522
+  },
+  "geolinks": {
+    "north": "abc123def456...",
+    "south": "def456ghi789...",
+    "east": "ghi789jkl012...",
+    "west": "jkl012mno345...",
+    "northeast": "mno345pqr678...",
+    "northwest": "pqr678stu901...",
+    "southeast": "stu901vwx234...",
+    "southwest": "vwx234yz567...",
+    "here": "yz567abc890..."
+  },
+  "total_adjacent": 8,
+  "timestamp": "2024-01-15T10:30:00Z",
+  "processing_time_ms": 150
+}
+```
+
+**Use Case:**
+This endpoint is particularly useful for:
+- **Geographic NOSTR Discovery**: Finding NOSTR messages from adjacent geographic zones
+- **Local Community Building**: Discovering local projects and proposals in neighboring UMAPs
+- **Decentralized Geographic Networks**: Building location-based social networks using NOSTR
+- **UPlanet Ecosystem Integration**: Connecting with nearby UMAPs in the UPlanet decentralized network
+
+The client application can use the returned hex keys to query NOSTR relays for messages from these adjacent UMAPs, enabling geographic discovery and local community interactions.
+
+---
+
 ### Authentication Notes
 - All user-specific actions require a recent NOSTR NIP42 authentication event on the local relay (`ws://127.0.0.1:7777`).
 - If authentication fails, ensure your NOSTR client has published a kind 22242 event within the last 24 hours.
@@ -361,6 +414,7 @@ UPassport offre une gamme de fonctionnalités centrées sur l'identité décentr
     *   **Gestion de Profil NOSTR** : Configure et met à jour les profils NOSTR, y compris les métadonnées et les liens vers le contenu hébergé sur IPFS.
     *   **Stockage de Coffre-fort NOSTR** : Utilise IPFS pour le stockage décentralisé des données des Cartes NOSTR et des actifs associés.
     *   **Publication d'Événements NOSTR** : Permet la publication d'événements NOSTR, y compris les données de localisation et les images téléchargées, vers les relais NOSTR.
+    *   **Découverte Géographique UMAP** : Fournit une découverte de messages NOSTR basée sur la géographie en utilisant les UMAPs (Cartes Universelles) adjacentes, permettant la construction de communautés locales et de réseaux sociaux géographiques.
 
 *   **Interaction avec l'Écosystème Ğ1 (Duniter)** :
     *   **Vérification de Solde** : Vérifie les soldes des comptes Ğ1 en utilisant les clés publiques via le script `COINScheck.sh`.
@@ -401,17 +455,17 @@ Avant de configurer UPassport, assurez-vous d'avoir installé et configuré les 
 
 *   **Dépendances Logiciel** :
     *   **Python** : Version 3.7 ou supérieure.
-    *   **Node.js et npm** : Pour la gestion des actifs frontend (si nécessaire, bien que peu utilisé dans le code fourni).
+    *   **Node.js et npm** : Pour la gestion des actifs frontend (utilisé par le stockage TiddlyWiki associé à la ZenCard).
     *   **FFmpeg** : Pour les tâches de traitement multimédia.
     *   **ImageMagick** : Pour la manipulation d'images, en particulier la génération de QR codes et le traitement d'images.
     *   **IPFS (InterPlanetary File System)** : Assurez-vous qu'IPFS est installé et fonctionne en tant que démon pour le stockage décentralisé.
-    *   **GPG (GNU Privacy Guard)** : Pour les opérations cryptographiques, en particulier le déchiffrement et la gestion des clés.
-    *   **NaCl (libsodium)** : Pour les primitives cryptographiques utilisées dans DUNITER et NOSTR.
-    *   **OBS Studio (Optionnel)** : Si vous prévoyez d'utiliser les fonctionnalités d'enregistrement.
-    *   **`amzqr`** : Générateur de QR codes en ligne de commande (doit probablement être installé séparément, par exemple via `pip install amzqr`).
-    *   **`ssss-split`, `ssss-combine` (outils Shamir's Secret Sharing Scheme)** : Probablement fournis par le paquet `ssss` (installez si nécessaire, par exemple via le gestionnaire de paquets système).
-    *   **`natools.py`** : Outils de chiffrement et de déchiffrement (probablement partie de l'ensemble d'outils Astroport.ONE ou un utilitaire séparé - assurez-vous qu'il est disponible dans votre `$PATH` ou ajustez les chemins des scripts).
-    *   **`jaklis.py`** : Interface en ligne de commande DUNITER (probablement partie de l'ensemble d'outils Astroport.ONE - assurez-vous qu'il est disponible ou ajustez les chemins des scripts).
+    *   **GPG (GNU Privacy Guard)** : Pour les opérations cryptographiques, en particulier le déchiffrement et la gestion des clés https://foopgp.org.
+    *   **NaCl (libsodium)** : Pour les primitives cryptographiques utilisées par `keygen` (@aya).
+    *   **OBS Studio (Expérimental)** : Combiner des fonctionnalités d'enregistrement sur les flux WebRTC https://vdo.ninja.
+    *   **`amzqr`** : Générateur de QR codes évolé en ligne de commande (`pip install amzqr`).
+    *   **`ssss-split`, `ssss-combine` (outils Shamir's Secret Sharing Scheme)** : découpage des clefs en morceaux permettant de construire la relation 3x1/3 de confiance.
+    *   **`natools.py`** : Outils de chiffrement et de déchiffrement faisant partie de l'ensemble d'outils Astroport.ONE (@tuxmain).
+    *   **`jaklis.py`** : Interface en ligne de commande DUNITER et Cesium+ (@poka)).
 
 *   **Installation d'Astroport.ONE** :
     *   UPassport repose fortement sur l'infrastructure `Astroport.ONE`. Installez-la en exécutant :
@@ -461,7 +515,8 @@ Avant de configurer UPassport, assurez-vous d'avoir installé et configuré les 
     *   **Scanner QR Code (`/scan`)** : Interface web pour le scan de QR codes général, les actions UPassport et les interactions avec les Cartes NOSTR.
     *   **Terminal ZenCard (`/scan_zen.html` - accessible en interne)** : Pour initier des paiements ZEN (Ẑen) en utilisant les ZenCards.
     *   **Scanner de Sécurité (`/scan_ssss.html` - accessible en interne)** : Pour la vérification de sécurité UPassport, utilisé par les CAPITAINES de station.
-    *   **Interface Carte NOSTR (`/nostr`)** : Pour explorer les fonctionnalités NOSTR et potentiellement gérer les Cartes NOSTR (la fonctionnalité peut être limitée dans le code fourni).
+    *   **Interface Carte NOSTR (`/nostr`)** : Pour explorer les fonctionnalités NOSTR selon différents types d'applications (signalées par #BRO + #hashtag).
+    *   **Interface NOSTR UPlanet (`/nostr?type=uplanet`)** : Interface spécialisée pour les propositions de projets de la SCIC Cooperative UPlanet avec des capacités de découverte géographique UMAP.
     *   **Interface d'Enregistrement (`/rec`)** : Pour démarrer et arrêter les enregistrements OBS Studio, téléverser des fichiers vidéo ou traiter des liens YouTube.
     *   **Enregistrement Webcam (`/webcam`)** : Pour capturer et traiter la vidéo directement depuis votre webcam.
     *   **Téléversement de Fichiers vers IPFS (`/upload`)** : Pour téléverser des fichiers vers IPFS et obtenir des liens IPFS.
@@ -507,6 +562,7 @@ L'API UPassport fournit une gestion sécurisée et décentralisée des fichiers 
 | `/api/delete`             | POST    | Supprimer un fichier de votre uDRIVE        | Oui (npub) | `file_path`, `npub` (JSON)    |
 | `/api/getN2`              | GET     | Analyser le réseau N2 (amis d'amis)        | Non          | `hex`, `range`, `output` (query params) |
 | `/api/test-nostr`         | POST    | Tester l'authentification NOSTR pour une clé publique | Non | `npub` (form-data)            |
+| `/api/umap/geolinks`      | GET     | Obtenir les liens géographiques des UMAPs adjacentes | Non | `lat`, `lon` (query params)   |
 
 ---
 
@@ -668,6 +724,56 @@ curl "http://localhost:54321/api/getN2?hex=$CAPTAINHEX&output=html"
 ```bash
 curl -F "npub=npub1..." http://localhost:54321/api/test-nostr
 ```
+
+---
+
+#### `GET /api/umap/geolinks`
+- **Description :** Récupérer les liens géographiques des UMAPs (Cartes Universelles) adjacentes en utilisant le script `Umap_geonostr.sh`. Cet endpoint calcule les clés publiques hex des UMAPs voisines (nord, sud, est, ouest, etc.) à partir des coordonnées de l'UMAP centrale. L'application cliente peut ensuite utiliser ces clés hex pour faire des requêtes NOSTR directement sur les relais auxquels elle est déjà connectée.
+- **Authentification :** Non requise.
+- **Paramètres de requête :**
+  - `lat` : Latitude de l'UMAP centrale (format décimal, -90 à 90, requis).
+  - `lon` : Longitude de l'UMAP centrale (format décimal, -180 à 180, requis).
+- **Retourne :** JSON avec les liens géographiques des UMAPs, les métadonnées des coordonnées et les informations de traitement.
+
+**Exemple :**
+```bash
+curl "http://localhost:54321/api/umap/geolinks?lat=48.8566&lon=2.3522"
+```
+
+**Structure de réponse JSON :**
+```json
+{
+  "success": true,
+  "message": "Liens géographiques récupérés pour UMAP (48.8566, 2.3522)",
+  "umap_coordinates": {
+    "lat": 48.8566,
+    "lon": 2.3522
+  },
+  "geolinks": {
+    "north": "abc123def456...",
+    "south": "def456ghi789...",
+    "east": "ghi789jkl012...",
+    "west": "jkl012mno345...",
+    "northeast": "mno345pqr678...",
+    "northwest": "pqr678stu901...",
+    "southeast": "stu901vwx234...",
+    "southwest": "vwx234yz567...",
+    "here": "yz567abc890..."
+  },
+  "total_adjacent": 8,
+  "timestamp": "2024-01-15T10:30:00Z",
+  "processing_time_ms": 150
+}
+```
+
+**Cas d'usage :**
+Cet endpoint est particulièrement utile pour :
+- **Découverte NOSTR Géographique** : Trouver des messages NOSTR depuis des zones géographiques adjacentes
+- **Construction de Communautés Locales** : Découvrir des projets et propositions locaux dans les UMAPs voisines
+- **Réseaux Géographiques Décentralisés** : Construire des réseaux sociaux basés sur la localisation en utilisant NOSTR
+- **Intégration Écosystème UPlanet** : Se connecter avec les UMAPs voisines dans le réseau décentralisé UPlanet
+
+L'application cliente peut utiliser les clés hex retournées pour interroger les relais NOSTR pour des messages de ces UMAPs adjacentes, permettant la découverte géographique et les interactions communautaires locales.
 
 ---
 
