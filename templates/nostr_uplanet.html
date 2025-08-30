@@ -2741,10 +2741,10 @@
         // --- N2 Network Functions ---
         async function fetchN2Network(pubkey) {
             try {
-                log(`Fetching N2 network for user: ${pubkey.slice(0, 10)}...`);
+                log(`Fetching N2 network for user: ${pubkey.slice(0,10)}...`);
                 updateStatus("Récupération du réseau N2 personnel...");
                 
-                const response = await fetch(`/api/getN2?pubkey=${pubkey}`);
+                const response = await fetch(`/api/getN2?hex=${pubkey}`);
                 
                 if (!response.ok) {
                     const errorText = await response.text();
@@ -2757,8 +2757,8 @@
                     throw new Error(data.message || "Erreur lors de la récupération du réseau N2");
                 }
                 
-                log(`Réseau N2 récupéré: ${data.total_connections || 0} connexions`);
-                updateStatus(`Réseau N2 récupéré: ${data.total_connections || 0} connexions`, false, true);
+                log(`Réseau N2 récupéré: ${data.total_n2 || 0} connexions`);
+                updateStatus(`Réseau N2 récupéré: ${data.total_n2 || 0} connexions`, false, true);
                 
                 return data;
                 
@@ -2788,6 +2788,7 @@
                 updateStatus("Récupération des messages du réseau personnel...");
                 
                 // Extraire toutes les clés hex des connexions N2
+                // L'API retourne les connexions dans n2Data.connections
                 const n2Keys = Object.values(n2Data.connections).filter(key => key && key.length === 64);
                 
                 if (n2Keys.length === 0) {
