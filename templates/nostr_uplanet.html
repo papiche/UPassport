@@ -966,7 +966,7 @@
             
             // Si on est sur l'API u., calculer le relai NOSTR
             if (currentUrl.hostname.startsWith('u.')) {
-                let relayHostname = currentUrl.replace('u.', 'relay.');
+                let relayHostname = currentUrl.hostname.replace('u.', 'relay.');
                    
                 return `wss://${relayHostname}`;
             }
