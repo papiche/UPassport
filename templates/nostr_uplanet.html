@@ -634,6 +634,119 @@
             color: #4CAF50;
             text-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
         }
+
+        /* Mode toggle buttons responsive styling */
+        #mode-toggle, #n2-mode-toggle {
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        #mode-toggle:hover, #n2-mode-toggle:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        #n2-mode-toggle {
+            background: linear-gradient(145deg, #9C27B0, #7B1FA2) !important;
+        }
+        
+        #n2-mode-toggle:hover {
+            background: linear-gradient(145deg, #7B1FA2, #9C27B0) !important;
+        }
+
+        /* Profile Modal Styles */
+        .profile-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.9);
+            padding: 20px;
+        }
+
+        .profile-modal-content {
+            position: relative;
+            width: 90%;
+            height: 90%;
+            border-radius: 8px;
+            border: 3px solid #9C27B0;
+            box-shadow: 0 0 20px rgba(156, 39, 176, 0.8);
+            background-color: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .profile-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(156, 39, 176, 0.3);
+            background: linear-gradient(145deg, #2a2a3a, #1e1e2e);
+        }
+
+        .profile-modal-title {
+            color: #9C27B0;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .profile-modal-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            color: #f1f1f1;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            background: rgba(156, 39, 176, 0.7);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+        }
+
+        .profile-modal-close:hover,
+        .profile-modal-close:focus {
+            color: #bbb;
+            background: rgba(156, 39, 176, 0.9);
+        }
+
+        .profile-modal-iframe {
+            flex: 1;
+            width: 100%;
+            border: none;
+            border-radius: 0 0 5px 5px;
+        }
+
+        .profile-modal-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #9C27B0;
+            font-size: 1.1em;
+        }
+
+        .profile-modal-error {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #f44336;
+            font-size: 1.1em;
+            text-align: center;
+            padding: 20px;
+        }
     </style>
 </head>
 <body>
@@ -737,10 +850,13 @@
         </div>
         <!-- Project Proposals Section -->
         <div id="message-section">
-            <!-- Mode Toggle Button -->
-            <div style="margin-bottom: 15px; text-align: center;">
+            <!-- Mode Toggle Buttons -->
+            <div style="margin-bottom: 15px; text-align: center; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                 <button id="mode-toggle" style="background: linear-gradient(145deg, #2196F3, #1976D2); padding: 8px 16px; font-size: 0.9em; border-radius: 6px; border: none; color: white; cursor: pointer; transition: all 0.3s ease;">
                     🌍 Mode UMAP (Zones voisines)
+                </button>
+                <button id="n2-mode-toggle" style="background: linear-gradient(145deg, #9C27B0, #7B1FA2); padding: 8px 16px; font-size: 0.9em; border-radius: 6px; border: none; color: white; cursor: pointer; transition: all 0.3s ease;">
+                    🌐 Mode N2 (Réseau personnel)
                 </button>
             </div>
             <!-- Navigation Buttons -->
@@ -766,8 +882,27 @@
         </details>
     </div>
 
+    <!-- Profile Modal -->
+    <div id="profileModal" class="profile-modal">
+        <div class="profile-modal-content">
+            <div class="profile-modal-header">
+                <h3 class="profile-modal-title">🌐 Profile Viewer</h3>
+                <span class="profile-modal-close">&times;</span>
+            </div>
+            <div id="profileModalContent" class="profile-modal-loading">
+                Loading profile...
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- Configuration ---
+        // Architecture de domaine Astroport :
+        // - ipfs.domain.tld ou IP:8080 sert l'application (passerelle IPFS)
+        // - u.domain.tld ou IP:54321 est l'API qui contrôle les accès (page actuelle)
+        // - wss://relay.domain.tld ou IP:7777 est le relai NOSTR
+        // - La page actuelle se charge depuis u.domain.tld (:54321) et charge les profils depuis ipfs.domain.tld (:8080)
+        
         const userNsec = ''; // Leave empty for extension
         const MESSAGES_PER_PAGE = 10; // How many messages to fetch at once
         let manualLocationSet = false; // Flag to track if UI is populated
@@ -784,7 +919,8 @@
         let currentLatitude = null;
         let currentLongitude = null;
         let umapMode = false; // Mode UMAP activé ou non
-        const DEFAULT_RELAYS = ['wss://relay.copylaradio.com', 'ws://127.0.0.1:7777'];
+        let n2Mode = false; // Mode N2 activé ou non
+        const DEFAULT_RELAYS = [getRelayURL(), 'wss://relay.copylaradio.com'];
         let allRelaysToPublish = [...DEFAULT_RELAYS];
 
         // Global media collection for navigation
@@ -820,8 +956,70 @@
         }
         function updateStatus(message, isError = false, isSuccess = false) { log(`Status Update: ${message}`); const el = $('#status'); el.text(message); let bg = '#333', fg = '#ccc'; if (isError) { bg = '#5c3a3a'; fg = '#ff6b6b'; } else if (isSuccess) { bg = '#3a5c3a'; fg = '#90ee90'; } el.css({ 'background-color': bg, 'color': fg }); }
         function showLoading(show) { $('#loadingSpinner').toggle(show); $('#postButton').prop('disabled', show || !publicKey); }
-        function getRelayURL() { const u = new URL(window.location.href); let r = u.hostname.replace(/^u\./, 'relay.'); if (u.port === '54321' || ['localhost', '127.0.0.1'].includes(u.hostname)) return `ws://127.0.0.1:7777`; return `wss://${r}`; }
-        function updateRelayListUI() { const l = $('#relay-list').empty(); if (allRelaysToPublish.length > 0) allRelaysToPublish.forEach(r => { const li = $('<li>').text(r); if (r === userProfile?.source) { li.prepend('📌 '); } li.appendTo(l); }); log(`UI updated: ${allRelaysToPublish.length} relays.`); }
+        function getRelayURL() { 
+            const currentUrl = new URL(window.location.href);
+            
+            // If we're on port 54321, return immediately
+            if (currentUrl.port === '54321') {
+                return `ws://${currentUrl.hostname}:7777`;
+            }
+            
+            // Si on est sur l'API u., calculer le relai NOSTR
+            if (currentUrl.hostname.startsWith('u.')) {
+                let relayHostname = currentUrl.replace('u.', 'relay.');
+                   
+                return `wss://${relayHostname}`;
+            }
+            
+            // Fallback pour les autres cas
+            return 'wss://relay.copylaradio.com';
+        }
+
+        // Utility function to get IPFS URL based on domain architecture
+        function getIPFSUrl(route) {
+            const currentUrl = new URL(window.location.href);
+            
+            // If we're on port 54321, return immediately
+            if (currentUrl.port === '54321') {
+                return `http://${currentUrl.hostname}:8080${route}`;
+            }
+            
+            // If we're on u. API, calculate IPFS gateway
+            if (currentUrl.hostname.startsWith('u.')) {
+                let ipfsHostname = currentUrl.hostname.replace('u.', 'ipfs.');
+                return `https://${ipfsHostname}${route}`;
+            }
+            
+            // Fallback for other cases
+            return `https://ipfs.copylaradio.com${route}`;
+        }
+
+        function updateRelayListUI() { 
+            const l = $('#relay-list').empty(); 
+            
+            // Afficher l'architecture de domaine actuelle
+            const currentUrl = new URL(window.location.href);
+            const domainInfo = $('<li>').html(`<strong>🌐 Current Domain:</strong> ${currentUrl.hostname}:${currentUrl.port}`).appendTo(l);
+            
+            // Afficher les relais calculés
+            if (allRelaysToPublish.length > 0) {
+                allRelaysToPublish.forEach((r, index) => { 
+                    const li = $('<li>').text(r); 
+                    if (r === getRelayURL()) { 
+                        li.prepend('🎯 Primary Relay: '); 
+                        li.css('color', '#4CAF50');
+                    } else if (r === userProfile?.source) { 
+                        li.prepend('📌 Source: '); 
+                        li.css('color', '#2196F3');
+                    } else {
+                        li.prepend('🔗 Relay: ');
+                    }
+                    li.appendTo(l); 
+                }); 
+            }
+            
+            log(`UI updated: ${allRelaysToPublish.length} relays.`);
+        }
 
 
 
@@ -1002,7 +1200,27 @@
             const source = profileData?.source || 'unknown';
 
             // Création de la structure du profil
-            const profileContainer = $('<div>').addClass('profile-container').appendTo(div);
+            const profileContainer = $('<div>').addClass('profile-container')
+                .css('cursor', 'pointer')
+                .attr('title', 'Click to view full profile')
+                .on('click', function() {
+                    openProfileModal(pubkey, name);
+                })
+                .appendTo(div);
+            
+            // Add clickable indicator to main profile
+            $('<div>').addClass('profile-click-indicator')
+                .html('🔍')
+                .css({
+                    'position': 'absolute',
+                    'top': '15px',
+                    'right': '15px',
+                    'font-size': '1em',
+                    'color': '#9C27B0',
+                    'opacity': '0.8',
+                    'z-index': '10'
+                })
+                .appendTo(profileContainer);
             
             // Image et info de base
             const basicInfo = $('<div>').addClass('profile-basic-info').appendTo(profileContainer);
@@ -1051,6 +1269,12 @@
                     padding: 15px;
                     background: #232733;
                     border-radius: 8px;
+                    transition: all 0.3s ease;
+                }
+                .profile-container:hover {
+                    background: #2a2f3a;
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 15px rgba(156, 39, 176, 0.3);
                 }
                 .profile-basic-info {
                     display: flex;
@@ -1298,8 +1522,8 @@
             return { latitude: finalLat, longitude: finalLon };
         }
         // Fetch and display a batch of project proposals
-        async function fetchAndDisplayMessages(pubkey, useUmapMode = false) {
-            log(`Fetching batch of project proposals (limit ${MESSAGES_PER_PAGE}) for ${pubkey.slice(0, 10)}... ${useUmapMode ? '(UMAP mode)' : ''}`);
+        async function fetchAndDisplayMessages(pubkey, useUmapMode = false, useN2Mode = false) {
+            log(`Fetching batch of project proposals (limit ${MESSAGES_PER_PAGE}) for ${pubkey.slice(0, 10)}... ${useUmapMode ? '(UMAP mode)' : ''} ${useN2Mode ? '(N2 mode)' : ''}`);
             $('#message-section').show();
             const messageArea = $('#last-message-area').html('<i>Loading project proposals...</i>');
             const repliesList = $('#replies-list').empty().html('<li><i>Select a message...</i></li>');
@@ -1338,6 +1562,24 @@
                             limit: MESSAGES_PER_PAGE
                         }]);
                     }
+                } else if (useN2Mode) {
+                    // Mode N2: récupérer les messages du réseau personnel
+                    log("Mode N2 activé - récupération des messages du réseau personnel");
+                    
+                    // Récupérer le réseau N2 de l'utilisateur
+                    const n2Data = await fetchN2Network(pubkey);
+                    
+                    if (n2Data) {
+                        // Récupérer les messages du réseau N2
+                        events = await fetchN2Messages(n2Data);
+                    } else {
+                        log("Impossible de récupérer le réseau N2, fallback vers les messages utilisateur");
+                        events = await nostrPool.list(allRelaysToPublish, [{
+                            kinds: [1],
+                            authors: [pubkey],
+                            limit: MESSAGES_PER_PAGE
+                        }]);
+                    }
                 } else {
                     // Mode normal: récupérer les messages de l'utilisateur connecté
                     log("Mode normal - récupération des messages utilisateur");
@@ -1353,8 +1595,8 @@
                     // Sort newest first
                     fetchedMessages = events.sort((a, b) => b.created_at - a.created_at);
                     
-                    // Create slider if in UMAP mode and multiple messages
-                    if (useUmapMode && fetchedMessages.length > 1) {
+                    // Create slider if in UMAP or N2 mode and multiple messages
+                    if ((useUmapMode || useN2Mode) && fetchedMessages.length > 1) {
                         createMessageSlider();
                     }
                     
@@ -1399,8 +1641,8 @@
              $('#older-button').prop('disabled', currentMessageIndex >= fetchedMessages.length - 1);
              log(`Navigation updated: Newer ${$('#newer-button').prop('disabled')}, Older ${$('#older-button').prop('disabled')}`);
              
-             // Update slider state if in UMAP mode
-             if (umapMode && fetchedMessages.length > 1) {
+             // Update slider state if in UMAP or N2 mode
+             if ((umapMode || n2Mode) && fetchedMessages.length > 1) {
                  updateSliderState();
              }
         }
@@ -1414,8 +1656,15 @@
             // Create message header with profile info and like button
             const messageHeader = $('<div>').addClass('message-header').appendTo(item);
             
-            // Profile section
-            const profileSection = $('<div>').addClass('profile-section').appendTo(messageHeader);
+            // Profile section - make it clickable
+            const profileSection = $('<div>').addClass('profile-section')
+                .css('cursor', 'pointer')
+                .attr('title', 'Click to view full profile')
+                .on('click', function() {
+                    const profileName = $(this).find('.profile-name').text();
+                    openProfileModal(event.pubkey, profileName);
+                })
+                .appendTo(messageHeader);
             
             // Profile picture (placeholder for now, will be loaded)
             const profilePic = $('<div>').addClass('profile-pic-placeholder')
@@ -1426,6 +1675,19 @@
             const profileInfo = $('<div>').addClass('profile-info').appendTo(profileSection);
             $('<div>').addClass('profile-name').text(`Author ${event.pubkey.slice(0, 8)}...`).appendTo(profileInfo);
             $('<div>').addClass('profile-pubkey').text(event.pubkey).appendTo(profileInfo);
+            
+            // Add clickable indicator
+            $('<div>').addClass('profile-click-indicator')
+                .html('🔍')
+                .css({
+                    'position': 'absolute',
+                    'top': '5px',
+                    'right': '5px',
+                    'font-size': '0.8em',
+                    'color': '#9C27B0',
+                    'opacity': '0.7'
+                })
+                .appendTo(profileSection);
             
             // Like button
             const likeButton = $('<button>').addClass('heart-button').html('♡')
@@ -1558,8 +1820,14 @@
         function renderReply(list, event) {
             const item = $('<li>').addClass('reply-item').appendTo(list);
             
-            // Author info with enhanced styling
-            const authorP = $('<p>').addClass('reply-author').appendTo(item);
+            // Author info with enhanced styling - make it clickable
+            const authorP = $('<p>').addClass('reply-author')
+                .css('cursor', 'pointer')
+                .attr('title', 'Click to view full profile')
+                .on('click', function() {
+                    openProfileModal(event.pubkey, `Author ${event.pubkey.slice(0, 8)}...`);
+                })
+                .appendTo(item);
             authorP.append('💬 Feedback by: ');
             $('<code>').text(event.pubkey.slice(0, 10) + '...').appendTo(authorP);
             authorP.append(` 📅 ${new Date(event.created_at * 1000).toLocaleDateString()} ${new Date(event.created_at * 1000).toLocaleTimeString()}`);
@@ -1599,7 +1867,30 @@
 
         // checkNostrExtension, connectToNostr
         function checkNostrExtension() { log('Checking extension...'); if (typeof window.nostr !== 'undefined') { nostrExtensionAvailable = true; log('Extension OK.'); $('#connectButton').prop('disabled', false).text('Connect'); updateStatus('Extension ready.'); } else { nostrExtensionAvailable = false; log('Extension fail.'); $('#connectButton').prop('disabled', true).text('Extension Needed'); updateStatus('Extension not found or NSEC needed.', true); } }
-        async function connectToNostr() { if (!nostrExtensionAvailable) return; log('Connecting via extension...'); updateStatus('Connecting extension...'); $('#connectButton').prop('disabled', true); try { publicKey = await window.nostr.getPublicKey(); log(`Ext connected. Pubkey: ${publicKey.slice(0, 10)}...`); $('#connectButton').hide(); $('#postButton').prop('disabled', false); updateStatus(`Ext Connected! ${publicKey.slice(0, 10)}...`, false, true); await fetchProfileAndRelays(publicKey); await fetchAndDisplayMessages(publicKey, umapMode); } catch (e) { log(`Ext connection fail: ${e.message || e}`); updateStatus(`Ext connect failed.`, true); $('#connectButton').prop('disabled', false).show(); publicKey = ''; } }
+        async function connectToNostr() { 
+            if (!nostrExtensionAvailable) return; 
+            log('Connecting via extension...'); 
+            updateStatus('Connecting extension...'); 
+            $('#connectButton').prop('disabled', true); 
+            try { 
+                publicKey = await window.nostr.getPublicKey(); 
+                log(`Ext connected. Pubkey: ${publicKey.slice(0, 10)}...`); 
+                $('#connectButton').hide(); 
+                $('#postButton').prop('disabled', false); 
+                updateStatus(`Ext Connected! ${publicKey.slice(0, 10)}...`, false, true); 
+                
+                // Mettre à jour la liste des relais basée sur l'architecture de domaine
+                updateRelayListFromDomain();
+                
+                await fetchProfileAndRelays(publicKey); 
+                await fetchAndDisplayMessages(publicKey, umapMode, n2Mode); 
+            } catch (e) { 
+                log(`Ext connection fail: ${e.message || e}`); 
+                updateStatus(`Ext connect failed.`, true); 
+                $('#connectButton').prop('disabled', false).show(); 
+                publicKey = ''; 
+            } 
+        }
 
         // handleImageSelection, getLocation, uploadImageNip96, publishToRelay
         function handleImageSelection(event) { const f = event.target.files[0]; if (f) { log(`Image selected: ${f.name}, size: ${f.size}`); const r = new FileReader(); r.onload = (e) => { selectedImageDataUrl = e.target.result; $('#imagePreview').attr('src', selectedImageDataUrl).show(); log('Preview updated.'); }; r.onerror = (e) => { log(`File read error: ${e}`); updateStatus('Error reading image.', true); selectedImageDataUrl = null; $('#imagePreview').hide().attr('src', '#'); }; r.readAsDataURL(f); } else { log('No image selected.'); selectedImageDataUrl = null; $('#imagePreview').hide().attr('src', '#'); } }
@@ -1776,7 +2067,7 @@
                     $('#imagePreview').hide().attr('src', '#');
                     selectedImageDataUrl = null;
                     log("Scheduling project proposals refresh...");
-                    setTimeout(() => { log("Refreshing project proposals..."); fetchAndDisplayMessages(publicKey, umapMode); }, 4000);
+                    setTimeout(() => { log("Refreshing project proposals..."); fetchAndDisplayMessages(publicKey, umapMode, n2Mode); }, 4000);
                 } else {
                     updateStatus(`Failed to publish project proposal to any relays.`, true);
                 }
@@ -2040,9 +2331,15 @@
             
             const slider = $('<div>').addClass('message-slider').appendTo(sliderContainer);
             
-            // Slider header
+            // Slider header with dynamic title based on mode
             const sliderHeader = $('<div>').addClass('slider-header').appendTo(slider);
-            $('<h3>').text('🌍 UMAP Projects').appendTo(sliderHeader);
+            let sliderTitle = '🌍 UMAP Projects';
+            if (n2Mode) {
+                sliderTitle = '🌐 N2 Network Projects';
+            } else if (umapMode) {
+                sliderTitle = '🌍 UMAP Projects';
+            }
+            $('<h3>').text(sliderTitle).appendTo(sliderHeader);
             
             // Slider controls
             const sliderControls = $('<div>').addClass('slider-controls').appendTo(slider);
@@ -2113,17 +2410,20 @@
             }
         }
 
-        // --- Mode Toggle Function ---
+        // --- Mode Toggle Functions ---
         function toggleUmapMode() {
             umapMode = !umapMode;
-            const button = $('#mode-toggle');
+            n2Mode = false; // Disable N2 mode when enabling UMAP mode
+            const umapButton = $('#mode-toggle');
+            const n2Button = $('#n2-mode-toggle');
             
             if (umapMode) {
-                button.text('👤 Mode Utilisateur').css('background', 'linear-gradient(145deg, #FF9800, #F57C00)');
+                umapButton.text('👤 Mode Utilisateur').css('background', 'linear-gradient(145deg, #FF9800, #F57C00)');
+                n2Button.text('🌐 Mode N2 (Réseau personnel)').css('background', 'linear-gradient(145deg, #9C27B0, #7B1FA2)');
                 log("Mode UMAP activé - affichage des messages des zones voisines");
                 updateStatus("Mode UMAP activé - zones voisines", false, true);
             } else {
-                button.text('🌍 Mode UMAP (Zones voisines)').css('background', 'linear-gradient(145deg, #2196F3, #1976D2)');
+                umapButton.text('🌍 Mode UMAP (Zones voisines)').css('background', 'linear-gradient(145deg, #2196F3, #1976D2)');
                 log("Mode utilisateur activé - affichage des messages personnels");
                 updateStatus("Mode utilisateur activé", false, true);
                 
@@ -2133,13 +2433,43 @@
             
             // Recharger les messages avec le nouveau mode
             if (publicKey) {
-                fetchAndDisplayMessages(publicKey, umapMode);
+                fetchAndDisplayMessages(publicKey, umapMode, n2Mode);
+            }
+        }
+
+        function toggleN2Mode() {
+            n2Mode = !n2Mode;
+            umapMode = false; // Disable UMAP mode when enabling N2 mode
+            const umapButton = $('#mode-toggle');
+            const n2Button = $('#n2-mode-toggle');
+            
+            if (n2Mode) {
+                n2Button.text('👤 Mode Utilisateur').css('background', 'linear-gradient(145deg, #FF9800, #F57C00)');
+                umapButton.text('🌍 Mode UMAP (Zones voisines)').css('background', 'linear-gradient(145deg, #2196F3, #1976D2)');
+                log("Mode N2 activé - affichage des messages du réseau personnel");
+                updateStatus("Mode N2 activé - réseau personnel", false, true);
+            } else {
+                n2Button.text('🌐 Mode N2 (Réseau personnel)').css('background', 'linear-gradient(145deg, #9C27B0, #7B1FA2)');
+                log("Mode utilisateur activé - affichage des messages personnels");
+                updateStatus("Mode utilisateur activé", false, true);
+                
+                // Remove slider when switching to user mode
+                $('.message-slider').remove();
+            }
+            
+            // Recharger les messages avec le nouveau mode
+            if (publicKey) {
+                fetchAndDisplayMessages(publicKey, umapMode, n2Mode);
             }
         }
 
         // --- Initialization ---
         async function initializeApp() {
             log('initializeApp called.');
+            
+            // Mettre à jour la liste des relais basée sur l'architecture de domaine
+            updateRelayListFromDomain();
+            
             if (userNsec) {
                 log("NSEC provided. Init local key.");
                  if (typeof NostrTools === 'undefined') { updateStatus("Error: NostrTools unloaded.", true); log("Fatal: NostrTools missing."); return; }
@@ -2150,7 +2480,7 @@
                     log(`Init NSEC OK. Pubkey: ${publicKey.slice(0, 10)}...`); updateStatus(`Using NSEC key. Pubkey: ${publicKey.slice(0, 10)}...`, false, true);
                     $('#connectButton').hide(); $('#postButton').prop('disabled', false);
                     await fetchProfileAndRelays(publicKey);
-                    await fetchAndDisplayMessages(publicKey, umapMode); // Fetch initial batch with current mode
+                    await fetchAndDisplayMessages(publicKey, umapMode, n2Mode); // Fetch initial batch with current mode
                 } catch (e) {
                     log(`Error initializing NSEC: ${e.message}. Falling back.`); updateStatus('Error NSEC. Trying extension...', true);
                     privateKeyHex = null; publicKey = '';
@@ -2207,6 +2537,7 @@
             $('#imageInput').on('change', handleImageSelection);
             $('#postButton').on('click', postNostrEvent);
             $('#mode-toggle').on('click', toggleUmapMode);
+            $('#n2-mode-toggle').on('click', toggleN2Mode);
             
             // Map accordion event listeners
             $('#location-status').on('click', toggleMapAccordion);
@@ -2221,16 +2552,18 @@
             });
             $('#get-location').on('click', getCurrentLocationForMap);
             
-            // Sync display inputs with tumbler changes
-            $('#lat-display, #lon-display').on('change', function() {
-                const lat = parseFloat($('#lat-display').val()) || 0;
-                const lon = parseFloat($('#lon-display').val()) || 0;
-                
-                if (miniMarker) {
-                    miniMarker.setLatLng([lat, lon]);
+            // Profile modal event listeners
+            $(document).on('click', '.profile-modal-close', closeProfileModal);
+            $(document).on('click', '#profileModal', function(e) {
+                if (e.target === this) {
+                    closeProfileModal();
                 }
-                if (miniMap) {
-                    miniMap.setView([lat, lon], miniMap.getZoom());
+            });
+            
+            // Close profile modal on escape key
+            $(document).on('keydown', function(e) {
+                if (e.key === 'Escape' && $('#profileModal').is(':visible')) {
+                    closeProfileModal();
                 }
             });
 
@@ -2238,7 +2571,7 @@
                 if (publicKey) {
                     log("Refresh button clicked.");
                     updateStatus("Refreshing project proposals...");
-                    fetchAndDisplayMessages(publicKey, umapMode);
+                    fetchAndDisplayMessages(publicKey, umapMode, n2Mode);
                 } else {
                     log("Refresh clicked, but no public key.");
                     updateStatus("Please connect first.", true);
@@ -2403,6 +2736,214 @@
             } else {
                 log("Geolocation not supported by browser");
             }
+        }
+
+        // --- N2 Network Functions ---
+        async function fetchN2Network(pubkey) {
+            try {
+                log(`Fetching N2 network for user: ${pubkey.slice(0, 10)}...`);
+                updateStatus("Récupération du réseau N2 personnel...");
+                
+                const response = await fetch(`/api/getN2?pubkey=${pubkey}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.message || "Erreur lors de la récupération du réseau N2");
+                }
+                
+                log(`Réseau N2 récupéré: ${data.total_connections || 0} connexions`);
+                updateStatus(`Réseau N2 récupéré: ${data.total_connections || 0} connexions`, false, true);
+                
+                return data;
+                
+            } catch (error) {
+                log(`Erreur lors de la récupération du réseau N2: ${error.message}`);
+                updateStatus(`Erreur réseau N2: ${error.message}`, true);
+                return null;
+            }
+        }
+
+        async function fetchN2Messages(n2Data) {
+            if (!n2Data || !n2Data.connections) {
+                log("Impossible de récupérer les messages N2: données réseau manquantes");
+                return [];
+            }
+            
+            let nostrPool;
+            try {
+                nostrPool = getNostrPool();
+            } catch (e) {
+                log("Impossible d'obtenir le pool NOSTR pour les messages N2");
+                return [];
+            }
+            
+            try {
+                log("Récupération des messages du réseau N2...");
+                updateStatus("Récupération des messages du réseau personnel...");
+                
+                // Extraire toutes les clés hex des connexions N2
+                const n2Keys = Object.values(n2Data.connections).filter(key => key && key.length === 64);
+                
+                if (n2Keys.length === 0) {
+                    log("Aucune clé N2 valide trouvée");
+                    return [];
+                }
+                
+                log(`Récupération des messages de ${n2Keys.length} connexions N2`);
+                
+                // Récupérer les messages de toutes les connexions N2 en parallèle
+                const events = await nostrPool.list(allRelaysToPublish, [{
+                    kinds: [1],
+                    authors: n2Keys,
+                    limit: 50  // Limite par connexion
+                }]);
+                
+                if (events.length > 0) {
+                    log(`Récupéré ${events.length} messages du réseau N2`);
+                    updateStatus(`${events.length} messages récupérés du réseau personnel`, false, true);
+                    
+                    // Trier par date (plus récent en premier)
+                    return events.sort((a, b) => b.created_at - a.created_at);
+                } else {
+                    log("Aucun message trouvé dans le réseau N2");
+                    updateStatus("Aucun message dans le réseau personnel", false, true);
+                    return [];
+                }
+                
+            } catch (error) {
+                log(`Erreur lors de la récupération des messages N2: ${error.message}`);
+                updateStatus(`Erreur messages N2: ${error.message}`, true);
+                return [];
+            }
+        }
+
+        // --- Profile Modal Functions ---
+        function openProfileModal(pubkey, profileName = '') {
+            const modal = document.getElementById('profileModal');
+            const content = document.getElementById('profileModalContent');
+            
+            if (!modal || !content) {
+                log('Profile modal elements not found');
+                return;
+            }
+            
+            // Show modal
+            modal.style.display = 'block';
+            
+            // Update title with profile name if available
+            const title = document.querySelector('.profile-modal-title');
+            if (title) {
+                title.textContent = `🌐 ${profileName || 'Profile Viewer'}`;
+            }
+            
+            // Show loading state
+            content.innerHTML = '<div class="profile-modal-loading">Loading profile from IPFS...</div>';
+            
+            // Construct IPFS URL based on current domain architecture
+            // Current page is loaded from u.domain.tld:54321
+            // Profile viewer should be loaded from ipfs.domain.tld:8080
+            const ipfsUrl = getIPFSUrl(`/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${pubkey}`);
+            
+            log(`Loading profile from IPFS gateway: ${ipfsUrl}`);
+            
+            // Create iframe to load the profile
+            const iframe = document.createElement('iframe');
+            iframe.className = 'profile-modal-iframe';
+            iframe.src = ipfsUrl;
+            iframe.title = `Profile of ${profileName || pubkey.slice(0, 8)}...`;
+            
+            // Handle iframe load events
+            iframe.onload = function() {
+                content.innerHTML = '';
+                content.appendChild(iframe);
+                log(`Profile loaded from IPFS: ${ipfsUrl}`);
+            };
+            
+            iframe.onerror = function() {
+                content.innerHTML = `
+                    <div class="profile-modal-error">
+                        <div>
+                            <h4>❌ Failed to load profile</h4>
+                            <p>Could not load profile from IPFS gateway.</p>
+                            <p><strong>Public Key:</strong> ${pubkey}</p>
+                            <p><strong>URL:</strong> <a href="${ipfsUrl}" target="_blank" style="color: #9C27B0;">${ipfsUrl}</a></p>
+                            <button onclick="openProfileModal('${pubkey}', '${profileName}')" style="background: #9C27B0; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 15px;">
+                                🔄 Retry
+                            </button>
+                        </div>
+                    </div>
+                `;
+                log(`Failed to load profile from IPFS: ${ipfsUrl}`);
+            };
+            
+            // Set timeout for loading
+            setTimeout(() => {
+                if (content.querySelector('.profile-modal-loading')) {
+                    content.innerHTML = `
+                        <div class="profile-modal-error">
+                            <div>
+                                <h4>⏰ Loading timeout</h4>
+                                <p>Profile is taking too long to load.</p>
+                                <p><strong>Public Key:</strong> ${pubkey}</p>
+                                <p><strong>URL:</strong> <a href="${ipfsUrl}" target="_blank" style="color: #9C27B0;">${ipfsUrl}</a></p>
+                                <button onclick="openProfileModal('${pubkey}', '${profileName}')" style="background: #9C27B0; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 15px;">
+                                    🔄 Retry
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    log(`Profile loading timeout: ${ipfsUrl}`);
+                }
+            }, 15000); // 15 second timeout
+        }
+
+        function closeProfileModal() {
+            const modal = document.getElementById('profileModal');
+            if (modal) {
+                modal.style.display = 'none';
+                // Clear content when closing
+                const content = document.getElementById('profileModalContent');
+                if (content) {
+                    content.innerHTML = '<div class="profile-modal-loading">Loading profile...</div>';
+                }
+            }
+        }
+
+        // Sync display inputs with tumbler changes
+        $('#lat-display, #lon-display').on('change', function() {
+            const lat = parseFloat($('#lat-display').val()) || 0;
+            const lon = parseFloat($('#lon-display').val()) || 0;
+            
+            if (miniMarker) {
+                miniMarker.setLatLng([lat, lon]);
+            }
+            if (miniMap) {
+                miniMap.setView([lat, lon], miniMap.getZoom());
+            }
+        });
+
+        // Fonction pour mettre à jour dynamiquement la liste des relais
+        function updateRelayListFromDomain() {
+            const currentRelay = getRelayURL();
+            const fallbackRelay = 'wss://relay.copylaradio.com';
+            
+            // Mettre à jour la liste des relais par défaut
+            DEFAULT_RELAYS.length = 0;
+            DEFAULT_RELAYS.push(currentRelay, fallbackRelay);
+            
+            // Mettre à jour la liste complète des relais
+            allRelaysToPublish = [...DEFAULT_RELAYS];
+            
+            log(`Relay list updated from domain: ${currentRelay} (primary), ${fallbackRelay} (fallback)`);
+            
+            // Mettre à jour l'interface utilisateur
+            updateRelayListUI();
         }
     </script>
 </body>
