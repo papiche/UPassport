@@ -378,14 +378,17 @@ TOT=0
 generate_qr_with_uid() {
     local pubkey=$1
     local member_uid=$2
-    ## Extract wallet balance
+    ## Extract wallet balance using G1check.sh
     if [[ ! -s ${MY_PATH}/tmp/${pubkey}.solde ]]; then
-        solde=$($HOME/.zen/Astroport.ONE/tools/timeout.sh -t 5 $HOME/.zen/Astroport.ONE/tools/jaklis/jaklis.py balance -p ${pubkey})
-        [ ! $? -eq 0 ] \
+        solde=$($HOME/.zen/Astroport.ONE/tools/G1check.sh ${pubkey} | tail -n 1)
+        # Fallback to jaklis if G1check.sh fails
+        [ -z "$solde" ] || [[ "$solde" == "" ]] \
+            && echo "G1check.sh failed, falling back to jaklis..." \
             && GVA=$(~/.zen/Astroport.ONE/tools/duniter_getnode.sh | tail -n 1) \
             && [[ ! -z $GVA ]] && sed -i '/^NODE=/d' $HOME/.zen/Astroport.ONE/tools/jaklis/.env \
             && echo "NODE=$GVA" >> $HOME/.zen/Astroport.ONE/tools/jaklis/.env \
-            && echo "GVA RELAY: $GVA" ## GVA RELAY SWITCHING
+            && echo "GVA RELAY: $GVA" \
+            && solde=$($HOME/.zen/Astroport.ONE/tools/timeout.sh -t 5 $HOME/.zen/Astroport.ONE/tools/jaklis/jaklis.py balance -p ${pubkey})
         echo "$solde" > ${MY_PATH}/tmp/${pubkey}.solde
         sleep 2
     else
@@ -466,20 +469,21 @@ find ${MY_PATH}/tmp -mtime +3 -type f -exec rm '{}' \;
 # Detect older than 7 days "fac-simile" from ${MY_PATH}/pdf (not ls with game/passport)
 find ${MY_PATH}/pdf -type d -mtime +7 -not -xtype l -exec rm -r {} \;
 
-## GET PUBKEY TX HISTORY : working with jaklis (TODO use silkaj?)
+## GET PUBKEY TX HISTORY : using silkaj via G1history.sh
 echo "LOADING WALLET HISTORY"
-$HOME/.zen/Astroport.ONE/tools/timeout.sh -t 6 $HOME/.zen/Astroport.ONE/tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ${MY_PATH}/tmp/$PUBKEY.TX.json
-[ ! $? -eq 0 ] \
+$HOME/.zen/Astroport.ONE/tools/timeout.sh -t 30 $HOME/.zen/Astroport.ONE/tools/G1history.sh ${PUBKEY} 25 > ${MY_PATH}/tmp/$PUBKEY.TX.json
+# Fallback to jaklis if G1history.sh fails
+[ ! $? -eq 0 ] || [ ! -s ${MY_PATH}/tmp/$PUBKEY.TX.json ] \
+    && echo "G1history.sh failed, falling back to jaklis..." \
     && GVA=$(~/.zen/Astroport.ONE/tools/duniter_getnode.sh | tail -n 1) \
     && [[ ! -z $GVA ]] && sed -i '/^NODE=/d' $HOME/.zen/Astroport.ONE/tools/jaklis/.env \
     && echo "NODE=$GVA" >> $HOME/.zen/Astroport.ONE/tools/jaklis/.env \
     && $HOME/.zen/Astroport.ONE/tools/timeout.sh -t 6 $HOME/.zen/Astroport.ONE/tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ${MY_PATH}/tmp/$PUBKEY.TX.json
-    ## TEST AND SWITCH GVA SERVER
 
 
 ## EXTRACT SOLDE & ZEN
 if [[ -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]]; then
-    SOLDE=$($HOME/.zen/Astroport.ONE/tools/timeout.sh -t 20 $HOME/.zen/Astroport.ONE/tools/jaklis/jaklis.py balance -p ${PUBKEY})
+    SOLDE=$($HOME/.zen/Astroport.ONE/tools/G1check.sh ${PUBKEY} | tail -n 1)
     ZEN=$(echo "($SOLDE - 1) * 10" | bc | cut -d '.' -f 1)
 
     AMOUNT="$SOLDE Ğ1"
