@@ -525,12 +525,35 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         DEST=$(jq -r '.[-1] | .pubkey // ""' ${MY_PATH}/tmp/$PUBKEY.TX.json)
         COMM=$(jq -r '.[-1] | .comment // ""' ${MY_PATH}/tmp/$PUBKEY.TX.json)
         TXDATE=$(jq -r '.[-1] | .date // ""' ${MY_PATH}/tmp/$PUBKEY.TX.json)
+        
+        ## EXTRACT EMAIL FROM FIRST TRANSACTION COMMENT
+        FIRST_TX_COMMENT=$(jq -r '.[0] | .comment // ""' ${MY_PATH}/tmp/$PUBKEY.TX.json)
+        echo "First TX comment: $FIRST_TX_COMMENT"
+        
+        # Extract email from first transaction comment (regex for email pattern)
+        if [[ $FIRST_TX_COMMENT =~ ([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}) ]]; then
+            FIRST_TX_EMAIL="${BASH_REMATCH[1],,}" # Convert to lowercase
+            echo "Email found in first TX: $FIRST_TX_EMAIL"
+            
+            # Check if email is authenticated in WoT (exists in ~/.zen/game/nostr/)
+            if [[ -d "$HOME/.zen/game/nostr/${FIRST_TX_EMAIL}" ]]; then
+                echo "✅ Email $FIRST_TX_EMAIL is authenticated in WoT"
+                WOT_AUTHENTICATED_EMAIL="$FIRST_TX_EMAIL"
+            else
+                echo "⚠️  Email $FIRST_TX_EMAIL not found in WoT authentication"
+                WOT_AUTHENTICATED_EMAIL=""
+            fi
+        else
+            echo "No email found in first transaction comment"
+            WOT_AUTHENTICATED_EMAIL=""
+        fi
     else
         echo "Warning: TX JSON is not a valid array or is empty"
         LASTX=""
         DEST=""
         COMM=""
         TXDATE=""
+        WOT_AUTHENTICATED_EMAIL=""
     fi
 
     ## which ASTROPORT is UPASSPORT ambassy
@@ -705,6 +728,29 @@ wget -q -O ${MY_PATH}/tmp/$PUBKEY.me.json ${myDUNITER}/wot/lookup/$PUBKEY
 
 echo "# GET MEMBER UID"
 MEMBERUID=$(cat ${MY_PATH}/tmp/$PUBKEY.me.json | jq -r '.results[].uids[].uid')
+
+## EXTRACT EMAIL FROM FIRST TRANSACTION FOR NEW PASSPORT CREATION
+WOT_AUTHENTICATED_EMAIL=""
+if jq -e 'type == "array" and length > 0' ${MY_PATH}/tmp/$PUBKEY.TX.json >/dev/null 2>&1; then
+    FIRST_TX_COMMENT=$(jq -r '.[0] | .comment // ""' ${MY_PATH}/tmp/$PUBKEY.TX.json)
+    echo "First TX comment for new passport: $FIRST_TX_COMMENT"
+    
+    # Extract email from first transaction comment
+    if [[ $FIRST_TX_COMMENT =~ ([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}) ]]; then
+        FIRST_TX_EMAIL="${BASH_REMATCH[1],,}" # Convert to lowercase
+        echo "Email found in first TX: $FIRST_TX_EMAIL"
+        
+        # Check if email is authenticated in WoT
+        if [[ -d "$HOME/.zen/game/nostr/${FIRST_TX_EMAIL}" ]]; then
+            echo "✅ Email $FIRST_TX_EMAIL is authenticated in WoT for new passport"
+            WOT_AUTHENTICATED_EMAIL="$FIRST_TX_EMAIL"
+        else
+            echo "⚠️  Email $FIRST_TX_EMAIL not found in WoT authentication"
+        fi
+    else
+        echo "No email found in first transaction comment for new passport"
+    fi
+fi
 
 if [[ -z $MEMBERUID ]]; then
     ## NOT MEMBERUID : THIS IS A SIMPLE WALLET - show amount -
@@ -1087,6 +1133,102 @@ else
         echo "⚠️  CAPTAINEMAIL non défini - pas d'envoi d'email"
     else
         echo "⚠️  Passport non créé - pas d'envoi d'email"
+    fi
+fi
+
+########################################################################
+## ENVOI DU PASSPORT À L'UTILISATEUR AUTHENTIFIÉ WoT
+########################################################################
+if [[ -n "$WOT_AUTHENTICATED_EMAIL" && -s "${MY_PATH}/pdf/${PUBKEY}/_index.html" ]]; then
+    echo "Envoi du passport à l'utilisateur authentifié WoT : $WOT_AUTHENTICATED_EMAIL"
+    
+    # Créer un message personnalisé pour l'utilisateur
+    USER_PASSPORT_MESSAGE="${MY_PATH}/tmp/${PUBKEY}.user_passport_message.txt"
+    cat > "$USER_PASSPORT_MESSAGE" << EOF
+🎫 Votre Passport UPlanet est prêt !
+
+Bonjour,
+
+Votre passport UPlanet a été créé avec succès pour le membre : ${MEMBERUID}
+
+📋 Détails de votre passport :
+- Membre : ${MEMBERUID}
+- Clé publique : ${PUBKEY}
+- Date de création : $(date -u)
+- UPlanet : ${UPLANETG1PUB:0:8}
+- Solde : ${AMOUNT}
+- Localisation : ${LAT}, ${LON}
+- TOTAL : ${TOTAL} ZEN
+
+🌐 Votre passport est accessible à l'adresse :
+${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/
+
+Votre email ${WOT_AUTHENTICATED_EMAIL} a été authentifié par la Web of Trust (WoT).
+
+Bienvenue dans l'écosystème UPlanet !
+
+---
+Astroport.ONE - UPlanet Network
+EOF
+
+    # Envoyer l'email avec le passport à l'utilisateur
+    if $HOME/.zen/Astroport.ONE/tools/mailjet.sh "$WOT_AUTHENTICATED_EMAIL" "$USER_PASSPORT_MESSAGE" "Votre Passport UPlanet [${MEMBERUID}]" 2>/dev/null; then
+        echo "✅ Passport envoyé avec succès à l'utilisateur WoT : $WOT_AUTHENTICATED_EMAIL"
+    else
+        echo "⚠️  Erreur lors de l'envoi du passport à l'utilisateur : $WOT_AUTHENTICATED_EMAIL"
+    fi
+    
+    # Nettoyer le fichier temporaire
+    rm -f "$USER_PASSPORT_MESSAGE"
+else
+    if [[ -z "$WOT_AUTHENTICATED_EMAIL" ]]; then
+        echo "ℹ️  Aucun email authentifié WoT trouvé - notification au CAPITAINE"
+        
+        # Envoyer une notification au CAPITAINE quand aucun email WoT n'est trouvé
+        if [[ -n "$CAPTAINEMAIL" && -s "${MY_PATH}/pdf/${PUBKEY}/_index.html" ]]; then
+            CAPTAIN_NOTIFICATION="${MY_PATH}/tmp/${PUBKEY}.captain_notification.txt"
+            cat > "$CAPTAIN_NOTIFICATION" << EOF
+🚨 Passport UPlanet créé - Aucun email WoT authentifié
+
+Un nouveau passport UPlanet a été créé mais aucun email authentifié par la Web of Trust n'a été trouvé.
+
+📋 Détails du passport :
+- Membre : ${MEMBERUID}
+- Clé publique : ${PUBKEY}
+- Date de création : $(date -u)
+- UPlanet : ${UPLANETG1PUB:0:8}
+- Solde : ${AMOUNT}
+- Localisation : ${LAT}, ${LON}
+- TOTAL : ${TOTAL} ZEN
+
+🌐 Le passport est accessible à l'adresse :
+${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/
+
+⚠️  Statut email :
+- Email trouvé dans 1ère TX : ${FIRST_TX_EMAIL:-"Aucun"}
+- Authentification WoT : ❌ Non trouvé dans ~/.zen/game/nostr/
+
+Action requise : Vérifier si l'utilisateur doit être contacté par d'autres moyens.
+
+---
+Astroport.ONE - UPlanet Network
+Notification automatique
+EOF
+
+            # Envoyer la notification au CAPITAINE
+            if $HOME/.zen/Astroport.ONE/tools/mailjet.sh "$CAPTAINEMAIL" "$CAPTAIN_NOTIFICATION" "🚨 Passport UPlanet - Aucun email WoT [${MEMBERUID}]" 2>/dev/null; then
+                echo "✅ Notification envoyée au CAPITAINE : $CAPTAINEMAIL"
+            else
+                echo "⚠️  Erreur lors de l'envoi de la notification au CAPITAINE : $CAPTAINEMAIL"
+            fi
+            
+            # Nettoyer le fichier temporaire
+            rm -f "$CAPTAIN_NOTIFICATION"
+        else
+            echo "⚠️  CAPTAINEMAIL non défini - impossible d'envoyer la notification"
+        fi
+    else
+        echo "⚠️  Passport non créé - pas d'envoi d'email utilisateur"
     fi
 fi
 

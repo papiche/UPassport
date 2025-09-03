@@ -349,43 +349,44 @@
 <div id="overlay" class="overlay">
     <div class="overlay-content">
         <span class="close-btn" onclick="closeOverlay()">&times;</span>
-        <h2>Write a Message on "UPLANET"</h2>
+        <h2>Inviter un ami à rejoindre UPlanet</h2>
         <form id="dataForm" class="form-grid">
             <div class="form-group">
-                <label for="pubkey">ULAT :</label>
-                <input type="text" id="ulat" name="ulat" readonly>
+                <label for="memberInfo">Membre WoT trouvé :</label>
+                <input type="text" id="memberInfo" name="memberInfo" readonly>
             </div>
             <div class="form-group">
-                <label for="pubkey">ULON :</label>
-                <input type="text" id="ulon" name="ulon" readonly>
-            </div>
-            <div class="form-group">
-                <label for="pubkey">Clé publique :</label>
-                <input type="text" id="pubkey" name="pubkey" readonly>
-            </div>
-            <div class="form-group">
-                <label for="uid">UID :</label>
-                <input type="text" id="uid" name="uid" readonly>
-            </div>
-            <div class="form-group">
-                <label for="relation">Relation :</label>
+                <label for="relation">Votre relation :</label>
                 <input type="text" id="relation" name="relation" readonly>
             </div>
             <div class="form-group">
-                <label for="pubkeyUpassport">Your UPassport N° :</label>
+                <label for="pubkeyUpassport">Votre UPassport :</label>
                 <input type="text" id="pubkeyUpassport" name="pubkeyUpassport" readonly>
             </div>
             <div class="form-group">
-                <label for="email">"MULTIPASS" Email :</label>
-                <input type="email" id="email" name="email">
+                <label for="friendEmail">📧 Email de votre ami :</label>
+                <input type="email" id="friendEmail" name="friendEmail" placeholder="ami@exemple.com" required>
             </div>
             <div class="form-group">
-                <label for="message">Message :</label>
-                <textarea id="message" name="message" rows="4"></textarea>
+                <label for="friendName">👤 Nom/Prénom de votre ami :</label>
+                <input type="text" id="friendName" name="friendName" placeholder="Jean Dupont">
             </div>
+            <div class="form-group">
+                <label for="yourName">🙋 Votre nom/prénom :</label>
+                <input type="text" id="yourName" name="yourName" placeholder="Votre nom">
+            </div>
+            <div class="form-group">
+                <label for="personalMessage">💬 Message personnel :</label>
+                <textarea id="personalMessage" name="personalMessage" rows="4" placeholder="Salut ! Je viens de rejoindre UPlanet, un réseau social décentralisé basé sur la blockchain Ğ1. Tu devrais essayer, c'est génial !"></textarea>
+            </div>
+            <!-- Champs cachés pour les données techniques -->
+            <input type="hidden" id="ulat" name="ulat">
+            <input type="hidden" id="ulon" name="ulon">
+            <input type="hidden" id="pubkey" name="pubkey">
+            <input type="hidden" id="uid" name="uid">
             <div id="reponse"></div>
             <div class="form-group form-submit">
-                <button id="submitButton" type="submit">Send</button>
+                <button id="submitButton" type="submit">📨 Envoyer l'invitation</button>
             </div>
         </form>
     </div>
@@ -432,14 +433,63 @@
 
         function openOverlay(info) {
             const pubkeyUpassport = extractPubkeyUpassportFromUrl();
+            
+            // Remplir les champs cachés
             document.getElementById('pubkey').value = info.pubkey;
             document.getElementById('uid').value = info.uid;
-            document.getElementById('relation').value = info.relation;
             document.getElementById('ulat').value = info.ulat;
             document.getElementById('ulon').value = info.ulon;
             document.getElementById('pubkeyUpassport').value = pubkeyUpassport;
+            
+            // Remplir les champs visibles
+            document.getElementById('memberInfo').value = `${info.uid} (${info.pubkey.substring(0, 12)}...)`;
+            document.getElementById('relation').value = getRelationLabel(info.relation);
+            
+            // Vider les champs utilisateur et préremplir le message d'invitation
+            document.getElementById('friendEmail').value = '';
+            document.getElementById('friendName').value = '';
+            document.getElementById('yourName').value = '';
+            
+            // Message d'invitation personnalisé et clair
+            const relationLabel = getRelationLabel(info.relation);
+            const memberName = info.uid || 'un membre';
+            
+            const invitationMessage = `Salut !
+
+Je viens de rejoindre UPlanet et j'aimerais t'inviter à découvrir cette plateforme !
+
+🌍 UPlanet, c'est quoi ?
+- Un réseau social décentralisé basé sur la monnaie libre Ğ1
+- Une économie collaborative et équitable  
+- Ton identité numérique en toute souveraineté
+- Des échanges directs sans intermédiaires
+
+🤝 Pourquoi cette invitation ?
+Je fais partie du réseau de confiance de ${memberName} (${relationLabel.replace(/[🤝👥👤]/g, '').trim()}) et je pense que UPlanet pourrait t'intéresser.
+
+🚀 Comment rejoindre UPlanet ?
+1. Crée ton compte Ğ1 : https://cesium.app
+2. Obtiens tes certifications dans la toile de confiance
+3. Génère ton UPassport : https://uplanet.org
+
+💡 Besoin d'aide ?
+Je serai ravi de t'accompagner dans tes premiers pas !
+
+À bientôt sur UPlanet ! 🌟`;
+            
+            document.getElementById('personalMessage').value = invitationMessage;
+            
             document.getElementById('overlay').style.display = 'block';
-            log(`Overlay opened with PUBKEYUPASSPORT: ${pubkeyUpassport}`);
+            log(`Overlay opened for invitation - Member: ${info.uid}, Relation: ${info.relation}`);
+        }
+        
+        function getRelationLabel(relation) {
+            switch(relation) {
+                case 'p2p': return '🤝 Relation mutuelle (P2P)';
+                case 'certin': return '👥 Vous suit (12P)';
+                case 'certout': return '👤 Vous suivez (P21)';
+                default: return relation;
+            }
         }
 
         function closeOverlay() {
@@ -601,12 +651,22 @@ function createCarousel(images, containerId) {
             form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(form);
-            console.log(Object.fromEntries(formData));
+            console.log('Sending invitation with data:', Object.fromEntries(formData));
             const serverUrl = getModifiedServerUrl() + '/sendmsg';
 
-            // Changer le texte du bouton à "Sending..."
-            submitButton.textContent = "Sending...";
+            // Validation côté client
+            const friendEmail = formData.get('friendEmail');
+            if (!friendEmail || !friendEmail.trim()) {
+                responseDiv.textContent = "Veuillez saisir l'email de votre ami";
+                responseDiv.style.color = "red";
+                return;
+            }
+
+            // Changer le texte du bouton à "Envoi en cours..."
+            submitButton.textContent = "📨 Envoi en cours...";
+            submitButton.disabled = true;
             responseDiv.textContent = "";
+            
             try {
                 const response = await fetch(serverUrl, {
                     method: 'POST',
@@ -615,32 +675,73 @@ function createCarousel(images, containerId) {
                         'Accept': 'application/json'
                     }
                 });
-                submitButton.textContent = "Done";
 
-                if (response.ok) {
-                    log('Data sent successfully');
-                    responseDiv.textContent = "Message sent successfully!";
-                    responseDiv.style.color = "green";
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    submitButton.textContent = "✅ Envoyé !";
+                    submitButton.style.backgroundColor = "#4CAF50";
+                    log('Invitation sent successfully');
+                    responseDiv.innerHTML = `
+                        <div style="color: green; padding: 10px; background-color: #e8f5e8; border-radius: 5px;">
+                            <strong>✅ Invitation envoyée !</strong><br>
+                            ${result.message}
+                        </div>
+                    `;
+                    
+                    // Fermer l'overlay après 3 secondes
+                    setTimeout(() => {
+                        closeOverlay();
+                        // Reset form
+                        form.reset();
+                        submitButton.textContent = "📨 Envoyer l'invitation";
+                        submitButton.disabled = false;
+                        submitButton.style.backgroundColor = "#4CAF50";
+                    }, 3000);
+                    
                 } else {
-                    log('Failed to send data');
-                    responseDiv.textContent = "Failed to send message. Please try again.";
-                    responseDiv.style.color = "red";
+                    submitButton.textContent = "❌ Erreur";
+                    submitButton.style.backgroundColor = "#f44336";
+                    log('Failed to send invitation');
+                    responseDiv.innerHTML = `
+                        <div style="color: red; padding: 10px; background-color: #ffebee; border-radius: 5px;">
+                            <strong>❌ Erreur d'envoi</strong><br>
+                            ${result.detail || result.message || 'Erreur inconnue'}
+                        </div>
+                    `;
                 }
             } catch (error) {
                 // Changer le texte du bouton à "ERROR"
-                submitButton.textContent = "ERROR";
-                submitButton.style.color = "orange";
+                submitButton.textContent = "❌ Erreur réseau";
+                submitButton.style.backgroundColor = "#ff9800";
 
-                log(`Error sending data: ${error.message}`);
-                responseDiv.textContent = error.message;
-                responseDiv.style.color = "orange";
+                log(`Error sending invitation: ${error.message}`);
+                responseDiv.innerHTML = `
+                    <div style="color: orange; padding: 10px; background-color: #fff3e0; border-radius: 5px;">
+                        <strong>⚠️ Erreur de connexion</strong><br>
+                        ${error.message}
+                    </div>
+                `;
+            }
+            
+            // Réactiver le bouton après 5 secondes en cas d'erreur
+            if (submitButton.textContent.includes('❌')) {
+                setTimeout(() => {
+                    submitButton.textContent = "📨 Envoyer l'invitation";
+                    submitButton.disabled = false;
+                    submitButton.style.backgroundColor = "#4CAF50";
+                }, 5000);
             }
             });
 
-            submitButton.textContent = "OK";
-            submitButton.style.color = "green";
-            responseDiv.textContent = "Please enter a valid ZenCard email";
-            responseDiv.style.color = "blue";
+            submitButton.textContent = "📨 Envoyer l'invitation";
+            submitButton.style.backgroundColor = "#4CAF50";
+            responseDiv.innerHTML = `
+                <div style="color: blue; padding: 10px; background-color: #e3f2fd; border-radius: 5px;">
+                    <strong>💡 Comment ça marche ?</strong><br>
+                    Cliquez sur un membre de votre réseau pour lui envoyer une invitation UPlanet personnalisée !
+                </div>
+            `;
             log('Application initialized');
         }
 

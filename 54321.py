@@ -3033,6 +3033,260 @@ async def get_n2_network(
         logging.error(f"Erreur lors de l'analyse N2: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de l'analyse: {str(e)}")
 
+@app.post("/sendmsg")
+async def send_invitation_message(
+    friendEmail: str = Form(...),
+    friendName: str = Form(default=""),
+    yourName: str = Form(default=""),
+    personalMessage: str = Form(default=""),
+    memberInfo: str = Form(default=""),
+    relation: str = Form(default=""),
+    pubkeyUpassport: str = Form(default=""),
+    ulat: str = Form(default=""),
+    ulon: str = Form(default=""),
+    pubkey: str = Form(default=""),
+    uid: str = Form(default="")
+):
+    """
+    Envoyer une invitation UPlanet à un ami via email
+    
+    Ce endpoint reçoit les données du formulaire N1 et génère un message d'invitation
+    personnalisé qui sera envoyé via mailjet.sh
+    """
+    try:
+        logging.info(f"Invitation UPlanet pour: {friendEmail} de la part de: {yourName}")
+        
+        # Validation de l'email ami
+        if not friendEmail or not friendEmail.strip():
+            raise HTTPException(status_code=400, detail="Email de l'ami requis")
+        
+        # Validation basique de l'email
+        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', friendEmail):
+            raise HTTPException(status_code=400, detail="Format d'email invalide")
+        
+        # Préparer les informations pour le message
+        friend_name = friendName.strip() if friendName else "Ami"
+        sender_name = yourName.strip() if yourName else "Un membre UPlanet"
+        personal_msg = personalMessage.strip() if personalMessage else ""
+        
+        # Utiliser directement le message prérempli (déjà clair et complet)
+        invitation_html = f"""
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Invitation UPlanet</title>
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; text-align: center;">
+                <h1>🌍 Invitation UPlanet</h1>
+                <p>De la part de {sender_name}</p>
+            </div>
+            
+            <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <pre style="white-space: pre-wrap; font-family: Arial, sans-serif; margin: 0;">{personal_msg}</pre>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="https://uplanet.org" style="background-color: #4CAF50; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">🚀 Rejoindre UPlanet</a>
+            </div>
+            
+            <footer style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
+                <p>Ce message a été envoyé via UPlanet - Réseau social décentralisé</p>
+            </footer>
+        </body>
+        </html>
+        """
+        
+        # Sauvegarder le message dans un fichier temporaire
+        timestamp = int(time.time())
+        temp_message_file = f"/tmp/uplanet_invitation_{timestamp}.html"
+        
+        with open(temp_message_file, 'w', encoding='utf-8') as f:
+            f.write(invitation_html)
+        
+        # Préparer le sujet de l'email
+        subject = f"🌍 {sender_name} vous invite à rejoindre UPlanet !"
+        
+        # Appeler mailjet.sh pour envoyer l'email
+        mailjet_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/mailjet.sh")
+        
+        if not os.path.exists(mailjet_script):
+            raise HTTPException(status_code=500, detail="Script mailjet.sh non trouvé")
+        
+        # Exécuter mailjet.sh
+        process = await asyncio.create_subprocess_exec(
+            mailjet_script,
+            friendEmail,
+            temp_message_file,
+            subject,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        # Nettoyer le fichier temporaire
+        try:
+            os.remove(temp_message_file)
+        except Exception as e:
+            logging.warning(f"Erreur suppression fichier temp: {e}")
+        
+        if process.returncode == 0:
+            logging.info(f"✅ Invitation envoyée avec succès à {friendEmail}")
+            return JSONResponse({
+                "success": True,
+                "message": f"Invitation envoyée avec succès à {friend_name} ({friendEmail}) !",
+                "details": {
+                    "recipient": friendEmail,
+                    "sender": sender_name,
+                    "subject": subject
+                }
+            })
+        else:
+            error_msg = stderr.decode().strip() if stderr else "Erreur inconnue"
+            logging.error(f"❌ Erreur mailjet.sh: {error_msg}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Erreur lors de l'envoi: {error_msg}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Erreur lors de l'envoi d'invitation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
+
+def create_invitation_message(
+    friend_name: str,
+    sender_name: str,
+    personal_message: str,
+    member_info: str,
+    relation: str,
+    pubkey_passport: str,
+    wot_member_uid: str,
+    wot_member_pubkey: str,
+    ulat: str,
+    ulon: str
+) -> str:
+    """Créer le message d'invitation HTML personnalisé"""
+    
+    # Obtenir l'URL de la gateway IPFS
+    myipfs_gateway = get_myipfs_gateway()
+    
+    # Créer le lien vers le passport si disponible
+    passport_link = ""
+    if pubkey_passport:
+        passport_link = f'<p>🎫 <a href="{myipfs_gateway}/ipfs/HASH/{pubkey_passport}/" target="_blank">Voir mon UPassport</a></p>'
+    
+    # Informations sur le membre WoT trouvé
+    wot_info = ""
+    if wot_member_uid and relation:
+        relation_text = {
+            'p2p': 'nous nous certifions mutuellement',
+            'certin': 'cette personne me certifie',
+            'certout': 'je certifie cette personne'
+        }.get(relation.replace('🤝 Relation mutuelle (P2P)', 'p2p')
+              .replace('👥 Vous suit (12P)', 'certin')
+              .replace('👤 Vous suivez (P21)', 'certout'), relation)
+        
+        wot_info = f"""
+        <div style="background-color: #f0f8ff; padding: 15px; border-radius: 8px; margin: 15px 0;">
+            <h3>🔗 Connexion via la Web of Trust</h3>
+            <p>J'ai trouvé <strong>{wot_member_uid}</strong> dans mon réseau de confiance Ğ1.</p>
+            <p>Notre relation : {relation_text}</p>
+            <p><small>Clé publique : {wot_member_pubkey[:20]}...</small></p>
+        </div>
+        """
+    
+    # Message personnel
+    personal_section = ""
+    if personal_message:
+        personal_section = f"""
+        <div style="background-color: #fff8dc; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ffd700;">
+            <h3>💬 Message personnel de {sender_name}</h3>
+            <p style="font-style: italic;">"{personal_message}"</p>
+        </div>
+        """
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Invitation UPlanet</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; text-align: center; }}
+            .content {{ padding: 20px 0; }}
+            .cta-button {{ display: inline-block; background: #4CAF50; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }}
+            .footer {{ background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin-top: 30px; text-align: center; font-size: 0.9em; color: #666; }}
+            .highlight {{ background-color: #e8f5e8; padding: 10px; border-radius: 5px; margin: 10px 0; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>🌍 Bienvenue dans UPlanet !</h1>
+            <p>Vous êtes invité(e) à rejoindre le réseau social décentralisé</p>
+        </div>
+        
+        <div class="content">
+            <h2>Bonjour {friend_name} ! 👋</h2>
+            
+            <p><strong>{sender_name}</strong> vous invite à découvrir <strong>UPlanet</strong>, un réseau social révolutionnaire basé sur :</p>
+            
+            <div class="highlight">
+                <ul>
+                    <li>🔐 <strong>Blockchain Ğ1</strong> - Monnaie libre et décentralisée</li>
+                    <li>🌐 <strong>IPFS</strong> - Stockage distribué et censure-résistant</li>
+                    <li>⚡ <strong>NOSTR</strong> - Protocole de communication décentralisé</li>
+                    <li>🤝 <strong>Web of Trust</strong> - Réseau de confiance humain</li>
+                </ul>
+            </div>
+            
+            {personal_section}
+            
+            {wot_info}
+            
+            <h3>🚀 Pourquoi rejoindre UPlanet ?</h3>
+            <ul>
+                <li>✅ <strong>Liberté totale</strong> - Vos données vous appartiennent</li>
+                <li>✅ <strong>Pas de censure</strong> - Communication libre et ouverte</li>
+                <li>✅ <strong>Économie circulaire</strong> - Échanges en monnaie libre Ğ1</li>
+                <li>✅ <strong>Communauté bienveillante</strong> - Basée sur la confiance mutuelle</li>
+                <li>✅ <strong>Innovation technologique</strong> - À la pointe du Web3</li>
+            </ul>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{myipfs_gateway}/scan" class="cta-button">
+                    🎫 Créer mon UPassport maintenant !
+                </a>
+            </div>
+            
+            {passport_link}
+            
+            <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <h4>📱 Comment commencer ?</h4>
+                <ol>
+                    <li>Cliquez sur le bouton ci-dessus</li>
+                    <li>Scannez votre QR code Ğ1 (ou créez un compte)</li>
+                    <li>Obtenez votre UPassport personnalisé</li>
+                    <li>Rejoignez la communauté UPlanet !</li>
+                </ol>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Cette invitation vous a été envoyée par <strong>{sender_name}</strong></p>
+            <p>UPlanet - Le réseau social du futur, décentralisé et libre</p>
+            <p><small>Propulsé par Astroport.ONE - Technologie blockchain Ğ1</small></p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html_content
+
 @app.post("/api/test-nostr")
 async def test_nostr_auth(npub: str = Form(...)):
     """Tester l'authentification NOSTR pour une npub donnée"""
