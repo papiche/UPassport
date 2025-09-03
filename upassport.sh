@@ -482,7 +482,8 @@ $HOME/.zen/Astroport.ONE/tools/timeout.sh -t 30 $HOME/.zen/Astroport.ONE/tools/G
 
 
 ## EXTRACT SOLDE & ZEN
-if [[ -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]]; then
+# Validate JSON file exists and is valid JSON
+if [[ -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]] && jq empty ${MY_PATH}/tmp/$PUBKEY.TX.json >/dev/null 2>&1; then
     SOLDE=$($HOME/.zen/Astroport.ONE/tools/G1check.sh ${PUBKEY} | tail -n 1)
     ZEN=$(echo "($SOLDE - 1) * 10" | bc | cut -d '.' -f 1)
 
@@ -491,10 +492,19 @@ if [[ -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]]; then
     [[ $SOLDE == "" ]] && AMOUNT="TIMEOUT"
     [[ $ZCHK == "ZEN" || $ZCHK == "" ]] && AMOUNT="$ZEN ẑ€N"
 else
+    # Better error message based on what went wrong
+    if [[ ! -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]]; then
+        ERROR_MSG="TX HISTORY FILE MISSING OR EMPTY<br>Check network connection"
+    elif ! jq empty ${MY_PATH}/tmp/$PUBKEY.TX.json >/dev/null 2>&1; then
+        ERROR_MSG="INVALID JSON RESPONSE<br>silkaj/jaklis returned malformed data"
+    else
+        ERROR_MSG="PRIMAL EXTRACT ERROR<br>╭∩╮ (òÓ,) ╭∩╮"
+    fi
+    
     cat ${MY_PATH}/templates/message.html \
     | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
          -e "s~#000~#F00~g" \
-         -e "s~_MESSAGE_~PRIMAL EXTRACT ERROR<br>╭∩╮ (òÓ,) ╭∩╮~g" \
+         -e "s~_MESSAGE_~${ERROR_MSG}~g" \
         > ${MY_PATH}/tmp/${MOATS}.out.html
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
@@ -508,11 +518,20 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
     ZEROCARD=$(cat ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD)
     echo "G1 ZEROCARD FOUND: ${ZEROCARD}"
     ## CHECK IF MEMBER SENT TX TO ZEROCARD
-    jq '.[-1]' ${MY_PATH}/tmp/$PUBKEY.TX.json
-    LASTX=$(jq '.[-1] | .amount' ${MY_PATH}/tmp/$PUBKEY.TX.json)
-    DEST=$(jq -r '.[-1] | .pubkey' ${MY_PATH}/tmp/$PUBKEY.TX.json)
-    COMM=$(jq -r '.[-1] | .comment' ${MY_PATH}/tmp/$PUBKEY.TX.json)
-    TXDATE=$(jq -r '.[-1] | .date' ${MY_PATH}/tmp/$PUBKEY.TX.json)
+    # First check if JSON is valid and is an array
+    if jq -e 'type == "array" and length > 0' ${MY_PATH}/tmp/$PUBKEY.TX.json >/dev/null 2>&1; then
+        jq '.[-1]' ${MY_PATH}/tmp/$PUBKEY.TX.json
+        LASTX=$(jq -r '.[-1] | .amount // ""' ${MY_PATH}/tmp/$PUBKEY.TX.json)
+        DEST=$(jq -r '.[-1] | .pubkey // ""' ${MY_PATH}/tmp/$PUBKEY.TX.json)
+        COMM=$(jq -r '.[-1] | .comment // ""' ${MY_PATH}/tmp/$PUBKEY.TX.json)
+        TXDATE=$(jq -r '.[-1] | .date // ""' ${MY_PATH}/tmp/$PUBKEY.TX.json)
+    else
+        echo "Warning: TX JSON is not a valid array or is empty"
+        LASTX=""
+        DEST=""
+        COMM=""
+        TXDATE=""
+    fi
 
     ## which ASTROPORT is UPASSPORT ambassy
     [[ -s ${MY_PATH}/pdf/${PUBKEY}/ASTROPORT ]] \
@@ -562,7 +581,8 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
     fi
 
     ## CHECK IF OUTGOING TX
-    if [ "$(echo "$LASTX < 0" | bc)" -eq 1 ]; then
+    # Check if LASTX is a valid number before using bc
+    if [[ -n "$LASTX" && "$LASTX" =~ ^-?[0-9]+\.?[0-9]*$ ]] && [ "$(echo "$LASTX < 0" | bc)" -eq 1 ]; then
     ######################################################################
       echo "TX: $DEST ($COMM)"
       if [[ "$ZEROCARD" == "$DEST" ]]; then
