@@ -1028,4 +1028,46 @@ cat ${MY_PATH}/static/zine/UPassport.html \
 
 echo "${MY_PATH}/pdf/${PUBKEY}/_index.html"
 
+########################################################################
+## ENVOI DU PASSPORT AU CAPITAINE PAR EMAIL
+########################################################################
+if [[ -n "$CAPTAINEMAIL" && -s "${MY_PATH}/pdf/${PUBKEY}/_index.html" ]]; then
+    echo "Envoi du passport créé au CAPITAINE : $CAPTAINEMAIL"
+    
+    # Créer un message d'accompagnement
+    PASSPORT_MESSAGE="${MY_PATH}/tmp/${PUBKEY}.passport_message.txt"
+    cat > "$PASSPORT_MESSAGE" << EOF
+🎫 Nouveau Passport UPlanet créé !
+
+Membre : ${MEMBERUID}
+Clé publique : ${PUBKEY}
+Date de création : $(date -u)
+UPlanet : ${UPLANETG1PUB:0:8}
+
+Le passport est disponible à l'adresse :
+${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/
+
+Détails du membre :
+- Solde : ${AMOUNT}
+- Localisation : ${LAT}, ${LON}
+- Total certifications : ${TOTAL}
+EOF
+
+    # Envoyer l'email avec le passport
+    if $HOME/.zen/Astroport.ONE/tools/mailjet.sh "$CAPTAINEMAIL" "$PASSPORT_MESSAGE" 2>/dev/null; then
+        echo "✅ Passport envoyé avec succès au CAPITAINE : $CAPTAINEMAIL"
+    else
+        echo "⚠️  Erreur lors de l'envoi du passport au CAPITAINE : $CAPTAINEMAIL"
+    fi
+    
+    # Nettoyer le fichier temporaire
+    rm -f "$PASSPORT_MESSAGE"
+else
+    if [[ -z "$CAPTAINEMAIL" ]]; then
+        echo "⚠️  CAPTAINEMAIL non défini - pas d'envoi d'email"
+    else
+        echo "⚠️  Passport non créé - pas d'envoi d'email"
+    fi
+fi
+
 exit 0
