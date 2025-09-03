@@ -1050,7 +1050,7 @@ ${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/
 Détails du membre :
 - Solde : ${AMOUNT}
 - Localisation : ${LAT}, ${LON}
-- Total certifications : ${TOTAL}
+- TOTAL : ${TOTAL} ZEN
 EOF
 
     # Envoyer l'email avec le passport
