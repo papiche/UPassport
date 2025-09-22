@@ -472,14 +472,6 @@ find ${MY_PATH}/pdf -type d -mtime +7 -not -xtype l -exec rm -r {} \;
 ## GET PUBKEY TX HISTORY : using silkaj via G1history.sh
 echo "LOADING WALLET HISTORY"
 $HOME/.zen/Astroport.ONE/tools/timeout.sh -t 30 $HOME/.zen/Astroport.ONE/tools/G1history.sh ${PUBKEY} 25 > ${MY_PATH}/tmp/$PUBKEY.TX.json
-# Fallback to jaklis if G1history.sh fails
-[ ! $? -eq 0 ] || [ ! -s ${MY_PATH}/tmp/$PUBKEY.TX.json ] \
-    && echo "G1history.sh failed, falling back to jaklis..." \
-    && GVA=$(~/.zen/Astroport.ONE/tools/duniter_getnode.sh | tail -n 1) \
-    && [[ ! -z $GVA ]] && sed -i '/^NODE=/d' $HOME/.zen/Astroport.ONE/tools/jaklis/.env \
-    && echo "NODE=$GVA" >> $HOME/.zen/Astroport.ONE/tools/jaklis/.env \
-    && $HOME/.zen/Astroport.ONE/tools/timeout.sh -t 6 $HOME/.zen/Astroport.ONE/tools/jaklis/jaklis.py history -n 25 -p ${PUBKEY} -j > ${MY_PATH}/tmp/$PUBKEY.TX.json
-
 
 ## EXTRACT SOLDE & ZEN
 # Validate JSON file exists and is valid JSON
@@ -527,20 +519,19 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         TXDATE=$(jq -r '.[-1] | .date // ""' ${MY_PATH}/tmp/$PUBKEY.TX.json)
         
         ## EXTRACT EMAIL FROM FIRST TRANSACTION COMMENT
-        FIRST_TX_COMMENT=$(jq -r '.[0] | .comment // ""' ${MY_PATH}/tmp/$PUBKEY.TX.json)
-        echo "First TX comment: $FIRST_TX_COMMENT"
+        echo "TX comment: $COMM"
         
         # Extract email from first transaction comment (regex for email pattern)
-        if [[ $FIRST_TX_COMMENT =~ ([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}) ]]; then
-            FIRST_TX_EMAIL="${BASH_REMATCH[1],,}" # Convert to lowercase
+        if [[ $COMM =~ ([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}) ]]; then
+            FIRST_TX_EMAIL="${COMM,,}" # Convert to lowercase
             echo "Email found in first TX: $FIRST_TX_EMAIL"
             
-            # Check if email is authenticated in WoT (exists in ~/.zen/game/nostr/)
+            # Check if email is related to a MULTIPASS (exists in ~/.zen/game/nostr/)
             if [[ -d "$HOME/.zen/game/nostr/${FIRST_TX_EMAIL}" ]]; then
-                echo "✅ Email $FIRST_TX_EMAIL is authenticated in WoT"
+                echo "✅ Email $FIRST_TX_EMAIL is related to a MULTIPASS"
                 WOT_AUTHENTICATED_EMAIL="$FIRST_TX_EMAIL"
             else
-                echo "⚠️  Email $FIRST_TX_EMAIL not found in WoT authentication"
+                echo "⚠️  Email $FIRST_TX_EMAIL not found in MULTIPASS"
                 WOT_AUTHENTICATED_EMAIL=""
             fi
         else
@@ -668,6 +659,45 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         echo $IPFSNODEID > ${MY_PATH}/pdf/${PUBKEY}/ASTROPORT
         echo "NEW IPFSPORTAL : ${myIPFS}/ipfs/${IPFSPORTAL} $(cat ${MY_PATH}/pdf/${PUBKEY}/DATE)"
 
+        ## UPDATE NOSTR PROFILE IF EMAIL AUTHENTICATED
+        if [[ -n "$WOT_AUTHENTICATED_EMAIL" ]]; then
+            echo "🔄 Updating NOSTR profile G1PUB field for ${WOT_AUTHENTICATED_EMAIL} during activation"
+            if [[ -s "$HOME/.zen/game/nostr/${WOT_AUTHENTICATED_EMAIL}/.secret.nostr" ]]; then
+                # Extract NSEC from .secret.nostr file
+                NSEC_LINE=$(grep "NSEC=" "$HOME/.zen/game/nostr/${WOT_AUTHENTICATED_EMAIL}/.secret.nostr" 2>/dev/null)
+                if [[ -n "$NSEC_LINE" ]]; then
+                    NSEC_VALUE=$(echo "$NSEC_LINE" | cut -d'=' -f2)
+                    # Get current G1PUB from G1PUBNOSTR file if exists
+                    CURRENT_G1PUB=""
+                    if [[ -s "$HOME/.zen/game/nostr/${WOT_AUTHENTICATED_EMAIL}/G1PUBNOSTR" ]]; then
+                        CURRENT_G1PUB=$(cat "$HOME/.zen/game/nostr/${WOT_AUTHENTICATED_EMAIL}/G1PUBNOSTR")
+                    fi
+                    
+                    # Create new G1PUB value: current:source_pubkey
+                    NEW_G1PUB="${CURRENT_G1PUB}:${PUBKEY}"
+                    
+                    # Update NOSTR profile using nostr_update_profile.py
+                    echo "📝 Updating G1PUB during activation: $NEW_G1PUB"
+                    $HOME/.zen/Astroport.ONE/tools/nostr_update_profile.py \
+                        "$NSEC_VALUE" \
+                        "ws://127.0.0.1:7777" \
+                        --g1pub "$NEW_G1PUB" 2>/dev/null
+                    
+                    if [[ $? -eq 0 ]]; then
+                        echo "✅ NOSTR profile updated successfully during activation"
+                        # Update local G1PUBNOSTR file
+                        echo "$NEW_G1PUB" > "$HOME/.zen/game/nostr/${WOT_AUTHENTICATED_EMAIL}/G1PUBNOSTR"
+                    else
+                        echo "⚠️  Failed to update NOSTR profile during activation"
+                    fi
+                else
+                    echo "⚠️  NSEC not found in .secret.nostr file for ${WOT_AUTHENTICATED_EMAIL}"
+                fi
+            else
+                echo "⚠️  .secret.nostr file not found for ${WOT_AUTHENTICATED_EMAIL}"
+            fi
+        fi
+
         ## IMPORT ZEROCARD into LOCAL IPFS KEYS
         ## Décodage clef IPNS par secret UPLANETNAME
         cat ${MY_PATH}/pdf/${PUBKEY}/IPNS.uplanet.asc | gpg -d --passphrase "${UPLANETNAME}" --batch > ${MY_PATH}/tmp/${MOATS}.ipns
@@ -728,29 +758,6 @@ wget -q -O ${MY_PATH}/tmp/$PUBKEY.me.json ${myDUNITER}/wot/lookup/$PUBKEY
 
 echo "# GET MEMBER UID"
 MEMBERUID=$(cat ${MY_PATH}/tmp/$PUBKEY.me.json | jq -r '.results[].uids[].uid')
-
-## EXTRACT EMAIL FROM FIRST TRANSACTION FOR NEW PASSPORT CREATION
-WOT_AUTHENTICATED_EMAIL=""
-if jq -e 'type == "array" and length > 0' ${MY_PATH}/tmp/$PUBKEY.TX.json >/dev/null 2>&1; then
-    FIRST_TX_COMMENT=$(jq -r '.[0] | .comment // ""' ${MY_PATH}/tmp/$PUBKEY.TX.json)
-    echo "First TX comment for new passport: $FIRST_TX_COMMENT"
-    
-    # Extract email from first transaction comment
-    if [[ $FIRST_TX_COMMENT =~ ([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}) ]]; then
-        FIRST_TX_EMAIL="${BASH_REMATCH[1],,}" # Convert to lowercase
-        echo "Email found in first TX: $FIRST_TX_EMAIL"
-        
-        # Check if email is authenticated in WoT
-        if [[ -d "$HOME/.zen/game/nostr/${FIRST_TX_EMAIL}" ]]; then
-            echo "✅ Email $FIRST_TX_EMAIL is authenticated in WoT for new passport"
-            WOT_AUTHENTICATED_EMAIL="$FIRST_TX_EMAIL"
-        else
-            echo "⚠️  Email $FIRST_TX_EMAIL not found in WoT authentication"
-        fi
-    else
-        echo "No email found in first transaction comment for new passport"
-    fi
-fi
 
 if [[ -z $MEMBERUID ]]; then
     ## NOT MEMBERUID : THIS IS A SIMPLE WALLET - show amount -
