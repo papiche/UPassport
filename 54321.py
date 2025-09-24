@@ -2725,6 +2725,21 @@ class UrbanivoreResourceResponse(BaseModel):
     timestamp: str
     auth_verified: bool
 
+class CopyProjectRequest(BaseModel):
+    project_url: str  # URL IPFS du projet (ex: /ipfs/QmHASH/ ou QmHASH)
+    npub: str  # Authentification NOSTR obligatoire
+    project_name: Optional[str] = None  # Nom personnalisé pour le projet
+
+class CopyProjectResponse(BaseModel):
+    success: bool
+    message: str
+    project_name: str
+    project_path: str
+    files_copied: int
+    new_cid: Optional[str] = None
+    timestamp: str
+    auth_verified: bool
+
 @app.post("/api/urbanivore/resource", response_model=UrbanivoreResourceResponse)
 async def create_urbanivore_resource(resource: UrbanivoreResource):
     """Créer une ressource Urbanivore et la publier sur IPFS + NOSTR"""
@@ -2848,6 +2863,110 @@ async def publish_nostr_event(resource_data: dict, npub: str) -> Optional[str]:
     except Exception as e:
         logging.warning(f"Erreur publication NOSTR: {e}")
         return None
+
+@app.post("/api/copy_project", response_model=CopyProjectResponse)
+async def copy_project_to_udrive(request: CopyProjectRequest):
+    """Copier un projet IPFS complet dans l'uDRIVE de l'utilisateur comme une App"""
+    try:
+        # Vérifier l'authentification NOSTR
+        auth_verified = await verify_nostr_auth(request.npub)
+        if not auth_verified:
+            raise HTTPException(status_code=403, detail="Authentification NOSTR requise")
+        
+        # Obtenir le répertoire utilisateur
+        user_APP_path = get_authenticated_user_directory(request.npub)
+        user_drive_path = user_APP_path / "uDRIVE"
+        apps_dir = user_drive_path / "Apps"
+        apps_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Nettoyer l'URL du projet
+        project_url = request.project_url.strip()
+        if project_url.startswith('/ipfs/'):
+            project_url = project_url[6:]  # Enlever '/ipfs/'
+        elif project_url.startswith('ipfs/'):
+            project_url = project_url[5:]   # Enlever 'ipfs/'
+        
+        # Extraire le CID (première partie avant le slash)
+        project_cid = project_url.split('/')[0]
+        
+        # Déterminer le nom du projet
+        if request.project_name:
+            project_name = sanitize_filename_python(request.project_name)
+        else:
+            # Utiliser le CID tronqué comme nom par défaut
+            project_name = f"Project_{project_cid[:12]}"
+        
+        # Créer le répertoire de destination
+        project_dir = apps_dir / project_name
+        
+        # Vérifier si le projet existe déjà
+        if project_dir.exists():
+            # Ajouter un suffixe numérique
+            counter = 1
+            while (apps_dir / f"{project_name}_{counter}").exists():
+                counter += 1
+            project_name = f"{project_name}_{counter}"
+            project_dir = apps_dir / project_name
+        
+        project_dir.mkdir(parents=True, exist_ok=True)
+        
+        logging.info(f"Copie du projet IPFS {project_cid} vers {project_dir}")
+        
+        # Télécharger le projet via IPFS
+        ipfs_get_command = ["ipfs", "get", f"/ipfs/{project_url}", "-o", str(project_dir)]
+        
+        process = await asyncio.create_subprocess_exec(
+            *ipfs_get_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            error_message = stderr.decode().strip()
+            logging.error(f"Erreur téléchargement IPFS {project_url}: {error_message}")
+            
+            # Nettoyer le répertoire créé en cas d'erreur
+            if project_dir.exists():
+                shutil.rmtree(project_dir)
+            
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Erreur lors du téléchargement IPFS: {error_message}"
+            )
+        
+        # Compter les fichiers copiés
+        files_copied = 0
+        for root, dirs, files in os.walk(project_dir):
+            files_copied += len(files)
+        
+        logging.info(f"Projet copié avec succès: {files_copied} fichiers dans {project_dir}")
+        
+        # Régénérer la structure IPFS
+        try:
+            ipfs_result = await run_uDRIVE_generation_script(user_drive_path)
+            new_cid = ipfs_result.get("final_cid") if ipfs_result["success"] else None
+        except Exception as e:
+            logging.warning(f"Erreur lors de la régénération IPFS: {e}")
+            new_cid = None
+        
+        return CopyProjectResponse(
+            success=True,
+            message=f"Projet '{project_name}' copié avec succès dans vos Apps",
+            project_name=project_name,
+            project_path=f"Apps/{project_name}",
+            files_copied=files_copied,
+            new_cid=new_cid,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            auth_verified=True
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Erreur lors de la copie du projet: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
 
 @app.get("/api/urbanivore/resources")
 async def list_urbanivore_resources(npub: str, limit: int = 50):
