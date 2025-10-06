@@ -2696,7 +2696,9 @@ class UmapGeolinksResponse(BaseModel):
     success: bool
     message: str
     umap_coordinates: Dict[str, float]  # lat, lon
-    geolinks: Dict[str, str]  # direction -> hex_pubkey
+    umaps: Dict[str, str]  # direction -> hex_pubkey (0.01°)
+    sectors: Dict[str, str]  # direction -> hex_pubkey (0.1°)
+    regions: Dict[str, str]  # direction -> hex_pubkey (1°)
     total_adjacent: int
     timestamp: str
     processing_time_ms: int
@@ -3011,11 +3013,10 @@ async def list_urbanivore_resources(npub: str, limit: int = 50):
 @app.get("/api/umap/geolinks", response_model=UmapGeolinksResponse)
 async def get_umap_geolinks_api(lat: float, lon: float):
     """
-    Récupérer les liens géographiques des UMAPs adjacentes
+    Récupérer les liens géographiques des UMAPs, SECTORs et REGIONs adjacentes
     
-    Cette route utilise le script Umap_geonostr.sh pour calculer les clés hex
-    des UMAPs voisines (nord, sud, est, ouest, etc.) à partir des coordonnées
-    de l'UMAP centrale.
+    Cette route utilise le script Umap_geonostr.sh v0.4+ pour calculer les clés hex
+    des entités géographiques voisines à partir des coordonnées de l'UMAP centrale.
     
     L'application cliente peut ensuite utiliser ces clés hex pour faire des
     requêtes NOSTR directement sur les relais auxquels elle est connectée.
@@ -3025,8 +3026,12 @@ async def get_umap_geolinks_api(lat: float, lon: float):
     - lon: Longitude de l'UMAP centrale (format décimal, -180 à 180)
     
     Retourne:
-    - Les clés hex des 8 UMAPs adjacentes + l'UMAP centrale
-    - Métadonnées sur les coordonnées et le traitement
+    - umaps: Les clés hex des 9 UMAPs (0.01°) - ~1.1 km de rayon
+    - sectors: Les clés hex des 9 SECTORs (0.1°) - ~11 km de rayon
+    - regions: Les clés hex des 9 REGIONs (1°) - ~111 km de rayon
+    - Métadonnées: coordonnées, timestamps, performance
+    
+    Format v0.4+ requis avec cache hiérarchique permanent.
     """
     try:
         logging.info(f"Requête liens UMAP pour coordonnées: ({lat}, {lon})")
@@ -3045,7 +3050,9 @@ async def get_umap_geolinks_api(lat: float, lon: float):
             success=True,
             message=result["message"],
             umap_coordinates=result["umap_coordinates"],
-            geolinks=result["geolinks"],
+            umaps=result["umaps"],
+            sectors=result["sectors"],
+            regions=result["regions"],
             total_adjacent=result["total_adjacentes"],
             timestamp=result["timestamp"],
             processing_time_ms=result["processing_time_ms"]
@@ -3503,14 +3510,24 @@ async def test_nostr_auth(npub: str = Form(...)):
 
 async def get_umap_geolinks(lat: float, lon: float) -> Dict[str, Any]:
     """
-    Récupérer les liens géographiques des UMAPs adjacentes en utilisant Umap_geonostr.sh
+    Récupérer les liens géographiques des UMAPs, SECTORs et REGIONs adjacentes
+    en utilisant Umap_geonostr.sh v0.4+
     
     Args:
-        lat: Latitude de l'UMAP centrale
-        lon: Longitude de l'UMAP centrale
+        lat: Latitude de l'UMAP centrale (format décimal, -90 à 90)
+        lon: Longitude de l'UMAP centrale (format décimal, -180 à 180)
     
     Returns:
-        Dictionnaire contenant les liens géographiques et métadonnées
+        Dictionnaire contenant:
+        - umaps: Dict avec 9 clés hex UMAPs (0.01° = ~1.1 km rayon)
+        - sectors: Dict avec 9 clés hex SECTORs (0.1° = ~11 km rayon)
+        - regions: Dict avec 9 clés hex REGIONs (1° = ~111 km rayon)
+        - metadata: coordonnées, timestamps, performance
+    
+    Raises:
+        ValueError: Si format invalide ou coordonnées hors limites
+        RuntimeError: Si le script Umap_geonostr.sh échoue
+        FileNotFoundError: Si le script n'est pas trouvé
     """
     start_time = time.time()
     
@@ -3552,20 +3569,33 @@ async def get_umap_geolinks(lat: float, lon: float) -> Dict[str, Any]:
         
         # Parser la sortie JSON du script
         try:
-            geolinks_data = json.loads(stdout.decode().strip())
+            raw_data = json.loads(stdout.decode().strip())
         except json.JSONDecodeError as e:
             logging.error(f"Erreur parsing JSON de Umap_geonostr.sh: {e}")
             raise ValueError(f"Sortie JSON invalide du script: {e}")
         
-        # Validation de la structure attendue
-        expected_keys = ['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'here']
-        missing_keys = [key for key in expected_keys if key not in geolinks_data]
+        # Validation du nouveau format structuré (v0.4+)
+        required_sections = ['umaps', 'sectors', 'regions']
+        missing_sections = [section for section in required_sections if section not in raw_data]
         
-        if missing_keys:
-            raise ValueError(f"Clés manquantes dans la réponse: {missing_keys}")
+        if missing_sections:
+            raise ValueError(f"Format invalide - sections manquantes: {missing_sections}. Veuillez mettre à jour Umap_geonostr.sh v0.4+")
+        
+        # Extraire les données
+        umaps_data = raw_data['umaps']
+        sectors_data = raw_data['sectors']
+        regions_data = raw_data['regions']
+        
+        # Validation des clés dans chaque section
+        expected_keys = ['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'here']
+        
+        for section_name, section_data in [('umaps', umaps_data), ('sectors', sectors_data), ('regions', regions_data)]:
+            missing_keys = [key for key in expected_keys if key not in section_data]
+            if missing_keys:
+                raise ValueError(f"Clés manquantes dans {section_name}: {missing_keys}")
         
         # Compter les UMAPs adjacentes (exclure 'here')
-        adjacent_count = len([k for k in geolinks_data.keys() if k != 'here'])
+        adjacent_count = len([k for k in umaps_data.keys() if k != 'here'])
         
         processing_time = int((time.time() - start_time) * 1000)
         
@@ -3573,7 +3603,9 @@ async def get_umap_geolinks(lat: float, lon: float) -> Dict[str, Any]:
             "success": True,
             "message": f"Liens géographiques récupérés pour UMAP ({lat}, {lon})",
             "umap_coordinates": {"lat": lat, "lon": lon},
-            "geolinks": geolinks_data,
+            "umaps": umaps_data,
+            "sectors": sectors_data,
+            "regions": regions_data,
             "total_adjacentes": adjacent_count,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "processing_time_ms": processing_time
@@ -3587,7 +3619,9 @@ async def get_umap_geolinks(lat: float, lon: float) -> Dict[str, Any]:
             "success": False,
             "message": f"Erreur: {str(e)}",
             "umap_coordinates": {"lat": lat, "lon": lon},
-            "geolinks": {},
+            "umaps": {},
+            "sectors": {},
+            "regions": {},
             "total_adjacentes": 0,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "processing_time_ms": processing_time
