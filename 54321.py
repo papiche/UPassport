@@ -1378,6 +1378,40 @@ async def ustats(request: Request, lat: str = None, lon: str = None, deg: str = 
 async def get_root(request: Request):
     return templates.TemplateResponse("scan_new.html", {"request": request})
 
+# Proxy route for 12345
+@app.get("/12345")
+async def proxy_12345(request: Request):
+    import httpx
+    
+    # Get query parameters from the original request
+    query_params = str(request.url.query)
+    target_url = f"http://127.0.0.1:12345"
+    if query_params:
+        target_url += f"?{query_params}"
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(target_url)
+            return JSONResponse(
+                content=response.json() if response.headers.get("content-type", "").startswith("application/json") else response.text,
+                status_code=response.status_code
+            )
+    except httpx.TimeoutException:
+        return JSONResponse(
+            status_code=504,
+            content={"error": "Timeout connecting to 127.0.0.1:12345"}
+        )
+    except httpx.ConnectError:
+        return JSONResponse(
+            status_code=502,
+            content={"error": "Cannot connect to 127.0.0.1:12345"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Proxy error: {str(e)}"}
+        )
+
 # UPlanet Geo Message
 @app.get("/nostr")
 async def get_nostr(request: Request, type: str = "default"):
