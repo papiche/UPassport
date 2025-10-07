@@ -2364,7 +2364,7 @@ async def upload_file_to_ipfs(
                 
                 # Get AI description with custom prompt for filename generation
                 # Pass the local file path directly (no IPFS upload needed)
-                custom_prompt = "Génère un titre de fichier (maximum 100 caractères) décrivant cette image en 10-15 mots clés. Sois concis et précis."
+                custom_prompt = "Génère un titre de fichier (maximum 100 caractères) décrivant cette image en 10-15 mots clés. Sois concis et précis. Ne génère que le titre, sans phrase complète."
                 desc_process = await asyncio.create_subprocess_exec(
                     "python3", describe_script, str(temp_image_path), "--json", "--prompt", custom_prompt,
                     stdout=asyncio.subprocess.PIPE,
