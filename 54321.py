@@ -75,7 +75,6 @@ load_dotenv()
 # Récupérer la valeur de OBSkey depuis l'environnement
 OBSkey = os.getenv("OBSkey")
 
-# Configuration for H2G2 functionality
 DEFAULT_PORT = 54321
 DEFAULT_HOST = "127.0.0.1"
 SCRIPT_DIR = Path(__file__).parent
@@ -418,7 +417,7 @@ class MessageData(BaseModel):
     email: str
     message: str
 
-# Nouveaux modèles pour H2G2 functionality
+# Nouveaux modèles pour uDRIVE functionality
 class UploadResponse(BaseModel):
     success: bool
     message: str
@@ -488,7 +487,7 @@ class UploadFromDriveResponse(BaseModel):
 if not os.path.exists('tmp'):
     os.makedirs('tmp')
 
-# H2G2 utility functions
+# uDRIVE utility functions
 def get_source_directory(source_dir: Optional[str] = None) -> Path:
     """Obtenir le répertoire source, avec validation"""
     if source_dir:
@@ -2296,7 +2295,95 @@ async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
             status_code=500
         )
 
-# H2G2 Endpoints - Upload and Delete with NOSTR authentication
+# uDRIVE Endpoints - Upload and Delete with NOSTR authentication
+@app.post("/api/fileupload", response_model=UploadResponse)
+async def upload_file_to_ipfs(
+    file: UploadFile = File(...),
+    npub: str = Form(...)  # Seule npub ou hex est acceptée
+):
+    """
+    Upload file to IPFS with NIP-42 authentication.
+    Places file in appropriate IPFS structure based on file type.
+    """
+    # Verify NIP-42 authentication
+    auth_verified = await verify_nostr_auth(npub)
+    if not auth_verified:
+        raise HTTPException(status_code=403, detail="Nostr authentication failed or not provided.")
+
+    if not file:
+        raise HTTPException(status_code=400, detail="No file uploaded.")
+
+    try:
+        # Get user directory for file placement
+        user_APP_path = get_authenticated_user_directory(npub)
+        
+        # Determine file type and target directory
+        file_content = await file.read()
+        file_type = detect_file_type(file_content, file.filename or "untitled")
+        
+        # Create appropriate directory structure based on file type
+        if file_type in ['image', 'video', 'audio']:
+            target_dir = user_APP_path / "Media" / file_type.capitalize()
+        elif file_type == 'document':
+            target_dir = user_APP_path / "Documents"
+        elif file_type == 'application':
+            target_dir = user_APP_path / "Apps"
+        else:
+            target_dir = user_APP_path / "Files"
+        
+        target_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Sanitize filename
+        original_filename = file.filename if file.filename else "untitled_file"
+        sanitized_filename = sanitize_filename_python(original_filename)
+        file_path = target_dir / sanitized_filename
+        
+        # Save file to target directory
+        async with aiofiles.open(file_path, 'wb') as out_file:
+            await out_file.write(file_content)
+        
+        # Generate IPFS CID using the upload2ipfs.sh script
+        temp_file_path = f"tmp/temp_{uuid.uuid4()}.json"
+        script_path = "./upload2ipfs.sh"
+        
+        return_code, last_line = await run_script(script_path, str(file_path), temp_file_path)
+        
+        if return_code == 0:
+            try:
+                async with aiofiles.open(temp_file_path, mode="r") as temp_file:
+                    json_content = await temp_file.read()
+                json_output = json.loads(json_content.strip())
+                
+                # Clean up temporary files
+                os.remove(temp_file_path)
+                
+                return UploadResponse(
+                    success=True,
+                    message=f"File uploaded successfully to IPFS",
+                    file_path=str(file_path),
+                    file_type=file_type,
+                    target_directory=str(target_dir),
+                    new_cid=json_output.get('cid'),
+                    timestamp=datetime.now().isoformat(),
+                    auth_verified=True
+                )
+                
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                logging.error(f"Failed to decode JSON from temp file: {temp_file_path}, Error: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to process IPFS upload: {e}")
+            finally:
+                if os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
+        else:
+            logging.error(f"IPFS upload script failed: {last_line.strip()}")
+            raise HTTPException(status_code=500, detail=f"IPFS upload failed: {last_line.strip()}")
+            
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logging.error(f"Unexpected error in fileupload: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
+
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
