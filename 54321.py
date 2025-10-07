@@ -2317,20 +2317,25 @@ async def upload_file_to_ipfs(
     try:
         # Get user directory for file placement
         user_APP_path = get_authenticated_user_directory(npub)
+        user_drive_path = user_APP_path / "uDRIVE"
         
         # Determine file type and target directory
         file_content = await file.read()
         file_type = detect_file_type(file_content, file.filename or "untitled")
         
-        # Create appropriate directory structure based on file type
-        if file_type in ['image', 'video', 'audio']:
-            target_dir = user_APP_path / "Media" / file_type.capitalize()
+        # Use uDRIVE directory structure (Images, Music, Videos, Documents, Apps)
+        if file_type == 'image':
+            target_dir = user_drive_path / "Images"
+        elif file_type == 'video':
+            target_dir = user_drive_path / "Videos"
+        elif file_type == 'audio':
+            target_dir = user_drive_path / "Music"
         elif file_type == 'document':
-            target_dir = user_APP_path / "Documents"
+            target_dir = user_drive_path / "Documents"
         elif file_type == 'application':
-            target_dir = user_APP_path / "Apps"
+            target_dir = user_drive_path / "Apps"
         else:
-            target_dir = user_APP_path / "Files"
+            target_dir = user_drive_path / "Documents"  # Default to Documents
         
         target_dir.mkdir(parents=True, exist_ok=True)
         
@@ -2346,59 +2351,46 @@ async def upload_file_to_ipfs(
                 async with aiofiles.open(temp_image_path, 'wb') as out_file:
                     await out_file.write(file_content)
                 
-                # Generate image description using describe_image.py
+                # Generate image description using describe_image.py with LOCAL FILE
                 describe_script = os.path.join(os.path.expanduser("~"), ".zen", "Astroport.ONE", "IA", "describe_image.py")
                 
-                # First, we need to add the file to IPFS temporarily to get a URL for description
-                process = await asyncio.create_subprocess_exec(
-                    "ipfs", "add", "-Q", str(temp_image_path),
+                # Get AI description with custom prompt for filename generation
+                # Pass the local file path directly (no IPFS upload needed)
+                custom_prompt = "À partir de ce que tu vois dans cette image, propose un titre court et descriptif en quelques mots."
+                desc_process = await asyncio.create_subprocess_exec(
+                    "python3", describe_script, str(temp_image_path), "--json", "--prompt", custom_prompt,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                stdout, stderr = await process.communicate()
+                desc_stdout, desc_stderr = await desc_process.communicate()
                 
-                if process.returncode == 0:
-                    temp_cid = stdout.decode().strip()
-                    temp_ipfs_url = f"http://127.0.0.1:8080/ipfs/{temp_cid}"
+                if desc_process.returncode == 0:
+                    desc_json = json.loads(desc_stdout.decode())
+                    description = desc_json.get('description', '')
                     
-                    # Get AI description with custom prompt for filename generation
-                    custom_prompt = "À partir de ce que tu vois dans cette image, propose un titre court et descriptif en quelques mots."
-                    desc_process = await asyncio.create_subprocess_exec(
-                        "python3", describe_script, temp_ipfs_url, "--json", "--prompt", custom_prompt,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
-                    )
-                    desc_stdout, desc_stderr = await desc_process.communicate()
-                    
-                    if desc_process.returncode == 0:
-                        desc_json = json.loads(desc_stdout.decode())
-                        description = desc_json.get('description', '')
+                    if description:
+                        # Create filename from description (first 120 chars, cleaned)
+                        # Remove special characters and limit length
+                        desc_clean = description[:120].strip()
+                        desc_clean = re.sub(r'[^\w\s-]', '', desc_clean)
+                        desc_clean = re.sub(r'[\s_]+', '_', desc_clean)
+                        desc_clean = desc_clean.strip('_')
                         
-                        if description:
-                            # Create filename from description (first 120 chars, cleaned)
-                            # Remove special characters and limit length
-                            desc_clean = description[:120].strip()
-                            desc_clean = re.sub(r'[^\w\s-]', '', desc_clean)
-                            desc_clean = re.sub(r'[\s_]+', '_', desc_clean)
-                            desc_clean = desc_clean.strip('_')
-                            
-                            # Get original file extension
-                            _, ext = os.path.splitext(sanitized_filename)
-                            
-                            # Create new filename: description + timestamp + extension
-                            timestamp = int(time.time())
-                            sanitized_filename = f"{desc_clean}_{timestamp}{ext}"
-                            
-                            logging.info(f"✅ Image renamed with AI description: {sanitized_filename}")
-                    else:
-                        stderr_msg = desc_stderr.decode().strip()
-                        # Check if it's a missing module error (less verbose logging)
-                        if "ModuleNotFoundError" in stderr_msg or "No module named" in stderr_msg:
-                            logging.debug(f"AI description unavailable (module missing), using original filename")
-                        else:
-                            logging.warning(f"Failed to generate image description: {stderr_msg}")
+                        # Get original file extension
+                        _, ext = os.path.splitext(sanitized_filename)
+                        
+                        # Create new filename: description + timestamp + extension
+                        timestamp = int(time.time())
+                        sanitized_filename = f"{desc_clean}_{timestamp}{ext}"
+                        
+                        logging.info(f"✅ Image renamed with AI description: {sanitized_filename}")
                 else:
-                    logging.warning(f"Failed to add temp file to IPFS: {stderr.decode()}")
+                    stderr_msg = desc_stderr.decode().strip()
+                    # Check if it's a missing module error (less verbose logging)
+                    if "ModuleNotFoundError" in stderr_msg or "No module named" in stderr_msg:
+                        logging.debug(f"AI description unavailable (module missing), using original filename")
+                    else:
+                        logging.warning(f"Failed to generate image description: {stderr_msg}")
                 
                 # Remove temporary file
                 if os.path.exists(temp_image_path):
