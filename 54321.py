@@ -2378,9 +2378,9 @@ async def upload_file_to_ipfs(
                     description = desc_json.get('description', '')
                     
                     if description:
-                        # Create filename from description (max 100 chars for better readability)
+                        # Create filename from description (max 120 chars for better readability)
                         # Remove special characters and limit length
-                        desc_clean = description[:100].strip()
+                        desc_clean = description[:120].strip()
                         desc_clean = re.sub(r'[^\w\s-]', '', desc_clean)
                         desc_clean = re.sub(r'[\s_]+', '_', desc_clean)
                         desc_clean = desc_clean.strip('_')
