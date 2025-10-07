@@ -47,6 +47,7 @@ import os
 import logging
 import base64
 import subprocess
+import traceback
 import magic
 import time
 import hashlib
@@ -2355,9 +2356,11 @@ async def upload_file_to_ipfs(
                 temp_image_path = target_dir / f"temp_{uuid.uuid4()}_{sanitized_filename}"
                 async with aiofiles.open(temp_image_path, 'wb') as out_file:
                     await out_file.write(file_content)
+                logging.info(f"💾 Temporary file saved: {temp_image_path}")
                 
                 # Generate image description using describe_image.py with LOCAL FILE
                 describe_script = os.path.join(os.path.expanduser("~"), ".zen", "Astroport.ONE", "IA", "describe_image.py")
+                logging.info(f"🤖 Calling describe_image.py: {describe_script}")
                 
                 # Get AI description with custom prompt for filename generation
                 # Pass the local file path directly (no IPFS upload needed)
@@ -2369,6 +2372,7 @@ async def upload_file_to_ipfs(
                 )
                 desc_stdout, desc_stderr = await desc_process.communicate()
                 
+                logging.info(f"📤 describe_image.py returned with code: {desc_process.returncode}")
                 if desc_process.returncode == 0:
                     desc_json = json.loads(desc_stdout.decode())
                     description = desc_json.get('description', '')
@@ -2391,6 +2395,8 @@ async def upload_file_to_ipfs(
                         logging.info(f"✅ Image renamed with AI description: {sanitized_filename}")
                 else:
                     stderr_msg = desc_stderr.decode().strip()
+                    logging.warning(f"❌ describe_image.py failed with code {desc_process.returncode}")
+                    logging.warning(f"   stderr: {stderr_msg[:200]}")  # First 200 chars of error
                     # Check if it's a missing module error (less verbose logging)
                     if "ModuleNotFoundError" in stderr_msg or "No module named" in stderr_msg:
                         logging.debug(f"AI description unavailable (module missing), using original filename")
@@ -2398,11 +2404,13 @@ async def upload_file_to_ipfs(
                         logging.warning(f"Failed to generate image description: {stderr_msg}")
                 
                 # Remove temporary file
+                logging.info(f"🗑️ Removing temporary file: {temp_image_path}")
                 if os.path.exists(temp_image_path):
                     os.remove(temp_image_path)
                     
             except Exception as e:
-                logging.warning(f"Failed to generate AI-based filename, using original: {e}")
+                logging.error(f"❌ Exception in AI description generation: {type(e).__name__}: {str(e)}")
+                logging.error(f"   Traceback: {traceback.format_exc()[:500]}")
                 # Continue with original filename if AI description fails
         
         # Final file path with potentially AI-generated filename
