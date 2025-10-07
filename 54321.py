@@ -2343,9 +2343,14 @@ async def upload_file_to_ipfs(
         original_filename = file.filename if file.filename else "untitled_file"
         sanitized_filename = sanitize_filename_python(original_filename)
         
+        # DEBUG: Log file type detection
+        logging.info(f"📂 File type detected: '{file_type}' for file '{original_filename}'")
+        
         # For images, generate AI description and create smart filename
         if file_type == 'image':
             try:
+                logging.info(f"🎨 Starting AI description generation for: {sanitized_filename}")
+                
                 # Save temporary file first
                 temp_image_path = target_dir / f"temp_{uuid.uuid4()}_{sanitized_filename}"
                 async with aiofiles.open(temp_image_path, 'wb') as out_file:
