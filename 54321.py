@@ -2304,6 +2304,7 @@ async def upload_file_to_ipfs(
     """
     Upload file to IPFS with NIP-42 authentication.
     Places file in appropriate IPFS structure based on file type.
+    For images, generates AI description and renames file accordingly.
     """
     # Verify NIP-42 authentication
     auth_verified = await verify_nostr_auth(npub)
@@ -2336,6 +2337,73 @@ async def upload_file_to_ipfs(
         # Sanitize filename
         original_filename = file.filename if file.filename else "untitled_file"
         sanitized_filename = sanitize_filename_python(original_filename)
+        
+        # For images, generate AI description and create smart filename
+        if file_type == 'image':
+            try:
+                # Save temporary file first
+                temp_image_path = target_dir / f"temp_{uuid.uuid4()}_{sanitized_filename}"
+                async with aiofiles.open(temp_image_path, 'wb') as out_file:
+                    await out_file.write(file_content)
+                
+                # Generate image description using describe_image.py
+                describe_script = os.path.join(os.path.expanduser("~"), ".zen", "Astroport.ONE", "IA", "describe_image.py")
+                
+                # First, we need to add the file to IPFS temporarily to get a URL for description
+                process = await asyncio.create_subprocess_exec(
+                    "ipfs", "add", "-Q", str(temp_image_path),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode == 0:
+                    temp_cid = stdout.decode().strip()
+                    temp_ipfs_url = f"http://127.0.0.1:8080/ipfs/{temp_cid}"
+                    
+                    # Get AI description with custom prompt for filename generation
+                    custom_prompt = "À partir de ce que tu vois dans cette image, propose un titre court et descriptif en quelques mots."
+                    desc_process = await asyncio.create_subprocess_exec(
+                        "python3", describe_script, temp_ipfs_url, "--json", "--prompt", custom_prompt,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    desc_stdout, desc_stderr = await desc_process.communicate()
+                    
+                    if desc_process.returncode == 0:
+                        desc_json = json.loads(desc_stdout.decode())
+                        description = desc_json.get('description', '')
+                        
+                        if description:
+                            # Create filename from description (first 120 chars, cleaned)
+                            # Remove special characters and limit length
+                            desc_clean = description[:120].strip()
+                            desc_clean = re.sub(r'[^\w\s-]', '', desc_clean)
+                            desc_clean = re.sub(r'[\s_]+', '_', desc_clean)
+                            desc_clean = desc_clean.strip('_')
+                            
+                            # Get original file extension
+                            _, ext = os.path.splitext(sanitized_filename)
+                            
+                            # Create new filename: description + timestamp + extension
+                            timestamp = int(time.time())
+                            sanitized_filename = f"{desc_clean}_{timestamp}{ext}"
+                            
+                            logging.info(f"Image renamed based on AI description: {sanitized_filename}")
+                    else:
+                        logging.warning(f"Failed to generate image description: {desc_stderr.decode()}")
+                else:
+                    logging.warning(f"Failed to add temp file to IPFS: {stderr.decode()}")
+                
+                # Remove temporary file
+                if os.path.exists(temp_image_path):
+                    os.remove(temp_image_path)
+                    
+            except Exception as e:
+                logging.warning(f"Failed to generate AI-based filename, using original: {e}")
+                # Continue with original filename if AI description fails
+        
+        # Final file path with potentially AI-generated filename
         file_path = target_dir / sanitized_filename
         
         # Save file to target directory
