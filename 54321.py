@@ -2389,9 +2389,14 @@ async def upload_file_to_ipfs(
                             timestamp = int(time.time())
                             sanitized_filename = f"{desc_clean}_{timestamp}{ext}"
                             
-                            logging.info(f"Image renamed based on AI description: {sanitized_filename}")
+                            logging.info(f"✅ Image renamed with AI description: {sanitized_filename}")
                     else:
-                        logging.warning(f"Failed to generate image description: {desc_stderr.decode()}")
+                        stderr_msg = desc_stderr.decode().strip()
+                        # Check if it's a missing module error (less verbose logging)
+                        if "ModuleNotFoundError" in stderr_msg or "No module named" in stderr_msg:
+                            logging.debug(f"AI description unavailable (module missing), using original filename")
+                        else:
+                            logging.warning(f"Failed to generate image description: {stderr_msg}")
                 else:
                     logging.warning(f"Failed to add temp file to IPFS: {stderr.decode()}")
                 
