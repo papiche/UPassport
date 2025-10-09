@@ -37,24 +37,6 @@
             margin-bottom: 20px;
             line-height: 1.2;
         }
-        .wallet-info {
-            text-align: center;
-            color: #cccccc;
-            margin-bottom: 20px;
-            font-size: clamp(14px, 3vw, 16px);
-        }
-        
-        .wallet-pubkey {
-            font-family: monospace;
-            background: #333;
-            padding: 10px 15px;
-            border-radius: 6px;
-            display: inline-block;
-            margin-top: 8px;
-            word-break: break-all;
-            border: 1px solid #444;
-            font-size: clamp(12px, 2.5vw, 14px);
-        }
         
         .summary {
             background-color: #383838;
@@ -291,11 +273,6 @@
                 font-size: 12px;
             }
             
-            .wallet-info {
-                flex-direction: column;
-                gap: 8px;
-            }
-            
             .summary p {
                 font-size: 16px;
             }
@@ -311,11 +288,6 @@
         <a href="javascript:history.back()" class="back-link">← Retour au Dashboard</a>
         
         <h1>💼 Chiffre d'Affaires UPlanet</h1>
-        
-        <div class="wallet-info">
-            <strong>Portefeuille UPLANETG1PUB (Hub de distribution des services)</strong>
-            <div class="wallet-pubkey">{{ g1pub }}</div>
-        </div>
 
         <!-- Year Filter -->
         {% if filter_year != 'all' %}
