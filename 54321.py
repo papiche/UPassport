@@ -1835,22 +1835,31 @@ async def check_society_route(request: Request, html: Optional[str] = None):
         if "history" in history_json and isinstance(history_json["history"], list):
             for tx in history_json["history"]:
                 # Check if transaction is SENT (negative amount)
-                if "amount" in tx:
-                    amount_centimes = tx.get("amount", 0)
-                    # Negative amount means outgoing
-                    if amount_centimes < 0:
-                        amount_g1 = abs(amount_centimes) / 100.0
-                        amount_zen = (amount_g1 - 1) * 10 if amount_g1 > 1 else 0
-                        total_outgoing_g1 += amount_g1
-                        total_outgoing_zen += amount_zen
-                        
-                        outgoing_transfers.append({
-                            "date": tx.get("date", ""),
-                            "recipient": tx.get("recipient", ""),
-                            "amount_g1": round(amount_g1, 2),
-                            "amount_zen": round(amount_zen, 2),
-                            "comment": tx.get("comment", "")
-                        })
+                # G1history.sh returns "Amounts Ğ1" as string with sign
+                if "Amounts Ğ1" in tx:
+                    amount_g1_str = tx.get("Amounts Ğ1", "0")
+                    try:
+                        amount_g1 = float(amount_g1_str)
+                        # Negative amount means outgoing
+                        if amount_g1 < 0:
+                            amount_g1_abs = abs(amount_g1)
+                            amount_zen = (amount_g1_abs - 1) * 10 if amount_g1_abs > 1 else 0
+                            total_outgoing_g1 += amount_g1_abs
+                            total_outgoing_zen += amount_zen
+                            
+                            # Extract recipient from "Issuers/Recipients" field (format: "pubkey:txid")
+                            recipient = tx.get("Issuers/Recipients", "").split(":")[0] if "Issuers/Recipients" in tx else ""
+                            
+                            outgoing_transfers.append({
+                                "date": tx.get("Date", ""),
+                                "recipient": recipient,
+                                "amount_g1": round(amount_g1_abs, 2),
+                                "amount_zen": round(amount_zen, 2),
+                                "comment": tx.get("Reference", "")
+                            })
+                    except (ValueError, TypeError):
+                        logging.warning(f"Failed to parse amount: {amount_g1_str}")
+                        continue
         
         society_data = {
             "g1pub": g1pub,
