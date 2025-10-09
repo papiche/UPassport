@@ -99,15 +99,9 @@
         <h1>📊 Capital Social UPlanet</h1>
         <div class="summary">
             <h2>{{ total_outgoing_zen }} Ẑ</h2>
-            <p><strong>{{ total_outgoing_g1 }} Ğ1</strong> distribués en parts sociales</p>
+            <p><strong>Parts sociales distribuées</strong></p>
             <p>{{ total_transfers }} transactions sortantes depuis UPLANETNAME_G1</p>
             <div class="pubkey">{{ g1pub }}</div>
-            <div style="margin-top: 10px; padding: 8px; background: rgba(255,255,255,0.15); border-radius: 6px; font-size: 0.85em;">
-                <strong>📊 Conversion Ğ1 → ẐEN :</strong> 
-                Taux standard <strong>1Ẑ = 0.1Ğ1</strong> (10Ẑ = 1Ğ1) après déduction de 1Ğ1 pour primo-transaction.
-                <br>
-                <em>Exemple : 6Ğ1 transférés → (6-1)×10 = <strong>50Ẑ</strong> de parts sociales</em>
-            </div>
         </div>
         
         <h3>📜 Historique des Parts Sociales</h3>
@@ -117,7 +111,7 @@
                             <th>Date</th>
                             <th>Destinataire</th>
                             <th>Type</th>
-                            <th>Montant</th>
+                            <th>Montant ẐEN</th>
                             <th>Node IPFS</th>
                             <th>Commentaire</th>
                         </tr>
@@ -131,7 +125,7 @@
                                 {% if transfer.part_type == 'constellation' %}🌟{% elif transfer.part_type == 'satellite' %}🛰️{% else %}📦{% endif %}
                                 {{ transfer.part_type|title }}
                             </td>
-                            <td class="amount">{{ transfer.amount_zen }} Ẑ ({{ transfer.amount_g1 }} Ğ1)</td>
+                            <td class="amount">{{ transfer.amount_zen }} Ẑ</td>
                             <td style="font-family: monospace; font-size: 0.75em; color: #7f8c8d;">
                                 {% if transfer.ipfs_node and transfer.ipfs_node != 'N/A' %}
                                     <a href="/ipns/{{ transfer.ipfs_node }}" target="_blank" style="color: #3498db; text-decoration: none;">

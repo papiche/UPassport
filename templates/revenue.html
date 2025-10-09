@@ -181,12 +181,6 @@
         <div class="wallet-info">
             <strong>Portefeuille UPLANETG1PUB (Hub de distribution des services)</strong>
             <div class="wallet-pubkey">{{ g1pub }}</div>
-            <div style="margin-top: 10px; padding: 8px; background: rgba(52,152,219,0.1); border-radius: 6px; font-size: 0.85em; color: #b8c6e0;">
-                <strong>📊 Conversion Ğ1 → ẐEN :</strong> 
-                Taux standard <strong>1Ẑ = 0.1Ğ1</strong> (10Ẑ = 1Ğ1) après déduction de 1Ğ1 pour primo-transaction d'initialisation du portefeuille.
-                <br>
-                <em>Exemple : 6Ğ1 reçus → (6-1)×10 = <strong>50Ẑ</strong> (équivalent à 5Ğ1 après primo)</em>
-            </div>
         </div>
 
         <!-- Year Filter -->
@@ -197,30 +191,30 @@
         </div>
         {% endif %}
 
-        <!-- Main Summary: ẐEN as primary value (like society.html) -->
+        <!-- Main Summary: ẐEN only -->
         <div class="summary">
             <h2>{{ total_revenue_zen | round(2) }} Ẑ</h2>
-            <p><strong>{{ total_revenue_g1 | round(2) }} Ğ1</strong> de Chiffre d'Affaires RENTAL</p>
+            <p><strong>Chiffre d'Affaires RENTAL</strong></p>
             <p class="summary-secondary">{{ total_transactions }} ventes de services {% if filter_year != 'all' %}(année {{ filter_year }}){% else %}(toutes années){% endif %}</p>
             
             <!-- Secondary metrics in cards -->
             <div class="summary-grid">
                 <div class="summary-card">
-                    <h3>💰 Revenu ẐEN</h3>
+                    <h3>💰 Revenu Total</h3>
                     <div class="summary-value">{{ total_revenue_zen | round(2) }} Ẑ</div>
-                    <div class="summary-label">Valeur nette (1Ğ1 primo-transaction déduit)</div>
-                </div>
-                
-                <div class="summary-card">
-                    <h3>💎 Équivalent Ğ1</h3>
-                    <div class="summary-value">{{ total_revenue_g1 | round(2) }} Ğ1</div>
-                    <div class="summary-label">Blockchain Ğ1 (source)</div>
+                    <div class="summary-label">Chiffre d'affaires cumulé</div>
                 </div>
                 
                 <div class="summary-card">
                     <h3>📊 Transactions</h3>
                     <div class="summary-value">{{ total_transactions }}</div>
                     <div class="summary-label">Services RENTAL vendus</div>
+                </div>
+                
+                <div class="summary-card">
+                    <h3>📈 Moyenne</h3>
+                    <div class="summary-value">{{ (total_revenue_zen / total_transactions if total_transactions > 0 else 0) | round(2) }} Ẑ</div>
+                    <div class="summary-label">Revenu moyen par vente</div>
                 </div>
             </div>
         </div>
@@ -233,8 +227,8 @@
                 <tr>
                     <th>Année</th>
                     <th>CA ẐEN</th>
-                    <th>CA Ğ1</th>
                     <th>Transactions</th>
+                    <th>Moyenne</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -242,12 +236,9 @@
                 {% for year_data in yearly_summary %}
                 <tr>
                     <td class="date" style="font-size: 1.1em; font-weight: 700;">{{ year_data.year }}</td>
-                    <td class="amount">
-                        <strong>{{ year_data.total_revenue_zen | round(2) }} Ẑ</strong>
-                        <div style="font-size: 0.8em; color: #7f8c8d; font-weight: normal; margin-top: 2px;">{{ year_data.total_revenue_g1 | round(2) }} Ğ1</div>
-                    </td>
-                    <td style="color: #3498db; font-weight: 600;">{{ year_data.total_revenue_g1 | round(2) }} Ğ1</td>
+                    <td class="amount">{{ year_data.total_revenue_zen | round(2) }} Ẑ</td>
                     <td style="text-align: center; color: #16a085; font-weight: 600;">{{ year_data.total_transactions }}</td>
+                    <td style="text-align: center; color: #3498db; font-weight: 600;">{{ (year_data.total_revenue_zen / year_data.total_transactions if year_data.total_transactions > 0 else 0) | round(2) }} Ẑ</td>
                     <td style="text-align: center;">
                         <a href="?html=1&year={{ year_data.year }}" style="
                             display: inline-block;
@@ -282,7 +273,7 @@
                     {% if filter_year == 'all' %}<th>Année</th>{% endif %}
                     <th>Client</th>
                     <th>Type</th>
-                    <th>Montant</th>
+                    <th>Montant ẐEN</th>
                     <th>Commentaire</th>
                 </tr>
             </thead>
@@ -297,10 +288,7 @@
                     <td style="text-align: center; color: #16a085; font-weight: 600;">
                         {{ transaction.transaction_type }}
                     </td>
-                    <td class="amount">
-                        <strong>{{ transaction.amount_zen | round(2) }} Ẑ</strong>
-                        <span style="font-size: 0.85em; color: #7f8c8d; font-weight: normal;">({{ transaction.amount_g1 | round(2) }} Ğ1)</span>
-                    </td>
+                    <td class="amount">{{ transaction.amount_zen | round(2) }} Ẑ</td>
                     <td class="comment">{{ transaction.comment }}</td>
                 </tr>
                 {% endfor %}
