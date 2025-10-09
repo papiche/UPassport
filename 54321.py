@@ -1884,6 +1884,51 @@ async def check_revenue_route(request: Request, html: Optional[str] = None, year
         logging.error(f"Error checking revenue history: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@app.get("/check_impots")
+async def check_impots_route(request: Request, html: Optional[str] = None):
+    """Check tax provisions history (TVA + IS)
+    
+    Args:
+        html: If present, return HTML page instead of JSON
+    """
+    try:
+        # Call G1impots.sh to get tax provisions data
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1impots.sh")
+        
+        result = subprocess.run([script_path], capture_output=True, text=True, timeout=60)
+        
+        if result.returncode != 0:
+            logging.error(f"G1impots.sh failed with return code {result.returncode}: {result.stderr}")
+            raise ValueError(f"Error in G1impots.sh: {result.stderr}")
+        
+        # Parse JSON output from G1impots.sh
+        try:
+            impots_data = json.loads(result.stdout.strip())
+        except json.JSONDecodeError as e:
+            logging.error(f"Failed to parse G1impots.sh output: {e}")
+            logging.error(f"Raw output: {result.stdout[:500]}")
+            raise ValueError(f"Invalid JSON from G1impots.sh: {e}")
+        
+        # Check for errors in the response
+        if "error" in impots_data:
+            logging.error(f"G1impots.sh returned error: {impots_data['error']}")
+            raise HTTPException(status_code=500, detail=impots_data['error'])
+        
+        # If html parameter is provided, return HTML page
+        if html is not None:
+            return generate_impots_html_page(request, impots_data)
+        
+        # Otherwise return JSON
+        return impots_data
+        
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Tax provisions retrieval timeout")
+    except Exception as e:
+        logging.error(f"Error in check_impots_route: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/upassport")
 async def scan_qr(
     parametre: str = Form(...),
@@ -3967,6 +4012,27 @@ def generate_revenue_html_page(request: Request, g1pub: str, revenue_data: Dict[
         })
     except Exception as e:
         logging.error(f"Error generating revenue HTML page: {e}")
+        raise HTTPException(status_code=500, detail="Error generating HTML page")
+
+def generate_impots_html_page(request: Request, impots_data: Dict[str, Any]):
+    """Generate HTML page to display tax provisions history (TVA + IS) using template"""
+    try:
+        return templates.TemplateResponse("impots.html", {
+            "request": request,
+            "g1pub": impots_data.get('wallet', 'N/A'),
+            "total_provisions_zen": impots_data['total_provisions_zen'],
+            "total_provisions_g1": impots_data['total_provisions_g1'],
+            "total_transactions": impots_data['total_transactions'],
+            "tva_total_zen": impots_data['breakdown']['tva']['total_zen'],
+            "tva_total_g1": impots_data['breakdown']['tva']['total_g1'],
+            "tva_transactions": impots_data['breakdown']['tva']['transactions'],
+            "is_total_zen": impots_data['breakdown']['is']['total_zen'],
+            "is_total_g1": impots_data['breakdown']['is']['total_g1'],
+            "is_transactions": impots_data['breakdown']['is']['transactions'],
+            "provisions": impots_data['provisions']
+        })
+    except Exception as e:
+        logging.error(f"Error generating impots HTML page: {e}")
         raise HTTPException(status_code=500, detail="Error generating HTML page")
 
 def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) -> HTMLResponse:

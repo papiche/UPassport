@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Provisions Fiscales UPlanet</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            background: linear-gradient(90deg, #ff6b6b, #f39c12, #2ecc71, #3498db, #9b59b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: rainbow 8s ease infinite;
+            background-size: 200% 200%;
+        }
+
+        @keyframes rainbow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .summary {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .summary h2 {
+            color: #3498db;
+            margin-bottom: 10px;
+            font-size: 1.5em;
+        }
+
+        .summary p {
+            color: #b0b0b0;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .summary-card {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .summary-card h3 {
+            color: #95a5a6;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .summary-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .summary-card.total .summary-value {
+            color: #e74c3c;
+        }
+
+        .summary-card.tva .summary-value {
+            color: #f39c12;
+        }
+
+        .summary-card.is .summary-value {
+            color: #9b59b6;
+        }
+
+        .summary-label {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+
+        .tax-explanation {
+            background: rgba(52, 152, 219, 0.1);
+            border-left: 4px solid #3498db;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+
+        .tax-explanation h3 {
+            color: #3498db;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .tax-explanation ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .tax-explanation li {
+            padding: 5px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .tax-explanation li:before {
+            content: "•";
+            color: #3498db;
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+        }
+
+        h3 {
+            color: #3498db;
+            margin: 30px 0 20px 0;
+            font-size: 1.8em;
+            text-shadow: 0 2px 10px rgba(52, 152, 219, 0.3);
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            margin-bottom: 30px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .table-wrapper {
+                min-width: 700px;
+            }
+
+            .table-wrapper::after {
+                content: "← Faites défiler →";
+                display: block;
+                text-align: center;
+                padding: 10px;
+                background: rgba(52, 152, 219, 0.2);
+                color: #3498db;
+                font-size: 0.9em;
+                position: sticky;
+                bottom: 0;
+                border-bottom-left-radius: 12px;
+                border-bottom-right-radius: 12px;
+            }
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.03);
+            min-width: 600px;
+        }
+
+        thead {
+            background: linear-gradient(135deg, rgba(52, 152, 219, 0.3), rgba(155, 89, 182, 0.3));
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #fff;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 1px;
+        }
+
+        @media (max-width: 768px) {
+            th {
+                padding: 10px 8px;
+                font-size: 0.75em;
+            }
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        @media (max-width: 768px) {
+            td {
+                padding: 10px 8px;
+                font-size: 0.9em;
+            }
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .date {
+            color: #95a5a6;
+            font-family: 'Courier New', monospace;
+        }
+
+        .type {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        .type.tva {
+            background: rgba(243, 156, 18, 0.2);
+            color: #f39c12;
+        }
+
+        .type.is {
+            background: rgba(155, 89, 182, 0.2);
+            color: #9b59b6;
+        }
+
+        .type.other {
+            background: rgba(149, 165, 166, 0.2);
+            color: #95a5a6;
+        }
+
+        .amount {
+            font-weight: bold;
+            color: #e74c3c;
+            font-size: 1.1em;
+        }
+
+        .comment {
+            color: #b0b0b0;
+            font-size: 0.9em;
+            max-width: 400px;
+            word-wrap: break-word;
+        }
+
+        @media (max-width: 768px) {
+            .comment {
+                max-width: 200px;
+                font-size: 0.8em;
+            }
+        }
+
+        .timestamp {
+            color: #7f8c8d;
+            font-size: 0.85em;
+            font-style: italic;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 30px;
+            padding: 12px 25px;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .back-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.5);
+            background: linear-gradient(135deg, #2980b9, #3498db);
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .summary {
+                padding: 20px;
+            }
+
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            h3 {
+                font-size: 1.4em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Provisions Fiscales UPlanet</h1>
+
+        <div class="summary">
+            <h2>💰 Récapitulatif Fiscal</h2>
+            <p>Historique complet des provisions fiscales (TVA + IS) pour la coopérative UPlanet ẐEN</p>
+
+            <div class="summary-grid">
+                <div class="summary-card total">
+                    <h3>Total Provisionné</h3>
+                    <div class="summary-value">{{ total_provisions_zen }} Ẑ</div>
+                    <div class="summary-label">{{ total_transactions }} provisions</div>
+                </div>
+
+                <div class="summary-card tva">
+                    <h3>TVA Collectée</h3>
+                    <div class="summary-value">{{ tva_total_zen }} Ẑ</div>
+                    <div class="summary-label">{{ tva_transactions }} opérations</div>
+                </div>
+
+                <div class="summary-card is">
+                    <h3>IS Provisionné</h3>
+                    <div class="summary-value">{{ is_total_zen }} Ẑ</div>
+                    <div class="summary-label">{{ is_transactions }} allocations</div>
+                </div>
+            </div>
+
+            <div class="tax-explanation">
+                <h3>🔍 Explication Fiscale</h3>
+                <ul>
+                    <li><strong>TVA (20%)</strong> : Collectée sur le chiffre d'affaires brut (locations RENTAL). Provisionnée au moment de l'encaissement.</li>
+                    <li><strong>IS (15% ou 25%)</strong> : Calculé sur les bénéfices nets (surplus coopératif après PAF et rémunérations). Taux réduit jusqu'à 42 500 €/an.</li>
+                    <li><strong>Portefeuille unique</strong> : UPLANETNAME.IMPOT centralise TVA + IS pour simplifier la déclaration fiscale.</li>
+                    <li><strong>Fait générateur</strong> : TVA à l'encaissement, IS sur surplus hebdomadaire alloué.</li>
+                </ul>
+            </div>
+        </div>
+
+        <h3>📜 Historique des Provisions</h3>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Montant</th>
+                        <th>Commentaire</th>
+                        <th>Émetteur</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for provision in provisions %}
+                    <tr>
+                        <td class="date">{{ provision.date }}</td>
+                        <td>
+                            <span class="type {{ provision.type|lower }}">{{ provision.type }}</span>
+                        </td>
+                        <td class="amount">{{ provision.amount_zen }} Ẑ</td>
+                        <td class="comment">{{ provision.comment }}</td>
+                        <td class="timestamp">{{ provision.issuer[:8] }}...</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <a href="/" class="back-link">← Retour au tableau de bord</a>
+    </div>
+</body>
+</html>
+
