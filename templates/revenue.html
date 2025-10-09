@@ -44,21 +44,43 @@
             word-break: break-all;
         }
         .summary {
+            background: linear-gradient(135deg, #16a085 0%, #138d75 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .summary h2 {
+            margin: 0 0 10px 0;
+            font-size: 3em;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        .summary p {
+            margin: 5px 0;
+            font-size: 1.2em;
+        }
+        .summary-secondary {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        .summary-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
-            margin-bottom: 30px;
+            margin-top: 20px;
         }
         .summary-card {
-            background: linear-gradient(145deg, #232733, #1e2a22);
-            border-left: 4px solid #16a085;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 8px;
             padding: 20px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
         }
         .summary-card h3 {
-            margin: 0 0 15px 0;
-            color: #16a085;
+            margin: 0 0 10px 0;
+            color: rgba(255, 255, 255, 0.8);
             font-size: 0.9em;
             text-transform: uppercase;
             letter-spacing: 1px;
@@ -66,12 +88,12 @@
         .summary-value {
             font-size: 2em;
             font-weight: bold;
-            color: #eaf6ff;
+            color: #ffffff;
             margin-bottom: 5px;
         }
         .summary-label {
             font-size: 0.85em;
-            color: #7f8c8d;
+            color: rgba(255, 255, 255, 0.7);
         }
         h3 {
             color: #16a085;
@@ -157,8 +179,14 @@
         <h1>💼 Chiffre d'Affaires UPlanet</h1>
         
         <div class="wallet-info">
-            <strong>Portefeuille UPLANETNAME (Hub de distribution)</strong>
+            <strong>Portefeuille UPLANETG1PUB (Hub de distribution des services)</strong>
             <div class="wallet-pubkey">{{ g1pub }}</div>
+            <div style="margin-top: 10px; padding: 8px; background: rgba(52,152,219,0.1); border-radius: 6px; font-size: 0.85em; color: #b8c6e0;">
+                <strong>📊 Conversion Ğ1 → ẐEN :</strong> 
+                Taux standard <strong>1Ẑ = 0.1Ğ1</strong> (10Ẑ = 1Ğ1) après déduction de 1Ğ1 pour primo-transaction d'initialisation du portefeuille.
+                <br>
+                <em>Exemple : 6Ğ1 reçus → (6-1)×10 = <strong>50Ẑ</strong> (équivalent à 5Ğ1 après primo)</em>
+            </div>
         </div>
 
         <!-- Year Filter -->
@@ -169,23 +197,31 @@
         </div>
         {% endif %}
 
+        <!-- Main Summary: ẐEN as primary value (like society.html) -->
         <div class="summary">
-            <div class="summary-card">
-                <h3>💰 CA Total ẐEN</h3>
-                <div class="summary-value">{{ total_revenue_zen | round(2) }} Ẑ</div>
-                <div class="summary-label">{% if filter_year != 'all' %}Année {{ filter_year }}{% else %}Cumulé (toutes années){% endif %}</div>
-            </div>
+            <h2>{{ total_revenue_zen | round(2) }} Ẑ</h2>
+            <p><strong>{{ total_revenue_g1 | round(2) }} Ğ1</strong> de Chiffre d'Affaires RENTAL</p>
+            <p class="summary-secondary">{{ total_transactions }} ventes de services {% if filter_year != 'all' %}(année {{ filter_year }}){% else %}(toutes années){% endif %}</p>
             
-            <div class="summary-card">
-                <h3>💎 CA Total Ğ1</h3>
-                <div class="summary-value">{{ total_revenue_g1 | round(2) }} Ğ1</div>
-                <div class="summary-label">Équivalent blockchain</div>
-            </div>
-            
-            <div class="summary-card">
-                <h3>📊 Transactions RENTAL</h3>
-                <div class="summary-value">{{ total_transactions }}</div>
-                <div class="summary-label">Ventes de services</div>
+            <!-- Secondary metrics in cards -->
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <h3>💰 Revenu ẐEN</h3>
+                    <div class="summary-value">{{ total_revenue_zen | round(2) }} Ẑ</div>
+                    <div class="summary-label">Valeur nette (1Ğ1 primo-transaction déduit)</div>
+                </div>
+                
+                <div class="summary-card">
+                    <h3>💎 Équivalent Ğ1</h3>
+                    <div class="summary-value">{{ total_revenue_g1 | round(2) }} Ğ1</div>
+                    <div class="summary-label">Blockchain Ğ1 (source)</div>
+                </div>
+                
+                <div class="summary-card">
+                    <h3>📊 Transactions</h3>
+                    <div class="summary-value">{{ total_transactions }}</div>
+                    <div class="summary-label">Services RENTAL vendus</div>
+                </div>
             </div>
         </div>
 
@@ -206,7 +242,10 @@
                 {% for year_data in yearly_summary %}
                 <tr>
                     <td class="date" style="font-size: 1.1em; font-weight: 700;">{{ year_data.year }}</td>
-                    <td class="amount">{{ year_data.total_revenue_zen | round(2) }} Ẑ</td>
+                    <td class="amount">
+                        <strong>{{ year_data.total_revenue_zen | round(2) }} Ẑ</strong>
+                        <div style="font-size: 0.8em; color: #7f8c8d; font-weight: normal; margin-top: 2px;">{{ year_data.total_revenue_g1 | round(2) }} Ğ1</div>
+                    </td>
                     <td style="color: #3498db; font-weight: 600;">{{ year_data.total_revenue_g1 | round(2) }} Ğ1</td>
                     <td style="text-align: center; color: #16a085; font-weight: 600;">{{ year_data.total_transactions }}</td>
                     <td style="text-align: center;">
@@ -258,7 +297,10 @@
                     <td style="text-align: center; color: #16a085; font-weight: 600;">
                         {{ transaction.transaction_type }}
                     </td>
-                    <td class="amount">{{ transaction.amount_zen | round(2) }} Ẑ ({{ transaction.amount_g1 | round(2) }} Ğ1)</td>
+                    <td class="amount">
+                        <strong>{{ transaction.amount_zen | round(2) }} Ẑ</strong>
+                        <span style="font-size: 0.85em; color: #7f8c8d; font-weight: normal;">({{ transaction.amount_g1 | round(2) }} Ğ1)</span>
+                    </td>
                     <td class="comment">{{ transaction.comment }}</td>
                 </tr>
                 {% endfor %}
