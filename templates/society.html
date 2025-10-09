@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Capital Social UPlanet - Historique</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 30px;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .summary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .summary h2 {
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+        }
+        .summary p {
+            margin: 5px 0;
+            font-size: 1.1em;
+        }
+        .pubkey {
+            font-family: monospace;
+            font-size: 0.9em;
+            color: rgba(255,255,255,0.8);
+            margin-top: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        thead {
+            background: #2c3e50;
+            color: white;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        th {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.85em;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        .amount {
+            font-weight: bold;
+            color: #e74c3c;
+        }
+        .date {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        .recipient {
+            font-family: monospace;
+            font-size: 0.85em;
+            color: #3498db;
+        }
+        .comment {
+            font-style: italic;
+            color: #7f8c8d;
+        }
+        .timestamp {
+            text-align: center;
+            color: #95a5a6;
+            font-size: 0.85em;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Capital Social UPlanet</h1>
+        <div class="summary">
+            <h2>{{ total_outgoing_zen }} Ẑ</h2>
+            <p><strong>{{ total_outgoing_g1 }} Ğ1</strong> distribués en parts sociales</p>
+            <p>{{ total_transfers }} transactions sortantes</p>
+            <div class="pubkey">{{ g1pub }}</div>
+        </div>
+        
+        <h3>📜 Historique des Parts Sociales</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Destinataire</th>
+                    <th>Montant</th>
+                    <th>Commentaire</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for transfer in transfers %}
+                <tr>
+                    <td class="date">{{ transfer.date }}</td>
+                    <td class="recipient">{{ transfer.recipient[:16] }}...</td>
+                    <td class="amount">{{ transfer.amount_zen }} Ẑ ({{ transfer.amount_g1 }} Ğ1)</td>
+                    <td class="comment">{{ transfer.comment }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div class="timestamp">
+            Généré le {{ timestamp }}
+        </div>
+    </div>
+</body>
+</html>

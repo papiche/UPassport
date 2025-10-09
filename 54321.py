@@ -1794,6 +1794,88 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
         logging.error(f"Erreur inattendue dans check_balance_route: {e}")
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
+@app.get("/check_society")
+async def check_society_route(request: Request, html: Optional[str] = None):
+    """Check transaction history of SOCIETY wallet to see capital contributions"""
+    # Get SOCIETY wallet public key from environment or file
+    g1pub = os.environ.get('UPLANETNAME_SOCIETY')
+    if not g1pub:
+        # Try to read from file if not in environment
+        society_file = os.path.expanduser("~/.zen/tmp/UPLANETNAME_SOCIETY")
+        if os.path.exists(society_file):
+            with open(society_file, 'r') as f:
+                g1pub = f.read().strip()
+    
+    if not g1pub:
+        raise HTTPException(status_code=500, detail="SOCIETY wallet not configured")
+    
+    if not is_safe_g1pub(g1pub):
+        raise HTTPException(status_code=400, detail="Invalid G1 public key format")
+    
+    try:
+        # Call G1history.sh to get transaction history
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1history.sh")
+        result = subprocess.run([script_path, g1pub], capture_output=True, text=True, timeout=60)
+        
+        if result.returncode != 0:
+            raise ValueError(f"Error in G1history.sh: {result.stderr}")
+        
+        # Parse JSON output from G1history.sh
+        try:
+            history_json = json.loads(result.stdout.strip())
+        except json.JSONDecodeError as e:
+            logging.error(f"Failed to parse G1history.sh output: {e}")
+            history_json = {}
+        
+        # Calculate total outgoing transfers (SOCIETY -> ZEN Cards)
+        total_outgoing_zen = 0
+        total_outgoing_g1 = 0
+        outgoing_transfers = []
+        
+        if "history" in history_json and isinstance(history_json["history"], list):
+            for tx in history_json["history"]:
+                # Check if transaction is SENT (negative amount)
+                if "amount" in tx:
+                    amount_centimes = tx.get("amount", 0)
+                    # Negative amount means outgoing
+                    if amount_centimes < 0:
+                        amount_g1 = abs(amount_centimes) / 100.0
+                        amount_zen = (amount_g1 - 1) * 10 if amount_g1 > 1 else 0
+                        total_outgoing_g1 += amount_g1
+                        total_outgoing_zen += amount_zen
+                        
+                        outgoing_transfers.append({
+                            "date": tx.get("date", ""),
+                            "recipient": tx.get("recipient", ""),
+                            "amount_g1": round(amount_g1, 2),
+                            "amount_zen": round(amount_zen, 2),
+                            "comment": tx.get("comment", "")
+                        })
+        
+        society_data = {
+            "g1pub": g1pub,
+            "total_outgoing_g1": round(total_outgoing_g1, 2),
+            "total_outgoing_zen": round(total_outgoing_zen, 2),
+            "total_transfers": len(outgoing_transfers),
+            "transfers": outgoing_transfers[:50],  # Limit to 50 most recent
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # If html parameter is provided, return HTML page
+        if html is not None:
+            return generate_society_html_page(request, g1pub, society_data)
+        
+        # Otherwise return JSON
+        return society_data
+        
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Transaction history retrieval timeout")
+    except Exception as e:
+        logging.error(f"Error checking society history: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 @app.post("/upassport")
 async def scan_qr(
     parametre: str = Form(...),
@@ -3844,6 +3926,22 @@ def convert_g1_to_zen(g1_balance: str) -> str:
     except (ValueError, TypeError):
         # Si la conversion échoue, retourner la valeur originale
         return g1_balance
+
+def generate_society_html_page(request: Request, g1pub: str, society_data: Dict[str, Any]):
+    """Generate HTML page to display SOCIETY wallet transaction history using template"""
+    try:
+        return templates.TemplateResponse("society.html", {
+            "request": request,
+            "g1pub": g1pub,
+            "total_outgoing_zen": society_data['total_outgoing_zen'],
+            "total_outgoing_g1": society_data['total_outgoing_g1'],
+            "total_transfers": society_data['total_transfers'],
+            "transfers": society_data['transfers'],
+            "timestamp": society_data['timestamp']
+        })
+    except Exception as e:
+        logging.error(f"Error generating society HTML page: {e}")
+        raise HTTPException(status_code=500, detail="Error generating HTML page")
 
 def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) -> HTMLResponse:
     """Générer une page HTML pour afficher les balances en utilisant le template message.html"""
