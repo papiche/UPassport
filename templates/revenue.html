@@ -135,14 +135,21 @@
             margin-bottom: 15px;
             font-size: clamp(1.2em, 4vw, 1.5em);
         }
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            -webkit-overflow-scrolling: touch;
+        }
+        
         table {
             width: 100%;
+            min-width: 600px;
             border-collapse: collapse;
             background: #333;
             border-radius: 8px;
             overflow: hidden;
             border: 1px solid #444;
-            margin-bottom: 20px;
         }
         
         thead {
@@ -155,16 +162,17 @@
             font-weight: 600;
             color: #e0e0e0;
             text-transform: uppercase;
-            font-size: clamp(12px, 2.5vw, 14px);
+            font-size: 14px;
             letter-spacing: 0.5px;
             border-bottom: 2px solid #444;
+            white-space: nowrap;
         }
         
         td {
             padding: 12px 15px;
             border-bottom: 1px solid #444;
             color: #cccccc;
-            font-size: clamp(13px, 3vw, 15px);
+            font-size: 15px;
         }
         
         tr:hover {
@@ -191,9 +199,12 @@
         }
         
         .comment {
-            font-size: clamp(12px, 2.5vw, 13px);
+            font-size: 13px;
             color: #aaa;
             font-family: monospace;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .timestamp {
@@ -203,6 +214,23 @@
             margin-top: 30px;
             padding-top: 20px;
             border-top: 1px solid #444;
+        }
+        
+        /* Scroll indicator for tables */
+        .table-wrapper::after {
+            content: '👉 Faites défiler →';
+            display: none;
+            position: sticky;
+            right: 0;
+            top: 50%;
+            background: rgba(74, 175, 80, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px 0 0 6px;
+            font-size: 12px;
+            font-weight: 600;
+            pointer-events: none;
+            transform: translateY(-50%);
         }
         
         .back-link {
@@ -230,16 +258,50 @@
                 padding: 15px;
             }
             
-            table {
-                font-size: 13px;
+            .summary-grid {
+                grid-template-columns: 1fr;
             }
             
             th, td {
-                padding: 8px 10px;
+                padding: 10px 8px;
+                font-size: 13px;
             }
             
-            .summary-grid {
-                grid-template-columns: 1fr;
+            .comment {
+                max-width: 150px;
+                font-size: 11px;
+            }
+            
+            .table-wrapper::after {
+                display: block;
+            }
+            
+            table {
+                min-width: 700px;
+            }
+        }
+        
+        @media screen and (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+            
+            th, td {
+                padding: 8px 6px;
+                font-size: 12px;
+            }
+            
+            .wallet-info {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .summary p {
+                font-size: 16px;
+            }
+            
+            .comment {
+                max-width: 100px;
             }
         }
     </style>
@@ -294,6 +356,7 @@
         <!-- Yearly Summary -->
         {% if yearly_summary and yearly_summary|length > 0 and filter_year == 'all' %}
         <h3>📈 Chiffre d'Affaires Annuel</h3>
+        <div class="table-wrapper">
         <table style="margin-bottom: 30px;">
             <thead>
                 <tr>
@@ -331,6 +394,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% endif %}
 
         <h3>📜 Historique des Ventes de Services (RENTAL){% if filter_year != 'all' %} - Année {{ filter_year }}{% endif %}</h3>
@@ -340,6 +404,7 @@
             <div style="font-size: 1.2em;">Aucune transaction RENTAL {% if filter_year != 'all' %}pour l'année {{ filter_year }}{% endif %}</div>
         </div>
         {% else %}
+        <div class="table-wrapper">
         <table>
             <thead>
                 <tr>
@@ -368,6 +433,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% endif %}
 
         <div class="timestamp">

@@ -85,15 +85,22 @@
             border: 1px solid #444;
             word-break: break-all;
         }
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            -webkit-overflow-scrolling: touch;
+        }
+        
         table {
             width: 100%;
+            min-width: 600px;
             border-collapse: collapse;
             background: #333;
             border-radius: 8px;
             overflow: hidden;
             border: 1px solid #444;
             margin-top: 20px;
-            margin-bottom: 20px;
         }
         
         thead {
@@ -106,16 +113,17 @@
             font-weight: 600;
             color: #e0e0e0;
             text-transform: uppercase;
-            font-size: clamp(12px, 2.5vw, 14px);
+            font-size: 14px;
             letter-spacing: 0.5px;
             border-bottom: 2px solid #444;
+            white-space: nowrap;
         }
         
         td {
             padding: 12px 15px;
             border-bottom: 1px solid #444;
             color: #cccccc;
-            font-size: clamp(13px, 3vw, 15px);
+            font-size: 15px;
         }
         
         tr:hover {
@@ -146,7 +154,10 @@
         .comment {
             font-style: italic;
             color: #aaa;
-            font-size: clamp(12px, 2.5vw, 13px);
+            font-size: 13px;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .timestamp {
@@ -156,6 +167,23 @@
             margin-top: 30px;
             padding-top: 20px;
             border-top: 1px solid #444;
+        }
+        
+        /* Scroll indicator for tables */
+        .table-wrapper::after {
+            content: '👉 Faites défiler →';
+            display: none;
+            position: sticky;
+            right: 0;
+            top: 50%;
+            background: rgba(74, 175, 80, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px 0 0 6px;
+            font-size: 12px;
+            font-weight: 600;
+            pointer-events: none;
+            transform: translateY(-50%);
         }
         
         /* Links */
@@ -175,12 +203,41 @@
                 padding: 15px;
             }
             
-            table {
+            th, td {
+                padding: 10px 8px;
                 font-size: 13px;
             }
             
+            .comment {
+                max-width: 150px;
+                font-size: 11px;
+            }
+            
+            .table-wrapper::after {
+                display: block;
+            }
+            
+            table {
+                min-width: 700px;
+            }
+        }
+        
+        @media screen and (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+            
             th, td {
-                padding: 8px 10px;
+                padding: 8px 6px;
+                font-size: 12px;
+            }
+            
+            .summary p {
+                font-size: 16px;
+            }
+            
+            .comment {
+                max-width: 100px;
             }
         }
     </style>
@@ -196,6 +253,7 @@
         </div>
         
         <h3>📜 Historique des Parts Sociales</h3>
+        <div class="table-wrapper">
                 <table>
                     <thead>
                         <tr>
@@ -231,6 +289,7 @@
                         {% endfor %}
                     </tbody>
                 </table>
+        </div>
         
         <div class="timestamp">
             Généré le {{ timestamp }}
