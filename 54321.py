@@ -1835,6 +1835,55 @@ async def check_society_route(request: Request, html: Optional[str] = None):
         logging.error(f"Error checking society history: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@app.get("/check_revenue")
+async def check_revenue_route(request: Request, html: Optional[str] = None, year: Optional[str] = None):
+    """Check revenue history from RENTAL transactions (Chiffre d'Affaires)
+    
+    Args:
+        html: If present, return HTML page instead of JSON
+        year: Optional year filter (e.g. "2024", "2025"). Default: "all"
+    """
+    try:
+        # Call G1revenue.sh to get filtered and calculated revenue data
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1revenue.sh")
+        
+        # Pass year filter as argument (default: "all")
+        year_filter = year if year else "all"
+        result = subprocess.run([script_path, year_filter], capture_output=True, text=True, timeout=60)
+        
+        if result.returncode != 0:
+            logging.error(f"G1revenue.sh failed with return code {result.returncode}: {result.stderr}")
+            raise ValueError(f"Error in G1revenue.sh: {result.stderr}")
+        
+        # Parse JSON output from G1revenue.sh
+        try:
+            revenue_data = json.loads(result.stdout.strip())
+        except json.JSONDecodeError as e:
+            logging.error(f"Failed to parse G1revenue.sh output: {e}")
+            logging.error(f"Raw output: {result.stdout[:500]}")
+            raise ValueError(f"Invalid JSON from G1revenue.sh: {e}")
+        
+        # Check for errors in the response
+        if "error" in revenue_data:
+            logging.error(f"G1revenue.sh returned error: {revenue_data['error']}")
+            raise HTTPException(status_code=500, detail=revenue_data['error'])
+        
+        # If html parameter is provided, return HTML page
+        if html is not None:
+            g1pub = revenue_data.get("g1pub", "N/A")
+            return generate_revenue_html_page(request, g1pub, revenue_data)
+        
+        # Otherwise return JSON
+        return revenue_data
+        
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Revenue history retrieval timeout")
+    except Exception as e:
+        logging.error(f"Error checking revenue history: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 @app.post("/upassport")
 async def scan_qr(
     parametre: str = Form(...),
@@ -3900,6 +3949,24 @@ def generate_society_html_page(request: Request, g1pub: str, society_data: Dict[
         })
     except Exception as e:
         logging.error(f"Error generating society HTML page: {e}")
+        raise HTTPException(status_code=500, detail="Error generating HTML page")
+
+def generate_revenue_html_page(request: Request, g1pub: str, revenue_data: Dict[str, Any]):
+    """Generate HTML page to display revenue history (Chiffre d'Affaires) using template"""
+    try:
+        return templates.TemplateResponse("revenue.html", {
+            "request": request,
+            "g1pub": g1pub,
+            "filter_year": revenue_data.get('filter_year', 'all'),
+            "total_revenue_zen": revenue_data['total_revenue_zen'],
+            "total_revenue_g1": revenue_data['total_revenue_g1'],
+            "total_transactions": revenue_data['total_transactions'],
+            "yearly_summary": revenue_data.get('yearly_summary', []),
+            "transactions": revenue_data['transactions'],
+            "timestamp": revenue_data['timestamp']
+        })
+    except Exception as e:
+        logging.error(f"Error generating revenue HTML page: {e}")
         raise HTTPException(status_code=500, detail="Error generating HTML page")
 
 def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) -> HTMLResponse:
