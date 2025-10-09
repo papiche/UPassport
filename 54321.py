@@ -1895,24 +1895,46 @@ async def check_impots_route(request: Request, html: Optional[str] = None):
         # Call G1impots.sh to get tax provisions data
         script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1impots.sh")
         
+        if not os.path.exists(script_path):
+            logging.error(f"G1impots.sh script not found at: {script_path}")
+            raise HTTPException(status_code=500, detail="G1impots.sh script not found")
+        
         result = subprocess.run([script_path], capture_output=True, text=True, timeout=60)
         
+        # Log stderr if present (for debugging)
+        if result.stderr:
+            logging.warning(f"G1impots.sh stderr: {result.stderr}")
+        
         if result.returncode != 0:
-            logging.error(f"G1impots.sh failed with return code {result.returncode}: {result.stderr}")
-            raise ValueError(f"Error in G1impots.sh: {result.stderr}")
+            logging.error(f"G1impots.sh failed with return code {result.returncode}")
+            logging.error(f"stdout: {result.stdout[:500]}")
+            logging.error(f"stderr: {result.stderr[:500]}")
+            raise ValueError(f"Error in G1impots.sh: return code {result.returncode}")
         
-        # Parse JSON output from G1impots.sh
-        try:
-            impots_data = json.loads(result.stdout.strip())
-        except json.JSONDecodeError as e:
-            logging.error(f"Failed to parse G1impots.sh output: {e}")
-            logging.error(f"Raw output: {result.stdout[:500]}")
-            raise ValueError(f"Invalid JSON from G1impots.sh: {e}")
-        
-        # Check for errors in the response
-        if "error" in impots_data:
-            logging.error(f"G1impots.sh returned error: {impots_data['error']}")
-            raise HTTPException(status_code=500, detail=impots_data['error'])
+        # Check if output is empty
+        if not result.stdout or not result.stdout.strip():
+            logging.error("G1impots.sh returned empty output")
+            # Return default empty structure
+            impots_data = {
+                "wallet": "N/A",
+                "total_provisions_g1": 0,
+                "total_provisions_zen": 0,
+                "total_transactions": 0,
+                "breakdown": {
+                    "tva": {"total_g1": 0, "total_zen": 0, "transactions": 0, "description": "TVA collectée sur locations RENTAL (20%)"},
+                    "is": {"total_g1": 0, "total_zen": 0, "transactions": 0, "description": "Impôt sur les Sociétés provisionné (15% ou 25%)"}
+                },
+                "provisions": []
+            }
+        else:
+            # Parse JSON output from G1impots.sh
+            try:
+                impots_data = json.loads(result.stdout.strip())
+            except json.JSONDecodeError as e:
+                logging.error(f"Failed to parse G1impots.sh output: {e}")
+                logging.error(f"Raw output: {result.stdout[:500]}")
+                logging.error(f"Raw stderr: {result.stderr[:500]}")
+                raise ValueError(f"Invalid JSON from G1impots.sh: {e}")
         
         # If html parameter is provided, return HTML page
         if html is not None:
@@ -1926,7 +1948,7 @@ async def check_impots_route(request: Request, html: Optional[str] = None):
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Tax provisions retrieval timeout")
     except Exception as e:
-        logging.error(f"Error in check_impots_route: {e}")
+        logging.error(f"Error in check_impots_route: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/upassport")

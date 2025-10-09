@@ -360,6 +360,7 @@
 
         <h3>📜 Historique des Provisions</h3>
 
+        {% if provisions and provisions|length > 0 %}
         <div class="table-wrapper">
             <table>
                 <thead>
@@ -386,6 +387,16 @@
                 </tbody>
             </table>
         </div>
+        {% else %}
+        <div style="text-align: center; padding: 40px; background: rgba(255, 255, 255, 0.05); border-radius: 12px; margin-bottom: 30px;">
+            <div style="font-size: 3em; margin-bottom: 15px; opacity: 0.3;">📭</div>
+            <div style="font-size: 1.2em; color: #95a5a6; margin-bottom: 10px;">Aucune provision fiscale enregistrée</div>
+            <div style="font-size: 0.9em; color: #7f8c8d; line-height: 1.5;">
+                Les provisions TVA et IS apparaîtront ici dès que le système coopératif<br>
+                commencera à générer des revenus et à distribuer les surplus.
+            </div>
+        </div>
+        {% endif %}
 
         <a href="/" class="back-link">← Retour au tableau de bord</a>
     </div>
