@@ -105,26 +105,41 @@
         </div>
         
         <h3>📜 Historique des Parts Sociales</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Destinataire</th>
-                    <th>Montant</th>
-                    <th>Commentaire</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for transfer in transfers %}
-                <tr>
-                    <td class="date">{{ transfer.date }}</td>
-                    <td class="recipient">{{ transfer.recipient[:16] }}...</td>
-                    <td class="amount">{{ transfer.amount_zen }} Ẑ ({{ transfer.amount_g1 }} Ğ1)</td>
-                    <td class="comment">{{ transfer.comment }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Destinataire</th>
+                            <th>Type</th>
+                            <th>Montant</th>
+                            <th>Node IPFS</th>
+                            <th>Commentaire</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transfer in transfers %}
+                        <tr>
+                            <td class="date">{{ transfer.date }}</td>
+                            <td class="recipient">{{ transfer.recipient[:24] if transfer.recipient|length > 24 else transfer.recipient }}</td>
+                            <td style="text-align: center; color: #3498db; font-weight: 600;">
+                                {% if transfer.part_type == 'constellation' %}🌟{% elif transfer.part_type == 'satellite' %}🛰️{% else %}📦{% endif %}
+                                {{ transfer.part_type|title }}
+                            </td>
+                            <td class="amount">{{ transfer.amount_zen }} Ẑ ({{ transfer.amount_g1 }} Ğ1)</td>
+                            <td style="font-family: monospace; font-size: 0.75em; color: #7f8c8d;">
+                                {% if transfer.ipfs_node and transfer.ipfs_node != 'N/A' %}
+                                    <a href="/ipns/{{ transfer.ipfs_node }}" target="_blank" style="color: #3498db; text-decoration: none;">
+                                        {{ transfer.ipfs_node[:12] }}...
+                                    </a>
+                                {% else %}
+                                    <span style="color: #95a5a6;">N/A</span>
+                                {% endif %}
+                            </td>
+                            <td class="comment">{{ transfer.comment }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
         
         <div class="timestamp">
             Généré le {{ timestamp }}
