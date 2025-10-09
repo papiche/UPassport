@@ -1797,114 +1797,31 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
 @app.get("/check_society")
 async def check_society_route(request: Request, html: Optional[str] = None):
     """Check transaction history of SOCIETY wallet to see capital contributions"""
-    # Get SOCIETY wallet public key from environment or file
-    g1pub = os.environ.get('UPLANETNAME_SOCIETY')
-    if not g1pub:
-        # Try to read from file if not in environment
-        society_file = os.path.expanduser("~/.zen/tmp/UPLANETNAME_SOCIETY")
-        if os.path.exists(society_file):
-            with open(society_file, 'r') as f:
-                g1pub = f.read().strip()
-    
-    if not g1pub:
-        raise HTTPException(status_code=500, detail="SOCIETY wallet not configured")
-    
-    if not is_safe_g1pub(g1pub):
-        raise HTTPException(status_code=400, detail="Invalid G1 public key format")
-    
     try:
-        # Call G1history.sh to get transaction history
-        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1history.sh")
-        result = subprocess.run([script_path, g1pub], capture_output=True, text=True, timeout=60)
+        # Call G1society.sh to get filtered and calculated society data
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1society.sh")
+        result = subprocess.run([script_path], capture_output=True, text=True, timeout=60)
         
         if result.returncode != 0:
-            raise ValueError(f"Error in G1history.sh: {result.stderr}")
+            logging.error(f"G1society.sh failed with return code {result.returncode}: {result.stderr}")
+            raise ValueError(f"Error in G1society.sh: {result.stderr}")
         
-        # Parse JSON output from G1history.sh
+        # Parse JSON output from G1society.sh
         try:
-            history_json = json.loads(result.stdout.strip())
+            society_data = json.loads(result.stdout.strip())
         except json.JSONDecodeError as e:
-            logging.error(f"Failed to parse G1history.sh output: {e}")
-            history_json = {}
+            logging.error(f"Failed to parse G1society.sh output: {e}")
+            logging.error(f"Raw output: {result.stdout[:500]}")
+            raise ValueError(f"Invalid JSON from G1society.sh: {e}")
         
-        # Calculate total incoming transfers from UPLANETNAME_G1 (capital social contributions)
-        total_incoming_zen = 0
-        total_incoming_g1 = 0
-        incoming_transfers = []
-        
-        # Get UPLANETNAME_G1 pubkey to filter incoming transactions
-        uplanet_g1_pubkey = os.environ.get('UPLANETNAME_G1')
-        if not uplanet_g1_pubkey:
-            uplanet_g1_file = os.path.expanduser("~/.zen/tmp/UPLANETNAME_G1")
-            if os.path.exists(uplanet_g1_file):
-                with open(uplanet_g1_file, 'r') as f:
-                    uplanet_g1_pubkey = f.read().strip()
-        
-        if "history" in history_json and isinstance(history_json["history"], list):
-            for tx in history_json["history"]:
-                # Check if transaction is RECEIVED (positive amount)
-                # G1history.sh returns "Amounts Ğ1" as string with sign
-                if "Amounts Ğ1" in tx:
-                    amount_g1_str = tx.get("Amounts Ğ1", "0")
-                    try:
-                        amount_g1 = float(amount_g1_str)
-                        # Positive amount means incoming
-                        if amount_g1 > 0:
-                            # Extract issuer from "Issuers/Recipients" field (format: "pubkey:txid")
-                            issuer = tx.get("Issuers/Recipients", "").split(":")[0] if "Issuers/Recipients" in tx else ""
-                            reference = tx.get("Reference", "")
-                            
-                            # Filter: only count transactions from UPLANETNAME_G1 with SOCIETY reference
-                            # Or transactions with "Parts sociales" in reference (legacy format)
-                            is_from_g1 = (uplanet_g1_pubkey and issuer == uplanet_g1_pubkey)
-                            is_society_ref = ("SOCIETY" in reference or "Parts sociales" in reference)
-                            
-                            if is_from_g1 and is_society_ref:
-                                amount_zen = (amount_g1 - 1) * 10 if amount_g1 > 1 else 0
-                                total_incoming_g1 += amount_g1
-                                total_incoming_zen += amount_zen
-                                
-                                # Extract email and type from reference
-                                # Format: "UPLANET:AwdjhpJN:SOCIETY:support@qo-op.com:constellation"
-                                # Or legacy: "Parts sociales philsfree@free.fr constellation"
-                                email = ""
-                                part_type = ""
-                                if "SOCIETY" in reference:
-                                    parts = reference.split(":")
-                                    if len(parts) >= 4:
-                                        email = parts[3]
-                                    if len(parts) >= 5:
-                                        part_type = parts[4]
-                                elif "Parts sociales" in reference:
-                                    # Legacy format: "Parts sociales email type"
-                                    parts = reference.replace("Parts sociales", "").strip().split()
-                                    if len(parts) >= 1:
-                                        email = parts[0]
-                                    if len(parts) >= 2:
-                                        part_type = parts[1]
-                                
-                                incoming_transfers.append({
-                                    "date": tx.get("Date", ""),
-                                    "recipient": email or "N/A",
-                                    "amount_g1": round(amount_g1, 2),
-                                    "amount_zen": round(amount_zen, 2),
-                                    "comment": f"{part_type} - {reference}" if part_type else reference
-                                })
-                    except (ValueError, TypeError):
-                        logging.warning(f"Failed to parse amount: {amount_g1_str}")
-                        continue
-        
-        society_data = {
-            "g1pub": g1pub,
-            "total_outgoing_g1": round(total_incoming_g1, 2),
-            "total_outgoing_zen": round(total_incoming_zen, 2),
-            "total_transfers": len(incoming_transfers),
-            "transfers": incoming_transfers[:50],  # Limit to 50 most recent
-            "timestamp": datetime.now().isoformat()
-        }
+        # Check for errors in the response
+        if "error" in society_data:
+            logging.error(f"G1society.sh returned error: {society_data['error']}")
+            raise HTTPException(status_code=500, detail=society_data['error'])
         
         # If html parameter is provided, return HTML page
         if html is not None:
+            g1pub = society_data.get("g1pub", "N/A")
             return generate_society_html_page(request, g1pub, society_data)
         
         # Otherwise return JSON
