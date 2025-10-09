@@ -5,92 +5,183 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Capital Social UPlanet - Historique</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
+        
         body {
             font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: #1a1a1a;
+            color: #e0e0e0;
             margin: 0;
-            padding: 20px;
+            padding: 10px;
             min-height: 100vh;
         }
+        
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-            padding: 30px;
-        }
-        h1 {
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        .summary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background-color: #2a2a2a;
+            border-radius: 8px;
             padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
         }
+        
+        h1 {
+            background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: clamp(1.5em, 5vw, 2.5em);
+            text-align: center;
+            margin-bottom: 20px;
+            line-height: 1.2;
+        }
+        
+        h3 {
+            background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: clamp(1.2em, 4vw, 1.5em);
+        }
+        
+        .summary {
+            background-color: #383838;
+            color: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            text-align: center;
+            border: 1px solid #444;
+        }
+        
         .summary h2 {
             margin: 0 0 10px 0;
-            font-size: 2.5em;
+            font-size: clamp(2em, 6vw, 3em);
+            background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
+        
         .summary p {
             margin: 5px 0;
-            font-size: 1.1em;
+            font-size: clamp(16px, 4vw, 20px);
+            color: #e0e0e0;
         }
+        
         .pubkey {
             font-family: monospace;
-            font-size: 0.9em;
-            color: rgba(255,255,255,0.8);
+            font-size: clamp(12px, 2.5vw, 14px);
+            color: #cccccc;
+            background: #333;
+            padding: 10px 15px;
+            border-radius: 6px;
+            display: inline-block;
             margin-top: 10px;
+            border: 1px solid #444;
+            word-break: break-all;
         }
         table {
             width: 100%;
             border-collapse: collapse;
+            background: #333;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #444;
             margin-top: 20px;
+            margin-bottom: 20px;
         }
+        
         thead {
-            background: #2c3e50;
-            color: white;
+            background-color: #383838;
         }
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #ecf0f1;
-        }
+        
         th {
-            font-weight: bold;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #e0e0e0;
             text-transform: uppercase;
-            font-size: 0.85em;
+            font-size: clamp(12px, 2.5vw, 14px);
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #444;
         }
+        
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #444;
+            color: #cccccc;
+            font-size: clamp(13px, 3vw, 15px);
+        }
+        
         tr:hover {
-            background: #f8f9fa;
+            background: #2a2a2a;
         }
+        
+        tr:last-child td {
+            border-bottom: none;
+        }
+        
         .amount {
             font-weight: bold;
-            color: #e74c3c;
+            color: #4CAF50;
         }
+        
         .date {
-            color: #7f8c8d;
-            font-size: 0.9em;
+            color: #2196F3;
+            font-weight: 500;
+            font-size: clamp(13px, 3vw, 14px);
         }
+        
         .recipient {
             font-family: monospace;
-            font-size: 0.85em;
-            color: #3498db;
+            font-size: clamp(12px, 2.5vw, 14px);
+            color: #4CAF50;
         }
+        
         .comment {
             font-style: italic;
-            color: #7f8c8d;
+            color: #aaa;
+            font-size: clamp(12px, 2.5vw, 13px);
         }
+        
         .timestamp {
             text-align: center;
-            color: #95a5a6;
-            font-size: 0.85em;
-            margin-top: 20px;
+            color: #aaa;
+            font-size: clamp(13px, 3vw, 14px);
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+        }
+        
+        /* Links */
+        a {
+            color: #2196F3;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        a:hover {
+            color: #4CAF50;
+        }
+        
+        /* Responsive design */
+        @media screen and (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            table {
+                font-size: 13px;
+            }
+            
+            th, td {
+                padding: 8px 10px;
+            }
         }
     </style>
 </head>
@@ -121,18 +212,18 @@
                         <tr>
                             <td class="date">{{ transfer.date }}</td>
                             <td class="recipient">{{ transfer.recipient[:24] if transfer.recipient|length > 24 else transfer.recipient }}</td>
-                            <td style="text-align: center; color: #3498db; font-weight: 600;">
+                            <td style="text-align: center; color: #2196F3; font-weight: 600;">
                                 {% if transfer.part_type == 'constellation' %}🌟{% elif transfer.part_type == 'satellite' %}🛰️{% else %}📦{% endif %}
                                 {{ transfer.part_type|title }}
                             </td>
                             <td class="amount">{{ transfer.amount_zen }} Ẑ</td>
-                            <td style="font-family: monospace; font-size: 0.75em; color: #7f8c8d;">
+                            <td style="font-family: monospace; font-size: clamp(11px, 2.5vw, 13px); color: #aaa;">
                                 {% if transfer.ipfs_node and transfer.ipfs_node != 'N/A' %}
-                                    <a href="/ipns/{{ transfer.ipfs_node }}" target="_blank" style="color: #3498db; text-decoration: none;">
+                                    <a href="/ipns/{{ transfer.ipfs_node }}" target="_blank" style="color: #2196F3; text-decoration: none; transition: color 0.3s;">
                                         {{ transfer.ipfs_node[:12] }}...
                                     </a>
                                 {% else %}
-                                    <span style="color: #95a5a6;">N/A</span>
+                                    <span style="color: #777;">N/A</span>
                                 {% endif %}
                             </td>
                             <td class="comment">{{ transfer.comment }}</td>
