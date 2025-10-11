@@ -369,13 +369,14 @@
         
         .modal-content {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
+            border: none;
+            border-radius: 0;
             padding: 0;
-            width: 90%;
-            max-width: 1200px;
-            max-height: 90vh;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            height: 100vh;
+            max-width: none;
+            max-height: none;
+            box-shadow: none;
             overflow: hidden;
             animation: modalSlideIn 0.3s ease-out;
         }
@@ -421,14 +422,15 @@
         }
         
         .modal-body {
-            padding: 20px;
-            max-height: calc(90vh - 100px);
-            overflow: auto;
+            padding: 0;
+            height: calc(100vh - 80px);
+            overflow: hidden;
         }
         
         .modal-body iframe {
-            border-radius: 10px;
+            border-radius: 0;
             background: white;
+            height: 100%;
         }
         
         /* Responsive Design */
@@ -449,19 +451,6 @@
             
             #mini-map {
                 height: 300px;
-            }
-            
-            .modal-content {
-                width: 95%;
-                max-height: 95vh;
-            }
-            
-            .modal-body {
-                padding: 10px;
-            }
-            
-            .modal-body iframe {
-                height: 500px !important;
             }
         }
     </style>
@@ -514,10 +503,10 @@
             
             <!-- Photo Upload -->
             <div class="photo-upload" onclick="document.getElementById('photoInput').click()">
-                <div id="photoUploadText">📷 Add Photo/File</div>
+                <div id="photoUploadText">📎 Add File (Photo, Video, Audio, Cookie, etc.)</div>
                 <img id="photoPreview" class="photo-preview" style="display: none;">
             </div>
-            <input type="file" id="photoInput" accept="image/*,video/*,audio/*" capture="environment" style="display: none;" onchange="handleFileUpload(event)">
+            <input type="file" id="photoInput" accept="*/*" style="display: none;" onchange="handleFileUpload(event)">
             
             <!-- Upload Status -->
             <div id="uploadStatus" class="location-info" style="display: none;">
@@ -643,7 +632,7 @@
                     <span class="modal-close" onclick="closeNostrProfile()">&times;</span>
                 </div>
                 <div class="modal-body">
-                    <iframe id="profile-iframe" src="" frameborder="0" width="100%" height="600px"></iframe>
+                    <iframe id="profile-iframe" src="" frameborder="0" width="100%" height="100%"></iframe>
                 </div>
             </div>
         </div>
@@ -653,6 +642,7 @@
         // Global variables
         let USPOT_API_BASE = '';
         let USPOT_RELAY = '';
+        let IPFS_GATEWAY = '';
         let DEFAULT_RELAYS = [];
         let nostrRelay = null;
         let isNostrConnected = false;
@@ -701,10 +691,11 @@
             DEFAULT_RELAYS = [determinedRelay, 'wss://relay.damus.io', 'wss://nos.lol']; // todo : change with relay from same constellation
             USPOT_API_BASE = apiBase;
             USPOT_RELAY = determinedRelay;
+            IPFS_GATEWAY = ipfsGateway;
 
             console.log(`uSPOT API Base: ${USPOT_API_BASE}`);
             console.log(`Default Relay: ${DEFAULT_RELAYS[0]}`);
-            console.log(`IPFS Gateway: ${ipfsGateway}`);
+            console.log(`IPFS Gateway: ${IPFS_GATEWAY}`);
             
             // Display API info
             const apiInfo = document.getElementById('api-info');
@@ -936,21 +927,23 @@
             const file = event.target.files[0];
             if (file) {
                 selectedFile = file;
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const preview = document.getElementById('photoPreview');
-                    const uploadText = document.getElementById('photoUploadText');
-                    
-                    if (file.type.startsWith('image/')) {
+                const preview = document.getElementById('photoPreview');
+                const uploadText = document.getElementById('photoUploadText');
+                
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
                         preview.src = e.target.result;
                         preview.style.display = 'block';
                         uploadText.style.display = 'none';
-                    } else {
-                        uploadText.textContent = `📎 ${file.name}`;
-                        preview.style.display = 'none';
-                    }
-                };
-                reader.readAsDataURL(file);
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    // Display file name for non-image files
+                    uploadText.textContent = `📎 ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+                    preview.style.display = 'none';
+                    uploadText.style.display = 'block';
+                }
                 
                 // Upload to IPFS
                 uploadFileToIPFS(file);
@@ -989,28 +982,36 @@
                 const result = await response.json();
                 console.log('Upload result:', result);
                 
-                // Construct IPFS URL
+                // Construct IPFS URL using the correct IPFS gateway
                 let fileUrl = null;
                 if (result.success && result.new_cid && result.file_path) {
-                    const gateway = window.location.origin.includes('127.0.0.1') 
-                        ? 'http://127.0.0.1:8080' 
-                        : window.location.origin;
                     const fileName = result.file_path.split('/').pop();
-                    fileUrl = `${gateway}/ipfs/${result.new_cid}/${fileName}`;
+                    fileUrl = `${IPFS_GATEWAY}/ipfs/${result.new_cid}/${fileName}`;
                 } else if (result.url) {
                     fileUrl = result.url;
                 } else if (result.ipfs_url) {
                     fileUrl = result.ipfs_url;
                 }
                 
-                if (!fileUrl) {
+                uploadStatus.style.background = 'rgba(74, 222, 128, 0.1)';
+                
+                // Handle special file types (cookies, config, etc.) that don't generate IPFS URLs
+                if (!fileUrl && result.success) {
+                    if (result.file_type === 'netscape_cookies') {
+                        uploadText.innerHTML = `✅ Cookie file uploaded: ${result.message}`;
+                        console.log('✅ Cookie file uploaded:', result.file_path);
+                    } else {
+                        uploadText.innerHTML = `✅ File uploaded: ${result.message || result.file_path}`;
+                        console.log('✅ File uploaded:', result);
+                    }
+                    uploadedFileUrl = null; // Don't add to message content
+                } else if (fileUrl) {
+                    uploadedFileUrl = fileUrl;
+                    uploadText.innerHTML = `✅ Uploaded: <a href="${fileUrl}" target="_blank" style="color: #4ade80;">${fileUrl.substring(0, 50)}...</a>`;
+                    console.log('✅ File uploaded:', fileUrl);
+                } else {
                     throw new Error('Failed to construct IPFS URL');
                 }
-                
-                uploadedFileUrl = fileUrl;
-                uploadStatus.style.background = 'rgba(74, 222, 128, 0.1)';
-                uploadText.innerHTML = `✅ Uploaded: <a href="${fileUrl}" target="_blank" style="color: #4ade80;">${fileUrl.substring(0, 50)}...</a>`;
-                console.log('✅ File uploaded:', fileUrl);
                 
             } catch (error) {
                 console.error('Upload error:', error);
@@ -1034,8 +1035,8 @@
                 // Get message content
                 let content = document.getElementById('messageContent').value.trim();
                 
-                // Add uploaded file URL
-                if (uploadedFileUrl) {
+                // Add uploaded file URL (only if it's a shareable URL)
+                if (uploadedFileUrl && uploadedFileUrl !== null) {
                     content += `\n${uploadedFileUrl}`;
                 }
                 
@@ -1096,7 +1097,7 @@
                 document.getElementById('photoInput').value = '';
                 document.getElementById('photoPreview').style.display = 'none';
                 document.getElementById('photoUploadText').style.display = 'block';
-                document.getElementById('photoUploadText').textContent = '📷 Add Photo/File';
+                document.getElementById('photoUploadText').textContent = '📎 Add File (Photo, Video, Audio, Cookie, etc.)';
                 document.getElementById('uploadStatus').style.display = 'none';
                 selectedFile = null;
                 uploadedFileUrl = null;
@@ -1247,22 +1248,8 @@
                 return;
             }
             
-            // Detect IPFS gateway from current page
-            const currentURL = new URL(window.location.href);
-            const hostname = currentURL.hostname;
-            
-            let ipfsGateway = '';
-            if (hostname === "127.0.0.1" || hostname === "localhost") {
-                ipfsGateway = "http://127.0.0.1:8080";
-            } else if (hostname.startsWith("u.")) {
-                const baseDomain = hostname.substring(2);
-                ipfsGateway = `https://ipfs.${baseDomain}`;
-            } else {
-                ipfsGateway = "https://ipfs.copylaradio.com";
-            }
-            
-            // Build profile URL with hex pubkey
-            const profileURL = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${userPubkey}`;
+            // Build profile URL with hex pubkey using detected IPFS gateway
+            const profileURL = `${IPFS_GATEWAY}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${userPubkey}`;
             
             console.log("Opening profile:", profileURL);
             
