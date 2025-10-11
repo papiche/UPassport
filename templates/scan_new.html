@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>[UPlanet/UPassport] ♥️BOX Terminal</title>
+    <title>🎫 MULTIPASS Terminal | UPlanet ♥️BOX</title>
+    <meta name="description" content="Universal decentralized identity terminal. Scan your MULTIPASS SSSS QR code to authenticate and access your decentralized services.">
     <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/jquery-3.6.3.min.js"></script>
     <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/instascan.min.js"></script>
     <style>
@@ -23,6 +24,7 @@
 
         h1 {
             background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             font-size: 2.5em;
@@ -324,7 +326,7 @@
 </style>
 </head>
 <body>
-    <h1>♥️BOX Terminal</h1>
+    <h1>🎫 MULTIPASS Terminal</h1>
     <button id="nostr">📍UPlanet Geo Message📍</button>
 
     <div class="scanner-container">
@@ -352,11 +354,16 @@
 -->
             <input type="text" id="parametre" name="parametre" size=30 required placeholder="Email || MULTIPASS QR SCAN">
             <input type="hidden" id="imageData" name="imageData">
-            <div style="display: flex; align-items: center;">
-            <input type="password" id="PASS" name="PASS" value="1234" size=4>
-            <label style="margin-left: 10px;">
-                <input type="checkbox" id="toggle-password"> 👀
-            </label>
+            <div style="display: flex; align-items: center; flex-direction: column;">
+                <div style="display: flex; align-items: center; width: 100%;">
+                    <input type="password" id="PASS" name="PASS" value="" size=4 placeholder="PASS">
+                    <label style="margin-left: 10px;">
+                        <input type="checkbox" id="toggle-password"> 👀
+                    </label>
+                </div>
+                <small style="color: #94a3b8; margin-top: 5px; text-align: center;">
+                    🔑 PASS codes: <strong>1111</strong>=Full Access | <strong>0000</strong>=Resiliation | <em>(empty)</em>=Quick Message
+                </small>
             </div>
 
             <input type="hidden" id="nostrHex" name="HEX" value="">
@@ -371,8 +378,23 @@
     </div>
     <div class="description">
         <h2><center>
-        <- <span id="UPlanet">UPlanet</span> | <span id="NOSTR"><button onclick= 'window.location.href = "/g1";' title="Registration">✨</button></span> | <span id="coeurBOX"><b>♥BOX</b></span> ->
+        <- <span id="UPlanet">UPlanet</span> | <span id="NOSTR"><button onclick= 'window.location.href = "/g1";' title="Create MULTIPASS">🎫✨</button></span> | <span id="coeurBOX"><b>♥BOX</b></span> ->
         </center></h2>
+
+        <div style="margin-top: 15px; padding: 10px; background-color: rgba(255, 255, 255, 0.05); border-radius: 10px;">
+            <h3 style="text-align: center; color: #4ade80;">🎫 MULTIPASS Authentication</h3>
+            <p style="text-align: center; font-size: 0.9em;">
+                <strong>Scan your SSSS QR code</strong> and enter a PASS code:
+            </p>
+            <ul style="list-style: none; padding: 0; font-size: 0.85em;">
+                <li>🔓 <strong>(empty)</strong> → Quick Message interface</li>
+                <li>🚀 <strong>1111</strong> → Full Astro Base access</li>
+                <li>🔄 <strong>0000</strong> → Resiliation / Regeneration</li>
+            </ul>
+            <p style="text-align: center; font-size: 0.8em; color: #94a3b8; margin-top: 10px;">
+                <em>No browser storage. Your nsec stays in memory only.</em>
+            </p>
+        </div>
 
 <!--
         <br><b>USCAN</b> ~ UPlanet Terminal ~
@@ -398,14 +420,17 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Obtenez la langue du navigateur
+        // Initialize PASS field as empty (Quick Message mode by default)
+        // User can enter:
+        //   - Nothing (empty) = Quick Message
+        //   - 0000 = Resiliation
+        //   - 1111 = Full Access
+        document.getElementById('PASS').value = '';
+        
+        // Store browser language for later use if needed
         const userLanguage = navigator.language || navigator.languages[0];
-
-        // Extraire les deux premiers caractères de la langue
         const shortLanguageCode = userLanguage.substring(0, 2);
-
-        // Initialisez la valeur du champ PASS avec les deux premiers caractères de la langue
-        document.getElementById('PASS').value = shortLanguageCode;
+        console.log(`Browser language: ${shortLanguageCode}`);
     });
 
     // Ajout du gestionnaire d'événements pour la checkbox de masquage/affichage du mot de passe
@@ -753,24 +778,34 @@
           const PASS = document.getElementById('PASS').value;
           let imageData = $('#imageData').val();
 
-            // Vérifie si le paramètre commence par "~~~~~" ou si PASS vaut "0000" = DELETE CODE
-            if (parametre.substring(0, 5) === "~~~~~" || PASS === "0000") {
-                // Remplace la valeur de 'imageData' par le PIN
+            // MULTIPASS SSSS QR Code detection: starts with "M-" or "1-"
+            const isSSSSKey = parametre.substring(0, 2) === "M-" || parametre.substring(0, 2) === "1-";
+            
+            // ZenCard detection: starts with "~~~~~"
+            const isZenCard = parametre.substring(0, 5) === "~~~~~";
+            
+            // For SSSS or ZenCard: Pass the PASS code as imageData
+            // PASS codes:
+            //   "" (empty)  = Quick Message (default simple interface)
+            //   "0000"      = Resiliation (cancel/regenerate MULTIPASS)
+            //   "1111"      = Full Access (Astro Base interface)
+            //   "xxxx"      = Future features
+            if (isSSSSKey || isZenCard) {
+                // Replace imageData with PASS code for authentication
                 if (formData.has('imageData')) {
                     formData.delete('imageData');
                 }
                 formData.append('imageData', PASS);
-                console.log(`PIN saisi : ${PASS}`);
+                console.log(`🎫 MULTIPASS PASS code: ${PASS === "" ? "(empty - Quick Message)" : PASS}`);
             } else {
-              // Si aucune image n'a été capturée, ne pas utiliser d'image data
-                if (imageData)
-                   {
-                     if (formData.has('imageData'))
-                         {formData.delete('imageData');}
-
-                      formData.append('imageData', imageData);
-                   }
+              // For other QR codes (email, G1 pub, etc.): use captured image if available
+                if (imageData) {
+                     if (formData.has('imageData')) {
+                         formData.delete('imageData');
+                     }
+                     formData.append('imageData', imageData);
                 }
+            }
 
           $.ajax({
                 url: '/upassport',
