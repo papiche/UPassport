@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌍 uPlanet Messenger - Nostr + IPFS</title>
+    <!-- Nostr integration -->
+    <script src="{{ myIPFS }}/ipfs/QmXEmaPRUaGcvhuyeG99mHHNyP43nn8GtNeuDok8jdpG4a/nostr.bundle.js"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/leaflet.css"/>
+    <!-- Leaflet JavaScript -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/leaflet.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #e8e8e8;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            color: #4ade80;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: 700;
+            text-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 1.1em;
+            margin-bottom: 30px;
+            font-weight: 300;
+        }
+        
+        /* Nostr Section Styles */
+        .nostr-section {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #e2e8f0;
+        }
+        
+        input, textarea, select, button {
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #e2e8f0;
+            transition: all 0.3s ease;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #4ade80;
+            box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
+        }
+        
+        button {
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        button:hover {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3);
+        }
+        
+        button:disabled {
+            background: rgba(148, 163, 184, 0.5);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .photo-upload {
+            border: 2px dashed #4ade80;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            margin: 15px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(74, 222, 128, 0.05);
+        }
+        
+        .photo-upload:hover {
+            border-color: #22c55e;
+            background: rgba(74, 222, 128, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .photo-preview {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        .location-info {
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.2);
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .location-info strong {
+            display: inline-block;
+            margin-right: 5px;
+        }
+        
+        /* Tag Selection Styles */
+        .tags-section {
+            margin: 15px 0;
+        }
+        
+        .tags-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .tag-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+        
+        .tag-checkbox input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+        
+        .tag-checkbox label {
+            margin: 0;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        /* Map Styles */
+        .map-accordion {
+            margin-top: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            overflow: hidden;
+        }
+        
+        .map-accordion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .map-accordion-header:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-1px);
+        }
+        
+        .map-toggle {
+            font-size: 16px;
+            transition: transform 0.3s ease;
+        }
+        
+        .map-toggle.expanded {
+            transform: rotate(180deg);
+        }
+        
+        .map-accordion-content {
+            padding: 15px;
+            max-height: 500px;
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+        }
+        
+        .map-accordion-content.closed {
+            max-height: 0;
+            padding: 0 15px;
+        }
+        
+        .map-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .coord-input {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .coord-input label {
+            font-weight: bold;
+            color: #e2e8f0;
+            margin: 0;
+            min-width: 30px;
+            font-size: 0.8em;
+        }
+        
+        .coord-input input {
+            width: 80px;
+            padding: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            font-size: 0.85em;
+        }
+        
+        .map-button {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            width: auto;
+        }
+        
+        .map-button:hover {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(74, 222, 128, 0.3);
+        }
+        
+        .map-button.secondary {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+        }
+        
+        .map-button.secondary:hover {
+            background: linear-gradient(135deg, #4f46e5, #4338ca);
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+        }
+        
+        #mini-map {
+            height: 400px;
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            background: #f0f0f0;
+            min-height: 400px;
+        }
+        
+        /* Kind Selection Styles */
+        .kind-selection {
+            margin: 15px 0;
+        }
+        
+        .kind-options {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .kind-option {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .kind-option input[type="radio"] {
+            width: auto;
+            margin: 0;
+        }
+        
+        /* Auth Mode Styles */
+        .auth-mode {
+            margin: 15px 0;
+        }
+        
+        .nsec-input {
+            display: none;
+            margin-top: 10px;
+        }
+        
+        .nsec-input.visible {
+            display: block;
+        }
+        
+        /* Status Messages */
+        .status-message {
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        
+        .status-success {
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+        
+        .status-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        .status-info {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            color: #6366f1;
+        }
+        
+        /* Responsive Design */
+        @media screen and (max-width: 768px) {
+            .container {
+                padding: 10px;
+                margin: 10px auto;
+            }
+            
+            .tags-grid {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            }
+            
+            .map-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            #mini-map {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌍 uPlanet Messenger</h1>
+        <p class="subtitle">Nostr + IPFS decentralized messaging</p>
+        
+        <!-- API Detection Info -->
+        <div id="api-info" class="status-message status-info" style="display: none;">
+            <strong>🔗 API Configuration:</strong><br>
+            <span id="api-details"></span>
+        </div>
+        
+        <!-- Nostr Authentication Section -->
+        <div class="nostr-section">
+            <h3 style="margin: 0 0 15px 0;">🔐 Nostr Authentication</h3>
+            
+            <!-- Auth Mode Selection -->
+            <div class="auth-mode">
+                <label>Authentication Method:</label>
+                <div class="kind-options">
+                    <div class="kind-option">
+                        <input type="radio" id="auth-extension" name="auth-mode" value="extension" checked>
+                        <label for="auth-extension">Nostr Extension</label>
+                    </div>
+                    <div class="kind-option">
+                        <input type="radio" id="auth-nsec" name="auth-mode" value="nsec">
+                        <label for="auth-nsec">Private Key (nsec)</label>
+                    </div>
+                </div>
+                
+                <div id="nsec-input-container" class="nsec-input">
+                    <label for="nsec-key">Private Key (nsec...):</label>
+                    <input type="password" id="nsec-key" placeholder="nsec1...">
+                    <small style="color: #94a3b8;">⚠️ Never share your private key!</small>
+                </div>
+            </div>
+            
+            <button id="nostr-connect-btn" onclick="handleNostrConnect()">🔌 Connect to Nostr</button>
+            
+            <div id="auth-status" style="margin-top: 10px;"></div>
+        </div>
+        
+        <!-- Message Composition Section -->
+        <div class="nostr-section" id="message-section" style="display: none;">
+            <h3 style="margin: 0 0 15px 0;">✍️ Compose Message</h3>
+            
+            <!-- Photo Upload -->
+            <div class="photo-upload" onclick="document.getElementById('photoInput').click()">
+                <div id="photoUploadText">📷 Add Photo/File</div>
+                <img id="photoPreview" class="photo-preview" style="display: none;">
+            </div>
+            <input type="file" id="photoInput" accept="image/*,video/*,audio/*" capture="environment" style="display: none;" onchange="handleFileUpload(event)">
+            
+            <!-- Upload Status -->
+            <div id="uploadStatus" class="location-info" style="display: none;">
+                <strong>📤 Upload:</strong> <span id="uploadText"></span>
+            </div>
+            
+            <!-- Message Content -->
+            <div style="margin: 15px 0;">
+                <label for="messageContent">Message Content:</label>
+                <textarea id="messageContent" rows="4" placeholder="Your message..."></textarea>
+            </div>
+            
+            <!-- Tags Selection -->
+            <div class="tags-section">
+                <label>Tags (UPlanet IA):</label>
+                <div class="tags-grid">
+                    <div class="tag-checkbox">
+                        <input type="checkbox" id="tag-bro" checked>
+                        <label for="tag-bro">#BRO</label>
+                    </div>
+                    <div class="tag-checkbox">
+                        <input type="checkbox" id="tag-bot">
+                        <label for="tag-bot">#BOT</label>
+                    </div>
+                    <div class="tag-checkbox">
+                        <input type="checkbox" id="tag-search">
+                        <label for="tag-search">#search</label>
+                    </div>
+                    <div class="tag-checkbox">
+                        <input type="checkbox" id="tag-image">
+                        <label for="tag-image">#image</label>
+                    </div>
+                    <div class="tag-checkbox">
+                        <input type="checkbox" id="tag-video">
+                        <label for="tag-video">#video</label>
+                    </div>
+                    <div class="tag-checkbox">
+                        <input type="checkbox" id="tag-music">
+                        <label for="tag-music">#music</label>
+                    </div>
+                    <div class="tag-checkbox">
+                        <input type="checkbox" id="tag-youtube">
+                        <label for="tag-youtube">#youtube</label>
+                    </div>
+                    <div class="tag-checkbox">
+                        <input type="checkbox" id="tag-plantnet">
+                        <label for="tag-plantnet">#plantnet</label>
+                    </div>
+                    <div class="tag-checkbox">
+                        <input type="checkbox" id="tag-pierre">
+                        <label for="tag-pierre">#pierre</label>
+                    </div>
+                    <div class="tag-checkbox">
+                        <input type="checkbox" id="tag-amelie">
+                        <label for="tag-amelie">#amelie</label>
+                    </div>
+                    <div class="tag-checkbox">
+                        <input type="checkbox" id="tag-mem">
+                        <label for="tag-mem">#mem</label>
+                    </div>
+                    <div class="tag-checkbox">
+                        <input type="checkbox" id="tag-rec2">
+                        <label for="tag-rec2">#rec2</label>
+                    </div>
+                    <div class="tag-checkbox">
+                        <input type="checkbox" id="tag-reset">
+                        <label for="tag-reset">#reset</label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Kind Selection -->
+            <div class="kind-selection">
+                <label>Event Kind:</label>
+                <div class="kind-options">
+                    <div class="kind-option">
+                        <input type="radio" id="kind-1" name="event-kind" value="1" checked>
+                        <label for="kind-1">Kind 1 (Text Note)</label>
+                    </div>
+                    <div class="kind-option">
+                        <input type="radio" id="kind-30023" name="event-kind" value="30023">
+                        <label for="kind-30023">Kind 30023 (Long-form)</label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Location Display -->
+            <div id="locationInfo" class="location-info" style="display: none;">
+                <strong>📍 Location:</strong> <span id="locationText"></span>
+            </div>
+            
+            <!-- Map Accordion -->
+            <div id="map-accordion" class="map-accordion">
+                <div class="map-accordion-header" onclick="toggleMapAccordion()">
+                    <h4 style="margin: 0; font-size: 14px; color: #e2e8f0;">🗺️ Location Map</h4>
+                    <span class="map-toggle">▼</span>
+                </div>
+                <div class="map-accordion-content closed">
+                    <div class="map-controls">
+                        <div class="coord-input">
+                            <label>Lat:</label>
+                            <input type="number" id="lat-display" step="0.01" min="-90" max="90" value="48.86">
+                        </div>
+                        <div class="coord-input">
+                            <label>Lon:</label>
+                            <input type="number" id="lon-display" step="0.01" min="-180" max="180" value="2.35">
+                        </div>
+                        <button type="button" class="map-button" id="update-map">Go There</button>
+                        <button type="button" class="map-button secondary" id="get-location">My Location</button>
+                    </div>
+                    <div id="mini-map"></div>
+                    <div style="padding: 8px 0; font-size: 0.8em; color: #7f8c8d; text-align: center;">
+                        💡 Click on the map to adjust your location
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Send Button -->
+            <button id="send-message-btn" onclick="sendNostrMessage()">🚀 Send Message</button>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let USPOT_API_BASE = '';
+        let USPOT_RELAY = '';
+        let DEFAULT_RELAYS = [];
+        let nostrRelay = null;
+        let isNostrConnected = false;
+        let userPubkey = null;
+        let userPrivkey = null;
+        let authMode = 'extension';
+        let currentLocation = null;
+        let selectedFile = null;
+        let uploadedFileUrl = null;
+        let miniMap = null;
+        let miniMarker = null;
+
+        // Detect uSPOT API and default relays from URL
+        function detectUSPOTAPI() {
+            const currentURL = new URL(window.location.href);
+            const hostname = currentURL.hostname;
+            const port = currentURL.port;
+            const protocol = currentURL.protocol.split(":")[0];
+
+            let determinedRelay = '';
+            let apiBase = '';
+            let ipfsGateway = '';
+
+            // page can be served through ipfs () or astroport (UPassport API)
+            if (hostname === "127.0.0.1") {
+                determinedRelay = `ws://127.0.0.1:7777`;
+                apiBase = `http://127.0.0.1:54321`;
+                ipfsGateway = `http://127.0.0.1:8080`;
+            } else if (hostname.startsWith("ipfs.")) {
+                const baseDomain = hostname.substring("ipfs.".length);
+                determinedRelay = `wss://relay.${baseDomain}`;
+                apiBase = `https://u.${baseDomain}`;
+                ipfsGateway = `https://ipfs.${baseDomain}`;
+            } else if (hostname.startsWith("u.")) {
+                const baseDomain = hostname.substring("u.".length);
+                determinedRelay = `wss://relay.${baseDomain}`;
+                apiBase = `https://u.${baseDomain}`;
+                ipfsGateway = `https://ipfs.${baseDomain}`;
+            } else {
+                // Fallback
+                determinedRelay = `wss://relay.copylaradio.com`;
+                apiBase = `https://u.copylaradio.com`;
+                ipfsGateway = `https://ipfs.copylaradio.com`;
+            }
+
+            DEFAULT_RELAYS = [determinedRelay, 'wss://relay.damus.io', 'wss://nos.lol']; // todo : change with relay from same constellation
+            USPOT_API_BASE = apiBase;
+            USPOT_RELAY = determinedRelay;
+
+            console.log(`uSPOT API Base: ${USPOT_API_BASE}`);
+            console.log(`Default Relay: ${DEFAULT_RELAYS[0]}`);
+            console.log(`IPFS Gateway: ${ipfsGateway}`);
+            
+            // Display API info
+            const apiInfo = document.getElementById('api-info');
+            const apiDetails = document.getElementById('api-details');
+            apiDetails.innerHTML = `
+                Relay: <code>${determinedRelay}</code><br>
+                API: <code>${apiBase}</code><br>
+                IPFS: <code>${ipfsGateway}</code>
+            `;
+            apiInfo.style.display = 'block';
+        }
+
+        // Handle auth mode change
+        document.addEventListener('DOMContentLoaded', function() {
+            detectUSPOTAPI();
+            
+            const authRadios = document.querySelectorAll('input[name="auth-mode"]');
+            authRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    authMode = this.value;
+                    const nsecContainer = document.getElementById('nsec-input-container');
+                    if (authMode === 'nsec') {
+                        nsecContainer.classList.add('visible');
+                    } else {
+                        nsecContainer.classList.remove('visible');
+                    }
+                });
+            });
+            
+            // Map controls
+            document.getElementById('update-map').addEventListener('click', function() {
+                const lat = parseFloat(document.getElementById('lat-display').value) || 0;
+                const lon = parseFloat(document.getElementById('lon-display').value) || 0;
+                updateCoordinatesFromMap(lat, lon);
+                if (miniMap) {
+                    miniMap.setView([lat, lon], miniMap.getZoom());
+                }
+            });
+            
+            document.getElementById('get-location').addEventListener('click', getCurrentLocationForMap);
+            
+            // Sync display inputs
+            document.getElementById('lat-display').addEventListener('change', function() {
+                const lat = parseFloat(this.value) || 0;
+                const lon = parseFloat(document.getElementById('lon-display').value) || 0;
+                if (miniMarker) {
+                    miniMarker.setLatLng([lat, lon]);
+                }
+                if (miniMap) {
+                    miniMap.setView([lat, lon], miniMap.getZoom());
+                }
+                updateLocationDisplay();
+            });
+            
+            document.getElementById('lon-display').addEventListener('change', function() {
+                const lat = parseFloat(document.getElementById('lat-display').value) || 0;
+                const lon = parseFloat(this.value) || 0;
+                if (miniMarker) {
+                    miniMarker.setLatLng([lat, lon]);
+                }
+                if (miniMap) {
+                    miniMap.setView([lat, lon], miniMap.getZoom());
+                }
+                updateLocationDisplay();
+            });
+        });
+
+        // Connect to Nostr
+        async function handleNostrConnect() {
+            const statusDiv = document.getElementById('auth-status');
+            const connectBtn = document.getElementById('nostr-connect-btn');
+            
+            connectBtn.disabled = true;
+            statusDiv.innerHTML = '<div class="status-message status-info">🔄 Connecting...</div>';
+            
+            try {
+                if (authMode === 'extension') {
+                    // Use Nostr extension
+                    if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
+                        throw new Error("Nostr extension not found. Please install a Nostr extension (nos2x, Alby, etc.)");
+                    }
+                    
+                    userPubkey = await window.nostr.getPublicKey();
+                    console.log("Public key from extension:", userPubkey);
+                    
+                } else if (authMode === 'nsec') {
+                    // Use private key
+                    const nsecKey = document.getElementById('nsec-key').value.trim();
+                    if (!nsecKey) {
+                        throw new Error("Please enter your private key (nsec)");
+                    }
+                    
+                    // Convert nsec to hex using nostr-tools
+                    try {
+                        userPrivkey = NostrTools.nip19.decode(nsecKey).data;
+                        userPubkey = NostrTools.getPublicKey(userPrivkey);
+                        console.log("Public key from nsec:", userPubkey);
+                    } catch (e) {
+                        throw new Error("Invalid nsec format. Please check your private key.");
+                    }
+                }
+                
+                // Connect to relay
+                await connectToNostrRelay();
+                
+                // Send NIP-42 auth
+                await sendNIP42Auth();
+                
+                // Show success
+                statusDiv.innerHTML = `<div class="status-message status-success">✅ Connected as ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}</div>`;
+                document.getElementById('message-section').style.display = 'block';
+                connectBtn.textContent = '✅ Connected';
+                connectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
+                
+            } catch (error) {
+                console.error("Connection error:", error);
+                statusDiv.innerHTML = `<div class="status-message status-error">❌ ${error.message}</div>`;
+                connectBtn.disabled = false;
+            }
+        }
+
+        // Connect to Nostr relay
+        async function connectToNostrRelay() {
+            const relayUrl = DEFAULT_RELAYS[0];
+            
+            if (nostrRelay && isNostrConnected) {
+                console.log('✅ Reusing existing relay connection');
+                return;
+            }
+
+            console.log('Connecting to relay:', relayUrl);
+
+            try {
+                if (nostrRelay) {
+                    try {
+                        nostrRelay.close();
+                    } catch (e) {
+                        console.warn('Error closing existing relay:', e);
+                    }
+                }
+
+                nostrRelay = NostrTools.relayInit(relayUrl);
+
+                nostrRelay.on('connect', () => {
+                    console.log('✅ Connected to NOSTR relay:', relayUrl);
+                    isNostrConnected = true;
+                });
+
+                nostrRelay.on('error', (error) => {
+                    console.error('❌ Relay connection error:', error);
+                    isNostrConnected = false;
+                });
+
+                nostrRelay.on('disconnect', () => {
+                    console.log('🔌 Relay disconnected');
+                    isNostrConnected = false;
+                });
+
+                await nostrRelay.connect();
+                isNostrConnected = true;
+
+            } catch (error) {
+                console.error('Failed to connect to relay:', error);
+                isNostrConnected = false;
+                throw error;
+            }
+        }
+
+        // Send NIP-42 authentication event
+        async function sendNIP42Auth() {
+            if (!userPubkey || !nostrRelay || !isNostrConnected) {
+                console.warn('Cannot send NIP-42 auth: missing requirements');
+                return;
+            }
+            
+            try {
+                console.log('📝 Sending NIP-42 authentication event...');
+                
+                const authEvent = {
+                    kind: 22242,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [
+                        ['relay', DEFAULT_RELAYS[0]],
+                        ['challenge', 'auth-' + Date.now()]
+                    ],
+                    content: '',
+                    pubkey: userPubkey
+                };
+                
+                let signedEvent;
+                if (authMode === 'extension') {
+                    signedEvent = await window.nostr.signEvent(authEvent);
+                } else {
+                    signedEvent = NostrTools.finishEvent(authEvent, userPrivkey);
+                }
+                
+                if (!signedEvent || !signedEvent.id) {
+                    console.error('❌ Failed to sign NIP-42 event');
+                    return;
+                }
+                
+                console.log('✅ NIP-42 event signed:', signedEvent.id);
+                
+                await nostrRelay.publish(signedEvent);
+                console.log('✅ NIP-42 event published');
+                
+                // Also send AUTH message
+                try {
+                    let ws = nostrRelay._ws || nostrRelay.ws || nostrRelay.socket;
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        const authMessage = JSON.stringify(['AUTH', signedEvent]);
+                        ws.send(authMessage);
+                        console.log('✅ NIP-42 AUTH message sent');
+                    }
+                } catch (authError) {
+                    console.warn('⚠️ Could not send AUTH message:', authError);
+                }
+                
+            } catch (error) {
+                console.error('❌ Failed to send NIP-42 auth:', error);
+            }
+        }
+
+        // Handle file upload
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                selectedFile = file;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('photoPreview');
+                    const uploadText = document.getElementById('photoUploadText');
+                    
+                    if (file.type.startsWith('image/')) {
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                        uploadText.style.display = 'none';
+                    } else {
+                        uploadText.textContent = `📎 ${file.name}`;
+                        preview.style.display = 'none';
+                    }
+                };
+                reader.readAsDataURL(file);
+                
+                // Upload to IPFS
+                uploadFileToIPFS(file);
+            }
+        }
+
+        // Upload file to IPFS
+        async function uploadFileToIPFS(file) {
+            const uploadStatus = document.getElementById('uploadStatus');
+            const uploadText = document.getElementById('uploadText');
+            
+            uploadStatus.style.display = 'block';
+            uploadText.textContent = '📤 Uploading...';
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                if (userPubkey) {
+                    formData.append('npub', userPubkey);
+                }
+                
+                const uploadUrl = `${USPOT_API_BASE}/api/fileupload`;
+                console.log(`Uploading to: ${uploadUrl}`);
+                
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `Upload failed: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('Upload result:', result);
+                
+                // Construct IPFS URL
+                let fileUrl = null;
+                if (result.success && result.new_cid && result.file_path) {
+                    const gateway = window.location.origin.includes('127.0.0.1') 
+                        ? 'http://127.0.0.1:8080' 
+                        : window.location.origin;
+                    const fileName = result.file_path.split('/').pop();
+                    fileUrl = `${gateway}/ipfs/${result.new_cid}/${fileName}`;
+                } else if (result.url) {
+                    fileUrl = result.url;
+                } else if (result.ipfs_url) {
+                    fileUrl = result.ipfs_url;
+                }
+                
+                if (!fileUrl) {
+                    throw new Error('Failed to construct IPFS URL');
+                }
+                
+                uploadedFileUrl = fileUrl;
+                uploadStatus.style.background = 'rgba(74, 222, 128, 0.1)';
+                uploadText.innerHTML = `✅ Uploaded: <a href="${fileUrl}" target="_blank" style="color: #4ade80;">${fileUrl.substring(0, 50)}...</a>`;
+                console.log('✅ File uploaded:', fileUrl);
+                
+            } catch (error) {
+                console.error('Upload error:', error);
+                uploadStatus.style.background = 'rgba(239, 68, 68, 0.1)';
+                uploadText.textContent = `❌ ${error.message}`;
+            }
+        }
+
+        // Send Nostr message
+        async function sendNostrMessage() {
+            if (!userPubkey || !nostrRelay || !isNostrConnected) {
+                alert("Please connect to Nostr first");
+                return;
+            }
+            
+            const sendBtn = document.getElementById('send-message-btn');
+            sendBtn.disabled = true;
+            sendBtn.textContent = "Sending...";
+            
+            try {
+                // Get message content
+                let content = document.getElementById('messageContent').value.trim();
+                
+                // Add uploaded file URL
+                if (uploadedFileUrl) {
+                    content += `\n${uploadedFileUrl}`;
+                }
+                
+                // Add location
+                const lat = parseFloat(document.getElementById('lat-display').value) || 0;
+                const lon = parseFloat(document.getElementById('lon-display').value) || 0;
+                if (lat !== 0 || lon !== 0) {
+                    content += `\n📍 Position: ${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+                }
+                
+                // Add selected tags
+                const tags = [];
+                const tagCheckboxes = document.querySelectorAll('.tag-checkbox input[type="checkbox"]:checked');
+                tagCheckboxes.forEach(checkbox => {
+                    const tagName = checkbox.id.replace('tag-', '');
+                    content += ` #${tagName}`;
+                    tags.push(['t', tagName]);
+                });
+                
+                // Add geohash tag if location is set
+                if (lat !== 0 || lon !== 0) {
+                    tags.push(['g', `${lat},${lon}`]);
+                }
+                
+                // Get event kind
+                const kind = parseInt(document.querySelector('input[name="event-kind"]:checked').value);
+                
+                // Create event
+                const eventTemplate = {
+                    kind: kind,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: tags,
+                    content: content
+                };
+                
+                // For kind 30023, add required tags
+                if (kind === 30023) {
+                    eventTemplate.tags.push(['d', Date.now().toString()]);
+                    eventTemplate.tags.push(['title', content.substring(0, 50)]);
+                }
+                
+                // Sign event
+                let signedEvent;
+                if (authMode === 'extension') {
+                    signedEvent = await window.nostr.signEvent(eventTemplate);
+                } else {
+                    signedEvent = NostrTools.finishEvent(eventTemplate, userPrivkey);
+                }
+                
+                // Publish event
+                console.log("Publishing event:", signedEvent);
+                await nostrRelay.publish(signedEvent);
+                
+                alert("✅ Message sent successfully!");
+                
+                // Reset form
+                document.getElementById('messageContent').value = '';
+                document.getElementById('photoInput').value = '';
+                document.getElementById('photoPreview').style.display = 'none';
+                document.getElementById('photoUploadText').style.display = 'block';
+                document.getElementById('photoUploadText').textContent = '📷 Add Photo/File';
+                document.getElementById('uploadStatus').style.display = 'none';
+                selectedFile = null;
+                uploadedFileUrl = null;
+                
+                // Uncheck all tags except #BRO
+                document.querySelectorAll('.tag-checkbox input[type="checkbox"]').forEach(cb => {
+                    if (cb.id !== 'tag-bro') cb.checked = false;
+                });
+                
+            } catch (error) {
+                console.error("Send error:", error);
+                alert(`❌ Failed to send message: ${error.message}`);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = "🚀 Send Message";
+            }
+        }
+
+        // Map functions
+        function toggleMapAccordion() {
+            const accordionContent = document.querySelector('.map-accordion-content');
+            const mapToggle = document.querySelector('.map-toggle');
+            const isClosed = accordionContent.classList.contains('closed');
+            
+            if (isClosed) {
+                accordionContent.classList.remove('closed');
+                mapToggle.classList.add('expanded');
+                setTimeout(() => {
+                    const lat = parseFloat(document.getElementById('lat-display').value) || 48.86;
+                    const lon = parseFloat(document.getElementById('lon-display').value) || 2.35;
+                    initializeMiniMap(lat, lon);
+                }, 100);
+            } else {
+                accordionContent.classList.add('closed');
+                mapToggle.classList.remove('expanded');
+            }
+        }
+
+        function initializeMiniMap(lat = 0, lon = 0) {
+            console.log('Initializing map:', lat, lon);
+            
+            if (miniMap) {
+                miniMap.remove();
+            }
+            
+            if (typeof L === 'undefined') {
+                console.error('Leaflet library not loaded');
+                return;
+            }
+            
+            const mapContainer = document.getElementById('mini-map');
+            if (!mapContainer) {
+                console.error('Map container not found');
+                return;
+            }
+            
+            try {
+                miniMap = L.map('mini-map').setView([lat, lon], 10);
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(miniMap);
+
+                miniMarker = L.marker([lat, lon], {
+                    draggable: true
+                }).addTo(miniMap);
+
+                miniMap.on('click', function(e) {
+                    updateCoordinatesFromMap(e.latlng.lat, e.latlng.lng);
+                });
+
+                miniMarker.on('dragend', function(e) {
+                    updateCoordinatesFromMap(e.target.getLatLng().lat, e.target.getLatLng().lng);
+                });
+                
+                setTimeout(() => {
+                    if (miniMap) {
+                        miniMap.invalidateSize();
+                    }
+                }, 100);
+                
+            } catch (error) {
+                console.error('Error initializing map:', error);
+            }
+        }
+
+        function updateCoordinatesFromMap(lat, lon) {
+            const roundedLat = Math.round(lat * 100) / 100;
+            const roundedLon = Math.round(lon * 100) / 100;
+
+            document.getElementById('lat-display').value = roundedLat.toFixed(2);
+            document.getElementById('lon-display').value = roundedLon.toFixed(2);
+
+            if (miniMarker) {
+                miniMarker.setLatLng([roundedLat, roundedLon]);
+            }
+
+            currentLocation = { latitude: roundedLat, longitude: roundedLon };
+            updateLocationDisplay();
+        }
+
+        function updateLocationDisplay() {
+            const lat = parseFloat(document.getElementById('lat-display').value) || 0;
+            const lon = parseFloat(document.getElementById('lon-display').value) || 0;
+            
+            if (lat !== 0 || lon !== 0) {
+                const locationText = document.getElementById('locationText');
+                const locationInfo = document.getElementById('locationInfo');
+                
+                locationText.textContent = `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+                locationInfo.style.display = 'block';
+            }
+        }
+
+        function getCurrentLocationForMap() {
+            if (navigator.geolocation) {
+                const btn = document.getElementById('get-location');
+                btn.textContent = 'Getting...';
+                btn.disabled = true;
+                
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = Math.round(position.coords.latitude * 100) / 100;
+                        const lon = Math.round(position.coords.longitude * 100) / 100;
+
+                        updateCoordinatesFromMap(lat, lon);
+                        if (miniMap) {
+                            miniMap.setView([lat, lon], 13);
+                        }
+                        
+                        btn.textContent = 'My Location';
+                        btn.disabled = false;
+                    },
+                    function(error) {
+                        console.error('Geolocation error:', error);
+                        btn.textContent = 'My Location';
+                        btn.disabled = false;
+                        alert('Failed to get location');
+                    }
+                );
+            }
+        }
+    </script>
+</body>
+</html>

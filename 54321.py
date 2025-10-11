@@ -1378,6 +1378,15 @@ async def ustats(request: Request, lat: str = None, lon: str = None, deg: str = 
 async def get_root(request: Request):
     return templates.TemplateResponse("scan_new.html", {"request": request})
 
+@app.get("/astro")
+async def get_astro(request: Request):
+    """Display the Astro Base template with IPFS gateway configuration"""
+    myipfs_gateway = get_myipfs_gateway()
+    return templates.TemplateResponse("astro_base.html", {
+        "request": request,
+        "myIPFS": myipfs_gateway
+    })
+
 # Proxy route for 12345
 @app.get("/12345")
 async def proxy_12345(request: Request):
