@@ -6,6 +6,8 @@
     <title>🌍 uPlanet Messenger - Nostr + IPFS</title>
     <!-- Nostr integration -->
     <script src="{{ myIPFS }}/ipfs/QmXEmaPRUaGcvhuyeG99mHHNyP43nn8GtNeuDok8jdpG4a/nostr.bundle.js"></script>
+    <!-- Markdown parser for Kind 30023 -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/marked.min.js"></script>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/leaflet.css"/>
     <!-- Leaflet JavaScript -->
@@ -362,6 +364,153 @@
             background: rgba(255, 255, 255, 0.05);
             border-left-color: #4ade80;
             transform: translateX(5px);
+        }
+        
+        /* Markdown styles also for replies */
+        .reply-item h1,
+        .reply-item h2,
+        .reply-item h3 {
+            color: #4ade80;
+            margin-top: 0.8em;
+            margin-bottom: 0.4em;
+        }
+        
+        .reply-item h1 { font-size: 1.5em; }
+        .reply-item h2 { font-size: 1.3em; }
+        .reply-item h3 { font-size: 1.1em; }
+        
+        .reply-item p {
+            margin-bottom: 0.8em;
+        }
+        
+        .reply-item code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #fbbf24;
+            font-size: 0.9em;
+        }
+        
+        .reply-item pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin-bottom: 0.8em;
+        }
+        
+        .reply-item pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        .reply-item blockquote {
+            border-left: 3px solid #6366f1;
+            padding-left: 10px;
+            margin-left: 0;
+            margin-bottom: 0.8em;
+            font-style: italic;
+            color: #94a3b8;
+        }
+        
+        .reply-item a {
+            color: #4ade80;
+            text-decoration: underline;
+        }
+        
+        .reply-item img {
+            max-width: 100%;
+            border-radius: 6px;
+            margin: 8px 0;
+        }
+        
+        /* Markdown Content Styles for Kind 30023 */
+        #latest-message-content h1,
+        #latest-message-content h2,
+        #latest-message-content h3 {
+            color: #4ade80;
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+        }
+        
+        #latest-message-content h1 { font-size: 1.8em; }
+        #latest-message-content h2 { font-size: 1.5em; }
+        #latest-message-content h3 { font-size: 1.2em; }
+        
+        #latest-message-content p {
+            margin-bottom: 1em;
+        }
+        
+        #latest-message-content ul, 
+        #latest-message-content ol {
+            margin-left: 1.5em;
+            margin-bottom: 1em;
+        }
+        
+        #latest-message-content code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #fbbf24;
+        }
+        
+        #latest-message-content pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 1em;
+        }
+        
+        #latest-message-content pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        #latest-message-content blockquote {
+            border-left: 4px solid #6366f1;
+            padding-left: 15px;
+            margin-left: 0;
+            margin-bottom: 1em;
+            font-style: italic;
+            color: #94a3b8;
+        }
+        
+        #latest-message-content a {
+            color: #4ade80;
+            text-decoration: underline;
+        }
+        
+        #latest-message-content img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        #latest-message-content hr {
+            border: none;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin: 1.5em 0;
+        }
+        
+        #latest-message-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1em;
+        }
+        
+        #latest-message-content table th,
+        #latest-message-content table td {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px;
+            text-align: left;
+        }
+        
+        #latest-message-content table th {
+            background: rgba(255, 255, 255, 0.05);
+            font-weight: 600;
         }
         
         /* Modal Styles */
@@ -744,6 +893,20 @@
                 IPFS: <code>${ipfsGateway}</code>
             `;
             apiInfo.style.display = 'block';
+        }
+
+        // Configure marked.js for security (if available)
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({
+                breaks: true,          // GitHub Flavored Markdown line breaks
+                gfm: true,             // GitHub Flavored Markdown
+                headerIds: false,      // Don't generate header IDs (security)
+                mangle: false,         // Don't mangle email addresses
+                sanitize: false,       // We trust content from relay (authenticated users)
+                smartLists: true,      // Use smarter list behavior
+                smartypants: false     // Don't use smart quotes
+            });
+            console.log('✅ marked.js configured for Markdown rendering');
         }
 
         // Handle auth mode change
@@ -1210,17 +1373,31 @@
             const contentDiv = document.getElementById('latest-message-content');
             const metaDiv = document.getElementById('latest-message-meta');
             
-            // Format content (handle URLs, hashtags, etc.)
             let content = event.content;
             
-            // Convert URLs to links
-            content = content.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #4ade80; text-decoration: underline;">$1</a>');
-            
-            // Highlight hashtags
-            content = content.replace(/#(\w+)/g, '<span style="color: #6366f1; font-weight: 600;">#$1</span>');
-            
-            // Replace newlines with <br>
-            content = content.replace(/\n/g, '<br>');
+            // Check if it's a Long-form Article (Kind 30023)
+            if (event.kind === 30023) {
+                // Use marked.js to render Markdown
+                if (typeof marked !== 'undefined') {
+                    // Parse Markdown (marked.js is already configured globally)
+                    content = marked.parse(content);
+                    console.log('📝 Rendered Markdown content for Kind 30023');
+                } else {
+                    console.warn('⚠️ marked.js not loaded, displaying raw content');
+                    // Fallback to basic formatting
+                    content = content.replace(/\n/g, '<br>');
+                }
+            } else {
+                // Kind 1: Simple text formatting
+                // Convert URLs to links
+                content = content.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #4ade80; text-decoration: underline;">$1</a>');
+                
+                // Highlight hashtags
+                content = content.replace(/#(\w+)/g, '<span style="color: #6366f1; font-weight: 600;">#$1</span>');
+                
+                // Replace newlines with <br>
+                content = content.replace(/\n/g, '<br>');
+            }
             
             contentDiv.innerHTML = content;
             
@@ -1228,8 +1405,17 @@
             const date = new Date(event.created_at * 1000);
             const kindLabel = event.kind === 1 ? 'Text Note' : 'Long-form Article';
             
+            // Extract title from tags for Kind 30023
+            let title = '';
+            if (event.kind === 30023 && event.tags) {
+                const titleTag = event.tags.find(tag => tag[0] === 'title');
+                if (titleTag && titleTag[1]) {
+                    title = ` | <strong>Title:</strong> ${titleTag[1]}`;
+                }
+            }
+            
             metaDiv.innerHTML = `
-                <strong>Kind:</strong> ${kindLabel} (${event.kind}) |
+                <strong>Kind:</strong> ${kindLabel} (${event.kind})${title} |
                 <strong>Date:</strong> ${date.toLocaleString()} |
                 <strong>Event ID:</strong> ${event.id.substring(0, 8)}...
             `;
@@ -1311,18 +1497,26 @@
                 const replyDiv = document.createElement('div');
                 replyDiv.className = 'reply-item';
                 
-                // Format content
+                // Format content based on kind
                 let content = reply.content;
-                content = content.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #4ade80; text-decoration: underline;">$1</a>');
-                content = content.replace(/#(\w+)/g, '<span style="color: #6366f1; font-weight: 600;">#$1</span>');
-                content = content.replace(/\n/g, '<br>');
+                
+                if (reply.kind === 30023 && typeof marked !== 'undefined') {
+                    // Render Markdown for Long-form replies
+                    content = marked.parse(content);
+                } else {
+                    // Simple formatting for Kind 1
+                    content = content.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #4ade80; text-decoration: underline;">$1</a>');
+                    content = content.replace(/#(\w+)/g, '<span style="color: #6366f1; font-weight: 600;">#$1</span>');
+                    content = content.replace(/\n/g, '<br>');
+                }
                 
                 const date = new Date(reply.created_at * 1000);
+                const kindLabel = reply.kind === 30023 ? ' (Long-form)' : '';
                 
                 replyDiv.innerHTML = `
                     <div style="margin-bottom: 8px; line-height: 1.6;">${content}</div>
                     <div style="font-size: 0.8em; color: #94a3b8;">
-                        <strong>From:</strong> ${reply.pubkey.substring(0, 8)}...${reply.pubkey.substring(reply.pubkey.length - 4)} |
+                        <strong>From:</strong> ${reply.pubkey.substring(0, 8)}...${reply.pubkey.substring(reply.pubkey.length - 4)}${kindLabel} |
                         <strong>Date:</strong> ${date.toLocaleString()}
                     </div>
                 `;
