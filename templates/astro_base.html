@@ -348,6 +348,89 @@
             color: #6366f1;
         }
         
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 0;
+            width: 90%;
+            max-width: 1200px;
+            max-height: 90vh;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+        
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 30px;
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            color: #4ade80;
+            font-size: 1.5em;
+        }
+        
+        .modal-close {
+            color: #e2e8f0;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            line-height: 1;
+        }
+        
+        .modal-close:hover {
+            color: #ef4444;
+            transform: rotate(90deg);
+        }
+        
+        .modal-body {
+            padding: 20px;
+            max-height: calc(90vh - 100px);
+            overflow: auto;
+        }
+        
+        .modal-body iframe {
+            border-radius: 10px;
+            background: white;
+        }
+        
         /* Responsive Design */
         @media screen and (max-width: 768px) {
             .container {
@@ -366,6 +449,19 @@
             
             #mini-map {
                 height: 300px;
+            }
+            
+            .modal-content {
+                width: 95%;
+                max-height: 95vh;
+            }
+            
+            .modal-body {
+                padding: 10px;
+            }
+            
+            .modal-body iframe {
+                height: 500px !important;
             }
         }
     </style>
@@ -407,6 +503,7 @@
             </div>
             
             <button id="nostr-connect-btn" onclick="handleNostrConnect()">🔌 Connect to Nostr</button>
+            <button id="nostr-profile-btn" onclick="openNostrProfile()" style="display: none; margin-left: 10px; background: linear-gradient(135deg, #6366f1, #4f46e5);">👤 My Profile</button>
             
             <div id="auth-status" style="margin-top: 10px;"></div>
         </div>
@@ -536,6 +633,19 @@
             
             <!-- Send Button -->
             <button id="send-message-btn" onclick="sendNostrMessage()">🚀 Send Message</button>
+        </div>
+        
+        <!-- Nostr Profile Modal -->
+        <div id="profile-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>👤 Nostr Profile</h2>
+                    <span class="modal-close" onclick="closeNostrProfile()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <iframe id="profile-iframe" src="" frameborder="0" width="100%" height="600px"></iframe>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -708,6 +818,9 @@
                 document.getElementById('message-section').style.display = 'block';
                 connectBtn.textContent = '✅ Connected';
                 connectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
+                
+                // Show profile button
+                document.getElementById('nostr-profile-btn').style.display = 'inline-block';
                 
             } catch (error) {
                 console.error("Connection error:", error);
@@ -1126,6 +1239,66 @@
                 );
             }
         }
+        
+        // Open Nostr Profile Modal
+        function openNostrProfile() {
+            if (!userPubkey) {
+                alert("Please connect to Nostr first");
+                return;
+            }
+            
+            // Detect IPFS gateway from current page
+            const currentURL = new URL(window.location.href);
+            const hostname = currentURL.hostname;
+            
+            let ipfsGateway = '';
+            if (hostname === "127.0.0.1" || hostname === "localhost") {
+                ipfsGateway = "http://127.0.0.1:8080";
+            } else if (hostname.startsWith("u.")) {
+                const baseDomain = hostname.substring(2);
+                ipfsGateway = `https://ipfs.${baseDomain}`;
+            } else {
+                ipfsGateway = "https://ipfs.copylaradio.com";
+            }
+            
+            // Build profile URL with hex pubkey
+            const profileURL = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${userPubkey}`;
+            
+            console.log("Opening profile:", profileURL);
+            
+            // Set iframe src and show modal
+            document.getElementById('profile-iframe').src = profileURL;
+            document.getElementById('profile-modal').classList.add('active');
+        }
+        
+        // Close Nostr Profile Modal
+        function closeNostrProfile() {
+            const modal = document.getElementById('profile-modal');
+            modal.classList.remove('active');
+            
+            // Clear iframe src to stop loading
+            setTimeout(() => {
+                document.getElementById('profile-iframe').src = '';
+            }, 300);
+        }
+        
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('profile-modal');
+            if (event.target === modal) {
+                closeNostrProfile();
+            }
+        }
+        
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                const modal = document.getElementById('profile-modal');
+                if (modal.classList.contains('active')) {
+                    closeNostrProfile();
+                }
+            }
+        });
     </script>
 </body>
 </html>
