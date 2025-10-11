@@ -33,7 +33,7 @@ import uuid
 import hmac
 import re
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -1387,6 +1387,14 @@ async def get_astro(request: Request):
         "myIPFS": myipfs_gateway
     })
 
+@app.get("/cookie")
+async def get_cookie_guide():
+    """Redirect to cookie export guide on IPFS"""
+    myipfs_gateway = get_myipfs_gateway()
+    redirect_url = f"{myipfs_gateway}/ipns/copylaradio.com/cookie.html"
+    logging.info(f"Redirecting to cookie guide: {redirect_url}")
+    return RedirectResponse(url=redirect_url, status_code=302)
+
 # Proxy route for 12345
 @app.get("/12345")
 async def proxy_12345(request: Request):
@@ -2462,7 +2470,7 @@ async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
             status_code=500
         )
 
-# uDRIVE Endpoints - Upload and Delete with NOSTR authentication
+# Upload after NIP-42 NOSTR authentication
 @app.post("/api/fileupload", response_model=UploadResponse)
 async def upload_file_to_ipfs(
     file: UploadFile = File(...),
@@ -2489,6 +2497,60 @@ async def upload_file_to_ipfs(
         # Determine file type and target directory
         file_content = await file.read()
         file_type = detect_file_type(file_content, file.filename or "untitled")
+        
+        # Special handling for ALL .txt files - check if it's a Netscape cookie file
+        if file.filename and file.filename.endswith('.txt'):
+            try:
+                # Try to decode as text to validate it's a text file
+                content_text = file_content.decode('utf-8')
+                
+                # Check if it's a Netscape cookie file format
+                is_netscape_format = False
+                if '# Netscape HTTP Cookie File' in content_text or '# HTTP Cookie File' in content_text:
+                    is_netscape_format = True
+                    logging.info("✅ Detected Netscape cookie file format (header)")
+                elif '\t' in content_text:
+                    # Check if lines have tab-separated values (cookie format)
+                    lines = [l.strip() for l in content_text.split('\n') if l.strip() and not l.strip().startswith('#')]
+                    if lines:
+                        # Check first data line for tab-separated cookie format
+                        first_line = lines[0]
+                        parts = first_line.split('\t')
+                        if len(parts) >= 7:  # domain, flag, path, secure, expiration, name, value
+                            is_netscape_format = True
+                            logging.info("✅ Detected cookie file format (tab-separated, 7+ columns)")
+                
+                if is_netscape_format:
+                    # Get the user's root directory (parent of APP)
+                    hex_pubkey = npub_to_hex(npub)
+                    user_root_dir = find_user_directory_by_hex(hex_pubkey)
+                    
+                    # Save cookie file to user's root directory as .cookie.txt
+                    cookie_path = user_root_dir / ".cookie.txt"
+                    
+                    async with aiofiles.open(cookie_path, 'wb') as cookie_file:
+                        await cookie_file.write(file_content)
+                    
+                    logging.info(f"✅ Cookie file saved to: {cookie_path}")
+                    
+                    # Return success response without generating IPFS structure
+                    return UploadResponse(
+                        success=True,
+                        message="Cookie file uploaded successfully. YouTube downloads will now use your authentication.",
+                        file_path=str(cookie_path.relative_to(user_root_dir.parent)),
+                        file_type="netscape_cookies",
+                        target_directory=str(user_root_dir),
+                        new_cid=None,  # No IPFS generation for sensitive cookie files
+                        timestamp=datetime.now().isoformat(),
+                        auth_verified=True
+                    )
+                else:
+                    # Not a cookie file, will be processed as normal text file below
+                    logging.info(f"📄 Text file '{file.filename}' is not Netscape format, treating as regular file")
+            except UnicodeDecodeError:
+                logging.warning("File is not valid UTF-8 text, treating as binary file")
+            except Exception as e:
+                logging.warning(f"Error checking cookie format: {e}, treating as regular file")
         
         # Use uDRIVE directory structure (Images, Music, Videos, Documents, Apps)
         if file_type == 'image':
@@ -2628,6 +2690,7 @@ async def upload_file_to_ipfs(
         logging.error(f"Unexpected error in fileupload: {e}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 
+# uDRIVE Endpoints - Upload and Delete with NOSTR authentication
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
