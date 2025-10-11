@@ -1093,7 +1093,9 @@
                 const tagCheckboxes = document.querySelectorAll('.tag-checkbox input[type="checkbox"]:checked');
                 tagCheckboxes.forEach(checkbox => {
                     const tagName = checkbox.id.replace('tag-', '');
-                    content += ` #${tagName}`;
+                    // BRO and BOT must be uppercase for UPlanet detection
+                    const displayTag = (tagName === 'bro' || tagName === 'bot') ? tagName.toUpperCase() : tagName;
+                    content += ` #${displayTag}`;
                     tags.push(['t', tagName]);
                 });
                 
