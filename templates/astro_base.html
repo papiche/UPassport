@@ -348,6 +348,22 @@
             color: #6366f1;
         }
         
+        /* Latest Message Styles */
+        .reply-item {
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 3px solid #6366f1;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .reply-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-left-color: #4ade80;
+            transform: translateX(5px);
+        }
+        
         /* Modal Styles */
         .modal {
             display: none;
@@ -624,6 +640,27 @@
             <button id="send-message-btn" onclick="sendNostrMessage()">🚀 Send Message</button>
         </div>
         
+        <!-- Latest Message Section -->
+        <div class="nostr-section" id="latest-message-section" style="display: none;">
+            <h3 style="margin: 0 0 15px 0;">📬 Your Latest Message</h3>
+            
+            <div id="latest-message-container" style="background: rgba(255, 255, 255, 0.03); border-radius: 10px; padding: 15px; margin-bottom: 15px;">
+                <div id="latest-message-content" style="margin-bottom: 10px; line-height: 1.6;"></div>
+                <div id="latest-message-meta" style="font-size: 0.85em; color: #94a3b8;"></div>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button id="refresh-message-btn" onclick="loadLatestMessage()">🔄 Refresh</button>
+                <button id="load-replies-btn" onclick="loadReplies()" style="background: linear-gradient(135deg, #6366f1, #4f46e5);">💬 Load Replies</button>
+            </div>
+            
+            <!-- Replies Container -->
+            <div id="replies-container" style="display: none; margin-top: 20px;">
+                <h4 style="color: #e2e8f0; margin-bottom: 10px;">💬 Replies:</h4>
+                <div id="replies-list"></div>
+            </div>
+        </div>
+        
         <!-- Nostr Profile Modal -->
         <div id="profile-modal" class="modal">
             <div class="modal-content">
@@ -654,6 +691,7 @@
         let uploadedFileUrl = null;
         let miniMap = null;
         let miniMarker = null;
+        let latestMessageEvent = null;
 
         // Detect uSPOT API and default relays from URL
         function detectUSPOTAPI() {
@@ -812,6 +850,9 @@
                 
                 // Show profile button
                 document.getElementById('nostr-profile-btn').style.display = 'inline-block';
+                
+                // Load latest message
+                await loadLatestMessage();
                 
             } catch (error) {
                 console.error("Connection error:", error);
@@ -1107,6 +1148,9 @@
                     if (cb.id !== 'tag-bro') cb.checked = false;
                 });
                 
+                // Reload latest message
+                await loadLatestMessage();
+                
             } catch (error) {
                 console.error("Send error:", error);
                 alert(`❌ Failed to send message: ${error.message}`);
@@ -1114,6 +1158,177 @@
                 sendBtn.disabled = false;
                 sendBtn.textContent = "🚀 Send Message";
             }
+        }
+
+        // Load latest message from user
+        async function loadLatestMessage() {
+            if (!userPubkey || !nostrRelay || !isNostrConnected) {
+                console.warn('Cannot load messages: not connected');
+                return;
+            }
+            
+            try {
+                console.log('📥 Loading latest message from:', userPubkey.substring(0, 8));
+                
+                const filter = {
+                    authors: [userPubkey],
+                    kinds: [1, 30023],
+                    limit: 1
+                };
+                
+                let messageFound = false;
+                
+                const sub = nostrRelay.sub([filter]);
+                
+                sub.on('event', (event) => {
+                    console.log('📨 Received event:', event);
+                    latestMessageEvent = event;
+                    displayLatestMessage(event);
+                    messageFound = true;
+                });
+                
+                sub.on('eose', () => {
+                    console.log('✅ End of subscription');
+                    sub.unsub();
+                    
+                    if (messageFound) {
+                        document.getElementById('latest-message-section').style.display = 'block';
+                    } else {
+                        console.log('ℹ️ No messages found');
+                    }
+                });
+                
+            } catch (error) {
+                console.error('❌ Error loading message:', error);
+            }
+        }
+
+        // Display latest message
+        function displayLatestMessage(event) {
+            const contentDiv = document.getElementById('latest-message-content');
+            const metaDiv = document.getElementById('latest-message-meta');
+            
+            // Format content (handle URLs, hashtags, etc.)
+            let content = event.content;
+            
+            // Convert URLs to links
+            content = content.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #4ade80; text-decoration: underline;">$1</a>');
+            
+            // Highlight hashtags
+            content = content.replace(/#(\w+)/g, '<span style="color: #6366f1; font-weight: 600;">#$1</span>');
+            
+            // Replace newlines with <br>
+            content = content.replace(/\n/g, '<br>');
+            
+            contentDiv.innerHTML = content;
+            
+            // Display metadata
+            const date = new Date(event.created_at * 1000);
+            const kindLabel = event.kind === 1 ? 'Text Note' : 'Long-form Article';
+            
+            metaDiv.innerHTML = `
+                <strong>Kind:</strong> ${kindLabel} (${event.kind}) |
+                <strong>Date:</strong> ${date.toLocaleString()} |
+                <strong>Event ID:</strong> ${event.id.substring(0, 8)}...
+            `;
+            
+            // Reset replies
+            document.getElementById('replies-container').style.display = 'none';
+            document.getElementById('replies-list').innerHTML = '';
+            
+            console.log('✅ Message displayed');
+        }
+
+        // Load replies to latest message
+        async function loadReplies() {
+            if (!latestMessageEvent || !nostrRelay || !isNostrConnected) {
+                alert('No message loaded to fetch replies for');
+                return;
+            }
+            
+            const btn = document.getElementById('load-replies-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Loading...';
+            
+            try {
+                console.log('📥 Loading replies for event:', latestMessageEvent.id);
+                
+                const filter = {
+                    kinds: [1],
+                    '#e': [latestMessageEvent.id],
+                    limit: 50
+                };
+                
+                const repliesList = document.getElementById('replies-list');
+                repliesList.innerHTML = '<div style="text-align: center; padding: 10px;">🔄 Loading replies...</div>';
+                document.getElementById('replies-container').style.display = 'block';
+                
+                const replies = [];
+                const sub = nostrRelay.sub([filter]);
+                
+                sub.on('event', (event) => {
+                    console.log('💬 Reply received:', event);
+                    replies.push(event);
+                });
+                
+                sub.on('eose', () => {
+                    console.log('✅ End of replies subscription');
+                    sub.unsub();
+                    
+                    if (replies.length === 0) {
+                        repliesList.innerHTML = '<div style="text-align: center; padding: 10px; color: #94a3b8;">No replies yet</div>';
+                    } else {
+                        // Sort by date (oldest first)
+                        replies.sort((a, b) => a.created_at - b.created_at);
+                        displayReplies(replies);
+                    }
+                    
+                    btn.disabled = false;
+                    btn.textContent = '💬 Load Replies';
+                });
+                
+            } catch (error) {
+                console.error('❌ Error loading replies:', error);
+                alert(`Failed to load replies: ${error.message}`);
+                btn.disabled = false;
+                btn.textContent = '💬 Load Replies';
+            }
+        }
+
+        // Display replies
+        function displayReplies(replies) {
+            const repliesList = document.getElementById('replies-list');
+            repliesList.innerHTML = '';
+            
+            if (replies.length === 0) {
+                repliesList.innerHTML = '<div style="text-align: center; padding: 10px; color: #94a3b8;">No replies yet</div>';
+                return;
+            }
+            
+            replies.forEach((reply, index) => {
+                const replyDiv = document.createElement('div');
+                replyDiv.className = 'reply-item';
+                
+                // Format content
+                let content = reply.content;
+                content = content.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #4ade80; text-decoration: underline;">$1</a>');
+                content = content.replace(/#(\w+)/g, '<span style="color: #6366f1; font-weight: 600;">#$1</span>');
+                content = content.replace(/\n/g, '<br>');
+                
+                const date = new Date(reply.created_at * 1000);
+                
+                replyDiv.innerHTML = `
+                    <div style="margin-bottom: 8px; line-height: 1.6;">${content}</div>
+                    <div style="font-size: 0.8em; color: #94a3b8;">
+                        <strong>From:</strong> ${reply.pubkey.substring(0, 8)}...${reply.pubkey.substring(reply.pubkey.length - 4)} |
+                        <strong>Date:</strong> ${date.toLocaleString()}
+                    </div>
+                `;
+                
+                repliesList.appendChild(replyDiv);
+            });
+            
+            console.log(`✅ Displayed ${replies.length} replies`);
         }
 
         // Map functions
