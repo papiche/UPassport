@@ -841,6 +841,7 @@
         let miniMap = null;
         let miniMarker = null;
         let latestMessageEvent = null;
+        let userHasInteractedWithMap = false;
 
         // Detect uSPOT API and default relays from URL
         function detectUSPOTAPI() {
@@ -1244,10 +1245,10 @@
                     content += `\n${uploadedFileUrl}`;
                 }
                 
-                // Add location
+                // Add location only if user has interacted with the map
                 const lat = parseFloat(document.getElementById('lat-display').value) || 0;
                 const lon = parseFloat(document.getElementById('lon-display').value) || 0;
-                if (lat !== 0 || lon !== 0) {
+                if (userHasInteractedWithMap && (lat !== 0 || lon !== 0)) {
                     content += `\n📍 Position: ${lat.toFixed(2)}, ${lon.toFixed(2)}`;
                 }
                 
@@ -1262,8 +1263,8 @@
                     tags.push(['t', tagName]);
                 });
                 
-                // Add geohash tag if location is set
-                if (lat !== 0 || lon !== 0) {
+                // Add geohash tag only if user has interacted with the map
+                if (userHasInteractedWithMap && (lat !== 0 || lon !== 0)) {
                     tags.push(['g', `${lat},${lon}`]);
                 }
                 
@@ -1307,6 +1308,7 @@
                 document.getElementById('uploadStatus').style.display = 'none';
                 selectedFile = null;
                 uploadedFileUrl = null;
+                userHasInteractedWithMap = false;
                 
                 // Uncheck all tags except #BRO
                 document.querySelectorAll('.tag-checkbox input[type="checkbox"]').forEach(cb => {
@@ -1577,10 +1579,12 @@
                 }).addTo(miniMap);
 
                 miniMap.on('click', function(e) {
+                    userHasInteractedWithMap = true;
                     updateCoordinatesFromMap(e.latlng.lat, e.latlng.lng);
                 });
 
                 miniMarker.on('dragend', function(e) {
+                    userHasInteractedWithMap = true;
                     updateCoordinatesFromMap(e.target.getLatLng().lat, e.target.getLatLng().lng);
                 });
                 
@@ -1634,6 +1638,7 @@
                         const lat = Math.round(position.coords.latitude * 100) / 100;
                         const lon = Math.round(position.coords.longitude * 100) / 100;
 
+                        userHasInteractedWithMap = true;
                         updateCoordinatesFromMap(lat, lon);
                         if (miniMap) {
                             miniMap.setView([lat, lon], 13);
