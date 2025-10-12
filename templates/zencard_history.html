@@ -1,0 +1,396 @@
+<!--
+    ⚠️ DEPRECATED - This template is no longer used by upassport.sh
+    
+    This file was previously used for direct HTML generation with JavaScript data injection.
+    
+    Current implementation:
+    - upassport.sh now redirects to the API route: /check_zencard?email=XXX&html
+    - The API uses api.html (Jinja2 template) for server-side rendering
+    
+    This file is kept for reference only and may be removed in the future.
+    Last used: 2025-10-12
+-->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💳 ZEN Card - Historique Parts Sociales [DEPRECATED]</title>
+    <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #FFF;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2em;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .card-header {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-email {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #ffd700;
+            margin-bottom: 10px;
+        }
+
+        .card-pubkey {
+            font-size: 0.85em;
+            font-family: monospace;
+            color: #b8c6e0;
+            word-break: break-all;
+        }
+
+        .summary {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .summary-item {
+            text-align: center;
+        }
+
+        .summary-label {
+            font-size: 0.9em;
+            color: #b8c6e0;
+            margin-bottom: 5px;
+        }
+
+        .summary-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #4fc3f7;
+        }
+
+        .filter-badge {
+            display: inline-block;
+            background: rgba(52, 152, 219, 0.3);
+            color: #4fc3f7;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            margin-bottom: 15px;
+        }
+
+        .transfers-list {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .transfers-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #ffd700;
+        }
+
+        .transfer-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 4px solid;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .transfer-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+        }
+
+        .transfer-item.satellite {
+            border-color: #2ecc71;
+        }
+
+        .transfer-item.constellation {
+            border-color: #3498db;
+        }
+
+        .transfer-item.other {
+            border-color: #95a5a6;
+        }
+
+        .transfer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .transfer-date {
+            font-size: 0.9em;
+            color: #b8c6e0;
+        }
+
+        .transfer-amount {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #4fc3f7;
+        }
+
+        .transfer-type {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .transfer-type.satellite {
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
+        }
+
+        .transfer-type.constellation {
+            background: rgba(52, 152, 219, 0.2);
+            color: #3498db;
+        }
+
+        .transfer-comment {
+            font-size: 0.85em;
+            color: #b8c6e0;
+            margin-top: 8px;
+            font-style: italic;
+        }
+
+        .no-transfers {
+            text-align: center;
+            padding: 40px;
+            color: #b8c6e0;
+            font-size: 1.1em;
+        }
+
+        .back-button {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .error-message {
+            background: rgba(231, 76, 60, 0.2);
+            border-left: 4px solid #e74c3c;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #e74c3c;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2em;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading::after {
+            content: '...';
+            animation: pulse 1.5s infinite;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+
+            .summary {
+                grid-template-columns: 1fr;
+            }
+
+            .transfer-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .transfer-amount {
+                margin-top: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💳 ZEN Card - Historique</h1>
+        
+        <div id="loading" class="loading">
+            Chargement de l'historique
+        </div>
+
+        <div id="content" style="display: none;">
+            <!-- Content will be inserted here by JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        // Extract email from URL parameters
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            const results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+
+        const email = getUrlParameter('email') || '_EMAIL_';
+
+        // Load history data (in production, this would be replaced by template variables)
+        async function loadHistory() {
+            try {
+                // In the actual implementation, the data will be embedded by upassport.sh
+                const data = _HISTORY_DATA_;
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                renderHistory(data);
+            } catch (error) {
+                console.error('Error loading history:', error);
+                showError('Erreur lors du chargement de l\'historique');
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').innerHTML = `
+                <div class="error-message">
+                    <strong>❌ Erreur:</strong> ${message}
+                </div>
+                <a href="/scan" class="back-button">← Retour au scanner</a>
+            `;
+            document.getElementById('content').style.display = 'block';
+        }
+
+        function renderHistory(data) {
+            document.getElementById('loading').style.display = 'none';
+
+            const content = document.getElementById('content');
+            
+            let html = `
+                <div class="card-header">
+                    <div class="card-email">📧 ${data.zencard_email}</div>
+                    <div class="card-pubkey">🔑 ${data.zencard_g1pub}</div>
+                    <div class="filter-badge">📅 ${data.filter_period || 'Période: ' + data.filter_years + ' an(s)'}</div>
+                </div>
+
+                <div class="summary">
+                    <div class="summary-item">
+                        <div class="summary-label">Solde Valide</div>
+                        <div class="summary-value" style="color: #4ade80;">${data.valid_balance_zen.toFixed(2)} Ẑ</div>
+                        <div class="summary-label" style="font-size: 0.8em; margin-top: 5px;">${data.valid_balance_g1.toFixed(2)} Ğ1</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">Total Reçu (3 ans)</div>
+                        <div class="summary-value">${data.total_received_zen.toFixed(2)} Ẑ</div>
+                        <div class="summary-label" style="font-size: 0.8em; margin-top: 5px;">${data.total_received_g1.toFixed(2)} Ğ1</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">Parts Valides</div>
+                        <div class="summary-value">${data.valid_transfers || 0} / ${data.total_transfers}</div>
+                    </div>
+                </div>
+
+                <div class="transfers-list">
+                    <div class="transfers-title">📜 Historique des Parts Sociales</div>
+            `;
+
+            if (data.transfers && data.transfers.length > 0) {
+                data.transfers.forEach(transfer => {
+                    const typeClass = transfer.part_type || 'other';
+                    const isValid = transfer.is_valid !== false; // default to true if not specified
+                    const validityClass = isValid ? '' : 'expired';
+                    const typeLabel = {
+                        'satellite': isValid ? '🛰️ Satellite' : '🛰️ Satellite ⚠️ EXPIRÉE',
+                        'constellation': '✨ Constellation',
+                        'parts': '⭐ Parts',
+                        'other': '📦 Autre'
+                    }[typeClass] || '📦 Autre';
+
+                    html += `
+                        <div class="transfer-item ${typeClass} ${validityClass}">
+                            <div class="transfer-header">
+                                <span class="transfer-date">📅 ${transfer.date}</span>
+                                <span class="transfer-amount" style="${isValid ? '' : 'opacity: 0.6; text-decoration: line-through;'}">${transfer.amount_zen.toFixed(2)} Ẑ</span>
+                            </div>
+                            <div>
+                                <span class="transfer-type ${typeClass}">${typeLabel}</span>
+                            </div>
+                            ${transfer.comment ? `<div class="transfer-comment">${transfer.comment}</div>` : ''}
+                            ${transfer.ipfs_node && transfer.ipfs_node !== 'N/A' ? `<div class="transfer-comment">🌐 Node: ${transfer.ipfs_node.substring(0, 16)}...</div>` : ''}
+                        </div>
+                    `;
+                });
+            } else {
+                html += `
+                    <div class="no-transfers">
+                        📭 Aucune part sociale reçue sur cette période
+                    </div>
+                `;
+            }
+
+            html += `
+                </div>
+                <div style="text-align: center;">
+                    <a href="/scan" class="back-button">← Retour au scanner</a>
+                </div>
+            `;
+
+            content.innerHTML = html;
+            content.style.display = 'block';
+        }
+
+        // Load history on page load
+        window.addEventListener('DOMContentLoaded', loadHistory);
+    </script>
+</body>
+</html>
+

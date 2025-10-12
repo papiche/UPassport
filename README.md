@@ -120,7 +120,7 @@ Before setting up UPassport, ensure you have the following prerequisites install
 
     *   **UPlanet Status API (`/`)**:  Returns JSON data about the local UPlanet ecosystem (players, NOSTR multipass, UMAPs, swarm nodes). Supports geographic filtering with query parameters: `?lat=XX.XX&lon=YY.YY&deg=Z.Z` to filter results by geographic area.
     *   **QR Code Scanner (`/scan`)**: Web interface for general QR code scanning, UPassport actions, and NOSTR Card interactions.
-    *   **ZenCard Terminal (`/scan_zen.html` - accessed internally)**: For initiating ZEN (Ẑen) payments using ZenCards.
+    *   **MULTIPASS Payment Terminal (`/scan_multipass_payment.html`**: For initiating ẐEN payments between MULTIPASS wallets (stored in ~/.zen/game/nostr/).
     *   **Security Scanner (`/scan_ssss.html` - accessed internally)**: For UPassport security verification, used by station CAPTAINs.
     *   **NOSTR Card Interface (`/nostr`)**: For exploring NOSTR functionalities and potentially managing NOSTR Cards. Includes UMAP geographic discovery mode for finding messages from adjacent geographic zones.
     *   **NOSTR UPlanet Interface (`/nostr?type=uplanet`)**: Specialized interface for UPlanet SCIC Cooperative project proposals with UMAP geographic discovery capabilities.
@@ -129,6 +129,248 @@ Before setting up UPassport, ensure you have the following prerequisites install
     *   **File Upload to IPFS (`/upload`)**: For uploading files to IPFS and obtaining IPFS links.
     *   **UPlanet Account Creation (`/uplanet` or `/uplanet.html`)**: For creating UPlanet accounts (functionality may be limited in the provided code).
     *   **API Description (`/index` or `/uplanet`)**: Provides a basic API description and welcome page.
+
+## 📱 QR Code Types & Processing Workflows
+
+UPassport's `/scan` terminal (`upassport.sh`) processes multiple types of QR codes, each triggering a specific workflow. Here's a comprehensive guide to supported QR code formats and their handling:
+
+### 1. 🔑 IPNS TiddlyWiki Key
+
+**Format:** `k51qzi5uqu5d[ipns_hash]`
+
+**Workflow:**
+1. Detects IPNS key in TiddlyWiki format
+2. **Direct redirect** to `${myIPFS}/ipns/${TWNS}`
+
+**Use Case:** Quick access to decentralized TiddlyWiki notebooks stored on IPFS.
+
+---
+
+### 2. 🌐 HTTP/HTTPS Links
+
+#### 2a. ZeroCard IPNS Link (with 12D3Koo)
+
+**Format:** `http(s)://[domain]/ipns/12D3Koo[hash]`
+
+**Workflow:**
+1. Extracts IPNS 12D3Koo identifier (CARDNS)
+2. Converts to G1 pubkey: `ipfs_to_g1.py $CARDNS`
+3. Searches for owner member in `${MY_PATH}/pdf/`
+4. If found: retrieves associated ZEROCARD
+5. **Redirects to** `scan_ssss.html` for SSSS security QR scanning
+
+**Use Case:** UPassport verification and security check by station CAPTAINs.
+
+#### 2b. Generic HTTP Link
+
+**Format:** Any `http://` or `https://` URL
+
+**Workflow:**
+1. **Direct redirect** to the URL
+
+**Use Case:** Simple link sharing and web navigation.
+
+---
+
+### 3. 📧 EMAIL - NOSTR Card Creation/Management
+
+**Format:** `email@domain.tld`
+
+#### New MULTIPASS Creation:
+1. Validates email format
+2. Checks for existing MULTIPASS
+3. Calls `make_NOSTRCARD.sh "${EMAIL}" "$PASS" "${LAT}" "${LON}"`
+4. Generates NOSTR keypair and G1 wallet
+5. Sends MULTIPASS via `mailjet.sh`
+6. **Returns** `.nostr.zine.html` with printable MULTIPASS
+
+#### PASS = "0000" (Account Deletion):
+- Verifies account was created today (TODATE check)
+- Destroys NOSTR TW: `nostr_DESTROY_TW.sh`
+- Marks as "DELETED" in HTML
+- **Returns** deletion confirmation
+
+#### Existing Account:
+- **Returns** "ALREADY EXISTING" message
+- Shows again if created on same day (TODATE = today)
+
+**Use Case:** Decentralized identity creation linked to email, with same-day deletion capability.
+
+---
+
+### 4. 🎫 MULTIPASS SSSS Authentication
+
+**Format:** 
+- `M-[base58_encoded]:k51qzi5uqu5d[ipns_hash]` (Base58)
+- `1-[hex_encoded]:k51qzi5uqu5d[ipns_hash]` (Hex)
+
+#### Decoding Process:
+1. **M-**: Decodes Base58 using `Mbase58.py decode`
+2. **1-**: Uses hex directly
+3. Extracts `SSSS1` (share 1) and `IPNSVAULT` (IPNS key)
+
+#### Authentication:
+1. Searches for PLAYER via `get_NOSTRNS_directory()`
+2. Decrypts `ssss.tail.uplanet.enc` with UPLANET key
+3. Combines SSSS shares: `ssss-combine -t 2`
+4. Recovers `salt` and `pepper`
+5. Generates NSEC from recovered secrets
+
+#### Actions by PASS Code:
+
+**PASS = "" or "[lang]" (Quick Message - Default):**
+- Generates NSEC with salt/pepper: `keygen -t nostr "${salt}" "${pepper}" -s`
+- Creates `nostr.html` with pre-filled nsec
+- **Returns** simple NOSTR message interface
+- Default mode for quick geographic messages
+
+**PASS = "1111" (Full Access):**
+- Generates NSEC with salt/pepper
+- Creates `astro_base.html` with nsec auto-filled
+- Injects JavaScript for automatic authentication
+- Auto-selects nsec authentication mode
+- **Returns** complete Astro Base interface with full NOSTR features
+
+**PASS = "0000" (Cash Back & Account Closure):**
+- Generates dunikey with salt/pepper
+- Retrieves G1PUBNOSTR balance
+- Empties wallet to G1PRIME: `PAYforSURE.sh`
+- Updates TODATE (one day to reactivate)
+- **Returns** cash back confirmation message
+
+**Custom PASS codes:**
+- Reserved for future features and extensions
+
+**Use Case:** Secure MULTIPASS authentication with Shamir Secret Sharing (3-of-2 threshold), enabling multiple interface modes based on PASS code.
+
+---
+
+### 5. 💰 G1 Public Key (Duniter)
+
+**Format:** 43-44 character base58 string (G1 pubkey)
+
+#### First Scan (No ZEROCARD):
+1. Validates G1 format: `g1_to_ipfs.py ${PUBKEY}`
+2. Retrieves TX history: `G1history.sh ${PUBKEY} 25`
+3. Checks for MEMBER status: `/wot/lookup/$PUBKEY`
+4. **If simple wallet:** displays balance only
+5. **If member (has UID):**
+   - Analyzes N1 network (P2P, 12P, P21 certifications)
+   - Creates ZEROCARD with SSSS key splitting
+   - Generates IPNS key for decentralized storage
+   - Creates UPassport HTML with QR codes
+   - **Returns** `_index.html` (fac-simile UPassport)
+
+#### Second Scan (ZEROCARD Exists, Not Activated):
+1. Checks last transaction
+2. **If TX to ZEROCARD:** activates UPassport
+   - Publishes to IPNS
+   - Creates symlink to `~/.zen/game/passport/`
+   - Updates NOSTR profile with G1PUB (if WoT authenticated)
+   - Encrypts with UPLANETNAME
+3. **Returns** activation confirmation page
+
+#### Third+ Scans (ZEROCARD Activated):
+1. **If COMM present and DEST == ZEROCARD:**
+   - Executes command: `u.command.sh "$PUBKEY" "$COMM" "$LASTX" "$TXDATE" "$ZEROCARD"`
+2. **If DRIVESTATE exists:**
+   - **Redirects** to current IPFS DRIVESTATE
+3. **Otherwise:** shows fac-simile
+
+**Use Case:** Complete UPassport lifecycle from member discovery to activation and ongoing management.
+
+---
+
+## 📊 QR Code Processing Flow Summary
+
+```
+┌─────────────────────┬──────────────────────────────────────────┐
+│ QR Code Type        │ Destination/Action                       │
+├─────────────────────┼──────────────────────────────────────────┤
+│ k51qzi5uqu5d...     │ → /ipns/[key] (IPFS redirect)           │
+│ http://...12D3Koo   │ → scan_ssss.html (security verification)│
+│ http://...          │ → Direct URL redirect                    │
+│ email@domain.tld    │ → NOSTRCARD creation + email            │
+│ M-...:k51qzi...     │ → nostr.html or astro_base.html         │
+│   (PASS=""/lang)    │   → Quick Message interface             │
+│   (PASS=1111)       │   → Full Astro Base interface           │
+│   (PASS=9999)       │   → MULTIPASS Payment Terminal          │
+│   (PASS=0000)       │   → Cash back + destroy                 │
+│ ~~~~~...            │ → /check_zencard API (ZEN Card History) │
+│   (with PASS)       │   → Redirect to API for history display │
+│                     │   → 3 years blockchain analysis         │
+│                     │   → Valid balance vs total received     │
+│ [G1 PUBKEY]         │ → UPassport creation/management         │
+│   (1st scan)        │   → Create passport (member)            │
+│   (2nd scan)        │   → Activate passport (TX verification) │
+│   (3rd+ scan)       │   → Command execution / DRIVESTATE      │
+└─────────────────────┴──────────────────────────────────────────┘
+```
+
+**Note:** ZEN Cards (used by `UPLANET.official.sh`) are for social shares accounting via blockchain history, not for holding funds. MULTIPASS (NOSTR Cards) hold the actual ẐEN for payments.
+
+### MULTIPASS PASS Codes Reference
+
+| PASS Code | Interface      | Use Case                           |
+|-----------|----------------|----------------------------------- |
+| `""`      | nostr.html     | Quick geographic message (default) |
+| `"fr"/"en"`| nostr.html    | Language-specific quick message    |
+| `"1111"`  | astro_base.html| Full NOSTR messenger with all features |
+| `"9999"`  | scan_multipass_payment.html | MULTIPASS Payment Terminal |
+| `"0000"`  | Cash back      | Account closure + wallet emptying  |
+| Custom    | Reserved       | Future features                    |
+
+### ZEN Card Social Shares History
+
+**ZEN Cards** are used by `UPLANET.official.sh` for tracking social shares (parts sociales) received from the cooperative's SOCIETY wallet. Unlike MULTIPASS which holds ẐEN for payments, ZEN Cards maintain the blockchain history of cooperative membership contributions.
+
+**How it works:**
+1. **Scan ZEN Card QR code** (encrypted format starting with `~~~~~`) on `/scan`
+2. **Enter your personal PASS code** to decrypt the card
+3. **Automatic redirect** to `/check_zencard?email=EMAIL&html` API endpoint
+4. **View comprehensive history** with:
+   - **Valid Balance**: Current valid social shares (Satellite: 1 year, Constellation: 3 years)
+   - **Total Received**: All social shares received over 3 years
+   - **Valid vs Expired**: Clear indication of expired Satellite shares
+
+**Technical details:**
+- ZEN Card QR codes are **GPG-encrypted** with a personal PASS code
+- Format: `~~~~~` followed by encrypted salt/pepper parameters
+- ZEN Cards are stored in `~/.zen/game/players/EMAIL/`
+- Decryption in `upassport.sh` reveals G1 wallet keys for email lookup
+- **Redirects to FastAPI route** `/check_zencard?email=EMAIL&html`
+- API calls `G1zencard_history.sh` to retrieve blockchain history
+- **Always analyzes 3 years** of SOCIETY wallet transactions
+- **Automatic type detection** from blockchain comments (satellite/constellation)
+- **Smart balance calculation**:
+  - Satellite shares: Valid only for current year
+  - Constellation shares: Valid for 3 years
+  - Expired shares shown with visual indicators
+
+**API Integration:**
+- **Route**: `GET /check_zencard?email=EMAIL&html`
+- **Script**: `G1zencard_history.sh` (backend processing)
+- **Template**: `zencard_api.html` (Jinja2 server-side rendering)
+- **JSON mode**: Add `&html` parameter for web display, omit for raw JSON
+
+**Security:**
+- Each ZEN Card has a **unique PASS code** known only to the member
+- Wrong PASS code = decryption fails, no access to history
+- QR code can be printed and carried physically (secure wallet card)
+- API validates email and filters only SOCIETY transactions
+
+**Use Case:** Cooperative members can verify their social shares history and contribution status at any time by scanning their encrypted ZEN Card QR code with their personal PASS code. The system automatically calculates valid balance based on share type (Satellite/Constellation) and displays a clear, responsive interface with expired shares marked distinctly.
+
+### Security Features
+
+- **SSSS (Shamir Secret Sharing)**: MULTIPASS keys split into 3 shares (HEAD/MIDDLE/TAIL), requiring 2-of-3 for reconstruction
+- **Encrypted Storage**: ZenCard uses GPG AES encryption with password
+- **UPLANET Key**: MIDDLE share encrypted with UPLANET name for geographic binding
+- **CAPTAIN Key**: TAIL share encrypted with CAPTAIN pubkey for administrative recovery
+- **MEMBER Key**: HEAD share encrypted with member's G1 pubkey for personal control
+- **Time-based Deletion**: Accounts can only be deleted on creation day (TODATE check)
+
+---
 
 ## 🌐 UPassport API (Port 54321)
 
@@ -145,6 +387,9 @@ The UPassport API provides secure, decentralized file and identity management fo
 | `/api/getN2`              | GET    | Analyze N2 network (friends of friends)     | No            | `hex`, `range`, `output` (query params) |
 | `/api/test-nostr`         | POST   | Test NOSTR authentication for a pubkey      | No            | `npub` (form-data)            |
 | `/api/umap/geolinks`      | GET    | Get UMAP adjacent zones geolinks            | No            | `lat`, `lon` (query params)   |
+| `/check_zencard`          | GET    | View ZEN Card social shares history         | No            | `email`, `html` (query params) |
+| `/check_society`          | GET    | View SOCIETY wallet capital contributions   | No            | `html` (query param)          |
+| `/check_revenue`          | GET    | View RENTAL transactions revenue (CA)       | No            | `html`, `year` (query params) |
 
 ---
 
@@ -359,6 +604,70 @@ The client application can use the returned hex keys to query NOSTR relays for m
 
 ---
 
+#### `GET /check_zencard`
+- **Description:** View ZEN Card social shares history for a cooperative member. This endpoint retrieves and displays the transaction history from the SOCIETY wallet (`UPLANETNAME_SOCIETY`) to the member's ZEN Card. It analyzes 3 years of blockchain data, automatically detects share types (satellite/constellation) from transaction comments, and calculates valid balance based on expiration rules.
+- **Authentication:** Not required.
+- **Query Parameters:**
+  - `email`: Email of the ZEN Card holder (required).
+  - `html`: If present (any value), returns HTML page. If omitted, returns JSON data.
+- **Returns:**
+  - **HTML mode:** Interactive responsive page with valid balance, total received, and transaction list with expired shares marked.
+  - **JSON mode:** Structured data with shares array, totals, and validation status.
+
+**Examples:**
+```bash
+# Get JSON data
+curl "http://localhost:54321/check_zencard?email=member@example.com"
+
+# Get HTML page
+curl "http://localhost:54321/check_zencard?email=member@example.com&html"
+```
+
+**JSON Response Structure:**
+```json
+{
+  "zencard_email": "member@example.com",
+  "zencard_g1pub": "...",
+  "filter_years": 3,
+  "filter_period": "Dernières 3 années (2023-2025)",
+  "total_received_g1": 54.0,
+  "total_received_zen": 540.0,
+  "valid_balance_g1": 54.0,
+  "valid_balance_zen": 540.0,
+  "total_transfers": 3,
+  "valid_transfers": 3,
+  "transfers": [
+    {
+      "date": "2025-01-15",
+      "year": 2025,
+      "amount_g1": 54.0,
+      "amount_zen": 540.0,
+      "part_type": "constellation",
+      "is_valid": true,
+      "ipfs_node": "12D3KooW...",
+      "comment": "Parts Constellation - UPLANET:xxx:SOCIETY:member@example.com:constellation:12D3KooW..."
+    }
+  ],
+  "timestamp": "2025-10-12T15:30:00Z"
+}
+```
+
+**Share Types & Validity:**
+- **Constellation** (540Ẑ/3years): Valid for 3 years from transaction date
+- **Satellite** (50Ẑ/year): Valid only for current year, expires annually
+- Expired shares are included in `total_received` but excluded from `valid_balance`
+
+**Backend Processing:**
+- Calls `G1zencard_history.sh` script for blockchain analysis
+- Filters transactions from `UPLANETNAME_SOCIETY` wallet only
+- Parses transaction comments created by `UPLANET.official.sh`
+- HTML rendering uses `zencard_api.html` Jinja2 template
+
+**Use Case:**
+This endpoint is automatically called when a ZEN Card QR code (format `~~~~~...`) is scanned on `/scan` with the correct PASS code. It's also accessible directly via API for dashboard integration, mobile apps, or administrative monitoring of cooperative members' social shares.
+
+---
+
 ### Authentication Notes
 - All user-specific actions require a recent NOSTR NIP42 authentication event on the local relay (`ws://127.0.0.1:7777`).
 - If authentication fails, ensure your NOSTR client has published a kind 22242 event within the last 24 hours.
@@ -513,7 +822,7 @@ Avant de configurer UPassport, assurez-vous d'avoir installé et configuré les 
 
     *   **API Statut UPlanet (`/`)** : Retourne des données JSON sur l'écosystème UPlanet local (joueurs, multipass NOSTR, UMAPs, nœuds swarm). Supporte le filtrage géographique avec les paramètres de requête : `?lat=XX.XX&lon=YY.YY&deg=Z.Z` pour filtrer les résultats par zone géographique.
     *   **Scanner QR Code (`/scan`)** : Interface web pour le scan de QR codes général, les actions UPassport et les interactions avec les Cartes NOSTR.
-    *   **Terminal ZenCard (`/scan_zen.html` - accessible en interne)** : Pour initier des paiements ZEN (Ẑen) en utilisant les ZenCards.
+    *   **Terminal de Paiement MULTIPASS (`/scan_multipass_payment.html` - accessible en interne)** : Pour initier des paiements ẐEN entre portefeuilles MULTIPASS (stockés dans ~/.zen/game/nostr/).
     *   **Scanner de Sécurité (`/scan_ssss.html` - accessible en interne)** : Pour la vérification de sécurité UPassport, utilisé par les CAPITAINES de station.
     *   **Interface Carte NOSTR (`/nostr`)** : Pour explorer les fonctionnalités NOSTR selon différents types d'applications (signalées par #BRO + #hashtag).
     *   **Interface NOSTR UPlanet (`/nostr?type=uplanet`)** : Interface spécialisée pour les propositions de projets de la SCIC Cooperative UPlanet avec des capacités de découverte géographique UMAP.
@@ -522,6 +831,207 @@ Avant de configurer UPassport, assurez-vous d'avoir installé et configuré les 
     *   **Téléversement de Fichiers vers IPFS (`/upload`)** : Pour téléverser des fichiers vers IPFS et obtenir des liens IPFS.
     *   **Création de Compte UPlanet (`/uplanet` ou `/uplanet.html`)** : Pour créer des comptes UPlanet (la fonctionnalité peut être limitée dans le code fourni).
     *   **Description de l'API (`/index` ou `/uplanet`)** : Fournit une description de l'API de base et une page de bienvenue.
+
+## 📱 Types de QR Codes & Workflows de Traitement
+
+Le terminal `/scan` d'UPassport (`upassport.sh`) traite plusieurs types de QR codes, chacun déclenchant un workflow spécifique. Voici un guide complet des formats de QR codes supportés et de leur traitement :
+
+### 1. 🔑 Clé IPNS TiddlyWiki
+
+**Format :** `k51qzi5uqu5d[hash_ipns]`
+
+**Workflow :**
+1. Détecte la clé IPNS au format TiddlyWiki
+2. **Redirection directe** vers `${myIPFS}/ipns/${TWNS}`
+
+**Cas d'usage :** Accès rapide aux carnets TiddlyWiki décentralisés stockés sur IPFS.
+
+---
+
+### 2. 🌐 Liens HTTP/HTTPS
+
+#### 2a. Lien IPNS ZeroCard (avec 12D3Koo)
+
+**Format :** `http(s)://[domaine]/ipns/12D3Koo[hash]`
+
+**Workflow :**
+1. Extrait l'identifiant IPNS 12D3Koo (CARDNS)
+2. Convertit en clé publique G1 : `ipfs_to_g1.py $CARDNS`
+3. Recherche le membre propriétaire dans `${MY_PATH}/pdf/`
+4. Si trouvé : récupère la ZEROCARD associée
+5. **Redirige vers** `scan_ssss.html` pour le scan du QR de sécurité SSSS
+
+**Cas d'usage :** Vérification d'UPassport et contrôle de sécurité par les CAPITAINEs de station.
+
+#### 2b. Lien HTTP Générique
+
+**Format :** N'importe quelle URL `http://` ou `https://`
+
+**Workflow :**
+1. **Redirection directe** vers l'URL
+
+**Cas d'usage :** Partage de liens simple et navigation web.
+
+---
+
+### 3. 📧 EMAIL - Création/Gestion de Carte NOSTR
+
+**Format :** `email@domaine.tld`
+
+#### Création de nouveau MULTIPASS :
+1. Valide le format email
+2. Vérifie l'existence d'un MULTIPASS existant
+3. Appelle `make_NOSTRCARD.sh "${EMAIL}" "$PASS" "${LAT}" "${LON}"`
+4. Génère une paire de clés NOSTR et un portefeuille G1
+5. Envoie le MULTIPASS via `mailjet.sh`
+6. **Retourne** `.nostr.zine.html` avec MULTIPASS imprimable
+
+#### PASS = "0000" (Suppression de compte) :
+- Vérifie que le compte a été créé aujourd'hui (contrôle TODATE)
+- Détruit le TW NOSTR : `nostr_DESTROY_TW.sh`
+- Marque comme "DELETED" dans le HTML
+- **Retourne** confirmation de suppression
+
+#### Compte existant :
+- **Retourne** message "ALREADY EXISTING"
+- Réaffiche si créé le même jour (TODATE = aujourd'hui)
+
+**Cas d'usage :** Création d'identité décentralisée liée à l'email, avec capacité de suppression le jour même.
+
+---
+
+### 4. 🎫 Authentification MULTIPASS SSSS
+
+**Format :** 
+- `M-[encodé_base58]:k51qzi5uqu5d[hash_ipns]` (Base58)
+- `1-[encodé_hex]:k51qzi5uqu5d[hash_ipns]` (Hex)
+
+#### Processus de décodage :
+1. **M-** : Décode en Base58 avec `Mbase58.py decode`
+2. **1-** : Utilise l'hex directement
+3. Extrait `SSSS1` (part 1) et `IPNSVAULT` (clé IPNS)
+
+#### Authentification :
+1. Recherche le PLAYER via `get_NOSTRNS_directory()`
+2. Déchiffre `ssss.tail.uplanet.enc` avec la clé UPLANET
+3. Combine les parts SSSS : `ssss-combine -t 2`
+4. Récupère `salt` et `pepper`
+5. Génère le NSEC à partir des secrets récupérés
+
+#### Actions selon le code PASS :
+
+**PASS = "" ou "[lang]" (Message Rapide - Par défaut) :**
+- Génère le NSEC avec salt/pepper : `keygen -t nostr "${salt}" "${pepper}" -s`
+- Crée `nostr.html` avec nsec pré-rempli
+- **Retourne** interface de message NOSTR simple
+- Mode par défaut pour les messages géographiques rapides
+
+**PASS = "1111" (Accès Complet) :**
+- Génère le NSEC avec salt/pepper
+- Crée `astro_base.html` avec nsec auto-rempli
+- Injecte JavaScript pour authentification automatique
+- Sélectionne automatiquement le mode d'authentification nsec
+- **Retourne** interface Astro Base complète avec toutes les fonctionnalités NOSTR
+
+**PASS = "0000" (Remboursement & Fermeture de Compte) :**
+- Génère la dunikey avec salt/pepper
+- Récupère le solde G1PUBNOSTR
+- Vide le portefeuille vers G1PRIME : `PAYforSURE.sh`
+- Met à jour TODATE (un jour pour réactiver)
+- **Retourne** message de confirmation de remboursement
+
+**Codes PASS personnalisés :**
+- Réservés pour les fonctionnalités et extensions futures
+
+**Cas d'usage :** Authentification MULTIPASS sécurisée avec partage de secret Shamir (seuil 2-sur-3), permettant plusieurs modes d'interface selon le code PASS.
+
+---
+
+### 5. 💰 Clé Publique G1 (Duniter)
+
+**Format :** Chaîne base58 de 43-44 caractères (clé pub G1)
+
+#### Premier Scan (Pas de ZEROCARD) :
+1. Valide le format G1 : `g1_to_ipfs.py ${PUBKEY}`
+2. Récupère l'historique TX : `G1history.sh ${PUBKEY} 25`
+3. Vérifie le statut MEMBER : `/wot/lookup/$PUBKEY`
+4. **Si simple portefeuille :** affiche seulement le solde
+5. **Si membre (a un UID) :**
+   - Analyse le réseau N1 (certifications P2P, 12P, P21)
+   - Crée la ZEROCARD avec découpage de clé SSSS
+   - Génère la clé IPNS pour le stockage décentralisé
+   - Crée l'HTML UPassport avec QR codes
+   - **Retourne** `_index.html` (fac-similé UPassport)
+
+#### Deuxième Scan (ZEROCARD Existe, Pas Activée) :
+1. Vérifie la dernière transaction
+2. **Si TX vers ZEROCARD :** active l'UPassport
+   - Publie sur IPNS
+   - Crée un lien symbolique vers `~/.zen/game/passport/`
+   - Met à jour le profil NOSTR avec G1PUB (si authentifié WoT)
+   - Chiffre avec UPLANETNAME
+3. **Retourne** page de confirmation d'activation
+
+#### Troisième+ Scans (ZEROCARD Activée) :
+1. **Si COMM présent et DEST == ZEROCARD :**
+   - Exécute la commande : `u.command.sh "$PUBKEY" "$COMM" "$LASTX" "$TXDATE" "$ZEROCARD"`
+2. **Si DRIVESTATE existe :**
+   - **Redirige** vers le DRIVESTATE IPFS actuel
+3. **Sinon :** affiche le fac-similé
+
+**Cas d'usage :** Cycle de vie complet de l'UPassport depuis la découverte du membre jusqu'à l'activation et la gestion continue.
+
+---
+
+## 📊 Résumé des Flux de Traitement QR Code
+
+```
+┌─────────────────────┬──────────────────────────────────────────┐
+│ Type QR Code        │ Destination/Action                       │
+├─────────────────────┼──────────────────────────────────────────┤
+│ k51qzi5uqu5d...     │ → /ipns/[clé] (redirection IPFS)        │
+│ http://...12D3Koo   │ → scan_ssss.html (vérification sécurité)│
+│ http://...          │ → Redirection URL directe                │
+│ email@domaine.tld   │ → Création NOSTRCARD + email            │
+│ M-...:k51qzi...     │ → nostr.html ou astro_base.html         │
+│   (PASS=""/lang)    │   → Interface Message Rapide            │
+│   (PASS=1111)       │   → Interface Astro Base complète       │
+│   (PASS=9999)       │   → Terminal de Paiement MULTIPASS     │
+│   (PASS=0000)       │   → Remboursement + destruction         │
+│ ~~~~~...            │ → API /check_zencard (Historique ZEN Card) │
+│   (with PASS)       │   → Redirection vers API pour affichage │
+│                     │   → Analyse blockchain 3 ans            │
+│                     │   → Solde valide vs total reçu          │
+│ [CLÉ PUB G1]        │ → Création/gestion UPassport            │
+│   (1er scan)        │   → Créer passport (membre)             │
+│   (2ème scan)       │   → Activer passport (vérif TX)         │
+│   (3ème+ scan)      │   → Exécution commande / DRIVESTATE     │
+└─────────────────────┴──────────────────────────────────────────┘
+```
+
+**Note :** Les ZEN Cards (utilisées par `UPLANET.official.sh`) servent à la comptabilité des parts sociales via l'historique blockchain, pas à détenir des fonds. Les MULTIPASS (Cartes NOSTR) détiennent les ẐEN réels pour les paiements.
+
+### Référence des Codes PASS MULTIPASS
+
+| Code PASS | Interface      | Cas d'usage                              |
+|-----------|----------------|------------------------------------------|
+| `""`      | nostr.html     | Message géographique rapide (par défaut) |
+| `"fr"/"en"`| nostr.html    | Message rapide spécifique à la langue    |
+| `"1111"`  | astro_base.html| Messagerie NOSTR complète avec toutes fonctionnalités |
+| `"9999"`  | scan_multipass_payment.html | Terminal de Paiement MULTIPASS |
+| `"0000"`  | Remboursement  | Fermeture compte + vidage portefeuille   |
+| Personnalisé | Réservé     | Fonctionnalités futures                  |
+
+### Fonctionnalités de Sécurité
+
+- **SSSS (Shamir Secret Sharing)** : Clés MULTIPASS divisées en 3 parts (HEAD/MIDDLE/TAIL), nécessitant 2-sur-3 pour la reconstruction
+- **Stockage Chiffré** : ZenCard utilise le chiffrement GPG AES avec mot de passe
+- **Clé UPLANET** : Part MIDDLE chiffrée avec le nom UPLANET pour liaison géographique
+- **Clé CAPTAIN** : Part TAIL chiffrée avec la clé pub CAPTAIN pour récupération administrative
+- **Clé MEMBER** : Part HEAD chiffrée avec la clé pub G1 du membre pour contrôle personnel
+- **Suppression Temporelle** : Les comptes ne peuvent être supprimés que le jour de création (contrôle TODATE)
+
+---
 
 ## 🛠️ Configuration
 
@@ -563,6 +1073,9 @@ L'API UPassport fournit une gestion sécurisée et décentralisée des fichiers 
 | `/api/getN2`              | GET     | Analyser le réseau N2 (amis d'amis)        | Non          | `hex`, `range`, `output` (query params) |
 | `/api/test-nostr`         | POST    | Tester l'authentification NOSTR pour une clé publique | Non | `npub` (form-data)            |
 | `/api/umap/geolinks`      | GET     | Obtenir les liens géographiques des UMAPs adjacentes | Non | `lat`, `lon` (query params)   |
+| `/check_zencard`          | GET     | Voir l'historique des parts sociales ZEN Card | Non    | `email`, `html` (query params) |
+| `/check_society`          | GET     | Voir les contributions capital SOCIETY     | Non          | `html` (query param)          |
+| `/check_revenue`          | GET     | Voir le chiffre d'affaires RENTAL          | Non          | `html`, `year` (query params) |
 
 ---
 
@@ -774,6 +1287,70 @@ Cet endpoint est particulièrement utile pour :
 - **Intégration Écosystème UPlanet** : Se connecter avec les UMAPs voisines dans le réseau décentralisé UPlanet
 
 L'application cliente peut utiliser les clés hex retournées pour interroger les relais NOSTR pour des messages de ces UMAPs adjacentes, permettant la découverte géographique et les interactions communautaires locales.
+
+---
+
+#### `GET /check_zencard`
+- **Description :** Affiche l'historique des parts sociales (ZEN Card) pour un membre de la coopérative. Cet endpoint récupère et affiche l'historique des transactions depuis le portefeuille SOCIETY (`UPLANETNAME_SOCIETY`) vers la ZEN Card du membre. Il analyse 3 années de données blockchain, détecte automatiquement les types de parts (satellite/constellation) depuis les commentaires de transaction, et calcule le solde valide selon les règles d'expiration.
+- **Authentification :** Non requise.
+- **Paramètres de requête :**
+  - `email` : Email du détenteur de la ZEN Card (requis).
+  - `html` : Si présent (n'importe quelle valeur), retourne une page HTML. Si omis, retourne les données JSON.
+- **Retourne :**
+  - **Mode HTML :** Page interactive responsive avec solde valide, total reçu, et liste des transactions avec parts expirées marquées.
+  - **Mode JSON :** Données structurées avec tableau de parts, totaux et statut de validation.
+
+**Exemples :**
+```bash
+# Obtenir les données JSON
+curl "http://localhost:54321/check_zencard?email=membre@example.com"
+
+# Obtenir la page HTML
+curl "http://localhost:54321/check_zencard?email=membre@example.com&html"
+```
+
+**Structure de réponse JSON :**
+```json
+{
+  "zencard_email": "membre@example.com",
+  "zencard_g1pub": "...",
+  "filter_years": 3,
+  "filter_period": "Dernières 3 années (2023-2025)",
+  "total_received_g1": 54.0,
+  "total_received_zen": 540.0,
+  "valid_balance_g1": 54.0,
+  "valid_balance_zen": 540.0,
+  "total_transfers": 3,
+  "valid_transfers": 3,
+  "transfers": [
+    {
+      "date": "2025-01-15",
+      "year": 2025,
+      "amount_g1": 54.0,
+      "amount_zen": 540.0,
+      "part_type": "constellation",
+      "is_valid": true,
+      "ipfs_node": "12D3KooW...",
+      "comment": "Parts Constellation - UPLANET:xxx:SOCIETY:membre@example.com:constellation:12D3KooW..."
+    }
+  ],
+  "timestamp": "2025-10-12T15:30:00Z"
+}
+```
+
+**Types de Parts & Validité :**
+- **Constellation** (540Ẑ/3ans) : Valable 3 ans à partir de la date de transaction
+- **Satellite** (50Ẑ/an) : Valable uniquement pour l'année en cours, expire annuellement
+- Les parts expirées sont incluses dans `total_received` mais exclues du `valid_balance`
+
+**Traitement Backend :**
+- Appelle le script `G1zencard_history.sh` pour l'analyse blockchain
+- Filtre uniquement les transactions du portefeuille `UPLANETNAME_SOCIETY`
+- Parse les commentaires de transaction créés par `UPLANET.official.sh`
+- Rendu HTML utilise le template Jinja2 `zencard_api.html`
+
+**Cas d'usage :**
+Cet endpoint est automatiquement appelé lorsqu'un QR code ZEN Card (format `~~~~~...`) est scanné sur `/scan` avec le bon code PASS. Il est aussi accessible directement via API pour intégration dans des tableaux de bord, applications mobiles ou monitoring administratif des parts sociales des membres coopératifs.
 
 ---
 

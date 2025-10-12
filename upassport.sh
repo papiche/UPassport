@@ -64,52 +64,136 @@ if [[ $countMErunning -gt 2 ]]; then
 fi
 
 
-############ ZENCARD QRCODE !!!!
+############ ZENCARD QRCODE ####
+## Note: ZEN Cards sont utilisées pour la comptabilité des parts sociales
+## (historique blockchain via UPLANET.official.sh), mais ne contiennent pas de fonds.
+## Ce sont les MULTIPASS (NOSTR Card) qui contiennent les ẐEN pour les paiements.
+## Affichage de l'historique des parts sociales via zencard_history.html
+
 if [[ ${QRCODE:0:5} == "~~~~~" ]]; then
+    echo "ZEN Card QR Code detected..."
+    
     ## Recreate GPG aes file
     urldecode "${QRCODE}" | tr '_' '+' | tr '-' '\n' | tr '~' '-'  > ${MY_PATH}/tmp/${MOATS}.disco.aes
     sed -i '$ d' ${MY_PATH}/tmp/${MOATS}.disco.aes
-    # Decoding
-    echo "cat ~/.zen/tmp/${MOATS}/disco.aes | gpg -d --passphrase "${IMAGE}" --batch"
-    cat ${MY_PATH}/tmp/${MOATS}.disco.aes | gpg -d --passphrase "${IMAGE}" --batch > ${MY_PATH}/tmp/${MOATS}.decoded
-
+    
+    # Decoding with PASS
+    echo "Decrypting ZEN Card with PASS: ${IMAGE}"
+    cat ${MY_PATH}/tmp/${MOATS}.disco.aes | gpg -d --passphrase "${IMAGE}" --batch > ${MY_PATH}/tmp/${MOATS}.decoded 2>/dev/null
+    
     [[ -s ${MY_PATH}/tmp/${MOATS}.decoded ]] \
         && DISCO=$(cat ${MY_PATH}/tmp/${MOATS}.decoded | cut -d '?' -f2)
-
+    
     if [[ ${DISCO} == "" ]]; then ## BAD PASS ...
         cat ${MY_PATH}/templates/message.html \
-        | sed -e "s~_TITLE_~$(date -u) <br> BAD ${IMAGE}~g" \
-             -e "s~_MESSAGE_~@( * O * )@~g" \
+        | sed -e "s~_TITLE_~$(date -u) <br> Mauvais PASS~g" \
+             -e "s~_MESSAGE_~Code incorrect pour cette ZEN Card<br>@( * O * )@~g" \
             > ${MY_PATH}/tmp/${MOATS}.out.html
         echo "${MY_PATH}/tmp/${MOATS}.out.html"
         exit 0
     fi
-    ## GOOD PASS DISCO : "/?salt=${USALT}&pepper=${UPEPPER}"
+    
+    ## GOOD PASS - Extract salt and pepper
     arr=(${DISCO//[=&]/ })
     s=$(urldecode ${arr[0]} | xargs)
     salt=$(urldecode ${arr[1]} | xargs)
     p=$(urldecode ${arr[2]} | xargs)
     pepper=$(urldecode ${arr[3]} | xargs)
-    ## CREATE WALLET KEY
-    TWNS=$($HOME/.zen/Astroport.ONE/tools/keygen -t ipfs "${salt}" "${pepper}")
-    $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey "${salt}" "${pepper}"
-    g1source=$(cat ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey  | grep 'pub:' | cut -d ' ' -f 2)
-    SRCCOINS=$(~/.zen/Astroport.ONE/tools/COINScheck.sh ${g1source} | tail -n 1)
-    SRCZEN=$(echo "($SRCCOINS - 1) * 10" | bc | cut -d '.' -f 1)
-    ### REVEAL DUNIKEY KEY
-    mv ${MY_PATH}/tmp/${IMAGE}.zencard.dunikey ${MY_PATH}/tmp/${g1source}.zencard.dunikey
-    ### TODO !!! ACTIVATE IPNS KEY ??
-    ############################################
-    ## REDIRECT TO ZENCARD DESTINATION SCANNER
-    cat ${MY_PATH}/templates/scan_zen.html \
-        | sed -e "s~_G1SOURCE_~${g1source}~g" \
-        -e "s~_ZEN_~$SRCZEN~g" \
-        -e "s~_TW_~<a href=${myIPFS}/ipns/${TWNS} target=_new>TW</a>~g" \
-        -e "s~https://ipfs.copylaradio.com~${myIPFS}~g" \
-    > ${MY_PATH}/tmp/${MOATS}.out.html
+    
+    ## CREATE WALLET KEY to get email
+    $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ${MY_PATH}/tmp/${MOATS}.zencard.dunikey "${salt}" "${pepper}"
+    g1source=$(cat ${MY_PATH}/tmp/${MOATS}.zencard.dunikey | grep 'pub:' | cut -d ' ' -f 2)
+    
+    echo "ZEN Card G1 pubkey: ${g1source}"
+    
+    ## Find email associated with this ZEN Card
+    ZENCARD_EMAIL=""
+    
+    for player_dir in $HOME/.zen/game/players/*/; do
+        if [[ -d "$player_dir" ]]; then
+            player_email=$(basename "$player_dir")
+            player_g1pub=""
+            
+            # Try to get G1 pubkey from .g1pub file
+            if [[ -f "${player_dir}.g1pub" ]]; then
+                player_g1pub=$(cat "${player_dir}.g1pub")
+            elif [[ -f "${player_dir}secret.dunikey" ]]; then
+                player_g1pub=$(cat "${player_dir}secret.dunikey" | grep "pub:" | cut -d ' ' -f 2)
+            fi
+            
+            # Check if this matches the ZEN Card G1 pubkey
+            if [[ "$player_g1pub" == "$g1source" ]]; then
+                ZENCARD_EMAIL="$player_email"
+                echo "ZEN Card owner found: $ZENCARD_EMAIL"
+                break
+            fi
+        fi
+    done
+    
+    if [[ -z "$ZENCARD_EMAIL" ]]; then
+        cat ${MY_PATH}/templates/message.html \
+        | sed -e "s~_TITLE_~$(date -u) <br> ZEN Card~g" \
+             -e "s~_MESSAGE_~ZEN Card non trouvée dans ~/.zen/game/players/<br>G1: ${g1source:0:8}...~g" \
+            > ${MY_PATH}/tmp/${MOATS}.out.html
+        echo "${MY_PATH}/tmp/${MOATS}.out.html"
+        exit 0
+    fi
+    
+    ## Redirect to API route for ZEN Card history display
+    ## The API route /check_zencard will handle the history retrieval and display
+    echo "Redirecting to ZEN Card history API for: $ZENCARD_EMAIL"
+    
+    # Get API base URL from environment or use localhost default
+    API_URL="${UPASSPORT_API:-http://127.0.0.1:33102}"
+    
+    # Create redirect HTML to API route with html parameter
+    cat > ${MY_PATH}/tmp/${MOATS}.out.html << EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="refresh" content="0; url=${API_URL}/check_zencard?email=${ZENCARD_EMAIL}&html">
+    <title>Redirection vers ZEN Card History</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .loader {
+            text-align: center;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="loader">
+        <div class="spinner"></div>
+        <p>Chargement de l'historique ZEN Card...</p>
+        <p><small>${ZENCARD_EMAIL}</small></p>
+    </div>
+</body>
+</html>
+EOF
+    
     echo "${MY_PATH}/tmp/${MOATS}.out.html"
     exit 0
-
 fi
 
 ## IS IT k51qzi5uqu5d STYLE IPNS KEY (like a TW on MULTIPASS)
@@ -273,7 +357,7 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
     
     if [[ ${ipnsk51} != "" ]]; then
         VAULTNS="k51qzi5uqu5d"$ipnsk51
-        ## SEARCHING FOR LOCAL NOSTR CARD : todo extend search to all swarm => allow MULTIPASS on all Astroport
+        ## SEARCHING FOR LOCAL MULTIPASS NOSTR CARD : todo extend search to all swarm => allow MULTIPASS on all Astroport
         PLAYER=$(get_NOSTRNS_directory ${VAULTNS})
         #################################################### NOT FOUND #
         if [[ -z $PLAYER ]]; then
@@ -343,6 +427,7 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
             
             ### PASS CODE HANDLER ###
             # PASS "1111" = Open astro_base.html (full Nostr messenger interface)
+            # PASS "9999" = Open scan_multipass_payment.html (MULTIPASS Payment Terminal)
             # PASS "0000" = Regenerate MULTIPASS (handled earlier)
             # Default    = Open nostr.html (simple message interface)
             
@@ -381,6 +466,45 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
                     console.log("🔑 MULTIPASS SSSS authenticated - nsec auto-filled");\
                 }\
             });' ${MY_PATH}/tmp/${MOATS}.out.html
+                
+                echo "${MY_PATH}/tmp/${MOATS}.out.html"
+                exit 0
+                
+            elif [[ "$IMAGE" == "9999" ]]; then
+                ### PASS 9999: Open MULTIPASS Payment Terminal
+                echo "PASS 9999: Opening MULTIPASS Payment Terminal..."
+                
+                # Generate dunikey with salt/pepper
+                $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
+                
+                # Retrieve G1PUBNOSTR (MULTIPASS wallet public key)
+                G1PUBNOSTR=$(cat ~/.zen/game/nostr/${PLAYER}/G1PUBNOSTR)
+                echo "G1PUBNOSTR: ${G1PUBNOSTR}"
+                
+                # Get balance and convert to ẐEN
+                AMOUNT=$(~/.zen/Astroport.ONE/tools/G1check.sh ${G1PUBNOSTR} | tail -n 1)
+                echo "Balance: ${AMOUNT} G1"
+                
+                # Convert G1 to ẐEN: ẐEN = (G1 - 1) * 10
+                ZEN=$(echo "($AMOUNT - 1) * 10" | bc | cut -d '.' -f 1)
+                echo "Available ẐEN: ${ZEN}"
+                
+                # Get TiddlyWiki link if exists
+                TW=""
+                if [[ -s ~/.zen/game/nostr/${PLAYER}/TW ]]; then
+                    TWNS=$(cat ~/.zen/game/nostr/${PLAYER}/TW)
+                    TW="<p style='text-align: center; margin-top: 15px;'><a href='${myIPFS}/ipns/${TWNS}' target='_blank' style='color: #4fc3f7; text-decoration: none; font-weight: bold;'>📖 My TiddlyWiki</a></p>"
+                fi
+                
+                # Generate payment terminal from template
+                cat ${MY_PATH}/templates/scan_multipass_payment.html \
+                    | sed -e "s~_EMAIL_~${PLAYER}~g" \
+                          -e "s~_G1SOURCE_~${G1PUBNOSTR}~g" \
+                          -e "s~_ZEN_~${ZEN}~g" \
+                          -e "s~_TW_~${TW}~g" \
+                          -e "s~http://127.0.0.1:8080~${myIPFS}~g" \
+                          -e "s~https://ipfs.copylaradio.com~${myIPFS}~g" \
+                    > ${MY_PATH}/tmp/${MOATS}.out.html
                 
                 echo "${MY_PATH}/tmp/${MOATS}.out.html"
                 exit 0

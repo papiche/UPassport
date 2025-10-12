@@ -1378,6 +1378,11 @@ async def ustats(request: Request, lat: str = None, lon: str = None, deg: str = 
 async def get_root(request: Request):
     return templates.TemplateResponse("scan_new.html", {"request": request})
 
+@app.get("/scan_multipass_payment.html")
+async def get_scan_multipass_payment(request: Request):
+    """MULTIPASS Payment Terminal - Internal route for authenticated payments between MULTIPASS wallets"""
+    return templates.TemplateResponse("scan_multipass_payment.html", {"request": request})
+
 @app.get("/astro")
 async def get_astro(request: Request):
     """Display the Astro Base template with IPFS gateway configuration"""
@@ -1899,6 +1904,55 @@ async def check_revenue_route(request: Request, html: Optional[str] = None, year
         raise HTTPException(status_code=504, detail="Revenue history retrieval timeout")
     except Exception as e:
         logging.error(f"Error checking revenue history: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/check_zencard")
+async def check_zencard_route(request: Request, email: str, html: Optional[str] = None):
+    """Check ZEN Card social shares history for a given email
+    
+    Args:
+        email: Email of the ZEN Card holder (required)
+        html: If present, return HTML page instead of JSON
+    """
+    try:
+        # Validate email parameter
+        if not email:
+            raise HTTPException(status_code=400, detail="Email parameter is required")
+        
+        # Call G1zencard_history.sh to get filtered and calculated ZEN Card data
+        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1zencard_history.sh")
+        result = subprocess.run([script_path, email], capture_output=True, text=True, timeout=60)
+        
+        if result.returncode != 0:
+            logging.error(f"G1zencard_history.sh failed with return code {result.returncode}: {result.stderr}")
+            raise ValueError(f"Error in G1zencard_history.sh: {result.stderr}")
+        
+        # Parse JSON output from G1zencard_history.sh
+        try:
+            zencard_data = json.loads(result.stdout.strip())
+        except json.JSONDecodeError as e:
+            logging.error(f"Failed to parse G1zencard_history.sh output: {e}")
+            logging.error(f"Raw output: {result.stdout[:500]}")
+            raise ValueError(f"Invalid JSON from G1zencard_history.sh: {e}")
+        
+        # Check for errors in the response
+        if "error" in zencard_data:
+            logging.error(f"G1zencard_history.sh returned error: {zencard_data['error']}")
+            raise HTTPException(status_code=500, detail=zencard_data['error'])
+        
+        # If html parameter is provided, return HTML page
+        if html is not None:
+            return generate_zencard_html_page(request, email, zencard_data)
+        
+        # Otherwise return JSON
+        return zencard_data
+        
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="ZEN Card history retrieval timeout")
+    except Exception as e:
+        logging.error(f"Error checking ZEN Card history: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/check_impots")
@@ -4127,6 +4181,28 @@ def generate_impots_html_page(request: Request, impots_data: Dict[str, Any]):
         })
     except Exception as e:
         logging.error(f"Error generating impots HTML page: {e}")
+        raise HTTPException(status_code=500, detail="Error generating HTML page")
+
+def generate_zencard_html_page(request: Request, email: str, zencard_data: Dict[str, Any]):
+    """Generate HTML page to display ZEN Card social shares history using template"""
+    try:
+        return templates.TemplateResponse("zencard_api.html", {
+            "request": request,
+            "zencard_email": zencard_data.get('zencard_email', email),
+            "zencard_g1pub": zencard_data.get('zencard_g1pub', 'N/A'),
+            "filter_years": zencard_data.get('filter_years', 3),
+            "filter_period": zencard_data.get('filter_period', 'Dernières 3 années'),
+            "total_received_g1": zencard_data.get('total_received_g1', 0),
+            "total_received_zen": zencard_data.get('total_received_zen', 0),
+            "valid_balance_g1": zencard_data.get('valid_balance_g1', 0),
+            "valid_balance_zen": zencard_data.get('valid_balance_zen', 0),
+            "total_transfers": zencard_data.get('total_transfers', 0),
+            "valid_transfers": zencard_data.get('valid_transfers', 0),
+            "transfers": zencard_data.get('transfers', []),
+            "timestamp": zencard_data.get('timestamp', '')
+        })
+    except Exception as e:
+        logging.error(f"Error generating ZEN Card HTML page: {e}")
         raise HTTPException(status_code=500, detail="Error generating HTML page")
 
 def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) -> HTMLResponse:
