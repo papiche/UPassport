@@ -356,7 +356,7 @@
             <input type="hidden" id="imageData" name="imageData">
             <div style="display: flex; align-items: center; flex-direction: column;">
                 <div style="display: flex; align-items: center; width: 100%;">
-                    <input type="password" id="PASS" name="PASS" value="" size=4 placeholder="PASS">
+                    <input type="text" id="PASS" name="PASS" value="" placeholder="PASS" style="width: 100px; min-width: 100px; max-width: 100px;">
                     <label style="margin-left: 10px;">
                         <input type="checkbox" id="toggle-password"> 👀
                     </label>
@@ -420,16 +420,19 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Initialize PASS field as empty (Quick Message mode by default)
+        // Initialize PASS field with browser language code by default
         // User can enter:
+        //   - Browser language code (default) = Language preference
         //   - Nothing (empty) = Quick Message
         //   - 0000 = Resiliation
         //   - 1111 = Full Access
-        document.getElementById('PASS').value = '';
-        
-        // Store browser language for later use if needed
         const userLanguage = navigator.language || navigator.languages[0];
         const shortLanguageCode = userLanguage.substring(0, 2);
+        document.getElementById('PASS').value = shortLanguageCode;
+        
+        // Initialize checkbox as checked (field is visible by default)
+        document.getElementById('toggle-password').checked = true;
+        
         console.log(`Browser language: ${shortLanguageCode}`);
     });
 
@@ -437,9 +440,9 @@
     document.getElementById('toggle-password').addEventListener('change', function() {
         var passwordField = document.getElementById('PASS');
         if (this.checked) {
-            passwordField.type = 'text'; // Affiche le mot de passe en clair
+            passwordField.type = 'text'; // Show password (checked = show/eye open)
         } else {
-            passwordField.type = 'password'; // Masque le mot de passe
+            passwordField.type = 'password'; // Hide password (unchecked = hide/eye closed)
         }
     });
 
@@ -461,6 +464,9 @@
         // Si le clavier est déjà visible, on ne fait rien
         if (document.getElementById('clavierNumerique')) return;
 
+        const passwordField = document.getElementById('PASS');
+        passwordField.value = ''; // Clear field to enter PIN code
+
         const chiffres = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
         shuffleArray(chiffres); // Mélange les chiffres à chaque affichage
 
@@ -469,6 +475,14 @@
         clavier.id = 'clavierNumerique';
         clavier.innerHTML = chiffres.map(num => `<button>${num}</button>`).join('');
         document.body.appendChild(clavier);
+
+        // Switch PASS field to password type AFTER keyboard is displayed
+        // This prevents focus loss that would close the keyboard
+        setTimeout(() => {
+            passwordField.type = 'password';
+            // Sync checkbox state (unchecked = hidden/eye closed)
+            document.getElementById('toggle-password').checked = false;
+        }, 100);
 
         // Ajout de gestionnaires d'événements pour chaque bouton
         const boutons = document.querySelectorAll('#clavierNumerique button');
