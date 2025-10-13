@@ -1392,13 +1392,11 @@ async def get_astro(request: Request):
         "myIPFS": myipfs_gateway
     })
 
-@app.get("/cookie")
-async def get_cookie_guide():
-    """Redirect to cookie export guide on IPFS"""
-    myipfs_gateway = get_myipfs_gateway()
-    redirect_url = f"{myipfs_gateway}/ipns/copylaradio.com/cookie.html"
-    logging.info(f"Redirecting to cookie guide: {redirect_url}")
-    return RedirectResponse(url=redirect_url, status_code=302)
+@app.get("/cookie", response_class=HTMLResponse)
+async def get_cookie_guide(request: Request):
+    """Serve cookie export guide template"""
+    logging.info("Serving cookie guide template")
+    return templates.TemplateResponse("cookie.html", {"request": request})
 
 # Proxy route for 12345
 @app.get("/12345")
