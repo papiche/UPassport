@@ -2456,6 +2456,7 @@ async def get_webhook(request: Request):
     else:
         raise HTTPException(status_code=400, detail="Invalid method.")
 
+### GENERIC UPLOAD - Free & Anonymous 
 @app.get("/upload", response_class=HTMLResponse)
 async def upload_form(request: Request):
     return templates.TemplateResponse("upload2ipfs.html", {"request": request})
@@ -4228,18 +4229,72 @@ def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) ->
         if not has_multiple_balances:
             # Cas d'une g1pub simple
             zen_balance = convert_g1_to_zen(balance_data['balance'])
-            message_parts.append(f"<center>MULTIPASS 👛 <br><strong>{zen_balance}</strong></center>")
+            # Extract email from identifier if it's an email, otherwise use the identifier
+            email_param = identifier if "@" in identifier else balance_data.get('email', identifier)
+            # Get IPFS gateway from environment or use default
+            ipfs_gateway = os.getenv('myIPFS', 'http://127.0.0.1:8080')
+            
+            # Try to get HEX pubkey from email using search_for_this_email_in_nostr.sh
+            hex_pubkey = None
+            if email_param and "@" in email_param:
+                try:
+                    script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/search_for_this_email_in_nostr.sh")
+                    result = subprocess.run([script_path, email_param], capture_output=True, text=True, timeout=30)
+                    if result.returncode == 0:
+                        # Parse the last line to extract HEX
+                        last_line = result.stdout.strip().split('\n')[-1]
+                        hex_match = re.search(r'HEX=([a-fA-F0-9]+)', last_line)
+                        if hex_match:
+                            hex_pubkey = hex_match.group(1)
+                except Exception as e:
+                    logging.warning(f"Could not get HEX pubkey for {email_param}: {e}")
+            
+            # Build NOSTR profile URL
+            if hex_pubkey:
+                nostr_url = f"{ipfs_gateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex={hex_pubkey}"
+            else:
+                nostr_url = f"{ipfs_gateway}/ipns/copylaradio.com/nostr_profile_viewer.html"
+            
+            message_parts.append(f"<center>MULTIPASS 👛 <br><strong>{zen_balance}</strong><br><a href='{nostr_url}' target='_blank' style='color: #fff; text-decoration: underline;'>🔗 Profil NOSTR</a></center>")
         else:
             # Cas d'un email avec plusieurs balances
             if "balance" in balance_data:
                 zen_balance = convert_g1_to_zen(balance_data['balance'])
-                message_parts.append(f"<center>MULTIPASS 👛 <br><strong>{zen_balance}</strong></center>")
+                # Extract email from identifier if it's an email, otherwise use the identifier
+                email_param = identifier if "@" in identifier else balance_data.get('email', identifier)
+                # Get IPFS gateway from environment or use default
+                ipfs_gateway = os.getenv('myIPFS', 'http://127.0.0.1:8080')
+                
+                # Try to get HEX pubkey from email using search_for_this_email_in_nostr.sh
+                hex_pubkey = None
+                if email_param and "@" in email_param:
+                    try:
+                        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/search_for_this_email_in_nostr.sh")
+                        result = subprocess.run([script_path, email_param], capture_output=True, text=True, timeout=30)
+                        if result.returncode == 0:
+                            # Parse the last line to extract HEX
+                            last_line = result.stdout.strip().split('\n')[-1]
+                            hex_match = re.search(r'HEX=([a-fA-F0-9]+)', last_line)
+                            if hex_match:
+                                hex_pubkey = hex_match.group(1)
+                    except Exception as e:
+                        logging.warning(f"Could not get HEX pubkey for {email_param}: {e}")
+                
+                # Build NOSTR profile URL
+                if hex_pubkey:
+                    nostr_url = f"{ipfs_gateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex={hex_pubkey}"
+                else:
+                    nostr_url = f"{ipfs_gateway}/ipns/copylaradio.com/nostr_profile_viewer.html"
+                
+                message_parts.append(f"<center>MULTIPASS 👛 <br><strong>{zen_balance}</strong><br><a href='{nostr_url}' target='_blank' style='color: #fff; text-decoration: underline;'>🔗 Profil NOSTR</a></center>")
                 if "g1pub" in balance_data:
                     title += f" / 👛 <small>{balance_data['g1pub'][:20]}...:ZEN:{zen_balance}</small>"
             
             if "balance_zencard" in balance_data:
                 zen_balance_zencard = convert_g1_to_zen(balance_data['balance_zencard'])
-                message_parts.append(f"<br><center>ZEN Card 💳 <br><strong>{zen_balance_zencard}</strong></center>")
+                # Extract email from identifier if it's an email, otherwise use the identifier
+                email_param = identifier if "@" in identifier else balance_data.get('email', identifier)
+                message_parts.append(f"<br><center>ZEN Card 💳 <br><strong>{zen_balance_zencard}</strong><br><a href='/check_zencard?email={email_param}&html=1' target='_blank' style='color: #fff; text-decoration: underline;'>📊 Historique</a></center>")
                 if "g1pub_zencard" in balance_data:
                     title += f" / 💳 <small>{balance_data['g1pub_zencard'][:20]}...:ZEN:{zen_balance_zencard}</small>"
         
