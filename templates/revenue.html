@@ -234,6 +234,22 @@
             background: #45a049;
         }
         
+        /* Warning banner styles */
+        .warning {
+            background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            color: #ffffff;
+            border: 1px solid #555;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: clamp(16px, 4vw, 20px);
+            line-height: 1.2;
+        }
+        
         /* Responsive design */
         @media screen and (max-width: 768px) {
             .container {
@@ -285,6 +301,11 @@
 </head>
 <body>
     <div class="container">
+        <!-- Warning Banner -->
+        <div class="warning">
+            💼 Chiffre d'Affaires UPlanet
+        </div>
+        
         <a href="javascript:history.back()" class="back-link">← Retour au Dashboard</a>
         
         <h1>💼 Chiffre d'Affaires UPlanet</h1>

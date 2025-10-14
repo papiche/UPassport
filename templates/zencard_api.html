@@ -1,10 +1,8 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ZEN Card - Historique des Parts Sociales</title>
-    <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         * {
             box-sizing: border-box;
@@ -12,138 +10,154 @@
         
         body {
             font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #FFF;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
             margin: 0;
             padding: 10px;
+            display: flex;
+            flex-direction: column;
             min-height: 100vh;
+            box-sizing: border-box;
         }
         
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background-color: rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
+            background-color: #2a2a2a;
             padding: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            box-sizing: border-box;
         }
         
-        h1 {
+        h1, h2 {
             background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            background-clip: text;
-            font-size: clamp(1.5em, 5vw, 2.5em);
+            font-size: clamp(1.2em, 4vw, 1.8em);
             text-align: center;
-            margin-bottom: 10px;
+            margin-bottom: 20px;
+            line-height: 1.2;
+        }
+        
+        h2 {
+            font-size: clamp(1em, 3vw, 1.3em);
+            margin-bottom: 8px;
+            margin-top: 15px;
         }
         
         .card-header {
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 12px;
-            padding: 20px;
+            background-color: #383838;
+            padding: 15px;
+            border-radius: 8px;
             margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 1px solid #444;
         }
         
         .card-email {
-            font-size: 1.2em;
+            font-size: clamp(16px, 4vw, 18px);
             font-weight: bold;
-            color: #ffd700;
+            color: #4CAF50;
             margin-bottom: 10px;
         }
         
         .card-pubkey {
-            font-size: 0.85em;
+            font-size: clamp(12px, 3vw, 14px);
             font-family: monospace;
-            color: #b8c6e0;
+            color: #cccccc;
             word-break: break-all;
+            margin-bottom: 10px;
         }
         
         .filter-badge {
             display: inline-block;
-            background: rgba(79, 195, 247, 0.3);
-            color: #4fc3f7;
+            background-color: #2196F3;
+            color: white;
             padding: 8px 15px;
             border-radius: 20px;
-            font-size: 0.9em;
+            font-size: clamp(12px, 3vw, 14px);
             margin-top: 10px;
         }
         
         .summary-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
             margin-bottom: 25px;
         }
         
         .summary-item {
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 12px;
-            padding: 20px;
+            background-color: #333;
+            border-radius: 8px;
+            padding: 15px;
             text-align: center;
+            border: 1px solid #444;
         }
         
         .summary-label {
-            font-size: 0.9em;
-            color: #b8c6e0;
+            font-size: clamp(12px, 3vw, 14px);
+            color: #cccccc;
             margin-bottom: 10px;
         }
         
         .summary-value {
-            font-size: 2em;
+            font-size: clamp(18px, 5vw, 24px);
             font-weight: bold;
-            color: #4fc3f7;
+            color: #4CAF50;
         }
         
         .summary-value.valid {
-            color: #4ade80;
+            color: #4CAF50;
         }
         
         .summary-subvalue {
-            font-size: 0.8em;
-            color: #94a3b8;
+            font-size: clamp(10px, 2.5vw, 12px);
+            color: #aaa;
             margin-top: 5px;
         }
         
         .info-box {
-            background: rgba(255, 215, 0, 0.2);
-            border-left: 4px solid #ffd700;
+            background-color: #333;
+            border-left: 4px solid #ffa500;
             padding: 15px;
             border-radius: 8px;
             margin-bottom: 20px;
-            font-size: 0.9em;
+            font-size: clamp(12px, 3vw, 14px);
+            color: #cccccc;
+            line-height: 1.4;
         }
         
         .transfers-title {
-            font-size: 1.5em;
+            font-size: clamp(16px, 4vw, 18px);
             font-weight: bold;
-            color: #4fc3f7;
+            color: #4CAF50;
             margin-top: 30px;
             margin-bottom: 15px;
             padding-bottom: 10px;
-            border-bottom: 2px solid rgba(79, 195, 247, 0.3);
+            border-bottom: 2px solid #444;
         }
         
         .transfer-item {
-            background: rgba(255, 255, 255, 0.1);
+            background-color: #333;
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 10px;
-            border-left: 4px solid #4fc3f7;
+            border-left: 4px solid #4CAF50;
+            border: 1px solid #444;
         }
         
         .transfer-item.satellite {
-            border-left-color: #60a5fa;
+            border-left-color: #2196F3;
         }
         
         .transfer-item.constellation {
-            border-left-color: #a78bfa;
+            border-left-color: #9C27B0;
         }
         
         .transfer-item.expired {
             opacity: 0.6;
-            background: rgba(200, 200, 200, 0.05);
+            background-color: #2a2a2a;
         }
         
         .transfer-header {
@@ -156,13 +170,14 @@
         
         .transfer-date {
             font-weight: bold;
-            color: #ffd700;
+            color: #ffa500;
+            font-size: clamp(12px, 3vw, 14px);
         }
         
         .transfer-amount {
-            font-size: 1.2em;
+            font-size: clamp(14px, 4vw, 16px);
             font-weight: bold;
-            color: #4ade80;
+            color: #4CAF50;
         }
         
         .transfer-amount.expired {
@@ -174,24 +189,24 @@
             display: inline-block;
             padding: 5px 10px;
             border-radius: 5px;
-            font-size: 0.85em;
+            font-size: clamp(10px, 2.5vw, 12px);
             font-weight: bold;
             margin-right: 10px;
         }
         
         .transfer-type.satellite {
-            background: rgba(96, 165, 250, 0.3);
-            color: #60a5fa;
+            background-color: #2196F3;
+            color: white;
         }
         
         .transfer-type.constellation {
-            background: rgba(167, 139, 250, 0.3);
-            color: #a78bfa;
+            background-color: #9C27B0;
+            color: white;
         }
         
         .transfer-comment {
-            font-size: 0.85em;
-            color: #b0bec5;
+            font-size: clamp(10px, 2.5vw, 12px);
+            color: #aaa;
             margin-top: 5px;
             font-style: italic;
         }
@@ -199,13 +214,13 @@
         .no-transfers {
             text-align: center;
             padding: 40px;
-            color: #94a3b8;
-            font-size: 1.1em;
+            color: #aaa;
+            font-size: clamp(14px, 3vw, 16px);
         }
         
         .back-button {
             display: inline-block;
-            background: rgba(255, 255, 255, 0.2);
+            background-color: #4CAF50;
             color: white;
             padding: 12px 24px;
             border-radius: 8px;
@@ -213,20 +228,43 @@
             transition: all 0.3s ease;
             margin-top: 20px;
             font-weight: bold;
+            font-size: clamp(14px, 3vw, 16px);
+            min-height: 44px;
+            min-width: 80px;
         }
         
         .back-button:hover {
-            background: rgba(255, 255, 255, 0.3);
+            background-color: #45a049;
             transform: translateY(-2px);
         }
         
-        @media (max-width: 768px) {
-            .container {
-                padding: 15px;
+        /* Warning banner styles */
+        .warning {
+            background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            color: #ffffff;
+            border: 1px solid #555;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: clamp(16px, 4vw, 20px);
+            line-height: 1.2;
+        }
+        
+        /* Media Queries for responsive design */
+        
+        /* Small mobile devices */
+        @media screen and (max-width: 480px) {
+            body {
+                padding: 5px;
             }
             
-            h1 {
-                font-size: 1.5em;
+            .container {
+                padding: 15px;
+                margin: 5px auto;
             }
             
             .summary-grid {
@@ -242,10 +280,70 @@
                 margin-top: 5px;
             }
         }
+        
+        /* Medium mobile devices */
+        @media screen and (min-width: 481px) and (max-width: 768px) {
+            .container {
+                padding: 18px;
+            }
+        }
+        
+        /* Tablets */
+        @media screen and (min-width: 769px) and (max-width: 1024px) {
+            .container {
+                max-width: 700px;
+            }
+        }
+        
+        /* Large screens */
+        @media screen and (min-width: 1025px) {
+            body {
+                padding: 20px;
+            }
+            
+            .container {
+                margin: 20px auto;
+            }
+        }
+        
+        /* Touch-friendly improvements */
+        @media (hover: none) and (pointer: coarse) {
+            .back-button {
+                min-height: 44px;
+                font-size: 16px;
+            }
+        }
+        
+        /* High DPI displays */
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+            .container {
+                box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+            }
+        }
+        
+        /* Accessibility improvements */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                transition: none !important;
+            }
+        }
+        
+        /* Dark mode support (already dark, but ensuring consistency) */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #1a1a1a;
+                color: #e0e0e0;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Warning Banner -->
+        <div class="warning">
+            💳 ZEN Card - Parts Sociales
+        </div>
+        
         <h1>💳 ZEN Card - Historique des Parts Sociales</h1>
         
         <div class="card-header">

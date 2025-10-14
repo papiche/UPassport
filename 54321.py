@@ -1919,7 +1919,7 @@ async def check_zencard_route(request: Request, email: str, html: Optional[str] 
         
         # Call G1zencard_history.sh to get filtered and calculated ZEN Card data
         script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1zencard_history.sh")
-        result = subprocess.run([script_path, email], capture_output=True, text=True, timeout=60)
+        result = subprocess.run([script_path, email, "true"], capture_output=True, text=True, timeout=60)
         
         if result.returncode != 0:
             logging.error(f"G1zencard_history.sh failed with return code {result.returncode}: {result.stderr}")
