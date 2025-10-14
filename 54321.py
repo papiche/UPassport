@@ -4195,8 +4195,20 @@ def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) ->
         with open(template_path, 'r', encoding='utf-8') as f:
             template_content = f.read()
         
-        # Préparer le titre
-        title = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {identifier}"
+        # Préparer le titre avec formatage amélioré
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # Titre plus court et plus lisible
+        if "@" in identifier:
+            # Pour les emails, afficher juste l'email et les balances
+            title_parts = [f"{timestamp} - {identifier}"]
+            if "balance" in balance_data:
+                zen_balance = convert_g1_to_zen(balance_data['balance'])
+                title_parts.append(f"👛 {zen_balance}")
+            if "balance_zencard" in balance_data:
+                title_parts.append(f"💳")
+            title = " / ".join(title_parts)
+        else:
+            title = f"{timestamp} - {identifier}"
         
         # Préparer le message avec les balances en HTML (converties en ẐEN)
         message_parts = []
@@ -4204,22 +4216,15 @@ def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) ->
         # Détecter si c'est un email avec plusieurs balances ou une g1pub simple
         has_multiple_balances = "balance_zencard" in balance_data
         
-        if not has_multiple_balances:
-            # Cas d'une g1pub simple
-            zen_balance = convert_g1_to_zen(balance_data['balance'])
-            # Extract email from identifier if it's an email, otherwise use the identifier
-            email_param = identifier if "@" in identifier else balance_data.get('email', identifier)
-            # Get IPFS gateway from environment or use default
+        # Helper function to get NOSTR profile URL
+        def get_nostr_profile_url(email_param):
             ipfs_gateway = get_myipfs_gateway()
-            
-            # Try to get HEX pubkey from email using search_for_this_email_in_nostr.sh
             hex_pubkey = None
             if email_param and "@" in email_param:
                 try:
                     script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/search_for_this_email_in_nostr.sh")
                     result = subprocess.run([script_path, email_param], capture_output=True, text=True, timeout=30)
                     if result.returncode == 0:
-                        # Parse the last line to extract HEX
                         last_line = result.stdout.strip().split('\n')[-1]
                         hex_match = re.search(r'HEX=([a-fA-F0-9]+)', last_line)
                         if hex_match:
@@ -4227,56 +4232,62 @@ def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) ->
                 except Exception as e:
                     logging.warning(f"Could not get HEX pubkey for {email_param}: {e}")
             
-            # Build NOSTR profile URL
             if hex_pubkey:
-                nostr_url = f"{ipfs_gateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex={hex_pubkey}"
+                return f"{ipfs_gateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex={hex_pubkey}"
             else:
-                nostr_url = f"{ipfs_gateway}/ipns/copylaradio.com/nostr_profile_viewer.html"
+                return f"{ipfs_gateway}/ipns/copylaradio.com/nostr_profile_viewer.html"
+        
+        if not has_multiple_balances:
+            # Cas d'une g1pub simple
+            zen_balance = convert_g1_to_zen(balance_data['balance'])
+            email_param = identifier if "@" in identifier else balance_data.get('email', identifier)
+            nostr_url = get_nostr_profile_url(email_param)
             
-            message_parts.append(f"<center>MULTIPASS 👛 <br><strong>{zen_balance}</strong><br><a href='{nostr_url}' target='_blank' style='color: #fff; text-decoration: underline;'>🔗 Profil NOSTR</a></center>")
+            # Formatage amélioré pour une seule balance - taille réduite pour le rond blanc
+            message_parts.append(f"""
+            <div style="text-align: center; margin: 10px 0; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white; box-shadow: 0 4px 16px rgba(0,0,0,0.2); max-width: 300px; margin-left: auto; margin-right: auto;">
+                <h2 style="margin: 0 0 8px 0; font-size: 1.2em;">👛 MULTIPASS</h2>
+                <div style="font-size: 1.6em; font-weight: bold; margin: 8px 0;">{zen_balance}</div>
+                <a href='{nostr_url}' target='_blank' style='color: #fff; text-decoration: none; background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 15px; display: inline-block; margin-top: 8px; font-size: 0.85em;'>🔗 Profil MULTIPASS</a>
+            </div>
+            """)
         else:
-            # Cas d'un email avec plusieurs balances
+            # Cas d'un email avec plusieurs balances - formatage en colonnes - taille réduite
+            message_parts.append("""
+            <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin: 10px 0; max-width: 600px; margin-left: auto; margin-right: auto;">
+            """)
+            
             if "balance" in balance_data:
                 zen_balance = convert_g1_to_zen(balance_data['balance'])
-                # Extract email from identifier if it's an email, otherwise use the identifier
                 email_param = identifier if "@" in identifier else balance_data.get('email', identifier)
-                # Get IPFS gateway from environment or use default
-                ipfs_gateway = get_myipfs_gateway()
+                nostr_url = get_nostr_profile_url(email_param)
                 
-                # Try to get HEX pubkey from email using search_for_this_email_in_nostr.sh
-                hex_pubkey = None
-                if email_param and "@" in email_param:
-                    try:
-                        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/search_for_this_email_in_nostr.sh")
-                        result = subprocess.run([script_path, email_param], capture_output=True, text=True, timeout=30)
-                        if result.returncode == 0:
-                            # Parse the last line to extract HEX
-                            last_line = result.stdout.strip().split('\n')[-1]
-                            hex_match = re.search(r'HEX=([a-fA-F0-9]+)', last_line)
-                            if hex_match:
-                                hex_pubkey = hex_match.group(1)
-                    except Exception as e:
-                        logging.warning(f"Could not get HEX pubkey for {email_param}: {e}")
+                message_parts.append(f"""
+                <div style="flex: 1; min-width: 200px; text-align: center; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white; box-shadow: 0 6px 24px rgba(0,0,0,0.2);">
+                    <h3 style="margin: 0 0 10px 0; font-size: 1.1em;">MULTIPASS 👛</h3>
+                    <div style="font-size: 1.4em; font-weight: bold; margin: 6px 0;">{zen_balance}</div>
+                    <a href='{nostr_url}' target='_blank' style='color: #fff; text-decoration: none; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px; display: inline-block; margin-top: 5px; font-size: 0.8em;'>🔗 Profil NOSTR</a>
+                </div>
+                """)
                 
-                # Build NOSTR profile URL
-                if hex_pubkey:
-                    nostr_url = f"{ipfs_gateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex={hex_pubkey}"
-                else:
-                    nostr_url = f"{ipfs_gateway}/ipns/copylaradio.com/nostr_profile_viewer.html"
-                
-                message_parts.append(f"<center>MULTIPASS 👛 <br><strong>{zen_balance}</strong><br><a href='{nostr_url}' target='_blank' style='color: #fff; text-decoration: underline;'>🔗 Profil NOSTR</a></center>")
-                if "g1pub" in balance_data:
-                    title += f" / 👛 <small>{balance_data['g1pub'][:20]}...:ZEN:{zen_balance}</small>"
+                # Le titre est déjà géré dans la section précédente
             
             if "balance_zencard" in balance_data:
                 zen_balance_zencard = convert_g1_to_zen(balance_data['balance_zencard'])
-                # Extract email from identifier if it's an email, otherwise use the identifier
                 email_param = identifier if "@" in identifier else balance_data.get('email', identifier)
-                message_parts.append(f"<br><center>ZEN Card 💳 <br><strong>{zen_balance_zencard}</strong><br><a href='/check_zencard?email={email_param}&html=1' target='_blank' style='color: #fff; text-decoration: underline;'>📊 Historique</a></center>")
-                if "g1pub_zencard" in balance_data:
-                    title += f" / 💳 <small>{balance_data['g1pub_zencard'][:20]}...:ZEN:{zen_balance_zencard}</small>"
+                
+                message_parts.append(f"""
+                <div style="flex: 1; min-width: 180px; text-align: center; padding: 15px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px; color: white; box-shadow: 0 4px 16px rgba(0,0,0,0.2);">
+                    <h3 style="margin: 0 0 15px 0; font-size: 1.1em;">💳 ZEN Card</h3>
+                    <a href='/check_zencard?email={email_param}&html=1' target='_blank' style='color: #fff; text-decoration: none; background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 10px; display: inline-block; margin-top: 5px; font-size: 0.8em;'>📊 Historique</a>
+                </div>
+                """)
+                
+                # Le titre est déjà géré dans la section précédente
+            
+            message_parts.append("</div>")
         
-        message = "<br>".join(message_parts)
+        message = "".join(message_parts)
         
         # Remplacer les variables dans le template
         html_content = template_content.replace("_TITLE_", title).replace("_MESSAGE_", message)
