@@ -488,22 +488,6 @@ class UploadFromDriveResponse(BaseModel):
 if not os.path.exists('tmp'):
     os.makedirs('tmp')
 
-# uDRIVE utility functions
-def get_source_directory(source_dir: Optional[str] = None) -> Path:
-    """Obtenir le répertoire source, avec validation"""
-    if source_dir:
-        source_path = Path(source_dir).resolve()
-    else:
-        source_path = DEFAULT_SOURCE_DIR.resolve()
-    
-    if not source_path.exists():
-        raise HTTPException(status_code=404, detail=f"Répertoire source non trouvé: {source_path}")
-    
-    if not source_path.is_dir():
-        raise HTTPException(status_code=400, detail=f"Le chemin spécifié n'est pas un répertoire: {source_path}")
-    
-    return source_path
-
 def find_user_directory_by_hex(hex_pubkey: str) -> Path:
     """Trouver le répertoire utilisateur correspondant à la clé publique hex"""
     if not hex_pubkey:
@@ -587,12 +571,6 @@ def get_authenticated_user_directory(npub: str) -> Path:
     
     logging.info(f"Répertoire APP utilisateur (sécurisé): {app_dir}")
     return app_dir
-
-def is_safe_filename(filename: str) -> bool:
-    """Vérifier si le nom de fichier est sécurisé"""
-    # Interdire les caractères dangereux et les chemins relatifs
-    dangerous_chars = ['..', '/', '\\', ':', '*', '?', '"', '<', '>', '|']
-    return not any(char in filename for char in dangerous_chars)
 
 def sanitize_filename(filename: str) -> str:
     """Nettoyer le nom de fichier pour qu'il soit sécurisé"""
@@ -4232,7 +4210,7 @@ def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) ->
             # Extract email from identifier if it's an email, otherwise use the identifier
             email_param = identifier if "@" in identifier else balance_data.get('email', identifier)
             # Get IPFS gateway from environment or use default
-            ipfs_gateway = os.getenv('myIPFS', 'http://127.0.0.1:8080')
+            ipfs_gateway = get_myipfs_gateway()
             
             # Try to get HEX pubkey from email using search_for_this_email_in_nostr.sh
             hex_pubkey = None
@@ -4263,7 +4241,7 @@ def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) ->
                 # Extract email from identifier if it's an email, otherwise use the identifier
                 email_param = identifier if "@" in identifier else balance_data.get('email', identifier)
                 # Get IPFS gateway from environment or use default
-                ipfs_gateway = os.getenv('myIPFS', 'http://127.0.0.1:8080')
+                ipfs_gateway = get_myipfs_gateway()
                 
                 # Try to get HEX pubkey from email using search_for_this_email_in_nostr.sh
                 hex_pubkey = None
