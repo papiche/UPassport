@@ -842,6 +842,9 @@
         let miniMarker = null;
         let latestMessageEvent = null;
         let userHasInteractedWithMap = false;
+        
+        // Auto-connect nsec (injected by upassport.sh when scanning SSSS with code 1111)
+        const AUTO_CONNECT_NSEC = null;
 
         // Detect uSPOT API and default relays from URL
         function detectUSPOTAPI() {
@@ -913,6 +916,31 @@
         // Handle auth mode change
         document.addEventListener('DOMContentLoaded', function() {
             detectUSPOTAPI();
+            
+            // Auto-connect with nsec if provided (MULTIPASS SSSS scan with code 1111)
+            if (AUTO_CONNECT_NSEC && AUTO_CONNECT_NSEC !== null && AUTO_CONNECT_NSEC.trim() !== '') {
+                console.log('🔑 MULTIPASS SSSS detected - Auto-connecting with nsec...');
+                
+                // Switch to nsec mode
+                const nsecRadio = document.getElementById('auth-nsec');
+                const nsecInput = document.getElementById('nsec-key');
+                const nsecContainer = document.getElementById('nsec-input-container');
+                
+                if (nsecRadio && nsecInput && nsecContainer) {
+                    // Select nsec authentication mode
+                    nsecRadio.checked = true;
+                    nsecContainer.classList.add('visible');
+                    authMode = 'nsec';
+                    
+                    // Fill the nsec key
+                    nsecInput.value = AUTO_CONNECT_NSEC;
+                    
+                    // Auto-connect after a short delay to let the UI update
+                    setTimeout(() => {
+                        handleNostrConnect();
+                    }, 700);
+                }
+            }
             
             const authRadios = document.querySelectorAll('input[name="auth-mode"]');
             authRadios.forEach(radio => {

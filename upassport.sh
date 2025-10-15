@@ -432,40 +432,16 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
             # Default    = Open nostr.html (simple message interface)
             
             if [[ "$IMAGE" == "1111" ]]; then
-                ### PASS 1111: Open astro_base.html with nsec pre-filled
+                ### PASS 1111: Open astro_base.html with nsec pre-filled and auto-connect
                 echo "PASS 1111: Opening Astro Base interface with authenticated nsec..."
                 
-                # Generate astro_base.html from template with nsec pre-filled
-                # The nsec will be auto-selected in the authentication mode
+                # Generate astro_base.html from template with nsec injected
                 cat ~/.zen/UPassport/templates/astro_base.html \
                     | sed -e "s~http://127.0.0.1:8080~${myIPFS}~g" \
                           -e "s~https://ipfs.copylaradio.com~${myIPFS}~g" \
                           -e "s~{{ myIPFS }}~${myIPFS}~g" \
+                          -e "s~const AUTO_CONNECT_NSEC = null;~const AUTO_CONNECT_NSEC = '${NSEC}';~g" \
                     > ${MY_PATH}/tmp/${MOATS}.out.html
-                
-                # Inject JavaScript to auto-fill nsec and select nsec auth mode
-                # Insert before the closing </script> tag of the main script
-                sed -i '/<\/script>$/i\
-            // Auto-fill nsec from MULTIPASS SSSS scan\
-            document.addEventListener("DOMContentLoaded", function() {\
-                const nsecRadio = document.getElementById("auth-nsec");\
-                const nsecInput = document.getElementById("nsec-key");\
-                const nsecContainer = document.getElementById("nsec-input-container");\
-                \
-                if (nsecRadio && nsecInput) {\
-                    // Auto-select nsec authentication mode\
-                    nsecRadio.checked = true;\
-                    nsecContainer.classList.add("visible");\
-                    \
-                    // Auto-fill the nsec key\
-                    nsecInput.value = "'"${NSEC}"'";\
-                    \
-                    // Update authMode variable\
-                    authMode = "nsec";\
-                    \
-                    console.log("🔑 MULTIPASS SSSS authenticated - nsec auto-filled");\
-                }\
-            });' ${MY_PATH}/tmp/${MOATS}.out.html
                 
                 echo "${MY_PATH}/tmp/${MOATS}.out.html"
                 exit 0
