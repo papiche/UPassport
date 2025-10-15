@@ -248,7 +248,7 @@
 </head>
 <body>
     <div class="container">
-        <h1><a href="{{ request.url_root.replace('u.','ipfs.').replace(':54321',':8080') }}/ipns/copylaradio.com" target="_blank" style="color: inherit; text-decoration: none;">📊 Capital Social UPlanet</a></h1>
+        <h1><a href="{% if request.url.hostname == '127.0.0.1' %}{{ request.url.scheme }}://{{ request.url.hostname }}:8080/ipns/copylaradio.com{% elif 'u.' in request.url.hostname %}{{ request.url.scheme }}://ipfs.{{ request.url.hostname.split('u.')[1] }}/ipns/copylaradio.com{% else %}{{ request.url.scheme }}://ipfs.copylaradio.com/ipns/copylaradio.com{% endif %}" target="_blank" style="color: inherit; text-decoration: none;">📊 Capital Social UPlanet</a></h1>
         <div class="summary">
             <h2>📊 {{ total_outgoing_zen }} Ẑ</h2>
             <p><strong>{{ total_transfers }} parts sociales distribuées</strong></p>
@@ -280,7 +280,7 @@
                             <td class="amount">{{ transfer.amount_zen }} Ẑ</td>
                             <td style="font-family: monospace; font-size: clamp(11px, 2.5vw, 13px); color: #aaa;">
                                 {% if transfer.ipfs_node and transfer.ipfs_node != 'N/A' %}
-                                    <a href="{{ request.url_root.replace('u.','ipfs.').replace(':54321',':8080') }}/ipns/{{ transfer.ipfs_node }}" target="_blank" style="color: #2196F3; text-decoration: none; transition: color 0.3s;">
+                                    <a href="{% if request.url.hostname == '127.0.0.1' %}{{ request.url.scheme }}://{{ request.url.hostname }}:8080/ipns/{{ transfer.ipfs_node }}{% elif 'u.' in request.url.hostname %}{{ request.url.scheme }}://ipfs.{{ request.url.hostname.split('u.')[1] }}/ipns/{{ transfer.ipfs_node }}{% else %}{{ request.url.scheme }}://ipfs.copylaradio.com/ipns/{{ transfer.ipfs_node }}{% endif %}" target="_blank" style="color: #2196F3; text-decoration: none; transition: color 0.3s;">
                                         {{ transfer.ipfs_node[:12] }}...
                                     </a>
                                 {% else %}
