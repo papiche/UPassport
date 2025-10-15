@@ -285,7 +285,7 @@
                             <td class="amount">{{ transfer.amount_zen }} Ẑ</td>
                             <td style="font-family: monospace; font-size: clamp(11px, 2.5vw, 13px); color: #aaa;">
                                 {% if transfer.ipfs_node and transfer.ipfs_node != 'N/A' %}
-                                    <a href="https://ipfs.{{ request.url.hostname.split('u.')[1] if 'u.' in request.url.hostname else 'copylaradio.com' }}/ipns/{{ transfer.ipfs_node }}" target="_blank" style="color: #2196F3; text-decoration: none; transition: color 0.3s;">
+                                    <a href="https://ipfs.copylaradio.com/ipns/{{ transfer.ipfs_node }}" target="_blank" style="color: #2196F3; text-decoration: none; transition: color 0.3s;">
                                         {{ transfer.ipfs_node[:12] }}...
                                     </a>
                                 {% else %}
