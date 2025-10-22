@@ -2077,6 +2077,8 @@ async def youtube_route(
                 continue
             
             # Normalize field names for consistency
+            # IPFS URLs are kept as CID pur for client-side gateway detection
+            
             normalized_video = {
                 'title': video.get('title', ''),
                 'uploader': video.get('uploader', ''),

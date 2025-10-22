@@ -523,9 +523,7 @@
                                     {% if video.youtube_url %}
                                     <a href="{{ video.youtube_url }}" target="_blank" class="video-link">🔗 YouTube</a>
                                     {% endif %}
-                                    {% if video.subtitles %}
-                                    <a href="{{ video.subtitles[0].url }}" target="_blank" class="video-link">📝 Sous-titres</a>
-                                    {% endif %}
+                                    <!-- Subtitle handling removed for simplicity -->
                                 </div>
                             </div>
                         </div>
@@ -543,6 +541,63 @@
     </div>
     
     <script>
+        // Global variables
+        let IPFS_GATEWAY = '';
+        
+        // Detect IPFS gateway from URL (same logic as astro_base.html)
+        function detectIPFSGateway() {
+            const currentURL = new URL(window.location.href);
+            const hostname = currentURL.hostname;
+            const port = currentURL.port;
+            const protocol = currentURL.protocol.split(":")[0];
+
+            // page can be served through ipfs () or astroport (UPassport API)
+            if (hostname === "127.0.0.1") {
+                IPFS_GATEWAY = `http://127.0.0.1:8080`;
+            } else if (hostname.startsWith("ipfs.")) {
+                const baseDomain = hostname.substring("ipfs.".length);
+                IPFS_GATEWAY = `https://ipfs.${baseDomain}`;
+            } else if (hostname.startsWith("u.")) {
+                const baseDomain = hostname.substring("u.".length);
+                IPFS_GATEWAY = `https://ipfs.${baseDomain}`;
+            } else {
+                // Fallback
+                IPFS_GATEWAY = `https://ipfs.copylaradio.com`;
+            }
+
+            console.log(`IPFS Gateway: ${IPFS_GATEWAY}`);
+        }
+        
+        // Convert IPFS URLs to gateway URLs
+        function convertIPFSUrl(url) {
+            if (!url) return '';
+            if (url.startsWith('/ipfs/')) {
+                return `${IPFS_GATEWAY}${url}`;
+            } else if (url.startsWith('ipfs://')) {
+                return url.replace('ipfs://', `${IPFS_GATEWAY}/ipfs/`);
+            }
+            return url;
+        }
+        
+        // Convert all IPFS URLs in the page
+        function convertAllIPFSUrls() {
+            // Convert video thumbnails
+            document.querySelectorAll('.video-thumbnail img').forEach(img => {
+                const src = img.getAttribute('src');
+                if (src && (src.startsWith('/ipfs/') || src.startsWith('ipfs://'))) {
+                    img.src = convertIPFSUrl(src);
+                }
+            });
+            
+            // Convert video links
+            document.querySelectorAll('.video-link[href]').forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && (href.startsWith('/ipfs/') || href.startsWith('ipfs://'))) {
+                    link.href = convertIPFSUrl(href);
+                }
+            });
+        }
+        
         // Search functionality
         document.getElementById('searchInput').addEventListener('input', function(e) {
             const searchTerm = e.target.value.toLowerCase();
@@ -702,6 +757,8 @@
         
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
+            detectIPFSGateway();
+            convertAllIPFSUrls();
             initializeFilters();
         });
         
