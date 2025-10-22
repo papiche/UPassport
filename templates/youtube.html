@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎬 YouTube Channels - NOSTR Video Library</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+        
+        .search-bar {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .search-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .search-toggle {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        
+        .search-toggle:hover {
+            background: #5a6fd8;
+        }
+        
+        .advanced-search {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .search-filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .filter-group label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+            font-size: 0.9em;
+        }
+        
+        .filter-group input,
+        .filter-group select {
+            padding: 8px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .filter-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        
+        .apply-filters,
+        .clear-filters {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        
+        .apply-filters {
+            background: #28a745;
+            color: white;
+        }
+        
+        .apply-filters:hover {
+            background: #218838;
+        }
+        
+        .clear-filters {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .clear-filters:hover {
+            background: #5a6268;
+        }
+        
+        .filters {
+            background: #e3f2fd;
+            padding: 15px 20px;
+            border-left: 4px solid #2196f3;
+            margin-bottom: 20px;
+        }
+        
+        .filter-item {
+            display: inline-block;
+            background: #2196f3;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 0.85em;
+            margin-right: 8px;
+            margin-bottom: 4px;
+        }
+        
+        .channels {
+            padding: 20px;
+        }
+        
+        .channel {
+            margin-bottom: 30px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .channel-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .channel-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+            margin: 0;
+        }
+        
+        .channel-stats {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        
+        .videos {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            padding: 20px;
+        }
+        
+        .video {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+            background: white;
+        }
+        
+        .video:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .video-thumbnail {
+            width: 100%;
+            height: 180px;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+            font-size: 0.9em;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .video-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .video-info {
+            padding: 15px;
+        }
+        
+        .video-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .video-meta {
+            color: #6c757d;
+            font-size: 0.85em;
+            margin-bottom: 10px;
+        }
+        
+        .video-links {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .video-link {
+            padding: 4px 8px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 0.8em;
+            transition: background 0.2s;
+        }
+        
+        .video-link:hover {
+            background: #5a6fd8;
+        }
+        
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        
+        .no-results h3 {
+            margin-bottom: 10px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .channel-toggle {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-left: 10px;
+        }
+        
+        .channel-toggle:hover {
+            background: #5a6fd8;
+        }
+        
+        .channel.collapsed .videos {
+            display: none;
+        }
+        
+        .channel.collapsed .channel-toggle::before {
+            content: "▶ ";
+        }
+        
+        .channel-toggle::before {
+            content: "▼ ";
+        }
+        
+        @media (max-width: 768px) {
+            .videos {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 YouTube Channels</h1>
+            <p>Bibliothèque vidéo décentralisée via NOSTR</p>
+        </div>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-number">{{ youtube_data.total_videos }}</div>
+                <div class="stat-label">Vidéos</div>
+            </div>
+            <div class="stat">
+                <div class="stat-number">{{ youtube_data.total_channels }}</div>
+                <div class="stat-label">Chaînes</div>
+            </div>
+        </div>
+        
+        <div class="search-bar">
+            <div class="search-row">
+                <input type="text" class="search-input" placeholder="Rechercher dans les vidéos..." id="searchInput">
+                <button class="search-toggle" onclick="toggleAdvancedSearch()">🔍 Recherche avancée</button>
+            </div>
+            
+            <div class="advanced-search" id="advancedSearch" style="display: none;">
+                <div class="search-filters">
+                    <div class="filter-group">
+                        <label for="keywordInput">Mots-clés (séparés par des virgules):</label>
+                        <input type="text" id="keywordInput" placeholder="ex: technologie, IA, blockchain">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="dateFromInput">Date de début:</label>
+                        <input type="date" id="dateFromInput">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="dateToInput">Date de fin:</label>
+                        <input type="date" id="dateToInput">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="durationMinInput">Durée min (secondes):</label>
+                        <input type="number" id="durationMinInput" placeholder="ex: 60" min="0">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="durationMaxInput">Durée max (secondes):</label>
+                        <input type="number" id="durationMaxInput" placeholder="ex: 3600" min="0">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="sortSelect">Trier par:</label>
+                        <select id="sortSelect">
+                            <option value="">Par défaut</option>
+                            <option value="date">Date (récent)</option>
+                            <option value="duration">Durée (long)</option>
+                            <option value="title">Titre (A-Z)</option>
+                            <option value="channel">Chaîne (A-Z)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-actions">
+                        <button class="apply-filters" onclick="applyAdvancedFilters()">Appliquer les filtres</button>
+                        <button class="clear-filters" onclick="clearAdvancedFilters()">Effacer</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% if youtube_data.filters.channel or youtube_data.filters.search or youtube_data.filters.keyword or youtube_data.filters.date_from or youtube_data.filters.date_to or youtube_data.filters.duration_min or youtube_data.filters.duration_max or youtube_data.filters.sort_by %}
+        <div class="filters">
+            <strong>Filtres actifs:</strong>
+            {% if youtube_data.filters.channel %}
+            <span class="filter-item">Chaîne: {{ youtube_data.filters.channel }}</span>
+            {% endif %}
+            {% if youtube_data.filters.search %}
+            <span class="filter-item">Recherche: {{ youtube_data.filters.search }}</span>
+            {% endif %}
+            {% if youtube_data.filters.keyword %}
+            <span class="filter-item">Mots-clés: {{ youtube_data.filters.keyword }}</span>
+            {% endif %}
+            {% if youtube_data.filters.date_from %}
+            <span class="filter-item">Depuis: {{ youtube_data.filters.date_from }}</span>
+            {% endif %}
+            {% if youtube_data.filters.date_to %}
+            <span class="filter-item">Jusqu'à: {{ youtube_data.filters.date_to }}</span>
+            {% endif %}
+            {% if youtube_data.filters.duration_min %}
+            <span class="filter-item">Durée min: {{ youtube_data.filters.duration_min }}s</span>
+            {% endif %}
+            {% if youtube_data.filters.duration_max %}
+            <span class="filter-item">Durée max: {{ youtube_data.filters.duration_max }}s</span>
+            {% endif %}
+            {% if youtube_data.filters.sort_by %}
+            <span class="filter-item">Tri: {{ youtube_data.filters.sort_by }}</span>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <div class="channels">
+            {% if youtube_data.channels %}
+                {% for channel_name, channel_data in youtube_data.channels.items() %}
+                <div class="channel" data-channel="{{ channel_name }}">
+                    <div class="channel-header">
+                        <h2 class="channel-name">{{ channel_data.channel_info.display_name or channel_name }}</h2>
+                        <div class="channel-stats">
+                            {{ channel_data.channel_info.video_count }} vidéos • 
+                            {{ channel_data.channel_info.total_duration_formatted }} • 
+                            {{ channel_data.channel_info.total_size_formatted }}
+                        </div>
+                        <button class="channel-toggle" onclick="toggleChannel('{{ channel_name }}')">Réduire</button>
+                    </div>
+                    <div class="videos">
+                        {% for video in channel_data.videos[:12] %}
+                        <div class="video" data-title="{{ video.title|lower }}" data-uploader="{{ video.uploader|lower }}">
+                            <div class="video-thumbnail">
+                                {% if video.thumbnail_ipfs %}
+                                <img src="{{ video.thumbnail_ipfs }}" alt="Thumbnail">
+                                {% else %}
+                                <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #6c757d;">🎬</div>
+                                {% endif %}
+                            </div>
+                            <div class="video-info">
+                                <div class="video-title">{{ video.title or 'Titre inconnu' }}</div>
+                                <div class="video-meta">
+                                    Par {{ video.uploader or 'Auteur inconnu' }} • 
+                                    {{ video.download_date[:10] if video.download_date else (video.created_at[:10] if video.created_at else 'Date inconnue') }}
+                                </div>
+                                <div class="video-links">
+                                    {% if video.ipfs_url %}
+                                    <a href="{{ video.ipfs_url }}" target="_blank" class="video-link">📺 Regarder</a>
+                                    {% endif %}
+                                    {% if video.youtube_url %}
+                                    <a href="{{ video.youtube_url }}" target="_blank" class="video-link">🔗 YouTube</a>
+                                    {% endif %}
+                                    {% if video.subtitles %}
+                                    <a href="{{ video.subtitles[0].url }}" target="_blank" class="video-link">📝 Sous-titres</a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="no-results">
+                <h3>🔍 Aucune vidéo trouvée</h3>
+                <p>Essayez de modifier vos critères de recherche ou vérifiez la connexion au relay NOSTR.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <script>
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            filterVideos();
+        });
+        
+        // Advanced search functionality
+        function toggleAdvancedSearch() {
+            const advancedSearch = document.getElementById('advancedSearch');
+            const toggle = document.querySelector('.search-toggle');
+            
+            if (advancedSearch.style.display === 'none') {
+                advancedSearch.style.display = 'block';
+                toggle.textContent = '✖️ Masquer recherche avancée';
+            } else {
+                advancedSearch.style.display = 'none';
+                toggle.textContent = '🔍 Recherche avancée';
+            }
+        }
+        
+        function applyAdvancedFilters() {
+            const params = new URLSearchParams();
+            
+            // Get current URL parameters
+            const currentParams = new URLSearchParams(window.location.search);
+            
+            // Add basic search
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput.value) {
+                params.set('search', searchInput.value);
+            }
+            
+            // Add advanced filters
+            const keywordInput = document.getElementById('keywordInput');
+            if (keywordInput.value) {
+                params.set('keyword', keywordInput.value);
+            }
+            
+            const dateFromInput = document.getElementById('dateFromInput');
+            if (dateFromInput.value) {
+                params.set('date_from', dateFromInput.value);
+            }
+            
+            const dateToInput = document.getElementById('dateToInput');
+            if (dateToInput.value) {
+                params.set('date_to', dateToInput.value);
+            }
+            
+            const durationMinInput = document.getElementById('durationMinInput');
+            if (durationMinInput.value) {
+                params.set('duration_min', durationMinInput.value);
+            }
+            
+            const durationMaxInput = document.getElementById('durationMaxInput');
+            if (durationMaxInput.value) {
+                params.set('duration_max', durationMaxInput.value);
+            }
+            
+            const sortSelect = document.getElementById('sortSelect');
+            if (sortSelect.value) {
+                params.set('sort_by', sortSelect.value);
+            }
+            
+            // Add HTML parameter
+            params.set('html', '1');
+            
+            // Redirect with new parameters
+            window.location.href = '/youtube?' + params.toString();
+        }
+        
+        function clearAdvancedFilters() {
+            document.getElementById('keywordInput').value = '';
+            document.getElementById('dateFromInput').value = '';
+            document.getElementById('dateToInput').value = '';
+            document.getElementById('durationMinInput').value = '';
+            document.getElementById('durationMaxInput').value = '';
+            document.getElementById('sortSelect').value = '';
+            document.getElementById('searchInput').value = '';
+            
+            // Redirect to clean URL
+            window.location.href = '/youtube?html=1';
+        }
+        
+        function filterVideos() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const videos = document.querySelectorAll('.video');
+            
+            videos.forEach(video => {
+                const title = video.querySelector('.video-title').textContent.toLowerCase();
+                const meta = video.querySelector('.video-meta').textContent.toLowerCase();
+                
+                if (title.includes(searchTerm) || meta.includes(searchTerm)) {
+                    video.style.display = 'block';
+                } else {
+                    video.style.display = 'none';
+                }
+            });
+            
+            // Hide/show channels based on visible videos
+            const channels = document.querySelectorAll('.channel');
+            channels.forEach(channel => {
+                const visibleVideos = channel.querySelectorAll('.video[style*="block"], .video:not([style*="none"])');
+                if (visibleVideos.length === 0 && searchTerm !== '') {
+                    channel.style.display = 'none';
+                } else {
+                    channel.style.display = 'block';
+                }
+            });
+        }
+        
+        // Channel toggle functionality
+        function toggleChannel(channelName) {
+            const channel = document.querySelector(`[data-channel="${channelName}"]`);
+            const button = channel.querySelector('.channel-toggle');
+            
+            if (channel.classList.contains('collapsed')) {
+                channel.classList.remove('collapsed');
+                button.textContent = 'Réduire';
+            } else {
+                channel.classList.add('collapsed');
+                button.textContent = 'Développer';
+            }
+        }
+        
+        // Initialize filters from URL parameters
+        function initializeFilters() {
+            const params = new URLSearchParams(window.location.search);
+            
+            if (params.get('search')) {
+                document.getElementById('searchInput').value = params.get('search');
+            }
+            
+            if (params.get('keyword')) {
+                document.getElementById('keywordInput').value = params.get('keyword');
+            }
+            
+            if (params.get('date_from')) {
+                document.getElementById('dateFromInput').value = params.get('date_from');
+            }
+            
+            if (params.get('date_to')) {
+                document.getElementById('dateToInput').value = params.get('date_to');
+            }
+            
+            if (params.get('duration_min')) {
+                document.getElementById('durationMinInput').value = params.get('duration_min');
+            }
+            
+            if (params.get('duration_max')) {
+                document.getElementById('durationMaxInput').value = params.get('duration_max');
+            }
+            
+            if (params.get('sort_by')) {
+                document.getElementById('sortSelect').value = params.get('sort_by');
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeFilters();
+        });
+        
+        // Auto-refresh every 5 minutes
+        setTimeout(() => {
+            location.reload();
+        }, 300000);
+    </script>
+</body>
+</html>

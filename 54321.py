@@ -46,6 +46,7 @@ import json
 import os
 import logging
 import base64
+from datetime import datetime
 import subprocess
 import traceback
 import magic
@@ -2031,6 +2032,185 @@ async def check_impots_route(request: Request, html: Optional[str] = None):
         raise HTTPException(status_code=504, detail="Tax provisions retrieval timeout")
     except Exception as e:
         logging.error(f"Error in check_impots_route: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/youtube")
+async def youtube_route(
+    request: Request, 
+    html: Optional[str] = None, 
+    channel: Optional[str] = None, 
+    search: Optional[str] = None,
+    keyword: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    duration_min: Optional[int] = None,
+    duration_max: Optional[int] = None,
+    sort_by: Optional[str] = None
+):
+    """YouTube video channels and search from NOSTR events
+    
+    Args:
+        html: If present, return HTML page instead of JSON
+        channel: Filter by specific channel name
+        search: Search in video titles and descriptions
+        keyword: Search by specific keywords (comma-separated)
+        date_from: Filter videos from this date (YYYY-MM-DD)
+        date_to: Filter videos to this date (YYYY-MM-DD)
+        duration_min: Minimum duration in seconds
+        duration_max: Maximum duration in seconds
+        sort_by: Sort by 'date', 'duration', 'title', 'channel'
+    """
+    try:
+        # Import the video channel functions
+        import sys
+        sys.path.append(os.path.expanduser("~/.zen/Astroport.ONE/IA"))
+        from create_video_channel import fetch_and_process_nostr_events, create_channel_playlist
+        
+        # Fetch NOSTR events
+        video_messages = await fetch_and_process_nostr_events("ws://127.0.0.1:7777", 200)
+        
+        # Validate and normalize video data
+        validated_videos = []
+        for video in video_messages:
+            # Ensure required fields exist
+            if not video.get('title') or not video.get('ipfs_url'):
+                continue
+            
+            # Normalize field names for consistency
+            normalized_video = {
+                'title': video.get('title', ''),
+                'uploader': video.get('uploader', ''),
+                'duration': int(video.get('duration', 0)) if str(video.get('duration', 0)).isdigit() else 0,
+                'ipfs_url': video.get('ipfs_url', ''),
+                'youtube_url': video.get('youtube_url', '') or video.get('original_url', ''),
+                'thumbnail_ipfs': video.get('thumbnail_ipfs', ''),
+                'metadata_ipfs': video.get('metadata_ipfs', ''),
+                'subtitles': video.get('subtitles', []),
+                'channel_name': video.get('channel_name', ''),
+                'topic_keywords': video.get('topic_keywords', ''),
+                'created_at': video.get('created_at', ''),
+                'download_date': video.get('download_date', '') or video.get('created_at', ''),
+                'file_size': int(video.get('file_size', 0)) if str(video.get('file_size', 0)).isdigit() else 0,
+                'nostr_event_id': video.get('nostr_event_id', ''),
+                'nostr_pubkey': video.get('nostr_pubkey', '')
+            }
+            validated_videos.append(normalized_video)
+        
+        video_messages = validated_videos
+        
+        # Apply filters
+        filtered_videos = []
+        
+        for video in video_messages:
+            # Filter by channel if specified
+            if channel and video.get('channel_name', '').lower() != channel.lower():
+                continue
+            
+            # Filter by search term if specified
+            if search:
+                search_lower = search.lower()
+                if not (search_lower in video.get('title', '').lower() or 
+                       search_lower in video.get('topic_keywords', '').lower()):
+                    continue
+            
+            # Filter by keywords if specified
+            if keyword:
+                keywords = [k.strip().lower() for k in keyword.split(',')]
+                video_keywords = video.get('topic_keywords', '').lower()
+                if not any(k in video_keywords for k in keywords):
+                    continue
+            
+            # Filter by date range if specified
+            if date_from or date_to:
+                video_date = video.get('created_at', '')
+                if video_date:
+                    try:
+                        from datetime import datetime
+                        video_datetime = datetime.fromisoformat(video_date.replace('Z', '+00:00'))
+                        video_date_str = video_datetime.strftime('%Y-%m-%d')
+                        
+                        if date_from and video_date_str < date_from:
+                            continue
+                        if date_to and video_date_str > date_to:
+                            continue
+                    except:
+                        continue  # Skip videos with invalid dates
+            
+            # Filter by duration if specified
+            if duration_min is not None or duration_max is not None:
+                video_duration = video.get('duration', 0)
+                if isinstance(video_duration, str):
+                    try:
+                        video_duration = int(video_duration)
+                    except:
+                        video_duration = 0
+                
+                if duration_min is not None and video_duration < duration_min:
+                    continue
+                if duration_max is not None and video_duration > duration_max:
+                    continue
+            
+            filtered_videos.append(video)
+        
+        video_messages = filtered_videos
+        
+        # Sort videos if specified
+        if sort_by:
+            if sort_by == 'date':
+                video_messages.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+            elif sort_by == 'duration':
+                video_messages.sort(key=lambda x: int(x.get('duration', 0)) if str(x.get('duration', 0)).isdigit() else 0, reverse=True)
+            elif sort_by == 'title':
+                video_messages.sort(key=lambda x: x.get('title', '').lower())
+            elif sort_by == 'channel':
+                video_messages.sort(key=lambda x: x.get('channel_name', '').lower())
+        
+        # Group videos by channel
+        channels = {}
+        for video in video_messages:
+            channel_name = video.get('channel_name', 'unknown')
+            if channel_name not in channels:
+                channels[channel_name] = []
+            channels[channel_name].append(video)
+        
+        # Create channel playlists
+        channel_playlists = {}
+        for channel_name, videos in channels.items():
+            channel_playlists[channel_name] = create_channel_playlist(videos, channel_name)
+        
+        # Prepare response data
+        response_data = {
+            "success": True,
+            "total_videos": len(video_messages),
+            "total_channels": len(channels),
+            "channels": channel_playlists,
+            "filters": {
+                "channel": channel,
+                "search": search,
+                "keyword": keyword,
+                "date_from": date_from,
+                "date_to": date_to,
+                "duration_min": duration_min,
+                "duration_max": duration_max,
+                "sort_by": sort_by
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Return HTML page if requested
+        if html is not None:
+            return templates.TemplateResponse("youtube.html", {
+                "request": request,
+                "youtube_data": response_data
+            })
+        
+        # Return JSON response
+        return JSONResponse(content=response_data)
+        
+    except Exception as e:
+        logging.error(f"Error in youtube_route: {e}", exc_info=True)
+        if html is not None:
+            return HTMLResponse(content=f"<html><body><h1>Error</h1><p>{str(e)}</p></body></html>", status_code=500)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/upassport")
