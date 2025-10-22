@@ -2093,8 +2093,8 @@ async def youtube_route(
                 'created_at': video.get('created_at', ''),
                 'download_date': video.get('download_date', '') or video.get('created_at', ''),
                 'file_size': int(video.get('file_size', 0)) if str(video.get('file_size', 0)).isdigit() else 0,
-                'nostr_event_id': video.get('nostr_event_id', ''),
-                'nostr_pubkey': video.get('nostr_pubkey', '')
+                'message_id': video.get('message_id', ''),
+                'author_id': video.get('author_id', '')
             }
             validated_videos.append(normalized_video)
         
