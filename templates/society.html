@@ -252,8 +252,87 @@
         <div class="summary">
             <h2>📊 {{ total_outgoing_zen }} Ẑ</h2>
             <p><strong>{{ total_transfers }} parts sociales distribuées</strong></p>
-            <p></p>
+            <p>
+                {% if not has_nostr_data %}
+                    <a href="?html=1&nostr=1" style="color: #4CAF50; text-decoration: none; font-weight: bold; background: rgba(76, 175, 80, 0.1); padding: 8px 16px; border-radius: 4px; border: 1px solid #4CAF50; transition: all 0.3s;">
+                        🔗 Inclure les données Nostr DID
+                    </a>
+                {% else %}
+                    <span style="color: #4CAF50; font-weight: bold;">✅ Données Nostr incluses ({{ nostr_count }} document{{ 's' if nostr_count > 1 else '' }})</span>
+                {% endif %}
+            </p>
         </div>
+        
+        {% if has_nostr_data %}
+        <h3>🔗 Données Nostr DID ({{ nostr_count }} document{{ 's' if nostr_count > 1 else '' }})</h3>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>DID ID</th>
+                        <th>Statut Contrat</th>
+                        <th>Quota Stockage</th>
+                        <th>Services</th>
+                        <th>Dernier Paiement</th>
+                        <th>Portefeuilles</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for did_info in nostr_did_data %}
+                    <tr>
+                        <td class="recipient">{{ did_info.email }}</td>
+                        <td style="font-family: monospace; font-size: 12px; color: #4CAF50;">
+                            {{ did_info.did_id[:20] }}...
+                        </td>
+                        <td style="text-align: center;">
+                            {% if did_info.contract_status == 'active' %}
+                                <span style="color: #4CAF50; font-weight: bold;">✅ Actif</span>
+                            {% elif did_info.contract_status == 'new_user' %}
+                                <span style="color: #FFA500; font-weight: bold;">🆕 Nouveau</span>
+                            {% elif did_info.contract_status == 'suspended' %}
+                                <span style="color: #FF6B6B; font-weight: bold;">⏸️ Suspendu</span>
+                            {% else %}
+                                <span style="color: #aaa;">{{ did_info.contract_status|title }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center; color: #2196F3;">
+                            {{ did_info.storage_quota if did_info.storage_quota != 'N/A' else 'N/A' }}
+                        </td>
+                        <td style="text-align: center; color: #4CAF50;">
+                            {% if did_info.services and did_info.services != 'N/A' %}
+                                {{ did_info.services|length }} service{{ 's' if did_info.services|length > 1 else '' }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td class="date">
+                            {% if did_info.last_payment %}
+                                {{ did_info.last_payment }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td style="font-size: 12px; color: #aaa;">
+                            {% if did_info.multipass_wallet %}
+                                <div style="color: #4CAF50;">💳 Multipass</div>
+                            {% endif %}
+                            {% if did_info.zencard_wallet %}
+                                <div style="color: #2196F3;">💎 Zencard</div>
+                            {% endif %}
+                            {% if did_info.astroport_station %}
+                                <div style="color: #FFA500;">🚀 Astroport</div>
+                            {% endif %}
+                            {% if not did_info.multipass_wallet and not did_info.zencard_wallet and not did_info.astroport_station %}
+                                <span style="color: #777;">Aucun</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
         
         <h3>📜 Historique des Parts Sociales</h3>
         <div class="table-wrapper">

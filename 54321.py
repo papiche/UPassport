@@ -1,4 +1,4 @@
-#!/usr/bin/env python3*
+#!/usr/bin/env python3
 
 import sys
 import os
@@ -82,7 +82,7 @@ SCRIPT_DIR = Path(__file__).parent
 DEFAULT_SOURCE_DIR = SCRIPT_DIR
 
 # Rate Limiting Configuration
-RATE_LIMIT_REQUESTS = 12  # Maximum requests per minute
+RATE_LIMIT_REQUESTS = 20  # Maximum requests per minute (increased for better UX)
 RATE_LIMIT_WINDOW = 60    # Time window in seconds (1 minute)
 RATE_LIMIT_CLEANUP_INTERVAL = 300  # Cleanup old entries every 5 minutes
 
@@ -186,9 +186,22 @@ class RateLimiter:
             del self.requests[ip]
         
         logging.info(f"Rate limiter cleanup: removed {len(ips_to_remove)} IPs, {len(self.requests)} active IPs")
+        
+        # Nettoyer aussi le cache NOSTR
+        current_time = time.time()
+        expired_npub = [npub for npub, (_, cached_time) in nostr_auth_cache.items() 
+                       if current_time - cached_time > NOSTR_CACHE_TTL]
+        for npub in expired_npub:
+            del nostr_auth_cache[npub]
+        if expired_npub:
+            logging.info(f"NOSTR cache cleanup: removed {len(expired_npub)} expired entries")
 
 # Create global rate limiter instance
 rate_limiter = RateLimiter()
+
+# Cache pour les authentifications NOSTR (évite les requêtes répétées)
+nostr_auth_cache = {}
+NOSTR_CACHE_TTL = 300  # 5 minutes
 
 def get_client_ip(request: Request) -> str:
     """Extract the real client IP address, handling proxies"""
@@ -998,10 +1011,18 @@ def validate_nip42_event(event: Dict[str, Any], expected_relay_url: str) -> bool
         return False
 
 async def verify_nostr_auth(npub: Optional[str]) -> bool:
-    """Vérifier l'authentification NOSTR si une npub est fournie"""
+    """Vérifier l'authentification NOSTR si une npub est fournie avec cache"""
     if not npub:
         logging.info("Aucune npub fournie, pas de vérification NOSTR")
         return False
+    
+    # Vérifier le cache d'abord
+    current_time = time.time()
+    if npub in nostr_auth_cache:
+        cached_result, cached_time = nostr_auth_cache[npub]
+        if current_time - cached_time < NOSTR_CACHE_TTL:
+            logging.info(f"✅ Authentification NOSTR depuis le cache pour {npub}")
+            return cached_result
     
     logging.info(f"Vérification de l'authentification NOSTR pour: {npub}")
     
@@ -1025,6 +1046,9 @@ async def verify_nostr_auth(npub: Optional[str]) -> bool:
     # Vérifier NIP42 sur le relai local
     auth_result = await check_nip42_auth(hex_pubkey)
     logging.info(f"Résultat de la vérification NIP42: {auth_result}")
+    
+    # Mettre en cache le résultat
+    nostr_auth_cache[npub] = (auth_result, current_time)
     
     return auth_result
 
@@ -1222,24 +1246,24 @@ async def validate_uploaded_file(file: UploadFile, max_size_mb: int = 100) -> Di
             validation_result["error"] = "Invalid filename"
             return validation_result
         
-        # 3. Validation des types MIME autorisés
+        # 3. Validation des types MIME autorisés (sécurité renforcée)
         allowed_mime_types = {
-            # Images
-            "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml",
-            # Documents
+            # Images (sécurisées)
+            "image/jpeg", "image/png", "image/gif", "image/webp",
+            # Documents (sécurisés)
             "application/pdf", "text/plain", "text/markdown", "text/html",
             "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            # Audio
+            # Audio (sécurisé)
             "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/webm",
-            # Vidéo
+            # Vidéo (sécurisé)
             "video/mp4", "video/webm", "video/ogg", "video/avi", "video/mov",
-            # Archives
-            "application/zip", "application/x-rar-compressed", "application/x-7z-compressed",
-            # Code
+            # Archives (sécurisées)
+            "application/zip", "application/x-7z-compressed",
+            # Code (sécurisé)
             "text/javascript", "application/json", "text/css", "text/xml",
-            "application/x-python-code", "text/x-python", "text/markdown",
-            "audio/mp3", "application/octet-stream"
+            "application/x-python-code", "text/x-python", "text/markdown"
+            # Note: SVG et RAR supprimés pour sécurité
         }
         
         # Détecter le type MIME réel du contenu
@@ -1793,12 +1817,23 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 @app.get("/check_society")
-async def check_society_route(request: Request, html: Optional[str] = None):
-    """Check transaction history of SOCIETY wallet to see capital contributions"""
+async def check_society_route(request: Request, html: Optional[str] = None, nostr: Optional[str] = None):
+    """Check transaction history of SOCIETY wallet to see capital contributions
+    
+    Args:
+        html: If present, return HTML page instead of JSON
+        nostr: If present, include Nostr DID data in the response
+    """
     try:
         # Call G1society.sh to get filtered and calculated society data
         script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1society.sh")
-        result = subprocess.run([script_path], capture_output=True, text=True, timeout=60)
+        
+        # Build command with optional --nostr flag
+        cmd = [script_path]
+        if nostr is not None:
+            cmd.append("--nostr")
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)  # Increased timeout for Nostr queries
         
         if result.returncode != 0:
             logging.error(f"G1society.sh failed with return code {result.returncode}: {result.stderr}")
@@ -4108,6 +4143,10 @@ def convert_g1_to_zen(g1_balance: str) -> str:
 def generate_society_html_page(request: Request, g1pub: str, society_data: Dict[str, Any]):
     """Generate HTML page to display SOCIETY wallet transaction history using template"""
     try:
+        # Extract Nostr DID data if available
+        nostr_did_data = society_data.get('nostr_did_data', [])
+        has_nostr_data = len(nostr_did_data) > 0
+        
         return templates.TemplateResponse("society.html", {
             "request": request,
             "g1pub": g1pub,
@@ -4115,7 +4154,10 @@ def generate_society_html_page(request: Request, g1pub: str, society_data: Dict[
             "total_outgoing_g1": society_data['total_outgoing_g1'],
             "total_transfers": society_data['total_transfers'],
             "transfers": society_data['transfers'],
-            "timestamp": society_data['timestamp']
+            "timestamp": society_data['timestamp'],
+            "nostr_did_data": nostr_did_data,
+            "has_nostr_data": has_nostr_data,
+            "nostr_count": len(nostr_did_data)
         })
     except Exception as e:
         logging.error(f"Error generating society HTML page: {e}")
