@@ -2125,8 +2125,8 @@ async def youtube_route(
                 video_date = video.get('created_at', '')
                 if video_date:
                     try:
-                        from datetime import datetime
-                        video_datetime = datetime.fromisoformat(video_date.replace('Z', '+00:00'))
+                        from datetime import datetime as dt
+                        video_datetime = dt.fromisoformat(video_date.replace('Z', '+00:00'))
                         video_date_str = video_datetime.strftime('%Y-%m-%d')
                         
                         if date_from and video_date_str < date_from:
