@@ -2513,11 +2513,11 @@ async def process_webcam_video(
 
     try:
         # Process video blob
-            if ',' in video_blob:
-                _, video_data_base64 = video_blob.split(',', 1)
-                video_data = base64.b64decode(video_data_base64)
-            else:
-                video_data = base64.b64decode(video_blob)
+        if ',' in video_blob:
+            _, video_data_base64 = video_blob.split(',', 1)
+            video_data = base64.b64decode(video_data_base64)
+        else:
+            video_data = base64.b64decode(video_blob)
 
         # Generate filename with timestamp
         timestamp = int(time.time())
@@ -2528,8 +2528,8 @@ async def process_webcam_video(
         os.makedirs("tmp", exist_ok=True)
         
         # Save video file
-            with open(file_location, 'wb') as f:
-                f.write(video_data)
+        with open(file_location, 'wb') as f:
+            f.write(video_data)
 
         # Get file size
         file_size = len(video_data)
@@ -2720,11 +2720,11 @@ async def process_webcam_video(
                                         break
                                 
                                 logging.info(f"NOSTR video event published: {nostr_event_id}")
-            else:
+                            else:
                                 logging.error(f"Failed to publish NOSTR event: {nostr_result.stderr}")
+            except Exception as e:
+                logging.error(f"Error during NOSTR publishing: {e}")
 
-        except Exception as e:
-                logging.error(f"Error publishing to NOSTR: {e}")
 
         # Return success response
         success_message = f"Video processed successfully! IPFS: {ipfs_url}"
