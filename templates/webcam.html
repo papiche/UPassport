@@ -1106,8 +1106,10 @@
                 return;
             }
             
-            // Build profile URL with hex pubkey
-            const profileURL = `${getAPIBaseUrl()}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${userPubkey}`;
+            // Build profile URL with hex pubkey using IPFS gateway (like astro_base.html)
+            const ipfsGateway = '{{ myIPFS }}';
+            const profileURL = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${userPubkey}`;
+            console.log("Opening profile:", profileURL);
             window.open(profileURL, '_blank');
         }
 
