@@ -9,6 +9,10 @@
     <script src="{{ myIPFS }}/ipfs/QmXEmaPRUaGcvhuyeG99mHHNyP43nn8GtNeuDok8jdpG4a/nostr.bundle.js"></script>
     <!-- Common.js with enhanced webcam functions -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/leaflet.css"/>
+    <!-- Leaflet JavaScript -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/leaflet.js"></script>
     
     <style>
         body {
@@ -272,6 +276,136 @@
             margin: 20px 0;
         }
         
+        /* Location and Map Styles */
+        .location-info {
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.2);
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .location-info strong {
+            display: inline-block;
+            margin-right: 5px;
+        }
+        
+        /* Map Accordion */
+        .map-accordion {
+            margin-top: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            overflow: hidden;
+        }
+        
+        .map-accordion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .map-accordion-header:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-1px);
+        }
+        
+        .map-toggle {
+            font-size: 16px;
+            transition: transform 0.3s ease;
+        }
+        
+        .map-toggle.expanded {
+            transform: rotate(180deg);
+        }
+        
+        .map-accordion-content {
+            padding: 15px;
+            max-height: 500px;
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+        }
+        
+        .map-accordion-content.closed {
+            max-height: 0;
+            padding: 0 15px;
+        }
+        
+        .map-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .coord-input {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .coord-input label {
+            font-weight: bold;
+            color: #e2e8f0;
+            margin: 0;
+            min-width: 30px;
+            font-size: 0.8em;
+        }
+        
+        .coord-input input {
+            width: 80px;
+            padding: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            font-size: 0.85em;
+        }
+        
+        .map-button {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            width: auto;
+        }
+        
+        .map-button:hover {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(74, 222, 128, 0.3);
+        }
+        
+        .map-button.secondary {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+        }
+        
+        .map-button.secondary:hover {
+            background: linear-gradient(135deg, #4f46e5, #4338ca);
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+        }
+        
+        #mini-map {
+            height: 400px;
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            background: #f0f0f0;
+            min-height: 400px;
+        }
+        
         /* Responsive Design */
         @media screen and (max-width: 768px) {
             .container {
@@ -294,6 +428,50 @@
             
             input[type="range"] {
                 width: 100%;
+            }
+        }
+        
+        /* Mobile-specific optimizations */
+        @media screen and (max-width: 480px) {
+            .container {
+                padding: 10px;
+                margin: 5px;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            #video-preview {
+                height: 200px;
+                border-radius: 10px;
+            }
+            
+            button {
+                padding: 15px 20px;
+                font-size: 18px;
+                min-height: 50px;
+            }
+            
+            .form-group input, .form-group textarea {
+                font-size: 16px; /* Prevents zoom on iOS */
+                padding: 12px;
+            }
+        }
+        
+        /* Orientation handling */
+        @media screen and (orientation: landscape) and (max-height: 500px) {
+            .container {
+                padding: 10px;
+            }
+            
+            #video-preview {
+                height: 180px;
+            }
+            
+            h1 {
+                font-size: 1.5em;
+            margin-bottom: 10px;
             }
         }
     </style>
@@ -357,6 +535,37 @@
                 <!-- Email will be retrieved from NOSTR authentication -->
                 <input type="hidden" id="player" name="player" value="">
                 
+                <!-- Location Display -->
+                <div id="locationInfo" class="location-info" style="display: none;">
+                    <strong>📍 Location:</strong> <span id="locationText"></span>
+                </div>
+                
+                <!-- Map Accordion -->
+                <div id="map-accordion" class="map-accordion">
+                    <div class="map-accordion-header" onclick="toggleMapAccordion()">
+                        <h4 style="margin: 0; font-size: 14px; color: #e2e8f0;">🗺️ Location Map (UMAP)</h4>
+                        <span class="map-toggle">▼</span>
+                    </div>
+                    <div class="map-accordion-content closed">
+                        <div class="map-controls">
+                            <div class="coord-input">
+                                <label>Lat:</label>
+                                <input type="number" id="lat-display" step="0.01" min="-90" max="90" value="48.86">
+                            </div>
+                            <div class="coord-input">
+                                <label>Lon:</label>
+                                <input type="number" id="lon-display" step="0.01" min="-180" max="180" value="2.35">
+                            </div>
+                            <button type="button" class="map-button" id="update-map">Go There</button>
+                            <button type="button" class="map-button secondary" id="get-location">My Location</button>
+                        </div>
+                        <div id="mini-map"></div>
+                        <div style="padding: 8px 0; font-size: 0.8em; color: #7f8c8d; text-align: center;">
+                            💡 Click on the map to adjust your location for UMAP anchoring
+                        </div>
+                    </div>
+                </div>
+                
                 <button id="start-recording" class="btn-primary">🎬 Start Recording</button>
                 <button id="stop-recording" class="btn-danger hidden">⏹️ Stop Recording</button>
             </div>
@@ -375,6 +584,17 @@
         let userPrivkey = null;
         let userEmail = null; // Will be retrieved from NOSTR metadata
         
+        // Mobile detection and optimization
+        let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        let isAndroid = /Android/.test(navigator.userAgent);
+        
+        // Location and map variables
+        let currentLocation = null;
+        let miniMap = null;
+        let miniMarker = null;
+        let userHasInteractedWithMap = false;
+        
         // Auto-connect nsec (injected by upassport.sh when scanning SSSS with code 1111)
         const AUTO_CONNECT_NSEC = null;
 
@@ -387,6 +607,15 @@
         const durationSlider = document.getElementById('duration-slider');
         const durationDisplay = document.getElementById('duration-display');
 
+        // Mobile optimization: Set default duration based on device
+        if (isMobile) {
+            const defaultDuration = isIOS ? 10 : 15; // Shorter for mobile
+            durationSlider.value = defaultDuration;
+            durationDisplay.textContent = `${defaultDuration} seconds`;
+            durationSlider.max = 30; // Limit max duration on mobile
+            console.log(`📱 Mobile optimization: Default duration set to ${defaultDuration}s`);
+        }
+
             // Duration slider handler
         durationSlider.addEventListener('input', () => {
                 durationDisplay.textContent = `${durationSlider.value} seconds`;
@@ -395,20 +624,46 @@
             // Start recording handler
         startButton.addEventListener('click', async () => {
                 try {
+                    // Mobile-optimized video constraints
+                    const videoConstraints = isMobile ? {
+                        width: { ideal: 640, max: 1280 },
+                        height: { ideal: 480, max: 720 },
+                        frameRate: { ideal: 24, max: 30 }
+                    } : {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        frameRate: { ideal: 30 }
+                    };
+                    
                     const stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { 
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 },
-                            frameRate: { ideal: 30 }
-                        }, 
+                        video: videoConstraints,
                         audio: true 
                     });
                     
                     currentStream = stream;
             videoPreview.srcObject = stream;
 
+                    // Mobile-optimized MediaRecorder options
+                    let mimeType = 'video/webm;codecs=vp9,opus';
+                    if (isIOS) {
+                        // iOS Safari prefers MP4
+                        mimeType = 'video/mp4;codecs=h264,aac';
+                    } else if (isAndroid) {
+                        // Android prefers WebM but with different codecs
+                        mimeType = 'video/webm;codecs=vp8,opus';
+                    }
+                    
+                    // Check if the mime type is supported
+                    if (!MediaRecorder.isTypeSupported(mimeType)) {
+                        // Fallback to basic WebM
+                        mimeType = 'video/webm';
+                    }
+                    
+                    console.log(`📱 Mobile detected: ${isMobile}, iOS: ${isIOS}, Android: ${isAndroid}`);
+                    console.log(`🎬 Using mime type: ${mimeType}`);
+
                     mediaRecorder = new MediaRecorder(stream, {
-                        mimeType: 'video/webm;codecs=vp9,opus'
+                        mimeType: mimeType
                     });
                     
                     recordedChunks = [];
@@ -546,6 +801,15 @@
                 formData.append('title', title);
                 formData.append('description', description);
                 formData.append('publish_nostr', publishNostr ? 'true' : 'false');
+                
+                // Add location data if user has interacted with map
+                const lat = parseFloat(document.getElementById('lat-display').value) || 0;
+                const lon = parseFloat(document.getElementById('lon-display').value) || 0;
+                if (userHasInteractedWithMap && (lat !== 0 || lon !== 0)) {
+                    formData.append('latitude', lat.toString());
+                    formData.append('longitude', lon.toString());
+                    console.log(`📍 Adding location to video: ${lat}, ${lon}`);
+                }
                 
                 // Add NOSTR authentication if publishing
                 if (publishNostr && userPubkey) {
@@ -890,7 +1154,178 @@
             
             // Initialize webcam features
             initWebcamFeatures();
+            
+        // Initialize map controls
+        initMapControls();
         });
+        
+        // Initialize map controls
+        function initMapControls() {
+            // Map controls
+            document.getElementById('update-map').addEventListener('click', function() {
+                const lat = parseFloat(document.getElementById('lat-display').value) || 0;
+                const lon = parseFloat(document.getElementById('lon-display').value) || 0;
+                updateCoordinatesFromMap(lat, lon);
+                if (miniMap) {
+                    miniMap.setView([lat, lon], miniMap.getZoom());
+                }
+            });
+            
+            document.getElementById('get-location').addEventListener('click', getCurrentLocationForMap);
+            
+            // Sync display inputs
+            document.getElementById('lat-display').addEventListener('change', function() {
+                const lat = parseFloat(this.value) || 0;
+                const lon = parseFloat(document.getElementById('lon-display').value) || 0;
+                if (miniMarker) {
+                    miniMarker.setLatLng([lat, lon]);
+                }
+                if (miniMap) {
+                    miniMap.setView([lat, lon], miniMap.getZoom());
+                }
+                updateLocationDisplay();
+            });
+            
+            document.getElementById('lon-display').addEventListener('change', function() {
+                const lat = parseFloat(document.getElementById('lat-display').value) || 0;
+                const lon = parseFloat(this.value) || 0;
+                if (miniMarker) {
+                    miniMarker.setLatLng([lat, lon]);
+                }
+                if (miniMap) {
+                    miniMap.setView([lat, lon], miniMap.getZoom());
+                }
+                updateLocationDisplay();
+            });
+        }
+        
+        // Map functions
+        function toggleMapAccordion() {
+            const accordionContent = document.querySelector('.map-accordion-content');
+            const mapToggle = document.querySelector('.map-toggle');
+            const isClosed = accordionContent.classList.contains('closed');
+            
+            if (isClosed) {
+                accordionContent.classList.remove('closed');
+                mapToggle.classList.add('expanded');
+                setTimeout(() => {
+                    const lat = parseFloat(document.getElementById('lat-display').value) || 48.86;
+                    const lon = parseFloat(document.getElementById('lon-display').value) || 2.35;
+                    initializeMiniMap(lat, lon);
+                }, 100);
+            } else {
+                accordionContent.classList.add('closed');
+                mapToggle.classList.remove('expanded');
+            }
+        }
+
+        function initializeMiniMap(lat = 0, lon = 0) {
+            console.log('Initializing map:', lat, lon);
+            
+            if (miniMap) {
+                miniMap.remove();
+            }
+            
+            if (typeof L === 'undefined') {
+                console.error('Leaflet library not loaded');
+                return;
+            }
+            
+            const mapContainer = document.getElementById('mini-map');
+            if (!mapContainer) {
+                console.error('Map container not found');
+                return;
+            }
+            
+            try {
+                miniMap = L.map('mini-map').setView([lat, lon], 10);
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(miniMap);
+
+                miniMarker = L.marker([lat, lon], {
+                    draggable: true
+                }).addTo(miniMap);
+
+                miniMap.on('click', function(e) {
+                    userHasInteractedWithMap = true;
+                    updateCoordinatesFromMap(e.latlng.lat, e.latlng.lng);
+                });
+
+                miniMarker.on('dragend', function(e) {
+                    userHasInteractedWithMap = true;
+                    updateCoordinatesFromMap(e.target.getLatLng().lat, e.target.getLatLng().lng);
+                });
+                
+                setTimeout(() => {
+                    if (miniMap) {
+                        miniMap.invalidateSize();
+                    }
+                }, 100);
+                
+            } catch (error) {
+                console.error('Error initializing map:', error);
+            }
+        }
+
+        function updateCoordinatesFromMap(lat, lon) {
+            const roundedLat = Math.round(lat * 100) / 100;
+            const roundedLon = Math.round(lon * 100) / 100;
+
+            document.getElementById('lat-display').value = roundedLat.toFixed(2);
+            document.getElementById('lon-display').value = roundedLon.toFixed(2);
+
+            if (miniMarker) {
+                miniMarker.setLatLng([roundedLat, roundedLon]);
+            }
+
+            currentLocation = { latitude: roundedLat, longitude: roundedLon };
+            updateLocationDisplay();
+        }
+
+        function updateLocationDisplay() {
+            const lat = parseFloat(document.getElementById('lat-display').value) || 0;
+            const lon = parseFloat(document.getElementById('lon-display').value) || 0;
+            
+            if (lat !== 0 || lon !== 0) {
+                const locationText = document.getElementById('locationText');
+                const locationInfo = document.getElementById('locationInfo');
+                
+                locationText.textContent = `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+                locationInfo.style.display = 'block';
+            }
+        }
+
+        function getCurrentLocationForMap() {
+            if (navigator.geolocation) {
+                const btn = document.getElementById('get-location');
+                btn.textContent = 'Getting...';
+                btn.disabled = true;
+                
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = Math.round(position.coords.latitude * 100) / 100;
+                        const lon = Math.round(position.coords.longitude * 100) / 100;
+
+                        userHasInteractedWithMap = true;
+                        updateCoordinatesFromMap(lat, lon);
+                        if (miniMap) {
+                            miniMap.setView([lat, lon], 13);
+                        }
+                        
+                        btn.textContent = 'My Location';
+                        btn.disabled = false;
+                    },
+                    function(error) {
+                        console.error('Geolocation error:', error);
+                        btn.textContent = 'My Location';
+                        btn.disabled = false;
+                        alert('Failed to get location');
+                    }
+                );
+            }
+        }
     </script>
 </body>
 </html>

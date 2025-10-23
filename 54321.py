@@ -2481,7 +2481,9 @@ async def process_webcam_video(
     title: str = Form(default=""),
     description: str = Form(default=""),
     npub: str = Form(default=""),
-    publish_nostr: str = Form(default="false")
+    publish_nostr: str = Form(default="false"),
+    latitude: str = Form(default=""),
+    longitude: str = Form(default="")
 ):
     """
     Process webcam video and optionally publish to NOSTR as NIP-71 video event
@@ -2511,11 +2513,11 @@ async def process_webcam_video(
 
     try:
         # Process video blob
-        if ',' in video_blob:
-            _, video_data_base64 = video_blob.split(',', 1)
-            video_data = base64.b64decode(video_data_base64)
-        else:
-            video_data = base64.b64decode(video_blob)
+            if ',' in video_blob:
+                _, video_data_base64 = video_blob.split(',', 1)
+                video_data = base64.b64decode(video_data_base64)
+            else:
+                video_data = base64.b64decode(video_blob)
 
         # Generate filename with timestamp
         timestamp = int(time.time())
@@ -2526,8 +2528,8 @@ async def process_webcam_video(
         os.makedirs("tmp", exist_ok=True)
         
         # Save video file
-        with open(file_location, 'wb') as f:
-            f.write(video_data)
+            with open(file_location, 'wb') as f:
+                f.write(video_data)
 
         # Get file size
         file_size = len(video_data)
@@ -2673,6 +2675,17 @@ async def process_webcam_video(
                         channel_name = player.replace('@', '_').replace('.', '_')
                         tags.append(["t", f"Channel-{channel_name}"])
                         
+                        # Add geographic coordinates if provided (UMAP anchoring)
+                        if latitude and longitude:
+                            try:
+                                lat = float(latitude)
+                                lon = float(longitude)
+                                tags.append(["g", f"{lat},{lon}"])  # Geohash tag for UMAP
+                                tags.append(["location", f"{lat:.2f},{lon:.2f}"])  # Human-readable location
+                                print(f"📍 Added location to video: {lat:.2f}, {lon:.2f}")
+                            except ValueError:
+                                print("⚠️ Invalid coordinates provided")
+                        
                         # Add topic tags from title (compatible with create_video_channel.py)
                         topic_keywords = title.lower().replace('webcam', '').replace('recording', '').strip()
                         if topic_keywords:
@@ -2707,10 +2720,10 @@ async def process_webcam_video(
                                         break
                                 
                                 logging.info(f"NOSTR video event published: {nostr_event_id}")
-                            else:
+            else:
                                 logging.error(f"Failed to publish NOSTR event: {nostr_result.stderr}")
-                        
-            except Exception as e:
+
+        except Exception as e:
                 logging.error(f"Error publishing to NOSTR: {e}")
 
         # Return success response
