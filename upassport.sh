@@ -485,6 +485,21 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
                 echo "${MY_PATH}/tmp/${MOATS}.out.html"
                 exit 0
                 
+            elif [[ "$IMAGE" == "7777" ]]; then
+                ### PASS 7777: Open Webcam Recorder with NOSTR authentication
+                echo "PASS 7777: Opening Webcam Recorder with authenticated nsec..."
+                
+                # Generate webcam.html from template with nsec injected
+                cat ~/.zen/UPassport/templates/webcam.html \
+                    | sed -e "s~http://127.0.0.1:8080~${myIPFS}~g" \
+                          -e "s~https://ipfs.copylaradio.com~${myIPFS}~g" \
+                          -e "s~{{ myIPFS }}~${myIPFS}~g" \
+                          -e "s~const AUTO_CONNECT_NSEC = null;~const AUTO_CONNECT_NSEC = '${NSEC}';~g" \
+                    > ${MY_PATH}/tmp/${MOATS}.out.html
+                
+                echo "${MY_PATH}/tmp/${MOATS}.out.html"
+                exit 0
+                
             else
                 ### Default: Open nostr.html (simple interface)
                 cat ~/.zen/UPassport/templates/nostr.html \

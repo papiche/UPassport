@@ -362,7 +362,7 @@
                     </label>
                 </div>
                 <small style="color: #94a3b8; margin-top: 5px; text-align: center;">
-                    🔑 PASS codes: <strong>1111</strong>=Full Access | <strong>9999</strong>=Payment Terminal | <strong>0000</strong>=Resiliation | <em>(empty)</em>=Quick Message
+                    🔑 PASS codes: <strong>1111</strong>=Full Access | <strong>9999</strong>=Payment Terminal | <strong>7777</strong>=Webcam Recorder | <strong>0000</strong>=Resiliation | <em>(empty)</em>=Quick Message
                 </small>
             </div>
 
@@ -390,6 +390,7 @@
                 <li>🔓 <strong>(empty)</strong> → Quick Message interface</li>
                 <li>🚀 <strong>1111</strong> → Full Astro Base access</li>
                 <li>💸 <strong>9999</strong> → MULTIPASS Payment Terminal</li>
+                <li>🎥 <strong>7777</strong> → Webcam Video Recorder</li>
                 <li>🔄 <strong>0000</strong> → Resiliation / Regeneration</li>
             </ul>
             <p style="text-align: center; font-size: 0.8em; color: #94a3b8; margin-top: 10px;">
@@ -804,6 +805,8 @@
             //   "" (empty)  = Quick Message (default simple interface)
             //   "0000"      = Resiliation (cancel/regenerate MULTIPASS)
             //   "1111"      = Full Access (Astro Base interface)
+            //   "7777"      = Webcam Video Recorder (with NOSTR auth)
+            //   "9999"      = MULTIPASS Payment Terminal
             //   "xxxx"      = Future features
             if (isSSSSKey || isZenCard) {
                 // Replace imageData with PASS code for authentication
