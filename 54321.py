@@ -2467,7 +2467,11 @@ async def rec_form(request: Request):
 
 @app.get("/webcam", response_class=HTMLResponse)
 async def rec_form(request: Request):
-    return templates.TemplateResponse("webcam.html", {"request": request, "recording": False})
+    return templates.TemplateResponse("webcam.html", {
+        "request": request, 
+        "recording": False,
+        "myIPFS": get_myipfs_gateway()
+    })
 
 @app.post("/webcam", response_class=HTMLResponse)
 async def process_webcam_video(
