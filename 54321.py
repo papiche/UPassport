@@ -2469,8 +2469,275 @@ async def rec_form(request: Request):
 async def rec_form(request: Request):
     return templates.TemplateResponse("webcam.html", {"request": request, "recording": False})
 
+@app.post("/webcam", response_class=HTMLResponse)
+async def process_webcam_video(
+    request: Request,
+    player: str = Form(...),
+    video_blob: str = Form(default=""),
+    title: str = Form(default=""),
+    description: str = Form(default=""),
+    npub: str = Form(default=""),
+    publish_nostr: str = Form(default="false")
+):
+    """
+    Process webcam video and optionally publish to NOSTR as NIP-71 video event
+    """
+    global recording_process, current_player
+
+    if not player:
+        return templates.TemplateResponse("webcam.html", {
+            "request": request, 
+            "error": "No player provided. What is your email?", 
+            "recording": False
+        })
+
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", player):
+        return templates.TemplateResponse("webcam.html", {
+            "request": request, 
+            "error": "Invalid email address provided.", 
+            "recording": False
+        })
+
+    if not video_blob:
+        return templates.TemplateResponse("webcam.html", {
+            "request": request, 
+            "error": "No video data provided.", 
+            "recording": False
+        })
+
+    try:
+        # Process video blob
+        if ',' in video_blob:
+            _, video_data_base64 = video_blob.split(',', 1)
+            video_data = base64.b64decode(video_data_base64)
+        else:
+            video_data = base64.b64decode(video_blob)
+
+        # Generate filename with timestamp
+        timestamp = int(time.time())
+        filename = f"webcam_{player}_{timestamp}.webm"
+        file_location = f"tmp/{filename}"
+        
+        # Ensure tmp directory exists
+        os.makedirs("tmp", exist_ok=True)
+        
+        # Save video file
+        with open(file_location, 'wb') as f:
+            f.write(video_data)
+
+        # Get file size
+        file_size = len(video_data)
+        
+        # Generate title if not provided
+        if not title:
+            title = f"Webcam recording {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        
+        # Process video with ffprobe to get dimensions and duration
+        video_dimensions = "640x480"  # Default for webcam
+        duration = 0
+        
+        try:
+            # Get video dimensions using ffprobe
+            dimensions_output = subprocess.run([
+                'ffprobe', '-v', 'quiet', '-select_streams', 'v:0', 
+                '-show_entries', 'stream=width,height', 
+                '-of', 'csv=s=x:p=0', file_location
+            ], capture_output=True, text=True, timeout=10)
+            
+            if dimensions_output.returncode == 0 and dimensions_output.stdout.strip():
+                video_dimensions = dimensions_output.stdout.strip()
+            
+            # Get duration
+            duration_output = subprocess.run([
+                'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration', 
+                '-of', 'csv=p=0', file_location
+            ], capture_output=True, text=True, timeout=10)
+            
+            if duration_output.returncode == 0 and duration_output.stdout.strip():
+                duration = int(float(duration_output.stdout.strip()))
+                
+        except Exception as e:
+            logging.warning(f"Could not extract video metadata: {e}")
+
+        # Upload to IPFS
+        ipfs_result = subprocess.run(['ipfs', 'add', '-wq', file_location], 
+                                   capture_output=True, text=True, timeout=60)
+        
+        if ipfs_result.returncode != 0:
+            return templates.TemplateResponse("webcam.html", {
+                "request": request, 
+                "error": f"Failed to upload to IPFS: {ipfs_result.stderr}", 
+                "recording": False
+            })
+
+        ipfs_hash = ipfs_result.stdout.strip().split('\n')[-1]
+        ipfs_url = f"/ipfs/{ipfs_hash}/{filename}"
+        
+        # Generate thumbnail if possible
+        thumbnail_ipfs = ""
+        try:
+            thumbnail_path = f"tmp/thumb_{timestamp}.jpg"
+            thumbnail_result = subprocess.run([
+                'ffmpeg', '-i', file_location, '-ss', '00:00:01', 
+                '-vframes', '1', '-y', thumbnail_path
+            ], capture_output=True, text=True, timeout=30)
+            
+            if thumbnail_result.returncode == 0 and os.path.exists(thumbnail_path):
+                thumb_result = subprocess.run(['ipfs', 'add', '-q', thumbnail_path], 
+                                            capture_output=True, text=True, timeout=30)
+                if thumb_result.returncode == 0:
+                    thumbnail_ipfs = thumb_result.stdout.strip()
+                    os.remove(thumbnail_path)  # Clean up
+        except Exception as e:
+            logging.warning(f"Could not generate thumbnail: {e}")
+
+        # Create metadata JSON
+        metadata = {
+            "title": title,
+            "description": description,
+            "author": player,
+            "duration": duration,
+            "dimensions": video_dimensions,
+            "file_size": file_size,
+            "created_at": datetime.now().isoformat(),
+            "type": "webcam_recording"
+        }
+        
+        metadata_file = f"tmp/metadata_{timestamp}.json"
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
+        # Upload metadata to IPFS
+        metadata_result = subprocess.run(['ipfs', 'add', '-q', metadata_file], 
+                                        capture_output=True, text=True, timeout=30)
+        metadata_ipfs = ""
+        if metadata_result.returncode == 0:
+            metadata_ipfs = metadata_result.stdout.strip()
+        
+        # Clean up temporary files
+        os.remove(file_location)
+        if os.path.exists(metadata_file):
+            os.remove(metadata_file)
+
+        # Publish to NOSTR if requested
+        nostr_event_id = None
+        if publish_nostr.lower() == "true" and npub:
+            try:
+                # Verify NOSTR authentication like in /api/fileupload
+                if not await verify_nostr_auth(npub):
+                    return templates.TemplateResponse("webcam.html", {
+                        "request": request, 
+                        "error": "NOSTR authentication failed. Please check your npub.", 
+                        "recording": False
+                    })
+                
+                # Get user's NOSTR keys
+                user_dir = get_authenticated_user_directory(npub)
+                secret_file = user_dir / ".secret.nostr"
+                
+                if secret_file.exists():
+                    with open(secret_file, 'r') as f:
+                        secret_content = f.read()
+                    
+                    # Extract NSEC from secret file
+                    nsec_match = re.search(r'NSEC=([^\s;]+)', secret_content)
+                    if nsec_match:
+                        nsec_key = nsec_match.group(1)
+                        
+                        # Determine video kind (22 for short videos, 21 for regular)
+                        video_kind = "22" if duration <= 60 else "21"
+                        
+                        # Create NIP-71 video event compatible with /youtube view
+                        video_content = f"🎬 {title}\n\n📹 Webcam: {ipfs_url}"
+                        if description:
+                            video_content += f"\n\n📝 Description: {description}"
+                        
+                        # Build NIP-71 tags compatible with create_video_channel.py
+                        tags = [
+                            ["title", title],
+                            ["imeta", f"dim {video_dimensions}", f"url {ipfs_url}", 
+                             f"x {hashlib.sha256(ipfs_url.encode()).hexdigest()}", "m video/webm"],
+                            ["duration", str(duration)],
+                            ["published_at", str(int(time.time()))],
+                            ["t", "YouTubeDownload"],  # Compatible with /youtube view
+                            ["t", "VideoChannel"],     # Compatible with create_video_channel.py
+                            ["t", "WebcamRecording"],  # Specific to webcam
+                            ["t", "ShortVideo"] if duration <= 60 else ["t", "RegularVideo"]
+                        ]
+                        
+                        # Add channel tag based on user (compatible with create_video_channel.py)
+                        channel_name = player.replace('@', '_').replace('.', '_')
+                        tags.append(["t", f"Channel-{channel_name}"])
+                        
+                        # Add topic tags from title (compatible with create_video_channel.py)
+                        topic_keywords = title.lower().replace('webcam', '').replace('recording', '').strip()
+                        if topic_keywords:
+                            topic_words = [word for word in topic_keywords.split() if len(word) > 3]
+                            for word in topic_words[:3]:  # Limit to 3 topic tags
+                                tags.append(["t", f"Topic-{word}"])
+                        
+                        if thumbnail_ipfs:
+                            tags.append(["r", f"/ipfs/{thumbnail_ipfs}", "Thumbnail"])
+                        
+                        if metadata_ipfs:
+                            tags.append(["r", f"/ipfs/{metadata_ipfs}", "Metadata"])
+                        
+                        # Add reference to original webcam URL
+                        tags.append(["r", f"webcam://{player}", "Webcam"])
+                        
+                        # Send NOSTR event
+                        nostr_script = "./tools/nostr_send_note.py"
+                        if os.path.exists(nostr_script):
+                            nostr_cmd = [
+                                "python3", nostr_script, nsec_key, video_content, 
+                                "ws://127.0.0.1:7777", json.dumps(tags), video_kind
+                            ]
+                            
+                            nostr_result = subprocess.run(nostr_cmd, capture_output=True, text=True, timeout=30)
+                            if nostr_result.returncode == 0:
+                                # Extract event ID from output
+                                output_lines = nostr_result.stdout.strip().split('\n')
+                                for line in output_lines:
+                                    if 'Event ID:' in line or 'event_id:' in line:
+                                        nostr_event_id = line.split(':')[-1].strip()
+                                        break
+                                
+                                logging.info(f"NOSTR video event published: {nostr_event_id}")
+                            else:
+                                logging.error(f"Failed to publish NOSTR event: {nostr_result.stderr}")
+                        
+            except Exception as e:
+                logging.error(f"Error publishing to NOSTR: {e}")
+
+        # Return success response
+        success_message = f"Video processed successfully! IPFS: {ipfs_url}"
+        if nostr_event_id:
+            success_message += f" | NOSTR Event: {nostr_event_id}"
+        
+        return templates.TemplateResponse("webcam.html", {
+            "request": request,
+            "message": success_message,
+            "recording": False,
+            "ipfs_url": ipfs_url,
+            "nostr_event_id": nostr_event_id,
+            "video_info": {
+                "title": title,
+                "duration": duration,
+                "dimensions": video_dimensions,
+                "file_size": file_size
+            }
+        })
+
+    except Exception as e:
+        logging.error(f"Error processing webcam video: {e}")
+        return templates.TemplateResponse("webcam.html", {
+            "request": request, 
+            "error": f"Error processing video: {str(e)}", 
+            "recording": False
+        })
+
 @app.post("/rec", response_class=HTMLResponse)
-async def start_recording(request: Request, player: str = Form(...), link: str = Form(default=""), file: UploadFile = File(None), video_blob: str = Form(default="")):
+async def start_recording(request: Request, player: str = Form(...), link: str = Form(default=""), file: UploadFile = File(None)):
     global recording_process, current_player
 
     if not player:
@@ -2480,33 +2747,6 @@ async def start_recording(request: Request, player: str = Form(...), link: str =
         return templates.TemplateResponse("rec_form.html", {"request": request, "error": "Invalid email address provided.", "recording": False})
 
     script_path = "./startrec.sh"
-
-    # Cas 1: Enregistrement webcam
-    if video_blob:
-        try:
-            # Vérifier si le blob contient une virgule (format data URL)
-            if ',' in video_blob:
-                # Extraire la partie après la virgule
-                _, video_data_base64 = video_blob.split(',', 1)
-                video_data = base64.b64decode(video_data_base64)
-            else:
-                # Si pas de virgule, supposer que c'est directement en base64
-                video_data = base64.b64decode(video_blob)
-
-            file_location = f"tmp/{player}_{int(time.time())}.webm"
-            with open(file_location, 'wb') as f:
-                f.write(video_data)
-
-            return_code, last_line = await run_script(script_path, player, f"blob={file_location}")
-
-            if return_code == 0:
-                return templates.TemplateResponse("webcam.html", {"request": request, "message": f"Operation completed successfully {last_line.strip()}", "recording": False})
-            else:
-                return templates.TemplateResponse("webcam.html", {"request": request, "error": f"Script execution failed: {last_line.strip()}", "recording": False})
-
-        except Exception as e:
-            # Gérer toute exception qui pourrait se produire lors du traitement du blob
-            return templates.TemplateResponse("webcam.html", {"request": request, "error": f"Error processing video data: {str(e)}", "recording": False})
 
     # Cas 2: Upload de fichier
     if file and file.filename:

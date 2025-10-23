@@ -3,140 +3,412 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Super Cute Webcam Recorder 🎥✨</title>
+    <title>🎥 Webcam Recorder with NOSTR Publishing</title>
+    
+    <!-- Nostr integration -->
+    <script src="{{ myIPFS }}/ipfs/QmXEmaPRUaGcvhuyeG99mHHNyP43nn8GtNeuDok8jdpG4a/nostr.bundle.js"></script>
+    <!-- Common.js with enhanced webcam functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    
     <style>
         body {
-            font-family: 'Comic Sans MS', cursive, sans-serif;
-            background-color: #ffe6f2;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #e8e8e8;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #4ade80;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: 700;
+            text-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 1.1em;
+            margin-bottom: 30px;
+            font-weight: 300;
+        }
+        
+        /* Nostr Authentication Section */
+        .nostr-section {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        
+        /* Webcam Section */
+        .webcam-section {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        #video-preview {
+            width: 100%;
+            max-width: 640px;
+            height: 360px;
+            border: 3px solid #4ade80;
+            border-radius: 15px;
+            margin: 20px auto;
+            box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+            background: #000;
+        }
+        
+        #timer {
+            font-size: 3em;
+            margin: 20px 0;
+            color: #4ade80;
+            text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+        }
+        
+        .controls {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0;
-            color: #ff69b4;
+            gap: 15px;
+            margin: 20px 0;
         }
-        h1 {
-            font-size: 2.5em;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px #ffb3d9;
-            animation: rainbow 5s infinite;
+        
+        .duration-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
         }
-        @keyframes rainbow {
-            0% {color: #ff69b4;}
-            25% {color: #ff9933;}
-            50% {color: #33cc33;}
-            75% {color: #3399ff;}
-            100% {color: #ff69b4;}
+        
+        input[type="range"] {
+            width: 200px;
+            height: 8px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
         }
-        #video-preview {
-            width: 320px;
-            height: 240px;
-            border: 10px solid #ffb3d9;
-            border-radius: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 0 15px #ff69b4;
+        
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4ade80;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
         }
-        #timer {
-            font-size: 3em;
-            margin-bottom: 20px;
-            color: #ff1493;
-            text-shadow: 2px 2px 4px #ffb3d9;
-        }
-        button {
-            font-family: 'Comic Sans MS', cursive, sans-serif;
+        
+        #duration-display {
             font-size: 1.2em;
-            padding: 10px 20px;
-            margin: 10px;
+            color: #4ade80;
+            font-weight: 600;
+        }
+        
+        button {
+            padding: 12px 24px;
             border: none;
-            border-radius: 50px;
-            background-color: #ff69b4;
-            color: white;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        button:hover {
-            transform: scale(1.1);
-            background-color: #ff1493;
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            color: white;
         }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #4f46e5, #4338ca);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+        
         button:disabled {
-            background-color: #ffb3d9;
+            background: rgba(148, 163, 184, 0.5);
             cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
+        
         .hidden {
             display: none;
         }
-        form {
-            background-color: white;
-            padding: 20px;
-            border-radius: 20px;
-            box-shadow: 0 0 15px rgba(255,105,180,0.3);
-            margin-top: 20px;
+        
+        /* Form Styles */
+        .form-group {
+            margin: 15px 0;
         }
-        label {
+        
+        .form-group label {
             display: block;
             margin-bottom: 5px;
-            color: #ff69b4;
-            font-size: 1.1em;
+            font-weight: bold;
+            color: #e2e8f0;
         }
-        input[type="email"], input[type="text"], input[type="file"] {
+        
+        .form-group input, .form-group textarea {
             width: 100%;
-            padding: 10px;
-            margin-bottom: 20px;
-            border: 2px solid #ffb3d9;
-            border-radius: 10px;
-            font-size: 1em;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #e2e8f0;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
         }
-        input[type="range"] {
-            width: 60%;
-            margin-bottom: 10px;
+        
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #4ade80;
+            box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
         }
-        #duration-display {
-            font-size: 1.2em;
-            color: #ff1493;
-            margin-bottom: 10px;
+        
+        /* Status Messages */
+        .status-message {
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        
+        .status-success {
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+        
+        .status-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        .status-info {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            color: #6366f1;
+        }
+        
+        /* Auth Mode Styles */
+        .auth-mode {
+            margin: 15px 0;
+        }
+        
+        .kind-options {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .kind-option {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .kind-option input[type="radio"] {
+            width: auto;
+            margin: 0;
+        }
+        
+        .nsec-input {
+            display: none;
+            margin-top: 10px;
+        }
+        
+        .nsec-input.visible {
+            display: block;
+        }
+        
+        /* Webcam Container */
+        #webcam-container {
+            margin: 20px 0;
+        }
+        
+        /* Responsive Design */
+        @media screen and (max-width: 768px) {
+            .container {
+                padding: 15px;
+                margin: 10px;
+            }
+            
+            #video-preview {
+                height: 240px;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .duration-control {
+                flex-direction: column;
+                gap: 5px;
+            }
+            
+            input[type="range"] {
+                width: 100%;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>🌈 Super Cute Webcam Recorder 🎀</h1>
+    <div class="container">
+        <h1>🎥 Webcam Recorder with NOSTR Publishing</h1>
+        <p class="subtitle">Record and publish videos to NOSTR with NIP-71 support</p>
+        
+        <!-- Nostr Authentication Section -->
+        <div class="nostr-section">
+            <h3 style="margin: 0 0 15px 0;">🔐 NOSTR Authentication</h3>
+            
+            <!-- Auth Mode Selection -->
+            <div class="auth-mode">
+                <label>Authentication Method:</label>
+                <div class="kind-options">
+                    <div class="kind-option">
+                        <input type="radio" id="auth-extension" name="auth-mode" value="extension" checked>
+                        <label for="auth-extension">NOSTR Extension</label>
+                    </div>
+                    <div class="kind-option">
+                        <input type="radio" id="auth-nsec" name="auth-mode" value="nsec">
+                        <label for="auth-nsec">Private Key (nsec)</label>
+                    </div>
+                </div>
+                
+                <div id="nsec-input-container" class="nsec-input">
+                    <label for="nsec-key">Private Key (nsec...):</label>
+                    <input type="password" id="nsec-key" placeholder="nsec1...">
+                    <small style="color: #94a3b8;">⚠️ Never share your private key!</small>
+                </div>
+            </div>
+            
+            <button id="nostr-connect-btn" onclick="handleNostrConnect()">🔌 Connect to NOSTR</button>
+            <button id="nostr-profile-btn" onclick="openNostrProfile()" style="display: none; margin-left: 10px; background: linear-gradient(135deg, #6366f1, #4f46e5);">👤 My Profile</button>
+            
+            <div id="auth-status" style="margin-top: 10px;"></div>
+        </div>
+        
+        <!-- Webcam Recording Section -->
+        <div class="webcam-section" id="webcam-section" style="display: none;">
+            <h3 style="margin: 0 0 15px 0;">🎥 Webcam Recording</h3>
 
     <video id="video-preview" autoplay muted></video>
 
     <div id="timer" class="hidden">16</div>
 
-    <div id="duration-display">Recording time: 16 seconds</div>
-    <input type="range" id="duration-slider" min="3" max="16" value="16">
-
-    <button id="start-recording">🎬 Start Recording</button>
-    <button id="submit-video" class="hidden">💖 Submit Video</button>
-
-    <form id="record-form" method="post" action="/rec" enctype="multipart/form-data">
-        <label for="player">📧 Your Magical Email:</label>
-        <input type="email" id="player" name="player" required placeholder="unicorn@rainbow.com">
-        <input type="hidden" id="video_blob" name="video_blob">
-    </form>
+            <div class="controls">
+                <div class="duration-control">
+                    <label for="duration-slider">Recording Duration:</label>
+                    <input type="range" id="duration-slider" min="3" max="60" value="16">
+                    <div id="duration-display">16 seconds</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="player">📧 Your Email:</label>
+                    <input type="email" id="player" name="player" required placeholder="your@email.com">
+                </div>
+                
+                <button id="start-recording" class="btn-primary">🎬 Start Recording</button>
+                <button id="stop-recording" class="btn-danger hidden">⏹️ Stop Recording</button>
+            </div>
+        </div>
+        
+        <!-- Webcam Container for enhanced functionality -->
+        <div id="webcam-container"></div>
+    </div>
 
     <script>
+        // Global variables
         let mediaRecorder;
         let recordedChunks = [];
+        let currentStream = null;
+        let authMode = 'extension';
+        let userPrivkey = null;
+        
+        // Auto-connect nsec (injected by upassport.sh when scanning SSSS with code 1111)
+        const AUTO_CONNECT_NSEC = null;
+
+        // Initialize webcam recording functionality
+        function initWebcamFeatures() {
         const startButton = document.getElementById('start-recording');
-        const submitButton = document.getElementById('submit-video');
+            const stopButton = document.getElementById('stop-recording');
         const videoPreview = document.getElementById('video-preview');
         const timerDisplay = document.getElementById('timer');
         const durationSlider = document.getElementById('duration-slider');
         const durationDisplay = document.getElementById('duration-display');
 
+            // Duration slider handler
         durationSlider.addEventListener('input', () => {
-            durationDisplay.textContent = `Recording time: ${durationSlider.value} seconds`;
+                durationDisplay.textContent = `${durationSlider.value} seconds`;
         });
 
+            // Start recording handler
         startButton.addEventListener('click', async () => {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { 
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 },
+                            frameRate: { ideal: 30 }
+                        }, 
+                        audio: true 
+                    });
+                    
+                    currentStream = stream;
             videoPreview.srcObject = stream;
 
-            mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder = new MediaRecorder(stream, {
+                        mimeType: 'video/webm;codecs=vp9,opus'
+                    });
+                    
+                    recordedChunks = [];
+                    
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
                     recordedChunks.push(event.data);
@@ -145,32 +417,330 @@
 
             mediaRecorder.onstop = () => {
                 const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                document.getElementById('video_blob').value = URL.createObjectURL(blob);
-                submitButton.classList.remove('hidden');
+                        handleWebcamVideo(blob);
             };
 
             mediaRecorder.start();
             startTimer(parseInt(durationSlider.value));
             startButton.disabled = true;
+                    startButton.classList.add('hidden');
+                    stopButton.classList.remove('hidden');
             timerDisplay.classList.remove('hidden');
-        });
+                    
+                } catch (error) {
+                    console.error('Error starting recording:', error);
+                    alert('Error accessing webcam: ' + error.message);
+                }
+            });
 
-        submitButton.addEventListener('click', () => {
-            document.getElementById('record-form').submit();
-        });
+            // Stop recording handler
+            stopButton.addEventListener('click', () => {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                }
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                }
+                stopButton.disabled = true;
+                stopButton.textContent = 'Processing...';
+            });
+        }
 
+        // Handle recorded webcam video
+        function handleWebcamVideo(videoBlob) {
+            console.log('🎬 Processing webcam video...');
+            
+            // Show upload form with video preview
+            showWebcamUploadForm(videoBlob);
+        }
+
+        // Show webcam upload form with NOSTR publishing options
+        function showWebcamUploadForm(videoBlob) {
+            const formHtml = `
+                <div id="webcam-upload-form" class="webcam-upload-container">
+                    <h3>🎥 Webcam Recording Complete</h3>
+                    <video controls style="width: 100%; max-width: 500px; margin: 10px 0;">
+                        <source src="${URL.createObjectURL(videoBlob)}" type="video/webm">
+                    </video>
+                    
+                    <form id="webcam-publish-form">
+                        <div class="form-group">
+                            <label for="video-title">Title:</label>
+                            <input type="text" id="video-title" name="title" 
+                                   placeholder="Enter video title..." 
+                                   value="Webcam recording ${new Date().toLocaleString()}" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="video-description">Description (optional):</label>
+                            <textarea id="video-description" name="description" 
+                                      placeholder="Describe your video..." rows="3"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="publish-nostr" name="publish_nostr" ${userPubkey ? 'checked' : ''}>
+                                Publish to NOSTR (requires NOSTR connection)
+                            </label>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">
+                                ${userPubkey ? '📡 Upload & Publish' : '📤 Upload to IPFS'}
+                            </button>
+                            <button type="button" id="cancel-upload" class="btn-secondary">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            // Insert form into page
+            const container = document.getElementById('webcam-container');
+            container.innerHTML = formHtml;
+            
+            // Handle form submission
+            document.getElementById('webcam-publish-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const formData = new FormData(e.target);
+                const title = formData.get('title');
+                const description = formData.get('description');
+                const publishNostr = formData.get('publish_nostr') === 'on';
+                const playerEmail = document.getElementById('player').value;
+                
+                await uploadWebcamVideo(videoBlob, playerEmail, title, description, publishNostr);
+            });
+            
+            // Handle cancel
+            document.getElementById('cancel-upload').addEventListener('click', () => {
+                document.getElementById('webcam-upload-form').remove();
+                // Reset recording interface
+                document.getElementById('start-recording').classList.remove('hidden');
+                document.getElementById('start-recording').disabled = false;
+                document.getElementById('stop-recording').classList.add('hidden');
+                document.getElementById('timer').classList.add('hidden');
+            });
+        }
+
+        // Upload webcam video to server
+        async function uploadWebcamVideo(videoBlob, playerEmail, title, description, publishNostr) {
+            try {
+                console.log('📤 Uploading webcam video...');
+                
+                // Convert blob to base64
+                const base64Video = await blobToBase64(videoBlob);
+                
+                // Prepare form data
+                const formData = new FormData();
+                formData.append('player', playerEmail);
+                formData.append('video_blob', base64Video);
+                formData.append('title', title);
+                formData.append('description', description);
+                formData.append('publish_nostr', publishNostr ? 'true' : 'false');
+                
+                // Add NOSTR authentication if publishing
+                if (publishNostr && userPubkey) {
+                    formData.append('npub', userPubkey);
+                }
+                
+                // Upload to server
+                const response = await fetch('/webcam', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const result = await response.text();
+                    console.log('✅ Webcam video uploaded successfully');
+                    
+                    // Show success message
+                    showWebcamSuccess(result, title);
+                    
+                    // If NOSTR publishing was requested, show additional info
+                    if (publishNostr && userPubkey) {
+                        console.log('📡 Video published to NOSTR');
+                    }
+                } else {
+                    throw new Error(`Upload failed: ${response.statusText}`);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error uploading webcam video:', error);
+                showWebcamError(error.message);
+            }
+        }
+
+        // Show webcam upload success message
+        function showWebcamSuccess(result, title) {
+            const successHtml = `
+                <div class="webcam-success">
+                    <h3>✅ Video Uploaded Successfully!</h3>
+                    <p><strong>Title:</strong> ${title}</p>
+                    <p><strong>Status:</strong> ${result}</p>
+                    <button onclick="location.reload()" class="btn-primary">Record Another Video</button>
+                </div>
+            `;
+            
+            const container = document.getElementById('webcam-container');
+            container.innerHTML = successHtml;
+        }
+
+        // Show webcam upload error
+        function showWebcamError(error) {
+            const errorHtml = `
+                <div class="webcam-error">
+                    <h3>❌ Upload Failed</h3>
+                    <p><strong>Error:</strong> ${error}</p>
+                    <button onclick="location.reload()" class="btn-secondary">Try Again</button>
+                </div>
+            `;
+            
+            const container = document.getElementById('webcam-container');
+            container.innerHTML = errorHtml;
+        }
+
+        // Utility function to convert blob to base64
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        // Timer function
         function startTimer(duration) {
             let timer = duration;
+            const timerDisplay = document.getElementById('timer');
             const countdown = setInterval(() => {
                 timerDisplay.textContent = timer;
                 if (--timer < 0) {
                     clearInterval(countdown);
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
                     mediaRecorder.stop();
-                    videoPreview.srcObject.getTracks().forEach(track => track.stop());
+                    }
+                    if (currentStream) {
+                        currentStream.getTracks().forEach(track => track.stop());
+                    }
                     timerDisplay.textContent = "Done! 🌟";
                 }
             }, 1000);
         }
+
+        // Connect to NOSTR
+        async function handleNostrConnect() {
+            const statusDiv = document.getElementById('auth-status');
+            const connectBtn = document.getElementById('nostr-connect-btn');
+            
+            connectBtn.disabled = true;
+            statusDiv.innerHTML = '<div class="status-message status-info">🔄 Connecting...</div>';
+            
+            try {
+                if (authMode === 'extension') {
+                    // Use NOSTR extension
+                    if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
+                        throw new Error("NOSTR extension not found. Please install a NOSTR extension (nos2x, Alby, etc.)");
+                    }
+                    
+                    userPubkey = await window.nostr.getPublicKey();
+                    console.log("Public key from extension:", userPubkey);
+                    
+                } else if (authMode === 'nsec') {
+                    // Use private key
+                    const nsecKey = document.getElementById('nsec-key').value.trim();
+                    if (!nsecKey) {
+                        throw new Error("Please enter your private key (nsec)");
+                    }
+                    
+                    // Convert nsec to hex using nostr-tools
+                    try {
+                        userPrivkey = NostrTools.nip19.decode(nsecKey).data;
+                        userPubkey = NostrTools.getPublicKey(userPrivkey);
+                        console.log("Public key from nsec:", userPubkey);
+                    } catch (e) {
+                        throw new Error("Invalid nsec format. Please check your private key.");
+                    }
+                }
+                
+                // Connect to relay using common.js functions
+                await connectToRelay();
+                
+                // Send NIP-42 auth using common.js functions
+                await sendNIP42Auth(DEFAULT_RELAYS[0]);
+                
+                // Show success
+                statusDiv.innerHTML = `<div class="status-message status-success">✅ Connected as ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}</div>`;
+                document.getElementById('webcam-section').style.display = 'block';
+                connectBtn.textContent = '✅ Connected';
+                connectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
+                
+                // Show profile button
+                document.getElementById('nostr-profile-btn').style.display = 'inline-block';
+                
+            } catch (error) {
+                console.error("Connection error:", error);
+                statusDiv.innerHTML = `<div class="status-message status-error">❌ ${error.message}</div>`;
+                connectBtn.disabled = false;
+            }
+        }
+
+        // Open NOSTR Profile
+        function openNostrProfile() {
+            if (!userPubkey) {
+                alert("Please connect to NOSTR first");
+                return;
+            }
+            
+            // Build profile URL with hex pubkey
+            const profileURL = `${getAPIBaseUrl()}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${userPubkey}`;
+            window.open(profileURL, '_blank');
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-connect with nsec if provided (MULTIPASS SSSS scan with code 1111)
+            if (AUTO_CONNECT_NSEC && AUTO_CONNECT_NSEC !== null && AUTO_CONNECT_NSEC.trim() !== '') {
+                console.log('🔑 MULTIPASS SSSS detected - Auto-connecting with nsec...');
+                
+                // Switch to nsec mode
+                const nsecRadio = document.getElementById('auth-nsec');
+                const nsecInput = document.getElementById('nsec-key');
+                const nsecContainer = document.getElementById('nsec-input-container');
+                
+                if (nsecRadio && nsecInput && nsecContainer) {
+                    // Select nsec authentication mode
+                    nsecRadio.checked = true;
+                    nsecContainer.classList.add('visible');
+                    authMode = 'nsec';
+                    
+                    // Fill the nsec key
+                    nsecInput.value = AUTO_CONNECT_NSEC;
+                    
+                    // Auto-connect after a short delay to let the UI update
+                    setTimeout(() => {
+                        handleNostrConnect();
+                    }, 700);
+                }
+            }
+            
+            // Handle auth mode change
+            const authRadios = document.querySelectorAll('input[name="auth-mode"]');
+            authRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    authMode = this.value;
+                    const nsecContainer = document.getElementById('nsec-input-container');
+                    if (authMode === 'nsec') {
+                        nsecContainer.classList.add('visible');
+                    } else {
+                        nsecContainer.classList.remove('visible');
+                    }
+                });
+            });
+            
+            // Initialize webcam features
+            initWebcamFeatures();
+        });
     </script>
 </body>
 </html>
