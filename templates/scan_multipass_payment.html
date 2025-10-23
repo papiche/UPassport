@@ -7,6 +7,10 @@
     <title>🎫 MULTIPASS Payment Terminal</title>
     <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/jquery-3.6.3.min.js"></script>
     <script src="https://ipfs.copylaradio.com/ipfs/QmQLQ5WdCEc7mpKw5rhUujUU1URKweei4Bb4esyVNd9Atx/G1PalPay_fichiers/instascan.min.js"></script>
+    <!-- Nostr integration -->
+    <script src="https://ipfs.copylaradio.com/ipfs/QmXEmaPRUaGcvhuyeG99mHHNyP43nn8GtNeuDok8jdpG4a/nostr.bundle.js"></script>
+    <!-- Common.js with enhanced payment functions -->
+    <script src="https://ipfs.copylaradio.com/ipns/copylaradio.com/common.js"></script>
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -314,6 +318,16 @@
     <h1>🎫 MULTIPASS Payment Terminal</h1>
     <h2>Source: _EMAIL_</h2>
     
+    <!-- NOSTR Authentication Section -->
+    <div id="nostr-auth-section" style="background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 10px; margin: 10px 0; text-align: center;">
+        <h3 style="color: #ffd700; margin: 0 0 10px 0;">🔐 NOSTR Authentication Required</h3>
+        <p style="margin: 5px 0; font-size: 0.9em;">Connect to NOSTR to enable payments</p>
+        <button id="nostr-connect-btn" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">
+            🔌 Connect to NOSTR
+        </button>
+        <div id="nostr-status" style="margin-top: 10px; font-size: 0.9em;"></div>
+    </div>
+    
     <div class="description">
         <p><strong>💰 Pay with your MULTIPASS</strong></p>
         <p>MULTIPASS wallets contain ẐEN (stored in ~/.zen/game/nostr/)</p>
@@ -400,7 +414,15 @@
     </div>
 
     <script>
+    // Global variables for NOSTR authentication
+    let userPubkey = null;
+    let userPrivkey = null;
+    let isNostrConnected = false;
+
     $(document).ready(function() {
+        // Initialize NOSTR authentication
+        initNostrAuth();
+        
         // Toggle numeric keypad visibility
         $('#preview').click(function() {
             $('#numeric-keypad').toggle();
@@ -460,8 +482,14 @@
         });
 
         // Form submission handler
-        $('#qr-form').submit(function(e) {
+        $('#qr-form').submit(async function(e) {
             e.preventDefault();
+            
+            // Check NOSTR authentication
+            if (!isNostrConnected || !userPubkey) {
+                alert('⚠️ Please connect to NOSTR first to enable payments');
+                return;
+            }
             
             // Validate amount
             const zenAmount = parseFloat($('#zen').val());
@@ -480,31 +508,38 @@
             $('#loadingSpinner').show();
             $('#submitButton').prop('disabled', true).text('⏳ Processing...');
 
-            const serverUrl = '/zen_send';
-            $.ajax({
-                url: serverUrl,
-                type: 'POST',
-                data: $(this).serialize(),
-                success: function(response) {
+            // Use common.js payment function
+            const amount = parseFloat($('#zen').val());
+            const source = $('#g1source').val();
+            
+            try {
+                const paymentResult = await multipassPayment.sendPayment(amount, destination, source, userPubkey);
+                
+                if (paymentResult.success) {
                     window.parent.postMessage('eraseParametre', '*');
                     $('#loadingSpinner').hide();
                     $('#submitButton').prop('disabled', false).text('💸 Send Payment');
                     
                     // Display result
-                    $('#result-iframe').attr('srcdoc', response);
+                    $('#result-iframe').attr('srcdoc', paymentResult.result);
                     $('.result-container').css('display', 'flex');
                     
                     // Reset form on success
                     $('#zen').val('');
                     $('#g1dest').val('');
                     $('#scan-result').html('📸 Scan destination QR Code');
-                },
-                error: function(xhr, status, error) {
-                    $('#loadingSpinner').hide();
-                    $('#submitButton').prop('disabled', false).text('💸 Send Payment');
-                    alert('❌ Payment failed: ' + (xhr.responseJSON?.error || error || 'Unknown error'));
+                    
+                    console.log('✅ Payment successful:', paymentResult.transactionId);
+                } else {
+                    throw new Error(paymentResult.error || 'Payment failed');
                 }
-            });
+                
+            } catch (error) {
+                $('#loadingSpinner').hide();
+                $('#submitButton').prop('disabled', false).text('💸 Send Payment');
+                alert('❌ Payment failed: ' + error.message);
+                console.error('Payment error:', error);
+            }
         });
 
         // Result controls
@@ -519,6 +554,60 @@
             newTab.document.close();
         });
     });
+
+    // NOSTR Authentication Functions using common.js
+    let multipassPayment = null;
+
+    async function initNostrAuth() {
+        // Initialize MULTIPASS payment with common.js functions
+        const userEmail = '_EMAIL_'; // From template substitution
+        multipassPayment = initMultipassPayment(userEmail, {
+            enableNostr: true,
+            autoConnect: false,
+            requireAuth: true
+        });
+        
+        // Check if NOSTR extension is available
+        if (typeof window.nostr !== 'undefined') {
+            $('#nostr-connect-btn').click(connectToNostr);
+        } else {
+            $('#nostr-status').html('<span style="color: #ff6b6b;">⚠️ NOSTR extension not found. Please install a NOSTR extension.</span>');
+        }
+    }
+
+    async function connectToNostr() {
+        const statusDiv = $('#nostr-status');
+        const connectBtn = $('#nostr-connect-btn');
+        
+        try {
+            connectBtn.prop('disabled', true).text('🔄 Connecting...');
+            statusDiv.html('<span style="color: #4fc3f7;">🔄 Connecting to NOSTR...</span>');
+            
+            // Use common.js payment authentication
+            const authResult = await multipassPayment.connectNostr();
+            
+            if (authResult.success) {
+                userPubkey = authResult.pubkey;
+                isNostrConnected = true;
+                
+                statusDiv.html(`<span style="color: #4ade80;">✅ Connected as ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}</span>`);
+                connectBtn.text('✅ Connected').css('background', 'linear-gradient(135deg, #4ade80, #22c55e)');
+                
+                // Hide auth section and show payment form
+                $('#nostr-auth-section').hide();
+                $('.scanner-keypad-container').show();
+                
+                console.log('✅ NOSTR payment authentication successful');
+            } else {
+                throw new Error(authResult.error || 'Authentication failed');
+            }
+            
+        } catch (error) {
+            console.error('NOSTR connection error:', error);
+            statusDiv.html(`<span style="color: #ff6b6b;">❌ Connection failed: ${error.message}</span>`);
+            connectBtn.prop('disabled', false).text('🔌 Connect to NOSTR');
+        }
+    }
     </script>
 </body>
 </html>
