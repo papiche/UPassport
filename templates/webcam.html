@@ -337,6 +337,11 @@
         <!-- Webcam Recording Section -->
         <div class="webcam-section" id="webcam-section" style="display: none;">
             <h3 style="margin: 0 0 15px 0;">🎥 Webcam Recording</h3>
+            <div id="user-info" style="background: rgba(74, 222, 128, 0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid rgba(74, 222, 128, 0.2);">
+                <div style="color: #4ade80; font-size: 14px;">
+                    <strong>👤 Connected as:</strong> <span id="user-display">Loading...</span>
+                </div>
+            </div>
 
     <video id="video-preview" autoplay muted></video>
 
@@ -349,10 +354,8 @@
                     <div id="duration-display">16 seconds</div>
                 </div>
                 
-                <div class="form-group">
-                    <label for="player">📧 Your Email:</label>
-                    <input type="email" id="player" name="player" required placeholder="your@email.com">
-                </div>
+                <!-- Email will be retrieved from NOSTR authentication -->
+                <input type="hidden" id="player" name="player" value="">
                 
                 <button id="start-recording" class="btn-primary">🎬 Start Recording</button>
                 <button id="stop-recording" class="btn-danger hidden">⏹️ Stop Recording</button>
@@ -370,6 +373,7 @@
         let currentStream = null;
         let authMode = 'extension';
         let userPrivkey = null;
+        let userEmail = null; // Will be retrieved from NOSTR metadata
         
         // Auto-connect nsec (injected by upassport.sh when scanning SSSS with code 1111)
         const AUTO_CONNECT_NSEC = null;
@@ -506,7 +510,12 @@
                 const title = formData.get('title');
                 const description = formData.get('description');
                 const publishNostr = formData.get('publish_nostr') === 'on';
-                const playerEmail = document.getElementById('player').value;
+                const playerEmail = userEmail || document.getElementById('player').value;
+                
+                if (!playerEmail) {
+                    alert('❌ No user email available. Please reconnect to NOSTR.');
+                    return;
+                }
                 
                 await uploadWebcamVideo(videoBlob, playerEmail, title, description, publishNostr);
             });
@@ -669,8 +678,17 @@
                 // Send NIP-42 auth using common.js functions
                 await sendNIP42Auth(DEFAULT_RELAYS[0]);
                 
+                // Fetch user metadata to get email
+                await fetchUserEmail();
+                
+                // Update user display
+                const userDisplay = document.getElementById('user-display');
+                if (userDisplay) {
+                    userDisplay.textContent = userEmail || `${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}`;
+                }
+                
                 // Show success
-                statusDiv.innerHTML = `<div class="status-message status-success">✅ Connected as ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}</div>`;
+                statusDiv.innerHTML = `<div class="status-message status-success">✅ Connected as ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}${userEmail ? ` (${userEmail})` : ''}</div>`;
                 document.getElementById('webcam-section').style.display = 'block';
                 connectBtn.textContent = '✅ Connected';
                 connectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
@@ -683,6 +701,138 @@
                 statusDiv.innerHTML = `<div class="status-message status-error">❌ ${error.message}</div>`;
                 connectBtn.disabled = false;
             }
+        }
+
+        // Fetch user email from NOSTR DID document with fallback strategy
+        async function fetchUserEmail() {
+            if (!userPubkey) {
+                console.warn('No user pubkey available for email fetch');
+                return;
+            }
+            
+            try {
+                console.log('📧 Fetching user email using DID document strategy...');
+                
+                // Use the new fallback strategy from common.js
+                userEmail = await fetchUserEmailWithFallback(userPubkey);
+                
+                console.log('✅ User email retrieved:', userEmail);
+                
+                // If no email found (using pubkey as fallback), offer to create DID document
+                if (userEmail === userPubkey) {
+                    console.log('⚠️ No email found in DID or metadata, offering to create DID document');
+                    showDIDCreationPrompt();
+                }
+                
+                // Update the hidden email field
+                document.getElementById('player').value = userEmail;
+                
+            } catch (error) {
+                console.error('❌ Error fetching user email:', error);
+                // Fallback to pubkey
+                userEmail = userPubkey;
+                document.getElementById('player').value = userPubkey;
+            }
+        }
+
+        // Show prompt to create DID document if no email found
+        function showDIDCreationPrompt() {
+            const promptHtml = `
+                <div id="did-creation-prompt" style="background: rgba(99, 102, 241, 0.1); padding: 15px; border-radius: 8px; margin: 10px 0; border: 1px solid rgba(99, 102, 241, 0.2);">
+                    <h4 style="color: #6366f1; margin: 0 0 10px 0;">📝 Create DID Document</h4>
+                    <p style="margin: 0 0 10px 0; color: #64748b; font-size: 14px;">
+                        No email found in your NOSTR profile. Create a DID document to store your email?
+                    </p>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="email" id="did-email-input" placeholder="your@email.com" 
+                               style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <button onclick="createDIDDocument()" class="btn btn-primary" style="padding: 8px 16px;">
+                            Create DID
+                        </button>
+                        <button onclick="skipDIDCreation()" class="btn btn-secondary" style="padding: 8px 16px;">
+                            Skip
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            const userInfo = document.getElementById('user-info');
+            if (userInfo) {
+                userInfo.insertAdjacentHTML('afterend', promptHtml);
+            }
+        }
+
+        // Create DID document with user's email
+        async function createDIDDocument() {
+            const emailInput = document.getElementById('did-email-input');
+            const email = emailInput.value.trim();
+            
+            if (!email) {
+                alert('Please enter your email address');
+                return;
+            }
+            
+            if (!email.includes('@')) {
+                alert('Please enter a valid email address');
+                return;
+            }
+            
+            try {
+                console.log('📝 Creating DID document with email:', email);
+                
+                // Create DID document using common.js function
+                const didResult = await createBasicDIDDocument(userPubkey, email);
+                
+                if (didResult) {
+                    console.log('✅ DID document created successfully');
+                    
+                    // Update user email
+                    userEmail = email;
+                    document.getElementById('player').value = email;
+                    
+                    // Update user display
+                    const userDisplay = document.getElementById('user-display');
+                    if (userDisplay) {
+                        userDisplay.textContent = email;
+                    }
+                    
+                    // Remove the prompt
+                    const prompt = document.getElementById('did-creation-prompt');
+                    if (prompt) {
+                        prompt.remove();
+                    }
+                    
+                    // Show success message
+                    const successHtml = `
+                        <div style="background: rgba(74, 222, 128, 0.1); padding: 10px; border-radius: 8px; margin: 10px 0; border: 1px solid rgba(74, 222, 128, 0.2);">
+                            <p style="margin: 0; color: #4ade80; font-size: 14px;">
+                                ✅ DID document created with email: ${email}
+                            </p>
+                        </div>
+                    `;
+                    
+                    const userInfo = document.getElementById('user-info');
+                    if (userInfo) {
+                        userInfo.insertAdjacentHTML('afterend', successHtml);
+                    }
+                    
+                } else {
+                    throw new Error('Failed to create DID document');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error creating DID document:', error);
+                alert(`Error creating DID document: ${error.message}`);
+            }
+        }
+
+        // Skip DID creation
+        function skipDIDCreation() {
+            const prompt = document.getElementById('did-creation-prompt');
+            if (prompt) {
+                prompt.remove();
+            }
+            console.log('⚠️ DID creation skipped, using pubkey as fallback');
         }
 
         // Open NOSTR Profile
