@@ -2045,12 +2045,15 @@ async def youtube_route(
     date_to: Optional[str] = None,
     duration_min: Optional[int] = None,
     duration_max: Optional[int] = None,
-    sort_by: Optional[str] = None
+    sort_by: Optional[str] = None,
+    lat: Optional[float] = None,
+    lon: Optional[float] = None,
+    radius: Optional[float] = None
 ):
     """YouTube video channels and search from NOSTR events
     
     Args:
-        html: If present, return HTML page instead of JSON
+        html: If present Pinpoint HTML page instead of JSON
         channel: Filter by specific channel name
         search: Search in video titles and descriptions
         keyword: Search by specific keywords (comma-separated)
@@ -2059,6 +2062,9 @@ async def youtube_route(
         duration_min: Minimum duration in seconds
         duration_max: Maximum duration in seconds
         sort_by: Sort by 'date', 'duration', 'title', 'channel'
+        lat: Latitude for geographic filtering (decimal degrees)
+        lon: Longitude for geographic filtering (decimal degrees)
+        radius: Radius in kilometers for geographic filtering (default: 2.0km if lat/lon provided)
     """
     try:
         # Import the video channel functions
@@ -2152,6 +2158,37 @@ async def youtube_route(
                 if duration_max is not None and video_duration > duration_max:
                     continue
             
+            # Filter by geographic location if specified
+            if lat is not None and lon is not None:
+                video_lat = video.get('latitude')
+                video_lon = video.get('longitude')
+                
+                # Skip videos without location data (but include videos with 0.00, 0.00 if explicitly at that location)
+                if video_lat is None or video_lon is None:
+                    continue
+                
+                # Calculate distance using Haversine formula
+                from math import radians, sin, cos, sqrt, atan2
+                
+                def haversine_distance(lat1, lon1, lat2, lon2):
+                    """Calculate distance between two points in kilometers using Haversine formula"""
+                    R = 6371  # Earth radius in kilometers
+                    lat1_rad = radians(lat1)
+                    lat2_rad = radians(lat2)
+                    delta_lat = radians(lat2 - lat1)
+                    delta_lon = radians(lon2 - lon1)
+                    
+                    a = sin(delta_lat/2)**2 + cos(lat1_rad) * cos(lat2_rad) * sin(delta_lon/2)**2
+                    c = 2 * atan2(sqrt(a), sqrt(1-a))
+                    
+                    return R * c
+                
+                distance = haversine_distance(lat, lon, video_lat, video_lon)
+                filter_radius = radius if radius is not None else 2.0  # Default 2km radius
+                
+                if distance > filter_radius:
+                    continue
+            
             filtered_videos.append(video)
         
         video_messages = filtered_videos
@@ -2194,7 +2231,10 @@ async def youtube_route(
                 "date_to": date_to,
                 "duration_min": duration_min,
                 "duration_max": duration_max,
-                "sort_by": sort_by
+                "sort_by": sort_by,
+                "lat": lat,
+                "lon": lon,
+                "radius": radius if radius is not None else 2.0 if lat is not None and lon is not None else None
             },
             "timestamp": datetime.now().isoformat()
         }
@@ -2477,7 +2517,7 @@ async def rec_form(request: Request):
 async def process_webcam_video(
     request: Request,
     player: str = Form(...),
-    video_blob: str = Form(default=""),
+    ipfs_cid: str = Form(...),  # IPFS CID from /api/fileupload (required)
     title: str = Form(default=""),
     description: str = Form(default=""),
     npub: str = Form(default=""),
@@ -2486,7 +2526,10 @@ async def process_webcam_video(
     longitude: str = Form(default="")
 ):
     """
-    Process webcam video and optionally publish to NOSTR as NIP-71 video event
+    Process webcam video and publish to NOSTR as NIP-71 video event
+    
+    Video must be uploaded via /api/fileupload first to obtain the IPFS CID.
+    This route only handles NOSTR event creation and publishing.
     """
     global recording_process, current_player
 
@@ -2494,136 +2537,103 @@ async def process_webcam_video(
         return templates.TemplateResponse("webcam.html", {
             "request": request, 
             "error": "No player provided. What is your email?", 
-            "recording": False
+            "recording": False,
+            "myIPFS": get_myipfs_gateway()
         })
 
     if not re.match(r"[^@]+@[^@]+\.[^@]+", player):
         return templates.TemplateResponse("webcam.html", {
             "request": request, 
             "error": "Invalid email address provided.", 
-            "recording": False
+            "recording": False,
+            "myIPFS": get_myipfs_gateway()
         })
 
-    if not video_blob:
+    # Validate IPFS CID is provided
+    if not ipfs_cid or not ipfs_cid.strip():
         return templates.TemplateResponse("webcam.html", {
             "request": request, 
-            "error": "No video data provided.", 
-            "recording": False
+            "error": "No IPFS CID provided. Video must be uploaded via /api/fileupload first.", 
+            "recording": False,
+            "myIPFS": get_myipfs_gateway()
         })
 
     try:
-        # Process video blob
-        if ',' in video_blob:
-            _, video_data_base64 = video_blob.split(',', 1)
-            video_data = base64.b64decode(video_data_base64)
-        else:
-            video_data = base64.b64decode(video_blob)
-
-        # Generate filename with timestamp
-        timestamp = int(time.time())
-        filename = f"webcam_{player}_{timestamp}.webm"
-        file_location = f"tmp/{filename}"
+        logging.info(f"Processing video with IPFS CID: {ipfs_cid}")
         
-        # Ensure tmp directory exists
-        os.makedirs("tmp", exist_ok=True)
+        ipfs_url = None
+        filename = None
+        file_size = 0
+        video_dimensions = "640x480"
+        duration = 0
+        file_location = None
         
-        # Save video file
-        with open(file_location, 'wb') as f:
-            f.write(video_data)
-
-        # Get file size
-        file_size = len(video_data)
+        # Extract filename and metadata from user directory structure
+        hex_pubkey = npub_to_hex(npub) if npub else None
+        if hex_pubkey:
+            try:
+                user_dir = find_user_directory_by_hex(hex_pubkey)
+                user_drive_path = user_dir / "APP" / "uDRIVE" / "Videos"
+                
+                # Find the most recent video file
+                if user_drive_path.exists():
+                    video_files = sorted(user_drive_path.glob("*.*"), key=lambda p: p.stat().st_mtime, reverse=True)
+                    if video_files:
+                        filename = video_files[0].name
+                        file_size = video_files[0].stat().st_size
+                        file_location = str(video_files[0])
+                        
+                        # Extract metadata using ffprobe
+                        try:
+                            dimensions_output = subprocess.run([
+                                'ffprobe', '-v', 'quiet', '-select_streams', 'v:0', 
+                                '-show_entries', 'stream=width,height', 
+                                '-of', 'csv=s=x:p=0', file_location
+                            ], capture_output=True, text=True, timeout=10)
+                            
+                            if dimensions_output.returncode == 0 and dimensions_output.stdout.strip():
+                                video_dimensions = dimensions_output.stdout.strip()
+                            
+                            duration_output = subprocess.run([
+                                'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration', 
+                                '-of', 'csv=p=0', file_location
+                            ], capture_output=True, text=True, timeout=10)
+                            
+                            if duration_output.returncode == 0 and duration_output.stdout.strip():
+                                duration = int(float(duration_output.stdout.strip()))
+                        except Exception as e:
+                            logging.warning(f"Could not extract video metadata: {e}")
+            except Exception as e:
+                logging.warning(f"Could not find user directory: {e}")
+        
+        if not filename:
+            filename = f"video_{int(time.time())}.webm"
+        
+        ipfs_url = f"/ipfs/{ipfs_cid}/Videos/{filename}"
         
         # Generate title if not provided
         if not title:
             title = f"Webcam recording {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         
-        # Process video with ffprobe to get dimensions and duration
-        video_dimensions = "640x480"  # Default for webcam
-        duration = 0
-        
-        try:
-            # Get video dimensions using ffprobe
-            dimensions_output = subprocess.run([
-                'ffprobe', '-v', 'quiet', '-select_streams', 'v:0', 
-                '-show_entries', 'stream=width,height', 
-                '-of', 'csv=s=x:p=0', file_location
-            ], capture_output=True, text=True, timeout=10)
-            
-            if dimensions_output.returncode == 0 and dimensions_output.stdout.strip():
-                video_dimensions = dimensions_output.stdout.strip()
-            
-            # Get duration
-            duration_output = subprocess.run([
-                'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration', 
-                '-of', 'csv=p=0', file_location
-            ], capture_output=True, text=True, timeout=10)
-            
-            if duration_output.returncode == 0 and duration_output.stdout.strip():
-                duration = int(float(duration_output.stdout.strip()))
-                
-        except Exception as e:
-            logging.warning(f"Could not extract video metadata: {e}")
-
-        # Upload to IPFS
-        ipfs_result = subprocess.run(['ipfs', 'add', '-wq', file_location], 
-                                   capture_output=True, text=True, timeout=60)
-        
-        if ipfs_result.returncode != 0:
-            return templates.TemplateResponse("webcam.html", {
-                "request": request, 
-                "error": f"Failed to upload to IPFS: {ipfs_result.stderr}", 
-                "recording": False
-            })
-
-        ipfs_hash = ipfs_result.stdout.strip().split('\n')[-1]
-        ipfs_url = f"/ipfs/{ipfs_hash}/{filename}"
-        
         # Generate thumbnail if possible
         thumbnail_ipfs = ""
-        try:
-            thumbnail_path = f"tmp/thumb_{timestamp}.jpg"
-            thumbnail_result = subprocess.run([
-                'ffmpeg', '-i', file_location, '-ss', '00:00:01', 
-                '-vframes', '1', '-y', thumbnail_path
-            ], capture_output=True, text=True, timeout=30)
-            
-            if thumbnail_result.returncode == 0 and os.path.exists(thumbnail_path):
-                thumb_result = subprocess.run(['ipfs', 'add', '-q', thumbnail_path], 
-                                            capture_output=True, text=True, timeout=30)
-                if thumb_result.returncode == 0:
-                    thumbnail_ipfs = thumb_result.stdout.strip()
-                    os.remove(thumbnail_path)  # Clean up
-        except Exception as e:
-            logging.warning(f"Could not generate thumbnail: {e}")
-
-        # Create metadata JSON
-        metadata = {
-            "title": title,
-            "description": description,
-            "author": player,
-            "duration": duration,
-            "dimensions": video_dimensions,
-            "file_size": file_size,
-            "created_at": datetime.now().isoformat(),
-            "type": "webcam_recording"
-        }
-        
-        metadata_file = f"tmp/metadata_{timestamp}.json"
-        with open(metadata_file, 'w') as f:
-            json.dump(metadata, f, indent=2)
-        
-        # Upload metadata to IPFS
-        metadata_result = subprocess.run(['ipfs', 'add', '-q', metadata_file], 
-                                        capture_output=True, text=True, timeout=30)
-        metadata_ipfs = ""
-        if metadata_result.returncode == 0:
-            metadata_ipfs = metadata_result.stdout.strip()
-        
-        # Clean up temporary files
-        os.remove(file_location)
-        if os.path.exists(metadata_file):
-            os.remove(metadata_file)
+        if file_location and os.path.exists(file_location):
+            try:
+                timestamp = int(time.time())
+                thumbnail_path = f"tmp/thumb_{timestamp}.jpg"
+                thumbnail_result = subprocess.run([
+                    'ffmpeg', '-i', file_location, '-ss', '00:00:01', 
+                    '-vframes', '1', '-y', thumbnail_path
+                ], capture_output=True, text=True, timeout=30)
+                
+                if thumbnail_result.returncode == 0 and os.path.exists(thumbnail_path):
+                    thumb_result = subprocess.run(['ipfs', 'add', '-q', thumbnail_path], 
+                                                capture_output=True, text=True, timeout=30)
+                    if thumb_result.returncode == 0:
+                        thumbnail_ipfs = thumb_result.stdout.strip()
+                        os.remove(thumbnail_path)  # Clean up
+            except Exception as e:
+                logging.warning(f"Could not generate thumbnail: {e}")
 
         # Publish to NOSTR if requested
         nostr_event_id = None
@@ -2675,16 +2685,24 @@ async def process_webcam_video(
                         channel_name = player.replace('@', '_').replace('.', '_')
                         tags.append(["t", f"Channel-{channel_name}"])
                         
-                        # Add geographic coordinates if provided (UMAP anchoring)
-                        if latitude and longitude:
-                            try:
-                                lat = float(latitude)
-                                lon = float(longitude)
-                                tags.append(["g", f"{lat},{lon}"])  # Geohash tag for UMAP
-                                tags.append(["location", f"{lat:.2f},{lon:.2f}"])  # Human-readable location
-                                print(f"📍 Added location to video: {lat:.2f}, {lon:.2f}")
-                            except ValueError:
-                                print("⚠️ Invalid coordinates provided")
+                        # Always add geographic coordinates (UMAP anchoring) - default to 0.00, 0.00 if not provided
+                        try:
+                            lat = float(latitude) if latitude else 0.00
+                            lon = float(longitude) if longitude else 0.00
+                            tags.append(["g", f"{lat},{lon}"])  # Geohash tag for UMAP (compatible with create_video_channel.py)
+                            tags.append(["location", f"{lat:.2f},{lon:.2f}"])  # Human-readable location
+                            tags.append(["latitude", str(lat)])  # Separate latitude tag for easier filtering
+                            tags.append(["longitude", str(lon)])  # Separate longitude tag for easier filtering
+                            logging.info(f"📍 Added location to video: {lat:.2f}, {lon:.2f}")
+                        except (ValueError, TypeError):
+                            # Fallback to 0.00, 0.00 if invalid
+                            lat = 0.00
+                            lon = 0.00
+                            tags.append(["g", f"{lat},{lon}"])
+                            tags.append(["location", f"{lat:.2f},{lon:.2f}"])
+                            tags.append(["latitude", str(lat)])
+                            tags.append(["longitude", str(lon)])
+                            logging.warning("⚠️ Invalid coordinates provided, using default 0.00, 0.00")
                         
                         # Add topic tags from title (compatible with create_video_channel.py)
                         topic_keywords = title.lower().replace('webcam', '').replace('recording', '').strip()
@@ -2695,9 +2713,6 @@ async def process_webcam_video(
                         
                         if thumbnail_ipfs:
                             tags.append(["r", f"/ipfs/{thumbnail_ipfs}", "Thumbnail"])
-                        
-                        if metadata_ipfs:
-                            tags.append(["r", f"/ipfs/{metadata_ipfs}", "Metadata"])
                         
                         # Add reference to original webcam URL
                         tags.append(["r", f"webcam://{player}", "Webcam"])

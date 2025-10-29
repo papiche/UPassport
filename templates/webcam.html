@@ -15,60 +15,89 @@
     <script src="{{ myIPFS }}/ipns/copylaradio.com/leaflet.js"></script>
     
     <style>
+        * {
+            box-sizing: border-box;
+        }
+        
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             color: #e8e8e8;
             min-height: 100vh;
             margin: 0;
-            padding: 20px;
+            padding: 0;
         }
         
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.05);
+        /* Compact Header */
+        .header {
+            background: rgba(0, 0, 0, 0.3);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 30px;
-            border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
         
-        h1 {
+        .header h1 {
             color: #4ade80;
-            text-align: center;
-            margin-bottom: 10px;
-            font-size: 2.5em;
+            margin: 0;
+            font-size: 1.4em;
             font-weight: 700;
             text-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
         }
         
-        .subtitle {
-            text-align: center;
+        /* Compact NOSTR Auth in Header */
+        .nostr-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .nostr-header .auth-status {
+            font-size: 0.8em;
             color: #94a3b8;
-            font-size: 1.1em;
-            margin-bottom: 30px;
-            font-weight: 300;
+            padding: 4px 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
         }
         
-        /* Nostr Authentication Section */
-        .nostr-section {
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 20px;
+        .nostr-header button {
+            padding: 6px 12px;
+            font-size: 0.8em;
+            margin: 0;
+            border-radius: 6px;
         }
         
-        /* Webcam Section */
+        /* Main Container - Centered */
+        .main-container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        
+        /* Webcam Section - Centered */
         .webcam-section {
-            background: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 20px;
+            padding: 40px;
+            border-radius: 20px;
             text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .webcam-title {
+            color: #4ade80;
+            font-size: 2em;
+            margin-bottom: 30px;
+            font-weight: 600;
         }
         
         #video-preview {
@@ -80,32 +109,34 @@
             margin: 20px auto;
             box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
             background: #000;
+            object-fit: cover;
         }
         
         #timer {
-            font-size: 3em;
+            font-size: 4em;
             margin: 20px 0;
             color: #4ade80;
-            text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+            text-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+            font-weight: bold;
         }
         
         .controls {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 15px;
-            margin: 20px 0;
+            gap: 20px;
+            margin: 30px 0;
         }
         
         .duration-control {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 15px;
             margin: 10px 0;
         }
         
         input[type="range"] {
-            width: 200px;
+            width: 250px;
             height: 8px;
             border-radius: 5px;
             background: rgba(255, 255, 255, 0.2);
@@ -126,10 +157,11 @@
             font-size: 1.2em;
             color: #4ade80;
             font-weight: 600;
+            min-width: 120px;
         }
         
         button {
-            padding: 12px 24px;
+            padding: 14px 28px;
             border: none;
             border-radius: 8px;
             font-size: 16px;
@@ -184,15 +216,92 @@
             display: none;
         }
         
-        /* Form Styles */
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            overflow-y: auto;
+        }
+        
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 800px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .modal-header h2 {
+            color: #4ade80;
+            margin: 0;
+            font-size: 1.8em;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 2em;
+            cursor: pointer;
+            padding: 0;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        .close-modal:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ef4444;
+        }
+        
+        .modal-video-preview {
+            width: 100%;
+            max-width: 640px;
+            border-radius: 15px;
+            margin: 20px auto;
+            display: block;
+        }
+        
         .form-group {
-            margin: 15px 0;
+            margin: 20px 0;
         }
         
         .form-group label {
             display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
+            margin-bottom: 8px;
+            font-weight: 600;
             color: #e2e8f0;
         }
         
@@ -203,9 +312,8 @@
             border-radius: 8px;
             font-size: 16px;
             background: rgba(255, 255, 255, 0.05);
-            color: #e2e8f0;
+            color: #e2e8e8;
             transition: all 0.3s ease;
-            box-sizing: border-box;
         }
         
         .form-group input:focus, .form-group textarea:focus {
@@ -214,35 +322,84 @@
             box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
         }
         
-        /* Status Messages */
-        .status-message {
-            padding: 12px;
-            border-radius: 8px;
-            margin: 10px 0;
-            font-size: 14px;
-        }
-        
-        .status-success {
+        .location-section {
             background: rgba(74, 222, 128, 0.1);
             border: 1px solid rgba(74, 222, 128, 0.2);
-            color: #4ade80;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
         }
         
-        .status-error {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.2);
-            color: #ef4444;
+        .location-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 15px;
         }
         
-        .status-info {
-            background: rgba(99, 102, 241, 0.1);
-            border: 1px solid rgba(99, 102, 241, 0.2);
-            color: #6366f1;
+        .coord-input {
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
         
-        /* Auth Mode Styles */
+        .coord-input label {
+            font-weight: bold;
+            color: #e2e8f0;
+            margin: 0;
+            min-width: 35px;
+            font-size: 0.9em;
+        }
+        
+        .coord-input input {
+            width: 100px;
+            padding: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            font-size: 0.9em;
+        }
+        
+        .modal-map {
+            height: 300px;
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-top: 15px;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Expanded NOSTR Section (when clicking expand) */
+        .nostr-section {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            min-width: 300px;
+            z-index: 200;
+            margin-top: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .nostr-section.expanded {
+            display: block;
+        }
+        
         .auth-mode {
-            margin: 15px 0;
+            margin: 10px 0;
         }
         
         .kind-options {
@@ -254,9 +411,9 @@
         .kind-option {
             display: flex;
             align-items: center;
-            gap: 5px;
-        }
-        
+                gap: 5px;
+            }
+            
         .kind-option input[type="radio"] {
             width: auto;
             margin: 0;
@@ -271,309 +428,169 @@
             display: block;
         }
         
-        /* Webcam Container */
-        #webcam-container {
-            margin: 20px 0;
-        }
-        
-        /* Location and Map Styles */
-        .location-info {
-            background: rgba(74, 222, 128, 0.1);
-            border: 1px solid rgba(74, 222, 128, 0.2);
-            padding: 12px;
-            border-radius: 8px;
-            margin: 10px 0;
-            font-size: 14px;
-            line-height: 1.6;
-        }
-        
-        .location-info strong {
-            display: inline-block;
-            margin-right: 5px;
-        }
-        
-        /* Map Accordion */
-        .map-accordion {
-            margin-top: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.05);
-            overflow: hidden;
-        }
-        
-        .map-accordion-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .map-accordion-header:hover {
-            background: rgba(255, 255, 255, 0.15);
-            transform: translateY(-1px);
-        }
-        
-        .map-toggle {
-            font-size: 16px;
-            transition: transform 0.3s ease;
-        }
-        
-        .map-toggle.expanded {
-            transform: rotate(180deg);
-        }
-        
-        .map-accordion-content {
-            padding: 15px;
-            max-height: 500px;
-            overflow: hidden;
-            transition: max-height 0.3s ease, padding 0.3s ease;
-        }
-        
-        .map-accordion-content.closed {
-            max-height: 0;
-            padding: 0 15px;
-        }
-        
-        .map-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-bottom: 10px;
-            flex-wrap: wrap;
-        }
-        
-        .coord-input {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .coord-input label {
-            font-weight: bold;
-            color: #e2e8f0;
-            margin: 0;
-            min-width: 30px;
-            font-size: 0.8em;
-        }
-        
-        .coord-input input {
-            width: 80px;
-            padding: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 6px;
-            font-size: 0.85em;
-        }
-        
-        .map-button {
-            padding: 8px 16px;
-            background: linear-gradient(135deg, #4ade80, #22c55e);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.8em;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            width: auto;
-        }
-        
-        .map-button:hover {
-            background: linear-gradient(135deg, #22c55e, #16a34a);
-            transform: translateY(-1px);
-            box-shadow: 0 2px 8px rgba(74, 222, 128, 0.3);
-        }
-        
-        .map-button.secondary {
-            background: linear-gradient(135deg, #6366f1, #4f46e5);
-        }
-        
-        .map-button.secondary:hover {
-            background: linear-gradient(135deg, #4f46e5, #4338ca);
-            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
-        }
-        
-        #mini-map {
-            height: 400px;
-            width: 100%;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-            background: #f0f0f0;
-            min-height: 400px;
-        }
-        
-        /* Responsive Design */
+        /* Responsive */
         @media screen and (max-width: 768px) {
-            .container {
-                padding: 15px;
-                margin: 10px;
+            .header {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 1.2em;
+            }
+            
+            .webcam-section {
+                padding: 20px;
             }
             
             #video-preview {
                 height: 240px;
             }
             
-            .controls {
-                flex-direction: column;
-            }
-            
-            .duration-control {
-                flex-direction: column;
-                gap: 5px;
-            }
-            
-            input[type="range"] {
-                width: 100%;
-            }
-        }
-        
-        /* Mobile-specific optimizations */
-        @media screen and (max-width: 480px) {
-            .container {
-                padding: 10px;
-                margin: 5px;
-            }
-            
-            h1 {
-                font-size: 1.8em;
-            }
-            
-            #video-preview {
-                height: 200px;
-                border-radius: 10px;
-            }
-            
-            button {
-                padding: 15px 20px;
-                font-size: 18px;
-                min-height: 50px;
-            }
-            
-            .form-group input, .form-group textarea {
-                font-size: 16px; /* Prevents zoom on iOS */
-                padding: 12px;
-            }
-        }
-        
-        /* Orientation handling */
-        @media screen and (orientation: landscape) and (max-height: 500px) {
-            .container {
-                padding: 10px;
-            }
-            
-            #video-preview {
-                height: 180px;
-            }
-            
-            h1 {
-                font-size: 1.5em;
-            margin-bottom: 10px;
+            .modal-content {
+                padding: 20px;
+                margin: 10px;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎥 Webcam Recorder with NOSTR Publishing</h1>
-        <p class="subtitle">Record and publish videos to NOSTR with NIP-71 support</p>
-        
-        <!-- Nostr Authentication Section -->
-        <div class="nostr-section">
-            <h3 style="margin: 0 0 15px 0;">🔐 NOSTR Authentication</h3>
+    <!-- Compact Header with NOSTR Auth -->
+    <div class="header">
+        <h1>🎥 Webcam Recorder</h1>
+        <div class="nostr-header" style="position: relative;">
+            <div class="auth-status" id="header-auth-status">Not connected</div>
+            <button id="header-connect-btn" class="btn-primary" onclick="toggleNostrExpanded()" style="padding: 6px 12px; font-size: 0.8em;">🔌 Connect</button>
+            <button id="header-profile-btn" onclick="openNostrProfile()" class="btn-secondary" style="display: none; padding: 6px 12px; font-size: 0.8em;">👤 Profile</button>
             
-            <!-- Auth Mode Selection -->
+            <!-- Expanded NOSTR Section -->
+            <div class="nostr-section" id="nostr-expanded">
+                <h3 style="margin: 0 0 10px 0; font-size: 1em;">🔐 NOSTR Authentication</h3>
+                
             <div class="auth-mode">
-                <label>Authentication Method:</label>
+                    <label style="font-size: 0.9em;">Method:</label>
                 <div class="kind-options">
                     <div class="kind-option">
                         <input type="radio" id="auth-extension" name="auth-mode" value="extension" checked>
-                        <label for="auth-extension">NOSTR Extension</label>
+                            <label for="auth-extension" style="font-size: 0.85em; margin: 0;">Extension</label>
                     </div>
                     <div class="kind-option">
                         <input type="radio" id="auth-nsec" name="auth-mode" value="nsec">
-                        <label for="auth-nsec">Private Key (nsec)</label>
+                            <label for="auth-nsec" style="font-size: 0.85em; margin: 0;">nsec</label>
                     </div>
                 </div>
                 
                 <div id="nsec-input-container" class="nsec-input">
-                    <label for="nsec-key">Private Key (nsec...):</label>
-                    <input type="password" id="nsec-key" placeholder="nsec1...">
-                    <small style="color: #94a3b8;">⚠️ Never share your private key!</small>
+                        <input type="password" id="nsec-key" placeholder="nsec1..." style="margin-top: 8px; font-size: 0.85em; padding: 8px;">
+                        <small style="color: #94a3b8; font-size: 0.75em;">⚠️ Never share your private key!</small>
                 </div>
             </div>
             
-            <button id="nostr-connect-btn" onclick="handleNostrConnect()">🔌 Connect to NOSTR</button>
-            <button id="nostr-profile-btn" onclick="openNostrProfile()" style="display: none; margin-left: 10px; background: linear-gradient(135deg, #6366f1, #4f46e5);">👤 My Profile</button>
-            
-            <div id="auth-status" style="margin-top: 10px;"></div>
+                <button id="nostr-connect-btn" onclick="handleNostrConnect()" style="width: 100%; padding: 8px; font-size: 0.9em; margin-top: 10px;">Connect to NOSTR</button>
+                <div id="auth-status" style="margin-top: 10px; font-size: 0.8em;"></div>
+            </div>
+        </div>
         </div>
         
+    <!-- Main Container - Centered -->
+    <div class="main-container">
         <!-- Webcam Recording Section -->
         <div class="webcam-section" id="webcam-section" style="display: none;">
-            <h3 style="margin: 0 0 15px 0;">🎥 Webcam Recording</h3>
-            <div id="user-info" style="background: rgba(74, 222, 128, 0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid rgba(74, 222, 128, 0.2);">
-                <div style="color: #4ade80; font-size: 14px;">
-                    <strong>👤 Connected as:</strong> <span id="user-display">Loading...</span>
-                </div>
-            </div>
+            <h2 class="webcam-title">🎥 Record Video</h2>
 
     <video id="video-preview" autoplay muted></video>
 
     <div id="timer" class="hidden">16</div>
 
             <div class="controls">
+                <!-- Video Upload Option -->
+                <div style="margin-bottom: 20px; padding: 15px; background: rgba(99, 102, 241, 0.1); border-radius: 10px; border: 1px solid rgba(99, 102, 241, 0.2);">
+                    <label for="video-upload" style="display: block; margin-bottom: 10px; color: #e2e8f0; font-weight: 600;">
+                        📁 Upload Video File (.mp4, .webm, .mov)
+                    </label>
+                    <input type="file" id="video-upload" accept="video/*,.mp4,.webm,.mov" 
+                           style="width: 100%; padding: 8px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.05); color: #e2e8f0; cursor: pointer;">
+                    <small style="color: #94a3b8; font-size: 0.85em; display: block; margin-top: 5px;">
+                        Supported formats: MP4, WebM, MOV
+                    </small>
+                </div>
+                
+                <div style="text-align: center; margin: 20px 0; color: #94a3b8; font-size: 0.9em;">— OR —</div>
+                
+                <!-- Recording Option -->
                 <div class="duration-control">
-                    <label for="duration-slider">Recording Duration:</label>
+                    <label for="duration-slider" style="color: #e2e8f0;">Duration:</label>
                     <input type="range" id="duration-slider" min="3" max="60" value="16">
                     <div id="duration-display">16 seconds</div>
                 </div>
                 
-                <!-- Email will be retrieved from NOSTR authentication -->
                 <input type="hidden" id="player" name="player" value="">
-                
-                <!-- Location Display -->
-                <div id="locationInfo" class="location-info" style="display: none;">
-                    <strong>📍 Location:</strong> <span id="locationText"></span>
-                </div>
-                
-                <!-- Map Accordion -->
-                <div id="map-accordion" class="map-accordion">
-                    <div class="map-accordion-header" onclick="toggleMapAccordion()">
-                        <h4 style="margin: 0; font-size: 14px; color: #e2e8f0;">🗺️ Location Map (UMAP)</h4>
-                        <span class="map-toggle">▼</span>
-                    </div>
-                    <div class="map-accordion-content closed">
-                        <div class="map-controls">
-                            <div class="coord-input">
-                                <label>Lat:</label>
-                                <input type="number" id="lat-display" step="0.01" min="-90" max="90" value="48.86">
-                            </div>
-                            <div class="coord-input">
-                                <label>Lon:</label>
-                                <input type="number" id="lon-display" step="0.01" min="-180" max="180" value="2.35">
-                            </div>
-                            <button type="button" class="map-button" id="update-map">Go There</button>
-                            <button type="button" class="map-button secondary" id="get-location">My Location</button>
-                        </div>
-                        <div id="mini-map"></div>
-                        <div style="padding: 8px 0; font-size: 0.8em; color: #7f8c8d; text-align: center;">
-                            💡 Click on the map to adjust your location for UMAP anchoring
-                        </div>
-                    </div>
-                </div>
                 
                 <button id="start-recording" class="btn-primary">🎬 Start Recording</button>
                 <button id="stop-recording" class="btn-danger hidden">⏹️ Stop Recording</button>
             </div>
         </div>
+                </div>
+                
+    <!-- Modal for Video Preview and Publishing -->
+    <div id="video-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📹 Video Preview & Publish</h2>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
+                    </div>
+            
+            <video id="modal-video-preview" class="modal-video-preview" controls></video>
+            
+            <form id="publish-form">
+                <div class="form-group">
+                    <label for="video-title">Title:</label>
+                    <input type="text" id="video-title" name="title" 
+                           placeholder="Enter video title..." required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="video-description">Description (optional):</label>
+                    <textarea id="video-description" name="description" 
+                              placeholder="Describe your video..." rows="3"></textarea>
+                </div>
+                
+                <div class="location-section">
+                    <label style="display: block; margin-bottom: 10px; color: #4ade80;">
+                        📍 Geographic Location (for UMAP anchoring)
+                    </label>
+                    <div class="location-controls">
+                            <div class="coord-input">
+                                <label>Lat:</label>
+                            <input type="number" id="modal-lat" step="0.01" min="-90" max="90" value="0.00">
+                            </div>
+                            <div class="coord-input">
+                                <label>Lon:</label>
+                            <input type="number" id="modal-lon" step="0.01" min="-180" max="180" value="0.00">
+                            </div>
+                        <button type="button" class="btn-secondary" onclick="getCurrentLocationForModal()" style="padding: 8px 16px; font-size: 0.9em;">📍 My Location</button>
+                        </div>
+                    <div id="modal-map" class="modal-map"></div>
+                        </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="publish-nostr" name="publish_nostr" checked>
+                        Publish to NOSTR (requires NOSTR connection)
+                    </label>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary" id="publish-btn">
+                        📡 Publish Video
+                    </button>
+                </div>
+            </form>
+            </div>
+        </div>
         
-        <!-- Webcam Container for enhanced functionality -->
+    <!-- Hidden Container for old code compatibility -->
         <div id="webcam-container"></div>
-    </div>
 
     <script>
         // Global variables
@@ -582,9 +599,10 @@
         let currentStream = null;
         let authMode = 'extension';
         let userPrivkey = null;
-        let userEmail = null; // Will be retrieved from NOSTR metadata
+        let userEmail = null;
+        let userPubkey = null;
         
-        // Mobile detection and optimization
+        // Mobile detection
         let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         let isAndroid = /Android/.test(navigator.userAgent);
@@ -593,10 +611,135 @@
         let currentLocation = null;
         let miniMap = null;
         let miniMarker = null;
+        let modalMap = null;
+        let modalMarker = null;
         let userHasInteractedWithMap = false;
         
         // Auto-connect nsec (injected by upassport.sh when scanning SSSS with code 1111)
         const AUTO_CONNECT_NSEC = null;
+        
+        // Toggle NOSTR expanded section
+        function toggleNostrExpanded() {
+            const section = document.getElementById('nostr-expanded');
+            section.classList.toggle('expanded');
+        }
+        
+        // Close modal
+        function closeModal() {
+            document.getElementById('video-modal').classList.remove('active');
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+        }
+        
+        // Show modal with video
+        function showVideoModal(videoBlob, filename = null) {
+            const modal = document.getElementById('video-modal');
+            const videoPreview = document.getElementById('modal-video-preview');
+            const videoUrl = URL.createObjectURL(videoBlob);
+            
+            videoPreview.src = videoUrl;
+            modal.classList.add('active');
+            
+            // Store filename for later use
+            videoPreview.dataset.filename = filename || `webcam_${Date.now()}.webm`;
+            
+            // Initialize modal map
+            setTimeout(() => {
+                initializeModalMap();
+            }, 100);
+            
+            // Handle form submission
+            document.getElementById('publish-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const filename = videoPreview.dataset.filename;
+                await publishVideo(videoBlob, filename);
+            };
+        }
+        
+        // Initialize modal map
+        function initializeModalMap() {
+            if (typeof L === 'undefined') {
+                console.error('Leaflet library not loaded');
+                return;
+            }
+            
+            const lat = parseFloat(document.getElementById('modal-lat').value) || 0.00;
+            const lon = parseFloat(document.getElementById('modal-lon').value) || 0.00;
+            
+            if (modalMap) {
+                modalMap.remove();
+            }
+            
+            const mapContainer = document.getElementById('modal-map');
+            if (!mapContainer) return;
+            
+            modalMap = L.map('modal-map').setView([lat, lon], 10);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(modalMap);
+            
+            modalMarker = L.marker([lat, lon], {
+                draggable: true
+            }).addTo(modalMap);
+            
+            modalMap.on('click', function(e) {
+                updateModalCoordinates(e.latlng.lat, e.latlng.lng);
+            });
+            
+            modalMarker.on('dragend', function(e) {
+                updateModalCoordinates(e.target.getLatLng().lat, e.target.getLatLng().lng);
+            });
+            
+            setTimeout(() => {
+                if (modalMap) {
+                    modalMap.invalidateSize();
+                }
+            }, 100);
+        }
+        
+        function updateModalCoordinates(lat, lon) {
+            const roundedLat = Math.round(lat * 100) / 100;
+            const roundedLon = Math.round(lon * 100) / 100;
+            
+            document.getElementById('modal-lat').value = roundedLat.toFixed(2);
+            document.getElementById('modal-lon').value = roundedLon.toFixed(2);
+            
+            if (modalMarker) {
+                modalMarker.setLatLng([roundedLat, roundedLon]);
+            }
+        }
+        
+        function getCurrentLocationForModal() {
+            if (navigator.geolocation) {
+                const btn = event.target;
+                btn.textContent = 'Getting...';
+                btn.disabled = true;
+                
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = Math.round(position.coords.latitude * 100) / 100;
+                        const lon = Math.round(position.coords.longitude * 100) / 100;
+                        
+                        updateModalCoordinates(lat, lon);
+                        if (modalMap) {
+                            modalMap.setView([lat, lon], 13);
+                        }
+                        
+                        btn.textContent = '📍 My Location';
+                        btn.disabled = false;
+                    },
+                    function(error) {
+                        console.error('Geolocation error:', error);
+                        btn.textContent = '📍 My Location';
+                        btn.disabled = false;
+                        alert('Failed to get location');
+                    }
+                );
+            }
+        }
 
         // Initialize webcam recording functionality
         function initWebcamFeatures() {
@@ -607,24 +750,20 @@
         const durationSlider = document.getElementById('duration-slider');
         const durationDisplay = document.getElementById('duration-display');
 
-        // Mobile optimization: Set default duration based on device
+            // Mobile optimization
         if (isMobile) {
-            const defaultDuration = isIOS ? 10 : 15; // Shorter for mobile
+                const defaultDuration = isIOS ? 10 : 15;
             durationSlider.value = defaultDuration;
             durationDisplay.textContent = `${defaultDuration} seconds`;
-            durationSlider.max = 30; // Limit max duration on mobile
-            console.log(`📱 Mobile optimization: Default duration set to ${defaultDuration}s`);
+                durationSlider.max = 30;
         }
 
-            // Duration slider handler
         durationSlider.addEventListener('input', () => {
                 durationDisplay.textContent = `${durationSlider.value} seconds`;
         });
 
-            // Start recording handler
         startButton.addEventListener('click', async () => {
                 try {
-                    // Mobile-optimized video constraints
                     const videoConstraints = isMobile ? {
                         width: { ideal: 640, max: 1280 },
                         height: { ideal: 480, max: 720 },
@@ -643,24 +782,16 @@
                     currentStream = stream;
             videoPreview.srcObject = stream;
 
-                    // Mobile-optimized MediaRecorder options
                     let mimeType = 'video/webm;codecs=vp9,opus';
                     if (isIOS) {
-                        // iOS Safari prefers MP4
                         mimeType = 'video/mp4;codecs=h264,aac';
                     } else if (isAndroid) {
-                        // Android prefers WebM but with different codecs
                         mimeType = 'video/webm;codecs=vp8,opus';
                     }
                     
-                    // Check if the mime type is supported
                     if (!MediaRecorder.isTypeSupported(mimeType)) {
-                        // Fallback to basic WebM
                         mimeType = 'video/webm';
                     }
-                    
-                    console.log(`📱 Mobile detected: ${isMobile}, iOS: ${isIOS}, Android: ${isAndroid}`);
-                    console.log(`🎬 Using mime type: ${mimeType}`);
 
                     mediaRecorder = new MediaRecorder(stream, {
                         mimeType: mimeType
@@ -676,7 +807,11 @@
 
             mediaRecorder.onstop = () => {
                 const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                        handleWebcamVideo(blob);
+                        showVideoModal(blob);
+                        if (currentStream) {
+                            currentStream.getTracks().forEach(track => track.stop());
+                            currentStream = null;
+                        }
             };
 
             mediaRecorder.start();
@@ -692,7 +827,6 @@
                 }
             });
 
-            // Stop recording handler
             stopButton.addEventListener('click', () => {
                 if (mediaRecorder && mediaRecorder.state === 'recording') {
                     mediaRecorder.stop();
@@ -705,118 +839,80 @@
             });
         }
 
-        // Handle recorded webcam video
-        function handleWebcamVideo(videoBlob) {
-            console.log('🎬 Processing webcam video...');
-            
-            // Show upload form with video preview
-            showWebcamUploadForm(videoBlob);
+        // Timer function
+        function startTimer(duration) {
+            let timer = duration;
+            const timerDisplay = document.getElementById('timer');
+            const countdown = setInterval(() => {
+                timerDisplay.textContent = timer;
+                if (--timer < 0) {
+                    clearInterval(countdown);
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                    }
+                    if (currentStream) {
+                        currentStream.getTracks().forEach(track => track.stop());
+                        currentStream = null;
+                    }
+                    timerDisplay.textContent = "Done! 🌟";
+                }
+            }, 1000);
         }
-
-        // Show webcam upload form with NOSTR publishing options
-        function showWebcamUploadForm(videoBlob) {
-            const formHtml = `
-                <div id="webcam-upload-form" class="webcam-upload-container">
-                    <h3>🎥 Webcam Recording Complete</h3>
-                    <video controls style="width: 100%; max-width: 500px; margin: 10px 0;">
-                        <source src="${URL.createObjectURL(videoBlob)}" type="video/webm">
-                    </video>
-                    
-                    <form id="webcam-publish-form">
-                        <div class="form-group">
-                            <label for="video-title">Title:</label>
-                            <input type="text" id="video-title" name="title" 
-                                   placeholder="Enter video title..." 
-                                   value="Webcam recording ${new Date().toLocaleString()}" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="video-description">Description (optional):</label>
-                            <textarea id="video-description" name="description" 
-                                      placeholder="Describe your video..." rows="3"></textarea>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="publish-nostr" name="publish_nostr" ${userPubkey ? 'checked' : ''}>
-                                Publish to NOSTR (requires NOSTR connection)
-                            </label>
-                        </div>
-                        
-                        <div class="form-actions">
-                            <button type="submit" class="btn-primary">
-                                ${userPubkey ? '📡 Upload & Publish' : '📤 Upload to IPFS'}
-                            </button>
-                            <button type="button" id="cancel-upload" class="btn-secondary">Cancel</button>
-                        </div>
-                    </form>
-                </div>
-            `;
-            
-            // Insert form into page
-            const container = document.getElementById('webcam-container');
-            container.innerHTML = formHtml;
-            
-            // Handle form submission
-            document.getElementById('webcam-publish-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
+        
+        // Publish video
+        async function publishVideo(videoBlob, filename = null) {
+            try {
+                const publishBtn = document.getElementById('publish-btn');
+                publishBtn.disabled = true;
+                publishBtn.textContent = 'Uploading to IPFS...';
                 
-                const formData = new FormData(e.target);
-                const title = formData.get('title');
-                const description = formData.get('description');
-                const publishNostr = formData.get('publish_nostr') === 'on';
-                const playerEmail = userEmail || document.getElementById('player').value;
+                // Step 1: Upload video to IPFS via /api/fileupload
+                const finalFilename = filename || document.getElementById('modal-video-preview').dataset.filename || `webcam_${Date.now()}.webm`;
+                const videoFile = new File([videoBlob], finalFilename, { type: videoBlob.type || 'video/webm' });
                 
-                if (!playerEmail) {
-                    alert('❌ No user email available. Please reconnect to NOSTR.');
-                    return;
+                const uploadFormData = new FormData();
+                uploadFormData.append('file', videoFile);
+                uploadFormData.append('npub', userPubkey);
+                
+                console.log('📤 Uploading video to IPFS via /api/fileupload...');
+                const uploadResponse = await fetch('/api/fileupload', {
+                    method: 'POST',
+                    body: uploadFormData
+                });
+                
+                if (!uploadResponse.ok) {
+                    const errorData = await uploadResponse.json().catch(() => ({ detail: uploadResponse.statusText }));
+                    throw new Error(errorData.detail || `Upload failed: ${uploadResponse.statusText}`);
                 }
                 
-                await uploadWebcamVideo(videoBlob, playerEmail, title, description, publishNostr);
-            });
-            
-            // Handle cancel
-            document.getElementById('cancel-upload').addEventListener('click', () => {
-                document.getElementById('webcam-upload-form').remove();
-                // Reset recording interface
-                document.getElementById('start-recording').classList.remove('hidden');
-                document.getElementById('start-recording').disabled = false;
-                document.getElementById('stop-recording').classList.add('hidden');
-                document.getElementById('timer').classList.add('hidden');
-            });
-        }
-
-        // Upload webcam video to server
-        async function uploadWebcamVideo(videoBlob, playerEmail, title, description, publishNostr) {
-            try {
-                console.log('📤 Uploading webcam video...');
+                const uploadResult = await uploadResponse.json();
                 
-                // Convert blob to base64
-                const base64Video = await blobToBase64(videoBlob);
+                if (!uploadResult.success || !uploadResult.new_cid) {
+                    throw new Error(uploadResult.message || 'IPFS upload failed - no CID returned');
+                }
                 
-                // Prepare form data
+                console.log('✅ Video uploaded to IPFS:', uploadResult.new_cid);
+                
+                // Step 2: Publish to NOSTR with IPFS CID
+                publishBtn.textContent = 'Publishing to NOSTR...';
+                
                 const formData = new FormData();
-                formData.append('player', playerEmail);
-                formData.append('video_blob', base64Video);
-                formData.append('title', title);
-                formData.append('description', description);
-                formData.append('publish_nostr', publishNostr ? 'true' : 'false');
+                formData.append('player', userEmail || document.getElementById('player').value);
+                formData.append('ipfs_cid', uploadResult.new_cid);  // Send CID instead of video_blob
+                formData.append('title', document.getElementById('video-title').value);
+                formData.append('description', document.getElementById('video-description').value);
+                formData.append('publish_nostr', document.getElementById('publish-nostr').checked ? 'true' : 'false');
                 
-                // Add location data if user has interacted with map
-                const lat = parseFloat(document.getElementById('lat-display').value) || 0;
-                const lon = parseFloat(document.getElementById('lon-display').value) || 0;
-                if (userHasInteractedWithMap && (lat !== 0 || lon !== 0)) {
+                // Get location from modal
+                const lat = parseFloat(document.getElementById('modal-lat').value) || 0.00;
+                const lon = parseFloat(document.getElementById('modal-lon').value) || 0.00;
                     formData.append('latitude', lat.toString());
                     formData.append('longitude', lon.toString());
-                    console.log(`📍 Adding location to video: ${lat}, ${lon}`);
-                }
                 
-                // Add NOSTR authentication if publishing
-                if (publishNostr && userPubkey) {
+                if (document.getElementById('publish-nostr').checked && userPubkey) {
                     formData.append('npub', userPubkey);
                 }
                 
-                // Upload to server
                 const response = await fetch('/webcam', {
                     method: 'POST',
                     body: formData
@@ -824,52 +920,19 @@
                 
                 if (response.ok) {
                     const result = await response.text();
-                    console.log('✅ Webcam video uploaded successfully');
-                    
-                    // Show success message
-                    showWebcamSuccess(result, title);
-                    
-                    // If NOSTR publishing was requested, show additional info
-                    if (publishNostr && userPubkey) {
-                        console.log('📡 Video published to NOSTR');
-                    }
+                    alert('✅ Video published successfully! IPFS CID: ' + uploadResult.new_cid);
+                    closeModal();
+                    location.reload();
                 } else {
                     throw new Error(`Upload failed: ${response.statusText}`);
                 }
                 
             } catch (error) {
-                console.error('❌ Error uploading webcam video:', error);
-                showWebcamError(error.message);
+                console.error('❌ Error publishing video:', error);
+                alert('Error publishing video: ' + error.message);
+                document.getElementById('publish-btn').disabled = false;
+                document.getElementById('publish-btn').textContent = '📡 Publish Video';
             }
-        }
-
-        // Show webcam upload success message
-        function showWebcamSuccess(result, title) {
-            const successHtml = `
-                <div class="webcam-success">
-                    <h3>✅ Video Uploaded Successfully!</h3>
-                    <p><strong>Title:</strong> ${title}</p>
-                    <p><strong>Status:</strong> ${result}</p>
-                    <button onclick="location.reload()" class="btn-primary">Record Another Video</button>
-                </div>
-            `;
-            
-            const container = document.getElementById('webcam-container');
-            container.innerHTML = successHtml;
-        }
-
-        // Show webcam upload error
-        function showWebcamError(error) {
-            const errorHtml = `
-                <div class="webcam-error">
-                    <h3>❌ Upload Failed</h3>
-                    <p><strong>Error:</strong> ${error}</p>
-                    <button onclick="location.reload()" class="btn-secondary">Try Again</button>
-                </div>
-            `;
-            
-            const container = document.getElementById('webcam-container');
-            container.innerHTML = errorHtml;
         }
 
         // Utility function to convert blob to base64
@@ -882,221 +945,104 @@
             });
         }
 
-        // Timer function
-        function startTimer(duration) {
-            let timer = duration;
-            const timerDisplay = document.getElementById('timer');
-            const countdown = setInterval(() => {
-                timerDisplay.textContent = timer;
-                if (--timer < 0) {
-                    clearInterval(countdown);
-                    if (mediaRecorder && mediaRecorder.state === 'recording') {
-                    mediaRecorder.stop();
-                    }
-                    if (currentStream) {
-                        currentStream.getTracks().forEach(track => track.stop());
-                    }
-                    timerDisplay.textContent = "Done! 🌟";
-                }
-            }, 1000);
+        // Handle video file upload
+        function handleVideoUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Validate file type
+            const validTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
+            const validExtensions = ['.mp4', '.webm', '.mov', '.avi'];
+            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!validTypes.includes(file.type) && !validExtensions.includes(fileExtension)) {
+                alert('❌ Invalid file type. Please upload a video file (.mp4, .webm, .mov)');
+                return;
+            }
+            
+            // Validate file size (max 500MB)
+            const maxSize = 500 * 1024 * 1024; // 500MB
+            if (file.size > maxSize) {
+                alert('❌ File too large. Maximum size is 500MB');
+                return;
+            }
+            
+            // Create blob from file and show in modal
+            const videoBlob = new Blob([file], { type: file.type });
+            showVideoModal(videoBlob, file.name);
+            
+            // Reset file input
+            event.target.value = '';
         }
 
         // Connect to NOSTR
         async function handleNostrConnect() {
             const statusDiv = document.getElementById('auth-status');
+            const headerStatus = document.getElementById('header-auth-status');
             const connectBtn = document.getElementById('nostr-connect-btn');
             
             connectBtn.disabled = true;
-            statusDiv.innerHTML = '<div class="status-message status-info">🔄 Connecting...</div>';
+            statusDiv.innerHTML = '<div style="color: #6366f1;">🔄 Connecting...</div>';
+            headerStatus.textContent = 'Connecting...';
             
             try {
                 if (authMode === 'extension') {
-                    // Use NOSTR extension
                     if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
                         throw new Error("NOSTR extension not found. Please install a NOSTR extension (nos2x, Alby, etc.)");
                     }
                     
                     userPubkey = await window.nostr.getPublicKey();
-                    console.log("Public key from extension:", userPubkey);
                     
                 } else if (authMode === 'nsec') {
-                    // Use private key
                     const nsecKey = document.getElementById('nsec-key').value.trim();
                     if (!nsecKey) {
                         throw new Error("Please enter your private key (nsec)");
                     }
                     
-                    // Convert nsec to hex using nostr-tools
                     try {
                         userPrivkey = NostrTools.nip19.decode(nsecKey).data;
                         userPubkey = NostrTools.getPublicKey(userPrivkey);
-                        console.log("Public key from nsec:", userPubkey);
                     } catch (e) {
                         throw new Error("Invalid nsec format. Please check your private key.");
                     }
                 }
                 
-                // Connect to relay using common.js functions
                 await connectToRelay();
-                
-                // Send NIP-42 auth using common.js functions
                 await sendNIP42Auth(DEFAULT_RELAYS[0]);
-                
-                // Fetch user metadata to get email
                 await fetchUserEmail();
                 
-                // Update user display
-                const userDisplay = document.getElementById('user-display');
-                if (userDisplay) {
-                    userDisplay.textContent = userEmail || `${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}`;
-                }
-                
-                // Show success
-                statusDiv.innerHTML = `<div class="status-message status-success">✅ Connected as ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}${userEmail ? ` (${userEmail})` : ''}</div>`;
+                // Update UI
+                headerStatus.textContent = `Connected: ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}`;
+                document.getElementById('header-connect-btn').style.display = 'none';
+                document.getElementById('header-profile-btn').style.display = 'inline-block';
                 document.getElementById('webcam-section').style.display = 'block';
-                connectBtn.textContent = '✅ Connected';
-                connectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
+                document.getElementById('nostr-expanded').classList.remove('expanded');
                 
-                // Show profile button
-                document.getElementById('nostr-profile-btn').style.display = 'inline-block';
+                statusDiv.innerHTML = `<div style="color: #4ade80;">✅ Connected as ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}${userEmail ? ` (${userEmail})` : ''}</div>`;
                 
             } catch (error) {
                 console.error("Connection error:", error);
-                statusDiv.innerHTML = `<div class="status-message status-error">❌ ${error.message}</div>`;
+                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${error.message}</div>`;
+                headerStatus.textContent = 'Connection failed';
                 connectBtn.disabled = false;
             }
         }
 
-        // Fetch user email from NOSTR DID document with fallback strategy
+        // Fetch user email from NOSTR DID document
         async function fetchUserEmail() {
-            if (!userPubkey) {
-                console.warn('No user pubkey available for email fetch');
-                return;
-            }
+            if (!userPubkey) return;
             
             try {
-                console.log('📧 Fetching user email using DID document strategy...');
-                
-                // Use the new fallback strategy from common.js
                 userEmail = await fetchUserEmailWithFallback(userPubkey);
-                
-                console.log('✅ User email retrieved:', userEmail);
-                
-                // If no email found (using pubkey as fallback), offer to create DID document
                 if (userEmail === userPubkey) {
-                    console.log('⚠️ No email found in DID or metadata, offering to create DID document');
-                    showDIDCreationPrompt();
+                    userEmail = null;
                 }
-                
-                // Update the hidden email field
-                document.getElementById('player').value = userEmail;
-                
+                document.getElementById('player').value = userEmail || userPubkey;
             } catch (error) {
-                console.error('❌ Error fetching user email:', error);
-                // Fallback to pubkey
-                userEmail = userPubkey;
+                console.error('Error fetching user email:', error);
+                userEmail = null;
                 document.getElementById('player').value = userPubkey;
             }
-        }
-
-        // Show prompt to create DID document if no email found
-        function showDIDCreationPrompt() {
-            const promptHtml = `
-                <div id="did-creation-prompt" style="background: rgba(99, 102, 241, 0.1); padding: 15px; border-radius: 8px; margin: 10px 0; border: 1px solid rgba(99, 102, 241, 0.2);">
-                    <h4 style="color: #6366f1; margin: 0 0 10px 0;">📝 Create DID Document</h4>
-                    <p style="margin: 0 0 10px 0; color: #64748b; font-size: 14px;">
-                        No email found in your NOSTR profile. Create a DID document to store your email?
-                    </p>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <input type="email" id="did-email-input" placeholder="your@email.com" 
-                               style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                        <button onclick="createDIDDocument()" class="btn btn-primary" style="padding: 8px 16px;">
-                            Create DID
-                        </button>
-                        <button onclick="skipDIDCreation()" class="btn btn-secondary" style="padding: 8px 16px;">
-                            Skip
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            const userInfo = document.getElementById('user-info');
-            if (userInfo) {
-                userInfo.insertAdjacentHTML('afterend', promptHtml);
-            }
-        }
-
-        // Create DID document with user's email
-        async function createDIDDocument() {
-            const emailInput = document.getElementById('did-email-input');
-            const email = emailInput.value.trim();
-            
-            if (!email) {
-                alert('Please enter your email address');
-                return;
-            }
-            
-            if (!email.includes('@')) {
-                alert('Please enter a valid email address');
-                return;
-            }
-            
-            try {
-                console.log('📝 Creating DID document with email:', email);
-                
-                // Create DID document using common.js function
-                const didResult = await createBasicDIDDocument(userPubkey, email);
-                
-                if (didResult) {
-                    console.log('✅ DID document created successfully');
-                    
-                    // Update user email
-                    userEmail = email;
-                    document.getElementById('player').value = email;
-                    
-                    // Update user display
-                    const userDisplay = document.getElementById('user-display');
-                    if (userDisplay) {
-                        userDisplay.textContent = email;
-                    }
-                    
-                    // Remove the prompt
-                    const prompt = document.getElementById('did-creation-prompt');
-                    if (prompt) {
-                        prompt.remove();
-                    }
-                    
-                    // Show success message
-                    const successHtml = `
-                        <div style="background: rgba(74, 222, 128, 0.1); padding: 10px; border-radius: 8px; margin: 10px 0; border: 1px solid rgba(74, 222, 128, 0.2);">
-                            <p style="margin: 0; color: #4ade80; font-size: 14px;">
-                                ✅ DID document created with email: ${email}
-                            </p>
-                        </div>
-                    `;
-                    
-                    const userInfo = document.getElementById('user-info');
-                    if (userInfo) {
-                        userInfo.insertAdjacentHTML('afterend', successHtml);
-                    }
-                    
-                } else {
-                    throw new Error('Failed to create DID document');
-                }
-                
-            } catch (error) {
-                console.error('❌ Error creating DID document:', error);
-                alert(`Error creating DID document: ${error.message}`);
-            }
-        }
-
-        // Skip DID creation
-        function skipDIDCreation() {
-            const prompt = document.getElementById('did-creation-prompt');
-            if (prompt) {
-                prompt.remove();
-            }
-            console.log('⚠️ DID creation skipped, using pubkey as fallback');
         }
 
         // Open NOSTR Profile
@@ -1106,34 +1052,25 @@
                 return;
             }
             
-            // Build profile URL with hex pubkey using IPFS gateway (like astro_base.html)
             const ipfsGateway = '{{ myIPFS }}';
             const profileURL = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${userPubkey}`;
-            console.log("Opening profile:", profileURL);
             window.open(profileURL, '_blank');
         }
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
-            // Auto-connect with nsec if provided (MULTIPASS SSSS scan with code 1111)
+            // Auto-connect with nsec if provided
             if (AUTO_CONNECT_NSEC && AUTO_CONNECT_NSEC !== null && AUTO_CONNECT_NSEC.trim() !== '') {
-                console.log('🔑 MULTIPASS SSSS detected - Auto-connecting with nsec...');
-                
-                // Switch to nsec mode
                 const nsecRadio = document.getElementById('auth-nsec');
                 const nsecInput = document.getElementById('nsec-key');
                 const nsecContainer = document.getElementById('nsec-input-container');
                 
                 if (nsecRadio && nsecInput && nsecContainer) {
-                    // Select nsec authentication mode
                     nsecRadio.checked = true;
                     nsecContainer.classList.add('visible');
                     authMode = 'nsec';
-                    
-                    // Fill the nsec key
                     nsecInput.value = AUTO_CONNECT_NSEC;
                     
-                    // Auto-connect after a short delay to let the UI update
                     setTimeout(() => {
                         handleNostrConnect();
                     }, 700);
@@ -1154,178 +1091,21 @@
                 });
             });
             
+            // Handle video file upload
+            const videoUpload = document.getElementById('video-upload');
+            if (videoUpload) {
+                videoUpload.addEventListener('change', handleVideoUpload);
+            }
+            
             // Initialize webcam features
             initWebcamFeatures();
-            
-        // Initialize map controls
-        initMapControls();
         });
         
-        // Initialize map controls
-        function initMapControls() {
-            // Map controls
-            document.getElementById('update-map').addEventListener('click', function() {
-                const lat = parseFloat(document.getElementById('lat-display').value) || 0;
-                const lon = parseFloat(document.getElementById('lon-display').value) || 0;
-                updateCoordinatesFromMap(lat, lon);
-                if (miniMap) {
-                    miniMap.setView([lat, lon], miniMap.getZoom());
-                }
-            });
-            
-            document.getElementById('get-location').addEventListener('click', getCurrentLocationForMap);
-            
-            // Sync display inputs
-            document.getElementById('lat-display').addEventListener('change', function() {
-                const lat = parseFloat(this.value) || 0;
-                const lon = parseFloat(document.getElementById('lon-display').value) || 0;
-                if (miniMarker) {
-                    miniMarker.setLatLng([lat, lon]);
-                }
-                if (miniMap) {
-                    miniMap.setView([lat, lon], miniMap.getZoom());
-                }
-                updateLocationDisplay();
-            });
-            
-            document.getElementById('lon-display').addEventListener('change', function() {
-                const lat = parseFloat(document.getElementById('lat-display').value) || 0;
-                const lon = parseFloat(this.value) || 0;
-                if (miniMarker) {
-                    miniMarker.setLatLng([lat, lon]);
-                }
-                if (miniMap) {
-                    miniMap.setView([lat, lon], miniMap.getZoom());
-                }
-                updateLocationDisplay();
-            });
-        }
-        
-        // Map functions
-        function toggleMapAccordion() {
-            const accordionContent = document.querySelector('.map-accordion-content');
-            const mapToggle = document.querySelector('.map-toggle');
-            const isClosed = accordionContent.classList.contains('closed');
-            
-            if (isClosed) {
-                accordionContent.classList.remove('closed');
-                mapToggle.classList.add('expanded');
-                setTimeout(() => {
-                    const lat = parseFloat(document.getElementById('lat-display').value) || 48.86;
-                    const lon = parseFloat(document.getElementById('lon-display').value) || 2.35;
-                    initializeMiniMap(lat, lon);
-                }, 100);
-            } else {
-                accordionContent.classList.add('closed');
-                mapToggle.classList.remove('expanded');
-            }
-        }
-
-        function initializeMiniMap(lat = 0, lon = 0) {
-            console.log('Initializing map:', lat, lon);
-            
-            if (miniMap) {
-                miniMap.remove();
-            }
-            
-            if (typeof L === 'undefined') {
-                console.error('Leaflet library not loaded');
-                return;
-            }
-            
-            const mapContainer = document.getElementById('mini-map');
-            if (!mapContainer) {
-                console.error('Map container not found');
-                return;
-            }
-            
-            try {
-                miniMap = L.map('mini-map').setView([lat, lon], 10);
-                
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© OpenStreetMap contributors'
-                }).addTo(miniMap);
-
-                miniMarker = L.marker([lat, lon], {
-                    draggable: true
-                }).addTo(miniMap);
-
-                miniMap.on('click', function(e) {
-                    userHasInteractedWithMap = true;
-                    updateCoordinatesFromMap(e.latlng.lat, e.latlng.lng);
-                });
-
-                miniMarker.on('dragend', function(e) {
-                    userHasInteractedWithMap = true;
-                    updateCoordinatesFromMap(e.target.getLatLng().lat, e.target.getLatLng().lng);
-                });
-                
-                setTimeout(() => {
-                    if (miniMap) {
-                        miniMap.invalidateSize();
-                    }
-                }, 100);
-                
-            } catch (error) {
-                console.error('Error initializing map:', error);
-            }
-        }
-
-        function updateCoordinatesFromMap(lat, lon) {
-            const roundedLat = Math.round(lat * 100) / 100;
-            const roundedLon = Math.round(lon * 100) / 100;
-
-            document.getElementById('lat-display').value = roundedLat.toFixed(2);
-            document.getElementById('lon-display').value = roundedLon.toFixed(2);
-
-            if (miniMarker) {
-                miniMarker.setLatLng([roundedLat, roundedLon]);
-            }
-
-            currentLocation = { latitude: roundedLat, longitude: roundedLon };
-            updateLocationDisplay();
-        }
-
-        function updateLocationDisplay() {
-            const lat = parseFloat(document.getElementById('lat-display').value) || 0;
-            const lon = parseFloat(document.getElementById('lon-display').value) || 0;
-            
-            if (lat !== 0 || lon !== 0) {
-                const locationText = document.getElementById('locationText');
-                const locationInfo = document.getElementById('locationInfo');
-                
-                locationText.textContent = `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
-                locationInfo.style.display = 'block';
-            }
-        }
-
-        function getCurrentLocationForMap() {
-            if (navigator.geolocation) {
-                const btn = document.getElementById('get-location');
-                btn.textContent = 'Getting...';
-                btn.disabled = true;
-                
-                navigator.geolocation.getCurrentPosition(
-                    function(position) {
-                        const lat = Math.round(position.coords.latitude * 100) / 100;
-                        const lon = Math.round(position.coords.longitude * 100) / 100;
-
-                        userHasInteractedWithMap = true;
-                        updateCoordinatesFromMap(lat, lon);
-                        if (miniMap) {
-                            miniMap.setView([lat, lon], 13);
-                        }
-                        
-                        btn.textContent = 'My Location';
-                        btn.disabled = false;
-                    },
-                    function(error) {
-                        console.error('Geolocation error:', error);
-                        btn.textContent = 'My Location';
-                        btn.disabled = false;
-                        alert('Failed to get location');
-                    }
-                );
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('video-modal');
+            if (event.target === modal) {
+                closeModal();
             }
         }
     </script>
