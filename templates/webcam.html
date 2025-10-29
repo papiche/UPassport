@@ -7,8 +7,6 @@
     
     <!-- Nostr integration -->
     <script src="{{ myIPFS }}/ipfs/QmXEmaPRUaGcvhuyeG99mHHNyP43nn8GtNeuDok8jdpG4a/nostr.bundle.js"></script>
-    <!-- Common.js with enhanced webcam functions -->
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/leaflet.css"/>
     <!-- Leaflet JavaScript -->
@@ -592,15 +590,17 @@
     <!-- Hidden Container for old code compatibility -->
         <div id="webcam-container"></div>
 
+    <!-- Common.js with enhanced webcam functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    
     <script>
-        // Global variables
+        // Global variables (non-conflicting with common.js)
         let mediaRecorder;
         let recordedChunks = [];
         let currentStream = null;
         let authMode = 'extension';
-        let userPrivkey = null;
         let userEmail = null;
-        let userPubkey = null;
+        // userPubkey and userPrivkey are declared in common.js
         
         // Mobile detection
         let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -621,6 +621,7 @@
         // Toggle NOSTR expanded section
         function toggleNostrExpanded() {
             const section = document.getElementById('nostr-expanded');
+            if (!section) return;
             section.classList.toggle('expanded');
         }
         
@@ -1000,8 +1001,9 @@
                     }
                     
                     try {
-                        userPrivkey = NostrTools.nip19.decode(nsecKey).data;
-                        userPubkey = NostrTools.getPublicKey(userPrivkey);
+                        // Use common.js variable userPrivateKey instead of userPrivkey
+                        userPrivateKey = NostrTools.nip19.decode(nsecKey).data;
+                        userPubkey = NostrTools.getPublicKey(userPrivateKey);
                     } catch (e) {
                         throw new Error("Invalid nsec format. Please check your private key.");
                     }
