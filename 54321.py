@@ -351,6 +351,21 @@ templates = Jinja2Templates(directory="templates")
 # Initialize Oracle System (Permit Management)
 if ORACLE_ENABLED:
     oracle_system = OracleSystem()
+    
+    # Load permit definitions from NOSTR if definitions are empty
+    if len(oracle_system.definitions) == 0:
+        try:
+            definitions = oracle_system.fetch_permit_definitions_from_nostr()
+            for definition in definitions:
+                oracle_system.definitions[definition.id] = definition
+            
+            if definitions:
+                oracle_system.save_data()
+                logging.info(f"✅ Loaded {len(definitions)} permit definitions from NOSTR")
+            else:
+                logging.info("ℹ️  No permit definitions found in NOSTR (will load on demand)")
+        except Exception as e:
+            logging.warning(f"⚠️  Could not load permit definitions from NOSTR: {e}")
 else:
     oracle_system = None
 
@@ -5326,11 +5341,24 @@ async def get_permit_credential(credential_id: str):
 
 @app.get("/api/permit/definitions")
 async def list_permit_definitions():
-    """List all available permit definitions"""
+    """List all available permit definitions (loaded from NOSTR)"""
     if not ORACLE_ENABLED or oracle_system is None:
         raise HTTPException(status_code=503, detail="Oracle system not available")
     
     try:
+        # Load from NOSTR if definitions are empty
+        if len(oracle_system.definitions) == 0:
+            try:
+                definitions_nostr = oracle_system.fetch_permit_definitions_from_nostr()
+                for definition in definitions_nostr:
+                    oracle_system.definitions[definition.id] = definition
+                
+                if definitions_nostr:
+                    oracle_system.save_data()
+                    logging.info(f"✅ Loaded {len(definitions_nostr)} permit definitions from NOSTR")
+            except Exception as e:
+                logging.warning(f"⚠️  Could not fetch definitions from NOSTR: {e}")
+        
         definitions = [
             {
                 "id": d.id,
@@ -5355,15 +5383,34 @@ async def list_permit_definitions():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/permit/nostr/fetch")
-async def fetch_permits_from_nostr(kind: int, npub: Optional[str] = None):
+async def fetch_permits_from_nostr(
+    kind: Optional[int] = None, 
+    type: Optional[str] = None,
+    npub: Optional[str] = None
+):
     """Fetch permit events from NOSTR relays
     
     Args:
         kind: Event kind (30500=definitions, 30501=requests, 30503=credentials)
+        type: Alternative to kind - "definitions", "requests", or "credentials"
         npub: Optional filter by author/holder npub (hex format)
     """
     if not ORACLE_ENABLED or oracle_system is None:
         raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    # Convert type to kind if provided
+    if type and not kind:
+        type_map = {
+            "definitions": 30500,
+            "requests": 30501,
+            "credentials": 30503
+        }
+        if type not in type_map:
+            raise HTTPException(status_code=400, detail=f"Invalid type '{type}' (must be: definitions, requests, credentials)")
+        kind = type_map[type]
+    
+    if not kind:
+        raise HTTPException(status_code=400, detail="Either 'kind' or 'type' parameter is required")
     
     try:
         if kind == 30500:
