@@ -2718,11 +2718,12 @@ async def process_webcam_video(
                         tags.append(["r", f"webcam://{player}", "Webcam"])
                         
                         # Send NOSTR event
-                        nostr_script = "./tools/nostr_send_note.py"
+                        nostr_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/nostr_send_note.py")
                         if os.path.exists(nostr_script):
                             nostr_cmd = [
                                 "python3", nostr_script, nsec_key, video_content, 
-                                "ws://127.0.0.1:7777", json.dumps(tags), video_kind
+                                "ws://127.0.0.1:7777", json.dumps(tags), 
+                                "--kind", video_kind
                             ]
                             
                             nostr_result = subprocess.run(nostr_cmd, capture_output=True, text=True, timeout=30)
@@ -2730,13 +2731,16 @@ async def process_webcam_video(
                                 # Extract event ID from output
                                 output_lines = nostr_result.stdout.strip().split('\n')
                                 for line in output_lines:
-                                    if 'Event ID:' in line or 'event_id:' in line:
+                                    if 'Event ID:' in line or 'event_id:' in line or '- ID:' in line:
                                         nostr_event_id = line.split(':')[-1].strip()
                                         break
                                 
-                                logging.info(f"NOSTR video event published: {nostr_event_id}")
+                                logging.info(f"✅ NOSTR video event (kind {video_kind}) published: {nostr_event_id}")
+                                logging.info(f"📡 Event also published to wss://relay.copylaradio.com")
                             else:
-                                logging.error(f"Failed to publish NOSTR event: {nostr_result.stderr}")
+                                logging.error(f"❌ Failed to publish NOSTR event: {nostr_result.stderr}")
+                        else:
+                            logging.warning(f"⚠️ NOSTR script not found: {nostr_script}")
             except Exception as e:
                 logging.error(f"Error during NOSTR publishing: {e}")
 
