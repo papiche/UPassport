@@ -72,6 +72,20 @@ unix_timestamp = int(time.time())
 # Configure le logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Import oracle_system for permit management
+try:
+    from oracle_system import (
+        OracleSystem, 
+        PermitDefinition, 
+        PermitRequest, 
+        PermitAttestation,
+        PermitStatus
+    )
+    ORACLE_ENABLED = True
+except ImportError as e:
+    logging.warning(f"Oracle system not available: {e}")
+    ORACLE_ENABLED = False
+
 # Charger les variables d'environnement depuis le fichier .env
 load_dotenv()
 # Récupérer la valeur de OBSkey depuis l'environnement
@@ -333,6 +347,12 @@ app = FastAPI()
 # Mount the directory containing static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+# Initialize Oracle System (Permit Management)
+if ORACLE_ENABLED:
+    oracle_system = OracleSystem()
+else:
+    oracle_system = None
 
 # ~ # Configurer CORS
 app.add_middleware(
@@ -4999,7 +5019,7 @@ async def analyze_n2_network(center_pubkey: str, range_mode: str = "default") ->
                 connections=[]
             )
     
-    processing_time = int((time.time() - start_time) * 1000)
+    processing_time_ms = int((time.time() - start_time) * 1000)
     
     return {
         "center_pubkey": center_pubkey,
@@ -5010,8 +5030,307 @@ async def analyze_n2_network(center_pubkey: str, range_mode: str = "default") ->
         "nodes": list(nodes.values()),
         "connections": connections,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "processing_time_ms": processing_time
+        "processing_time_ms": processing_time_ms
     }
+
+################################################################################
+# ORACLE SYSTEM (PERMIT MANAGEMENT) API ROUTES
+################################################################################
+
+# Pydantic models for permit API
+class PermitDefinitionRequest(BaseModel):
+    id: str
+    name: str
+    description: str
+    min_attestations: int = 5
+    required_license: Optional[str] = None
+    valid_duration_days: int = 0
+    revocable: bool = True
+    verification_method: str = "peer_attestation"
+    metadata: Dict[str, Any] = {}
+
+class PermitApplicationRequest(BaseModel):
+    permit_definition_id: str
+    applicant_npub: str
+    statement: str
+    evidence: List[str] = []
+
+class PermitAttestationRequest(BaseModel):
+    request_id: str
+    attester_npub: str
+    statement: str
+    attester_license_id: Optional[str] = None
+
+@app.post("/api/permit/define")
+async def create_permit_definition(request: PermitDefinitionRequest):
+    """Create a new permit definition (admin/UPlanet authority only)"""
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        uplanet_g1_key = os.getenv("UPLANETNAME_G1", "")
+        issuer_did = f"did:nostr:{uplanet_g1_key[:16]}"
+        
+        definition = PermitDefinition(
+            id=request.id,
+            name=request.name,
+            description=request.description,
+            issuer_did=issuer_did,
+            min_attestations=request.min_attestations,
+            required_license=request.required_license,
+            valid_duration_days=request.valid_duration_days,
+            revocable=request.revocable,
+            verification_method=request.verification_method,
+            metadata=request.metadata
+        )
+        
+        success = oracle_system.create_permit_definition(definition)
+        
+        if success:
+            return JSONResponse({
+                "success": True,
+                "message": f"Permit definition {request.id} created",
+                "definition_id": request.id
+            })
+        else:
+            raise HTTPException(status_code=400, detail="Failed to create permit definition")
+    
+    except Exception as e:
+        logging.error(f"Error creating permit definition: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/permit/request")
+async def request_permit(request: PermitApplicationRequest):
+    """Submit a permit request"""
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        # Verify NOSTR authentication
+        if not await verify_nostr_auth(request.applicant_npub):
+            raise HTTPException(status_code=401, detail="NOSTR authentication failed")
+        
+        # Generate request ID
+        request_id = hashlib.sha256(
+            f"{request.applicant_npub}:{request.permit_definition_id}:{time.time()}".encode()
+        ).hexdigest()[:16]
+        
+        # Create permit request
+        permit_request = PermitRequest(
+            request_id=request_id,
+            permit_definition_id=request.permit_definition_id,
+            applicant_did=f"did:nostr:{request.applicant_npub}",
+            applicant_npub=request.applicant_npub,
+            statement=request.statement,
+            evidence=request.evidence,
+            status=PermitStatus.PENDING,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+            attestations=[],
+            nostr_event_id=None
+        )
+        
+        success = oracle_system.request_permit(permit_request)
+        
+        if success:
+            return JSONResponse({
+                "success": True,
+                "message": "Permit request submitted",
+                "request_id": request_id,
+                "status": "pending",
+                "permit_type": request.permit_definition_id
+            })
+        else:
+            raise HTTPException(status_code=400, detail="Failed to submit permit request")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error requesting permit: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/permit/attest")
+async def attest_permit(request: PermitAttestationRequest):
+    """Add an attestation to a permit request"""
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        # Verify NOSTR authentication
+        if not await verify_nostr_auth(request.attester_npub):
+            raise HTTPException(status_code=401, detail="NOSTR authentication failed")
+        
+        # Generate attestation ID
+        attestation_id = hashlib.sha256(
+            f"{request.attester_npub}:{request.request_id}:{time.time()}".encode()
+        ).hexdigest()[:16]
+        
+        # Create attestation signature
+        signature = hashlib.sha256(
+            f"{request.statement}:{request.attester_npub}:{time.time()}".encode()
+        ).hexdigest()
+        
+        # Create permit attestation
+        attestation = PermitAttestation(
+            attestation_id=attestation_id,
+            request_id=request.request_id,
+            attester_did=f"did:nostr:{request.attester_npub}",
+            attester_npub=request.attester_npub,
+            attester_license_id=request.attester_license_id,
+            statement=request.statement,
+            signature=signature,
+            created_at=datetime.now(),
+            nostr_event_id=None
+        )
+        
+        success = oracle_system.attest_permit(attestation)
+        
+        if success:
+            # Check if permit was validated and credential issued
+            permit_request = oracle_system.requests.get(request.request_id)
+            
+            return JSONResponse({
+                "success": True,
+                "message": "Attestation added",
+                "attestation_id": attestation_id,
+                "request_id": request.request_id,
+                "status": permit_request.status.value if permit_request else "unknown",
+                "attestations_count": len(permit_request.attestations) if permit_request else 0
+            })
+        else:
+            raise HTTPException(status_code=400, detail="Failed to add attestation")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error attesting permit: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/permit/status/{request_id}")
+async def get_permit_status(request_id: str):
+    """Get the status of a permit request"""
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        status = oracle_system.get_request_status(request_id)
+        
+        if status:
+            return JSONResponse(status)
+        else:
+            raise HTTPException(status_code=404, detail="Permit request not found")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting permit status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/permit/list")
+async def list_permits(type: str = "requests", npub: Optional[str] = None):
+    """List permit requests or credentials"""
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        if type == "requests":
+            results = oracle_system.list_requests(applicant_npub=npub)
+        elif type == "credentials":
+            results = oracle_system.list_credentials(holder_npub=npub)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid type (must be 'requests' or 'credentials')")
+        
+        return JSONResponse({
+            "success": True,
+            "type": type,
+            "count": len(results),
+            "results": results
+        })
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error listing permits: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/permit/credential/{credential_id}")
+async def get_permit_credential(credential_id: str):
+    """Get a specific permit credential (Verifiable Credential)"""
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        credential = oracle_system.credentials.get(credential_id)
+        
+        if not credential:
+            raise HTTPException(status_code=404, detail="Credential not found")
+        
+        definition = oracle_system.definitions.get(credential.permit_definition_id)
+        
+        # Build W3C Verifiable Credential format
+        vc = {
+            "@context": [
+                "https://www.w3.org/2018/credentials/v1",
+                "https://w3id.org/security/v2",
+                "https://uplanet.copylaradio.com/credentials/v1"
+            ],
+            "id": f"urn:uuid:{credential.credential_id}",
+            "type": ["VerifiableCredential", "UPlanetLicense"],
+            "issuer": credential.issued_by,
+            "issuanceDate": credential.issued_at.isoformat(),
+            "expirationDate": credential.expires_at.isoformat() if credential.expires_at else None,
+            "credentialSubject": {
+                "id": credential.holder_did,
+                "license": credential.permit_definition_id,
+                "licenseName": definition.name if definition else "Unknown",
+                "holderNpub": credential.holder_npub,
+                "attestationsCount": len(credential.attestations),
+                "status": credential.status.value
+            },
+            "proof": credential.proof
+        }
+        
+        return JSONResponse(vc)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting credential: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/permit/definitions")
+async def list_permit_definitions():
+    """List all available permit definitions"""
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        definitions = [
+            {
+                "id": d.id,
+                "name": d.name,
+                "description": d.description,
+                "min_attestations": d.min_attestations,
+                "required_license": d.required_license,
+                "valid_duration_days": d.valid_duration_days,
+                "verification_method": d.verification_method
+            }
+            for d in oracle_system.definitions.values()
+        ]
+        
+        return JSONResponse({
+            "success": True,
+            "count": len(definitions),
+            "definitions": definitions
+        })
+    
+    except Exception as e:
+        logging.error(f"Error listing definitions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+################################################################################
+# END ORACLE SYSTEM API ROUTES
+################################################################################
 
 if __name__ == "__main__":
     import uvicorn
