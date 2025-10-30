@@ -42,10 +42,10 @@ FILE_NAME=$(basename "$FILE_PATH")
 # Log file information
 echo "DEBUG: FILE_SIZE: $FILE_SIZE, FILE_TYPE: $FILE_TYPE, FILE_NAME: $FILE_NAME" >&2
 
-# Check if file size exceeds 10MB
-MAX_FILE_SIZE=$((10 * 1024 * 1024)) # 10MB in bytes
+# Check if file size exceeds 100MB
+MAX_FILE_SIZE=$((100 * 1024 * 1024)) # 100MB in bytes
 if [ "$FILE_SIZE" -gt "$MAX_FILE_SIZE" ]; then
-    echo '{"status": "error", "message": "File size exceeds 10MB limit.", "debug": "File too large", "fileSize": "'"$FILE_SIZE"'"}' > "$OUTPUT_FILE"
+    echo '{"status": "error", "message": "File size exceeds 100MB limit.", "debug": "File too large", "fileSize": "'"$FILE_SIZE"'"}' > "$OUTPUT_FILE"
     
     exit 1
 fi
