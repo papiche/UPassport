@@ -1509,6 +1509,16 @@ async def get_root(request: Request):
 async def get_root(request: Request):
     return templates.TemplateResponse("g1nostr.html", {"request": request})
 
+# UPlanet Oracle - Permit Management Interface
+@app.get("/oracle", response_class=HTMLResponse)
+async def get_oracle(request: Request):
+    """Oracle System Interface - Multi-signature permit management"""
+    myipfs_gateway = get_myipfs_gateway()
+    return templates.TemplateResponse("oracle.html", {
+        "request": request,
+        "myIPFS": myipfs_gateway
+    })
+
 # Beside /g1
 @app.post("/g1nostr")
 async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...), lat: str = Form(...), lon: str = Form(...), salt: str = Form(default=""), pepper: str = Form(default="")):
@@ -2740,16 +2750,21 @@ async def process_webcam_video(
                         # Add reference to original webcam URL
                         tags.append(["r", f"webcam://{player}", "Webcam"])
                         
-                        # Send NOSTR event
+                        # Send NOSTR event with new unified API
                         nostr_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/nostr_send_note.py")
                         logging.info(f"📄 Looking for NOSTR script: {nostr_script}")
                         logging.info(f"📁 Script exists: {os.path.exists(nostr_script)}")
                         
-                        if os.path.exists(nostr_script):
+                        if os.path.exists(nostr_script) and secret_file.exists():
+                            # Use new API with keyfile parameter
                             nostr_cmd = [
-                                "python3", nostr_script, nsec_key, video_content, 
-                                "ws://127.0.0.1:7777", json.dumps(tags), 
-                                "--kind", video_kind
+                                "python3", nostr_script,
+                                "--keyfile", str(secret_file),
+                                "--content", video_content,
+                                "--relays", "ws://127.0.0.1:7777,wss://relay.copylaradio.com",
+                                "--tags", json.dumps(tags),
+                                "--kind", str(video_kind),
+                                "--json"  # Get JSON output for parsing
                             ]
                             
                             logging.info(f"🚀 Executing NOSTR publish command with kind {video_kind}")
@@ -2758,23 +2773,34 @@ async def process_webcam_video(
                             
                             nostr_result = subprocess.run(nostr_cmd, capture_output=True, text=True, timeout=30)
                             logging.info(f"📊 NOSTR script return code: {nostr_result.returncode}")
-                            logging.info(f"📤 NOSTR script stdout: {nostr_result.stdout}")
                             
                             if nostr_result.returncode == 0:
-                                # Extract event ID from output
-                                output_lines = nostr_result.stdout.strip().split('\n')
-                                for line in output_lines:
-                                    if 'Event ID:' in line or 'event_id:' in line or '- ID:' in line:
-                                        nostr_event_id = line.split(':')[-1].strip()
-                                        break
-                                
-                                logging.info(f"✅ NOSTR video event (kind {video_kind}) published: {nostr_event_id}")
-                                logging.info(f"📡 Event also published to wss://relay.copylaradio.com")
+                                try:
+                                    # Parse JSON output
+                                    result_json = json.loads(nostr_result.stdout)
+                                    nostr_event_id = result_json.get('event_id', '')
+                                    relays_success = result_json.get('relays_success', 0)
+                                    relays_total = result_json.get('relays_total', 0)
+                                    
+                                    logging.info(f"✅ NOSTR video event (kind {video_kind}) published: {nostr_event_id}")
+                                    logging.info(f"📡 Published to {relays_success}/{relays_total} relay(s)")
+                                except json.JSONDecodeError:
+                                    # Fallback to old parsing method
+                                    logging.info(f"📤 NOSTR script output: {nostr_result.stdout}")
+                                    output_lines = nostr_result.stdout.strip().split('\n')
+                                    for line in output_lines:
+                                        if 'Event ID:' in line or 'event_id:' in line or '- ID:' in line:
+                                            nostr_event_id = line.split(':')[-1].strip()
+                                            break
+                                    logging.info(f"✅ NOSTR video event (kind {video_kind}) published: {nostr_event_id}")
                             else:
                                 logging.error(f"❌ Failed to publish NOSTR event: {nostr_result.stderr}")
                                 logging.error(f"❌ stdout: {nostr_result.stdout}")
                         else:
-                            logging.warning(f"⚠️ NOSTR script not found: {nostr_script}")
+                            if not os.path.exists(nostr_script):
+                                logging.warning(f"⚠️ NOSTR script not found: {nostr_script}")
+                            if not secret_file.exists():
+                                logging.warning(f"⚠️ NOSTR keyfile not found: {secret_file}")
             except Exception as e:
                 logging.error(f"Error during NOSTR publishing: {e}")
                 logging.error(f"Traceback: {traceback.format_exc()}")
@@ -5326,6 +5352,194 @@ async def list_permit_definitions():
     
     except Exception as e:
         logging.error(f"Error listing definitions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/permit/nostr/fetch")
+async def fetch_permits_from_nostr(kind: int, npub: Optional[str] = None):
+    """Fetch permit events from NOSTR relays
+    
+    Args:
+        kind: Event kind (30500=definitions, 30501=requests, 30503=credentials)
+        npub: Optional filter by author/holder npub (hex format)
+    """
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        if kind == 30500:
+            # Fetch permit definitions
+            definitions = oracle_system.fetch_permit_definitions_from_nostr()
+            return JSONResponse({
+                "success": True,
+                "kind": kind,
+                "count": len(definitions),
+                "events": [
+                    {
+                        "id": d.id,
+                        "name": d.name,
+                        "description": d.description,
+                        "min_attestations": d.min_attestations
+                    }
+                    for d in definitions
+                ]
+            })
+        
+        elif kind == 30501:
+            # Fetch permit requests
+            requests = oracle_system.fetch_permit_requests_from_nostr()
+            if npub:
+                requests = [r for r in requests if r.applicant_npub == npub]
+            
+            return JSONResponse({
+                "success": True,
+                "kind": kind,
+                "count": len(requests),
+                "events": [
+                    {
+                        "request_id": r.request_id,
+                        "permit_id": r.permit_definition_id,
+                        "applicant_npub": r.applicant_npub,
+                        "statement": r.statement,
+                        "created_at": r.created_at.isoformat()
+                    }
+                    for r in requests
+                ]
+            })
+        
+        elif kind == 30503:
+            # Fetch permit credentials
+            credentials = oracle_system.fetch_permit_credentials_from_nostr(holder_npub=npub)
+            
+            return JSONResponse({
+                "success": True,
+                "kind": kind,
+                "count": len(credentials),
+                "events": [
+                    {
+                        "credential_id": c.credential_id,
+                        "permit_id": c.permit_definition_id,
+                        "holder_npub": c.holder_npub,
+                        "issued_at": c.issued_at.isoformat(),
+                        "expires_at": c.expires_at.isoformat() if c.expires_at else None
+                    }
+                    for c in credentials
+                ]
+            })
+        
+        else:
+            raise HTTPException(status_code=400, detail="Invalid kind (must be 30500, 30501, or 30503)")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error fetching from NOSTR: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/permit/issue/{request_id}")
+async def issue_permit_credential(request_id: str):
+    """Manually trigger credential issuance for a validated request
+    
+    This endpoint is idempotent and can be called by ORACLE.refresh.sh
+    """
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        credential = oracle_system.issue_credential(request_id)
+        
+        if credential:
+            return JSONResponse({
+                "success": True,
+                "message": "Credential issued",
+                "credential_id": credential.credential_id,
+                "holder_npub": credential.holder_npub,
+                "permit_id": credential.permit_definition_id
+            })
+        else:
+            # Check if already issued
+            existing = None
+            for cred in oracle_system.credentials.values():
+                if cred.request_id == request_id:
+                    existing = cred
+                    break
+            
+            if existing:
+                return JSONResponse({
+                    "success": True,
+                    "message": "Credential already issued",
+                    "credential_id": existing.credential_id,
+                    "holder_npub": existing.holder_npub,
+                    "permit_id": existing.permit_definition_id
+                })
+            else:
+                raise HTTPException(status_code=400, detail="Request not ready for issuance or not found")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error issuing credential: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/permit/expire/{request_id}")
+async def expire_permit_request(request_id: str):
+    """Mark a permit request as expired (for old requests)"""
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        if request_id not in oracle_system.requests:
+            raise HTTPException(status_code=404, detail="Request not found")
+        
+        request = oracle_system.requests[request_id]
+        request.status = PermitStatus.REJECTED
+        request.updated_at = datetime.now()
+        
+        oracle_system.save_data()
+        
+        return JSONResponse({
+            "success": True,
+            "message": "Request marked as expired",
+            "request_id": request_id
+        })
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error expiring request: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/permit/revoke/{credential_id}")
+async def revoke_permit_credential(credential_id: str, reason: Optional[str] = None):
+    """Revoke a permit credential"""
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        if credential_id not in oracle_system.credentials:
+            raise HTTPException(status_code=404, detail="Credential not found")
+        
+        credential = oracle_system.credentials[credential_id]
+        
+        # Check if permit is revocable
+        definition = oracle_system.definitions.get(credential.permit_definition_id)
+        if definition and not definition.revocable:
+            raise HTTPException(status_code=400, detail="This permit type cannot be revoked")
+        
+        credential.status = PermitStatus.REVOKED
+        
+        oracle_system.save_data()
+        
+        return JSONResponse({
+            "success": True,
+            "message": "Credential revoked",
+            "credential_id": credential_id,
+            "reason": reason or "No reason provided"
+        })
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error revoking credential: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 ################################################################################

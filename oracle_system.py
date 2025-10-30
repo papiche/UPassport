@@ -529,10 +529,11 @@ class OracleSystem:
         self._publish_to_nostr(event_data, None, use_uplanet_key=True)
     
     def _publish_to_nostr(self, event_data: Dict[str, Any], signer_npub: Optional[str] = None, use_uplanet_key: bool = False):
-        """Publish an event to NOSTR relays"""
-        # Note: This requires integration with NOSTR publishing tools
-        # For now, we'll save the event for manual publishing
+        """Publish an event to NOSTR relays using nostr_send_note.py"""
+        import subprocess
+        import tempfile
         
+        # Save event for manual publishing (backup)
         events_dir = self.data_dir / "nostr_events"
         events_dir.mkdir(exist_ok=True)
         
@@ -544,7 +545,64 @@ class OracleSystem:
         
         print(f"📡 NOSTR event saved: {event_file}")
         
-        # TODO: Implement actual NOSTR publishing using nostr_publish_did.py or similar
+        # Publish to NOSTR using nostr_send_note.py
+        try:
+            # Find the nostr_send_note.py script
+            nostr_script = Path.home() / ".zen" / "Astroport.ONE" / "tools" / "nostr_send_note.py"
+            
+            if not nostr_script.exists():
+                print(f"⚠️  nostr_send_note.py not found at {nostr_script}")
+                return
+            
+            # Determine which keyfile to use
+            if use_uplanet_key:
+                # Use UPLANETNAME.G1 key
+                uplanet_name = os.getenv("UPLANETNAME", "EnfinLibre")
+                keyfile = Path.home() / ".zen" / "game" / "nostr" / f"{uplanet_name}.G1" / ".secret.nostr"
+            elif signer_npub:
+                # Try to find keyfile by email/npub
+                email = self.get_email_from_npub(signer_npub)
+                if email:
+                    keyfile = Path.home() / ".zen" / "game" / "nostr" / email / ".secret.nostr"
+                else:
+                    print(f"⚠️  Could not find keyfile for {signer_npub}")
+                    return
+            else:
+                print("⚠️  No signer specified")
+                return
+            
+            if not keyfile.exists():
+                print(f"⚠️  Keyfile not found: {keyfile}")
+                return
+            
+            # Prepare event content and tags
+            content = event_data.get('content', '')
+            tags = event_data.get('tags', [])
+            kind = event_data.get('kind', 1)
+            
+            # Convert tags to JSON string for command line
+            tags_json = json.dumps(tags)
+            
+            # Call nostr_send_note.py
+            cmd = [
+                'python3',
+                str(nostr_script),
+                '--keyfile', str(keyfile),
+                '--content', content,
+                '--kind', str(kind),
+                '--tags', tags_json,
+                '--relays', ' '.join(NOSTR_RELAYS)
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0:
+                print(f"✅ Event published to NOSTR (kind {kind})")
+            else:
+                print(f"⚠️  Failed to publish event: {result.stderr}")
+        
+        except Exception as e:
+            print(f"⚠️  Error publishing to NOSTR: {e}")
     
     def get_request_status(self, request_id: str) -> Optional[Dict[str, Any]]:
         """Get the status of a permit request"""
@@ -617,6 +675,180 @@ class OracleSystem:
             })
         
         return sorted(results, key=lambda x: x['issued_at'], reverse=True)
+    
+    def fetch_nostr_events(self, kind: int, author_hex: Optional[str] = None, since_timestamp: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Fetch NOSTR events from strfry relay using nostr_get_events.sh"""
+        import subprocess
+        
+        try:
+            # Find the nostr_get_events.sh script
+            nostr_script = Path.home() / ".zen" / "Astroport.ONE" / "tools" / "nostr_get_events.sh"
+            
+            if not nostr_script.exists():
+                print(f"⚠️  nostr_get_events.sh not found at {nostr_script}")
+                print(f"⚠️  Cannot query NOSTR events - strfry query tool missing")
+                return []
+            
+            # Build command
+            cmd = [str(nostr_script), '--kind', str(kind)]
+            
+            if author_hex:
+                cmd.extend(['--author', author_hex])
+            
+            if since_timestamp:
+                cmd.extend(['--since', str(since_timestamp)])
+            
+            # Execute query
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            if result.returncode != 0:
+                print(f"⚠️  Error querying strfry: {result.stderr}")
+                return []
+            
+            # Parse JSON events (one per line)
+            events = []
+            for line in result.stdout.strip().split('\n'):
+                if line.strip():
+                    try:
+                        event = json.loads(line)
+                        events.append(event)
+                    except json.JSONDecodeError as e:
+                        print(f"⚠️  Error parsing event JSON: {e}")
+            
+            print(f"✅ Fetched {len(events)} events of kind {kind} from strfry")
+            return events
+        
+        except subprocess.TimeoutExpired:
+            print(f"⚠️  Query timeout for kind {kind}")
+            return []
+        
+        except Exception as e:
+            print(f"⚠️  Error fetching NOSTR events: {e}")
+            return []
+    
+    def fetch_permit_definitions_from_nostr(self) -> List[PermitDefinition]:
+        """Fetch permit definitions (kind 30500) from NOSTR"""
+        events = self.fetch_nostr_events(kind=30500)
+        
+        definitions = []
+        for event in events:
+            try:
+                # Parse tags to extract permit information
+                permit_id = None
+                for tag in event.get('tags', []):
+                    if tag[0] == 'd':
+                        permit_id = tag[1]
+                        break
+                
+                if permit_id:
+                    content = json.loads(event.get('content', '{}'))
+                    
+                    definition = PermitDefinition(
+                        id=permit_id,
+                        name=content.get('name', ''),
+                        description=content.get('description', ''),
+                        issuer_did=content.get('issuer_did', ''),
+                        min_attestations=content.get('min_attestations', 5),
+                        required_license=content.get('required_license'),
+                        valid_duration_days=content.get('valid_duration_days', 0),
+                        revocable=content.get('revocable', True),
+                        verification_method=content.get('verification_method', 'peer_attestation'),
+                        metadata=content.get('metadata', {})
+                    )
+                    
+                    definitions.append(definition)
+            
+            except Exception as e:
+                print(f"⚠️  Error parsing permit definition: {e}")
+        
+        return definitions
+    
+    def fetch_permit_requests_from_nostr(self, permit_id: Optional[str] = None) -> List[PermitRequest]:
+        """Fetch permit requests (kind 30501) from NOSTR"""
+        events = self.fetch_nostr_events(kind=30501)
+        
+        requests = []
+        for event in events:
+            try:
+                request_id = None
+                permit_definition_id = None
+                
+                for tag in event.get('tags', []):
+                    if tag[0] == 'd':
+                        request_id = tag[1]
+                    elif tag[0] == 'permit_id':
+                        permit_definition_id = tag[1]
+                
+                if permit_id and permit_definition_id != permit_id:
+                    continue
+                
+                if request_id and permit_definition_id:
+                    content = json.loads(event.get('content', '{}'))
+                    
+                    permit_request = PermitRequest(
+                        request_id=request_id,
+                        permit_definition_id=permit_definition_id,
+                        applicant_did=f"did:nostr:{event.get('pubkey', '')}",
+                        applicant_npub=event.get('pubkey', ''),
+                        statement=content.get('statement', ''),
+                        evidence=content.get('evidence', []),
+                        status=PermitStatus.PENDING,
+                        created_at=datetime.fromtimestamp(event.get('created_at', 0)),
+                        updated_at=datetime.now(),
+                        attestations=[],
+                        nostr_event_id=event.get('id')
+                    )
+                    
+                    requests.append(permit_request)
+            
+            except Exception as e:
+                print(f"⚠️  Error parsing permit request: {e}")
+        
+        return requests
+    
+    def fetch_permit_credentials_from_nostr(self, holder_npub: Optional[str] = None) -> List[PermitCredential]:
+        """Fetch permit credentials (kind 30503) from NOSTR"""
+        events = self.fetch_nostr_events(kind=30503)
+        
+        credentials = []
+        for event in events:
+            try:
+                credential_id = None
+                holder_pubkey = None
+                
+                for tag in event.get('tags', []):
+                    if tag[0] == 'd':
+                        credential_id = tag[1]
+                    elif tag[0] == 'p':
+                        holder_pubkey = tag[1]
+                
+                if holder_npub and holder_pubkey != holder_npub:
+                    continue
+                
+                if credential_id and holder_pubkey:
+                    content = json.loads(event.get('content', '{}'))
+                    
+                    credential = PermitCredential(
+                        credential_id=credential_id,
+                        request_id=content.get('request_id', ''),
+                        permit_definition_id=content.get('permit_id', ''),
+                        holder_did=f"did:nostr:{holder_pubkey}",
+                        holder_npub=holder_pubkey,
+                        issued_by=f"did:nostr:{event.get('pubkey', '')}",
+                        issued_at=datetime.fromtimestamp(event.get('created_at', 0)),
+                        expires_at=datetime.fromisoformat(content.get('expires_at')) if content.get('expires_at') else None,
+                        attestations=content.get('attestations', []),
+                        proof=content.get('proof', {}),
+                        status=PermitStatus.ISSUED,
+                        nostr_event_id=event.get('id')
+                    )
+                    
+                    credentials.append(credential)
+            
+            except Exception as e:
+                print(f"⚠️  Error parsing permit credential: {e}")
+        
+        return credentials
 
 def main():
     """CLI interface for oracle system"""

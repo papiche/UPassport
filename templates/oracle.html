@@ -1,0 +1,1897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 UPlanet Oracle - Permit Management</title>
+    <!-- NOSTR integration -->
+    <script src="{{ myIPFS }}/ipfs/QmXEmaPRUaGcvhuyeG99mHHNyP43nn8GtNeuDok8jdpG4a/nostr.bundle.js"></script>
+    <style>
+        :root {
+            --bg: #0f1724;
+            --card-bg: #1a2332;
+            --accent: #4ade80;
+            --accent-hover: #22c55e;
+            --muted: #64748b;
+            --text: #e2e8f0;
+            --border: rgba(74, 222, 128, 0.2);
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f1724 0%, #1a2332 100%);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: var(--accent);
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 1.1em;
+        }
+
+        .auth-section {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 1px solid var(--border);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3);
+        }
+
+        .btn:disabled {
+            background: var(--muted);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .status-message {
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .status-success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .status-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+        }
+
+        .status-info {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid #6366f1;
+            color: #6366f1;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            transition: all 0.3s ease;
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        .tab:hover {
+            color: var(--accent);
+            background: rgba(74, 222, 128, 0.1);
+        }
+
+        .tab.active {
+            color: var(--accent);
+            background: rgba(74, 222, 128, 0.15);
+            border-bottom: 3px solid var(--accent);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.2);
+        }
+
+        .permit-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .permit-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .permit-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.2);
+            border-color: var(--accent);
+        }
+
+        .permit-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .permit-title {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 5px;
+        }
+
+        .permit-id {
+            font-size: 0.85em;
+            color: var(--muted);
+            font-family: monospace;
+        }
+
+        .permit-description {
+            color: var(--text);
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .permit-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+            background: rgba(74, 222, 128, 0.1);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+            border-color: var(--warning);
+        }
+
+        .badge-info {
+            background: rgba(99, 102, 241, 0.1);
+            color: #6366f1;
+            border-color: #6366f1;
+        }
+
+        .badge-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            border-color: var(--error);
+        }
+
+        .request-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .request-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 4px solid var(--accent);
+        }
+
+        .request-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(74, 222, 128, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+            transition: width 0.3s ease;
+        }
+
+        .attestation-item {
+            background: rgba(74, 222, 128, 0.05);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            border-left: 3px solid var(--accent);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-close {
+            font-size: 28px;
+            cursor: pointer;
+            color: var(--muted);
+            transition: all 0.3s ease;
+        }
+
+        .modal-close:hover {
+            color: var(--error);
+            transform: rotate(90deg);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .holders-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .holder-item {
+            background: rgba(74, 222, 128, 0.05);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 3px solid var(--accent);
+        }
+
+        .npub-link {
+            color: var(--accent);
+            text-decoration: none;
+            font-family: monospace;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+
+        .npub-link:hover {
+            text-decoration: underline;
+            color: var(--accent-hover);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading::after {
+            content: '⏳';
+            font-size: 48px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--muted);
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .filter-bar {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+            border: 1px solid var(--border);
+        }
+
+        .filter-bar select {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+        }
+
+        /* Info Section Styles */
+        .info-section {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid var(--border);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .info-card {
+            background: rgba(74, 222, 128, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 4px solid var(--accent);
+            transition: all 0.3s ease;
+        }
+
+        .info-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.2);
+            border-left-width: 6px;
+        }
+
+        .info-card-icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .info-card-title {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+
+        .info-card-text {
+            color: var(--text);
+            line-height: 1.6;
+            font-size: 0.95em;
+        }
+
+        .flow-diagram {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 30px 0;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .flow-step {
+            flex: 1;
+            min-width: 180px;
+            background: rgba(74, 222, 128, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border: 2px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .flow-step:hover {
+            transform: scale(1.05);
+            border-color: var(--accent);
+            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.2);
+        }
+
+        .flow-step-number {
+            background: var(--accent);
+            color: var(--bg);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.2em;
+            margin: 0 auto 10px;
+        }
+
+        .flow-step-title {
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+
+        .flow-step-desc {
+            font-size: 0.9em;
+            color: var(--muted);
+        }
+
+        .flow-arrow {
+            color: var(--accent);
+            font-size: 2em;
+            margin: 0 10px;
+        }
+
+        .nostr-kinds-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.9em;
+        }
+
+        .nostr-kinds-table th,
+        .nostr-kinds-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nostr-kinds-table th {
+            background: rgba(74, 222, 128, 0.1);
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .nostr-kinds-table tr:hover {
+            background: rgba(74, 222, 128, 0.05);
+        }
+
+        .kind-badge {
+            background: var(--accent);
+            color: var(--bg);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-weight: 700;
+        }
+
+        .toggle-button {
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            width: 100%;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .toggle-button:hover {
+            background: var(--accent);
+            color: var(--bg);
+        }
+
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .collapsible-content.active {
+            max-height: 2000px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .permit-grid {
+                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            header {
+                padding: 20px;
+            }
+
+            .permit-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .flow-diagram {
+                flex-direction: column;
+            }
+
+            .flow-arrow {
+                transform: rotate(90deg);
+                margin: 10px 0;
+            }
+
+            .tabs {
+                flex-wrap: wrap;
+                gap: 5px;
+            }
+
+            .tab {
+                padding: 8px 12px;
+                font-size: 0.9em;
+            }
+
+            .modal-content {
+                padding: 20px;
+                width: 95%;
+            }
+
+            .nostr-kinds-table {
+                font-size: 0.8em;
+            }
+
+            .nostr-kinds-table th,
+            .nostr-kinds-table td {
+                padding: 8px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 1.5em;
+            }
+
+            .subtitle {
+                font-size: 0.9em;
+            }
+
+            .btn {
+                padding: 10px 16px;
+                font-size: 14px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .action-buttons .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>🔐 UPlanet Oracle</h1>
+            <p class="subtitle">Decentralized Permit & License Management System</p>
+            <p style="color: var(--muted); margin-top: 10px; font-size: 0.95em;">
+                Web of Trust meets Professional Competence Certification
+            </p>
+        </header>
+
+        <!-- Information Section -->
+        <div class="info-section" id="info-section">
+            <h2 style="color: var(--accent); margin-bottom: 20px; text-align: center;">
+                🌐 What is the Oracle System?
+            </h2>
+            
+            <p style="color: var(--text); line-height: 1.8; margin-bottom: 20px; text-align: center; max-width: 800px; margin-left: auto; margin-right: auto;">
+                The UPlanet Oracle extends the <strong>Ğ1 Web of Trust</strong> from identity verification to 
+                <strong>competence certification</strong>. It's a decentralized system where community members 
+                attest to each other's skills and expertise, creating verifiable professional credentials 
+                stored on NOSTR and validated through multi-signature consensus.
+            </p>
+
+            <div class="info-grid">
+                <div class="info-card">
+                    <div class="info-card-icon">👥</div>
+                    <div class="info-card-title">Peer Attestation</div>
+                    <div class="info-card-text">
+                        Permits are validated by trusted community members who already hold the same credential, 
+                        creating a self-governing meritocracy based on competence.
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <div class="info-card-icon">🔐</div>
+                    <div class="info-card-title">NOSTR Native</div>
+                    <div class="info-card-text">
+                        All permit requests, attestations, and credentials are stored as NOSTR events 
+                        (kinds 30500-30503), ensuring transparency, auditability, and censorship resistance.
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <div class="info-card-icon">✅</div>
+                    <div class="info-card-title">W3C Compliant</div>
+                    <div class="info-card-text">
+                        Issued permits are W3C Verifiable Credentials (VCs) that can be independently 
+                        verified by any party without relying on a central authority.
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <div class="info-card-icon">💎</div>
+                    <div class="info-card-title">Economic Incentives</div>
+                    <div class="info-card-text">
+                        Permit holders receive Ẑen rewards from the cooperative's R&D fund, 
+                        incentivizing expertise, validation work, and positive contributions.
+                    </div>
+                </div>
+            </div>
+
+            <button class="toggle-button" onclick="toggleTechnicalDetails()">
+                🔧 Show Technical Details
+            </button>
+
+            <div id="technical-details" class="collapsible-content">
+                <h3 style="color: var(--accent); margin: 20px 0 15px;">
+                    📊 How It Works: The Permit Lifecycle
+                </h3>
+
+                <div class="flow-diagram">
+                    <div class="flow-step">
+                        <div class="flow-step-number">1</div>
+                        <div class="flow-step-title">Request</div>
+                        <div class="flow-step-desc">
+                            User submits a permit request (NOSTR kind 30501) with statement & evidence
+                        </div>
+                    </div>
+
+                    <div class="flow-arrow">→</div>
+
+                    <div class="flow-step">
+                        <div class="flow-step-number">2</div>
+                        <div class="flow-step-title">Attest</div>
+                        <div class="flow-step-desc">
+                            Permit holders review and sign attestations (NOSTR kind 30502)
+                        </div>
+                    </div>
+
+                    <div class="flow-arrow">→</div>
+
+                    <div class="flow-step">
+                        <div class="flow-step-number">3</div>
+                        <div class="flow-step-title">Validate</div>
+                        <div class="flow-step-desc">
+                            Oracle checks signatures & issues W3C VC (NOSTR kind 30503)
+                        </div>
+                    </div>
+
+                    <div class="flow-arrow">→</div>
+
+                    <div class="flow-step">
+                        <div class="flow-step-number">4</div>
+                        <div class="flow-step-title">Reward</div>
+                        <div class="flow-step-desc">
+                            Holder receives Ẑen from UPLANETNAME.RnD fund
+                        </div>
+                    </div>
+                </div>
+
+                <h3 style="color: var(--accent); margin: 30px 0 15px;">
+                    📡 NOSTR Event Types
+                </h3>
+
+                <table class="nostr-kinds-table">
+                    <thead>
+                        <tr>
+                            <th>Kind</th>
+                            <th>Purpose</th>
+                            <th>Signed By</th>
+                            <th>Replaceability</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="kind-badge">30500</span></td>
+                            <td>Permit Definition</td>
+                            <td>UPLANETNAME.G1</td>
+                            <td>Parameterized Replaceable</td>
+                        </tr>
+                        <tr>
+                            <td><span class="kind-badge">30501</span></td>
+                            <td>Permit Request</td>
+                            <td>Applicant</td>
+                            <td>Parameterized Replaceable</td>
+                        </tr>
+                        <tr>
+                            <td><span class="kind-badge">30502</span></td>
+                            <td>Permit Attestation</td>
+                            <td>Attester</td>
+                            <td>Parameterized Replaceable</td>
+                        </tr>
+                        <tr>
+                            <td><span class="kind-badge">30503</span></td>
+                            <td>Verifiable Credential</td>
+                            <td>UPLANETNAME.G1</td>
+                            <td>Parameterized Replaceable</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3 style="color: var(--accent); margin: 30px 0 15px;">
+                    🎯 Use Cases
+                </h3>
+
+                <div class="info-grid">
+                    <div class="info-card">
+                        <div class="info-card-icon">🌱</div>
+                        <div class="info-card-title">ORE Verifier</div>
+                        <div class="info-card-text">
+                            Certify field auditors who verify environmental obligations (ORE) 
+                            compliance for UMAP parcels.
+                        </div>
+                    </div>
+
+                    <div class="info-card">
+                        <div class="info-card-icon">🚀</div>
+                        <div class="info-card-title">Relay Captain</div>
+                        <div class="info-card-text">
+                            Designate trusted operators for NOSTR relays and station infrastructure 
+                            management.
+                        </div>
+                    </div>
+
+                    <div class="info-card">
+                        <div class="info-card-icon">🐉</div>
+                        <div class="info-card-title">WoT Dragon</div>
+                        <div class="info-card-text">
+                            Highest authority permit for managing UPlanet infrastructure, 
+                            issuing VCs, and acting as trusted oracle.
+                        </div>
+                    </div>
+
+                    <div class="info-card">
+                        <div class="info-card-icon">🎓</div>
+                        <div class="info-card-title">Skill Certification</div>
+                        <div class="info-card-text">
+                            Any competence can become a permit: technical skills, artistic abilities, 
+                            professional licenses, etc.
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid var(--warning); border-radius: 12px; padding: 20px; margin: 20px 0;">
+                    <h4 style="color: var(--warning); margin-bottom: 10px;">
+                        ⚡ Key Innovation: WoT Bootstrap
+                    </h4>
+                    <p style="color: var(--text); line-height: 1.6;">
+                        New permit types require a "Block 0" initialization where N+1 founding members 
+                        cross-attest each other (e.g., 13 members for a permit requiring 12 signatures). 
+                        This creates the initial Web of Trust without centralized gatekeepers.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Authentication Section -->
+        <div class="auth-section" id="auth-section">
+            <div id="auth-content">
+                <button class="btn" id="connect-btn" onclick="connectToNOSTR()">
+                    🔌 Connect with NOSTR
+                </button>
+                <div id="auth-status" style="margin-top: 15px;"></div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="main-content" style="display: none;">
+            <!-- Tabs -->
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('permits')">
+                    📜 Available Permits
+                </div>
+                <div class="tab" onclick="switchTab('my-permits')">
+                    🎯 My Permits
+                </div>
+                <div class="tab" onclick="switchTab('pending-requests')">
+                    ⏳ Pending Requests
+                </div>
+                <div class="tab" onclick="switchTab('my-attestations')">
+                    ✍️ My Attestations
+                </div>
+            </div>
+
+            <!-- Tab Content: Available Permits -->
+            <div id="permits-tab" class="tab-content active">
+                <div class="filter-bar">
+                    <label style="color: var(--text); font-weight: 600;">Filter by type:</label>
+                    <select id="permit-filter" onchange="filterPermits()">
+                        <option value="all">All Permits</option>
+                    </select>
+                </div>
+                <div id="permits-list" class="loading"></div>
+            </div>
+
+            <!-- Tab Content: My Permits -->
+            <div id="my-permits-tab" class="tab-content">
+                <div class="action-buttons" style="margin-bottom: 20px;">
+                    <button class="btn" onclick="openRequestModal()">
+                        ➕ Request New Permit
+                    </button>
+                </div>
+                <div id="my-permits-list" class="loading"></div>
+            </div>
+
+            <!-- Tab Content: Pending Requests -->
+            <div id="pending-requests-tab" class="tab-content">
+                <div class="filter-bar">
+                    <label style="color: var(--text); font-weight: 600;">Filter by permit:</label>
+                    <select id="request-filter" onchange="filterRequests()">
+                        <option value="all">All Requests</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="refreshRequests()">
+                        🔄 Refresh
+                    </button>
+                </div>
+                <div id="pending-requests-list" class="loading"></div>
+            </div>
+
+            <!-- Tab Content: My Attestations -->
+            <div id="my-attestations-tab" class="tab-content">
+                <div id="my-attestations-list" class="loading"></div>
+            </div>
+        </div>
+
+        <!-- Modal: Request Permit -->
+        <div id="request-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Request a Permit</h2>
+                    <span class="modal-close" onclick="closeRequestModal()">&times;</span>
+                </div>
+                <form id="request-form" onsubmit="submitRequest(event)">
+                    <div class="form-group">
+                        <label for="permit-select">Permit Type:</label>
+                        <select id="permit-select" required>
+                            <option value="">Select a permit...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="statement">Statement (why you need this permit):</label>
+                        <textarea id="statement" required 
+                                  placeholder="Explain your qualifications and reason for requesting this permit..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="evidence">Evidence (IPFS links, optional):</label>
+                        <input type="text" id="evidence" 
+                               placeholder="ipfs://... (comma-separated for multiple)">
+                    </div>
+                    <div class="action-buttons">
+                        <button type="submit" class="btn">🚀 Submit Request</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeRequestModal()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal: Attest Request -->
+        <div id="attest-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Attest Permit Request</h2>
+                    <span class="modal-close" onclick="closeAttestModal()">&times;</span>
+                </div>
+                <div id="attest-details"></div>
+                <form id="attest-form" onsubmit="submitAttestation(event)">
+                    <input type="hidden" id="attest-request-id">
+                    <div class="form-group">
+                        <label for="attest-statement">Your Attestation:</label>
+                        <textarea id="attest-statement" required 
+                                  placeholder="Confirm the applicant's competence and provide details..."></textarea>
+                    </div>
+                    <div class="action-buttons">
+                        <button type="submit" class="btn">✍️ Sign & Submit Attestation</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeAttestModal()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let USPOT_API_BASE = '';
+        let DEFAULT_RELAYS = [];
+        let nostrRelay = null;
+        let isNostrConnected = false;
+        let userPubkey = null;
+        let userNpub = null;
+        let userEmail = null;
+
+        // Data caches
+        let allPermitDefinitions = [];
+        let allPermitRequests = [];
+        let myPermitCredentials = [];
+
+        // Detect uSPOT API
+        function detectUSPOTAPI() {
+            const currentURL = new URL(window.location.href);
+            const hostname = currentURL.hostname;
+            const protocol = currentURL.protocol.split(":")[0];
+
+            let determinedRelay = '';
+            let apiBase = '';
+
+            if (hostname === "127.0.0.1") {
+                determinedRelay = `ws://127.0.0.1:7777`;
+                apiBase = `http://127.0.0.1:54321`;
+            } else if (hostname.startsWith("ipfs.")) {
+                const baseDomain = hostname.substring("ipfs.".length);
+                determinedRelay = `wss://relay.${baseDomain}`;
+                apiBase = `https://u.${baseDomain}`;
+            } else if (hostname.startsWith("u.")) {
+                const baseDomain = hostname.substring("u.".length);
+                determinedRelay = `wss://relay.${baseDomain}`;
+                apiBase = `https://u.${baseDomain}`;
+            } else {
+                determinedRelay = `wss://relay.copylaradio.com`;
+                apiBase = `https://u.copylaradio.com`;
+            }
+
+            DEFAULT_RELAYS = [determinedRelay, 'wss://relay.damus.io', 'wss://nos.lol'];
+            USPOT_API_BASE = apiBase;
+
+            console.log(`uSPOT API Base: ${USPOT_API_BASE}`);
+            console.log(`Default Relay: ${DEFAULT_RELAYS[0]}`);
+        }
+
+        // Connect to NOSTR
+        async function connectToNOSTR() {
+            const statusDiv = document.getElementById('auth-status');
+            const connectBtn = document.getElementById('connect-btn');
+
+            connectBtn.disabled = true;
+            statusDiv.innerHTML = '<div class="status-message status-info">🔄 Connecting to NOSTR...</div>';
+
+            try {
+                if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
+                    throw new Error("NOSTR extension not found. Please install a NOSTR extension (nos2x, Alby, etc.)");
+                }
+
+                userPubkey = await window.nostr.getPublicKey();
+                userNpub = NostrTools.nip19.npubEncode(userPubkey);
+                console.log("Connected with public key:", userPubkey);
+
+                // Connect to relay
+                await connectToRelay();
+
+                // Send NIP-42 auth
+                await sendNIP42Auth();
+
+                // Fetch user email from DID
+                userEmail = await fetchUserEmail(userPubkey);
+
+                // Show success
+                statusDiv.innerHTML = `
+                    <div class="status-message status-success">
+                        ✅ Connected as ${userNpub.substring(0, 12)}...${userNpub.substring(userNpub.length - 4)}
+                        ${userEmail ? `<br>📧 ${userEmail}` : ''}
+                    </div>
+                `;
+                connectBtn.textContent = '✅ Connected';
+                connectBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+
+                // Show main content
+                document.getElementById('main-content').style.display = 'block';
+
+                // Load data
+                await loadAllData();
+
+            } catch (error) {
+                console.error("Connection error:", error);
+                statusDiv.innerHTML = `<div class="status-message status-error">❌ ${error.message}</div>`;
+                connectBtn.disabled = false;
+            }
+        }
+
+        // Connect to relay
+        async function connectToRelay() {
+            const relayUrl = DEFAULT_RELAYS[0];
+
+            if (nostrRelay && isNostrConnected) {
+                console.log('✅ Reusing existing relay connection');
+                return;
+            }
+
+            console.log('Connecting to relay:', relayUrl);
+
+            try {
+                if (nostrRelay) {
+                    try {
+                        nostrRelay.close();
+                    } catch (e) {
+                        console.warn('Error closing existing relay:', e);
+                    }
+                }
+
+                nostrRelay = NostrTools.relayInit(relayUrl);
+
+                nostrRelay.on('connect', () => {
+                    console.log('✅ Connected to NOSTR relay:', relayUrl);
+                    isNostrConnected = true;
+                });
+
+                nostrRelay.on('error', (error) => {
+                    console.error('❌ Relay connection error:', error);
+                    isNostrConnected = false;
+                });
+
+                nostrRelay.on('disconnect', () => {
+                    console.log('🔌 Relay disconnected');
+                    isNostrConnected = false;
+                });
+
+                await nostrRelay.connect();
+                isNostrConnected = true;
+
+            } catch (error) {
+                console.error('Failed to connect to relay:', error);
+                isNostrConnected = false;
+                throw error;
+            }
+        }
+
+        // Send NIP-42 authentication
+        async function sendNIP42Auth() {
+            if (!userPubkey || !nostrRelay || !isNostrConnected) {
+                console.warn('Cannot send NIP-42 auth: missing requirements');
+                return;
+            }
+
+            try {
+                console.log('📝 Sending NIP-42 authentication event...');
+
+                const authEvent = {
+                    kind: 22242,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [
+                        ['relay', DEFAULT_RELAYS[0]],
+                        ['challenge', 'auth-' + Date.now()]
+                    ],
+                    content: '',
+                    pubkey: userPubkey
+                };
+
+                const signedEvent = await window.nostr.signEvent(authEvent);
+
+                if (!signedEvent || !signedEvent.id) {
+                    console.error('❌ Failed to sign NIP-42 event');
+                    return;
+                }
+
+                console.log('✅ NIP-42 event signed:', signedEvent.id);
+
+                await nostrRelay.publish(signedEvent);
+                console.log('✅ NIP-42 event published');
+
+                // Also send AUTH message
+                try {
+                    let ws = nostrRelay._ws || nostrRelay.ws || nostrRelay.socket;
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        const authMessage = JSON.stringify(['AUTH', signedEvent]);
+                        ws.send(authMessage);
+                        console.log('✅ NIP-42 AUTH message sent');
+                    }
+                } catch (authError) {
+                    console.warn('⚠️ Could not send AUTH message:', authError);
+                }
+
+            } catch (error) {
+                console.error('❌ Failed to send NIP-42 auth:', error);
+            }
+        }
+
+        // Fetch user email from DID
+        async function fetchUserEmail(pubkey) {
+            try {
+                const filter = {
+                    kinds: [30311],
+                    authors: [pubkey],
+                    '#d': ['did'],
+                    limit: 1
+                };
+
+                return new Promise((resolve) => {
+                    const sub = nostrRelay.sub([filter]);
+                    let didDocument = null;
+
+                    const timeout = setTimeout(() => {
+                        sub.unsub();
+                        if (didDocument) {
+                            try {
+                                const didData = JSON.parse(didDocument.content);
+                                resolve(didData.metadata?.email || null);
+                            } catch (e) {
+                                resolve(null);
+                            }
+                        } else {
+                            resolve(null);
+                        }
+                    }, 3000);
+
+                    sub.on('event', (event) => {
+                        didDocument = event;
+                    });
+
+                    sub.on('eose', () => {
+                        clearTimeout(timeout);
+                        sub.unsub();
+                        if (didDocument) {
+                            try {
+                                const didData = JSON.parse(didDocument.content);
+                                resolve(didData.metadata?.email || null);
+                            } catch (e) {
+                                resolve(null);
+                            }
+                        } else {
+                            resolve(null);
+                        }
+                    });
+                });
+            } catch (error) {
+                console.error('Error fetching user email:', error);
+                return null;
+            }
+        }
+
+        // Load all data
+        async function loadAllData() {
+            await loadPermitDefinitions();
+            await loadPermitRequests();
+            await loadMyPermitCredentials();
+            await loadMyAttestations();
+        }
+
+        // Load permit definitions (kind 30500)
+        async function loadPermitDefinitions() {
+            try {
+                const response = await fetch(`${USPOT_API_BASE}/api/permit/definitions`);
+                const data = await response.json();
+                allPermitDefinitions = data.definitions || [];
+                
+                renderPermitDefinitions();
+                populatePermitFilters();
+            } catch (error) {
+                console.error('Error loading permit definitions:', error);
+                document.getElementById('permits-list').innerHTML = 
+                    '<div class="status-message status-error">❌ Failed to load permits</div>';
+            }
+        }
+
+        // Render permit definitions
+        function renderPermitDefinitions() {
+            const container = document.getElementById('permits-list');
+            
+            if (allPermitDefinitions.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📜</div>
+                        <p>No permit definitions available</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="permit-grid">
+                    ${allPermitDefinitions.map(permit => `
+                        <div class="permit-card">
+                            <div class="permit-header">
+                                <div>
+                                    <div class="permit-title">${permit.name}</div>
+                                    <div class="permit-id">${permit.id}</div>
+                                </div>
+                            </div>
+                            <div class="permit-description">${permit.description}</div>
+                            <div class="permit-meta">
+                                <span class="badge">
+                                    ✍️ ${permit.min_attestations} attestations required
+                                </span>
+                                <span class="badge badge-info">
+                                    ⏱️ Valid for ${permit.valid_duration_days === 0 ? 'unlimited' : permit.valid_duration_days + ' days'}
+                                </span>
+                                ${permit.revocable ? '<span class="badge badge-warning">⚠️ Revocable</span>' : ''}
+                            </div>
+                            <div class="action-buttons">
+                                <button class="btn" onclick="showPermitHolders('${permit.id}')">
+                                    👥 View Holders
+                                </button>
+                                <button class="btn btn-secondary" onclick="requestPermit('${permit.id}')">
+                                    ➕ Request This Permit
+                                </button>
+                            </div>
+                            <div id="holders-${permit.id}" class="holders-list" style="display: none;"></div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Show permit holders
+        async function showPermitHolders(permitId) {
+            const holdersDiv = document.getElementById(`holders-${permitId}`);
+            
+            if (holdersDiv.style.display === 'block') {
+                holdersDiv.style.display = 'none';
+                return;
+            }
+
+            holdersDiv.innerHTML = '<div class="loading">Loading holders...</div>';
+            holdersDiv.style.display = 'block';
+
+            try {
+                // Fetch credentials (kind 30503) for this permit type
+                const filter = {
+                    kinds: [30503],
+                    '#permit_id': [permitId],
+                    limit: 100
+                };
+
+                const holders = [];
+                const sub = nostrRelay.sub([filter]);
+
+                const timeout = setTimeout(() => {
+                    sub.unsub();
+                    renderHolders(holders, holdersDiv);
+                }, 5000);
+
+                sub.on('event', (event) => {
+                    holders.push(event);
+                });
+
+                sub.on('eose', () => {
+                    clearTimeout(timeout);
+                    sub.unsub();
+                    renderHolders(holders, holdersDiv);
+                });
+
+            } catch (error) {
+                console.error('Error loading holders:', error);
+                holdersDiv.innerHTML = '<div class="status-message status-error">❌ Failed to load holders</div>';
+            }
+        }
+
+        // Render holders
+        function renderHolders(holders, container) {
+            if (holders.length === 0) {
+                container.innerHTML = '<div style="padding: 10px; color: var(--muted);">No holders yet</div>';
+                return;
+            }
+
+            container.innerHTML = holders.map(holder => {
+                const npub = NostrTools.nip19.npubEncode(holder.pubkey);
+                const date = new Date(holder.created_at * 1000).toLocaleDateString();
+                return `
+                    <div class="holder-item">
+                        <a href="/nostr_profile_viewer?hex=${holder.pubkey}" target="_blank" class="npub-link">
+                            ${npub.substring(0, 12)}...${npub.substring(npub.length - 4)}
+                        </a>
+                        <span style="color: var(--muted); font-size: 0.85em;">
+                            Issued: ${date}
+                        </span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Load permit requests (kind 30501)
+        async function loadPermitRequests() {
+            try {
+                const response = await fetch(`${USPOT_API_BASE}/api/permit/list?type=requests`);
+                const data = await response.json();
+                allPermitRequests = data.requests || [];
+                
+                renderPendingRequests();
+            } catch (error) {
+                console.error('Error loading permit requests:', error);
+                document.getElementById('pending-requests-list').innerHTML = 
+                    '<div class="status-message status-error">❌ Failed to load requests</div>';
+            }
+        }
+
+        // Render pending requests
+        function renderPendingRequests() {
+            const container = document.getElementById('pending-requests-list');
+            
+            // Filter requests that need attestation from user's permits
+            const requestsNeedingAttestation = allPermitRequests.filter(req => {
+                // Check if user has the required permit to attest
+                const permitDef = allPermitDefinitions.find(p => p.id === req.permit_definition_id);
+                if (!permitDef || !permitDef.required_license) return false;
+                
+                // Check if user has this credential
+                const hasCredential = myPermitCredentials.some(c => c.permit_definition_id === permitDef.required_license);
+                
+                // Check if user hasn't already attested
+                const alreadyAttested = req.attestations?.some(a => a.attester_npub === userNpub);
+                
+                return hasCredential && !alreadyAttested && req.status === 'attesting';
+            });
+
+            if (requestsNeedingAttestation.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">✅</div>
+                        <p>No pending requests that need your attestation</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="request-list">
+                    ${requestsNeedingAttestation.map(req => renderRequestCard(req)).join('')}
+                </div>
+            `;
+        }
+
+        // Render request card
+        function renderRequestCard(req) {
+            const permitDef = allPermitDefinitions.find(p => p.id === req.permit_definition_id);
+            const progress = (req.attestations?.length || 0) / (permitDef?.min_attestations || 1) * 100;
+            const applicantNpub = req.applicant_npub || NostrTools.nip19.npubEncode(req.applicant_did.split(':').pop());
+            
+            return `
+                <div class="request-card">
+                    <div class="request-header">
+                        <div>
+                            <div class="permit-title">${permitDef?.name || req.permit_definition_id}</div>
+                            <div style="color: var(--muted); font-size: 0.9em; margin-top: 5px;">
+                                Applicant: <a href="/nostr_profile_viewer?hex=${req.applicant_did.split(':').pop()}" 
+                                              target="_blank" class="npub-link">
+                                    ${applicantNpub.substring(0, 12)}...${applicantNpub.substring(applicantNpub.length - 4)}
+                                </a>
+                            </div>
+                        </div>
+                        <span class="badge">${req.status}</span>
+                    </div>
+                    
+                    <div style="margin: 15px 0;">
+                        <strong>Statement:</strong>
+                        <p style="margin-top: 5px; color: var(--text);">${req.statement}</p>
+                    </div>
+                    
+                    <div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85em; color: var(--muted); margin-bottom: 5px;">
+                            <span>Attestations: ${req.attestations?.length || 0} / ${permitDef?.min_attestations || 0}</span>
+                            <span>${Math.round(progress)}%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progress}%"></div>
+                        </div>
+                    </div>
+                    
+                    ${req.attestations && req.attestations.length > 0 ? `
+                        <div style="margin-top: 15px;">
+                            <strong style="font-size: 0.9em; color: var(--muted);">Attestations:</strong>
+                            ${req.attestations.map(att => `
+                                <div class="attestation-item">
+                                    <div style="font-size: 0.85em; color: var(--muted);">
+                                        ${NostrTools.nip19.npubEncode(att.attester_npub).substring(0, 12)}...
+                                    </div>
+                                    <div style="margin-top: 5px;">${att.statement}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                    
+                    <div class="action-buttons">
+                        <button class="btn" onclick="openAttestModal('${req.request_id}')">
+                            ✍️ Attest This Request
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Load my permit credentials (kind 30503)
+        async function loadMyPermitCredentials() {
+            try {
+                const response = await fetch(`${USPOT_API_BASE}/api/permit/list?type=credentials&npub=${userNpub}`);
+                const data = await response.json();
+                myPermitCredentials = data.credentials || [];
+                
+                renderMyPermits();
+            } catch (error) {
+                console.error('Error loading my permits:', error);
+                document.getElementById('my-permits-list').innerHTML = 
+                    '<div class="status-message status-error">❌ Failed to load your permits</div>';
+            }
+        }
+
+        // Render my permits
+        function renderMyPermits() {
+            const container = document.getElementById('my-permits-list');
+            
+            if (myPermitCredentials.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎯</div>
+                        <p>You don't have any permits yet</p>
+                        <button class="btn" onclick="openRequestModal()" style="margin-top: 20px;">
+                            ➕ Request Your First Permit
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="permit-grid">
+                    ${myPermitCredentials.map(cred => {
+                        const permitDef = allPermitDefinitions.find(p => p.id === cred.permit_definition_id);
+                        const issueDate = new Date(cred.issued_at).toLocaleDateString();
+                        const expiryDate = cred.expires_at ? new Date(cred.expires_at).toLocaleDateString() : 'Never';
+                        
+                        return `
+                            <div class="permit-card">
+                                <div class="permit-header">
+                                    <div>
+                                        <div class="permit-title">${permitDef?.name || cred.permit_definition_id}</div>
+                                        <div class="permit-id">${cred.credential_id}</div>
+                                    </div>
+                                    <span class="badge">${cred.status}</span>
+                                </div>
+                                <div class="permit-meta">
+                                    <span class="badge badge-info">
+                                        Issued: ${issueDate}
+                                    </span>
+                                    <span class="badge ${cred.expires_at ? 'badge-warning' : ''}">
+                                        Expires: ${expiryDate}
+                                    </span>
+                                </div>
+                                <div class="action-buttons">
+                                    <button class="btn btn-secondary" onclick="viewCredential('${cred.credential_id}')">
+                                        📄 View Credential
+                                    </button>
+                                    ${cred.expires_at ? `
+                                        <button class="btn" onclick="renewPermit('${cred.permit_definition_id}')">
+                                            🔄 Renew
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        // Load my attestations
+        async function loadMyAttestations() {
+            const container = document.getElementById('my-attestations-list');
+            
+            // Filter requests where user has attested
+            const myAttestations = allPermitRequests.filter(req => 
+                req.attestations?.some(a => a.attester_npub === userNpub)
+            );
+
+            if (myAttestations.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">✍️</div>
+                        <p>You haven't attested any requests yet</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="request-list">
+                    ${myAttestations.map(req => {
+                        const permitDef = allPermitDefinitions.find(p => p.id === req.permit_definition_id);
+                        const myAttestation = req.attestations.find(a => a.attester_npub === userNpub);
+                        const applicantNpub = req.applicant_npub || NostrTools.nip19.npubEncode(req.applicant_did.split(':').pop());
+                        
+                        return `
+                            <div class="request-card">
+                                <div class="request-header">
+                                    <div>
+                                        <div class="permit-title">${permitDef?.name || req.permit_definition_id}</div>
+                                        <div style="color: var(--muted); font-size: 0.9em; margin-top: 5px;">
+                                            For: ${applicantNpub.substring(0, 12)}...
+                                        </div>
+                                    </div>
+                                    <span class="badge">${req.status}</span>
+                                </div>
+                                <div style="margin: 15px 0;">
+                                    <strong>Your Attestation:</strong>
+                                    <div class="attestation-item">
+                                        ${myAttestation.statement}
+                                    </div>
+                                </div>
+                                <div style="color: var(--muted); font-size: 0.85em;">
+                                    Attested: ${new Date(myAttestation.created_at).toLocaleDateString()}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        // Populate permit filters
+        function populatePermitFilters() {
+            const permitFilter = document.getElementById('permit-filter');
+            const requestFilter = document.getElementById('request-filter');
+            const permitSelect = document.getElementById('permit-select');
+            
+            const options = allPermitDefinitions.map(p => 
+                `<option value="${p.id}">${p.name}</option>`
+            ).join('');
+            
+            if (permitFilter) {
+                permitFilter.innerHTML += options;
+            }
+            if (requestFilter) {
+                requestFilter.innerHTML += options;
+            }
+            if (permitSelect) {
+                permitSelect.innerHTML += options;
+            }
+        }
+
+        // Switch tabs
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab
+            const tabMap = {
+                'permits': 'permits-tab',
+                'my-permits': 'my-permits-tab',
+                'pending-requests': 'pending-requests-tab',
+                'my-attestations': 'my-attestations-tab'
+            };
+            
+            document.getElementById(tabMap[tabName]).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Open request modal
+        function openRequestModal() {
+            document.getElementById('request-modal').classList.add('active');
+        }
+
+        // Close request modal
+        function closeRequestModal() {
+            document.getElementById('request-modal').classList.remove('active');
+            document.getElementById('request-form').reset();
+        }
+
+        // Submit request
+        async function submitRequest(event) {
+            event.preventDefault();
+            
+            const permitId = document.getElementById('permit-select').value;
+            const statement = document.getElementById('statement').value;
+            const evidence = document.getElementById('evidence').value.split(',').map(e => e.trim()).filter(e => e);
+            
+            try {
+                const response = await fetch(`${USPOT_API_BASE}/api/permit/request`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        permit_definition_id: permitId,
+                        applicant_email: userEmail || userNpub,
+                        statement: statement,
+                        evidence: evidence
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to submit request');
+                }
+                
+                const result = await response.json();
+                alert('✅ Permit request submitted successfully!');
+                closeRequestModal();
+                
+                // Reload data
+                await loadAllData();
+                switchTab('my-permits');
+                
+            } catch (error) {
+                console.error('Error submitting request:', error);
+                alert('❌ Failed to submit request: ' + error.message);
+            }
+        }
+
+        // Open attest modal
+        async function openAttestModal(requestId) {
+            const request = allPermitRequests.find(r => r.request_id === requestId);
+            if (!request) {
+                alert('Request not found');
+                return;
+            }
+            
+            const permitDef = allPermitDefinitions.find(p => p.id === request.permit_definition_id);
+            const applicantNpub = request.applicant_npub || NostrTools.nip19.npubEncode(request.applicant_did.split(':').pop());
+            
+            document.getElementById('attest-request-id').value = requestId;
+            document.getElementById('attest-details').innerHTML = `
+                <div class="card">
+                    <div class="permit-title">${permitDef?.name || request.permit_definition_id}</div>
+                    <div style="margin: 10px 0;">
+                        <strong>Applicant:</strong> ${applicantNpub.substring(0, 12)}...
+                    </div>
+                    <div style="margin: 10px 0;">
+                        <strong>Statement:</strong>
+                        <p style="margin-top: 5px;">${request.statement}</p>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('attest-modal').classList.add('active');
+        }
+
+        // Close attest modal
+        function closeAttestModal() {
+            document.getElementById('attest-modal').classList.remove('active');
+            document.getElementById('attest-form').reset();
+        }
+
+        // Submit attestation
+        async function submitAttestation(event) {
+            event.preventDefault();
+            
+            const requestId = document.getElementById('attest-request-id').value;
+            const statement = document.getElementById('attest-statement').value;
+            
+            try {
+                const response = await fetch(`${USPOT_API_BASE}/api/permit/attest`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        request_id: requestId,
+                        attester_email: userEmail || userNpub,
+                        statement: statement
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to submit attestation');
+                }
+                
+                const result = await response.json();
+                alert('✅ Attestation submitted successfully!');
+                closeAttestModal();
+                
+                // Reload data
+                await loadAllData();
+                
+            } catch (error) {
+                console.error('Error submitting attestation:', error);
+                alert('❌ Failed to submit attestation: ' + error.message);
+            }
+        }
+
+        // Request permit (shortcut)
+        function requestPermit(permitId) {
+            document.getElementById('permit-select').value = permitId;
+            openRequestModal();
+        }
+
+        // Renew permit
+        function renewPermit(permitId) {
+            requestPermit(permitId);
+        }
+
+        // View credential
+        async function viewCredential(credentialId) {
+            window.open(`${USPOT_API_BASE}/api/permit/credential/${credentialId}`, '_blank');
+        }
+
+        // Refresh requests
+        async function refreshRequests() {
+            document.getElementById('pending-requests-list').innerHTML = '<div class="loading"></div>';
+            await loadPermitRequests();
+        }
+
+        // Filter permits
+        function filterPermits() {
+            // TODO: Implement filtering
+        }
+
+        // Filter requests
+        function filterRequests() {
+            // TODO: Implement filtering
+        }
+
+        // Toggle technical details
+        function toggleTechnicalDetails() {
+            const details = document.getElementById('technical-details');
+            const button = event.target;
+            
+            if (details.classList.contains('active')) {
+                details.classList.remove('active');
+                button.textContent = '🔧 Show Technical Details';
+            } else {
+                details.classList.add('active');
+                button.textContent = '🔧 Hide Technical Details';
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            detectUSPOTAPI();
+        });
+    </script>
+</body>
+</html>
+
