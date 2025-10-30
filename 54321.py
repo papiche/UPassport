@@ -2637,7 +2637,10 @@ async def process_webcam_video(
 
         # Publish to NOSTR if requested
         nostr_event_id = None
+        logging.info(f"🔍 NOSTR Publishing Check - publish_nostr: '{publish_nostr}', npub: '{npub[:16] if npub else None}...'")
+        
         if publish_nostr.lower() == "true" and npub:
+            logging.info(f"✅ Starting NOSTR publishing process...")
             try:
                 # Verify NOSTR authentication like in /api/fileupload
                 if not await verify_nostr_auth(npub):
@@ -2719,6 +2722,9 @@ async def process_webcam_video(
                         
                         # Send NOSTR event
                         nostr_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/nostr_send_note.py")
+                        logging.info(f"📄 Looking for NOSTR script: {nostr_script}")
+                        logging.info(f"📁 Script exists: {os.path.exists(nostr_script)}")
+                        
                         if os.path.exists(nostr_script):
                             nostr_cmd = [
                                 "python3", nostr_script, nsec_key, video_content, 
@@ -2726,7 +2732,14 @@ async def process_webcam_video(
                                 "--kind", video_kind
                             ]
                             
+                            logging.info(f"🚀 Executing NOSTR publish command with kind {video_kind}")
+                            logging.info(f"📝 Video content: {video_content[:100]}...")
+                            logging.info(f"🏷️  Tags: {json.dumps(tags)[:200]}...")
+                            
                             nostr_result = subprocess.run(nostr_cmd, capture_output=True, text=True, timeout=30)
+                            logging.info(f"📊 NOSTR script return code: {nostr_result.returncode}")
+                            logging.info(f"📤 NOSTR script stdout: {nostr_result.stdout}")
+                            
                             if nostr_result.returncode == 0:
                                 # Extract event ID from output
                                 output_lines = nostr_result.stdout.strip().split('\n')
@@ -2739,10 +2752,16 @@ async def process_webcam_video(
                                 logging.info(f"📡 Event also published to wss://relay.copylaradio.com")
                             else:
                                 logging.error(f"❌ Failed to publish NOSTR event: {nostr_result.stderr}")
+                                logging.error(f"❌ stdout: {nostr_result.stdout}")
                         else:
                             logging.warning(f"⚠️ NOSTR script not found: {nostr_script}")
             except Exception as e:
                 logging.error(f"Error during NOSTR publishing: {e}")
+                logging.error(f"Traceback: {traceback.format_exc()}")
+        else:
+            logging.info(f"⚠️ NOSTR publishing skipped - Conditions not met")
+            logging.info(f"   - publish_nostr.lower() == 'true': {publish_nostr.lower() == 'true'}")
+            logging.info(f"   - npub exists: {bool(npub)}")
 
 
         # Return success response
