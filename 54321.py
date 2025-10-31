@@ -2675,7 +2675,7 @@ async def process_webcam_video(
                     video_files = sorted(user_drive_path.glob("*.*"), key=lambda p: p.stat().st_mtime, reverse=True)
                     logging.info(f"📹 Found {len(video_files)} video file(s) in user drive")
                     if video_files:
-                        filename = video_files[0].name
+                        filename = video_files[0].name  # Only the filename, not the full path
                         file_size = video_files[0].stat().st_size
                         file_location = str(video_files[0])
                         logging.info(f"✅ Selected video file: {filename} ({file_size} bytes)")
@@ -2854,8 +2854,12 @@ async def process_webcam_video(
                             logging.info(f"🔖 Added {len(topic_words[:3])} topic tags")
                         
                         if thumbnail_ipfs:
-                            tags.append(["r", f"/ipfs/{thumbnail_ipfs}", "Thumbnail"])
-                            logging.info(f"🖼️  Added thumbnail reference: /ipfs/{thumbnail_ipfs}")
+                            # Add thumbnail as both 'r' reference and standard 'image' tag
+                            thumbnail_url = f"/ipfs/{thumbnail_ipfs}"
+                            tags.append(["r", thumbnail_url, "Thumbnail"])
+                            tags.append(["image", thumbnail_url])  # Standard image tag for better compatibility
+                            logging.info(f"🖼️  Added thumbnail reference: {thumbnail_url}")
+                            logging.info(f"🖼️  Added thumbnail as standard 'image' tag for NIP-71 compatibility")
                         
                         # Add reference to original webcam URL
                         tags.append(["r", f"webcam://{player}", "Webcam"])
