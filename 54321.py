@@ -1525,14 +1525,140 @@ async def get_root(request: Request):
     return templates.TemplateResponse("g1nostr.html", {"request": request})
 
 # UPlanet Oracle - Permit Management Interface
-@app.get("/oracle", response_class=HTMLResponse)
-async def get_oracle(request: Request):
-    """Oracle System Interface - Multi-signature permit management"""
-    myipfs_gateway = get_myipfs_gateway()
-    return templates.TemplateResponse("oracle.html", {
-        "request": request,
-        "myIPFS": myipfs_gateway
-    })
+@app.get("/oracle")
+async def get_oracle(
+    request: Request, 
+    html: Optional[str] = None,
+    type: Optional[str] = None,
+    npub: Optional[str] = None
+):
+    """Oracle System Interface - Multi-signature permit management
+    
+    Args:
+        html: If present, return HTML page instead of JSON
+        type: Filter by type ('requests', 'credentials', 'definitions')
+        npub: Filter by specific NOSTR public key
+    """
+    try:
+        # Check if Oracle system is available
+        if not ORACLE_ENABLED or oracle_system is None:
+            error_msg = "Oracle system not available"
+            if html is not None:
+                return HTMLResponse(
+                    content=f"<html><body><h1>Oracle System</h1><p>{error_msg}</p></body></html>", 
+                    status_code=503
+                )
+            raise HTTPException(status_code=503, detail=error_msg)
+        
+        # Gather Oracle data
+        oracle_data = {
+            "success": True,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Get permit definitions
+        definitions = []
+        for def_id, definition in oracle_system.definitions.items():
+            definitions.append({
+                "id": def_id,
+                "name": definition.name,
+                "description": definition.description,
+                "min_attestations": definition.min_attestations,
+                "required_license": definition.required_license,
+                "valid_duration_days": definition.valid_duration_days,
+                "revocable": definition.revocable,
+                "verification_method": definition.verification_method,
+                "metadata": definition.metadata
+            })
+        
+        # Get permit requests
+        requests_list = []
+        for req_id, req in oracle_system.requests.items():
+            # Filter by npub if specified
+            if npub and req.applicant_npub != npub:
+                continue
+            
+            requests_list.append({
+                "id": req_id,
+                "permit_definition_id": req.permit_definition_id,
+                "applicant_npub": req.applicant_npub,
+                "statement": req.statement,
+                "evidence": req.evidence,
+                "status": req.status,
+                "attestations": [
+                    {
+                        "attester_npub": att.attester_npub,
+                        "statement": att.statement,
+                        "timestamp": att.timestamp.isoformat() if att.timestamp else None,
+                        "attester_license_id": att.attester_license_id
+                    }
+                    for att in req.attestations
+                ],
+                "created_at": req.created_at.isoformat() if req.created_at else None,
+                "issued_credential_id": req.issued_credential_id
+            })
+        
+        # Get credentials
+        credentials_list = []
+        for cred_id, cred in oracle_system.credentials.items():
+            # Filter by npub if specified
+            if npub and cred.subject_npub != npub:
+                continue
+            
+            credentials_list.append({
+                "id": cred_id,
+                "permit_definition_id": cred.permit_definition_id,
+                "subject_npub": cred.subject_npub,
+                "issued_at": cred.issued_at.isoformat() if cred.issued_at else None,
+                "expires_at": cred.expires_at.isoformat() if cred.expires_at else None,
+                "revoked": cred.revoked,
+                "revoked_at": cred.revoked_at.isoformat() if cred.revoked_at else None,
+                "revocation_reason": cred.revocation_reason,
+                "attestations": cred.attestations,
+                "nostr_event_id": cred.nostr_event_id
+            })
+        
+        # Populate oracle data based on type filter
+        if type == "definitions" or type is None:
+            oracle_data["definitions"] = definitions
+            oracle_data["total_definitions"] = len(definitions)
+        
+        if type == "requests" or type is None:
+            oracle_data["requests"] = requests_list
+            oracle_data["total_requests"] = len(requests_list)
+        
+        if type == "credentials" or type is None:
+            oracle_data["credentials"] = credentials_list
+            oracle_data["total_credentials"] = len(credentials_list)
+        
+        # Add filter information
+        oracle_data["filters"] = {
+            "type": type,
+            "npub": npub
+        }
+        
+        # Return HTML page if requested
+        if html is not None:
+            myipfs_gateway = get_myipfs_gateway()
+            return templates.TemplateResponse("oracle.html", {
+                "request": request,
+                "myIPFS": myipfs_gateway,
+                "oracle_data": oracle_data
+            })
+        
+        # Return JSON response
+        return JSONResponse(content=oracle_data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error in get_oracle: {e}", exc_info=True)
+        if html is not None:
+            return HTMLResponse(
+                content=f"<html><body><h1>Error</h1><p>{str(e)}</p></body></html>", 
+                status_code=500
+            )
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Beside /g1
 @app.post("/g1nostr")

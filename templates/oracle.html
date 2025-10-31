@@ -735,6 +735,58 @@
 
         <!-- Information Section -->
         <div class="info-section" id="info-section">
+            <!-- Oracle Data Summary (if preloaded) -->
+            {% if oracle_data %}
+            <div style="background: rgba(74, 222, 128, 0.1); border: 1px solid var(--accent); border-radius: 12px; padding: 20px; margin-bottom: 30px;">
+                <h3 style="color: var(--accent); margin-bottom: 15px; text-align: center;">
+                    📊 Oracle System Status
+                </h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; text-align: center;">
+                    {% if oracle_data.total_definitions is defined %}
+                    <div>
+                        <div style="font-size: 2em; color: var(--accent); font-weight: 700;">
+                            {{ oracle_data.total_definitions }}
+                        </div>
+                        <div style="color: var(--muted); font-size: 0.9em;">Permit Definitions</div>
+                    </div>
+                    {% endif %}
+                    {% if oracle_data.total_requests is defined %}
+                    <div>
+                        <div style="font-size: 2em; color: var(--warning); font-weight: 700;">
+                            {{ oracle_data.total_requests }}
+                        </div>
+                        <div style="color: var(--muted); font-size: 0.9em;">Pending Requests</div>
+                    </div>
+                    {% endif %}
+                    {% if oracle_data.total_credentials is defined %}
+                    <div>
+                        <div style="font-size: 2em; color: var(--success); font-weight: 700;">
+                            {{ oracle_data.total_credentials }}
+                        </div>
+                        <div style="color: var(--muted); font-size: 0.9em;">Issued Credentials</div>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <div style="font-size: 1.2em; color: var(--text); font-weight: 700;">
+                            {{ oracle_data.timestamp[:19] if oracle_data.timestamp else 'N/A' }}
+                        </div>
+                        <div style="color: var(--muted); font-size: 0.9em;">Last Updated</div>
+                    </div>
+                </div>
+                {% if oracle_data.filters and (oracle_data.filters.type or oracle_data.filters.npub) %}
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border); text-align: center; color: var(--muted); font-size: 0.9em;">
+                    <strong>Active Filters:</strong>
+                    {% if oracle_data.filters.type %}
+                    Type: <span style="color: var(--accent);">{{ oracle_data.filters.type }}</span>
+                    {% endif %}
+                    {% if oracle_data.filters.npub %}
+                    | NPUB: <span style="color: var(--accent); font-family: monospace;">{{ oracle_data.filters.npub[:12] }}...</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
             <h2 style="color: var(--accent); margin-bottom: 20px; text-align: center;">
                 🌐 What is the Oracle System?
             </h2>
@@ -1069,6 +1121,18 @@
         let allPermitRequests = [];
         let myPermitCredentials = [];
 
+        // Pre-loaded data from server (if available)
+        let preloadedOracleData = null;
+        // Jinja2 template injection - ignore linter warnings
+        {% if oracle_data %}
+        try {
+            preloadedOracleData = {{ oracle_data | tojson | safe }};
+            console.log('📦 Oracle data preloaded from server:', preloadedOracleData);
+        } catch (e) {
+            console.error('Failed to parse preloaded oracle data:', e);
+        }
+        {% endif %}
+
         // Detect uSPOT API
         function detectUSPOTAPI() {
             const currentURL = new URL(window.location.href);
@@ -1311,9 +1375,16 @@
         // Load permit definitions (kind 30500)
         async function loadPermitDefinitions() {
             try {
-                const response = await fetch(`${USPOT_API_BASE}/api/permit/definitions`);
-                const data = await response.json();
-                allPermitDefinitions = data.definitions || [];
+                // Use preloaded data if available
+                if (preloadedOracleData && preloadedOracleData.definitions) {
+                    console.log('✅ Using preloaded permit definitions');
+                    allPermitDefinitions = preloadedOracleData.definitions;
+                } else {
+                    console.log('📡 Fetching permit definitions from API');
+                    const response = await fetch(`${USPOT_API_BASE}/api/permit/definitions`);
+                    const data = await response.json();
+                    allPermitDefinitions = data.definitions || [];
+                }
                 
                 renderPermitDefinitions();
                 populatePermitFilters();
@@ -1443,9 +1514,16 @@
         // Load permit requests (kind 30501)
         async function loadPermitRequests() {
             try {
-                const response = await fetch(`${USPOT_API_BASE}/api/permit/list?type=requests`);
-                const data = await response.json();
-                allPermitRequests = data.requests || [];
+                // Use preloaded data if available
+                if (preloadedOracleData && preloadedOracleData.requests) {
+                    console.log('✅ Using preloaded permit requests');
+                    allPermitRequests = preloadedOracleData.requests;
+                } else {
+                    console.log('📡 Fetching permit requests from API');
+                    const response = await fetch(`${USPOT_API_BASE}/api/permit/list?type=requests`);
+                    const data = await response.json();
+                    allPermitRequests = data.requests || [];
+                }
                 
                 renderPendingRequests();
             } catch (error) {
@@ -1553,9 +1631,16 @@
         // Load my permit credentials (kind 30503)
         async function loadMyPermitCredentials() {
             try {
-                const response = await fetch(`${USPOT_API_BASE}/api/permit/list?type=credentials&npub=${userNpub}`);
-                const data = await response.json();
-                myPermitCredentials = data.credentials || [];
+                // Use preloaded data if available
+                if (preloadedOracleData && preloadedOracleData.credentials) {
+                    console.log('✅ Using preloaded permit credentials');
+                    myPermitCredentials = preloadedOracleData.credentials;
+                } else {
+                    console.log('📡 Fetching permit credentials from API');
+                    const response = await fetch(`${USPOT_API_BASE}/api/permit/list?type=credentials&npub=${userNpub}`);
+                    const data = await response.json();
+                    myPermitCredentials = data.credentials || [];
+                }
                 
                 renderMyPermits();
             } catch (error) {
