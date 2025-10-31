@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎬 YouTube - NOSTR Video Library</title>
+    <!-- Nostr integration -->
+    <script src="{{ myIPFS }}/ipfs/QmXEmaPRUaGcvhuyeG99mHHNyP43nn8GtNeuDok8jdpG4a/nostr.bundle.js"></script>
+    <!-- Common.js with NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    
     <style>
         * {
             box-sizing: border-box;
@@ -545,6 +550,12 @@
                         <div class="sidebar-item-name">Ajouter une vidéo</div>
                     </div>
                 </a>
+                <a href="{{ myIPFS }}/ipns/coracle.copylaradio.com" class="sidebar-item" target="_blank">
+                    <div class="sidebar-icon">🌐</div>
+                    <div class="sidebar-item-text">
+                        <div class="sidebar-item-name">Coracle</div>
+                    </div>
+                </a>
             </div>
             
             <div class="sidebar-section">
@@ -618,6 +629,17 @@
                                     {{ video.download_date[:10] if video.download_date else (video.created_at[:10] if video.created_at else '') }}
                                 </div>
                                 <div class="video-actions">
+                                    <button class="video-action-btn" onclick="shareVideo(this)" data-title="{{ video.title }}" data-url="{{ video.ipfs_url }}" data-author="{{ video.uploader }}">
+                                        📡 Partager
+                                    </button>
+                                    <button class="video-action-btn" onclick="bookmarkVideo(this)" data-title="{{ video.title }}" data-url="{{ video.ipfs_url }}">
+                                        🔖 Bookmark
+                                    </button>
+                                    {% if video.message_id %}
+                                    <button class="video-action-btn" onclick="likeVideo(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}">
+                                        👍 Like
+                                    </button>
+                                    {% endif %}
                                     {% if video.youtube_url %}
                                     <a href="{{ video.youtube_url }}" target="_blank" class="video-action-btn">🔗 YouTube</a>
                                     {% endif %}
@@ -640,6 +662,32 @@
         // Global variables
         let IPFS_GATEWAY = '';
         let currentChannel = null;
+        
+        // Apply dynamic theme based on time of day (like entrance.html)
+        function applyDynamicTheme() {
+            const hour = new Date().getHours();
+            const root = document.documentElement;
+            
+            // Night theme (21h-5h) - Keep dark theme
+            if (hour >= 21 || hour < 5) {
+                // Already dark, no changes needed
+                return;
+            }
+            
+            // Morning (5h-11h) - Warmer dark theme
+            if (hour >= 5 && hour < 11) {
+                root.style.setProperty('--bg-primary', '#1a1510');
+                root.style.setProperty('--bg-secondary', '#2a2015');
+                return;
+            }
+            
+            // Evening (17h-21h) - Purple-ish dark theme
+            if (hour >= 17 && hour < 21) {
+                root.style.setProperty('--bg-primary', '#15101a');
+                root.style.setProperty('--bg-secondary', '#201520');
+                return;
+            }
+        }
         
         // Detect IPFS gateway
         function detectIPFSGateway() {
@@ -811,6 +859,9 @@
         
         // Handle video ended
         document.addEventListener('DOMContentLoaded', function() {
+            // Apply dynamic theme
+            applyDynamicTheme();
+            
             detectIPFSGateway();
             convertAllIPFSUrls();
             
@@ -835,6 +886,137 @@
                 });
             }
         });
+        
+        // ========================================
+        // NOSTR VIDEO SHARING FUNCTIONS
+        // ========================================
+        
+        /**
+         * Share a video on NOSTR
+         */
+        async function shareVideo(button) {
+            const title = button.getAttribute('data-title');
+            const ipfsUrl = button.getAttribute('data-url');
+            const author = button.getAttribute('data-author');
+            
+            // Check if user is connected
+            if (!userPubkey) {
+                const connected = await connectNostr();
+                if (!connected) {
+                    alert('❌ Vous devez vous connecter avec NOSTR pour partager cette vidéo');
+                    return;
+                }
+            }
+            
+            const fullUrl = convertIPFSUrl(ipfsUrl);
+            const message = `🎬 ${title}\n\nPar ${author}\n\n📹 ${fullUrl}\n\n#NostrTube #Video`;
+            
+            const tags = [
+                ['r', fullUrl],
+                ['title', title],
+                ['t', 'NostrTube'],
+                ['t', 'Video']
+            ];
+            
+            button.disabled = true;
+            button.textContent = '⏳ Partage...';
+            
+            try {
+                const result = await publishNote(message, tags);
+                if (result) {
+                    button.textContent = '✅ Partagé !';
+                    setTimeout(() => {
+                        button.textContent = '📡 Partager';
+                        button.disabled = false;
+                    }, 3000);
+                }
+            } catch (error) {
+                console.error('Error sharing video:', error);
+                button.textContent = '❌ Erreur';
+                setTimeout(() => {
+                    button.textContent = '📡 Partager';
+                    button.disabled = false;
+                }, 3000);
+            }
+        }
+        
+        /**
+         * Bookmark a video on NOSTR
+         */
+        async function bookmarkVideo(button) {
+            const title = button.getAttribute('data-title');
+            const ipfsUrl = button.getAttribute('data-url');
+            
+            // Check if user is connected
+            if (!userPubkey) {
+                const connected = await connectNostr();
+                if (!connected) {
+                    alert('❌ Vous devez vous connecter avec NOSTR pour bookmarker cette vidéo');
+                    return;
+                }
+            }
+            
+            const fullUrl = convertIPFSUrl(ipfsUrl);
+            
+            button.disabled = true;
+            button.textContent = '⏳ Bookmark...';
+            
+            try {
+                const result = await createBookmark(fullUrl, title, `Video from NOSTR Tube`);
+                if (result) {
+                    button.textContent = '✅ Bookmarké !';
+                    setTimeout(() => {
+                        button.textContent = '🔖 Bookmark';
+                        button.disabled = false;
+                    }, 3000);
+                }
+            } catch (error) {
+                console.error('Error bookmarking video:', error);
+                button.textContent = '❌ Erreur';
+                setTimeout(() => {
+                    button.textContent = '🔖 Bookmark';
+                    button.disabled = false;
+                }, 3000);
+            }
+        }
+        
+        /**
+         * Like a video on NOSTR (send reaction event)
+         */
+        async function likeVideo(button) {
+            const eventId = button.getAttribute('data-event-id');
+            const authorId = button.getAttribute('data-author-id');
+            
+            // Check if user is connected
+            if (!userPubkey) {
+                const connected = await connectNostr();
+                if (!connected) {
+                    alert('❌ Vous devez vous connecter avec NOSTR pour liker cette vidéo');
+                    return;
+                }
+            }
+            
+            button.disabled = true;
+            button.textContent = '⏳ Like...';
+            
+            try {
+                const result = await sendLike(eventId, authorId, '+');
+                if (result) {
+                    button.textContent = '✅ Liké !';
+                    setTimeout(() => {
+                        button.textContent = '👍 Liked';
+                        button.disabled = true; // Keep disabled after liking
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Error liking video:', error);
+                button.textContent = '❌ Erreur';
+                setTimeout(() => {
+                    button.textContent = '👍 Like';
+                    button.disabled = false;
+                }, 3000);
+            }
+        }
     </script>
 </body>
 </html>
