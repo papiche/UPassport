@@ -2297,10 +2297,19 @@ async def youtube_route(
         
         # Return HTML page if requested
         if html is not None:
+            # Calculate IPFS gateway from request hostname
+            hostname = request.headers.get("host", "u.copylaradio.com")
+            if hostname.startswith("u."):
+                ipfs_gateway = f"https://ipfs.{hostname[2:]}"
+            elif hostname.startswith("127.0.0.1") or hostname.startswith("localhost"):
+                ipfs_gateway = "http://127.0.0.1:8080"
+            else:
+                ipfs_gateway = "https://ipfs.copylaradio.com"
+            
             return templates.TemplateResponse("youtube.html", {
                 "request": request,
                 "youtube_data": response_data,
-                "myIPFS": get_myipfs_gateway()
+                "myIPFS": ipfs_gateway
             })
         
         # Return JSON response
