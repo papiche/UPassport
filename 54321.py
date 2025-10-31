@@ -2299,7 +2299,8 @@ async def youtube_route(
         if html is not None:
             return templates.TemplateResponse("youtube.html", {
                 "request": request,
-                "youtube_data": response_data
+                "youtube_data": response_data,
+                "myIPFS": get_myipfs_gateway()
             })
         
         # Return JSON response

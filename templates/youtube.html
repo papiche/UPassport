@@ -899,6 +899,12 @@
             const ipfsUrl = button.getAttribute('data-url');
             const author = button.getAttribute('data-author');
             
+            // Check if common.js is loaded
+            if (typeof userPubkey === 'undefined') {
+                alert('❌ Erreur : common.js non chargé. Rechargez la page.');
+                return;
+            }
+            
             // Check if user is connected
             if (!userPubkey) {
                 const connected = await connectNostr();
@@ -947,6 +953,12 @@
             const title = button.getAttribute('data-title');
             const ipfsUrl = button.getAttribute('data-url');
             
+            // Check if common.js is loaded
+            if (typeof userPubkey === 'undefined') {
+                alert('❌ Erreur : common.js non chargé. Rechargez la page.');
+                return;
+            }
+            
             // Check if user is connected
             if (!userPubkey) {
                 const connected = await connectNostr();
@@ -986,6 +998,12 @@
         async function likeVideo(button) {
             const eventId = button.getAttribute('data-event-id');
             const authorId = button.getAttribute('data-author-id');
+            
+            // Check if common.js is loaded
+            if (typeof userPubkey === 'undefined') {
+                alert('❌ Erreur : common.js non chargé. Rechargez la page.');
+                return;
+            }
             
             // Check if user is connected
             if (!userPubkey) {
