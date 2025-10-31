@@ -2112,13 +2112,24 @@ async def youtube_route(
         radius: Radius in kilometers for geographic filtering (default: 2.0km if lat/lon provided)
     """
     try:
+        print(f"🎬 GET /youtube endpoint called")
+        print(f"   - Channel filter: {channel}")
+        print(f"   - Search: {search}")
+        print(f"   - Keywords: {keyword}")
+        logging.info(f"🎬 GET /youtube endpoint called - channel={channel}, search={search}, keyword={keyword}")
+        
         # Import the video channel functions
         import sys
         sys.path.append(os.path.expanduser("~/.zen/Astroport.ONE/IA"))
         from create_video_channel import fetch_and_process_nostr_events, create_channel_playlist
         
         # Fetch NOSTR events
+        print(f"📡 Fetching NOSTR events from ws://127.0.0.1:7777...")
+        logging.info(f"📡 Fetching NOSTR events from ws://127.0.0.1:7777...")
         video_messages = await fetch_and_process_nostr_events("ws://127.0.0.1:7777", 200)
+        
+        print(f"📊 Fetched {len(video_messages)} video event(s) from NOSTR")
+        logging.info(f"📊 Fetched {len(video_messages)} video event(s) from NOSTR")
         
         # Validate and normalize video data
         validated_videos = []
@@ -2760,14 +2771,26 @@ async def process_webcam_video(
                 user_dir = get_authenticated_user_directory(npub)
                 secret_file = user_dir / ".secret.nostr"
                 
+                print(f"🔑 Checking for secret file: {secret_file}")
+                print(f"🔑 Secret file exists: {secret_file.exists()}")
+                logging.info(f"🔑 Checking for secret file: {secret_file}")
+                logging.info(f"🔑 Secret file exists: {secret_file.exists()}")
+                
                 if secret_file.exists():
+                    print(f"✅ Secret file found, reading content...")
+                    logging.info(f"✅ Secret file found, reading content...")
                     with open(secret_file, 'r') as f:
                         secret_content = f.read()
+                    
+                    print(f"📄 Secret content length: {len(secret_content)} chars")
+                    logging.info(f"📄 Secret content length: {len(secret_content)} chars")
                     
                     # Extract NSEC from secret file
                     nsec_match = re.search(r'NSEC=([^\s;]+)', secret_content)
                     if nsec_match:
                         nsec_key = nsec_match.group(1)
+                        print(f"✅ NSEC key found in secret file")
+                        logging.info(f"✅ NSEC key found in secret file")
                         
                         # Determine video kind (22 for short videos, 21 for regular)
                         video_kind = "22" if duration <= 60 else "21"
@@ -2896,12 +2919,23 @@ async def process_webcam_video(
                                 logging.error(f"❌ stdout: {nostr_result.stdout}")
                         else:
                             if not os.path.exists(nostr_script):
+                                print(f"⚠️ NOSTR script not found: {nostr_script}")
                                 logging.warning(f"⚠️ NOSTR script not found: {nostr_script}")
                             if not secret_file.exists():
+                                print(f"⚠️ NOSTR keyfile not found: {secret_file}")
                                 logging.warning(f"⚠️ NOSTR keyfile not found: {secret_file}")
+                    else:
+                        print(f"❌ NSEC key NOT found in secret file!")
+                        logging.error(f"❌ NSEC key NOT found in secret file!")
+                        logging.error(f"❌ Secret file content: {secret_content}")
+                else:
+                    print(f"❌ Secret file does NOT exist: {secret_file}")
+                    logging.error(f"❌ Secret file does NOT exist: {secret_file}")
             except Exception as e:
-                logging.error(f"Error during NOSTR publishing: {e}")
-                logging.error(f"Traceback: {traceback.format_exc()}")
+                print(f"❌ Exception in NOSTR publishing: {e}")
+                print(f"❌ Traceback: {traceback.format_exc()}")
+                logging.error(f"❌ Error during NOSTR publishing: {e}")
+                logging.error(f"❌ Traceback: {traceback.format_exc()}")
         else:
             logging.info(f"⚠️ NOSTR publishing skipped - Conditions not met")
             logging.info(f"   - publish_nostr.lower() == 'true': {publish_nostr.lower() == 'true'}")
