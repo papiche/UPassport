@@ -1550,7 +1550,15 @@
                     const result = await response.text();
                     showSuccess(`Video published successfully to IPFS!\n\nCID: ${uploadResult.new_cid}\n\nYour video is now available on UPlanet.`, 'Video Published! 🎉', () => {
                         closeModal();
-                        location.reload();
+                        // Reset form and prepare for next recording
+                        document.getElementById('publish-form').reset();
+                        document.getElementById('start-recording').disabled = false;
+                        document.getElementById('start-recording').classList.remove('hidden');
+                        document.getElementById('stop-recording').classList.add('hidden');
+                        document.getElementById('stop-recording').disabled = false;
+                        document.getElementById('stop-recording').textContent = '⏹️ Stop Recording';
+                        document.getElementById('timer').classList.add('hidden');
+                        document.getElementById('timer').textContent = document.getElementById('duration-slider').value;
                     });
                 } else {
                     throw new Error(`Upload failed: ${response.statusText}`);
@@ -1600,6 +1608,10 @@
             const videoBlob = new Blob([file], { type: file.type });
             showVideoModal(videoBlob, file.name);
             
+            // Auto-fill title with filename (without extension)
+            const filenameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+            document.getElementById('video-title').value = filenameWithoutExt;
+            
             // Reset file input
             event.target.value = '';
         }
@@ -1638,7 +1650,12 @@
                 }
                 
                 await connectToRelay();
-                await sendNIP42Auth(DEFAULT_RELAYS[0]);
+                try {
+                    await sendNIP42Auth(DEFAULT_RELAYS[0]);
+                } catch (authError) {
+                    console.warn('⚠️ NIP-42 auth failed (non-critical):', authError);
+                    // Continue anyway - NIP-42 is optional for many relays
+                }
                 await fetchUserEmail();
                 
                 // Update UI

@@ -2604,7 +2604,16 @@ async def process_webcam_video(
         })
 
     try:
-        logging.info(f"Processing video with IPFS CID: {ipfs_cid}")
+        logging.info(f"========== WEBCAM VIDEO PROCESSING START ==========")
+        logging.info(f"📥 Input parameters:")
+        logging.info(f"   - Player: {player}")
+        logging.info(f"   - IPFS CID: {ipfs_cid}")
+        logging.info(f"   - Title: {title}")
+        logging.info(f"   - Description: {description[:50]}..." if description else "   - Description: (empty)")
+        logging.info(f"   - NPUB: {npub[:16]}..." if npub else "   - NPUB: (empty)")
+        logging.info(f"   - Publish to NOSTR: {publish_nostr}")
+        logging.info(f"   - Latitude: {latitude}")
+        logging.info(f"   - Longitude: {longitude}")
         
         ipfs_url = None
         filename = None
@@ -2615,21 +2624,28 @@ async def process_webcam_video(
         
         # Extract filename and metadata from user directory structure
         hex_pubkey = npub_to_hex(npub) if npub else None
+        logging.info(f"🔑 Converted NPUB to HEX: {hex_pubkey[:16]}..." if hex_pubkey else "⚠️ No HEX pubkey available")
+        
         if hex_pubkey:
             try:
                 user_dir = find_user_directory_by_hex(hex_pubkey)
                 user_drive_path = user_dir / "APP" / "uDRIVE" / "Videos"
+                logging.info(f"📂 User drive path: {user_drive_path}")
                 
                 # Find the most recent video file
                 if user_drive_path.exists():
                     video_files = sorted(user_drive_path.glob("*.*"), key=lambda p: p.stat().st_mtime, reverse=True)
+                    logging.info(f"📹 Found {len(video_files)} video file(s) in user drive")
                     if video_files:
                         filename = video_files[0].name
                         file_size = video_files[0].stat().st_size
                         file_location = str(video_files[0])
+                        logging.info(f"✅ Selected video file: {filename} ({file_size} bytes)")
+                        logging.info(f"📍 File location: {file_location}")
                         
                         # Extract metadata using ffprobe
                         try:
+                            logging.info(f"🔍 Extracting video metadata with ffprobe...")
                             dimensions_output = subprocess.run([
                                 'ffprobe', '-v', 'quiet', '-select_streams', 'v:0', 
                                 '-show_entries', 'stream=width,height', 
@@ -2638,6 +2654,9 @@ async def process_webcam_video(
                             
                             if dimensions_output.returncode == 0 and dimensions_output.stdout.strip():
                                 video_dimensions = dimensions_output.stdout.strip()
+                                logging.info(f"📐 Video dimensions: {video_dimensions}")
+                            else:
+                                logging.warning(f"⚠️ Could not extract dimensions (code {dimensions_output.returncode})")
                             
                             duration_output = subprocess.run([
                                 'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration', 
@@ -2646,24 +2665,31 @@ async def process_webcam_video(
                             
                             if duration_output.returncode == 0 and duration_output.stdout.strip():
                                 duration = int(float(duration_output.stdout.strip()))
+                                logging.info(f"⏱️  Video duration: {duration} seconds")
+                            else:
+                                logging.warning(f"⚠️ Could not extract duration (code {duration_output.returncode})")
                         except Exception as e:
-                            logging.warning(f"Could not extract video metadata: {e}")
+                            logging.warning(f"⚠️ Could not extract video metadata: {e}")
             except Exception as e:
                 logging.warning(f"Could not find user directory: {e}")
         
         if not filename:
             filename = f"video_{int(time.time())}.webm"
+            logging.info(f"⚠️ No filename found, using default: {filename}")
         
         ipfs_url = f"/ipfs/{ipfs_cid}/Videos/{filename}"
+        logging.info(f"🔗 IPFS URL: {ipfs_url}")
         
         # Generate title if not provided
         if not title:
             title = f"Webcam recording {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            logging.info(f"📝 No title provided, using default: {title}")
         
         # Generate thumbnail if possible
         thumbnail_ipfs = ""
         if file_location and os.path.exists(file_location):
             try:
+                logging.info(f"🖼️  Generating thumbnail from video...")
                 timestamp = int(time.time())
                 thumbnail_path = f"tmp/thumb_{timestamp}.jpg"
                 thumbnail_result = subprocess.run([
@@ -2672,13 +2698,21 @@ async def process_webcam_video(
                 ], capture_output=True, text=True, timeout=30)
                 
                 if thumbnail_result.returncode == 0 and os.path.exists(thumbnail_path):
+                    logging.info(f"✅ Thumbnail generated, uploading to IPFS...")
                     thumb_result = subprocess.run(['ipfs', 'add', '-q', thumbnail_path], 
                                                 capture_output=True, text=True, timeout=30)
                     if thumb_result.returncode == 0:
                         thumbnail_ipfs = thumb_result.stdout.strip()
+                        logging.info(f"✅ Thumbnail uploaded to IPFS: {thumbnail_ipfs}")
                         os.remove(thumbnail_path)  # Clean up
+                    else:
+                        logging.warning(f"⚠️ Failed to upload thumbnail to IPFS (code {thumb_result.returncode})")
+                else:
+                    logging.warning(f"⚠️ Failed to generate thumbnail (code {thumbnail_result.returncode})")
             except Exception as e:
-                logging.warning(f"Could not generate thumbnail: {e}")
+                logging.warning(f"⚠️ Could not generate thumbnail: {e}")
+        else:
+            logging.info(f"⚠️ No video file available for thumbnail generation")
 
         # Publish to NOSTR if requested
         nostr_event_id = None
@@ -2710,15 +2744,20 @@ async def process_webcam_video(
                         
                         # Determine video kind (22 for short videos, 21 for regular)
                         video_kind = "22" if duration <= 60 else "21"
+                        logging.info(f"📊 Video kind determined: {video_kind} (duration: {duration}s, threshold: 60s)")
                         
                         # Create NIP-71 video event compatible with /youtube view
                         video_content = f"🎬 {title}\n\n📹 Webcam: {ipfs_url}"
                         if description:
                             video_content += f"\n\n📝 Description: {description}"
+                        logging.info(f"📄 Video content prepared (length: {len(video_content)} chars)")
                         
                         # Build NIP-71 tags compatible with create_video_channel.py
+                        logging.info(f"🏷️  Building NOSTR tags...")
                         tags = [
                             ["title", title],
+                            ["url", ipfs_url],  # CRITICAL: Add url tag for create_video_channel.py compatibility
+                            ["m", "video/webm"],  # CRITICAL: Media type tag for create_video_channel.py
                             ["imeta", f"dim {video_dimensions}", f"url {ipfs_url}", 
                              f"x {hashlib.sha256(ipfs_url.encode()).hexdigest()}", "m video/webm"],
                             ["duration", str(duration)],
@@ -2728,10 +2767,14 @@ async def process_webcam_video(
                             ["t", "WebcamRecording"],  # Specific to webcam
                             ["t", "ShortVideo"] if duration <= 60 else ["t", "RegularVideo"]
                         ]
+                        logging.info(f"✅ Initial tags created (count: {len(tags)})")
+                        logging.info(f"🔗 Added critical 'url' tag for compatibility: {ipfs_url}")
+                        logging.info(f"🎞️  Added critical 'm' tag for video type: video/webm")
                         
                         # Add channel tag based on user (compatible with create_video_channel.py)
                         channel_name = player.replace('@', '_').replace('.', '_')
                         tags.append(["t", f"Channel-{channel_name}"])
+                        logging.info(f"📺 Added channel tag: Channel-{channel_name}")
                         
                         # Always add geographic coordinates (UMAP anchoring) - default to 0.00, 0.00 if not provided
                         try:
@@ -2758,17 +2801,23 @@ async def process_webcam_video(
                             topic_words = [word for word in topic_keywords.split() if len(word) > 3]
                             for word in topic_words[:3]:  # Limit to 3 topic tags
                                 tags.append(["t", f"Topic-{word}"])
+                            logging.info(f"🔖 Added {len(topic_words[:3])} topic tags")
                         
                         if thumbnail_ipfs:
                             tags.append(["r", f"/ipfs/{thumbnail_ipfs}", "Thumbnail"])
+                            logging.info(f"🖼️  Added thumbnail reference: /ipfs/{thumbnail_ipfs}")
                         
                         # Add reference to original webcam URL
                         tags.append(["r", f"webcam://{player}", "Webcam"])
+                        logging.info(f"📹 Added webcam reference: webcam://{player}")
+                        
+                        logging.info(f"✅ Total tags built: {len(tags)}")
                         
                         # Send NOSTR event with new unified API
                         nostr_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/nostr_send_note.py")
                         logging.info(f"📄 Looking for NOSTR script: {nostr_script}")
                         logging.info(f"📁 Script exists: {os.path.exists(nostr_script)}")
+                        logging.info(f"🔑 Secret file exists: {secret_file.exists()}")
                         
                         if os.path.exists(nostr_script) and secret_file.exists():
                             # Use new API with keyfile parameter
@@ -2784,10 +2833,14 @@ async def process_webcam_video(
                             
                             logging.info(f"🚀 Executing NOSTR publish command with kind {video_kind}")
                             logging.info(f"📝 Video content: {video_content[:100]}...")
-                            logging.info(f"🏷️  Tags: {json.dumps(tags)[:200]}...")
+                            logging.info(f"🏷️  Tags JSON length: {len(json.dumps(tags))} chars")
+                            logging.info(f"🔧 Full command: {' '.join(nostr_cmd[:4])} ... (args truncated)")
                             
                             nostr_result = subprocess.run(nostr_cmd, capture_output=True, text=True, timeout=30)
                             logging.info(f"📊 NOSTR script return code: {nostr_result.returncode}")
+                            logging.info(f"📤 NOSTR script stdout (first 500 chars): {nostr_result.stdout[:500]}")
+                            if nostr_result.stderr:
+                                logging.warning(f"⚠️ NOSTR script stderr: {nostr_result.stderr}")
                             
                             if nostr_result.returncode == 0:
                                 try:
@@ -2799,9 +2852,11 @@ async def process_webcam_video(
                                     
                                     logging.info(f"✅ NOSTR video event (kind {video_kind}) published: {nostr_event_id}")
                                     logging.info(f"📡 Published to {relays_success}/{relays_total} relay(s)")
-                                except json.JSONDecodeError:
+                                    logging.info(f"🎉 Event successfully sent to NOSTR network!")
+                                except json.JSONDecodeError as json_err:
                                     # Fallback to old parsing method
-                                    logging.info(f"📤 NOSTR script output: {nostr_result.stdout}")
+                                    logging.warning(f"⚠️ Failed to parse JSON output: {json_err}")
+                                    logging.info(f"📤 NOSTR script output (full): {nostr_result.stdout}")
                                     output_lines = nostr_result.stdout.strip().split('\n')
                                     for line in output_lines:
                                         if 'Event ID:' in line or 'event_id:' in line or '- ID:' in line:
@@ -2809,7 +2864,8 @@ async def process_webcam_video(
                                             break
                                     logging.info(f"✅ NOSTR video event (kind {video_kind}) published: {nostr_event_id}")
                             else:
-                                logging.error(f"❌ Failed to publish NOSTR event: {nostr_result.stderr}")
+                                logging.error(f"❌ Failed to publish NOSTR event (return code: {nostr_result.returncode})")
+                                logging.error(f"❌ stderr: {nostr_result.stderr}")
                                 logging.error(f"❌ stdout: {nostr_result.stdout}")
                         else:
                             if not os.path.exists(nostr_script):
@@ -2830,6 +2886,12 @@ async def process_webcam_video(
         if nostr_event_id:
             success_message += f" | NOSTR Event: {nostr_event_id}"
         
+        logging.info(f"========== WEBCAM VIDEO PROCESSING COMPLETE ==========")
+        logging.info(f"✅ Success message: {success_message}")
+        logging.info(f"📊 Final stats: filename={filename}, size={file_size}, duration={duration}s, dimensions={video_dimensions}")
+        if nostr_event_id:
+            logging.info(f"🎉 NOSTR event published: {nostr_event_id}")
+        
         return templates.TemplateResponse("webcam.html", {
             "request": request,
             "message": success_message,
@@ -2845,7 +2907,9 @@ async def process_webcam_video(
         })
 
     except Exception as e:
-        logging.error(f"Error processing webcam video: {e}")
+        logging.error(f"========== WEBCAM VIDEO PROCESSING FAILED ==========")
+        logging.error(f"❌ Error processing webcam video: {e}")
+        logging.error(f"❌ Traceback: {traceback.format_exc()}")
         return templates.TemplateResponse("webcam.html", {
             "request": request, 
             "error": f"Error processing video: {str(e)}", 
