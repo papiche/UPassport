@@ -774,10 +774,21 @@
         
         // Convert all IPFS URLs
         function convertAllIPFSUrls() {
+            // Convert thumbnail images
             document.querySelectorAll('.video-thumbnail .thumbnail-img').forEach(img => {
                 const src = img.getAttribute('src');
                 if (src && (src.startsWith('/ipfs/') || src.startsWith('ipfs://'))) {
                     img.src = convertIPFSUrl(src);
+                }
+            });
+            
+            // Convert video player data-ipfs-url attributes
+            document.querySelectorAll('.inline-video-player').forEach(player => {
+                const ipfsUrl = player.getAttribute('data-ipfs-url');
+                if (ipfsUrl && (ipfsUrl.startsWith('/ipfs/') || ipfsUrl.startsWith('ipfs://'))) {
+                    const fullUrl = convertIPFSUrl(ipfsUrl);
+                    player.setAttribute('data-ipfs-url', fullUrl);
+                    console.log(`Converted video URL: ${ipfsUrl} -> ${fullUrl}`);
                 }
             });
         }
