@@ -556,9 +556,8 @@ class OracleSystem:
             
             # Determine which keyfile to use
             if use_uplanet_key:
-                # Use UPLANETNAME.G1 key
-                uplanet_name = os.getenv("UPLANETNAME", "EnfinLibre")
-                keyfile = Path.home() / ".zen" / "game" / "nostr" / f"{uplanet_name}.G1" / ".secret.nostr"
+                # Use UPLANETNAME.G1 key (standardized location)
+                keyfile = Path.home() / ".zen" / "game" / "uplanet.G1.nostr"
             elif signer_npub:
                 # Try to find keyfile by email/npub
                 email = self.get_email_from_npub(signer_npub)
