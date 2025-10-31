@@ -604,7 +604,6 @@
                                 <video class="inline-video-player" controls style="display: none;" 
                                        data-ipfs-url="{{ video.ipfs_url }}"
                                        preload="none">
-                                    <source src="" type="video/mp4">
                                     Votre navigateur ne supporte pas la lecture vidéo.
                                 </video>
                             </div>
@@ -697,26 +696,38 @@
             if (!videoPlayer) return;
             
             if (videoContainer.classList.contains('playing')) {
+                // Stop playing and show thumbnail again
                 videoPlayer.pause();
                 videoPlayer.currentTime = 0;
                 videoContainer.classList.remove('playing');
                 videoPlayer.style.display = 'none';
+                
+                // Remove source to free memory
+                videoPlayer.innerHTML = 'Votre navigateur ne supporte pas la lecture vidéo.';
+                videoPlayer.load();
             } else {
+                // Start playing
                 const ipfsUrl = videoPlayer.getAttribute('data-ipfs-url');
                 const fullUrl = convertIPFSUrl(ipfsUrl);
                 
-                const source = videoPlayer.querySelector('source');
-                if (!source.src || source.src === '') {
-                    source.src = fullUrl;
-                    videoPlayer.load();
-                }
+                // Create source element dynamically
+                const source = document.createElement('source');
+                source.src = fullUrl;
+                source.type = 'video/mp4';
+                
+                // Clear existing content and add source
+                videoPlayer.innerHTML = '';
+                videoPlayer.appendChild(source);
+                videoPlayer.load();
                 
                 videoContainer.classList.add('playing');
                 videoPlayer.style.display = 'block';
                 
+                // Auto-play when ready
                 videoPlayer.addEventListener('loadeddata', function() {
                     videoPlayer.play().catch(err => {
                         console.log('Auto-play prevented:', err);
+                        // If auto-play is blocked, user will need to click play button
                     });
                 }, { once: true });
             }
@@ -787,23 +798,13 @@
             sidebar.classList.toggle('open');
         }
         
-        // Convert all IPFS URLs
+        // Convert all IPFS URLs for thumbnails
         function convertAllIPFSUrls() {
-            // Convert thumbnail images
+            // Convert thumbnail images only
             document.querySelectorAll('.video-thumbnail .thumbnail-img').forEach(img => {
                 const src = img.getAttribute('src');
                 if (src && (src.startsWith('/ipfs/') || src.startsWith('ipfs://'))) {
                     img.src = convertIPFSUrl(src);
-                }
-            });
-            
-            // Convert video player data-ipfs-url attributes
-            document.querySelectorAll('.inline-video-player').forEach(player => {
-                const ipfsUrl = player.getAttribute('data-ipfs-url');
-                if (ipfsUrl && (ipfsUrl.startsWith('/ipfs/') || ipfsUrl.startsWith('ipfs://'))) {
-                    const fullUrl = convertIPFSUrl(ipfsUrl);
-                    player.setAttribute('data-ipfs-url', fullUrl);
-                    console.log(`Converted video URL: ${ipfsUrl} -> ${fullUrl}`);
                 }
             });
         }
