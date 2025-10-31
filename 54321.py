@@ -2156,7 +2156,9 @@ async def youtube_route(
                 'download_date': video.get('download_date', '') or video.get('created_at', ''),
                 'file_size': int(video.get('file_size', 0)) if str(video.get('file_size', 0)).isdigit() else 0,
                 'message_id': video.get('message_id', ''),
-                'author_id': video.get('author_id', '')
+                'author_id': video.get('author_id', ''),
+                'latitude': video.get('latitude'),  # GPS coordinates
+                'longitude': video.get('longitude')  # GPS coordinates
             }
             validated_videos.append(normalized_video)
         
