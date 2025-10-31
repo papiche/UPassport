@@ -1142,7 +1142,7 @@
         let currentStream = null;
         let authMode = 'extension';
         let userEmail = null;
-        // userPubkey and userPrivkey are declared in common.js
+        // userPubkey and userPrivateKey are declared in common.js
         
         // Mobile detection
         let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -1645,7 +1645,7 @@
                     }
                     
                     try {
-                        // Use common.js variable userPrivateKey instead of userPrivkey
+                        // Use common.js variable userPrivateKey
                         userPrivateKey = NostrTools.nip19.decode(nsecKey).data;
                         userPubkey = NostrTools.getPublicKey(userPrivateKey);
                     } catch (e) {
@@ -1654,12 +1654,7 @@
                 }
                 
                 await connectToRelay();
-                try {
-                    await sendNIP42Auth(DEFAULT_RELAYS[0]);
-                } catch (authError) {
-                    console.warn('⚠️ NIP-42 auth failed (non-critical):', authError);
-                    // Continue anyway - NIP-42 is optional for many relays
-                }
+                // NIP-42 auth is automatically sent by connectToRelay() on 'connect' event
                 await fetchUserEmail();
                 
                 // Update UI
