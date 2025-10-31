@@ -666,12 +666,27 @@
         // Convert IPFS URLs
         function convertIPFSUrl(url) {
             if (!url) return '';
+            
+            let fullUrl = url;
             if (url.startsWith('/ipfs/')) {
-                return `${IPFS_GATEWAY}${url}`;
+                fullUrl = `${IPFS_GATEWAY}${url}`;
             } else if (url.startsWith('ipfs://')) {
-                return url.replace('ipfs://', `${IPFS_GATEWAY}/ipfs/`);
+                fullUrl = url.replace('ipfs://', `${IPFS_GATEWAY}/ipfs/`);
             }
-            return url;
+            
+            // Encode URL to handle spaces and special characters
+            // Split by '/' to preserve path structure, encode each segment
+            const urlParts = fullUrl.split('/');
+            const encodedParts = urlParts.map((part, index) => {
+                // Don't encode protocol (http:, https:) and empty parts
+                if (index <= 2 || part === '' || part.includes(':')) {
+                    return part;
+                }
+                // Encode each path segment
+                return encodeURIComponent(part);
+            });
+            
+            return encodedParts.join('/');
         }
         
         // Toggle video player
