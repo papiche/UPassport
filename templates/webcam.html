@@ -18,37 +18,67 @@
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            color: #e8e8e8;
+            font-family: 'Roboto', 'Arial', sans-serif;
+            background: #0f0f0f;
+            color: #ffffff;
             min-height: 100vh;
             margin: 0;
             padding: 0;
             overflow-x: hidden;
         }
         
-        /* Compact Header */
+        /* Compact Header - YouTube Style */
         .header {
-            background: rgba(0, 0, 0, 0.3);
+            background: #212121;
             backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 8px 15px;
+            border-bottom: 1px solid #3f3f3f;
+            padding: 12px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 16px;
             position: sticky;
             top: 0;
             z-index: 100;
         }
         
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
         .header h1 {
-            color: #4ade80;
+            color: #ffffff;
             margin: 0;
-            font-size: 1.2em;
-            font-weight: 700;
-            text-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+            font-size: 1.3em;
+            font-weight: 400;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .youtube-link {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #f1f1f1;
+            border-radius: 18px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+        }
+        
+        .youtube-link:hover {
+            background: #3f3f3f;
+            border-color: #ff0000;
+            color: #ffffff;
         }
         
         /* Compact NOSTR Auth in Header */
@@ -78,29 +108,30 @@
         /* Main Container - Full viewport */
         .main-container {
             max-width: 100%;
-            padding: 10px;
-            height: calc(100vh - 60px);
+            padding: 24px;
+            height: calc(100vh - 80px);
             overflow-y: auto;
+            background: #0f0f0f;
         }
         
-        /* Webcam Section - Compact */
+        /* Webcam Section - YouTube Style */
         .webcam-section {
-            background: rgba(255, 255, 255, 0.05);
+            background: #181818;
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 15px;
-            border-radius: 15px;
+            border: 1px solid #3f3f3f;
+            padding: 24px;
+            border-radius: 12px;
             text-align: center;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
             max-width: 900px;
             margin: 0 auto;
         }
         
         .webcam-title {
-            color: #4ade80;
-            font-size: 1.3em;
-            margin-bottom: 15px;
-            font-weight: 600;
+            color: #ffffff;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            font-weight: 500;
         }
         
         #video-preview {
@@ -109,10 +140,10 @@
             height: auto;
             aspect-ratio: 16/9;
             max-height: 40vh;
-            border: 2px solid #4ade80;
-            border-radius: 10px;
+            border: 2px solid #3f3f3f;
+            border-radius: 12px;
             margin: 10px auto;
-            box-shadow: 0 0 15px rgba(74, 222, 128, 0.3);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             background: #000;
             object-fit: cover;
         }
@@ -120,8 +151,8 @@
         #timer {
             font-size: 2.5em;
             margin: 10px 0;
-            color: #4ade80;
-            text-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+            color: #ff0000;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
             font-weight: bold;
         }
         
@@ -170,7 +201,7 @@
         button {
             padding: 10px 20px;
             border: none;
-            border-radius: 6px;
+            border-radius: 18px;
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
@@ -180,36 +211,36 @@
         }
         
         .btn-primary {
-            background: linear-gradient(135deg, #4ade80, #22c55e);
+            background: #065fd4;
             color: white;
         }
         
         .btn-primary:hover {
-            background: linear-gradient(135deg, #22c55e, #16a34a);
+            background: #0556c2;
             transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(74, 222, 128, 0.3);
+            box-shadow: 0 3px 10px rgba(6, 95, 212, 0.3);
         }
         
         .btn-secondary {
-            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            background: #3f3f3f;
             color: white;
         }
         
         .btn-secondary:hover {
-            background: linear-gradient(135deg, #4f46e5, #4338ca);
+            background: #606060;
             transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(99, 102, 241, 0.3);
+            box-shadow: 0 3px 10px rgba(255, 255, 255, 0.1);
         }
         
         .btn-danger {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
+            background: #ff0000;
             color: white;
         }
         
         .btn-danger:hover {
-            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            background: #cc0000;
             transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(239, 68, 68, 0.3);
+            box-shadow: 0 3px 10px rgba(255, 0, 0, 0.3);
         }
         
         button:disabled {
@@ -223,13 +254,13 @@
             display: none;
         }
         
-        /* Video upload section - compact */
+        /* Video upload section - YouTube style */
         .video-upload-section {
             margin: 10px 0;
-            padding: 10px;
-            background: rgba(99, 102, 241, 0.1);
-            border-radius: 8px;
-            border: 1px solid rgba(99, 102, 241, 0.2);
+            padding: 16px;
+            background: rgba(63, 63, 63, 0.3);
+            border-radius: 12px;
+            border: 1px solid #3f3f3f;
         }
         
         .video-upload-section label {
@@ -265,7 +296,7 @@
             font-size: 0.85em;
         }
         
-        /* Modal Styles */
+        /* Modal Styles - YouTube theme */
         .modal {
             display: none;
             position: fixed;
@@ -274,7 +305,7 @@
             top: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.9);
+            background-color: rgba(0, 0, 0, 0.95);
             backdrop-filter: blur(5px);
             overflow-y: auto;
         }
@@ -287,15 +318,15 @@
         }
         
         .modal-content {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            padding: 15px;
+            background: #181818;
+            border: 1px solid #3f3f3f;
+            border-radius: 12px;
+            padding: 24px;
             max-width: 800px;
             width: 100%;
             max-height: 90vh;
             overflow-y: auto;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
             position: relative;
             margin-top: 10px;
         }
@@ -310,9 +341,10 @@
         }
         
         .modal-header h2 {
-            color: #4ade80;
+            color: #ffffff;
             margin: 0;
-            font-size: 1.3em;
+            font-size: 1.5em;
+            font-weight: 500;
         }
         
         .close-modal {
@@ -379,17 +411,17 @@
         }
         
         .location-section {
-            background: rgba(74, 222, 128, 0.1);
-            border: 1px solid rgba(74, 222, 128, 0.2);
-            padding: 12px;
-            border-radius: 10px;
+            background: rgba(63, 63, 63, 0.3);
+            border: 1px solid #3f3f3f;
+            padding: 16px;
+            border-radius: 12px;
             margin: 12px 0;
         }
         
         .location-section > label {
             display: block;
             margin-bottom: 8px;
-            color: #4ade80;
+            color: #ffffff;
             font-weight: 600;
             font-size: 0.9em;
         }
@@ -522,27 +554,27 @@
         }
         
         .notification-content {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border-radius: 15px;
+            background: #181818;
+            border-radius: 12px;
             padding: 25px;
             max-width: 450px;
             width: 100%;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
             border: 2px solid;
             animation: slideIn 0.3s ease;
             position: relative;
         }
         
         .notification-content.success {
-            border-color: #4ade80;
+            border-color: #065fd4;
         }
         
         .notification-content.error {
-            border-color: #ef4444;
+            border-color: #ff0000;
         }
         
         .notification-content.info {
-            border-color: #6366f1;
+            border-color: #3f3f3f;
         }
         
         .notification-content.warning {
@@ -593,25 +625,25 @@
         }
         
         .notification-btn.primary {
-            background: linear-gradient(135deg, #4ade80, #22c55e);
+            background: #065fd4;
             color: white;
         }
         
         .notification-btn.primary:hover {
-            background: linear-gradient(135deg, #22c55e, #16a34a);
+            background: #0556c2;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
+            box-shadow: 0 4px 12px rgba(6, 95, 212, 0.4);
         }
         
         .notification-btn.secondary {
-            background: linear-gradient(135deg, #64748b, #475569);
+            background: #3f3f3f;
             color: white;
         }
         
         .notification-btn.secondary:hover {
-            background: linear-gradient(135deg, #475569, #334155);
+            background: #606060;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(100, 116, 139, 0.4);
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
         }
         
         @keyframes fadeIn {
@@ -981,7 +1013,12 @@
 <body>
     <!-- Compact Header with NOSTR Auth -->
     <div class="header">
-        <h1>🎥 Webcam Recorder</h1>
+        <div class="header-left">
+            <h1>🎥 Webcam Recorder</h1>
+            <a href="/youtube?html=1" class="youtube-link">
+                📺 My Videos
+            </a>
+        </div>
         <div class="nostr-header" style="position: relative;">
             <div class="auth-status" id="header-auth-status">Not connected</div>
             <button id="header-connect-btn" class="btn-primary" onclick="toggleNostrExpanded()" style="padding: 6px 12px; font-size: 0.8em;">🔌 Connect</button>
