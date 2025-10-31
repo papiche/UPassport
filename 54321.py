@@ -615,7 +615,7 @@ def get_authenticated_user_directory(npub: str) -> Path:
     user_root_dir = find_user_directory_by_hex(hex_pubkey)
     
     # Retourner le répertoire APP (où doivent aller les fichiers uploadés)
-    app_dir = user_root_dir / "APP"
+    app_dir = user_root_dir
     app_dir.mkdir(exist_ok=True)  # S'assurer que APP/ existe
     
     logging.info(f"Répertoire APP utilisateur (sécurisé): {app_dir}")
@@ -3220,8 +3220,8 @@ async def upload_file_to_ipfs(
 
     try:
         # Get user directory for file placement
-        user_APP_path = get_authenticated_user_directory(npub)
-        user_drive_path = user_APP_path / "uDRIVE"
+        user_NOSTR_path = get_authenticated_user_directory(npub)
+        user_drive_path = user_NOSTR_path  / "APP" / "uDRIVE"
         
         # Determine file type and target directory
         file_content = await file.read()
@@ -3430,8 +3430,8 @@ async def upload_file(
         raise HTTPException(status_code=403, detail="Nostr authentication failed or not provided.")
 
     try:
-        user_APP_path = get_authenticated_user_directory(npub)
-        user_drive_path = user_APP_path / "uDRIVE"
+        user_NOSTR_path = get_authenticated_user_directory(npub)
+        user_drive_path = user_NOSTR_path / "APP" / "uDRIVE"
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -3634,8 +3634,8 @@ async def upload_from_drive(request: UploadFromDriveRequest):
         raise HTTPException(status_code=403, detail="Nostr authentication failed or not provided.")
 
     try:
-        user_APP_path = get_authenticated_user_directory(request.npub)
-        user_drive_path = user_APP_path / "uDRIVE"
+        user_NOSTR_path = get_authenticated_user_directory(request.npub)
+        user_drive_path = user_NOSTR_path / "APP" / "uDRIVE"
 
     except HTTPException as e:
         raise e
@@ -3910,7 +3910,7 @@ async def create_urbanivore_resource(resource: UrbanivoreResource):
         
         # Créer le répertoire utilisateur
         user_drive_path = get_authenticated_user_directory(resource.npub)
-        urbanivore_dir = user_drive_path / "Urbanivore"
+        urbanivore_dir = user_drive_path / "APP" / "Urbanivore"
         urbanivore_dir.mkdir(parents=True, exist_ok=True)
         
         # Générer un ID unique
@@ -4033,8 +4033,8 @@ async def copy_project_to_udrive(request: CopyProjectRequest):
             raise HTTPException(status_code=403, detail="Authentification NOSTR requise")
         
         # Obtenir le répertoire utilisateur
-        user_APP_path = get_authenticated_user_directory(request.npub)
-        user_drive_path = user_APP_path / "uDRIVE"
+        user_NOSTR_path = get_authenticated_user_directory(request.npub)
+        user_drive_path = user_NOSTR_path / "APP" / "uDRIVE"
         apps_dir = user_drive_path / "Apps"
         apps_dir.mkdir(parents=True, exist_ok=True)
         
@@ -4138,7 +4138,7 @@ async def list_urbanivore_resources(npub: str, limit: int = 50):
         
         # Obtenir le répertoire utilisateur
         user_drive_path = get_authenticated_user_directory(npub)
-        urbanivore_dir = user_drive_path / "Urbanivore"
+        urbanivore_dir = user_drive_path / "APP" / "Urbanivore"
         
         if not urbanivore_dir.exists():
             return {"resources": [], "total": 0}
