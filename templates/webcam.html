@@ -1548,6 +1548,10 @@
                 
                 if (response.ok) {
                     const result = await response.text();
+                    // Re-enable button before showing success modal
+                    document.getElementById('publish-btn').disabled = false;
+                    document.getElementById('publish-btn').textContent = '📡 Publish Video';
+                    
                     showSuccess(`Video published successfully to IPFS!\n\nCID: ${uploadResult.new_cid}\n\nYour video is now available on UPlanet.`, 'Video Published! 🎉', () => {
                         closeModal();
                         // Reset form and prepare for next recording

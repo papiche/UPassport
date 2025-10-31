@@ -2715,7 +2715,7 @@ async def process_webcam_video(
             filename = f"video_{int(time.time())}.webm"
             logging.info(f"⚠️ No filename found, using default: {filename}")
         
-        ipfs_url = f"/ipfs/{ipfs_cid}/Videos/{filename}"
+        ipfs_url = f"/ipfs/{ipfs_cid}/{filename}"
         logging.info(f"🔗 IPFS URL: {ipfs_url}")
         
         # Generate title if not provided
