@@ -2577,8 +2577,16 @@ async def process_webcam_video(
     This route only handles NOSTR event creation and publishing.
     """
     global recording_process, current_player
+    
+    # Log function entry FIRST
+    print(f"\n🎬 POST /webcam endpoint called")
+    print(f"   - Player: {player}")
+    print(f"   - IPFS CID: {ipfs_cid}")
+    logging.info(f"🎬 POST /webcam endpoint called with player={player}, ipfs_cid={ipfs_cid}")
 
     if not player:
+        print(f"❌ No player provided")
+        logging.error("No player provided")
         return templates.TemplateResponse("webcam.html", {
             "request": request, 
             "error": "No player provided. What is your email?", 
@@ -2587,6 +2595,8 @@ async def process_webcam_video(
         })
 
     if not re.match(r"[^@]+@[^@]+\.[^@]+", player):
+        print(f"❌ Invalid email address: {player}")
+        logging.error(f"Invalid email address: {player}")
         return templates.TemplateResponse("webcam.html", {
             "request": request, 
             "error": "Invalid email address provided.", 
@@ -2596,6 +2606,8 @@ async def process_webcam_video(
 
     # Validate IPFS CID is provided
     if not ipfs_cid or not ipfs_cid.strip():
+        print(f"❌ No IPFS CID provided")
+        logging.error("No IPFS CID provided")
         return templates.TemplateResponse("webcam.html", {
             "request": request, 
             "error": "No IPFS CID provided. Video must be uploaded via /api/fileupload first.", 
@@ -2604,7 +2616,22 @@ async def process_webcam_video(
         })
 
     try:
+        # Use both print and logging to ensure visibility
+        print(f"\n{'='*60}")
+        print(f"========== WEBCAM VIDEO PROCESSING START ==========")
+        print(f"{'='*60}")
         logging.info(f"========== WEBCAM VIDEO PROCESSING START ==========")
+        
+        print(f"📥 Input parameters:")
+        print(f"   - Player: {player}")
+        print(f"   - IPFS CID: {ipfs_cid}")
+        print(f"   - Title: {title}")
+        print(f"   - Description: {description[:50] if description else '(empty)'}")
+        print(f"   - NPUB: {npub[:16] + '...' if npub else '(empty)'}")
+        print(f"   - Publish to NOSTR: {publish_nostr}")
+        print(f"   - Latitude: {latitude}")
+        print(f"   - Longitude: {longitude}")
+        
         logging.info(f"📥 Input parameters:")
         logging.info(f"   - Player: {player}")
         logging.info(f"   - IPFS CID: {ipfs_cid}")
