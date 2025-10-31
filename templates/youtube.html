@@ -619,6 +619,130 @@
             background: #3f3f3f;
         }
         
+        /* Multiple videos popup styles */
+        .map-popup-multiple {
+            max-height: 400px;
+            overflow: hidden;
+        }
+        
+        .map-popup-header {
+            padding: 12px;
+            border-bottom: 1px solid #3f3f3f;
+            background: #212121;
+            color: #f1f1f1;
+            font-size: 0.9em;
+        }
+        
+        .map-popup-video-list {
+            max-height: 340px;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        
+        .map-popup-video-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .map-popup-video-list::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+        
+        .map-popup-video-list::-webkit-scrollbar-thumb {
+            background: #3f3f3f;
+            border-radius: 3px;
+        }
+        
+        .map-popup-video-list::-webkit-scrollbar-thumb:hover {
+            background: #606060;
+        }
+        
+        .map-popup-video-item {
+            display: flex;
+            gap: 10px;
+            padding: 8px;
+            margin-bottom: 8px;
+            background: #181818;
+            border-radius: 8px;
+            transition: background 0.2s ease;
+        }
+        
+        .map-popup-video-item:hover {
+            background: #282828;
+        }
+        
+        .map-popup-video-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .map-popup-video-item-thumb {
+            width: 80px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 6px;
+            flex-shrink: 0;
+            background: #181818;
+        }
+        
+        .map-popup-video-item-thumb-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #606060;
+            font-size: 1.5em;
+        }
+        
+        .map-popup-video-item-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .map-popup-video-item-title {
+            font-weight: 500;
+            color: #f1f1f1;
+            font-size: 0.8em;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .map-popup-video-item-meta {
+            color: #aaaaaa;
+            font-size: 0.7em;
+            line-height: 1.2;
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .map-popup-video-item-actions {
+            display: flex;
+            gap: 4px;
+            margin-top: auto;
+        }
+        
+        .map-popup-btn-small {
+            padding: 4px 8px;
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #f1f1f1;
+            border-radius: 12px;
+            font-size: 0.7em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .map-popup-btn-small:hover {
+            background: #3f3f3f;
+        }
+        
         /* Video marker icon */
         .video-marker {
             background: transparent;
@@ -1317,9 +1441,21 @@
             
             console.log(`📍 Found ${videoData.length} videos with geocoordinates`);
             
-            // Create markers for each video
+            // Group videos by location (lat, lon)
+            const locationGroups = new Map();
             videoData.forEach(video => {
-                createVideoMarker(video);
+                const key = `${video.lat.toFixed(6)},${video.lon.toFixed(6)}`;
+                if (!locationGroups.has(key)) {
+                    locationGroups.set(key, []);
+                }
+                locationGroups.get(key).push(video);
+            });
+            
+            console.log(`📌 Grouped into ${locationGroups.size} unique locations`);
+            
+            // Create markers for each location (may contain multiple videos)
+            locationGroups.forEach((videosAtLocation, locationKey) => {
+                createLocationMarker(videosAtLocation);
             });
             
             // Fit map to show all markers
@@ -1330,44 +1466,104 @@
         }
         
         /**
-         * Create a marker for a video
+         * Create a marker for a location (may contain multiple videos)
          */
-        function createVideoMarker(video) {
-            // Custom icon
+        function createLocationMarker(videos) {
+            if (videos.length === 0) return;
+            
+            const firstVideo = videos[0];
+            const lat = firstVideo.lat;
+            const lon = firstVideo.lon;
+            const videoCount = videos.length;
+            
+            // Custom icon with video count
+            const iconHtml = videoCount > 1 
+                ? `<div style="position: relative;">
+                     <span style="font-size: 24px;">📹</span>
+                     <span style="position: absolute; top: -5px; right: -8px; background: #ff0000; color: white; border-radius: 10px; padding: 2px 6px; font-size: 11px; font-weight: bold; min-width: 18px; text-align: center;">${videoCount}</span>
+                   </div>`
+                : '📹';
+            
             const icon = L.divIcon({
                 className: 'video-marker',
-                html: '📹',
+                html: iconHtml,
                 iconSize: [30, 30]
             });
             
             // Create marker
-            const marker = L.marker([video.lat, video.lon], { icon })
+            const marker = L.marker([lat, lon], { icon })
                 .addTo(map);
             
             // Create popup content
-            const popupContent = `
-                <div class="map-popup-video">
-                    ${video.thumbnailSrc 
-                        ? `<div class="map-popup-thumbnail"><img src="${video.thumbnailSrc}" alt="Thumbnail"></div>`
-                        : '<div class="map-popup-placeholder">🎬</div>'
-                    }
-                    <div class="map-popup-info">
-                        <div class="map-popup-title">${video.title}</div>
-                        <div class="map-popup-meta">${video.meta}</div>
-                        <div class="map-popup-actions">
-                            <button class="map-popup-btn" onclick="playVideoFromMap('${video.ipfsUrl}')">▶ Lire</button>
-                            <button class="map-popup-btn" onclick="closeMapAndScrollTo('${video.title}')">👁️ Voir</button>
+            let popupContent = '';
+            
+            if (videoCount === 1) {
+                // Single video popup (original design)
+                const video = videos[0];
+                popupContent = `
+                    <div class="map-popup-video">
+                        ${video.thumbnailSrc 
+                            ? `<div class="map-popup-thumbnail"><img src="${video.thumbnailSrc}" alt="Thumbnail"></div>`
+                            : '<div class="map-popup-placeholder">🎬</div>'
+                        }
+                        <div class="map-popup-info">
+                            <div class="map-popup-title">${video.title}</div>
+                            <div class="map-popup-meta">${video.meta}</div>
+                            <div class="map-popup-actions">
+                                <button class="map-popup-btn" onclick="playVideoFromMap('${video.ipfsUrl}')">▶ Lire</button>
+                                <button class="map-popup-btn" onclick="closeMapAndScrollTo('${escapeHtml(video.title)}')">👁️ Voir</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            `;
+                `;
+            } else {
+                // Multiple videos popup (list with scroll)
+                popupContent = `
+                    <div class="map-popup-multiple">
+                        <div class="map-popup-header">
+                            <strong>${videoCount} vidéos à cet emplacement</strong>
+                        </div>
+                        <div class="map-popup-video-list">
+                            ${videos.map(video => `
+                                <div class="map-popup-video-item">
+                                    ${video.thumbnailSrc 
+                                        ? `<img src="${video.thumbnailSrc}" alt="Thumbnail" class="map-popup-video-item-thumb">`
+                                        : '<div class="map-popup-video-item-thumb map-popup-video-item-thumb-placeholder">🎬</div>'
+                                    }
+                                    <div class="map-popup-video-item-info">
+                                        <div class="map-popup-video-item-title">${video.title}</div>
+                                        <div class="map-popup-video-item-meta">${video.meta}</div>
+                                        <div class="map-popup-video-item-actions">
+                                            <button class="map-popup-btn-small" onclick="playVideoFromMap('${video.ipfsUrl}')">▶</button>
+                                            <button class="map-popup-btn-small" onclick="closeMapAndScrollTo('${escapeHtml(video.title)}')">👁️</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
             
             marker.bindPopup(popupContent, {
-                maxWidth: 280,
+                maxWidth: videoCount === 1 ? 280 : 350,
+                maxHeight: videoCount > 1 ? 400 : undefined,
                 className: 'video-popup'
             });
             
             markers.push(marker);
+        }
+        
+        /**
+         * Escape HTML to prevent XSS in onclick attributes
+         */
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
         
         /**
