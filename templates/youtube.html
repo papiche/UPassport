@@ -1221,7 +1221,7 @@
                              data-lon="{{ video.longitude if video.longitude else 0 }}">
                             <div class="video-thumbnail" onclick="toggleVideoPlayer(this)" ondblclick="openVideoInTheater(this)">
                                 {% if video.thumbnail_ipfs %}
-                                <img src="{{ video.thumbnail_ipfs }}" alt="Thumbnail" class="thumbnail-img">
+                                <img src="" alt="Thumbnail" class="thumbnail-img" data-ipfs-url="{{ video.thumbnail_ipfs }}">
                                 {% else %}
                                 <div class="thumbnail-placeholder">🎬</div>
                                 {% endif %}
@@ -2031,10 +2031,26 @@
             // Use convertIPFSUrlGlobal if available, otherwise fallback
             const convertFn = typeof convertIPFSUrlGlobal !== 'undefined' ? convertIPFSUrlGlobal : convertIPFSUrl;
             
-            // Convert thumbnail images
+            // Convert thumbnail images - prioritize data-ipfs-url attribute
             document.querySelectorAll('.video-thumbnail .thumbnail-img').forEach(img => {
+                // First, check if there's a data-ipfs-url attribute (from template)
+                let ipfsUrl = img.getAttribute('data-ipfs-url');
+                
+                if (ipfsUrl) {
+                    // Convert the IPFS URL from data attribute
+                    const convertedUrl = convertFn(ipfsUrl);
+                    if (convertedUrl) {
+                        img.src = convertedUrl;
+                        // Keep data-ipfs-url for reference, but also update src
+                        img.setAttribute('data-ipfs-url-converted', convertedUrl);
+                        console.log(`✅ Converted thumbnail from data-ipfs-url: ${ipfsUrl.substring(0, 50)}... → ${convertedUrl.substring(0, 50)}...`);
+                        return; // Skip the src-based conversion below
+                    }
+                }
+                
+                // Fallback: check existing src attribute (for dynamically added images)
                 const src = img.getAttribute('src');
-                if (!src) return;
+                if (!src || src === '') return;
                 
                 // Check if URL contains /ipfs/ path (even if it's a full URL with wrong domain)
                 if (src.includes('/ipfs/')) {
