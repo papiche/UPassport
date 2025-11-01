@@ -1999,30 +1999,52 @@
         // Check if user is already connected (from common.js or previous session)
         async function checkExistingConnection() {
             // Wait a bit for common.js to initialize
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
-            // Check if userPubkey is already set (from common.js or localStorage)
+            // Check if userPubkey is already set (from common.js or previous session)
             if (typeof userPubkey !== 'undefined' && userPubkey) {
                 console.log('✅ Existing connection detected:', userPubkey.substring(0, 8) + '...');
                 
                 // Check if relay connection is active
                 if (typeof nostrRelay !== 'undefined' && nostrRelay && typeof isNostrConnected !== 'undefined' && isNostrConnected) {
-                    // Already connected to relay
+                    // Already connected to relay - great! Just update UI
+                    console.log('✅ Relay already connected, updating UI');
+                    await fetchUserEmail();
                     await onConnectionSuccess();
                 } else {
-                    // Connect to relay if not already connected
-                    try {
-                        await connectToRelay();
-                        await fetchUserEmail();
-                        await onConnectionSuccess();
-                    } catch (error) {
-                        console.error('Error connecting to relay:', error);
-                        // Show central button if connection fails
+                    // Has pubkey but relay not connected - try to connect
+                    if (typeof connectToRelay === 'function') {
+                        try {
+                            console.log('🔄 Connecting to relay with existing pubkey...');
+                            await connectToRelay();
+                            
+                            // Wait a bit for connection to establish
+                            let attempts = 0;
+                            while (attempts < 10 && (!isNostrConnected || !nostrRelay)) {
+                                await new Promise(resolve => setTimeout(resolve, 200));
+                                attempts++;
+                            }
+                            
+                            if (isNostrConnected && nostrRelay) {
+                                console.log('✅ Relay connected successfully');
+                                await fetchUserEmail();
+                                await onConnectionSuccess();
+                            } else {
+                                throw new Error('Relay connection timeout');
+                            }
+                        } catch (error) {
+                            console.error('Error connecting to relay:', error);
+                            // Show central button if connection fails
+                            showCentralConnectionButton();
+                        }
+                    } else {
+                        console.warn('⚠️ connectToRelay function not available');
                         showCentralConnectionButton();
                     }
                 }
             } else {
                 // No existing connection, show central button
+                console.log('ℹ️ No existing connection found');
                 showCentralConnectionButton();
             }
         }

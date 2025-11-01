@@ -1013,6 +1013,22 @@
                 padding: 6px 12px;
             }
             
+            #nostr-header-status {
+                flex-direction: column;
+                gap: 4px;
+                align-items: flex-start;
+            }
+            
+            #nostr-status-text {
+                font-size: 0.75em;
+            }
+            
+            #nostr-connect-btn-header,
+            #nostr-profile-btn-header {
+                font-size: 0.8em;
+                padding: 5px 10px;
+            }
+            
             .search-bar {
                 padding: 12px 20px;
             }
@@ -1248,6 +1264,16 @@
                             <span class="header-stat-number">{{ youtube_data.total_channels }}</span>
                             <span data-i18n="channels">chaînes</span>
                         </div>
+                    </div>
+                    <!-- NOSTR Connection Status -->
+                    <div id="nostr-header-status" style="display: flex; align-items: center; gap: 8px;">
+                        <span id="nostr-status-text" style="font-size: 0.8em; color: #aaaaaa;">Not connected</span>
+                        <button id="nostr-connect-btn-header" onclick="handleNostrConnectYoutube()" class="upload-btn" style="background: transparent; color: #3ea6ff; border: 1px solid #3f3f3f; padding: 6px 12px; border-radius: 18px; font-size: 0.85em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
+                            🔌 <span data-i18n="connect">Connect</span>
+                        </button>
+                        <button id="nostr-profile-btn-header" onclick="openNostrProfileYoutube()" class="upload-btn" style="display: none; background: transparent; color: #4ade80; border: 1px solid #3f3f3f; padding: 6px 12px; border-radius: 18px; font-size: 0.85em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
+                            👤 <span data-i18n="profile">Profile</span>
+                        </button>
                     </div>
                     <button onclick="openWebcamModal()" class="upload-btn" data-i18n-title="add_video" style="background: transparent; color: #3ea6ff; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
                         📹 <span data-i18n="create">Créer</span>
@@ -1643,6 +1669,8 @@
                 connect_nostr_share: "Vous devez vous connecter avec NOSTR pour partager cette vidéo",
                 connect_nostr_bookmark: "Vous devez vous connecter avec NOSTR pour bookmarker cette vidéo",
                 connect_nostr_like: "Vous devez vous connecter avec NOSTR pour liker cette vidéo",
+                connect: "Connect",
+                profile: "Profile",
                 n2_protocol_title: "Comment fonctionne la synchronisation décentralisée N² ?",
                 n2_principle: "🎯 Le principe : \"Les amis de mes amis sont mes amis\"",
                 how_it_works: "🔄 Comment ça marche ?",
@@ -1716,6 +1744,8 @@
                 connect_nostr_share: "You must connect with NOSTR to share this video",
                 connect_nostr_bookmark: "You must connect with NOSTR to bookmark this video",
                 connect_nostr_like: "You must connect with NOSTR to like this video",
+                connect: "Connect",
+                profile: "Profile",
                 n2_protocol_title: "How does N² decentralized synchronization work?",
                 n2_principle: "🎯 The principle: \"Friends of my friends are my friends\"",
                 how_it_works: "🔄 How it works?",
@@ -1789,6 +1819,8 @@
                 connect_nostr_share: "Debe conectarse con NOSTR para compartir este video",
                 connect_nostr_bookmark: "Debe conectarse con NOSTR para marcar este video",
                 connect_nostr_like: "Debe conectarse con NOSTR para dar me gusta a este video",
+                connect: "Conectar",
+                profile: "Perfil",
                 n2_protocol_title: "¿Cómo funciona la sincronización descentralizada N²?",
                 n2_principle: "🎯 El principio: \"Los amigos de mis amigos son mis amigos\"",
                 how_it_works: "🔄 ¿Cómo funciona?",
@@ -2253,6 +2285,9 @@
             // Apply dynamic theme
             applyDynamicTheme();
             
+            // Check NOSTR connection status
+            checkNostrConnectionStatus();
+            
             // Detect IPFS gateway first (from youtube.enhancements.js)
             if (typeof detectIPFSGatewayGlobal === 'function') {
                 detectIPFSGatewayGlobal();
@@ -2715,6 +2750,129 @@
         document.addEventListener('leavepictureinpicture', function() {
             console.log('Exited PiP mode');
         });
+        
+        // ========================================
+        // NOSTR CONNECTION FUNCTIONS FOR YOUTUBE
+        // ========================================
+        
+        /**
+         * Handle NOSTR connection from youtube.html header
+         */
+        async function handleNostrConnectYoutube() {
+            const statusText = document.getElementById('nostr-status-text');
+            const connectBtn = document.getElementById('nostr-connect-btn-header');
+            const profileBtn = document.getElementById('nostr-profile-btn-header');
+            
+            // Check if common.js is available
+            if (typeof connectNostr === 'undefined') {
+                alert('❌ NOSTR connection not available. Please ensure common.js is loaded.');
+                return;
+            }
+            
+            connectBtn.disabled = true;
+            if (statusText) {
+                statusText.textContent = 'Connecting...';
+                statusText.style.color = '#3ea6ff';
+            }
+            
+            try {
+                const pubkey = await connectNostr();
+                if (pubkey) {
+                    // Success - update UI
+                    if (statusText) {
+                        statusText.textContent = `Connected: ${pubkey.substring(0, 8)}...${pubkey.substring(pubkey.length - 4)}`;
+                        statusText.style.color = '#4ade80';
+                    }
+                    if (connectBtn) {
+                        connectBtn.style.display = 'none';
+                    }
+                    if (profileBtn) {
+                        profileBtn.style.display = 'flex';
+                    }
+                } else {
+                    // Failed
+                    if (statusText) {
+                        statusText.textContent = 'Connection failed';
+                        statusText.style.color = '#ef4444';
+                    }
+                    connectBtn.disabled = false;
+                }
+            } catch (error) {
+                console.error('NOSTR connection error:', error);
+                if (statusText) {
+                    statusText.textContent = 'Connection error';
+                    statusText.style.color = '#ef4444';
+                }
+                connectBtn.disabled = false;
+            }
+        }
+        
+        /**
+         * Open NOSTR profile from youtube.html header
+         */
+        function openNostrProfileYoutube() {
+            if (typeof userPubkey === 'undefined' || !userPubkey) {
+                alert('❌ Not connected to NOSTR');
+                return;
+            }
+            
+            openProfileModal(userPubkey, 'My Profile');
+        }
+        
+        /**
+         * Check and update NOSTR connection status on page load
+         */
+        async function checkNostrConnectionStatus() {
+            // Wait for common.js to initialize
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            const statusText = document.getElementById('nostr-status-text');
+            const connectBtn = document.getElementById('nostr-connect-btn-header');
+            const profileBtn = document.getElementById('nostr-profile-btn-header');
+            
+            if (!statusText || !connectBtn) return;
+            
+            // Check if already connected via common.js
+            if (typeof userPubkey !== 'undefined' && userPubkey) {
+                // Check if relay is connected
+                if (typeof nostrRelay !== 'undefined' && nostrRelay && typeof isNostrConnected !== 'undefined' && isNostrConnected) {
+                    // Already connected
+                    statusText.textContent = `Connected: ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}`;
+                    statusText.style.color = '#4ade80';
+                    connectBtn.style.display = 'none';
+                    if (profileBtn) {
+                        profileBtn.style.display = 'flex';
+                    }
+                    console.log('✅ NOSTR connection detected from common.js');
+                } else {
+                    // Has pubkey but relay not connected - try to connect
+                    if (typeof connectToRelay === 'function') {
+                        try {
+                            await connectToRelay();
+                            statusText.textContent = `Connected: ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}`;
+                            statusText.style.color = '#4ade80';
+                            connectBtn.style.display = 'none';
+                            if (profileBtn) {
+                                profileBtn.style.display = 'flex';
+                            }
+                        } catch (error) {
+                            console.error('Error connecting to relay:', error);
+                            // Show connect button
+                            statusText.textContent = 'Not connected';
+                            statusText.style.color = '#aaaaaa';
+                        }
+                    }
+                }
+            } else {
+                // Not connected
+                statusText.textContent = 'Not connected';
+                statusText.style.color = '#aaaaaa';
+                connectBtn.style.display = 'flex';
+                if (profileBtn) {
+                    profileBtn.style.display = 'none';
+                }
+            }
+        }
         
         // ========================================
         // IFRAME MODAL FUNCTIONS (for profiles and webcam)
