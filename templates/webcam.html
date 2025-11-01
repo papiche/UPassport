@@ -1302,6 +1302,31 @@
                 currentStream.getTracks().forEach(track => track.stop());
                 currentStream = null;
             }
+            
+            // Reset recording UI when closing modal
+            const startButton = document.getElementById('start-recording');
+            const stopButton = document.getElementById('stop-recording');
+            const timerDisplay = document.getElementById('timer');
+            const durationSlider = document.getElementById('duration-slider');
+            
+            if (startButton) {
+                startButton.disabled = false;
+                startButton.classList.remove('hidden');
+            }
+            
+            if (stopButton) {
+                stopButton.classList.add('hidden');
+                stopButton.disabled = false;
+                stopButton.textContent = '⏹️ Stop Recording';
+            }
+            
+            if (timerDisplay) {
+                timerDisplay.classList.add('hidden');
+                timerDisplay.textContent = durationSlider ? durationSlider.value : '10';
+            }
+            
+            // Reset form
+            document.getElementById('publish-form').reset();
         }
         
         // Show modal with video
