@@ -1049,85 +1049,10 @@
         </div>
         
         <!-- Footer -->
-        <footer style="background: #212121; border-top: 1px solid #3f3f3f; padding: 32px 40px; margin-top: 48px;">
+        <footer style="background: #212121; border-top: 1px solid #3f3f3f; padding: 24px 40px; margin-top: 48px;">
             <div style="max-width: 1400px; margin: 0 auto;">
-                <!-- Protocol N² Explanation -->
-                <details style="background: #181818; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #3f3f3f;">
-                    <summary style="cursor: pointer; font-weight: 600; font-size: 18px; color: #f1f1f1; display: flex; align-items: center; gap: 12px;">
-                        <span style="font-size: 24px;">🌐</span>
-                        <span data-i18n="n2_protocol_title">Comment fonctionne la synchronisation décentralisée N² ?</span>
-                        <span style="margin-left: auto; transition: transform 0.3s ease;">▼</span>
-                    </summary>
-                    
-                    <div style="margin-top: 20px; color: #aaaaaa; line-height: 1.8;">
-                        <div style="background: rgba(62, 166, 255, 0.1); border-left: 4px solid #3ea6ff; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
-                            <p style="margin: 0; color: #3ea6ff; font-weight: 600;" data-i18n="n2_principle">
-                                🎯 Le principe : "Les amis de mes amis sont mes amis"
-                            </p>
-                        </div>
-                        
-                        <h4 style="color: #3ea6ff; margin-top: 20px; margin-bottom: 12px;" data-i18n="how_it_works">🔄 Comment ça marche ?</h4>
-                        
-                        <div style="display: flex; flex-direction: column; gap: 16px;">
-                            <div style="display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #1a1a1a; border-radius: 8px;">
-                                <span style="font-size: 28px; flex-shrink: 0;">1️⃣</span>
-                                <div>
-                                    <strong style="color: #f1f1f1;" data-i18n="step1_title">Chaque station Astroport héberge des relais NOSTR</strong><br>
-                                    <span style="color: #aaaaaa; font-size: 14px;" data-i18n="step1_desc">
-                                        Votre nœud personnel stocke vos vidéos et événements NOSTR localement
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <div style="display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #1a1a1a; border-radius: 8px;">
-                                <span style="font-size: 28px; flex-shrink: 0;">2️⃣</span>
-                                <div>
-                                    <strong style="color: #f1f1f1;" data-i18n="step2_title">Synchronisation automatique N²</strong><br>
-                                    <span style="color: #aaaaaa; font-size: 14px;" data-i18n="step2_desc">
-                                        Votre station se connecte aux stations de vos amis (N1), puis aux amis de vos amis (N2) via des tunnels IPFS P2P sécurisés
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <div style="display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #1a1a1a; border-radius: 8px;">
-                                <span style="font-size: 28px; flex-shrink: 0;">3️⃣</span>
-                                <div>
-                                    <strong style="color: #f1f1f1;" data-i18n="step3_title">Réplication décentralisée</strong><br>
-                                    <span style="color: #aaaaaa; font-size: 14px;" data-i18n="step3_desc">
-                                        Les vidéos et métadonnées sont répliquées automatiquement toutes les heures entre stations connectées
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <div style="display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #1a1a1a; border-radius: 8px;">
-                                <span style="font-size: 28px; flex-shrink: 0;">4️⃣</span>
-                                <div>
-                                    <strong style="color: #f1f1f1;" data-i18n="step4_title">Résilience totale</strong><br>
-                                    <span style="color: #aaaaaa; font-size: 14px;" data-i18n="step4_desc">
-                                        Si une station tombe, le contenu reste accessible via les autres nœuds du réseau. Pas de point de défaillance unique.
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div style="background: linear-gradient(135deg, rgba(62, 166, 255, 0.15), rgba(62, 166, 255, 0.05)); padding: 20px; border-radius: 12px; margin-top: 24px; border: 1px solid #3ea6ff;">
-                            <h4 style="color: #3ea6ff; margin-top: 0; margin-bottom: 12px;" data-i18n="result_title">🚀 Le résultat</h4>
-                            <p style="margin: 0; color: #f1f1f1;" data-i18n="result_desc">
-                                Un YouTube décentralisé et incensurable. Chaque station est à la fois client et serveur. 
-                                Votre contenu vous appartient vraiment, stocké sur votre infrastructure ou celle de membres de confiance.
-                            </p>
-                        </div>
-                        
-                        <div style="margin-top: 24px; text-align: center;">
-                            <a href="https://github.com/papiche/Astroport.ONE" target="_blank" class="btn btn-primary" style="text-decoration: none; display: inline-block;">
-                                📖 <span data-i18n="learn_more_protocol">En savoir plus sur le Protocole N²</span>
-                            </a>
-                        </div>
-                    </div>
-                </details>
-                
                 <!-- Footer Links -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 32px; padding-top: 24px; border-top: 1px solid #3f3f3f;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 32px; margin-bottom: 24px;">
                     <div>
                         <h3 style="color: #f1f1f1; font-size: 16px; margin-bottom: 12px;" data-i18n="about_nostr_tube">À propos de NOSTR Tube</h3>
                         <p style="color: #aaaaaa; font-size: 14px; line-height: 1.6;" data-i18n="about_desc">
@@ -1171,8 +1096,87 @@
                     </div>
                 </div>
                 
-                <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #3f3f3f; text-align: center; color: #606060; font-size: 14px;">
-                    <p style="margin: 0;">© 2025 NOSTR Tube - <span data-i18n="powered_by">Propulsé par</span> <a href="https://github.com/papiche/Astroport.ONE" target="_blank" style="color: #3ea6ff; text-decoration: none;">Astroport.ONE</a> & <a href="https://nostr.com" target="_blank" style="color: #3ea6ff; text-decoration: none;">NOSTR</a></p>
+                <!-- Protocol N² Explanation (Collapsed) -->
+                <details style="background: #181818; border-radius: 8px; padding: 16px; margin-bottom: 20px; border: 1px solid #3f3f3f;">
+                    <summary style="cursor: pointer; font-weight: 600; font-size: 14px; color: #aaaaaa; display: flex; align-items: center; gap: 8px; user-select: none;">
+                        <span style="font-size: 16px;">🌐</span>
+                        <span data-i18n="n2_protocol_title">Comment fonctionne la synchronisation décentralisée N² ?</span>
+                        <span style="margin-left: auto; font-size: 12px;">▼</span>
+                    </summary>
+                    
+                    <div style="margin-top: 16px; color: #aaaaaa; line-height: 1.8; font-size: 13px;">
+                        <div style="background: rgba(62, 166, 255, 0.1); border-left: 3px solid #3ea6ff; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+                            <p style="margin: 0; color: #3ea6ff; font-weight: 600; font-size: 13px;" data-i18n="n2_principle">
+                                🎯 Le principe : "Les amis de mes amis sont mes amis"
+                            </p>
+                        </div>
+                        
+                        <h4 style="color: #3ea6ff; margin-top: 16px; margin-bottom: 10px; font-size: 14px;" data-i18n="how_it_works">🔄 Comment ça marche ?</h4>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: #1a1a1a; border-radius: 6px;">
+                                <span style="font-size: 20px; flex-shrink: 0;">1️⃣</span>
+                                <div>
+                                    <strong style="color: #f1f1f1; font-size: 13px;" data-i18n="step1_title">Chaque station Astroport héberge des relais NOSTR</strong><br>
+                                    <span style="color: #888888; font-size: 12px;" data-i18n="step1_desc">
+                                        Votre nœud personnel stocke vos vidéos et événements NOSTR localement
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: #1a1a1a; border-radius: 6px;">
+                                <span style="font-size: 20px; flex-shrink: 0;">2️⃣</span>
+                                <div>
+                                    <strong style="color: #f1f1f1; font-size: 13px;" data-i18n="step2_title">Synchronisation automatique N²</strong><br>
+                                    <span style="color: #888888; font-size: 12px;" data-i18n="step2_desc">
+                                        Votre station se connecte aux stations de vos amis (N1), puis aux amis de vos amis (N2) via des tunnels IPFS P2P sécurisés
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: #1a1a1a; border-radius: 6px;">
+                                <span style="font-size: 20px; flex-shrink: 0;">3️⃣</span>
+                                <div>
+                                    <strong style="color: #f1f1f1; font-size: 13px;" data-i18n="step3_title">Réplication décentralisée</strong><br>
+                                    <span style="color: #888888; font-size: 12px;" data-i18n="step3_desc">
+                                        Les vidéos et métadonnées sont répliquées automatiquement toutes les heures entre stations connectées
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: #1a1a1a; border-radius: 6px;">
+                                <span style="font-size: 20px; flex-shrink: 0;">4️⃣</span>
+                                <div>
+                                    <strong style="color: #f1f1f1; font-size: 13px;" data-i18n="step4_title">Résilience totale</strong><br>
+                                    <span style="color: #888888; font-size: 12px;" data-i18n="step4_desc">
+                                        Si une station tombe, le contenu reste accessible via les autres nœuds du réseau. Pas de point de défaillance unique.
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="background: linear-gradient(135deg, rgba(62, 166, 255, 0.15), rgba(62, 166, 255, 0.05)); padding: 16px; border-radius: 8px; margin-top: 16px; border: 1px solid #3ea6ff;">
+                            <h4 style="color: #3ea6ff; margin-top: 0; margin-bottom: 8px; font-size: 14px;" data-i18n="result_title">🚀 Le résultat</h4>
+                            <p style="margin: 0; color: #f1f1f1; font-size: 13px;" data-i18n="result_desc">
+                                Un YouTube décentralisé et incensurable. Chaque station est à la fois client et serveur. 
+                                Votre contenu vous appartient vraiment, stocké sur votre infrastructure ou celle de membres de confiance.
+                            </p>
+                        </div>
+                        
+                        <div style="margin-top: 16px; text-align: center;">
+                            <a href="https://github.com/papiche/Astroport.ONE" target="_blank" 
+                               style="display: inline-block; padding: 10px 20px; background: #3ea6ff; color: white; text-decoration: none; border-radius: 20px; font-size: 13px; font-weight: 600; transition: all 0.2s ease;"
+                               onmouseover="this.style.background='#2a8fdf'" 
+                               onmouseout="this.style.background='#3ea6ff'">
+                                📖 <span data-i18n="learn_more_protocol">En savoir plus sur le Protocole N²</span>
+                            </a>
+                        </div>
+                    </div>
+                </details>
+                
+                <!-- Copyright -->
+                <div style="padding-top: 20px; border-top: 1px solid #3f3f3f; text-align: center; color: #606060; font-size: 13px;">
+                    <p style="margin: 0;">© 2025 NOSTR Tube - <span data-i18n="powered_by">Propulsé par</span> <a href="https://github.com/papiche/Astroport.ONE" target="_blank" style="color: #3ea6ff; text-decoration: none;">Astroport.ONE</a> & <a href="https://nostr.com" target="_blank" style="color: #3ea6ff; text-decoration: none;">NOSTR</a> & <a href="https://ipfs.tech/" target="_blank" style="color: #3ea6ff; text-decoration: none;">IPFS</a></p>
                 </div>
             </div>
         </footer>
