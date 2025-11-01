@@ -1134,8 +1134,8 @@
         
     <!-- Main Container - Centered -->
     <div class="main-container">
-        <!-- Central Connection Button (shown when not connected) -->
-        <div class="central-connection" id="central-connection">
+        <!-- Central Connection Button (hidden by default, shown only if needed) -->
+        <div class="central-connection hidden" id="central-connection">
             <h2 class="central-connection-title">🎥 Video Recorder</h2>
             <p class="central-connection-subtitle">
                 Connect to NOSTR to start recording and publishing your videos on UPlanet
@@ -1145,9 +1145,17 @@
             </button>
         </div>
         
-        <!-- Webcam Recording Section -->
-        <div class="webcam-section" id="webcam-section" style="display: none;">
+        <!-- Webcam Recording Section (shown by default) -->
+        <div class="webcam-section" id="webcam-section">
             <h2 class="webcam-title">🎥 Record Video</h2>
+            
+            <!-- Connection notice (shown when not connected) -->
+            <div id="connection-notice" style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 16px; display: none;">
+                <p style="margin: 0; font-size: 0.85em; color: #94a3b8; display: flex; align-items: center; gap: 8px;">
+                    <span>ℹ️</span>
+                    <span>Connect to NOSTR via the header button to publish your videos to UPlanet.</span>
+                </p>
+            </div>
 
     <video id="video-preview" autoplay muted></video>
 
@@ -1866,6 +1874,21 @@
         // Publish video
         async function publishVideo(videoBlob, filename = null) {
             try {
+                // Check if user is connected before publishing
+                if (typeof userPubkey === 'undefined' || !userPubkey) {
+                    // Try to connect first
+                    if (typeof connectNostr === 'function') {
+                        const pubkey = await connectNostr();
+                        if (!pubkey) {
+                            showError('You must connect to NOSTR to publish videos. Please use the Connect button in the header.', 'Connection Required');
+                            return;
+                        }
+                    } else {
+                        showError('You must connect to NOSTR to publish videos. Please use the Connect button in the header.', 'Connection Required');
+                        return;
+                    }
+                }
+                
                 const publishBtn = document.getElementById('publish-btn');
                 publishBtn.disabled = true;
                 publishBtn.textContent = 'Uploading to IPFS...';
@@ -2034,30 +2057,50 @@
                             }
                         } catch (error) {
                             console.error('Error connecting to relay:', error);
-                            // Show central button if connection fails
-                            showCentralConnectionButton();
+                            // Show webcam anyway, user can connect via header button
+                            document.getElementById('webcam-section').style.display = 'block';
+                            document.getElementById('header-connect-btn').style.display = 'inline-block';
+                            // Show connection notice
+                            const connectionNotice = document.getElementById('connection-notice');
+                            if (connectionNotice) {
+                                connectionNotice.style.display = 'block';
+                            }
                         }
                     } else {
                         console.warn('⚠️ connectToRelay function not available');
-                        showCentralConnectionButton();
+                        // Show webcam anyway, user can connect via header button
+                        document.getElementById('webcam-section').style.display = 'block';
+                        document.getElementById('header-connect-btn').style.display = 'inline-block';
+                        // Show connection notice
+                        const connectionNotice = document.getElementById('connection-notice');
+                        if (connectionNotice) {
+                            connectionNotice.style.display = 'block';
+                        }
                     }
                 }
             } else {
-                // No existing connection, show central button
-                console.log('ℹ️ No existing connection found');
-                showCentralConnectionButton();
+                // No existing connection, show webcam anyway (user can connect via header button)
+                console.log('ℹ️ No existing connection found - webcam available, connect to publish');
+                document.getElementById('webcam-section').style.display = 'block';
+                document.getElementById('header-connect-btn').style.display = 'inline-block';
+                // Show connection notice
+                const connectionNotice = document.getElementById('connection-notice');
+                if (connectionNotice) {
+                    connectionNotice.style.display = 'block';
+                }
             }
         }
         
-        // Show central connection button
+        // Show central connection button (not used anymore, but kept for compatibility)
         function showCentralConnectionButton() {
-            document.getElementById('central-connection').classList.remove('hidden');
-            document.getElementById('webcam-section').style.display = 'none';
+            // Don't hide webcam section, just show connection button in header
+            document.getElementById('central-connection').classList.add('hidden'); // Keep hidden
+            document.getElementById('webcam-section').style.display = 'block'; // Always show webcam
             document.getElementById('header-connect-btn').style.display = 'inline-block';
             document.getElementById('header-profile-btn').style.display = 'none';
         }
         
-        // Hide central connection button and show webcam
+        // Hide central connection button and show webcam (not needed anymore, webcam always shown)
         function hideCentralConnectionButton() {
             document.getElementById('central-connection').classList.add('hidden');
             document.getElementById('webcam-section').style.display = 'block';
@@ -2067,6 +2110,7 @@
         async function onConnectionSuccess() {
             const headerStatus = document.getElementById('header-auth-status');
             const statusDiv = document.getElementById('auth-status');
+            const connectionNotice = document.getElementById('connection-notice');
             
             // Update UI
             if (headerStatus) {
@@ -2085,8 +2129,14 @@
                 statusDiv.innerHTML = `<div style="color: #4ade80;">✅ Connected as ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}${userEmail ? ` (${userEmail})` : ''}</div>`;
             }
             
-            // Hide central button and show webcam
-            hideCentralConnectionButton();
+            // Hide connection notice when connected
+            if (connectionNotice) {
+                connectionNotice.style.display = 'none';
+            }
+            
+            // Ensure webcam section is visible
+            document.getElementById('webcam-section').style.display = 'block';
+            document.getElementById('central-connection').classList.add('hidden');
             
             // Close expanded NOSTR section if open
             if (document.getElementById('nostr-expanded')) {
