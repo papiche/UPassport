@@ -273,6 +273,61 @@
             font-weight: 500;
         }
         
+        .upload-btn {
+            background: transparent;
+            color: #3ea6ff;
+            border: 1px solid #3f3f3f;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        
+        .upload-btn:hover {
+            background: rgba(62, 166, 255, 0.1);
+            border-color: #3ea6ff;
+        }
+        
+        .language-selector {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .language-btn {
+            background: transparent;
+            color: #f1f1f1;
+            border: 1px solid #3f3f3f;
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-size: 0.85em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            text-transform: uppercase;
+        }
+        
+        .language-btn:hover {
+            background: #3f3f3f;
+        }
+        
+        .language-btn.active {
+            background: rgba(62, 166, 255, 0.15);
+            border-color: #3ea6ff;
+            color: #3ea6ff;
+        }
+        
         .search-bar {
             padding: 16px 40px;
             background: #0f0f0f;
@@ -795,6 +850,25 @@
                 padding: 16px 20px;
             }
             
+            .header-top {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            
+            .header h1 {
+                font-size: 1.2em;
+            }
+            
+            .header-stats {
+                font-size: 0.8em;
+            }
+            
+            .upload-btn {
+                font-size: 0.85em;
+                padding: 6px 12px;
+            }
+            
             .search-bar {
                 padding: 12px 20px;
             }
@@ -830,25 +904,19 @@
             </div>
             
             <div class="sidebar-section">
-                <div class="sidebar-section-title">Navigation</div>
+                <div class="sidebar-section-title" data-i18n="navigation">Navigation</div>
                 <a href="/youtube?html=1" class="sidebar-item active">
                     <div class="sidebar-icon">🏠</div>
                     <div class="sidebar-item-text">
-                        <div class="sidebar-item-name">Accueil</div>
+                        <div class="sidebar-item-name" data-i18n="home">Accueil</div>
                     </div>
                 </a>
                 <div class="sidebar-item" onclick="toggleMapView()">
                     <div class="sidebar-icon">🗺️</div>
                     <div class="sidebar-item-text">
-                        <div class="sidebar-item-name">Vue Carte</div>
+                        <div class="sidebar-item-name" data-i18n="map_view">Vue Carte</div>
                     </div>
                 </div>
-                <a href="/webcam" class="sidebar-item">
-                    <div class="sidebar-icon">📹</div>
-                    <div class="sidebar-item-text">
-                        <div class="sidebar-item-name">Ajouter une vidéo</div>
-                    </div>
-                </a>
                 <a href="{{ myIPFS }}/ipns/coracle.copylaradio.com" class="sidebar-item" target="_blank">
                     <div class="sidebar-icon">🌐</div>
                     <div class="sidebar-item-text">
@@ -858,7 +926,7 @@
             </div>
             
             <div class="sidebar-section">
-                <div class="sidebar-section-title">Chaînes ({{ youtube_data.total_channels }})</div>
+                <div class="sidebar-section-title"><span data-i18n="channels">Chaînes</span> ({{ youtube_data.total_channels }})</div>
                 {% if youtube_data.channels %}
                     {% for channel_name, channel_data in youtube_data.channels.items() %}
                     <div class="channel-item" onclick="filterByChannel('{{ channel_name }}')" data-channel="{{ channel_name }}">
@@ -877,23 +945,33 @@
         <main class="main-content">
             <div class="header">
                 <div class="header-top">
-                    <h1 id="pageTitle">Toutes les vidéos</h1>
-                    <div class="header-stats">
-                        <div class="header-stat">
-                            <span class="header-stat-number">{{ youtube_data.total_videos }}</span>
-                            <span>vidéos</span>
+                    <h1 id="pageTitle" data-i18n="all_videos">Toutes les vidéos</h1>
+                    <div style="display: flex; align-items: center; gap: 24px;">
+                        <div class="language-selector">
+                            <button class="language-btn" onclick="changeLanguage('fr')" data-lang="fr">🇫🇷 FR</button>
+                            <button class="language-btn" onclick="changeLanguage('en')" data-lang="en">🇬🇧 EN</button>
+                            <button class="language-btn" onclick="changeLanguage('es')" data-lang="es">🇪🇸 ES</button>
                         </div>
-                        <div class="header-stat">
-                            <span class="header-stat-number">{{ youtube_data.total_channels }}</span>
-                            <span>chaînes</span>
+                        <div class="header-stats">
+                            <div class="header-stat">
+                                <span class="header-stat-number">{{ youtube_data.total_videos }}</span>
+                                <span data-i18n="videos">vidéos</span>
+                            </div>
+                            <div class="header-stat">
+                                <span class="header-stat-number">{{ youtube_data.total_channels }}</span>
+                                <span data-i18n="channels">chaînes</span>
+                            </div>
                         </div>
+                        <a href="/webcam" class="upload-btn" data-i18n-title="add_video">
+                            📹 <span data-i18n="create">Créer</span>
+                        </a>
                     </div>
                 </div>
             </div>
             
             <div class="search-bar">
                 <div class="search-row">
-                    <input type="text" class="search-input" placeholder="Rechercher des vidéos..." id="searchInput">
+                    <input type="text" class="search-input" data-i18n-placeholder="search_videos" placeholder="Rechercher des vidéos..." id="searchInput">
                 </div>
             </div>
             
@@ -964,14 +1042,390 @@
         <!-- Map View -->
         <div class="map-view" id="mapView">
             <div class="map-header">
-                <h2>🗺️ Carte des vidéos</h2>
-                <button class="map-close-btn" onclick="toggleMapView()">✕ Fermer</button>
+                <h2>🗺️ <span data-i18n="video_map">Carte des vidéos</span></h2>
+                <button class="map-close-btn" onclick="toggleMapView()">✕ <span data-i18n="close">Fermer</span></button>
             </div>
             <div id="videoMap"></div>
         </div>
+        
+        <!-- Footer -->
+        <footer style="background: #212121; border-top: 1px solid #3f3f3f; padding: 32px 40px; margin-top: 48px;">
+            <div style="max-width: 1400px; margin: 0 auto;">
+                <!-- Protocol N² Explanation -->
+                <details style="background: #181818; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #3f3f3f;">
+                    <summary style="cursor: pointer; font-weight: 600; font-size: 18px; color: #f1f1f1; display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 24px;">🌐</span>
+                        <span data-i18n="n2_protocol_title">Comment fonctionne la synchronisation décentralisée N² ?</span>
+                        <span style="margin-left: auto; transition: transform 0.3s ease;">▼</span>
+                    </summary>
+                    
+                    <div style="margin-top: 20px; color: #aaaaaa; line-height: 1.8;">
+                        <div style="background: rgba(62, 166, 255, 0.1); border-left: 4px solid #3ea6ff; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+                            <p style="margin: 0; color: #3ea6ff; font-weight: 600;" data-i18n="n2_principle">
+                                🎯 Le principe : "Les amis de mes amis sont mes amis"
+                            </p>
+                        </div>
+                        
+                        <h4 style="color: #3ea6ff; margin-top: 20px; margin-bottom: 12px;" data-i18n="how_it_works">🔄 Comment ça marche ?</h4>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 16px;">
+                            <div style="display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #1a1a1a; border-radius: 8px;">
+                                <span style="font-size: 28px; flex-shrink: 0;">1️⃣</span>
+                                <div>
+                                    <strong style="color: #f1f1f1;" data-i18n="step1_title">Chaque station Astroport héberge des relais NOSTR</strong><br>
+                                    <span style="color: #aaaaaa; font-size: 14px;" data-i18n="step1_desc">
+                                        Votre nœud personnel stocke vos vidéos et événements NOSTR localement
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #1a1a1a; border-radius: 8px;">
+                                <span style="font-size: 28px; flex-shrink: 0;">2️⃣</span>
+                                <div>
+                                    <strong style="color: #f1f1f1;" data-i18n="step2_title">Synchronisation automatique N²</strong><br>
+                                    <span style="color: #aaaaaa; font-size: 14px;" data-i18n="step2_desc">
+                                        Votre station se connecte aux stations de vos amis (N1), puis aux amis de vos amis (N2) via des tunnels IPFS P2P sécurisés
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #1a1a1a; border-radius: 8px;">
+                                <span style="font-size: 28px; flex-shrink: 0;">3️⃣</span>
+                                <div>
+                                    <strong style="color: #f1f1f1;" data-i18n="step3_title">Réplication décentralisée</strong><br>
+                                    <span style="color: #aaaaaa; font-size: 14px;" data-i18n="step3_desc">
+                                        Les vidéos et métadonnées sont répliquées automatiquement toutes les heures entre stations connectées
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #1a1a1a; border-radius: 8px;">
+                                <span style="font-size: 28px; flex-shrink: 0;">4️⃣</span>
+                                <div>
+                                    <strong style="color: #f1f1f1;" data-i18n="step4_title">Résilience totale</strong><br>
+                                    <span style="color: #aaaaaa; font-size: 14px;" data-i18n="step4_desc">
+                                        Si une station tombe, le contenu reste accessible via les autres nœuds du réseau. Pas de point de défaillance unique.
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="background: linear-gradient(135deg, rgba(62, 166, 255, 0.15), rgba(62, 166, 255, 0.05)); padding: 20px; border-radius: 12px; margin-top: 24px; border: 1px solid #3ea6ff;">
+                            <h4 style="color: #3ea6ff; margin-top: 0; margin-bottom: 12px;" data-i18n="result_title">🚀 Le résultat</h4>
+                            <p style="margin: 0; color: #f1f1f1;" data-i18n="result_desc">
+                                Un YouTube décentralisé et incensurable. Chaque station est à la fois client et serveur. 
+                                Votre contenu vous appartient vraiment, stocké sur votre infrastructure ou celle de membres de confiance.
+                            </p>
+                        </div>
+                        
+                        <div style="margin-top: 24px; text-align: center;">
+                            <a href="https://github.com/papiche/Astroport.ONE" target="_blank" class="btn btn-primary" style="text-decoration: none; display: inline-block;">
+                                📖 <span data-i18n="learn_more_protocol">En savoir plus sur le Protocole N²</span>
+                            </a>
+                        </div>
+                    </div>
+                </details>
+                
+                <!-- Footer Links -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 32px; padding-top: 24px; border-top: 1px solid #3f3f3f;">
+                    <div>
+                        <h3 style="color: #f1f1f1; font-size: 16px; margin-bottom: 12px;" data-i18n="about_nostr_tube">À propos de NOSTR Tube</h3>
+                        <p style="color: #aaaaaa; font-size: 14px; line-height: 1.6;" data-i18n="about_desc">
+                            Une plateforme vidéo décentralisée construite sur le protocole NOSTR et synchronisée via le réseau Astroport (Protocole N²).
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <h3 style="color: #f1f1f1; font-size: 16px; margin-bottom: 12px;" data-i18n="resources">Ressources</h3>
+                        <ul style="list-style: none; padding: 0; color: #aaaaaa; font-size: 14px; line-height: 2;">
+                            <li><a href="/youtube?html=1" style="color: #aaaaaa; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#3ea6ff'" onmouseout="this.style.color='#aaaaaa'" data-i18n="home">Accueil</a></li>
+                            <li><a href="/webcam" style="color: #aaaaaa; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#3ea6ff'" onmouseout="this.style.color='#aaaaaa'" data-i18n="add_video">Ajouter une vidéo</a></li>
+                            <li><a href="{{ myIPFS }}/ipns/coracle.copylaradio.com" target="_blank" style="color: #aaaaaa; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#3ea6ff'" onmouseout="this.style.color='#aaaaaa'">Coracle</a></li>
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h3 style="color: #f1f1f1; font-size: 16px; margin-bottom: 12px;" data-i18n="open_source">Open Source</h3>
+                        <ul style="list-style: none; padding: 0; color: #aaaaaa; font-size: 14px; line-height: 2;">
+                            <li>
+                                <a href="https://github.com/papiche/UPassport/blob/main/templates/youtube.html" 
+                                   target="_blank" 
+                                   style="color: #aaaaaa; text-decoration: none; transition: color 0.2s; display: flex; align-items: center; gap: 8px;" 
+                                   onmouseover="this.style.color='#3ea6ff'" 
+                                   onmouseout="this.style.color='#aaaaaa'">
+                                    <span style="font-size: 18px;">📄</span>
+                                    <span data-i18n="view_source">Voir le code source</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="https://github.com/papiche/Astroport.ONE" 
+                                   target="_blank" 
+                                   style="color: #aaaaaa; text-decoration: none; transition: color 0.2s; display: flex; align-items: center; gap: 8px;" 
+                                   onmouseover="this.style.color='#3ea6ff'" 
+                                   onmouseout="this.style.color='#aaaaaa'">
+                                    <span style="font-size: 18px;">🚀</span>
+                                    <span>Astroport.ONE</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #3f3f3f; text-align: center; color: #606060; font-size: 14px;">
+                    <p style="margin: 0;">© 2025 NOSTR Tube - <span data-i18n="powered_by">Propulsé par</span> <a href="https://github.com/papiche/Astroport.ONE" target="_blank" style="color: #3ea6ff; text-decoration: none;">Astroport.ONE</a> & <a href="https://nostr.com" target="_blank" style="color: #3ea6ff; text-decoration: none;">NOSTR</a></p>
+                </div>
+            </div>
+        </footer>
     </div>
     
     <script>
+        // ========================================
+        // INTERNATIONALIZATION (i18n) SYSTEM
+        // ========================================
+        
+        const translations = {
+            fr: {
+                all_videos: "Toutes les vidéos",
+                videos: "vidéos",
+                channels: "chaînes",
+                create: "Créer",
+                add_video: "Ajouter une vidéo",
+                search_videos: "Rechercher des vidéos...",
+                navigation: "Navigation",
+                home: "Accueil",
+                map_view: "Vue Carte",
+                video_map: "Carte des vidéos",
+                close: "Fermer",
+                share: "Partager",
+                bookmark: "Bookmark",
+                like: "Like",
+                play: "Lire",
+                view: "Voir",
+                videos_at_location: "vidéos à cet emplacement",
+                no_videos_found: "Aucune vidéo trouvée",
+                check_connection: "Vérifiez la connexion au relay NOSTR ou ajoutez des vidéos via",
+                sharing: "Partage...",
+                shared: "Partagé !",
+                bookmarking: "Bookmark...",
+                bookmarked: "Bookmarké !",
+                liking: "Like...",
+                liked: "Liké !",
+                error: "Erreur",
+                error_common_js: "Erreur : common.js non chargé. Rechargez la page.",
+                connect_nostr_share: "Vous devez vous connecter avec NOSTR pour partager cette vidéo",
+                connect_nostr_bookmark: "Vous devez vous connecter avec NOSTR pour bookmarker cette vidéo",
+                connect_nostr_like: "Vous devez vous connecter avec NOSTR pour liker cette vidéo",
+                n2_protocol_title: "Comment fonctionne la synchronisation décentralisée N² ?",
+                n2_principle: "🎯 Le principe : \"Les amis de mes amis sont mes amis\"",
+                how_it_works: "🔄 Comment ça marche ?",
+                step1_title: "Chaque station Astroport héberge des relais NOSTR",
+                step1_desc: "Votre nœud personnel stocke vos vidéos et événements NOSTR localement",
+                step2_title: "Synchronisation automatique N²",
+                step2_desc: "Votre station se connecte aux stations de vos amis (N1), puis aux amis de vos amis (N2) via des tunnels IPFS P2P sécurisés",
+                step3_title: "Réplication décentralisée",
+                step3_desc: "Les vidéos et métadonnées sont répliquées automatiquement toutes les heures entre stations connectées",
+                step4_title: "Résilience totale",
+                step4_desc: "Si une station tombe, le contenu reste accessible via les autres nœuds du réseau. Pas de point de défaillance unique.",
+                result_title: "🚀 Le résultat",
+                result_desc: "Un YouTube décentralisé et incensurable. Chaque station est à la fois client et serveur. Votre contenu vous appartient vraiment, stocké sur votre infrastructure ou celle de membres de confiance.",
+                learn_more_protocol: "En savoir plus sur le Protocole N²",
+                about_nostr_tube: "À propos de NOSTR Tube",
+                about_desc: "Une plateforme vidéo décentralisée construite sur le protocole NOSTR et synchronisée via le réseau Astroport (Protocole N²).",
+                resources: "Ressources",
+                open_source: "Open Source",
+                view_source: "Voir le code source",
+                powered_by: "Propulsé par"
+            },
+            en: {
+                all_videos: "All Videos",
+                videos: "videos",
+                channels: "channels",
+                create: "Create",
+                add_video: "Add a video",
+                search_videos: "Search videos...",
+                navigation: "Navigation",
+                home: "Home",
+                map_view: "Map View",
+                video_map: "Video Map",
+                close: "Close",
+                share: "Share",
+                bookmark: "Bookmark",
+                like: "Like",
+                play: "Play",
+                view: "View",
+                videos_at_location: "videos at this location",
+                no_videos_found: "No videos found",
+                check_connection: "Check NOSTR relay connection or add videos via",
+                sharing: "Sharing...",
+                shared: "Shared!",
+                bookmarking: "Bookmarking...",
+                bookmarked: "Bookmarked!",
+                liking: "Liking...",
+                liked: "Liked!",
+                error: "Error",
+                error_common_js: "Error: common.js not loaded. Reload the page.",
+                connect_nostr_share: "You must connect with NOSTR to share this video",
+                connect_nostr_bookmark: "You must connect with NOSTR to bookmark this video",
+                connect_nostr_like: "You must connect with NOSTR to like this video",
+                n2_protocol_title: "How does N² decentralized synchronization work?",
+                n2_principle: "🎯 The principle: \"Friends of my friends are my friends\"",
+                how_it_works: "🔄 How it works?",
+                step1_title: "Each Astroport station hosts NOSTR relays",
+                step1_desc: "Your personal node stores your videos and NOSTR events locally",
+                step2_title: "Automatic N² synchronization",
+                step2_desc: "Your station connects to your friends' stations (N1), then to friends of friends (N2) via secure IPFS P2P tunnels",
+                step3_title: "Decentralized replication",
+                step3_desc: "Videos and metadata are automatically replicated every hour between connected stations",
+                step4_title: "Total resilience",
+                step4_desc: "If a station goes down, content remains accessible via other network nodes. No single point of failure.",
+                result_title: "🚀 The result",
+                result_desc: "A decentralized and uncensorable YouTube. Each station is both client and server. Your content truly belongs to you, stored on your infrastructure or that of trusted members.",
+                learn_more_protocol: "Learn more about N² Protocol",
+                about_nostr_tube: "About NOSTR Tube",
+                about_desc: "A decentralized video platform built on NOSTR protocol and synchronized via the Astroport network (N² Protocol).",
+                resources: "Resources",
+                open_source: "Open Source",
+                view_source: "View source code",
+                powered_by: "Powered by"
+            },
+            es: {
+                all_videos: "Todos los Videos",
+                videos: "videos",
+                channels: "canales",
+                create: "Crear",
+                add_video: "Añadir un video",
+                search_videos: "Buscar videos...",
+                navigation: "Navegación",
+                home: "Inicio",
+                map_view: "Vista Mapa",
+                video_map: "Mapa de Videos",
+                close: "Cerrar",
+                share: "Compartir",
+                bookmark: "Marcador",
+                like: "Me gusta",
+                play: "Reproducir",
+                view: "Ver",
+                videos_at_location: "videos en esta ubicación",
+                no_videos_found: "No se encontraron videos",
+                check_connection: "Verifique la conexión al relay NOSTR o añada videos a través de",
+                sharing: "Compartiendo...",
+                shared: "¡Compartido!",
+                bookmarking: "Marcando...",
+                bookmarked: "¡Marcado!",
+                liking: "Me gusta...",
+                liked: "¡Te gustó!",
+                error: "Error",
+                error_common_js: "Error: common.js no cargado. Recargue la página.",
+                connect_nostr_share: "Debe conectarse con NOSTR para compartir este video",
+                connect_nostr_bookmark: "Debe conectarse con NOSTR para marcar este video",
+                connect_nostr_like: "Debe conectarse con NOSTR para dar me gusta a este video",
+                n2_protocol_title: "¿Cómo funciona la sincronización descentralizada N²?",
+                n2_principle: "🎯 El principio: \"Los amigos de mis amigos son mis amigos\"",
+                how_it_works: "🔄 ¿Cómo funciona?",
+                step1_title: "Cada estación Astroport aloja relays NOSTR",
+                step1_desc: "Su nodo personal almacena sus videos y eventos NOSTR localmente",
+                step2_title: "Sincronización automática N²",
+                step2_desc: "Su estación se conecta a las estaciones de sus amigos (N1), luego a los amigos de sus amigos (N2) a través de túneles IPFS P2P seguros",
+                step3_title: "Replicación descentralizada",
+                step3_desc: "Los videos y metadatos se replican automáticamente cada hora entre estaciones conectadas",
+                step4_title: "Resiliencia total",
+                step4_desc: "Si una estación cae, el contenido permanece accesible a través de otros nodos de la red. Sin punto único de falla.",
+                result_title: "🚀 El resultado",
+                result_desc: "Un YouTube descentralizado e incensurable. Cada estación es tanto cliente como servidor. Su contenido realmente le pertenece, almacenado en su infraestructura o la de miembros de confianza.",
+                learn_more_protocol: "Más información sobre el Protocolo N²",
+                about_nostr_tube: "Acerca de NOSTR Tube",
+                about_desc: "Una plataforma de video descentralizada construida sobre el protocolo NOSTR y sincronizada a través de la red Astroport (Protocolo N²).",
+                resources: "Recursos",
+                open_source: "Código Abierto",
+                view_source: "Ver código fuente",
+                powered_by: "Impulsado por"
+            }
+        };
+        
+        let currentLanguage = 'fr'; // Default language
+        
+        /**
+         * Initialize language from localStorage or browser
+         */
+        function initializeLanguage() {
+            // Check localStorage first
+            const savedLang = localStorage.getItem('youtube_language');
+            if (savedLang && translations[savedLang]) {
+                currentLanguage = savedLang;
+            } else {
+                // Detect browser language
+                const browserLang = navigator.language.split('-')[0];
+                if (translations[browserLang]) {
+                    currentLanguage = browserLang;
+                }
+            }
+            
+            applyLanguage(currentLanguage);
+        }
+        
+        /**
+         * Change language
+         */
+        function changeLanguage(lang) {
+            if (!translations[lang]) {
+                console.error(`Language ${lang} not supported`);
+                return;
+            }
+            
+            currentLanguage = lang;
+            localStorage.setItem('youtube_language', lang);
+            applyLanguage(lang);
+        }
+        
+        /**
+         * Apply language to all elements with data-i18n
+         */
+        function applyLanguage(lang) {
+            const t = translations[lang];
+            
+            // Update all elements with data-i18n attribute
+            document.querySelectorAll('[data-i18n]').forEach(element => {
+                const key = element.getAttribute('data-i18n');
+                if (t[key]) {
+                    element.textContent = t[key];
+                }
+            });
+            
+            // Update placeholders
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+                const key = element.getAttribute('data-i18n-placeholder');
+                if (t[key]) {
+                    element.placeholder = t[key];
+                }
+            });
+            
+            // Update titles
+            document.querySelectorAll('[data-i18n-title]').forEach(element => {
+                const key = element.getAttribute('data-i18n-title');
+                if (t[key]) {
+                    element.title = t[key];
+                }
+            });
+            
+            // Update active language button
+            document.querySelectorAll('.language-btn').forEach(btn => {
+                if (btn.getAttribute('data-lang') === lang) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            
+            console.log(`Language changed to: ${lang}`);
+        }
+        
+        /**
+         * Get translation for a key
+         */
+        function t(key) {
+            return translations[currentLanguage][key] || key;
+        }
+        
         // Global variables
         let IPFS_GATEWAY = '';
         let currentChannel = null;
@@ -1121,7 +1575,7 @@
             if (currentChannel) {
                 document.getElementById('pageTitle').textContent = channelName;
             } else {
-                document.getElementById('pageTitle').textContent = 'Toutes les vidéos';
+                document.getElementById('pageTitle').textContent = t('all_videos');
             }
             
             // Apply search filter if active
@@ -1172,6 +1626,9 @@
         
         // Handle video ended
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize language
+            initializeLanguage();
+            
             // Apply dynamic theme
             applyDynamicTheme();
             
@@ -1214,7 +1671,7 @@
             
             // Check if common.js is loaded
             if (typeof userPubkey === 'undefined') {
-                alert('❌ Erreur : common.js non chargé. Rechargez la page.');
+                alert('❌ ' + t('error_common_js'));
                 return;
             }
             
@@ -1222,7 +1679,7 @@
             if (!userPubkey) {
                 const connected = await connectNostr();
                 if (!connected) {
-                    alert('❌ Vous devez vous connecter avec NOSTR pour partager cette vidéo');
+                    alert('❌ ' + t('connect_nostr_share'));
                     return;
                 }
             }
@@ -1244,22 +1701,22 @@
             ];
             
             button.disabled = true;
-            button.textContent = '⏳ Partage...';
+            button.textContent = '⏳ ' + t('sharing');
             
             try {
                 const result = await publishNote(message, tags);
                 if (result) {
-                    button.textContent = '✅ Partagé !';
+                    button.textContent = '✅ ' + t('shared');
                     setTimeout(() => {
-                        button.textContent = '📡 Partager';
+                        button.textContent = '📡 ' + t('share');
                         button.disabled = false;
                     }, 3000);
                 }
             } catch (error) {
                 console.error('Error sharing video:', error);
-                button.textContent = '❌ Erreur';
+                button.textContent = '❌ ' + t('error');
                 setTimeout(() => {
-                    button.textContent = '📡 Partager';
+                    button.textContent = '📡 ' + t('share');
                     button.disabled = false;
                 }, 3000);
             }
@@ -1274,7 +1731,7 @@
             
             // Check if common.js is loaded
             if (typeof userPubkey === 'undefined') {
-                alert('❌ Erreur : common.js non chargé. Rechargez la page.');
+                alert('❌ ' + t('error_common_js'));
                 return;
             }
             
@@ -1282,7 +1739,7 @@
             if (!userPubkey) {
                 const connected = await connectNostr();
                 if (!connected) {
-                    alert('❌ Vous devez vous connecter avec NOSTR pour bookmarker cette vidéo');
+                    alert('❌ ' + t('connect_nostr_bookmark'));
                     return;
                 }
             }
@@ -1290,22 +1747,22 @@
             const fullUrl = convertIPFSUrl(ipfsUrl);
             
             button.disabled = true;
-            button.textContent = '⏳ Bookmark...';
+            button.textContent = '⏳ ' + t('bookmarking');
             
             try {
                 const result = await createBookmark(fullUrl, title, `Video from NOSTR Tube`);
                 if (result) {
-                    button.textContent = '✅ Bookmarké !';
+                    button.textContent = '✅ ' + t('bookmarked');
                     setTimeout(() => {
-                        button.textContent = '🔖 Bookmark';
+                        button.textContent = '🔖 ' + t('bookmark');
                         button.disabled = false;
                     }, 3000);
                 }
             } catch (error) {
                 console.error('Error bookmarking video:', error);
-                button.textContent = '❌ Erreur';
+                button.textContent = '❌ ' + t('error');
                 setTimeout(() => {
-                    button.textContent = '🔖 Bookmark';
+                    button.textContent = '🔖 ' + t('bookmark');
                     button.disabled = false;
                 }, 3000);
             }
@@ -1320,7 +1777,7 @@
             
             // Check if common.js is loaded
             if (typeof userPubkey === 'undefined') {
-                alert('❌ Erreur : common.js non chargé. Rechargez la page.');
+                alert('❌ ' + t('error_common_js'));
                 return;
             }
             
@@ -1328,28 +1785,28 @@
             if (!userPubkey) {
                 const connected = await connectNostr();
                 if (!connected) {
-                    alert('❌ Vous devez vous connecter avec NOSTR pour liker cette vidéo');
+                    alert('❌ ' + t('connect_nostr_like'));
                     return;
                 }
             }
             
             button.disabled = true;
-            button.textContent = '⏳ Like...';
+            button.textContent = '⏳ ' + t('liking');
             
             try {
                 const result = await sendLike(eventId, authorId, '+');
                 if (result) {
-                    button.textContent = '✅ Liké !';
+                    button.textContent = '✅ ' + t('liked');
                     setTimeout(() => {
-                        button.textContent = '👍 Liked';
+                        button.textContent = '👍 ' + t('liked');
                         button.disabled = true; // Keep disabled after liking
                     }, 2000);
                 }
             } catch (error) {
                 console.error('Error liking video:', error);
-                button.textContent = '❌ Erreur';
+                button.textContent = '❌ ' + t('error');
                 setTimeout(() => {
-                    button.textContent = '👍 Like';
+                    button.textContent = '👍 ' + t('like');
                     button.disabled = false;
                 }, 3000);
             }
@@ -1510,8 +1967,8 @@
                             <div class="map-popup-title">${video.title}</div>
                             <div class="map-popup-meta">${video.meta}</div>
                             <div class="map-popup-actions">
-                                <button class="map-popup-btn" onclick="playVideoFromMap('${video.ipfsUrl}')">▶ Lire</button>
-                                <button class="map-popup-btn" onclick="closeMapAndScrollTo('${escapeHtml(video.title)}')">👁️ Voir</button>
+                                <button class="map-popup-btn" onclick="playVideoFromMap('${video.ipfsUrl}')">▶ ${t('play')}</button>
+                                <button class="map-popup-btn" onclick="closeMapAndScrollTo('${escapeHtml(video.title)}')">👁️ ${t('view')}</button>
                             </div>
                         </div>
                     </div>
@@ -1521,7 +1978,7 @@
                 popupContent = `
                     <div class="map-popup-multiple">
                         <div class="map-popup-header">
-                            <strong>${videoCount} vidéos à cet emplacement</strong>
+                            <strong>${videoCount} ${t('videos_at_location')}</strong>
                         </div>
                         <div class="map-popup-video-list">
                             ${videos.map(video => `
@@ -1615,3 +2072,4 @@
     </script>
 </body>
 </html>
+
