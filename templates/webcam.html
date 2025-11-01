@@ -1179,6 +1179,21 @@
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     
     <script>
+        // Override common.js configuration for localhost
+        if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+            // Force local configuration
+            const localPort = window.location.port || '54321';
+            window.USPOT_API_BASE = `http://127.0.0.1:${localPort}`;
+            window.LOCAL_RELAY = 'ws://127.0.0.1:7777';
+            window.DEFAULT_RELAY = 'ws://127.0.0.1:7777';
+            
+            console.log('🏠 Localhost detected - Using local configuration:');
+            console.log('   API uSPOT:', window.USPOT_API_BASE);
+            console.log('   Relay:', window.LOCAL_RELAY);
+        }
+    </script>
+    
+    <script>
         // Global variables (non-conflicting with common.js)
         let mediaRecorder;
         let recordedChunks = [];
