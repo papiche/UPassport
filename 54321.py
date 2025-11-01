@@ -2130,6 +2130,9 @@ async def check_zencard_route(request: Request, email: str, html: Optional[str] 
         # Otherwise return JSON
         return zencard_data
         
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except subprocess.TimeoutExpired:
