@@ -488,13 +488,13 @@
 <body>
     <div class="theater-modal" id="theaterModal">
         <div class="theater-header">
-            <button class="theater-close-btn" onclick="closeTheaterMode()">✕</button>
+            <button class="theater-close-btn" onclick="handleCloseTheater()">✕</button>
             <div class="theater-title" id="theaterTitle">Loading...</div>
             <div class="theater-actions">
-                <button class="theater-action-btn" onclick="theaterShareVideoWithPreview()">📡 Partager</button>
-                <button class="theater-action-btn" onclick="theaterBookmarkVideo()">🔖 Bookmark</button>
-                <button class="theater-action-btn" onclick="addVideoToPlaylist()">➕ Playlist</button>
-                <button class="theater-action-btn" onclick="enterPictureInPicture()">🖼️ PiP</button>
+                <button class="theater-action-btn" onclick="handleTheaterShare()">📡 Partager</button>
+                <button class="theater-action-btn" onclick="handleTheaterBookmark()">🔖 Bookmark</button>
+                <button class="theater-action-btn" onclick="handleAddToPlaylist()">➕ Playlist</button>
+                <button class="theater-action-btn" onclick="handlePictureInPicture()">🖼️ PiP</button>
             </div>
         </div>
         <div class="theater-body">
@@ -550,6 +550,27 @@
 
     <!-- Scripts will be loaded from parent page or via URL params -->
     <script>
+        // Wait for youtube.enhancements.js to load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Ensure functions are available from parent or wait for them
+            if (typeof window.addToPlaylist === 'undefined') {
+                // Wait a bit for scripts to load
+                setTimeout(() => {
+                    if (typeof window.addToPlaylist === 'undefined') {
+                        console.warn('addToPlaylist function not found. Make sure youtube.enhancements.js is loaded.');
+                    }
+                }, 1000);
+            }
+            
+            if (typeof window.theaterShareVideoWithPreview === 'undefined') {
+                setTimeout(() => {
+                    if (typeof window.theaterShareVideoWithPreview === 'undefined') {
+                        console.warn('theaterShareVideoWithPreview function not found. Make sure youtube.enhancements.js is loaded.');
+                    }
+                }, 1000);
+            }
+        });
+
         /**
          * Add video to playlist from theater mode
          */
@@ -564,9 +585,14 @@
             }
 
             if (!userPubkey) {
-                const connected = await connectNostr();
-                if (!connected) {
-                    alert('You must be connected to add videos to playlists');
+                if (typeof connectNostr === 'function') {
+                    const connected = await connectNostr();
+                    if (!connected) {
+                        alert('You must be connected to add videos to playlists');
+                        return;
+                    }
+                } else {
+                    alert('NOSTR connection not available. Please ensure common.js is loaded.');
                     return;
                 }
             }
@@ -574,7 +600,12 @@
             // Fetch user's playlists
             try {
                 if (!nostrRelay || !isNostrConnected) {
-                    await connectToRelay();
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                    } else {
+                        alert('Cannot connect to relay. Please ensure common.js is loaded.');
+                        return;
+                    }
                 }
 
                 const playlists = await new Promise((resolve) => {
@@ -631,18 +662,130 @@
                 }
 
                 const selectedPlaylist = playlists[index];
-                const success = await addToPlaylist(selectedPlaylist.id, eventId);
-
-                if (success) {
-                    alert(`✅ Vidéo ajoutée à "${selectedPlaylist.name}" !`);
+                
+                // Try to use addToPlaylist from youtube.enhancements.js
+                if (typeof window.addToPlaylist === 'function') {
+                    const success = await window.addToPlaylist(selectedPlaylist.id, eventId);
+                    if (success) {
+                        alert(`✅ Vidéo ajoutée à "${selectedPlaylist.name}" !`);
+                    } else {
+                        alert('❌ Erreur lors de l\'ajout à la playlist');
+                    }
                 } else {
-                    alert('❌ Erreur lors de l\'ajout à la playlist');
+                    alert('❌ Fonction addToPlaylist non disponible. Assurez-vous que youtube.enhancements.js est chargé.');
                 }
             } catch (error) {
                 console.error('Error adding to playlist:', error);
                 alert('❌ Erreur: ' + error.message);
             }
         }
+        
+        // Expose function globally
+        window.addVideoToPlaylist = addVideoToPlaylist;
+        
+        /**
+         * Handle share button click - wrapper to ensure function is available
+         */
+        async function handleTheaterShare() {
+            if (typeof window.theaterShareVideoWithPreview === 'function') {
+                try {
+                    await window.theaterShareVideoWithPreview();
+                } catch (error) {
+                    console.error('Error sharing video:', error);
+                    alert('Erreur lors du partage: ' + error.message);
+                }
+            } else {
+                console.error('theaterShareVideoWithPreview not available');
+                alert('Fonction de partage non disponible. Assurez-vous que youtube.enhancements.js est chargé.');
+            }
+        }
+        
+        /**
+         * Handle bookmark button click - wrapper to ensure function is available
+         */
+        async function handleTheaterBookmark() {
+            if (typeof window.theaterBookmarkVideo === 'function') {
+                try {
+                    await window.theaterBookmarkVideo();
+                } catch (error) {
+                    console.error('Error bookmarking video:', error);
+                    alert('Erreur lors de l\'ajout au bookmark: ' + error.message);
+                }
+            } else {
+                console.error('theaterBookmarkVideo not available');
+                alert('Fonction de bookmark non disponible. Assurez-vous que youtube.enhancements.js est chargé.');
+            }
+        }
+        
+        /**
+         * Handle add to playlist button click - wrapper to ensure function is available
+         */
+        async function handleAddToPlaylist() {
+            try {
+                await addVideoToPlaylist();
+            } catch (error) {
+                console.error('Error adding to playlist:', error);
+                alert('Erreur lors de l\'ajout à la playlist: ' + error.message);
+            }
+        }
+        
+        /**
+         * Handle picture in picture button click - wrapper to ensure function is available
+         */
+        async function handlePictureInPicture() {
+            if (typeof window.enterPictureInPicture === 'function') {
+                try {
+                    await window.enterPictureInPicture();
+                } catch (error) {
+                    console.error('Error entering picture in picture:', error);
+                    alert('Erreur lors de l\'activation du mode PiP: ' + error.message);
+                }
+            } else {
+                console.error('enterPictureInPicture not available');
+                // Fallback: try native PiP API
+                const videoPlayer = document.getElementById('theaterVideoPlayer');
+                if (videoPlayer && videoPlayer.requestPictureInPicture) {
+                    try {
+                        await videoPlayer.requestPictureInPicture();
+                    } catch (error) {
+                        alert('Le mode Picture-in-Picture n\'est pas disponible sur ce navigateur.');
+                    }
+                } else {
+                    alert('Le mode Picture-in-Picture n\'est pas disponible.');
+                }
+            }
+        }
+        
+        /**
+         * Handle close button click - wrapper to ensure function is available
+         */
+        function handleCloseTheater() {
+            if (typeof window.closeTheaterMode === 'function') {
+                window.closeTheaterMode();
+            } else {
+                // Fallback: try to close modal directly
+                const modal = document.getElementById('theaterModal');
+                if (modal) {
+                    const videoPlayer = document.getElementById('theaterVideoPlayer');
+                    if (videoPlayer) {
+                        videoPlayer.pause();
+                        videoPlayer.src = '';
+                        videoPlayer.load();
+                    }
+                    modal.remove();
+                } else {
+                    // Try window.close if modal not found (might be in iframe)
+                    window.close();
+                }
+            }
+        }
+        
+        // Expose handlers globally
+        window.handleTheaterShare = handleTheaterShare;
+        window.handleTheaterBookmark = handleTheaterBookmark;
+        window.handleAddToPlaylist = handleAddToPlaylist;
+        window.handlePictureInPicture = handlePictureInPicture;
+        window.handleCloseTheater = handleCloseTheater;
 
         // Initialize theater mode if videoData is passed
         if (window.videoData && typeof initializeTheaterMode === 'function') {
@@ -652,9 +795,7 @@
         // Listen for close button or ESC key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                if (typeof closeTheaterMode === 'function') {
-                    closeTheaterMode();
-                }
+                handleCloseTheater();
             }
         });
     </script>

@@ -2580,9 +2580,12 @@
                 description: '' // Add if available in video data
             };
             
-            // Check if openTheaterMode is available from enhancements.js
-            if (typeof openTheaterMode === 'function') {
-                await openTheaterMode(videoData);
+            // Check if openTheaterMode is available from enhancements.js (check both global and window)
+            const theaterModeFn = typeof openTheaterMode !== 'undefined' ? openTheaterMode : 
+                                   (typeof window !== 'undefined' && window.openTheaterMode ? window.openTheaterMode : null);
+            
+            if (theaterModeFn && typeof theaterModeFn === 'function') {
+                await theaterModeFn(videoData);
             } else {
                 console.error('openTheaterMode not available. Make sure youtube.enhancements.js is loaded.');
                 // Fallback to inline player
@@ -2714,14 +2717,19 @@
         }
         
         /**
-         * Theater mode helper functions (use functions from enhancements.js)
+         * Theater mode helper functions - use functions from enhancements.js if available
+         * These are fallbacks for backward compatibility
          */
         function theaterShareVideo() {
+            // Prefer the function from youtube.enhancements.js
+            if (typeof window.theaterShareVideoWithPreview === 'function') {
+                return window.theaterShareVideoWithPreview();
+            }
+            // Fallback to local shareVideo if available
             const videoPlayer = document.getElementById('theaterVideoPlayer');
-            if (videoPlayer) {
+            if (videoPlayer && typeof shareVideo === 'function') {
                 const ipfsUrl = videoPlayer.getAttribute('data-ipfs-url');
                 const title = document.querySelector('.theater-title')?.textContent || '';
-                // Create a temporary button to use existing shareVideo function
                 const tempBtn = document.createElement('button');
                 tempBtn.setAttribute('data-title', title);
                 tempBtn.setAttribute('data-url', ipfsUrl);
@@ -2730,11 +2738,15 @@
         }
         
         function theaterBookmarkVideo() {
+            // Prefer the function from youtube.enhancements.js
+            if (typeof window.theaterBookmarkVideo === 'function') {
+                return window.theaterBookmarkVideo();
+            }
+            // Fallback to local bookmarkVideo if available
             const videoPlayer = document.getElementById('theaterVideoPlayer');
-            if (videoPlayer) {
+            if (videoPlayer && typeof bookmarkVideo === 'function') {
                 const ipfsUrl = videoPlayer.getAttribute('data-ipfs-url');
                 const title = document.querySelector('.theater-title')?.textContent || '';
-                // Create a temporary button to use existing bookmarkVideo function
                 const tempBtn = document.createElement('button');
                 tempBtn.setAttribute('data-title', title);
                 tempBtn.setAttribute('data-url', ipfsUrl);

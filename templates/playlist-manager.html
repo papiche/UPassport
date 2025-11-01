@@ -642,14 +642,15 @@
             }
         }
 
-        /**
-         * Escape HTML to prevent XSS
-         */
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+        // Use escapeHtml from youtube.enhancements.js if available, otherwise define fallback
+        if (typeof window.escapeHtml === 'undefined') {
+            window.escapeHtml = function(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
         }
+        const escapeHtml = window.escapeHtml;
 
         // Close modal on outside click
         document.getElementById('createPlaylistModal')?.addEventListener('click', (e) => {

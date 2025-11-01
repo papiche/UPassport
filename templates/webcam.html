@@ -2056,6 +2056,32 @@
             event.target.value = '';
         }
 
+        // Helper function to fill player field and fetch email (reused in multiple places)
+        function fillPlayerFieldAndFetchEmail(pubkey, logPrefix = '') {
+            if (!pubkey) return;
+            
+            const playerField = document.getElementById('player');
+            if (playerField) {
+                playerField.value = pubkey;
+            }
+            
+            // Try to fetch email asynchronously
+            if (typeof fetchUserEmail === 'function') {
+                fetchUserEmail().catch(err => {
+                    console.warn('⚠️ Could not fetch user email, using pubkey:', err);
+                });
+            } else if (typeof fetchUserEmailWithFallback === 'function' && typeof window !== 'undefined') {
+                // Fallback: try fetchUserEmailWithFallback from common.js directly
+                fetchUserEmailWithFallback(pubkey).then(email => {
+                    if (email && email !== pubkey && document.getElementById('player')) {
+                        document.getElementById('player').value = email;
+                    }
+                }).catch(err => {
+                    console.warn('⚠️ Could not fetch user email, using pubkey:', err);
+                });
+            }
+        }
+        
         // Initialize connection variables from parent window if in iframe
         function initializeConnectionVars() {
             const isInIframe = window.self !== window.top;
@@ -2066,84 +2092,40 @@
             
             const tryGetConnection = () => {
                 attempts++;
+                let foundPubkey = null;
                 
-                // Try to get from current window first (check both global and window scope)
+                // Strategy 1: Try to get from current window (check both global and window scope)
                 if (typeof window !== 'undefined' && window.userPubkey) {
-                    userPubkey = window.userPubkey;
+                    foundPubkey = window.userPubkey;
+                    userPubkey = foundPubkey;
                     if (window.nostrRelay) nostrRelay = window.nostrRelay;
                     if (typeof window.isNostrConnected !== 'undefined') isNostrConnected = window.isNostrConnected;
-                    console.log('✅ Using connection from current window.userPubkey:', userPubkey.substring(0, 8) + '...');
-                    
-                    // Fill player field immediately with pubkey, then try to fetch email
-                    if (userPubkey) {
-                        const playerField = document.getElementById('player');
-                        if (playerField) {
-                            playerField.value = userPubkey;
-                        }
-                        // Try to fetch email asynchronously
-                        if (typeof fetchUserEmail === 'function') {
-                            fetchUserEmail().catch(err => {
-                                console.warn('⚠️ Could not fetch user email, using pubkey:', err);
-                            });
-                        }
-                    }
-                    
-                    return true;
+                    console.log('✅ Using connection from current window.userPubkey:', foundPubkey.substring(0, 8) + '...');
                 } else if (typeof userPubkey !== 'undefined' && userPubkey) {
+                    foundPubkey = userPubkey;
                     // Set in window for easier access
                     if (typeof window !== 'undefined') {
-                        window.userPubkey = userPubkey;
+                        window.userPubkey = foundPubkey;
                     }
-                    console.log('✅ Using connection from current window global scope:', userPubkey.substring(0, 8) + '...');
-                    
-                    // Fill player field immediately with pubkey, then try to fetch email
-                    const playerField = document.getElementById('player');
-                    if (playerField) {
-                        playerField.value = userPubkey;
-                    }
-                    // Try to fetch email asynchronously
-                    if (typeof fetchUserEmail === 'function') {
-                        fetchUserEmail().catch(err => {
-                            console.warn('⚠️ Could not fetch user email, using pubkey:', err);
-                        });
-                    }
-                    
-                    return true;
+                    console.log('✅ Using connection from current window global scope:', foundPubkey.substring(0, 8) + '...');
                 }
-                
-                // If in iframe, try to get from parent window
-                if (isInIframe && window.parent) {
+                // Strategy 2: If in iframe, try to get from parent window
+                else if (isInIframe && window.parent) {
                     try {
                         if (window.parent.userPubkey) {
-                            userPubkey = window.parent.userPubkey;
+                            foundPubkey = window.parent.userPubkey;
+                            userPubkey = foundPubkey;
                             nostrRelay = window.parent.nostrRelay || null;
                             isNostrConnected = window.parent.isNostrConnected || false;
                             
                             // Set in current window for easier access
                             if (typeof window !== 'undefined') {
-                                window.userPubkey = userPubkey;
+                                window.userPubkey = foundPubkey;
                                 window.nostrRelay = nostrRelay;
                                 window.isNostrConnected = isNostrConnected;
                             }
                             
-                            console.log('✅ Using connection from parent window:', userPubkey ? userPubkey.substring(0, 8) + '...' : 'none');
-                            console.log('✅ Connection ready from parent window');
-                            
-                            // Fill player field immediately with pubkey, then try to fetch email
-                            if (userPubkey) {
-                                const playerField = document.getElementById('player');
-                                if (playerField) {
-                                    playerField.value = userPubkey;
-                                }
-                                // Try to fetch email asynchronously
-                                if (typeof fetchUserEmail === 'function') {
-                                    fetchUserEmail().catch(err => {
-                                        console.warn('⚠️ Could not fetch user email, using pubkey:', err);
-                                    });
-                                }
-                            }
-                            
-                            return true;
+                            console.log('✅ Using connection from parent window:', foundPubkey ? foundPubkey.substring(0, 8) + '...' : 'none');
                         } else {
                             if (attempts >= maxAttempts) {
                                 console.warn('⚠️ Parent window has no userPubkey after', maxAttempts, 'attempts');
@@ -2157,6 +2139,14 @@
                         }
                         return false;
                     }
+                } else {
+                    return false;
+                }
+                
+                // If we found a pubkey, fill player field and fetch email
+                if (foundPubkey) {
+                    fillPlayerFieldAndFetchEmail(foundPubkey);
+                    return true;
                 }
                 
                 return false;
@@ -2239,15 +2229,34 @@
             if (!userPubkey) return;
             
             try {
-                userEmail = await fetchUserEmailWithFallback(userPubkey);
+                // Use fetchUserEmailWithFallback from common.js if available
+                if (typeof fetchUserEmailWithFallback === 'function') {
+                    userEmail = await fetchUserEmailWithFallback(userPubkey);
+                } else {
+                    // Fallback: try to get from window if available
+                    if (typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
+                        userEmail = await window.fetchUserEmailWithFallback(userPubkey);
+                    } else {
+                        console.warn('⚠️ fetchUserEmailWithFallback not available, using pubkey');
+                        userEmail = null;
+                    }
+                }
+                
                 if (userEmail === userPubkey) {
                     userEmail = null;
                 }
-                document.getElementById('player').value = userEmail || userPubkey;
+                
+                const playerField = document.getElementById('player');
+                if (playerField) {
+                    playerField.value = userEmail || userPubkey;
+                }
             } catch (error) {
                 console.error('Error fetching user email:', error);
                 userEmail = null;
-                document.getElementById('player').value = userPubkey;
+                const playerField = document.getElementById('player');
+                if (playerField) {
+                    playerField.value = userPubkey;
+                }
             }
         }
 
