@@ -302,16 +302,16 @@
             position: relative;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
         
         .language-btn {
             background: transparent;
             color: #f1f1f1;
             border: 1px solid #3f3f3f;
-            padding: 6px 12px;
-            border-radius: 16px;
-            font-size: 0.85em;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -990,6 +990,17 @@
             footer .grid {
                 grid-template-columns: 1fr !important;
             }
+            
+            footer .language-selector {
+                order: -1;
+                margin-bottom: 12px;
+            }
+            
+            footer > div > div:first-child {
+                flex-direction: column;
+                align-items: flex-start !important;
+                gap: 12px !important;
+            }
         }
         
         /* Tablet */
@@ -1065,29 +1076,24 @@
         <!-- Main content -->
         <main class="main-content">
             <div class="header">
-                <div class="header-top">
-                    <h1 id="pageTitle" data-i18n="all_videos">Toutes les vidéos</h1>
-                    <div style="display: flex; align-items: center; gap: 24px;">
-                        <div class="language-selector">
-                            <button class="language-btn" onclick="changeLanguage('fr')" data-lang="fr">🇫🇷 FR</button>
-                            <button class="language-btn" onclick="changeLanguage('en')" data-lang="en">🇬🇧 EN</button>
-                            <button class="language-btn" onclick="changeLanguage('es')" data-lang="es">🇪🇸 ES</button>
+            <div class="header-top">
+                <h1 id="pageTitle" data-i18n="all_videos">Toutes les vidéos</h1>
+                <div style="display: flex; align-items: center; gap: 24px;">
+                    <div class="header-stats">
+                        <div class="header-stat">
+                            <span class="header-stat-number">{{ youtube_data.total_videos }}</span>
+                            <span data-i18n="videos">vidéos</span>
                         </div>
-                        <div class="header-stats">
-                            <div class="header-stat">
-                                <span class="header-stat-number">{{ youtube_data.total_videos }}</span>
-                                <span data-i18n="videos">vidéos</span>
-                            </div>
-                            <div class="header-stat">
-                                <span class="header-stat-number">{{ youtube_data.total_channels }}</span>
-                                <span data-i18n="channels">chaînes</span>
-                            </div>
+                        <div class="header-stat">
+                            <span class="header-stat-number">{{ youtube_data.total_channels }}</span>
+                            <span data-i18n="channels">chaînes</span>
                         </div>
-                        <a href="/webcam" class="upload-btn" data-i18n-title="add_video">
-                            📹 <span data-i18n="create">Créer</span>
-                        </a>
                     </div>
+                    <a href="/webcam" class="upload-btn" data-i18n-title="add_video">
+                        📹 <span data-i18n="create">Créer</span>
+                    </a>
                 </div>
+            </div>
             </div>
             
             <div class="search-bar">
@@ -1256,9 +1262,17 @@
                         <a href="https://github.com/papiche/Astroport.ONE" target="_blank" style="color: #3ea6ff; text-decoration: none;">Astroport.ONE</a>
                     </span>
                 </div>
-                <button style="background: transparent; border: 1px solid #3f3f3f; color: #aaaaaa; padding: 6px 12px; border-radius: 12px; font-size: 12px; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.background='#3f3f3f'" onmouseout="this.style.background='transparent'" id="footerToggleBtn">
-                    <span id="footerToggleIcon">▼</span> <span data-i18n="more_info">Plus d'infos</span>
-                </button>
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <!-- Language selector -->
+                    <div class="language-selector">
+                        <button class="language-btn" onclick="event.stopPropagation(); changeLanguage('fr')" data-lang="fr">🇫🇷 FR</button>
+                        <button class="language-btn" onclick="event.stopPropagation(); changeLanguage('en')" data-lang="en">🇬🇧 EN</button>
+                        <button class="language-btn" onclick="event.stopPropagation(); changeLanguage('es')" data-lang="es">🇪🇸 ES</button>
+                    </div>
+                    <button style="background: transparent; border: 1px solid #3f3f3f; color: #aaaaaa; padding: 6px 12px; border-radius: 12px; font-size: 12px; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.background='#3f3f3f'" onmouseout="this.style.background='transparent'" id="footerToggleBtn">
+                        <span id="footerToggleIcon">▼</span> <span data-i18n="more_info">Plus d'infos</span>
+                    </button>
+                </div>
             </div>
             
             <!-- Expandable footer content -->
