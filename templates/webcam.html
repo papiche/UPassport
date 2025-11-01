@@ -1914,8 +1914,31 @@
                 // Step 2: Publish to NOSTR with IPFS CID
                 publishBtn.textContent = 'Publishing to NOSTR...';
                 
+                // Ensure player field is filled - use email if available, otherwise pubkey, otherwise currentPubkey
+                const playerField = document.getElementById('player');
+                let playerValue = '';
+                if (playerField && playerField.value) {
+                    playerValue = playerField.value;
+                } else if (userEmail) {
+                    playerValue = userEmail;
+                } else if (currentPubkey) {
+                    playerValue = currentPubkey;
+                } else if (userPubkey) {
+                    playerValue = userPubkey;
+                }
+                
+                // If still empty, throw error
+                if (!playerValue) {
+                    throw new Error('Player identifier (email or pubkey) is required for publishing');
+                }
+                
+                // Update the field value for next time
+                if (playerField) {
+                    playerField.value = playerValue;
+                }
+                
                 const formData = new FormData();
-                formData.append('player', userEmail || document.getElementById('player').value);
+                formData.append('player', playerValue);
                 formData.append('ipfs_cid', uploadResult.new_cid);  // Send CID instead of video_blob
                 formData.append('title', document.getElementById('video-title').value);
                 formData.append('description', document.getElementById('video-description').value);
@@ -2050,6 +2073,21 @@
                     if (window.nostrRelay) nostrRelay = window.nostrRelay;
                     if (typeof window.isNostrConnected !== 'undefined') isNostrConnected = window.isNostrConnected;
                     console.log('✅ Using connection from current window.userPubkey:', userPubkey.substring(0, 8) + '...');
+                    
+                    // Fill player field immediately with pubkey, then try to fetch email
+                    if (userPubkey) {
+                        const playerField = document.getElementById('player');
+                        if (playerField) {
+                            playerField.value = userPubkey;
+                        }
+                        // Try to fetch email asynchronously
+                        if (typeof fetchUserEmail === 'function') {
+                            fetchUserEmail().catch(err => {
+                                console.warn('⚠️ Could not fetch user email, using pubkey:', err);
+                            });
+                        }
+                    }
+                    
                     return true;
                 } else if (typeof userPubkey !== 'undefined' && userPubkey) {
                     // Set in window for easier access
@@ -2057,6 +2095,19 @@
                         window.userPubkey = userPubkey;
                     }
                     console.log('✅ Using connection from current window global scope:', userPubkey.substring(0, 8) + '...');
+                    
+                    // Fill player field immediately with pubkey, then try to fetch email
+                    const playerField = document.getElementById('player');
+                    if (playerField) {
+                        playerField.value = userPubkey;
+                    }
+                    // Try to fetch email asynchronously
+                    if (typeof fetchUserEmail === 'function') {
+                        fetchUserEmail().catch(err => {
+                            console.warn('⚠️ Could not fetch user email, using pubkey:', err);
+                        });
+                    }
+                    
                     return true;
                 }
                 
@@ -2077,6 +2128,21 @@
                             
                             console.log('✅ Using connection from parent window:', userPubkey ? userPubkey.substring(0, 8) + '...' : 'none');
                             console.log('✅ Connection ready from parent window');
+                            
+                            // Fill player field immediately with pubkey, then try to fetch email
+                            if (userPubkey) {
+                                const playerField = document.getElementById('player');
+                                if (playerField) {
+                                    playerField.value = userPubkey;
+                                }
+                                // Try to fetch email asynchronously
+                                if (typeof fetchUserEmail === 'function') {
+                                    fetchUserEmail().catch(err => {
+                                        console.warn('⚠️ Could not fetch user email, using pubkey:', err);
+                                    });
+                                }
+                            }
+                            
                             return true;
                         } else {
                             if (attempts >= maxAttempts) {
