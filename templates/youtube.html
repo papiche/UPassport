@@ -1847,7 +1847,10 @@
         // ========================================
         
         // Global variables
-        let IPFS_GATEWAY = '';
+        // Use window.IPFS_GATEWAY to avoid conflicts with youtube.enhancements.js
+        if (typeof window.IPFS_GATEWAY === 'undefined') {
+            window.IPFS_GATEWAY = '';
+        }
         let currentChannel = null;
         
         // Apply dynamic theme based on time of day (like entrance.html)
@@ -1876,77 +1879,23 @@
             }
         }
         
-        // Detect IPFS gateway
-        function detectIPFSGateway() {
-            const currentURL = new URL(window.location.href);
-            const hostname = currentURL.hostname;
-            const port = currentURL.port;
-            const protocol = currentURL.protocol.split(":")[0];
-
-            // Localhost detection (127.0.0.1 or localhost) - IPFS gateway is always on port 8080
-            if (hostname === "127.0.0.1" || hostname === "localhost") {
-                IPFS_GATEWAY = `http://127.0.0.1:8080`;
-            } else if (hostname.startsWith("ipfs.")) {
-                // Already on IPFS gateway subdomain
-                const baseDomain = hostname.substring("ipfs.".length);
-                IPFS_GATEWAY = `${protocol}://ipfs.${baseDomain}`;
-            } else if (hostname.startsWith("u.")) {
-                // On UPassport subdomain, use IPFS gateway subdomain
-                const baseDomain = hostname.substring("u.".length);
-                IPFS_GATEWAY = `${protocol === 'http' ? 'http' : 'https'}://ipfs.${baseDomain}`;
-            } else {
-                // Fallback to default IPFS gateway
-                IPFS_GATEWAY = `https://ipfs.copylaradio.com`;
-            }
-
-            console.log(`IPFS Gateway detected: ${IPFS_GATEWAY} (from ${hostname}${port ? ':' + port : ''})`);
-        }
+        // IPFS Gateway functions are in youtube.enhancements.js (detectIPFSGatewayGlobal, convertIPFSUrlGlobal)
+        // Use aliases for convenience
+        const detectIPFSGateway = typeof detectIPFSGatewayGlobal !== 'undefined' ? detectIPFSGatewayGlobal : function() {
+            console.warn('detectIPFSGatewayGlobal not available, using fallback');
+            window.IPFS_GATEWAY = 'https://ipfs.copylaradio.com';
+        };
         
-        // Convert IPFS URLs
-        function convertIPFSUrl(url) {
+        const convertIPFSUrl = typeof convertIPFSUrlGlobal !== 'undefined' ? convertIPFSUrlGlobal : function(url) {
             if (!url) return '';
-            
-            // If URL is already a full URL with wrong domain, extract the /ipfs/ path
-            let ipfsPath = url;
+            if (!window.IPFS_GATEWAY) detectIPFSGateway();
+            const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
             if (url.includes('/ipfs/')) {
                 const match = url.match(/\/ipfs\/[^?"#]+/);
-                if (match) {
-                    ipfsPath = match[0];
-                } else if (url.startsWith('http')) {
-                    // Full URL but no /ipfs/ match (shouldn't happen, but handle it)
-                    return url;
-                }
+                if (match) return `${gateway}${match[0]}`;
             }
-            
-            // Ensure IPFS_GATEWAY is set
-            if (!IPFS_GATEWAY) {
-                detectIPFSGateway();
-            }
-            
-            let fullUrl = ipfsPath;
-            if (ipfsPath.startsWith('/ipfs/')) {
-                fullUrl = `${IPFS_GATEWAY}${ipfsPath}`;
-            } else if (ipfsPath.startsWith('ipfs://')) {
-                fullUrl = ipfsPath.replace('ipfs://', `${IPFS_GATEWAY}/ipfs/`);
-            } else {
-                // Not an IPFS URL, return as is
-                return url;
-            }
-            
-            // Encode URL to handle spaces and special characters
-            // Split by '/' to preserve path structure, encode each segment
-            const urlParts = fullUrl.split('/');
-            const encodedParts = urlParts.map((part, index) => {
-                // Don't encode protocol (http:, https:) and empty parts
-                if (index <= 2 || part === '' || part.includes(':')) {
-                    return part;
-                }
-                // Encode each path segment
-                return encodeURIComponent(part);
-            });
-            
-            return encodedParts.join('/');
-        }
+            return url.startsWith('/ipfs/') ? `${gateway}${url}` : url;
+        };
         
         // Toggle video player
         function toggleVideoPlayer(thumbnailElement) {
@@ -1968,7 +1917,13 @@
             } else {
                 // Start playing
                 const ipfsUrl = videoPlayer.getAttribute('data-ipfs-url');
-                const fullUrl = convertIPFSUrl(ipfsUrl);
+                // Use converted URL if available, otherwise convert now
+                const convertFn = typeof convertIPFSUrlGlobal !== 'undefined' ? convertIPFSUrlGlobal : convertIPFSUrl;
+                let fullUrl = videoPlayer.getAttribute('data-ipfs-url-converted');
+                if (!fullUrl) {
+                    fullUrl = convertFn(ipfsUrl);
+                    videoPlayer.setAttribute('data-ipfs-url-converted', fullUrl);
+                }
                 
                 // Create source element dynamically
                 const source = document.createElement('source');
@@ -2063,38 +2018,60 @@
             sidebar.classList.toggle('open');
         }
         
-        // Convert all IPFS URLs for thumbnails
+        // Convert all IPFS URLs for thumbnails (uses convertIPFSUrlGlobal from youtube.enhancements.js)
         function convertAllIPFSUrls() {
+            // Ensure IPFS_GATEWAY is set
+            if (typeof detectIPFSGatewayGlobal === 'function') {
+                detectIPFSGatewayGlobal();
+            } else if (!window.IPFS_GATEWAY) {
+                console.warn('detectIPFSGatewayGlobal not available');
+                window.IPFS_GATEWAY = 'https://ipfs.copylaradio.com';
+            }
+            
+            // Use convertIPFSUrlGlobal if available, otherwise fallback
+            const convertFn = typeof convertIPFSUrlGlobal !== 'undefined' ? convertIPFSUrlGlobal : convertIPFSUrl;
+            
             // Convert thumbnail images
             document.querySelectorAll('.video-thumbnail .thumbnail-img').forEach(img => {
                 const src = img.getAttribute('src');
                 if (!src) return;
                 
-                // Check if URL contains /ipfs/ path (even if it's a full URL)
+                // Check if URL contains /ipfs/ path (even if it's a full URL with wrong domain)
                 if (src.includes('/ipfs/')) {
                     // Extract the /ipfs/... part from the URL
                     const ipfsMatch = src.match(/\/ipfs\/[^?"#]+/);
                     if (ipfsMatch) {
                         const ipfsPath = ipfsMatch[0];
-                        img.src = convertIPFSUrl(ipfsPath);
+                        // Convert to correct gateway
+                        const convertedUrl = convertFn(ipfsPath);
+                        if (convertedUrl && convertedUrl !== src) {
+                            img.src = convertedUrl;
+                            console.log(`✅ Converted thumbnail URL: ${src.substring(0, 50)}... → ${convertedUrl.substring(0, 50)}...`);
+                        }
                     }
                 } else if (src.startsWith('/ipfs/') || src.startsWith('ipfs://')) {
-                    img.src = convertIPFSUrl(src);
+                    const convertedUrl = convertFn(src);
+                    if (convertedUrl && convertedUrl !== src) {
+                        img.src = convertedUrl;
+                    }
                 }
             });
             
-            // Also convert video data-ipfs-url attributes
+            // Also convert video data-ipfs-url attributes (keep original for NOSTR, but log conversion)
             document.querySelectorAll('.inline-video-player[data-ipfs-url]').forEach(player => {
                 const ipfsUrl = player.getAttribute('data-ipfs-url');
                 if (!ipfsUrl) return;
                 
-                // Check if URL contains /ipfs/ path
+                // Check if URL contains /ipfs/ path and verify it's correct
                 if (ipfsUrl.includes('/ipfs/')) {
                     const ipfsMatch = ipfsUrl.match(/\/ipfs\/[^?"#]+/);
                     if (ipfsMatch) {
                         const ipfsPath = ipfsMatch[0];
                         // Keep the original in data-ipfs-url (needed for NOSTR), but we'll use converted URL for playback
                         // The conversion will happen in toggleVideoPlayer when creating the source
+                        const convertedUrl = convertFn(ipfsPath);
+                        // Store converted URL in a data attribute for quick access
+                        player.setAttribute('data-ipfs-url-converted', convertedUrl);
                     }
                 }
             });
@@ -2108,11 +2085,43 @@
             // Apply dynamic theme
             applyDynamicTheme();
             
-            detectIPFSGateway();
-            // Small delay to ensure all images are loaded in DOM
+            // Detect IPFS gateway first (from youtube.enhancements.js)
+            if (typeof detectIPFSGatewayGlobal === 'function') {
+                detectIPFSGatewayGlobal();
+            } else {
+                detectIPFSGateway();
+            }
+            
+            // Convert IPFS URLs immediately
+            convertAllIPFSUrls();
+            
+            // Also convert after a small delay to catch dynamically loaded images
             setTimeout(() => {
                 convertAllIPFSUrls();
-            }, 100);
+            }, 500);
+            
+            // Use MutationObserver to convert URLs for dynamically added content
+            const observer = new MutationObserver((mutations) => {
+                let shouldConvert = false;
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType === 1) { // Element node
+                            if (node.classList?.contains('thumbnail-img') || 
+                                node.querySelector?.('.thumbnail-img')) {
+                                shouldConvert = true;
+                            }
+                        }
+                    });
+                });
+                if (shouldConvert) {
+                    convertAllIPFSUrls();
+                }
+            });
+            
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
             
             document.querySelectorAll('.inline-video-player').forEach(player => {
                 player.addEventListener('ended', function() {
@@ -2171,7 +2180,9 @@
                 }
             }
             
-            const fullUrl = convertIPFSUrl(ipfsUrl);
+            // Use convertIPFSUrlGlobal if available (from youtube.enhancements.js)
+            const convertFn = typeof convertIPFSUrlGlobal !== 'undefined' ? convertIPFSUrlGlobal : convertIPFSUrl;
+            const fullUrl = convertFn(ipfsUrl);
             
             // Get current NOSTR Tube gateway URL
             const currentURL = window.location.origin;
@@ -2231,7 +2242,9 @@
                 }
             }
             
-            const fullUrl = convertIPFSUrl(ipfsUrl);
+            // Use convertIPFSUrlGlobal if available (from youtube.enhancements.js)
+            const convertFn = typeof convertIPFSUrlGlobal !== 'undefined' ? convertIPFSUrlGlobal : convertIPFSUrl;
+            const fullUrl = convertFn(ipfsUrl);
             
             button.disabled = true;
             button.textContent = '⏳ ' + t('bookmarking');
@@ -2356,7 +2369,11 @@
                 authorId: videoPlayer.getAttribute('data-author-id') || null,
                 channel: videoCard.getAttribute('data-channel') || null,
                 uploader: uploader,
-                duration: extractDurationFromMeta(videoMeta),
+                duration: (() => {
+                    // Simple inline extraction (can be moved to youtube.enhancements.js if needed)
+                    const match = videoMeta.match(/(\d+):(\d+)/);
+                    return match ? parseInt(match[1]) * 60 + parseInt(match[2]) : null;
+                })(),
                 description: '' // Add if available in video data
             };
             
@@ -2370,16 +2387,10 @@
             }
         }
         
-        /**
-         * Extract duration from video meta
-         */
-        function extractDurationFromMeta(meta) {
-            const match = meta.match(/(\d+):(\d+)/);
-            if (match) {
-                return parseInt(match[1]) * 60 + parseInt(match[2]);
-            }
-            return null;
-        }
+        // Expose openVideoInTheater globally for onclick handlers (must be after function definition)
+        window.openVideoInTheater = openVideoInTheater;
+        
+        // extractDurationFromMeta is in youtube.enhancements.js
         
         /**
          * Load engagement stats for all videos on page
@@ -2736,17 +2747,8 @@
             markers.push(marker);
         }
         
-        /**
-         * Escape HTML to prevent XSS in onclick attributes
-         */
-        function escapeHtml(text) {
-            return text
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }
+        // escapeHtml is in youtube.enhancements.js - use it directly if available
+        // Note: escapeHtml is defined in youtube.enhancements.js and should be globally available
         
         /**
          * Play video from map popup

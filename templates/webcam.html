@@ -7,6 +7,10 @@
     
     <!-- Nostr integration -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+
+    <!-- Common.js with enhanced UPlanet NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/leaflet.css"/>
     <!-- Leaflet JavaScript -->
@@ -937,6 +941,78 @@
             }
         }
         
+        /* Central Connection Button */
+        .central-connection {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 70vh;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .central-connection.hidden {
+            display: none;
+        }
+        
+        .central-connection-title {
+            font-size: 2.5em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #ffffff;
+        }
+        
+        .central-connection-subtitle {
+            font-size: 1.2em;
+            color: #94a3b8;
+            margin-bottom: 40px;
+            max-width: 600px;
+        }
+        
+        .central-connect-btn {
+            padding: 20px 40px;
+            font-size: 1.3em;
+            font-weight: 700;
+            background: #065fd4;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 20px rgba(6, 95, 212, 0.4);
+            min-width: 300px;
+        }
+        
+        .central-connect-btn:hover {
+            background: #0556c2;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 30px rgba(6, 95, 212, 0.6);
+        }
+        
+        .central-connect-btn:active {
+            transform: translateY(-1px);
+        }
+        
+        @media screen and (max-width: 768px) {
+            .central-connection-title {
+                font-size: 2em;
+            }
+            
+            .central-connection-subtitle {
+                font-size: 1em;
+                margin-bottom: 30px;
+            }
+            
+            .central-connect-btn {
+                padding: 16px 32px;
+                font-size: 1.1em;
+                min-width: 250px;
+            }
+        }
+        
         /* Extra small mobile devices */
         @media screen and (max-width: 480px) {
             .header h1 {
@@ -1058,6 +1134,17 @@
         
     <!-- Main Container - Centered -->
     <div class="main-container">
+        <!-- Central Connection Button (shown when not connected) -->
+        <div class="central-connection" id="central-connection">
+            <h2 class="central-connection-title">🎥 Video Recorder</h2>
+            <p class="central-connection-subtitle">
+                Connect to NOSTR to start recording and publishing your videos on UPlanet
+            </p>
+            <button class="central-connect-btn" onclick="toggleNostrExpanded(); document.getElementById('nostr-expanded')?.classList.add('expanded'); setTimeout(() => document.getElementById('nostr-connect-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);">
+                🔌 Connect to NOSTR
+            </button>
+        </div>
+        
         <!-- Webcam Recording Section -->
         <div class="webcam-section" id="webcam-section" style="display: none;">
             <h2 class="webcam-title">🎥 Record Video</h2>
@@ -1175,9 +1262,6 @@
         </div>
     </div>
 
-    <!-- Common.js with enhanced webcam functions -->
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
-    
     <script>
         // Global variables (non-conflicting with common.js)
         let mediaRecorder;
@@ -1688,6 +1772,82 @@
             event.target.value = '';
         }
 
+        // Check if user is already connected (from common.js or previous session)
+        async function checkExistingConnection() {
+            // Wait a bit for common.js to initialize
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Check if userPubkey is already set (from common.js or localStorage)
+            if (typeof userPubkey !== 'undefined' && userPubkey) {
+                console.log('✅ Existing connection detected:', userPubkey.substring(0, 8) + '...');
+                
+                // Check if relay connection is active
+                if (typeof nostrRelay !== 'undefined' && nostrRelay && typeof isNostrConnected !== 'undefined' && isNostrConnected) {
+                    // Already connected to relay
+                    await onConnectionSuccess();
+                } else {
+                    // Connect to relay if not already connected
+                    try {
+                        await connectToRelay();
+                        await fetchUserEmail();
+                        await onConnectionSuccess();
+                    } catch (error) {
+                        console.error('Error connecting to relay:', error);
+                        // Show central button if connection fails
+                        showCentralConnectionButton();
+                    }
+                }
+            } else {
+                // No existing connection, show central button
+                showCentralConnectionButton();
+            }
+        }
+        
+        // Show central connection button
+        function showCentralConnectionButton() {
+            document.getElementById('central-connection').classList.remove('hidden');
+            document.getElementById('webcam-section').style.display = 'none';
+            document.getElementById('header-connect-btn').style.display = 'inline-block';
+            document.getElementById('header-profile-btn').style.display = 'none';
+        }
+        
+        // Hide central connection button and show webcam
+        function hideCentralConnectionButton() {
+            document.getElementById('central-connection').classList.add('hidden');
+            document.getElementById('webcam-section').style.display = 'block';
+        }
+        
+        // Called when connection is successful
+        async function onConnectionSuccess() {
+            const headerStatus = document.getElementById('header-auth-status');
+            const statusDiv = document.getElementById('auth-status');
+            
+            // Update UI
+            if (headerStatus) {
+                headerStatus.textContent = `Connected: ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}`;
+            }
+            
+            if (document.getElementById('header-connect-btn')) {
+                document.getElementById('header-connect-btn').style.display = 'none';
+            }
+            
+            if (document.getElementById('header-profile-btn')) {
+                document.getElementById('header-profile-btn').style.display = 'inline-block';
+            }
+            
+            if (statusDiv) {
+                statusDiv.innerHTML = `<div style="color: #4ade80;">✅ Connected as ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}${userEmail ? ` (${userEmail})` : ''}</div>`;
+            }
+            
+            // Hide central button and show webcam
+            hideCentralConnectionButton();
+            
+            // Close expanded NOSTR section if open
+            if (document.getElementById('nostr-expanded')) {
+                document.getElementById('nostr-expanded').classList.remove('expanded');
+            }
+        }
+        
         // Connect to NOSTR
         async function handleNostrConnect() {
             const statusDiv = document.getElementById('auth-status');
@@ -1695,8 +1855,12 @@
             const connectBtn = document.getElementById('nostr-connect-btn');
             
             connectBtn.disabled = true;
-            statusDiv.innerHTML = '<div style="color: #6366f1;">🔄 Connecting...</div>';
-            headerStatus.textContent = 'Connecting...';
+            if (statusDiv) {
+                statusDiv.innerHTML = '<div style="color: #6366f1;">🔄 Connecting...</div>';
+            }
+            if (headerStatus) {
+                headerStatus.textContent = 'Connecting...';
+            }
             
             try {
                 if (authMode === 'extension') {
@@ -1726,19 +1890,19 @@
                 await fetchUserEmail();
                 
                 // Update UI
-                headerStatus.textContent = `Connected: ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}`;
-                document.getElementById('header-connect-btn').style.display = 'none';
-                document.getElementById('header-profile-btn').style.display = 'inline-block';
-                document.getElementById('webcam-section').style.display = 'block';
-                document.getElementById('nostr-expanded').classList.remove('expanded');
-                
-                statusDiv.innerHTML = `<div style="color: #4ade80;">✅ Connected as ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}${userEmail ? ` (${userEmail})` : ''}</div>`;
+                await onConnectionSuccess();
                 
             } catch (error) {
                 console.error("Connection error:", error);
-                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${error.message}</div>`;
-                headerStatus.textContent = 'Connection failed';
-                connectBtn.disabled = false;
+                if (statusDiv) {
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${error.message}</div>`;
+                }
+                if (headerStatus) {
+                    headerStatus.textContent = 'Connection failed';
+                }
+                if (connectBtn) {
+                    connectBtn.disabled = false;
+                }
             }
         }
 
@@ -1773,6 +1937,9 @@
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
+            // First, check if user is already connected
+            checkExistingConnection();
+            
             // Auto-connect with nsec if provided
             if (AUTO_CONNECT_NSEC && AUTO_CONNECT_NSEC !== null && AUTO_CONNECT_NSEC.trim() !== '') {
                 const nsecRadio = document.getElementById('auth-nsec');
@@ -1811,7 +1978,7 @@
                 videoUpload.addEventListener('change', handleVideoUpload);
             }
             
-            // Initialize webcam features
+            // Initialize webcam features (always initialize, even if hidden)
             initWebcamFeatures();
         });
         
