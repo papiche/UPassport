@@ -1912,30 +1912,72 @@
                 console.log('✅ Video uploaded to IPFS:', uploadResult.new_cid);
                 
                 // Step 2: Publish to NOSTR with IPFS CID
-                publishBtn.textContent = 'Publishing to NOSTR...';
+                publishBtn.textContent = 'Retrieving email from profile...';
                 
-                // Ensure player field is filled - use email if available, otherwise pubkey, otherwise currentPubkey
+                // Ensure we have a valid email address for player field (required by server)
+                // Try to get email from profile if we only have a pubkey
                 const playerField = document.getElementById('player');
                 let playerValue = '';
+                
+                // Check if playerField has a valid email already
                 if (playerField && playerField.value) {
-                    playerValue = playerField.value;
-                } else if (userEmail) {
-                    playerValue = userEmail;
-                } else if (currentPubkey) {
-                    playerValue = currentPubkey;
-                } else if (userPubkey) {
-                    playerValue = userPubkey;
+                    const fieldValue = playerField.value.trim();
+                    // Check if it's a valid email (contains @)
+                    if (fieldValue.includes('@')) {
+                        playerValue = fieldValue;
+                    }
                 }
                 
-                // If still empty, throw error
-                if (!playerValue) {
-                    throw new Error('Player identifier (email or pubkey) is required for publishing');
+                // If we don't have a valid email yet, try to get it from profile
+                if (!playerValue || !playerValue.includes('@')) {
+                    const pubkeyToUse = currentPubkey || userPubkey;
+                    
+                    if (pubkeyToUse) {
+                        console.log('📧 Fetching email from NOSTR profile for:', pubkeyToUse.substring(0, 8) + '...');
+                        
+                        try {
+                            // Try to get email from profile using fetchUserEmailWithFallback
+                            let fetchedEmail = null;
+                            if (typeof fetchUserEmailWithFallback === 'function') {
+                                fetchedEmail = await fetchUserEmailWithFallback(pubkeyToUse);
+                            } else if (typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
+                                fetchedEmail = await window.fetchUserEmailWithFallback(pubkeyToUse);
+                            }
+                            
+                            // Check if we got a valid email (not a pubkey)
+                            if (fetchedEmail && fetchedEmail.includes('@') && fetchedEmail.length > 5) {
+                                playerValue = fetchedEmail;
+                                userEmail = fetchedEmail;
+                                console.log('✅ Email retrieved from profile:', fetchedEmail);
+                            } else if (userEmail && userEmail.includes('@')) {
+                                // Use cached userEmail if valid
+                                playerValue = userEmail;
+                                console.log('✅ Using cached email:', userEmail);
+                            } else {
+                                // Still no email, but we have a pubkey - this will fail on server
+                                console.warn('⚠️ No email found in profile, server will reject pubkey:', pubkeyToUse.substring(0, 8) + '...');
+                                throw new Error('Email address not found in your NOSTR profile. Please set up your profile with an email address using nostr_setup_profile.py or through your NOSTR client.');
+                            }
+                        } catch (emailError) {
+                            console.error('❌ Error fetching email:', emailError);
+                            throw new Error('Could not retrieve email address from NOSTR profile. Please ensure your profile is set up with an email address.');
+                        }
+                    } else {
+                        throw new Error('No public key available. Please connect to NOSTR first.');
+                    }
+                }
+                
+                // Final validation: playerValue must be a valid email
+                if (!playerValue || !playerValue.includes('@')) {
+                    throw new Error('A valid email address is required for publishing. Your NOSTR profile must include an email address (in kind 0 metadata or tags).');
                 }
                 
                 // Update the field value for next time
                 if (playerField) {
                     playerField.value = playerValue;
                 }
+                
+                console.log('📤 Using player email:', playerValue);
                 
                 const formData = new FormData();
                 formData.append('player', playerValue);
@@ -2057,28 +2099,43 @@
         }
 
         // Helper function to fill player field and fetch email (reused in multiple places)
-        function fillPlayerFieldAndFetchEmail(pubkey, logPrefix = '') {
+        async function fillPlayerFieldAndFetchEmail(pubkey, logPrefix = '') {
             if (!pubkey) return;
             
             const playerField = document.getElementById('player');
-            if (playerField) {
-                playerField.value = pubkey;
-            }
+            if (!playerField) return;
             
-            // Try to fetch email asynchronously
-            if (typeof fetchUserEmail === 'function') {
-                fetchUserEmail().catch(err => {
-                    console.warn('⚠️ Could not fetch user email, using pubkey:', err);
-                });
-            } else if (typeof fetchUserEmailWithFallback === 'function' && typeof window !== 'undefined') {
-                // Fallback: try fetchUserEmailWithFallback from common.js directly
-                fetchUserEmailWithFallback(pubkey).then(email => {
-                    if (email && email !== pubkey && document.getElementById('player')) {
-                        document.getElementById('player').value = email;
-                    }
-                }).catch(err => {
-                    console.warn('⚠️ Could not fetch user email, using pubkey:', err);
-                });
+            // First, set pubkey as temporary value
+            playerField.value = pubkey;
+            
+            // Try to fetch email asynchronously (prefer email over pubkey)
+            try {
+                let fetchedEmail = null;
+                
+                // Try fetchUserEmail (local function) first
+                if (typeof fetchUserEmail === 'function') {
+                    await fetchUserEmail();
+                    // fetchUserEmail will update userEmail and playerField
+                    return;
+                }
+                
+                // Fallback: try fetchUserEmailWithFallback from common.js
+                if (typeof fetchUserEmailWithFallback === 'function') {
+                    fetchedEmail = await fetchUserEmailWithFallback(pubkey);
+                } else if (typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
+                    fetchedEmail = await window.fetchUserEmailWithFallback(pubkey);
+                }
+                
+                // Check if we got a valid email (not a pubkey)
+                if (fetchedEmail && fetchedEmail.includes('@') && fetchedEmail.length > 5 && fetchedEmail !== pubkey) {
+                    playerField.value = fetchedEmail;
+                    userEmail = fetchedEmail;
+                    console.log('✅ Email retrieved and set in player field:', fetchedEmail);
+                } else {
+                    console.warn('⚠️ No email found in profile, player field contains pubkey (server may reject)');
+                }
+            } catch (err) {
+                console.warn('⚠️ Could not fetch user email, player field contains pubkey:', err);
             }
         }
         
@@ -2145,7 +2202,10 @@
                 
                 // If we found a pubkey, fill player field and fetch email
                 if (foundPubkey) {
-                    fillPlayerFieldAndFetchEmail(foundPubkey);
+                    // fillPlayerFieldAndFetchEmail is async but we call it without await (non-blocking)
+                    fillPlayerFieldAndFetchEmail(foundPubkey).catch(err => {
+                        console.warn('⚠️ Error filling player field:', err);
+                    });
                     return true;
                 }
                 
