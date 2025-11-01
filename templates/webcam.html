@@ -1874,8 +1874,20 @@
         // Publish video
         async function publishVideo(videoBlob, filename = null) {
             try {
-                // Check if user is connected before publishing
-                if (typeof userPubkey === 'undefined' || !userPubkey) {
+                // Check if user is connected before publishing (check current window and parent)
+                const isInIframe = window.self !== window.top;
+                let currentPubkey = userPubkey;
+                
+                if (!currentPubkey || typeof currentPubkey === 'undefined') {
+                    // Try to get from parent window if in iframe
+                    if (isInIframe && window.parent && window.parent.userPubkey) {
+                        currentPubkey = window.parent.userPubkey;
+                        userPubkey = currentPubkey;
+                        console.log('✅ Using userPubkey from parent window for publishing');
+                    }
+                }
+                
+                if (!currentPubkey || typeof currentPubkey === 'undefined') {
                     // Try to connect first
                     if (typeof connectNostr === 'function') {
                         const pubkey = await connectNostr();
@@ -1883,6 +1895,7 @@
                             showError('You must connect to NOSTR to publish videos. Please use the Connect button in the header.', 'Connection Required');
                             return;
                         }
+                        currentPubkey = pubkey;
                     } else {
                         showError('You must connect to NOSTR to publish videos. Please use the Connect button in the header.', 'Connection Required');
                         return;
@@ -2019,17 +2032,57 @@
             event.target.value = '';
         }
 
-        // Check if user is already connected (from common.js or previous session)
+        // Check if user is already connected (from common.js or parent window)
         async function checkExistingConnection() {
             // Wait a bit for common.js to initialize
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 1500));
             
-            // Check if userPubkey is already set (from common.js or previous session)
+            const isInIframe = window.self !== window.top;
+            let foundPubkey = null;
+            let foundRelay = null;
+            let foundConnected = false;
+            
+            // Check in current window first
             if (typeof userPubkey !== 'undefined' && userPubkey) {
-                console.log('✅ Existing connection detected:', userPubkey.substring(0, 8) + '...');
+                foundPubkey = userPubkey;
+                foundRelay = typeof nostrRelay !== 'undefined' ? nostrRelay : null;
+                foundConnected = typeof isNostrConnected !== 'undefined' ? isNostrConnected : false;
+                console.log('✅ Found connection in current window:', foundPubkey.substring(0, 8) + '...');
+            } else if (isInIframe) {
+                // Try to get from parent window
+                try {
+                    if (window.parent && window.parent.userPubkey) {
+                        foundPubkey = window.parent.userPubkey;
+                        foundRelay = window.parent.nostrRelay || null;
+                        foundConnected = window.parent.isNostrConnected || false;
+                        console.log('✅ Found connection in parent window:', foundPubkey.substring(0, 8) + '...');
+                        
+                        // Set in current window for easier access
+                        if (typeof window.userPubkey === 'undefined') {
+                            window.userPubkey = foundPubkey;
+                            window.nostrRelay = foundRelay;
+                            window.isNostrConnected = foundConnected;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Cannot access parent window (cross-origin?):', e.message);
+                }
+            }
+            
+            if (foundPubkey) {
+                console.log('✅ Existing connection detected:', foundPubkey.substring(0, 8) + '...');
+                
+                // Update local variables
+                userPubkey = foundPubkey;
+                if (foundRelay) {
+                    nostrRelay = foundRelay;
+                }
+                if (foundConnected) {
+                    isNostrConnected = foundConnected;
+                }
                 
                 // Check if relay connection is active
-                if (typeof nostrRelay !== 'undefined' && nostrRelay && typeof isNostrConnected !== 'undefined' && isNostrConnected) {
+                if (foundRelay && foundConnected) {
                     // Already connected to relay - great! Just update UI
                     console.log('✅ Relay already connected, updating UI');
                     await fetchUserEmail();
@@ -2060,9 +2113,10 @@
                             // Show webcam anyway, user can connect via header button
                             document.getElementById('webcam-section').style.display = 'block';
                             document.getElementById('header-connect-btn').style.display = 'inline-block';
-                            // Show connection notice
+                            // Show connection notice but indicate we have pubkey
                             const connectionNotice = document.getElementById('connection-notice');
                             if (connectionNotice) {
+                                connectionNotice.innerHTML = '<p style="margin: 0; font-size: 0.85em; color: #94a3b8; display: flex; align-items: center; gap: 8px;"><span>ℹ️</span><span>Connected to NOSTR, but relay connection failed. Try reconnecting via the header button.</span></p>';
                                 connectionNotice.style.display = 'block';
                             }
                         }
@@ -2160,56 +2214,83 @@
             
             try {
                 if (authMode === 'extension') {
-                    // Wait a moment for NOSTR extension or proxy to be ready
-                    let nostrReady = false;
-                    let attempts = 0;
-                    while (attempts < 15 && !nostrReady) {
-                        if (typeof window.nostr !== 'undefined' && window.nostr && typeof window.nostr.getPublicKey === 'function') {
-                            // Additional check: try to verify it's actually callable
-                            try {
-                                const testCall = window.nostr.getPublicKey();
-                                if (testCall && typeof testCall.then === 'function') {
-                                    nostrReady = true;
-                                    break;
+                    const isInIframe = window.self !== window.top;
+                    
+                    // If in iframe, check if parent has userPubkey first
+                    if (isInIframe && window.parent && window.parent.userPubkey) {
+                        console.log('✅ Using existing connection from parent window');
+                        userPubkey = window.parent.userPubkey;
+                        // Try to get relay from parent too
+                        if (window.parent.nostrRelay) {
+                            nostrRelay = window.parent.nostrRelay;
+                        }
+                        if (window.parent.isNostrConnected) {
+                            isNostrConnected = window.parent.isNostrConnected;
+                        }
+                    } else {
+                        // Wait a moment for NOSTR extension or proxy to be ready
+                        let nostrReady = false;
+                        let attempts = 0;
+                        while (attempts < 20 && !nostrReady) {
+                            if (typeof window.nostr !== 'undefined' && window.nostr && typeof window.nostr.getPublicKey === 'function') {
+                                // Additional check: try to verify it's actually callable
+                                try {
+                                    const testCall = window.nostr.getPublicKey();
+                                    if (testCall && typeof testCall.then === 'function') {
+                                        nostrReady = true;
+                                        break;
+                                    }
+                                } catch (testError) {
+                                    // If it's a _call error, the proxy should handle it
+                                    // Wait a bit more for proxy to be ready
+                                    if (testError.message && testError.message.includes('_call')) {
+                                        console.log('⚠️ _call error detected, waiting for proxy to be ready...');
+                                        await new Promise(resolve => setTimeout(resolve, 300));
+                                    }
+                                    console.log('NOSTR not ready yet, attempt', attempts + 1);
                                 }
-                            } catch (testError) {
-                                // Not ready yet, continue waiting
-                                console.log('NOSTR not ready yet, attempt', attempts + 1);
+                            }
+                            await new Promise(resolve => setTimeout(resolve, 200));
+                            attempts++;
+                        }
+                        
+                        if (!nostrReady || typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
+                            throw new Error("NOSTR extension not found. Please install a NOSTR extension (nos2x, Alby, etc.) or ensure the proxy is working.");
+                        }
+                        
+                        try {
+                            // Final check before calling
+                            if (typeof window.nostr.getPublicKey !== 'function') {
+                                throw new Error("window.nostr.getPublicKey is not a function");
+                            }
+                            
+                            // Call getPublicKey and handle errors
+                            userPubkey = await window.nostr.getPublicKey();
+                            
+                            // Validate the result
+                            if (!userPubkey || typeof userPubkey !== 'string' || userPubkey.length < 10) {
+                                throw new Error("Invalid public key returned from NOSTR extension");
+                            }
+                            
+                        } catch (e) {
+                            console.error("Error calling window.nostr.getPublicKey():", e);
+                            console.error("window.nostr type:", typeof window.nostr);
+                            console.error("window.nostr.getPublicKey type:", typeof window.nostr?.getPublicKey);
+                            
+                            // If error contains "_call", try to use parent window's connection
+                            if (e.message && e.message.includes('_call') && isInIframe && window.parent && window.parent.userPubkey) {
+                                console.log('⚠️ Proxy error, using parent window connection instead');
+                                userPubkey = window.parent.userPubkey;
+                                if (window.parent.nostrRelay) {
+                                    nostrRelay = window.parent.nostrRelay;
+                                }
+                                if (window.parent.isNostrConnected) {
+                                    isNostrConnected = window.parent.isNostrConnected;
+                                }
+                            } else {
+                                throw new Error("Failed to get public key from NOSTR: " + e.message);
                             }
                         }
-                        await new Promise(resolve => setTimeout(resolve, 200));
-                        attempts++;
-                    }
-                    
-                    if (!nostrReady || typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
-                        throw new Error("NOSTR extension not found. Please install a NOSTR extension (nos2x, Alby, etc.) or ensure the proxy is working.");
-                    }
-                    
-                    try {
-                        // Final check before calling
-                        if (typeof window.nostr.getPublicKey !== 'function') {
-                            throw new Error("window.nostr.getPublicKey is not a function");
-                        }
-                        
-                        // Call getPublicKey and handle errors
-                        userPubkey = await window.nostr.getPublicKey();
-                        
-                        // Validate the result
-                        if (!userPubkey || typeof userPubkey !== 'string' || userPubkey.length < 10) {
-                            throw new Error("Invalid public key returned from NOSTR extension");
-                        }
-                        
-                    } catch (e) {
-                        console.error("Error calling window.nostr.getPublicKey():", e);
-                        console.error("window.nostr type:", typeof window.nostr);
-                        console.error("window.nostr.getPublicKey type:", typeof window.nostr?.getPublicKey);
-                        
-                        // If error contains "_call", it means extension is not functional in iframe
-                        if (e.message && e.message.includes('_call')) {
-                            throw new Error("NOSTR extension is not functional in iframe context. The proxy should have been created automatically. Please refresh the page.");
-                        }
-                        
-                        throw new Error("Failed to get public key from NOSTR: " + e.message);
                     }
                     
                 } else if (authMode === 'nsec') {
