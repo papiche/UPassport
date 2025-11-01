@@ -1929,6 +1929,7 @@
                 }
                 
                 // If we don't have a valid email yet, try to get it from profile
+                // Note: If email is not found, we can still send the pubkey - the backend will resolve it to email
                 if (!playerValue || !playerValue.includes('@')) {
                     const pubkeyToUse = currentPubkey || userPubkey;
                     
@@ -1954,23 +1955,24 @@
                                 playerValue = userEmail;
                                 console.log('✅ Using cached email:', userEmail);
                             } else {
-                                // Still no email, but we have a pubkey - this will fail on server
-                                console.warn('⚠️ No email found in profile, server will reject pubkey:', pubkeyToUse.substring(0, 8) + '...');
-                                throw new Error('Email address not found in your NOSTR profile. Please set up your profile with an email address using nostr_setup_profile.py or through your NOSTR client.');
+                                // No email found in profile, but we have a pubkey
+                                // Backend will resolve pubkey to email via user directory lookup
+                                console.log('⚠️ No email found in profile, backend will resolve pubkey to email via directory lookup');
+                                // Send empty string - backend will use npub to find email from directory
+                                playerValue = '';
                             }
                         } catch (emailError) {
-                            console.error('❌ Error fetching email:', emailError);
-                            throw new Error('Could not retrieve email address from NOSTR profile. Please ensure your profile is set up with an email address.');
+                            console.warn('⚠️ Error fetching email, backend will resolve from directory:', emailError);
+                            // Don't throw error - let backend resolve email from directory
+                            playerValue = '';
                         }
                     } else {
                         throw new Error('No public key available. Please connect to NOSTR first.');
                     }
                 }
                 
-                // Final validation: playerValue must be a valid email
-                if (!playerValue || !playerValue.includes('@')) {
-                    throw new Error('A valid email address is required for publishing. Your NOSTR profile must include an email address (in kind 0 metadata or tags).');
-                }
+                // Note: We allow empty playerValue if npub is provided - backend will resolve email from directory
+                // Only require email if we don't have npub either
                 
                 // Update the field value for next time
                 if (playerField) {

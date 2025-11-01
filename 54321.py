@@ -2746,26 +2746,6 @@ async def process_webcam_video(
     print(f"   - IPFS CID: {ipfs_cid}")
     logging.info(f"🎬 POST /webcam endpoint called with player={player}, ipfs_cid={ipfs_cid}")
 
-    if not player:
-        print(f"❌ No player provided")
-        logging.error("No player provided")
-        return templates.TemplateResponse("webcam.html", {
-            "request": request, 
-            "error": "No player provided. What is your email?", 
-            "recording": False,
-            "myIPFS": get_myipfs_gateway()
-        })
-
-    if not re.match(r"[^@]+@[^@]+\.[^@]+", player):
-        print(f"❌ Invalid email address: {player}")
-        logging.error(f"Invalid email address: {player}")
-        return templates.TemplateResponse("webcam.html", {
-            "request": request, 
-            "error": "Invalid email address provided.", 
-            "recording": False,
-            "myIPFS": get_myipfs_gateway()
-        })
-
     # Validate IPFS CID is provided
     if not ipfs_cid or not ipfs_cid.strip():
         print(f"❌ No IPFS CID provided")
@@ -2810,14 +2790,38 @@ async def process_webcam_video(
         video_dimensions = "640x480"
         duration = 0
         file_location = None
+        user_dir = None
         
         # Extract filename and metadata from user directory structure
         hex_pubkey = npub_to_hex(npub) if npub else None
         logging.info(f"🔑 Converted NPUB to HEX: {hex_pubkey[:16]}..." if hex_pubkey else "⚠️ No HEX pubkey available")
         
+        # Try to find user directory and determine email from it
         if hex_pubkey:
             try:
                 user_dir = find_user_directory_by_hex(hex_pubkey)
+                # Extract email from directory name (directory name is the email)
+                directory_email = user_dir.name if '@' in user_dir.name else None
+                
+                # If player is not provided or not a valid email, use the email from directory
+                if not player or not re.match(r"[^@]+@[^@]+\.[^@]+", player):
+                    if directory_email and is_safe_email(directory_email):
+                        player = directory_email
+                        logging.info(f"✅ Using email from user directory: {player}")
+                        print(f"✅ Using email from user directory: {player}")
+                    else:
+                        logging.warning(f"⚠️ No valid email found in directory: {directory_email if directory_email else 'none'}")
+                        print(f"⚠️ No valid email found in directory")
+                elif not is_safe_email(player):
+                    # If player was provided but is not safe (e.g., hex key), try to use directory email
+                    if directory_email and is_safe_email(directory_email):
+                        player = directory_email
+                        logging.info(f"✅ Player field contains unsafe value ({player[:20]}...), using email from directory: {player}")
+                        print(f"✅ Player field contains unsafe value, using email from directory: {player}")
+                    else:
+                        logging.warning(f"⚠️ Invalid email address in player field and no valid directory email found")
+                        print(f"⚠️ Invalid email address in player field")
+                
                 user_drive_path = user_dir / "APP" / "uDRIVE" / "Videos"
                 logging.info(f"📂 User drive path: {user_drive_path}")
                 
@@ -2861,6 +2865,27 @@ async def process_webcam_video(
                             logging.warning(f"⚠️ Could not extract video metadata: {e}")
             except Exception as e:
                 logging.warning(f"Could not find user directory: {e}")
+                # If we couldn't find user directory and player is not valid, return error
+                if not player or not re.match(r"[^@]+@[^@]+\.[^@]+", player) or not is_safe_email(player):
+                    logging.error(f"❌ Could not determine user email: no valid player provided and directory lookup failed")
+                    print(f"❌ Could not determine user email: no valid player provided and directory lookup failed")
+                    return templates.TemplateResponse("webcam.html", {
+                        "request": request, 
+                        "error": "Could not determine user email. Please ensure your NOSTR profile is set up correctly or provide a valid email address.", 
+                        "recording": False,
+                        "myIPFS": get_myipfs_gateway()
+                    })
+        
+        # Final validation that we have a valid email
+        if not player or not re.match(r"[^@]+@[^@]+\.[^@]+", player) or not is_safe_email(player):
+            logging.error(f"❌ No valid email address available after all attempts")
+            print(f"❌ No valid email address available after all attempts")
+            return templates.TemplateResponse("webcam.html", {
+                "request": request, 
+                "error": "No valid email address could be determined. Please ensure your NOSTR profile is set up correctly.", 
+                "recording": False,
+                "myIPFS": get_myipfs_gateway()
+            })
         
         if not filename:
             filename = f"video_{int(time.time())}.webm"
