@@ -8,6 +8,9 @@
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
     <!-- Common.js with NOSTR functions -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    <!-- NOSTR Tube functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.js"></script>
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.css" />
     <!-- Leaflet for map view -->
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/leaflet.css" />
     <script src="{{ myIPFS }}/ipns/copylaradio.com/leaflet.js"></script>
@@ -577,6 +580,35 @@
         
         .video-thumbnail.playing .inline-video-player {
             display: block;
+        }
+        
+        .video-engagement-overlay {
+            position: absolute;
+            bottom: 8px;
+            left: 8px;
+            display: flex;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+            padding: 6px 10px;
+            border-radius: 16px;
+            font-size: 11px;
+            color: #ffffff;
+            z-index: 10;
+            align-items: center;
+            pointer-events: none;
+        }
+        
+        .video-engagement-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        .engagement-loading {
+            color: #aaaaaa;
         }
         
         .video-info {
@@ -1187,7 +1219,7 @@
                              data-uploader="{{ video.uploader|lower }}"
                              data-lat="{{ video.latitude if video.latitude else 0 }}"
                              data-lon="{{ video.longitude if video.longitude else 0 }}">
-                            <div class="video-thumbnail" onclick="toggleVideoPlayer(this)">
+                            <div class="video-thumbnail" onclick="toggleVideoPlayer(this)" ondblclick="openVideoInTheater(this)">
                                 {% if video.thumbnail_ipfs %}
                                 <img src="{{ video.thumbnail_ipfs }}" alt="Thumbnail" class="thumbnail-img">
                                 {% else %}
@@ -1196,8 +1228,15 @@
                                 <div class="play-overlay">
                                     <div class="play-button">▶</div>
                                 </div>
+                                {% if video.message_id %}
+                                <div class="video-engagement-overlay" id="engagement-{{ video.message_id }}">
+                                    <span class="engagement-loading" style="font-size: 10px;">...</span>
+                                </div>
+                                {% endif %}
                                 <video class="inline-video-player" controls style="display: none;" 
                                        data-ipfs-url="{{ video.ipfs_url }}"
+                                       data-event-id="{{ video.message_id if video.message_id else '' }}"
+                                       data-author-id="{{ video.author_id if video.author_id else '' }}"
                                        preload="none">
                                     Votre navigateur ne supporte pas la lecture vidéo.
                                 </video>
@@ -1213,6 +1252,9 @@
                                     {{ video.download_date[:10] if video.download_date else (video.created_at[:10] if video.created_at else '') }}
                                 </div>
                                 <div class="video-actions">
+                                    <button class="video-action-btn" onclick="event.stopPropagation(); openVideoInTheater(this.closest('.video').querySelector('.video-thumbnail'))" title="Mode théâtre (double-clic sur la vidéo)">
+                                        🎬 Théâtre
+                                    </button>
                                     <button class="video-action-btn" onclick="shareVideo(this)" data-title="{{ video.title }}" data-url="{{ video.ipfs_url }}" data-author="{{ video.uploader }}">
                                         📡 Partager
                                     </button>
@@ -1220,7 +1262,7 @@
                                         🔖 Bookmark
                                     </button>
                                     {% if video.message_id %}
-                                    <button class="video-action-btn" onclick="likeVideo(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}">
+                                    <button class="video-action-btn" onclick="likeVideo(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-ipfs-url="{{ video.ipfs_url }}">
                                         👍 Like
                                     </button>
                                     {% endif %}
@@ -1238,6 +1280,14 @@
                     <p>Vérifiez la connexion au relay NOSTR ou ajoutez des vidéos via <a href="/webcam" style="color: #3ea6ff;">📹 Webcam</a>.</p>
                 </div>
                 {% endif %}
+            </div>
+            
+            <!-- Network Recommendations Section -->
+            <div class="related-videos-section" id="networkVideosSection" style="display: none;">
+                <h2 class="related-videos-header" data-i18n="network_videos">📡 Vidéos de votre réseau N²</h2>
+                <div class="related-videos-grid" id="networkVideosGrid">
+                    <div class="loading-skeleton" style="padding: 40px; text-align: center; color: #aaaaaa;">Chargement des vidéos du réseau...</div>
+                </div>
             </div>
         </main>
     </div>
@@ -1475,7 +1525,13 @@
                 radius_label: "Rayon (km)",
                 sort_by_label: "Trier par",
                 clear_filters: "Effacer les filtres",
-                apply_filters: "Appliquer les filtres"
+                apply_filters: "Appliquer les filtres",
+                theater_mode: "Mode théâtre",
+                network_videos: "Vidéos de votre réseau N²",
+                network_videos_found: "vidéo(s) trouvée(s) dans votre réseau N²",
+                network_videos_description: "Les vidéos de vos amis et amis d'amis apparaîtront ici.",
+                engagement_stats: "Statistiques d'engagement",
+                add_timestamp: "Ajouter timestamp"
             },
             en: {
                 all_videos: "All Videos",
@@ -1542,7 +1598,13 @@
                 radius_label: "Radius (km)",
                 sort_by_label: "Sort by",
                 clear_filters: "Clear filters",
-                apply_filters: "Apply filters"
+                apply_filters: "Apply filters",
+                theater_mode: "Theater mode",
+                network_videos: "Videos from your N² network",
+                network_videos_found: "video(s) found in your N² network",
+                network_videos_description: "Videos from your friends and friends of friends will appear here.",
+                engagement_stats: "Engagement statistics",
+                add_timestamp: "Add timestamp"
             },
             es: {
                 all_videos: "Todos los Videos",
@@ -1609,7 +1671,13 @@
                 radius_label: "Radio (km)",
                 sort_by_label: "Ordenar por",
                 clear_filters: "Limpiar filtros",
-                apply_filters: "Aplicar filtros"
+                apply_filters: "Aplicar filtros",
+                theater_mode: "Modo teatro",
+                network_videos: "Videos de tu red N²",
+                network_videos_found: "video(s) encontrado(s) en tu red N²",
+                network_videos_description: "Los videos de tus amigos y amigos de tus amigos aparecerán aquí.",
+                engagement_stats: "Estadísticas de compromiso",
+                add_timestamp: "Agregar marca de tiempo"
             }
         };
         
@@ -1936,7 +2004,12 @@
         
         // Search functionality
         document.getElementById('searchInput').addEventListener('input', function(e) {
+            const searchTerm = e.target.value;
             filterVideos();
+            // Show recommendations from network
+            if (searchTerm.length >= 3) {
+                showSearchRecommendations(searchTerm);
+            }
         });
         
         function filterVideos() {
@@ -2006,6 +2079,14 @@
                         sidebar.classList.remove('open');
                     });
                 });
+            }
+            
+            // Load engagement stats for all videos
+            loadAllVideoStats();
+            
+            // Load network videos if user is connected
+            if (typeof userPubkey !== 'undefined' && userPubkey) {
+                setTimeout(() => loadNetworkVideos(), 2000); // Delay to ensure NOSTR is connected
             }
         });
         
@@ -2126,6 +2207,7 @@
         async function likeVideo(button) {
             const eventId = button.getAttribute('data-event-id');
             const authorId = button.getAttribute('data-author-id');
+            const ipfsUrl = button.getAttribute('data-ipfs-url');
             
             // Check if common.js is loaded
             if (typeof userPubkey === 'undefined') {
@@ -2149,6 +2231,22 @@
                 const result = await sendLike(eventId, authorId, '+');
                 if (result) {
                     button.textContent = '✅ ' + t('liked');
+                    
+                    // Refresh stats for this video
+                    const videoCard = button.closest('.video');
+                    const statsElement = videoCard?.querySelector('.video-engagement-overlay');
+                    if (statsElement && eventId && ipfsUrl && typeof VideoStats !== 'undefined') {
+                        const stats = new VideoStats(eventId, authorId, ipfsUrl);
+                        const statsData = await stats.refresh();
+                        if (statsData) {
+                            statsElement.innerHTML = `
+                                <span class="video-engagement-item">👍 ${statsData.likes}</span>
+                                <span class="video-engagement-item">💬 ${statsData.comments}</span>
+                                <span class="video-engagement-item">📡 ${statsData.shares}</span>
+                            `;
+                        }
+                    }
+                    
                     setTimeout(() => {
                         button.textContent = '👍 ' + t('liked');
                         button.disabled = true; // Keep disabled after liking
@@ -2163,6 +2261,227 @@
                 }, 3000);
             }
         }
+        
+        // ========================================
+        // THEATER MODE FUNCTIONS
+        // ========================================
+        
+        /**
+         * Open video in theater mode from video card
+         */
+        async function openVideoInTheater(thumbnailElement) {
+            if (!thumbnailElement) return;
+            
+            const videoCard = thumbnailElement.closest('.video');
+            if (!videoCard) {
+                console.error('Video card not found');
+                return;
+            }
+            
+            const videoPlayer = videoCard.querySelector('.inline-video-player');
+            const videoTitleEl = videoCard.querySelector('.video-title');
+            const videoMetaEl = videoCard.querySelector('.video-meta');
+            
+            if (!videoPlayer) {
+                console.error('Video player not found');
+                return;
+            }
+            
+            const videoTitle = videoTitleEl ? videoTitleEl.textContent : 'Titre inconnu';
+            const videoMeta = videoMetaEl ? videoMetaEl.textContent : '';
+            
+            // Extract uploader from meta (first line, before •)
+            const uploader = videoMeta.split('\n')[0].split('•')[0].trim() || 'Auteur inconnu';
+            
+            // Extract video data
+            const videoData = {
+                title: videoTitle,
+                ipfsUrl: videoPlayer.getAttribute('data-ipfs-url'),
+                thumbnailUrl: thumbnailElement.querySelector('img')?.src || null,
+                eventId: videoPlayer.getAttribute('data-event-id') || null,
+                authorId: videoPlayer.getAttribute('data-author-id') || null,
+                channel: videoCard.getAttribute('data-channel') || null,
+                uploader: uploader,
+                duration: extractDurationFromMeta(videoMeta),
+                description: '' // Add if available in video data
+            };
+            
+            // Check if openTheaterMode is available from enhancements.js
+            if (typeof openTheaterMode === 'function') {
+                await openTheaterMode(videoData);
+            } else {
+                console.error('openTheaterMode not available. Make sure youtube.enhancements.js is loaded.');
+                // Fallback to inline player
+                toggleVideoPlayer(thumbnailElement);
+            }
+        }
+        
+        /**
+         * Extract duration from video meta
+         */
+        function extractDurationFromMeta(meta) {
+            const match = meta.match(/(\d+):(\d+)/);
+            if (match) {
+                return parseInt(match[1]) * 60 + parseInt(match[2]);
+            }
+            return null;
+        }
+        
+        /**
+         * Load engagement stats for all videos on page
+         * Uses VideoStats class from youtube.enhancements.js
+         */
+        async function loadAllVideoStats() {
+            // Wait a bit for NOSTR to be ready
+            if (typeof VideoStats === 'undefined' || typeof fetchReactions === 'undefined') {
+                console.log('Waiting for VideoStats to be available...');
+                setTimeout(() => loadAllVideoStats(), 1000);
+                return;
+            }
+            
+            const videoCards = document.querySelectorAll('.video');
+            
+            for (const card of videoCards) {
+                const videoPlayer = card.querySelector('.inline-video-player');
+                const eventId = videoPlayer?.getAttribute('data-event-id');
+                const ipfsUrl = videoPlayer?.getAttribute('data-ipfs-url');
+                const authorId = videoPlayer?.getAttribute('data-author-id');
+                
+                if (eventId && ipfsUrl && authorId) {
+                    const statsElement = card.querySelector('.video-engagement-overlay');
+                    if (statsElement) {
+                        try {
+                            const stats = new VideoStats(eventId, authorId, ipfsUrl);
+                            const statsData = await stats.refresh();
+                            if (statsData) {
+                                statsElement.innerHTML = `
+                                    <span class="video-engagement-item">👍 ${statsData.likes}</span>
+                                    <span class="video-engagement-item">💬 ${statsData.comments}</span>
+                                    <span class="video-engagement-item">📡 ${statsData.shares}</span>
+                                `;
+                            } else {
+                                statsElement.innerHTML = `
+                                    <span class="video-engagement-item">👍 0</span>
+                                    <span class="video-engagement-item">💬 0</span>
+                                    <span class="video-engagement-item">📡 0</span>
+                                `;
+                            }
+                        } catch (error) {
+                            console.error('Error loading stats for video:', error);
+                            statsElement.innerHTML = '<span style="font-size: 10px;">...</span>';
+                        }
+                    }
+                }
+            }
+        }
+        
+        /**
+         * Load videos from user's N² network
+         */
+        async function loadNetworkVideos() {
+            const section = document.getElementById('networkVideosSection');
+            const grid = document.getElementById('networkVideosGrid');
+            
+            if (!section || !grid) return;
+            
+            // Check if getNetworkVideos is available
+            if (typeof getNetworkVideos === 'undefined') {
+                console.log('getNetworkVideos not available yet, retrying...');
+                setTimeout(() => loadNetworkVideos(), 2000);
+                return;
+            }
+            
+            // Check if user is connected
+            if (!userPubkey) {
+                return; // Don't show network videos if not connected
+            }
+            
+            try {
+                const videos = await getNetworkVideos(2); // Depth 2 = friends of friends
+                
+                if (videos.length > 0) {
+                    section.style.display = 'block';
+                    // For now, just show a message. In the future, render video cards
+                    grid.innerHTML = `
+                        <div style="grid-column: 1 / -1; padding: 20px; text-align: center; color: #aaaaaa;">
+                            <p>📡 ${videos.length} ${t('network_videos_found')}</p>
+                            <p style="font-size: 0.9em; margin-top: 8px;">${t('network_videos_description')}</p>
+                        </div>
+                    `;
+                } else {
+                    section.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading network videos:', error);
+                section.style.display = 'none';
+            }
+        }
+        
+        /**
+         * Show video recommendations based on search
+         */
+        async function showSearchRecommendations(searchTerm) {
+            if (!searchTerm || searchTerm.length < 3) return;
+            
+            // Check if getNetworkVideos is available and user is connected
+            if (typeof getNetworkVideos === 'function' && userPubkey) {
+                try {
+                    const networkVideos = await getNetworkVideos(2);
+                    const matching = networkVideos.filter(video => {
+                        const title = video.title || '';
+                        const content = video.content || '';
+                        const searchLower = searchTerm.toLowerCase();
+                        return title.toLowerCase().includes(searchLower) || 
+                               content.toLowerCase().includes(searchLower);
+                    });
+                    
+                    if (matching.length > 0) {
+                        // Could show a recommendation banner or highlight
+                        console.log(`Found ${matching.length} matching videos in network`);
+                    }
+                } catch (error) {
+                    console.error('Error getting search recommendations:', error);
+                }
+            }
+        }
+        
+        /**
+         * Theater mode helper functions (use functions from enhancements.js)
+         */
+        function theaterShareVideo() {
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            if (videoPlayer) {
+                const ipfsUrl = videoPlayer.getAttribute('data-ipfs-url');
+                const title = document.querySelector('.theater-title')?.textContent || '';
+                // Create a temporary button to use existing shareVideo function
+                const tempBtn = document.createElement('button');
+                tempBtn.setAttribute('data-title', title);
+                tempBtn.setAttribute('data-url', ipfsUrl);
+                shareVideo(tempBtn);
+            }
+        }
+        
+        function theaterBookmarkVideo() {
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            if (videoPlayer) {
+                const ipfsUrl = videoPlayer.getAttribute('data-ipfs-url');
+                const title = document.querySelector('.theater-title')?.textContent || '';
+                // Create a temporary button to use existing bookmarkVideo function
+                const tempBtn = document.createElement('button');
+                tempBtn.setAttribute('data-title', title);
+                tempBtn.setAttribute('data-url', ipfsUrl);
+                bookmarkVideo(tempBtn);
+            }
+        }
+        
+        // Listen for PiP events
+        document.addEventListener('enterpictureinpicture', function(event) {
+            console.log('Entered PiP mode');
+        });
+        
+        document.addEventListener('leavepictureinpicture', function() {
+            console.log('Exited PiP mode');
+        });
         
         // ========================================
         // MAP VIEW FUNCTIONS

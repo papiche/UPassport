@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theater Mode - Nostr Tube</title>
+    <!-- Nostr integration -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    <!-- Common.js with NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    <!-- NOSTR Tube functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.js"></script>
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.css" />
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Roboto', 'Arial', sans-serif;
+            background: rgba(0, 0, 0, 0.95);
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        .theater-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            background: #000000;
+        }
+
+        .theater-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            background: rgba(15, 15, 15, 0.95);
+            border-bottom: 1px solid #3f3f3f;
+            z-index: 10001;
+        }
+
+        .theater-close-btn {
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: background 0.2s;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .theater-close-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .theater-title {
+            flex: 1;
+            margin: 0 16px;
+            font-size: 1.1em;
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .theater-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .theater-action-btn {
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #f1f1f1;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .theater-action-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #606060;
+        }
+
+        .theater-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .theater-video-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: #000000;
+        }
+
+        .theater-video-player {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000000;
+        }
+
+        .comment-timeline-overlay {
+            position: absolute;
+            bottom: 60px;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            z-index: 10002;
+        }
+
+        .comment-timeline-marker {
+            position: absolute;
+            bottom: 0;
+            width: 8px;
+            height: 8px;
+            background: #3ea6ff;
+            border-radius: 50%;
+            cursor: pointer;
+            transform: translateX(-50%);
+            z-index: 10003;
+            transition: transform 0.2s;
+        }
+
+        .comment-timeline-marker:hover {
+            transform: translateX(-50%) scale(1.5);
+        }
+
+        .comment-timeline-tooltip {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .comment-timeline-marker:hover .comment-timeline-tooltip {
+            opacity: 1;
+        }
+
+        .theater-video-info {
+            padding: 16px 24px;
+            background: rgba(15, 15, 15, 0.95);
+            border-top: 1px solid #3f3f3f;
+        }
+
+        .theater-video-stats {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 8px;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.9em;
+            color: #aaaaaa;
+        }
+
+        .stat-item span {
+            color: #ffffff;
+            font-weight: 500;
+        }
+
+        .theater-video-meta {
+            font-size: 0.95em;
+            color: #aaaaaa;
+            margin-bottom: 8px;
+        }
+
+        .theater-description {
+            font-size: 0.9em;
+            color: #d1d1d1;
+            line-height: 1.5;
+            margin-top: 8px;
+        }
+
+        .theater-comments-panel {
+            width: 400px;
+            background: rgba(15, 15, 15, 0.95);
+            border-left: 1px solid #3f3f3f;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .theater-comments-header {
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+        }
+
+        .theater-comments-header h3 {
+            font-size: 1.1em;
+            margin-bottom: 4px;
+        }
+
+        .theater-comment-stats {
+            font-size: 0.85em;
+            color: #aaaaaa;
+        }
+
+        .theater-comment-form {
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+        }
+
+        .theater-comment-form textarea {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #3f3f3f;
+            border-radius: 8px;
+            padding: 12px;
+            color: #ffffff;
+            font-family: inherit;
+            font-size: 0.9em;
+            resize: vertical;
+            min-height: 80px;
+            margin-bottom: 8px;
+        }
+
+        .theater-comment-form textarea:focus {
+            outline: none;
+            border-color: #3ea6ff;
+        }
+
+        .theater-comment-form-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .theater-comment-submit-btn,
+        .theater-comment-timestamp-btn {
+            background: #3ea6ff;
+            border: none;
+            color: #ffffff;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .theater-comment-submit-btn:hover {
+            background: #2d8ce8;
+        }
+
+        .theater-comment-timestamp-btn {
+            background: transparent;
+            border: 1px solid #3f3f3f;
+        }
+
+        .theater-comment-timestamp-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .theater-comments-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .theater-comments-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .theater-comments-list::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+
+        .theater-comments-list::-webkit-scrollbar-thumb {
+            background: #3f3f3f;
+            border-radius: 4px;
+        }
+
+        .loading-comments,
+        .no-comments,
+        .error-comments {
+            text-align: center;
+            padding: 32px;
+            color: #aaaaaa;
+            font-size: 0.9em;
+        }
+
+        .theater-comment-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        .theater-comment-item:last-child {
+            border-bottom: none;
+        }
+
+        .theater-comment-author {
+            font-weight: 500;
+            font-size: 0.85em;
+            margin-bottom: 4px;
+            color: #3ea6ff;
+        }
+
+        .theater-comment-content {
+            font-size: 0.9em;
+            line-height: 1.5;
+            margin-bottom: 4px;
+            word-wrap: break-word;
+        }
+
+        .theater-comment-timestamp-link {
+            background: transparent;
+            border: none;
+            color: #3ea6ff;
+            font-size: 0.85em;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .theater-comment-timestamp-link:hover {
+            background: rgba(62, 166, 255, 0.1);
+        }
+
+        .theater-comment-time {
+            font-size: 0.75em;
+            color: #606060;
+        }
+
+        .live-comment {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .theater-related-videos {
+            padding: 16px;
+            background: rgba(15, 15, 15, 0.95);
+            border-top: 1px solid #3f3f3f;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .theater-related-videos h4 {
+            font-size: 1em;
+            margin-bottom: 12px;
+        }
+
+        .related-videos-list {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+        }
+
+        .related-video-item {
+            min-width: 200px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .related-video-item:hover {
+            transform: scale(1.05);
+        }
+
+        .related-video-thumbnail {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #2a2a2a;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+
+        .related-video-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .related-video-title {
+            font-size: 0.85em;
+            font-weight: 500;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .related-video-author {
+            font-size: 0.75em;
+            color: #aaaaaa;
+        }
+
+        @media (max-width: 1024px) {
+            .theater-comments-panel {
+                width: 100%;
+                max-width: 400px;
+            }
+
+            .theater-body {
+                flex-direction: column;
+            }
+
+            .theater-video-container {
+                height: 60vh;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .theater-header {
+                padding: 12px 16px;
+            }
+
+            .theater-title {
+                font-size: 0.95em;
+            }
+
+            .theater-actions {
+                gap: 4px;
+            }
+
+            .theater-action-btn {
+                padding: 6px 12px;
+                font-size: 0.8em;
+            }
+
+            .theater-comments-panel {
+                width: 100%;
+                height: 40vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="theater-modal" id="theaterModal">
+        <div class="theater-header">
+            <button class="theater-close-btn" onclick="closeTheaterMode()">✕</button>
+            <div class="theater-title" id="theaterTitle">Loading...</div>
+            <div class="theater-actions">
+                <button class="theater-action-btn" onclick="theaterShareVideoWithPreview()">📡 Partager</button>
+                <button class="theater-action-btn" onclick="theaterBookmarkVideo()">🔖 Bookmark</button>
+                <button class="theater-action-btn" onclick="addVideoToPlaylist()">➕ Playlist</button>
+                <button class="theater-action-btn" onclick="enterPictureInPicture()">🖼️ PiP</button>
+            </div>
+        </div>
+        <div class="theater-body">
+            <div class="theater-video-container">
+                <video 
+                    id="theaterVideoPlayer" 
+                    class="theater-video-player"
+                    controls 
+                    autoplay>
+                    Votre navigateur ne supporte pas la lecture vidéo.
+                </video>
+                <div class="theater-video-info">
+                    <div class="theater-video-stats" id="theaterVideoStats">
+                        <span class="stat-item"><span id="likeCount">0</span> 👍</span>
+                        <span class="stat-item"><span id="shareCount">0</span> 📡</span>
+                        <span class="stat-item"><span id="commentCount">0</span> 💬</span>
+                    </div>
+                    <div class="theater-video-meta" id="theaterVideoMeta">
+                        <strong id="theaterUploader">Loading...</strong>
+                        <span id="theaterDuration"></span>
+                    </div>
+                    <div class="theater-description" id="theaterDescription"></div>
+                </div>
+                <div class="theater-related-videos" id="theaterRelatedVideos">
+                    <!-- Related videos will be loaded here -->
+                </div>
+            </div>
+            <div class="theater-comments-panel">
+                <div class="theater-comments-header">
+                    <h3>💬 Commentaires</h3>
+                    <div class="theater-comment-stats" id="theaterCommentStats">0 commentaire(s)</div>
+                </div>
+                <div class="theater-comment-form" id="theaterCommentForm">
+                    <textarea 
+                        id="theaterCommentInput" 
+                        placeholder="Ajouter un commentaire..."
+                        rows="3"></textarea>
+                    <div class="theater-comment-form-actions">
+                        <button class="theater-comment-submit-btn" onclick="submitTheaterComment()">
+                            Publier
+                        </button>
+                        <button class="theater-comment-timestamp-btn" id="theaterTimestampBtn" onclick="addTimestampToComment()">
+                            ⏱️ Ajouter timestamp
+                        </button>
+                    </div>
+                </div>
+                <div class="theater-comments-list" id="theaterCommentsList">
+                    <div class="loading-comments">Chargement des commentaires...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts will be loaded from parent page or via URL params -->
+    <script>
+        /**
+         * Add video to playlist from theater mode
+         */
+        async function addVideoToPlaylist() {
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            if (!videoPlayer) return;
+
+            const eventId = videoPlayer.getAttribute('data-event-id');
+            if (!eventId) {
+                alert('Video event ID not found');
+                return;
+            }
+
+            if (!userPubkey) {
+                const connected = await connectNostr();
+                if (!connected) {
+                    alert('You must be connected to add videos to playlists');
+                    return;
+                }
+            }
+
+            // Fetch user's playlists
+            try {
+                if (!nostrRelay || !isNostrConnected) {
+                    await connectToRelay();
+                }
+
+                const playlists = await new Promise((resolve) => {
+                    const sub = nostrRelay.sub([{
+                        kinds: [10001],
+                        authors: [userPubkey],
+                        limit: 20
+                    }]);
+
+                    const playlistList = [];
+                    const timeout = setTimeout(() => {
+                        sub.unsub();
+                        resolve(playlistList);
+                    }, 3000);
+
+                    sub.on('event', (event) => {
+                        try {
+                            const playlistData = JSON.parse(event.content);
+                            playlistList.push({
+                                id: event.id,
+                                name: playlistData.name || 'Untitled',
+                                event: event
+                            });
+                        } catch (e) {
+                            console.warn('Error parsing playlist:', e);
+                        }
+                    });
+
+                    sub.on('eose', () => {
+                        clearTimeout(timeout);
+                        sub.unsub();
+                        resolve(playlistList);
+                    });
+                });
+
+                if (playlists.length === 0) {
+                    if (confirm('Vous n\'avez aucune playlist. Voulez-vous en créer une ?')) {
+                        window.open('/playlist', '_blank');
+                    }
+                    return;
+                }
+
+                // Show playlist selection dialog
+                const selection = prompt(
+                    `Choisissez une playlist (tapez le numéro):\n\n${playlists.map((p, i) => `${i + 1}. ${p.name}`).join('\n')}`
+                );
+
+                if (selection === null) return;
+
+                const index = parseInt(selection) - 1;
+                if (isNaN(index) || index < 0 || index >= playlists.length) {
+                    alert('Sélection invalide');
+                    return;
+                }
+
+                const selectedPlaylist = playlists[index];
+                const success = await addToPlaylist(selectedPlaylist.id, eventId);
+
+                if (success) {
+                    alert(`✅ Vidéo ajoutée à "${selectedPlaylist.name}" !`);
+                } else {
+                    alert('❌ Erreur lors de l\'ajout à la playlist');
+                }
+            } catch (error) {
+                console.error('Error adding to playlist:', error);
+                alert('❌ Erreur: ' + error.message);
+            }
+        }
+
+        // Initialize theater mode if videoData is passed
+        if (window.videoData && typeof initializeTheaterMode === 'function') {
+            initializeTheaterMode(window.videoData);
+        }
+
+        // Listen for close button or ESC key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (typeof closeTheaterMode === 'function') {
+                    closeTheaterMode();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+

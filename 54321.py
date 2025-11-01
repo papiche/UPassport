@@ -2208,6 +2208,16 @@ async def check_impots_route(request: Request, html: Optional[str] = None):
         logging.error(f"Error in check_impots_route: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/theater", response_class=HTMLResponse)
+async def theater_modal_route(request: Request):
+    """Theater mode modal for immersive video viewing"""
+    return templates.TemplateResponse("theater-modal.html", {"request": request})
+
+@app.get("/playlist", response_class=HTMLResponse)
+async def playlist_manager_route(request: Request):
+    """Playlist manager for creating and managing video playlists"""
+    return templates.TemplateResponse("playlist-manager.html", {"request": request})
+
 @app.get("/youtube")
 async def youtube_route(
     request: Request, 
