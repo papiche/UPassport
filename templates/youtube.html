@@ -1880,32 +1880,57 @@
         function detectIPFSGateway() {
             const currentURL = new URL(window.location.href);
             const hostname = currentURL.hostname;
+            const port = currentURL.port;
             const protocol = currentURL.protocol.split(":")[0];
 
-            if (hostname === "127.0.0.1") {
+            // Localhost detection (127.0.0.1 or localhost) - IPFS gateway is always on port 8080
+            if (hostname === "127.0.0.1" || hostname === "localhost") {
                 IPFS_GATEWAY = `http://127.0.0.1:8080`;
             } else if (hostname.startsWith("ipfs.")) {
+                // Already on IPFS gateway subdomain
                 const baseDomain = hostname.substring("ipfs.".length);
-                IPFS_GATEWAY = `https://ipfs.${baseDomain}`;
+                IPFS_GATEWAY = `${protocol}://ipfs.${baseDomain}`;
             } else if (hostname.startsWith("u.")) {
+                // On UPassport subdomain, use IPFS gateway subdomain
                 const baseDomain = hostname.substring("u.".length);
-                IPFS_GATEWAY = `https://ipfs.${baseDomain}`;
+                IPFS_GATEWAY = `${protocol === 'http' ? 'http' : 'https'}://ipfs.${baseDomain}`;
             } else {
+                // Fallback to default IPFS gateway
                 IPFS_GATEWAY = `https://ipfs.copylaradio.com`;
             }
 
-            console.log(`IPFS Gateway: ${IPFS_GATEWAY}`);
+            console.log(`IPFS Gateway detected: ${IPFS_GATEWAY} (from ${hostname}${port ? ':' + port : ''})`);
         }
         
         // Convert IPFS URLs
         function convertIPFSUrl(url) {
             if (!url) return '';
             
-            let fullUrl = url;
-            if (url.startsWith('/ipfs/')) {
-                fullUrl = `${IPFS_GATEWAY}${url}`;
-            } else if (url.startsWith('ipfs://')) {
-                fullUrl = url.replace('ipfs://', `${IPFS_GATEWAY}/ipfs/`);
+            // If URL is already a full URL with wrong domain, extract the /ipfs/ path
+            let ipfsPath = url;
+            if (url.includes('/ipfs/')) {
+                const match = url.match(/\/ipfs\/[^?"#]+/);
+                if (match) {
+                    ipfsPath = match[0];
+                } else if (url.startsWith('http')) {
+                    // Full URL but no /ipfs/ match (shouldn't happen, but handle it)
+                    return url;
+                }
+            }
+            
+            // Ensure IPFS_GATEWAY is set
+            if (!IPFS_GATEWAY) {
+                detectIPFSGateway();
+            }
+            
+            let fullUrl = ipfsPath;
+            if (ipfsPath.startsWith('/ipfs/')) {
+                fullUrl = `${IPFS_GATEWAY}${ipfsPath}`;
+            } else if (ipfsPath.startsWith('ipfs://')) {
+                fullUrl = ipfsPath.replace('ipfs://', `${IPFS_GATEWAY}/ipfs/`);
+            } else {
+                // Not an IPFS URL, return as is
+                return url;
             }
             
             // Encode URL to handle spaces and special characters
@@ -2040,11 +2065,37 @@
         
         // Convert all IPFS URLs for thumbnails
         function convertAllIPFSUrls() {
-            // Convert thumbnail images only
+            // Convert thumbnail images
             document.querySelectorAll('.video-thumbnail .thumbnail-img').forEach(img => {
                 const src = img.getAttribute('src');
-                if (src && (src.startsWith('/ipfs/') || src.startsWith('ipfs://'))) {
+                if (!src) return;
+                
+                // Check if URL contains /ipfs/ path (even if it's a full URL)
+                if (src.includes('/ipfs/')) {
+                    // Extract the /ipfs/... part from the URL
+                    const ipfsMatch = src.match(/\/ipfs\/[^?"#]+/);
+                    if (ipfsMatch) {
+                        const ipfsPath = ipfsMatch[0];
+                        img.src = convertIPFSUrl(ipfsPath);
+                    }
+                } else if (src.startsWith('/ipfs/') || src.startsWith('ipfs://')) {
                     img.src = convertIPFSUrl(src);
+                }
+            });
+            
+            // Also convert video data-ipfs-url attributes
+            document.querySelectorAll('.inline-video-player[data-ipfs-url]').forEach(player => {
+                const ipfsUrl = player.getAttribute('data-ipfs-url');
+                if (!ipfsUrl) return;
+                
+                // Check if URL contains /ipfs/ path
+                if (ipfsUrl.includes('/ipfs/')) {
+                    const ipfsMatch = ipfsUrl.match(/\/ipfs\/[^?"#]+/);
+                    if (ipfsMatch) {
+                        const ipfsPath = ipfsMatch[0];
+                        // Keep the original in data-ipfs-url (needed for NOSTR), but we'll use converted URL for playback
+                        // The conversion will happen in toggleVideoPlayer when creating the source
+                    }
                 }
             });
         }
@@ -2058,7 +2109,10 @@
             applyDynamicTheme();
             
             detectIPFSGateway();
-            convertAllIPFSUrls();
+            // Small delay to ensure all images are loaded in DOM
+            setTimeout(() => {
+                convertAllIPFSUrls();
+            }, 100);
             
             document.querySelectorAll('.inline-video-player').forEach(player => {
                 player.addEventListener('ended', function() {
