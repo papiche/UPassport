@@ -1829,25 +1829,35 @@
                     console.log('✅ Using userPubkey from global scope:', currentPubkey.substring(0, 8) + '...');
                 }
                 
-                // If not found and in iframe, try parent window
+                // If not found and in iframe, try parent window (with retry)
                 if (!currentPubkey && isInIframe && window.parent) {
-                    try {
-                        if (window.parent.userPubkey) {
-                            currentPubkey = window.parent.userPubkey;
-                            userPubkey = currentPubkey;
-                            if (typeof window !== 'undefined') {
-                                window.userPubkey = currentPubkey;
+                    // Try multiple times with small delays
+                    for (let i = 0; i < 5 && !currentPubkey; i++) {
+                        try {
+                            if (window.parent.userPubkey) {
+                                currentPubkey = window.parent.userPubkey;
+                                userPubkey = currentPubkey;
+                                if (typeof window !== 'undefined') {
+                                    window.userPubkey = currentPubkey;
+                                }
+                                console.log('✅ Using userPubkey from parent window for publishing:', currentPubkey.substring(0, 8) + '...');
+                                break;
+                            } else if (i < 4) {
+                                // Wait a bit before retrying
+                                await new Promise(resolve => setTimeout(resolve, 200));
                             }
-                            console.log('✅ Using userPubkey from parent window for publishing:', currentPubkey.substring(0, 8) + '...');
+                        } catch (e) {
+                            if (i >= 4) {
+                                console.warn('⚠️ Cannot access parent.userPubkey:', e.message);
+                            }
+                            await new Promise(resolve => setTimeout(resolve, 200));
                         }
-                    } catch (e) {
-                        console.warn('⚠️ Cannot access parent.userPubkey:', e.message);
                     }
                 }
                 
                 // If still not found, throw error
                 if (!currentPubkey) {
-                    const errorMsg = 'Vous devez être connecté à NOSTR pour publier une vidéo. Veuillez vous connecter depuis la page principale.';
+                    const errorMsg = 'Vous devez être connecté à NOSTR pour publier une vidéo. Veuillez vous connecter depuis la page principale et réessayer.';
                     showError(errorMsg, 'Connexion requise');
                     throw new Error(errorMsg);
                 }
@@ -2027,20 +2037,27 @@
         function initializeConnectionVars() {
             const isInIframe = window.self !== window.top;
             
-            // Wait a bit for common.js to initialize
-            setTimeout(() => {
+            // Try multiple times to get userPubkey (parent might not be ready immediately)
+            let attempts = 0;
+            const maxAttempts = 10;
+            
+            const tryGetConnection = () => {
+                attempts++;
+                
                 // Try to get from current window first (check both global and window scope)
                 if (typeof window !== 'undefined' && window.userPubkey) {
                     userPubkey = window.userPubkey;
+                    if (window.nostrRelay) nostrRelay = window.nostrRelay;
+                    if (typeof window.isNostrConnected !== 'undefined') isNostrConnected = window.isNostrConnected;
                     console.log('✅ Using connection from current window.userPubkey:', userPubkey.substring(0, 8) + '...');
-                    return;
+                    return true;
                 } else if (typeof userPubkey !== 'undefined' && userPubkey) {
                     // Set in window for easier access
                     if (typeof window !== 'undefined') {
                         window.userPubkey = userPubkey;
                     }
                     console.log('✅ Using connection from current window global scope:', userPubkey.substring(0, 8) + '...');
-                    return;
+                    return true;
                 }
                 
                 // If in iframe, try to get from parent window
@@ -2059,20 +2076,37 @@
                             }
                             
                             console.log('✅ Using connection from parent window:', userPubkey ? userPubkey.substring(0, 8) + '...' : 'none');
-                            
-                            // Connection initialized from parent
-                            if (userPubkey) {
-                                console.log('✅ Connection ready from parent window');
-                            }
+                            console.log('✅ Connection ready from parent window');
+                            return true;
                         } else {
-                            console.warn('⚠️ Parent window has no userPubkey');
+                            if (attempts >= maxAttempts) {
+                                console.warn('⚠️ Parent window has no userPubkey after', maxAttempts, 'attempts');
+                            }
+                            return false;
                         }
                     } catch (e) {
-                        // Cross-origin or other error, ignore
-                        console.warn('⚠️ Cannot access parent window variables:', e.message);
+                        // Cross-origin or other error
+                        if (attempts >= maxAttempts) {
+                            console.warn('⚠️ Cannot access parent window variables:', e.message);
+                        }
+                        return false;
                     }
                 }
-            }, 1000); // Increased timeout to give more time for initialization
+                
+                return false;
+            };
+            
+            // Try immediately
+            if (tryGetConnection()) {
+                return;
+            }
+            
+            // Retry with intervals if not found
+            const retryInterval = setInterval(() => {
+                if (tryGetConnection() || attempts >= maxAttempts) {
+                    clearInterval(retryInterval);
+                }
+            }, 500);
         }
         
         // Called when connection is successful (simplified - no UI updates needed without header)
