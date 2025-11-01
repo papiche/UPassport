@@ -1014,12 +1014,12 @@
     <!-- Compact Header with NOSTR Auth -->
     <div class="header">
         <div class="header-left">
-            <h1>🎥 Webcam Recorder</h1>
+            <h1>🎥 Video Recorder</h1>
+            <a href="{{ myIPFS }}/ipns/copylaradio.com" class="youtube-link" target="_blank">
+                🌐 UPlanet
+            </a>
             <a href="/youtube?html=1" class="youtube-link">
                 📺 Nostr Tube
-            </a>
-            <a href="{{ myIPFS }}/ipns/coracle.copylaradio.com" class="youtube-link" target="_blank">
-                🌐 Coracle
             </a>
         </div>
         <div class="nostr-header" style="position: relative;">
@@ -1067,6 +1067,23 @@
     <div id="timer" class="hidden">16</div>
 
             <div class="controls">
+                               
+                <!-- Recording Option -->
+                <div class="duration-control">
+                    <label for="duration-slider">Duration:</label>
+                    <input type="range" id="duration-slider" min="3" max="30" value="10">
+                    <div id="duration-display">10 seconds</div>
+                </div>
+                
+                <input type="hidden" id="player" name="player" value="">
+                
+                <button id="start-recording" class="btn-primary">🎬 Start Recording</button>
+                <button id="stop-recording" class="btn-danger hidden">⏹️ Stop Recording</button>
+
+                <div class="or-separator">
+                    — <span title="Upload a video file" style="vertical-align: middle; font-size: 1.15em;">📤</span> — 
+                </div>
+
                 <!-- Video Upload Option -->
                 <div class="video-upload-section">
                     <label for="video-upload">
@@ -1077,20 +1094,6 @@
                         Supported formats: MP4, WebM, MOV (max 500MB)
                     </small>
                 </div>
-                
-                <div class="or-separator">— OR —</div>
-                
-                <!-- Recording Option -->
-                <div class="duration-control">
-                    <label for="duration-slider">Duration:</label>
-                    <input type="range" id="duration-slider" min="3" max="60" value="16">
-                    <div id="duration-display">16 seconds</div>
-                </div>
-                
-                <input type="hidden" id="player" name="player" value="">
-                
-                <button id="start-recording" class="btn-primary">🎬 Start Recording</button>
-                <button id="stop-recording" class="btn-danger hidden">⏹️ Stop Recording</button>
             </div>
         </div>
                 </div>
@@ -1141,7 +1144,7 @@
                         <input type="checkbox" id="publish-nostr" name="publish_nostr" checked style="width: auto; margin: 0;">
                         <span>
                             Publish to UPlanet (geo localized 
-                            <a href="/youtube" target="_blank" style="color:#4ade80; text-decoration:underline;">/youtube</a>
+                            <a href="/youtube?html=1" target="_blank" style="color:#4ade80; text-decoration:underline;">/youtube</a>
                             )
                         </span>
                     </label>
