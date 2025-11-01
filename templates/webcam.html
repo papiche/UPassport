@@ -1272,7 +1272,21 @@
             // Check if we're in an iframe
             const isInIframe = window.self !== window.top;
             
-            if (isInIframe && typeof window.nostr === 'undefined') {
+            // Only create proxy if we're in an iframe AND window.nostr doesn't exist
+            // Wait a bit for NOSTR extension to initialize first
+            if (isInIframe) {
+                // Wait a moment for NOSTR extension to load (extensions usually load at document_end)
+                setTimeout(() => {
+                    if (typeof window.nostr === 'undefined' || !window.nostr || typeof window.nostr.getPublicKey !== 'function') {
+                        // Extension not available, create proxy
+                        createNostrProxy();
+                    } else {
+                        console.log('✅ NOSTR extension detected in iframe, using real extension');
+                    }
+                }, 100);
+            }
+            
+            function createNostrProxy() {
                 // Create a proxy for window.nostr that communicates with parent
                 const nostrProxy = {
                     getPublicKey: async function() {
@@ -1356,15 +1370,18 @@
                     }
                 });
                 
-                // Expose proxy as window.nostr
-                Object.defineProperty(window, 'nostr', {
-                    value: nostrProxy,
-                    writable: false,
-                    configurable: false
-                });
-                
-                nostrProxyReady = true;
-                console.log('✅ NOSTR proxy initialized for iframe');
+                // Only set window.nostr if it doesn't exist or is not functional
+                if (typeof window.nostr === 'undefined' || !window.nostr || typeof window.nostr.getPublicKey !== 'function') {
+                    // Expose proxy as window.nostr
+                    Object.defineProperty(window, 'nostr', {
+                        value: nostrProxy,
+                        writable: true,  // Allow overwriting if extension loads later
+                        configurable: true
+                    });
+                    
+                    nostrProxyReady = true;
+                    console.log('✅ NOSTR proxy initialized for iframe');
+                }
             }
         })();
         
@@ -1969,11 +1986,28 @@
             
             try {
                 if (authMode === 'extension') {
-                    if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
-                        throw new Error("NOSTR extension not found. Please install a NOSTR extension (nos2x, Alby, etc.)");
+                    // Wait a moment for NOSTR extension or proxy to be ready
+                    let nostrReady = false;
+                    let attempts = 0;
+                    while (attempts < 10 && !nostrReady) {
+                        if (typeof window.nostr !== 'undefined' && window.nostr && typeof window.nostr.getPublicKey === 'function') {
+                            nostrReady = true;
+                        } else {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                            attempts++;
+                        }
                     }
                     
-                    userPubkey = await window.nostr.getPublicKey();
+                    if (!nostrReady || typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
+                        throw new Error("NOSTR extension not found. Please install a NOSTR extension (nos2x, Alby, etc.) or ensure the proxy is working.");
+                    }
+                    
+                    try {
+                        userPubkey = await window.nostr.getPublicKey();
+                    } catch (e) {
+                        console.error("Error calling window.nostr.getPublicKey():", e);
+                        throw new Error("Failed to get public key from NOSTR: " + e.message);
+                    }
                     
                 } else if (authMode === 'nsec') {
                     const nsecKey = document.getElementById('nsec-key').value.trim();
