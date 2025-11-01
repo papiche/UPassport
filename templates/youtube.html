@@ -2769,12 +2769,101 @@
                 titleEl.textContent = title;
             }
             
-            iframe.src = url;
-            modal.style.display = 'flex';
+            // Reset iframe src to ensure clean load
+            iframe.src = '';
             
-            // Prevent body scroll when modal is open
-            document.body.style.overflow = 'hidden';
+            // Wait a bit before setting the new src to allow iframe to reset
+            setTimeout(() => {
+                iframe.src = url;
+                modal.style.display = 'flex';
+                
+                // Prevent body scroll when modal is open
+                document.body.style.overflow = 'hidden';
+            }, 50);
         }
+        
+        // Listen for messages from iframes requesting NOSTR extension access
+        window.addEventListener('message', function(event) {
+            // Handle NOSTR extension proxy requests from iframes
+            if (event.data && event.data.type === 'nostr-request') {
+                const { requestId, method, params } = event.data;
+                const iframe = document.getElementById('iframe-modal-iframe');
+                
+                // Only respond if message is from our iframe
+                // Note: We accept messages from any origin (including IPFS) as long as they're from our iframe
+                // The iframe contentWindow check provides security
+                if (!iframe || event.source !== iframe.contentWindow) {
+                    return;
+                }
+                
+                // Check if we have window.nostr in parent
+                if (typeof window.nostr !== 'undefined') {
+                    try {
+                        // Handle nested methods like 'nip04.encrypt'
+                        let targetMethod = window.nostr;
+                        const methodParts = method.split('.');
+                        
+                        for (let i = 0; i < methodParts.length; i++) {
+                            if (targetMethod && typeof targetMethod === 'object') {
+                                targetMethod = targetMethod[methodParts[i]];
+                            } else {
+                                throw new Error(`Method ${method} not found`);
+                            }
+                        }
+                        
+                        if (typeof targetMethod === 'function') {
+                            const result = targetMethod(...params);
+                            
+                            // Handle async methods
+                            if (result instanceof Promise) {
+                                result
+                                    .then(response => {
+                                        iframe.contentWindow.postMessage({
+                                            type: 'nostr-response',
+                                            requestId: requestId,
+                                            success: true,
+                                            data: response
+                                        }, '*'); // Use '*' for cross-origin iframe
+                                    })
+                                    .catch(error => {
+                                        iframe.contentWindow.postMessage({
+                                            type: 'nostr-response',
+                                            requestId: requestId,
+                                            success: false,
+                                            error: error.message
+                                        }, '*');
+                                    });
+                            } else {
+                                // Sync method
+                                iframe.contentWindow.postMessage({
+                                    type: 'nostr-response',
+                                    requestId: requestId,
+                                    success: true,
+                                    data: result
+                                }, '*');
+                            }
+                        } else {
+                            throw new Error(`Method ${method} is not a function`);
+                        }
+                    } catch (error) {
+                        iframe.contentWindow.postMessage({
+                            type: 'nostr-response',
+                            requestId: requestId,
+                            success: false,
+                            error: error.message
+                        }, '*');
+                    }
+                } else {
+                    // NOSTR extension not available
+                    iframe.contentWindow.postMessage({
+                        type: 'nostr-response',
+                        requestId: requestId,
+                        success: false,
+                        error: 'NOSTR extension not available in parent window'
+                    }, '*');
+                }
+            }
+        });
         
         /**
          * Close iframe modal
