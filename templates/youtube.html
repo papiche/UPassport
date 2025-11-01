@@ -24,11 +24,13 @@
             background: #0f0f0f;
             color: #ffffff;
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
         
         .container {
             display: flex;
-            min-height: 100vh;
+            flex: 1;
         }
         
         /* Sidebar - YouTube-like */
@@ -226,7 +228,8 @@
         .main-content {
             margin-left: 240px;
             flex: 1;
-            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
             background: #0f0f0f;
         }
         
@@ -366,7 +369,8 @@
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 16px;
-            padding: 24px 40px;
+            padding: 24px 40px 48px 40px;
+            flex: 1;
         }
         
         .video {
@@ -882,6 +886,14 @@
             .video-thumbnail {
                 height: 200px;
             }
+            
+            footer {
+                padding: 20px !important;
+            }
+            
+            footer .grid {
+                grid-template-columns: 1fr !important;
+            }
         }
         
         /* Tablet */
@@ -1038,20 +1050,21 @@
                 {% endif %}
             </div>
         </main>
-        
-        <!-- Map View -->
-        <div class="map-view" id="mapView">
-            <div class="map-header">
-                <h2>🗺️ <span data-i18n="video_map">Carte des vidéos</span></h2>
-                <button class="map-close-btn" onclick="toggleMapView()">✕ <span data-i18n="close">Fermer</span></button>
-            </div>
-            <div id="videoMap"></div>
+    </div>
+    
+    <!-- Map View -->
+    <div class="map-view" id="mapView">
+        <div class="map-header">
+            <h2>🗺️ <span data-i18n="video_map">Carte des vidéos</span></h2>
+            <button class="map-close-btn" onclick="toggleMapView()">✕ <span data-i18n="close">Fermer</span></button>
         </div>
-        
-        <!-- Footer -->
-        <footer style="background: #212121; border-top: 1px solid #3f3f3f; padding: 24px 40px; margin-top: 48px;">
-            <div style="max-width: 1400px; margin: 0 auto;">
-                <!-- Footer Links -->
+        <div id="videoMap"></div>
+    </div>
+    
+    <!-- Footer -->
+    <footer style="background: #212121; border-top: 1px solid #3f3f3f; padding: 24px 40px; width: 100%;">
+        <div style="max-width: 1400px; margin: 0 auto;">
+            <!-- Footer Links -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 32px; margin-bottom: 24px;">
                     <div>
                         <h3 style="color: #f1f1f1; font-size: 16px; margin-bottom: 12px;" data-i18n="about_nostr_tube">À propos de NOSTR Tube</h3>
@@ -1177,10 +1190,9 @@
                 <!-- Copyright -->
                 <div style="padding-top: 20px; border-top: 1px solid #3f3f3f; text-align: center; color: #606060; font-size: 13px;">
                     <p style="margin: 0;">© 2025 NOSTR Tube - <span data-i18n="powered_by">Propulsé par</span> <a href="https://github.com/papiche/Astroport.ONE" target="_blank" style="color: #3ea6ff; text-decoration: none;">Astroport.ONE</a> & <a href="https://nostr.com" target="_blank" style="color: #3ea6ff; text-decoration: none;">NOSTR</a> & <a href="https://ipfs.tech/" target="_blank" style="color: #3ea6ff; text-decoration: none;">IPFS</a></p>
-                </div>
             </div>
-        </footer>
-    </div>
+        </div>
+    </footer>
     
     <script>
         // ========================================
