@@ -634,6 +634,18 @@
             line-height: 1.5;
         }
         
+        .video-meta .uploader-link {
+            color: #3ea6ff;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .video-meta .uploader-link:hover {
+            color: #5bb5ff;
+            text-decoration: underline;
+        }
+        
         .video-actions {
             display: flex;
             gap: 8px;
@@ -1054,6 +1066,122 @@
                 width: 100% !important;
             }
         }
+        
+        /* Generic iframe modal for profiles and webcam */
+        .iframe-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .iframe-modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(5px);
+        }
+        
+        .iframe-modal-container {
+            position: relative;
+            width: 90%;
+            max-width: 1200px;
+            height: 85vh;
+            background: #181818;
+            border: 1px solid #3f3f3f;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            z-index: 10001;
+        }
+        
+        .iframe-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            border-bottom: 1px solid #3f3f3f;
+            background: #212121;
+            border-radius: 12px 12px 0 0;
+        }
+        
+        .iframe-modal-header h3 {
+            margin: 0;
+            color: #ffffff;
+            font-size: 1.2em;
+            font-weight: 500;
+        }
+        
+        .iframe-modal-close {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 2em;
+            cursor: pointer;
+            padding: 0;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+            line-height: 1;
+        }
+        
+        .iframe-modal-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ef4444;
+        }
+        
+        .iframe-modal-content {
+            flex: 1;
+            overflow: hidden;
+            border-radius: 0 0 12px 12px;
+        }
+        
+        .iframe-modal-content iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #0f0f0f;
+        }
+        
+        @media (max-width: 768px) {
+            .iframe-modal-container {
+                width: 100%;
+                height: 100vh;
+                border-radius: 0;
+            }
+            
+            .iframe-modal-header {
+                border-radius: 0;
+                padding: 12px 16px;
+            }
+            
+            .iframe-modal-header h3 {
+                font-size: 1em;
+            }
+            
+            .iframe-modal-close {
+                width: 36px;
+                height: 36px;
+                font-size: 1.8em;
+            }
+            
+            .iframe-modal-content {
+                border-radius: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1121,9 +1249,9 @@
                             <span data-i18n="channels">chaînes</span>
                         </div>
                     </div>
-                    <a href="/webcam" class="upload-btn" data-i18n-title="add_video">
+                    <button onclick="openWebcamModal()" class="upload-btn" data-i18n-title="add_video" style="background: transparent; color: #3ea6ff; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
                         📹 <span data-i18n="create">Créer</span>
-                    </a>
+                    </button>
                 </div>
             </div>
             </div>
@@ -1244,7 +1372,17 @@
                             <div class="video-info">
                                 <div class="video-title">{{ video.title or 'Titre inconnu' }}</div>
                                 <div class="video-meta">
+                                    {% if video.author_id %}
+                                    <a href="#" 
+                                       onclick="event.preventDefault(); const link = this; openProfileModal(link.dataset.authorId, link.textContent.trim()); return false;"
+                                       class="uploader-link" 
+                                       title="View NOSTR profile"
+                                       data-author-id="{{ video.author_id }}">
+                                        {{ video.uploader or 'Auteur inconnu' }}
+                                    </a>
+                                    {% else %}
                                     {{ video.uploader or 'Auteur inconnu' }}
+                                    {% endif %}
                                     {% if video.duration and video.duration > 0 %}
                                     • {{ (video.duration // 60) }}:{{ "%02d"|format(video.duration % 60) }}
                                     {% endif %}
@@ -1277,7 +1415,7 @@
                 {% else %}
                 <div class="no-results">
                     <h3>🔍 Aucune vidéo trouvée</h3>
-                    <p>Vérifiez la connexion au relay NOSTR ou ajoutez des vidéos via <a href="/webcam" style="color: #3ea6ff;">📹 Webcam</a>.</p>
+                    <p>Vérifiez la connexion au relay NOSTR ou ajoutez des vidéos via <a href="#" onclick="event.preventDefault(); openWebcamModal(); return false;" style="color: #3ea6ff; cursor: pointer;">📹 Webcam</a>.</p>
                 </div>
                 {% endif %}
             </div>
@@ -1290,6 +1428,20 @@
                 </div>
             </div>
         </main>
+    </div>
+    
+    <!-- Generic Modal for iframes (profiles, webcam, etc.) -->
+    <div id="iframe-modal" class="iframe-modal" style="display: none;">
+        <div class="iframe-modal-overlay" onclick="closeIframeModal()"></div>
+        <div class="iframe-modal-container">
+            <div class="iframe-modal-header">
+                <h3 id="iframe-modal-title"></h3>
+                <button class="iframe-modal-close" onclick="closeIframeModal()">&times;</button>
+            </div>
+            <div class="iframe-modal-content">
+                <iframe id="iframe-modal-iframe" src="" frameborder="0"></iframe>
+            </div>
+        </div>
     </div>
     
     <!-- Map View -->
@@ -1340,7 +1492,7 @@
                         <h3 style="color: #f1f1f1; font-size: 16px; margin-bottom: 12px;" data-i18n="resources">Ressources</h3>
                         <ul style="list-style: none; padding: 0; color: #aaaaaa; font-size: 14px; line-height: 2;">
                             <li><a href="/youtube?html=1" style="color: #aaaaaa; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#3ea6ff'" onmouseout="this.style.color='#aaaaaa'" data-i18n="home">Accueil</a></li>
-                            <li><a href="/webcam" style="color: #aaaaaa; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#3ea6ff'" onmouseout="this.style.color='#aaaaaa'" data-i18n="add_video">Ajouter une vidéo</a></li>
+                            <li><a href="#" onclick="event.preventDefault(); openWebcamModal(); return false;" style="color: #aaaaaa; text-decoration: none; transition: color 0.2s; cursor: pointer;" onmouseover="this.style.color='#3ea6ff'" onmouseout="this.style.color='#aaaaaa'" data-i18n="add_video">Ajouter une vidéo</a></li>
                             <li><a href="{{ myIPFS }}/ipns/coracle.copylaradio.com" target="_blank" style="color: #aaaaaa; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#3ea6ff'" onmouseout="this.style.color='#aaaaaa'">Coracle</a></li>
                         </ul>
                     </div>
@@ -2565,6 +2717,95 @@
         });
         
         // ========================================
+        // IFRAME MODAL FUNCTIONS (for profiles and webcam)
+        // ========================================
+        
+        /**
+         * Open profile viewer in modal
+         */
+        function openProfileModal(authorId, userName = 'Profile') {
+            // Get IPFS gateway
+            let ipfsGateway = '';
+            if (window.IPFS_GATEWAY) {
+                ipfsGateway = window.IPFS_GATEWAY;
+            } else if (typeof detectIPFSGatewayGlobal === 'function') {
+                detectIPFSGatewayGlobal();
+                ipfsGateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+            } else {
+                const currentURL = new URL(window.location.href);
+                const hostname = currentURL.hostname;
+                if (hostname === '127.0.0.1' || hostname === 'localhost') {
+                    ipfsGateway = 'http://127.0.0.1:8080';
+                } else if (hostname.startsWith('u.')) {
+                    const baseDomain = hostname.substring('u.'.length);
+                    ipfsGateway = `${currentURL.protocol}//ipfs.${baseDomain}`;
+                } else {
+                    ipfsGateway = 'https://ipfs.copylaradio.com';
+                }
+            }
+            
+            const profileUrl = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${authorId}`;
+            openIframeModal(profileUrl, `👤 ${userName}`);
+        }
+        
+        /**
+         * Open webcam recorder in modal
+         */
+        function openWebcamModal() {
+            openIframeModal('/webcam', '📹 Video Recorder');
+        }
+        
+        /**
+         * Open generic iframe modal
+         */
+        function openIframeModal(url, title = '') {
+            const modal = document.getElementById('iframe-modal');
+            const iframe = document.getElementById('iframe-modal-iframe');
+            const titleEl = document.getElementById('iframe-modal-title');
+            
+            if (!modal || !iframe) return;
+            
+            if (titleEl && title) {
+                titleEl.textContent = title;
+            }
+            
+            iframe.src = url;
+            modal.style.display = 'flex';
+            
+            // Prevent body scroll when modal is open
+            document.body.style.overflow = 'hidden';
+        }
+        
+        /**
+         * Close iframe modal
+         */
+        function closeIframeModal() {
+            const modal = document.getElementById('iframe-modal');
+            const iframe = document.getElementById('iframe-modal-iframe');
+            
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            
+            if (iframe) {
+                iframe.src = ''; // Stop loading
+            }
+            
+            // Restore body scroll
+            document.body.style.overflow = '';
+        }
+        
+        // Close modal on ESC key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('iframe-modal');
+                if (modal && modal.style.display !== 'none') {
+                    closeIframeModal();
+                }
+            }
+        });
+        
+        // ========================================
         // MAP VIEW FUNCTIONS
         // ========================================
         
@@ -2628,7 +2869,20 @@
                 const thumbnailSrc = thumbnailImg ? thumbnailImg.src : null;
                 const videoPlayer = videoElement.querySelector('.inline-video-player');
                 const ipfsUrl = videoPlayer ? videoPlayer.getAttribute('data-ipfs-url') : null;
+                const authorId = videoPlayer ? videoPlayer.getAttribute('data-author-id') : null;
                 const channel = videoElement.getAttribute('data-channel');
+                
+                // Extract uploader name from meta (first line, before •)
+                let uploader = null;
+                if (meta) {
+                    const firstLine = meta.split('\n')[0];
+                    const uploaderMatch = firstLine.match(/^([^•]+)/);
+                    if (uploaderMatch) {
+                        uploader = uploaderMatch[1].trim();
+                        // Remove link HTML if present
+                        uploader = uploader.replace(/<a[^>]*>(.*?)<\/a>/gi, '$1');
+                    }
+                }
                 
                 // Try to extract coordinates from data attributes
                 const lat = parseFloat(videoElement.getAttribute('data-lat'));
@@ -2641,6 +2895,8 @@
                         meta,
                         thumbnailSrc,
                         ipfsUrl,
+                        authorId,
+                        uploader,
                         channel,
                         lat,
                         lon
@@ -2709,6 +2965,29 @@
             if (videoCount === 1) {
                 // Single video popup (original design)
                 const video = videos[0];
+                
+                // Create uploader link if authorId is available
+                let uploaderDisplay = video.uploader || 'Auteur inconnu';
+                if (video.authorId) {
+                    const escapedUploader = escapeHtml(video.uploader || 'Auteur inconnu').replace(/'/g, "\\'");
+                    uploaderDisplay = `<a href="#" onclick="event.preventDefault(); openProfileModal('${video.authorId}', '${escapedUploader}'); return false;" style="color: #3ea6ff; text-decoration: none; cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${escapeHtml(video.uploader || 'Auteur inconnu')}</a>`;
+                } else {
+                    uploaderDisplay = escapeHtml(uploaderDisplay);
+                }
+                
+                // Extract and format meta without uploader (it's shown separately)
+                let metaDisplay = video.meta || '';
+                if (metaDisplay && video.uploader) {
+                    // Remove first line (uploader) from meta
+                    const lines = metaDisplay.split('\n');
+                    if (lines.length > 1) {
+                        metaDisplay = lines.slice(1).join('\n');
+                    } else {
+                        // Try to remove uploader from first line if it contains •
+                        metaDisplay = metaDisplay.split('•').slice(1).join('•').trim();
+                    }
+                }
+                
                 popupContent = `
                     <div class="map-popup-video">
                         ${video.thumbnailSrc 
@@ -2716,8 +2995,8 @@
                             : '<div class="map-popup-placeholder">🎬</div>'
                         }
                         <div class="map-popup-info">
-                            <div class="map-popup-title">${video.title}</div>
-                            <div class="map-popup-meta">${video.meta}</div>
+                            <div class="map-popup-title">${escapeHtml(video.title)}</div>
+                            <div class="map-popup-meta">${uploaderDisplay}${metaDisplay ? '<br>' + escapeHtml(metaDisplay) : ''}</div>
                             <div class="map-popup-actions">
                                 <button class="map-popup-btn" onclick="playVideoFromMap('${video.ipfsUrl}')">▶ ${t('play')}</button>
                                 <button class="map-popup-btn" onclick="closeMapAndScrollTo('${escapeHtml(video.title)}')">👁️ ${t('view')}</button>
@@ -2733,22 +3012,43 @@
                             <strong>${videoCount} ${t('videos_at_location')}</strong>
                         </div>
                         <div class="map-popup-video-list">
-                            ${videos.map(video => `
+                            ${videos.map(video => {
+                                // Create uploader link if authorId is available
+                                let uploaderDisplay = video.uploader || 'Auteur inconnu';
+                                if (video.authorId) {
+                                    uploaderDisplay = `<a href="#" onclick="event.preventDefault(); openProfileModal('${video.authorId}', '${escapeHtml(video.uploader || 'Auteur inconnu')}'); return false;" style="color: #3ea6ff; text-decoration: none; font-size: 0.7em; cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${escapeHtml(video.uploader || 'Auteur inconnu')}</a>`;
+                                } else {
+                                    uploaderDisplay = escapeHtml(uploaderDisplay);
+                                }
+                                
+                                // Extract and format meta
+                                let metaDisplay = video.meta || '';
+                                if (metaDisplay && video.uploader) {
+                                    const lines = metaDisplay.split('\n');
+                                    if (lines.length > 1) {
+                                        metaDisplay = lines.slice(1).join('\n');
+                                    } else {
+                                        metaDisplay = metaDisplay.split('•').slice(1).join('•').trim();
+                                    }
+                                }
+                                
+                                return `
                                 <div class="map-popup-video-item">
                                     ${video.thumbnailSrc 
                                         ? `<img src="${video.thumbnailSrc}" alt="Thumbnail" class="map-popup-video-item-thumb">`
                                         : '<div class="map-popup-video-item-thumb map-popup-video-item-thumb-placeholder">🎬</div>'
                                     }
                                     <div class="map-popup-video-item-info">
-                                        <div class="map-popup-video-item-title">${video.title}</div>
-                                        <div class="map-popup-video-item-meta">${video.meta}</div>
+                                        <div class="map-popup-video-item-title">${escapeHtml(video.title)}</div>
+                                        <div class="map-popup-video-item-meta">${uploaderDisplay}${metaDisplay ? '<br>' + escapeHtml(metaDisplay) : ''}</div>
                                         <div class="map-popup-video-item-actions">
                                             <button class="map-popup-btn-small" onclick="playVideoFromMap('${video.ipfsUrl}')">▶</button>
                                             <button class="map-popup-btn-small" onclick="closeMapAndScrollTo('${escapeHtml(video.title)}')">👁️</button>
                                         </div>
                                     </div>
                                 </div>
-                            `).join('')}
+                            `;
+                            }).join('')}
                         </div>
                     </div>
                 `;
