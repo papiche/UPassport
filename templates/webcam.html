@@ -113,7 +113,7 @@
         .main-container {
             max-width: 100%;
             padding: 24px;
-            height: calc(100vh - 80px);
+            height: 100vh;
             overflow-y: auto;
             background: #0f0f0f;
         }
@@ -695,7 +695,7 @@
             
             .main-container {
                 padding: 5px;
-                height: calc(100vh - 50px);
+                height: 100vh;
             }
             
             .webcam-section {
@@ -1087,51 +1087,6 @@
     </style>
 </head>
 <body>
-    <!-- Compact Header with NOSTR Auth -->
-    <div class="header">
-        <div class="header-left">
-            <h1>🎥 Video Recorder</h1>
-            <a href="{{ myIPFS }}/ipns/copylaradio.com" class="youtube-link" target="_blank">
-                🌐 UPlanet
-            </a>
-            <a href="/youtube?html=1" class="youtube-link">
-                📺 Nostr Tube
-            </a>
-        </div>
-        <div class="nostr-header" style="position: relative;">
-            <div class="auth-status" id="header-auth-status">Not connected</div>
-            <button id="header-connect-btn" class="btn-primary" onclick="toggleNostrExpanded()" style="padding: 6px 12px; font-size: 0.8em;">🔌 Connect</button>
-            <button id="header-profile-btn" onclick="openNostrProfile()" class="btn-secondary" style="display: none; padding: 6px 12px; font-size: 0.8em;">👤 Profile</button>
-            
-            <!-- Expanded NOSTR Section -->
-            <div class="nostr-section" id="nostr-expanded">
-                <h3 style="margin: 0 0 10px 0; font-size: 1em;">🔐 NOSTR Authentication</h3>
-                
-            <div class="auth-mode">
-                    <label style="font-size: 0.9em;">Method:</label>
-                <div class="kind-options">
-                    <div class="kind-option">
-                        <input type="radio" id="auth-extension" name="auth-mode" value="extension" checked>
-                            <label for="auth-extension" style="font-size: 0.85em; margin: 0;">Extension</label>
-                    </div>
-                    <div class="kind-option">
-                        <input type="radio" id="auth-nsec" name="auth-mode" value="nsec">
-                            <label for="auth-nsec" style="font-size: 0.85em; margin: 0;">nsec</label>
-                    </div>
-                </div>
-                
-                <div id="nsec-input-container" class="nsec-input">
-                        <input type="password" id="nsec-key" placeholder="nsec1..." style="margin-top: 8px; font-size: 0.85em; padding: 8px;">
-                        <small style="color: #94a3b8; font-size: 0.75em;">⚠️ Never share your private key!</small>
-                </div>
-            </div>
-            
-                <button id="nostr-connect-btn" onclick="handleNostrConnect()" style="width: 100%; padding: 8px; font-size: 0.9em; margin-top: 10px;">Connect to NOSTR</button>
-                <div id="auth-status" style="margin-top: 10px; font-size: 0.8em;"></div>
-            </div>
-        </div>
-        </div>
-        
     <!-- Main Container - Centered -->
     <div class="main-container">
         <!-- Central Connection Button (hidden by default, shown only if needed) -->
@@ -1140,7 +1095,7 @@
             <p class="central-connection-subtitle">
                 Connect to NOSTR to start recording and publishing your videos on UPlanet
             </p>
-            <button class="central-connect-btn" onclick="toggleNostrExpanded(); document.getElementById('nostr-expanded')?.classList.add('expanded'); setTimeout(() => document.getElementById('nostr-connect-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);">
+            <button class="central-connect-btn" onclick="handleNostrConnect()">
                 🔌 Connect to NOSTR
             </button>
         </div>
@@ -1597,12 +1552,6 @@
             showNotification({ type: 'info', title, message, onConfirm });
         }
         
-        // Toggle NOSTR expanded section
-        function toggleNostrExpanded() {
-            const section = document.getElementById('nostr-expanded');
-            if (!section) return;
-            section.classList.toggle('expanded');
-        }
         
         // Close modal
         function closeModal() {
@@ -2048,16 +1997,9 @@
                             
                             console.log('✅ Using connection from parent window:', userPubkey ? userPubkey.substring(0, 8) + '...' : 'none');
                             
-                            // Update header status if we have pubkey
+                            // Connection initialized from parent
                             if (userPubkey) {
-                                const headerStatus = document.getElementById('header-auth-status');
-                                if (headerStatus) {
-                                    headerStatus.textContent = `Connected: ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}`;
-                                }
-                                const connectBtn = document.getElementById('header-connect-btn');
-                                const profileBtn = document.getElementById('header-profile-btn');
-                                if (connectBtn) connectBtn.style.display = 'none';
-                                if (profileBtn) profileBtn.style.display = 'inline-block';
+                                console.log('✅ Connection ready from parent window');
                             }
                         }
                     } catch (e) {
@@ -2068,69 +2010,19 @@
             }, 500);
         }
         
-        // Show central connection button (not used anymore, but kept for compatibility)
-        function showCentralConnectionButton() {
-            // Don't hide webcam section, just show connection button in header
-            document.getElementById('central-connection').classList.add('hidden'); // Keep hidden
-            document.getElementById('webcam-section').style.display = 'block'; // Always show webcam
-            document.getElementById('header-connect-btn').style.display = 'inline-block';
-            document.getElementById('header-profile-btn').style.display = 'none';
-        }
-        
-        // Hide central connection button and show webcam (not needed anymore, webcam always shown)
-        function hideCentralConnectionButton() {
-            document.getElementById('central-connection').classList.add('hidden');
-            document.getElementById('webcam-section').style.display = 'block';
-        }
-        
-        // Called when connection is successful (simplified - just update UI)
+        // Called when connection is successful (simplified - no UI updates needed without header)
         async function onConnectionSuccess() {
             if (!userPubkey) return;
-            
-            const headerStatus = document.getElementById('header-auth-status');
-            const statusDiv = document.getElementById('auth-status');
-            
-            // Update UI
-            if (headerStatus) {
-                headerStatus.textContent = `Connected: ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}`;
-            }
-            
-            if (document.getElementById('header-connect-btn')) {
-                document.getElementById('header-connect-btn').style.display = 'none';
-            }
-            
-            if (document.getElementById('header-profile-btn')) {
-                document.getElementById('header-profile-btn').style.display = 'inline-block';
-            }
-            
-            if (statusDiv) {
-                statusDiv.innerHTML = `<div style="color: #4ade80;">✅ Connected as ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}${userEmail ? ` (${userEmail})` : ''}</div>`;
-            }
             
             // Ensure webcam section is visible
             document.getElementById('webcam-section').style.display = 'block';
             document.getElementById('central-connection').classList.add('hidden');
             
-            // Close expanded NOSTR section if open
-            if (document.getElementById('nostr-expanded')) {
-                document.getElementById('nostr-expanded').classList.remove('expanded');
-            }
+            console.log('✅ Connection successful:', userPubkey.substring(0, 8) + '...');
         }
         
-        // Connect to NOSTR (simplified - assumes connection exists from parent)
+        // Connect to NOSTR (simplified - assumes connection exists from parent, no UI)
         async function handleNostrConnect() {
-            const statusDiv = document.getElementById('auth-status');
-            const headerStatus = document.getElementById('header-auth-status');
-            const connectBtn = document.getElementById('nostr-connect-btn');
-            
-            connectBtn.disabled = true;
-            if (statusDiv) {
-                statusDiv.innerHTML = '<div style="color: #6366f1;">🔄 Connecting...</div>';
-            }
-            if (headerStatus) {
-                headerStatus.textContent = 'Connecting...';
-            }
-            
             try {
                 const isInIframe = window.self !== window.top;
                 
@@ -2173,15 +2065,7 @@
                 
             } catch (error) {
                 console.error("Connection error:", error);
-                if (statusDiv) {
-                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${error.message}</div>`;
-                }
-                if (headerStatus) {
-                    headerStatus.textContent = 'Connection failed';
-                }
-                if (connectBtn) {
-                    connectBtn.disabled = false;
-                }
+                throw error;
             }
         }
 
@@ -2202,17 +2086,6 @@
             }
         }
 
-        // Open NOSTR Profile
-        function openNostrProfile() {
-            if (!userPubkey) {
-                showWarning('Please connect to NOSTR first to view your profile.', 'Not Connected');
-                return;
-            }
-            
-            const ipfsGateway = '{{ myIPFS }}';
-            const profileURL = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${userPubkey}`;
-            window.open(profileURL, '_blank');
-        }
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
