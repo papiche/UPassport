@@ -2776,8 +2776,19 @@
             }
             
             try {
-                const pubkey = await connectNostr();
+                // Force auth when user manually connects
+                const pubkey = await connectNostr(true); // forceAuth = true
                 if (pubkey) {
+                    // Wait a bit for relay connection to stabilize
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Also force send NIP-42 auth event explicitly (backup)
+                    if (typeof sendNIP42Auth === 'function' && typeof DEFAULT_RELAYS !== 'undefined' && DEFAULT_RELAYS.length > 0) {
+                        const relayUrl = DEFAULT_RELAYS[0];
+                        console.log('📤 Force sending NIP-42 auth event for manual connection (explicit)...');
+                        await sendNIP42Auth(relayUrl, true); // forceSend = true
+                    }
+                    
                     // Success - update UI
                     const webcamBtn = document.getElementById('webcam-upload-btn');
                     if (statusText) {
