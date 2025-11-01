@@ -1818,22 +1818,38 @@
             try {
                 // Get userPubkey from current window or parent window (assume connection exists)
                 const isInIframe = window.self !== window.top;
+                let currentPubkey = null;
                 
-                // Try current window first
-                let currentPubkey = (typeof userPubkey !== 'undefined' && userPubkey) ? userPubkey : null;
-                
-                // If not found and in iframe, try parent window
-                if (!currentPubkey && isInIframe && window.parent && window.parent.userPubkey) {
-                    currentPubkey = window.parent.userPubkey;
-                    userPubkey = currentPubkey;
-                    console.log('✅ Using userPubkey from parent window for publishing');
+                // Try current window first (check both window.userPubkey and global userPubkey)
+                if (typeof window !== 'undefined' && window.userPubkey) {
+                    currentPubkey = window.userPubkey;
+                    console.log('✅ Using userPubkey from current window:', currentPubkey.substring(0, 8) + '...');
+                } else if (typeof userPubkey !== 'undefined' && userPubkey) {
+                    currentPubkey = userPubkey;
+                    console.log('✅ Using userPubkey from global scope:', currentPubkey.substring(0, 8) + '...');
                 }
                 
-                // If still not found, use a fallback (userPubkey will be set by backend if needed)
+                // If not found and in iframe, try parent window
+                if (!currentPubkey && isInIframe && window.parent) {
+                    try {
+                        if (window.parent.userPubkey) {
+                            currentPubkey = window.parent.userPubkey;
+                            userPubkey = currentPubkey;
+                            if (typeof window !== 'undefined') {
+                                window.userPubkey = currentPubkey;
+                            }
+                            console.log('✅ Using userPubkey from parent window for publishing:', currentPubkey.substring(0, 8) + '...');
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ Cannot access parent.userPubkey:', e.message);
+                    }
+                }
+                
+                // If still not found, throw error
                 if (!currentPubkey) {
-                    console.warn('⚠️ userPubkey not found, attempting to publish anyway (backend may handle it)');
-                    // Don't throw error, let the backend handle it
-                    currentPubkey = null;
+                    const errorMsg = 'Vous devez être connecté à NOSTR pour publier une vidéo. Veuillez vous connecter depuis la page principale.';
+                    showError(errorMsg, 'Connexion requise');
+                    throw new Error(errorMsg);
                 }
                 
                 const publishBtn = document.getElementById('publish-btn');
@@ -1851,14 +1867,30 @@
                 }
                 
                 console.log('📤 Uploading video to IPFS via /api/fileupload...');
+                console.log('📤 userPubkey for upload:', currentPubkey ? currentPubkey.substring(0, 8) + '...' : 'MISSING');
+                
                 const uploadResponse = await fetch('/api/fileupload', {
                     method: 'POST',
                     body: uploadFormData
                 });
                 
                 if (!uploadResponse.ok) {
-                    const errorData = await uploadResponse.json().catch(() => ({ detail: uploadResponse.statusText }));
-                    throw new Error(errorData.detail || `Upload failed: ${uploadResponse.statusText}`);
+                    let errorMessage = `Upload failed: ${uploadResponse.statusText}`;
+                    try {
+                        const errorData = await uploadResponse.json();
+                        if (errorData.detail) {
+                            errorMessage = errorData.detail;
+                        } else if (errorData.message) {
+                            errorMessage = errorData.message;
+                        } else if (typeof errorData === 'string') {
+                            errorMessage = errorData;
+                        } else {
+                            errorMessage = JSON.stringify(errorData);
+                        }
+                    } catch (e) {
+                        // Already have default error message
+                    }
+                    throw new Error(errorMessage);
                 }
                 
                 const uploadResult = await uploadResponse.json();
@@ -1913,12 +1945,35 @@
                         document.getElementById('timer').textContent = document.getElementById('duration-slider').value;
                     });
                 } else {
-                    throw new Error(`Upload failed: ${response.statusText}`);
+                    let errorMessage = `Publication failed: ${response.statusText}`;
+                    try {
+                        const errorData = await response.json();
+                        if (errorData.detail) {
+                            errorMessage = errorData.detail;
+                        } else if (errorData.message) {
+                            errorMessage = errorData.message;
+                        } else if (typeof errorData === 'string') {
+                            errorMessage = errorData;
+                        } else {
+                            errorMessage = JSON.stringify(errorData);
+                        }
+                    } catch (e) {
+                        try {
+                            const text = await response.text();
+                            if (text && text.trim()) {
+                                errorMessage = text.trim();
+                            }
+                        } catch (e2) {
+                            // Keep default error message
+                        }
+                    }
+                    throw new Error(errorMessage);
                 }
                 
             } catch (error) {
                 console.error('❌ Error publishing video:', error);
-                showError(error.message, 'Publication Failed');
+                const errorMsg = error.message || 'Une erreur est survenue lors de la publication';
+                showError(errorMsg, 'Échec de la publication');
                 document.getElementById('publish-btn').disabled = false;
                 document.getElementById('publish-btn').textContent = '📡 Publish Video';
             }
@@ -1974,9 +2029,17 @@
             
             // Wait a bit for common.js to initialize
             setTimeout(() => {
-                // Try to get from current window first
-                if (typeof userPubkey !== 'undefined' && userPubkey) {
-                    console.log('✅ Using connection from current window');
+                // Try to get from current window first (check both global and window scope)
+                if (typeof window !== 'undefined' && window.userPubkey) {
+                    userPubkey = window.userPubkey;
+                    console.log('✅ Using connection from current window.userPubkey:', userPubkey.substring(0, 8) + '...');
+                    return;
+                } else if (typeof userPubkey !== 'undefined' && userPubkey) {
+                    // Set in window for easier access
+                    if (typeof window !== 'undefined') {
+                        window.userPubkey = userPubkey;
+                    }
+                    console.log('✅ Using connection from current window global scope:', userPubkey.substring(0, 8) + '...');
                     return;
                 }
                 
@@ -1989,7 +2052,7 @@
                             isNostrConnected = window.parent.isNostrConnected || false;
                             
                             // Set in current window for easier access
-                            if (typeof window.userPubkey === 'undefined') {
+                            if (typeof window !== 'undefined') {
                                 window.userPubkey = userPubkey;
                                 window.nostrRelay = nostrRelay;
                                 window.isNostrConnected = isNostrConnected;
@@ -2001,13 +2064,15 @@
                             if (userPubkey) {
                                 console.log('✅ Connection ready from parent window');
                             }
+                        } else {
+                            console.warn('⚠️ Parent window has no userPubkey');
                         }
                     } catch (e) {
                         // Cross-origin or other error, ignore
-                        console.log('ℹ️ Cannot access parent window variables:', e.message);
+                        console.warn('⚠️ Cannot access parent window variables:', e.message);
                     }
                 }
-            }, 500);
+            }, 1000); // Increased timeout to give more time for initialization
         }
         
         // Called when connection is successful (simplified - no UI updates needed without header)
