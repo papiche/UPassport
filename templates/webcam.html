@@ -1277,13 +1277,28 @@
             if (isInIframe) {
                 // Wait a moment for NOSTR extension to load (extensions usually load at document_end)
                 setTimeout(() => {
-                    if (typeof window.nostr === 'undefined' || !window.nostr || typeof window.nostr.getPublicKey !== 'function') {
-                        // Extension not available, create proxy
-                        createNostrProxy();
-                    } else {
-                        console.log('✅ NOSTR extension detected in iframe, using real extension');
+                    // Check if real extension exists and is functional
+                    if (typeof window.nostr !== 'undefined' && 
+                        window.nostr && 
+                        typeof window.nostr.getPublicKey === 'function') {
+                        // Try to test if it's actually working (not just a stub)
+                        try {
+                            // Quick test call to verify extension works
+                            const testPromise = window.nostr.getPublicKey();
+                            if (testPromise && typeof testPromise.then === 'function') {
+                                console.log('✅ NOSTR extension detected in iframe, using real extension');
+                                // Extension is working, don't create proxy
+                                return;
+                            }
+                        } catch (e) {
+                            // Extension exists but may have issues, fall through to create proxy
+                            console.warn('⚠️ NOSTR extension detected but may have issues, creating proxy as fallback');
+                        }
                     }
-                }, 100);
+                    
+                    // Extension not available or not functional, create proxy
+                    createNostrProxy();
+                }, 500); // Increased delay to give extension more time to initialize
             }
             
             function createNostrProxy() {
@@ -1371,8 +1386,9 @@
                 });
                 
                 // Only set window.nostr if it doesn't exist or is not functional
-                if (typeof window.nostr === 'undefined' || !window.nostr || typeof window.nostr.getPublicKey !== 'function') {
-                    // Expose proxy as window.nostr
+                // Double-check that extension still isn't available before overwriting
+                if (typeof window.nostr === 'undefined' || !window.nostr) {
+                    // window.nostr doesn't exist, safe to set our proxy
                     Object.defineProperty(window, 'nostr', {
                         value: nostrProxy,
                         writable: true,  // Allow overwriting if extension loads later
@@ -1381,6 +1397,20 @@
                     
                     nostrProxyReady = true;
                     console.log('✅ NOSTR proxy initialized for iframe');
+                } else if (typeof window.nostr.getPublicKey !== 'function') {
+                    // window.nostr exists but doesn't have required methods, replace with proxy
+                    console.warn('⚠️ window.nostr exists but getPublicKey is not a function, replacing with proxy');
+                    Object.defineProperty(window, 'nostr', {
+                        value: nostrProxy,
+                        writable: true,
+                        configurable: true
+                    });
+                    
+                    nostrProxyReady = true;
+                    console.log('✅ NOSTR proxy initialized for iframe - replaced non-functional window.nostr');
+                } else {
+                    // Extension is present and functional, don't override
+                    console.log('✅ NOSTR extension already present and functional, skipping proxy creation');
                 }
             }
         })();
@@ -1989,13 +2019,22 @@
                     // Wait a moment for NOSTR extension or proxy to be ready
                     let nostrReady = false;
                     let attempts = 0;
-                    while (attempts < 10 && !nostrReady) {
+                    while (attempts < 15 && !nostrReady) {
                         if (typeof window.nostr !== 'undefined' && window.nostr && typeof window.nostr.getPublicKey === 'function') {
-                            nostrReady = true;
-                        } else {
-                            await new Promise(resolve => setTimeout(resolve, 100));
-                            attempts++;
+                            // Additional check: try to verify it's actually callable
+                            try {
+                                const testCall = window.nostr.getPublicKey();
+                                if (testCall && typeof testCall.then === 'function') {
+                                    nostrReady = true;
+                                    break;
+                                }
+                            } catch (testError) {
+                                // Not ready yet, continue waiting
+                                console.log('NOSTR not ready yet, attempt', attempts + 1);
+                            }
                         }
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                        attempts++;
                     }
                     
                     if (!nostrReady || typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
@@ -2003,9 +2042,15 @@
                     }
                     
                     try {
+                        // Final check before calling
+                        if (typeof window.nostr.getPublicKey !== 'function') {
+                            throw new Error("window.nostr.getPublicKey is not a function");
+                        }
                         userPubkey = await window.nostr.getPublicKey();
                     } catch (e) {
                         console.error("Error calling window.nostr.getPublicKey():", e);
+                        console.error("window.nostr type:", typeof window.nostr);
+                        console.error("window.nostr.getPublicKey type:", typeof window.nostr?.getPublicKey);
                         throw new Error("Failed to get public key from NOSTR: " + e.message);
                     }
                     
