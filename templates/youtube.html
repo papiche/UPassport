@@ -341,7 +341,7 @@
             display: flex;
             gap: 12px;
             align-items: center;
-            max-width: 600px;
+            max-width: 100%;
         }
         
         .search-input {
@@ -363,6 +363,102 @@
         
         .search-input::placeholder {
             color: #717171;
+        }
+        
+        .advanced-search-toggle {
+            padding: 10px 16px;
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #f1f1f1;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        
+        .advanced-search-toggle:hover {
+            background: #3f3f3f;
+        }
+        
+        .advanced-search-panel {
+            display: none;
+            margin-top: 16px;
+            padding: 20px;
+            background: #181818;
+            border-radius: 12px;
+            border: 1px solid #3f3f3f;
+        }
+        
+        .advanced-search-panel.active {
+            display: block;
+        }
+        
+        .advanced-search-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+        
+        .search-field {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .search-field label {
+            font-size: 13px;
+            color: #aaaaaa;
+            font-weight: 500;
+        }
+        
+        .search-field input,
+        .search-field select {
+            padding: 10px 12px;
+            background: #121212;
+            border: 1px solid #3f3f3f;
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+        
+        .search-field input:focus,
+        .search-field select:focus {
+            outline: none;
+            border-color: #065fd4;
+        }
+        
+        .search-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            justify-content: flex-end;
+        }
+        
+        .search-button {
+            padding: 10px 20px;
+            background: #065fd4;
+            border: none;
+            color: #ffffff;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .search-button:hover {
+            background: #0a7ae7;
+        }
+        
+        .search-button.secondary {
+            background: transparent;
+            border: 1px solid #3f3f3f;
+        }
+        
+        .search-button.secondary:hover {
+            background: #3f3f3f;
         }
         
         .videos {
@@ -906,11 +1002,13 @@
         /* Footer positioning */
         footer {
             margin-left: 240px;
+            width: calc(100% - 240px);
         }
         
         @media (max-width: 768px) {
             footer {
                 margin-left: 0 !important;
+                width: 100% !important;
             }
         }
     </style>
@@ -995,6 +1093,81 @@
             <div class="search-bar">
                 <div class="search-row">
                     <input type="text" class="search-input" data-i18n-placeholder="search_videos" placeholder="Rechercher des vidéos..." id="searchInput">
+                    <button class="advanced-search-toggle" onclick="toggleAdvancedSearch()">
+                        🔍 <span data-i18n="advanced_search">Recherche avancée</span>
+                    </button>
+                </div>
+                
+                <!-- Advanced Search Panel -->
+                <div class="advanced-search-panel" id="advancedSearchPanel">
+                    <div class="advanced-search-grid">
+                        <div class="search-field">
+                            <label data-i18n="channel_label">Chaîne</label>
+                            <input type="text" id="channelFilter" placeholder="Nom de la chaîne">
+                        </div>
+                        
+                        <div class="search-field">
+                            <label data-i18n="keyword_label">Mot-clé</label>
+                            <input type="text" id="keywordFilter" placeholder="Mot-clé dans le titre">
+                        </div>
+                        
+                        <div class="search-field">
+                            <label data-i18n="date_from_label">Date de début</label>
+                            <input type="date" id="dateFromFilter">
+                        </div>
+                        
+                        <div class="search-field">
+                            <label data-i18n="date_to_label">Date de fin</label>
+                            <input type="date" id="dateToFilter">
+                        </div>
+                        
+                        <div class="search-field">
+                            <label data-i18n="duration_min_label">Durée min (sec)</label>
+                            <input type="number" id="durationMinFilter" placeholder="ex: 60" min="0">
+                        </div>
+                        
+                        <div class="search-field">
+                            <label data-i18n="duration_max_label">Durée max (sec)</label>
+                            <input type="number" id="durationMaxFilter" placeholder="ex: 600" min="0">
+                        </div>
+                        
+                        <div class="search-field">
+                            <label data-i18n="latitude_label">Latitude</label>
+                            <input type="number" id="latFilter" placeholder="ex: 48.8566" step="0.0001">
+                        </div>
+                        
+                        <div class="search-field">
+                            <label data-i18n="longitude_label">Longitude</label>
+                            <input type="number" id="lonFilter" placeholder="ex: 2.3522" step="0.0001">
+                        </div>
+                        
+                        <div class="search-field">
+                            <label data-i18n="radius_label">Rayon (km)</label>
+                            <input type="number" id="radiusFilter" placeholder="ex: 10" min="0" step="0.1">
+                        </div>
+                        
+                        <div class="search-field">
+                            <label data-i18n="sort_by_label">Trier par</label>
+                            <select id="sortByFilter">
+                                <option value="">-- Sélectionner --</option>
+                                <option value="date_desc">Date (plus récent)</option>
+                                <option value="date_asc">Date (plus ancien)</option>
+                                <option value="duration_desc">Durée (plus long)</option>
+                                <option value="duration_asc">Durée (plus court)</option>
+                                <option value="title_asc">Titre (A-Z)</option>
+                                <option value="title_desc">Titre (Z-A)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="search-actions">
+                        <button class="search-button secondary" onclick="clearAdvancedSearch()">
+                            <span data-i18n="clear_filters">Effacer les filtres</span>
+                        </button>
+                        <button class="search-button" onclick="applyAdvancedSearch()">
+                            <span data-i18n="apply_filters">Appliquer les filtres</span>
+                        </button>
+                    </div>
                 </div>
             </div>
             
@@ -1073,8 +1246,23 @@
     </div>
     
     <!-- Footer -->
-    <footer style="background: #212121; border-top: 1px solid #3f3f3f; padding: 24px 40px; width: 100%;">
+    <footer style="background: #212121; border-top: 1px solid #3f3f3f; padding: 12px 40px; transition: all 0.3s ease;">
         <div style="max-width: 1400px; margin: 0 auto;">
+            <!-- Compact footer header (always visible) -->
+            <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleFooter()">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 14px; color: #aaaaaa;">
+                        © 2025 NOSTR Tube - <span data-i18n="powered_by">Propulsé par</span> 
+                        <a href="https://github.com/papiche/Astroport.ONE" target="_blank" style="color: #3ea6ff; text-decoration: none;">Astroport.ONE</a>
+                    </span>
+                </div>
+                <button style="background: transparent; border: 1px solid #3f3f3f; color: #aaaaaa; padding: 6px 12px; border-radius: 12px; font-size: 12px; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.background='#3f3f3f'" onmouseout="this.style.background='transparent'" id="footerToggleBtn">
+                    <span id="footerToggleIcon">▼</span> <span data-i18n="more_info">Plus d'infos</span>
+                </button>
+            </div>
+            
+            <!-- Expandable footer content -->
+            <div id="footerExpandable" style="display: none; margin-top: 20px;">
             <!-- Footer Links -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 32px; margin-bottom: 24px;">
                     <div>
@@ -1198,9 +1386,6 @@
                     </div>
                 </details>
                 
-                <!-- Copyright -->
-                <div style="padding-top: 20px; border-top: 1px solid #3f3f3f; text-align: center; color: #606060; font-size: 13px;">
-                    <p style="margin: 0;">© 2025 NOSTR Tube - <span data-i18n="powered_by">Propulsé par</span> <a href="https://github.com/papiche/Astroport.ONE" target="_blank" style="color: #3ea6ff; text-decoration: none;">Astroport.ONE</a> & <a href="https://nostr.com" target="_blank" style="color: #3ea6ff; text-decoration: none;">NOSTR</a> & <a href="https://ipfs.tech/" target="_blank" style="color: #3ea6ff; text-decoration: none;">IPFS</a></p>
             </div>
         </div>
     </footer>
@@ -1261,7 +1446,22 @@
                 resources: "Ressources",
                 open_source: "Open Source",
                 view_source: "Voir le code source",
-                powered_by: "Propulsé par"
+                powered_by: "Propulsé par",
+                more_info: "Plus d'infos",
+                less_info: "Moins d'infos",
+                advanced_search: "Recherche avancée",
+                channel_label: "Chaîne",
+                keyword_label: "Mot-clé",
+                date_from_label: "Date de début",
+                date_to_label: "Date de fin",
+                duration_min_label: "Durée min (sec)",
+                duration_max_label: "Durée max (sec)",
+                latitude_label: "Latitude",
+                longitude_label: "Longitude",
+                radius_label: "Rayon (km)",
+                sort_by_label: "Trier par",
+                clear_filters: "Effacer les filtres",
+                apply_filters: "Appliquer les filtres"
             },
             en: {
                 all_videos: "All Videos",
@@ -1313,7 +1513,22 @@
                 resources: "Resources",
                 open_source: "Open Source",
                 view_source: "View source code",
-                powered_by: "Powered by"
+                powered_by: "Powered by",
+                more_info: "More info",
+                less_info: "Less info",
+                advanced_search: "Advanced search",
+                channel_label: "Channel",
+                keyword_label: "Keyword",
+                date_from_label: "Start date",
+                date_to_label: "End date",
+                duration_min_label: "Min duration (sec)",
+                duration_max_label: "Max duration (sec)",
+                latitude_label: "Latitude",
+                longitude_label: "Longitude",
+                radius_label: "Radius (km)",
+                sort_by_label: "Sort by",
+                clear_filters: "Clear filters",
+                apply_filters: "Apply filters"
             },
             es: {
                 all_videos: "Todos los Videos",
@@ -1365,7 +1580,22 @@
                 resources: "Recursos",
                 open_source: "Código Abierto",
                 view_source: "Ver código fuente",
-                powered_by: "Impulsado por"
+                powered_by: "Impulsado por",
+                more_info: "Más información",
+                less_info: "Menos información",
+                advanced_search: "Búsqueda avanzada",
+                channel_label: "Canal",
+                keyword_label: "Palabra clave",
+                date_from_label: "Fecha de inicio",
+                date_to_label: "Fecha de fin",
+                duration_min_label: "Duración mín (seg)",
+                duration_max_label: "Duración máx (seg)",
+                latitude_label: "Latitud",
+                longitude_label: "Longitud",
+                radius_label: "Radio (km)",
+                sort_by_label: "Ordenar por",
+                clear_filters: "Limpiar filtros",
+                apply_filters: "Aplicar filtros"
             }
         };
         
@@ -1452,6 +1682,87 @@
         function t(key) {
             return translations[currentLanguage][key] || key;
         }
+        
+        // ========================================
+        // FOOTER TOGGLE
+        // ========================================
+        
+        function toggleFooter() {
+            const expandable = document.getElementById('footerExpandable');
+            const icon = document.getElementById('footerToggleIcon');
+            const footer = document.querySelector('footer');
+            
+            if (expandable.style.display === 'none') {
+                expandable.style.display = 'block';
+                icon.textContent = '▲';
+                footer.style.padding = '24px 40px';
+            } else {
+                expandable.style.display = 'none';
+                icon.textContent = '▼';
+                footer.style.padding = '12px 40px';
+            }
+        }
+        
+        // ========================================
+        // ADVANCED SEARCH FUNCTIONS
+        // ========================================
+        
+        function toggleAdvancedSearch() {
+            const panel = document.getElementById('advancedSearchPanel');
+            panel.classList.toggle('active');
+        }
+        
+        function clearAdvancedSearch() {
+            // Clear all advanced search fields
+            document.getElementById('channelFilter').value = '';
+            document.getElementById('keywordFilter').value = '';
+            document.getElementById('dateFromFilter').value = '';
+            document.getElementById('dateToFilter').value = '';
+            document.getElementById('durationMinFilter').value = '';
+            document.getElementById('durationMaxFilter').value = '';
+            document.getElementById('latFilter').value = '';
+            document.getElementById('lonFilter').value = '';
+            document.getElementById('radiusFilter').value = '';
+            document.getElementById('sortByFilter').value = '';
+            
+            // Reset to show all videos
+            filterVideos();
+        }
+        
+        function applyAdvancedSearch() {
+            // Build URL with query parameters
+            const params = new URLSearchParams();
+            params.append('html', '1');
+            
+            const channel = document.getElementById('channelFilter').value;
+            const keyword = document.getElementById('keywordFilter').value;
+            const dateFrom = document.getElementById('dateFromFilter').value;
+            const dateTo = document.getElementById('dateToFilter').value;
+            const durationMin = document.getElementById('durationMinFilter').value;
+            const durationMax = document.getElementById('durationMaxFilter').value;
+            const lat = document.getElementById('latFilter').value;
+            const lon = document.getElementById('lonFilter').value;
+            const radius = document.getElementById('radiusFilter').value;
+            const sortBy = document.getElementById('sortByFilter').value;
+            
+            if (channel) params.append('channel', channel);
+            if (keyword) params.append('keyword', keyword);
+            if (dateFrom) params.append('date_from', dateFrom);
+            if (dateTo) params.append('date_to', dateTo);
+            if (durationMin) params.append('duration_min', durationMin);
+            if (durationMax) params.append('duration_max', durationMax);
+            if (lat) params.append('lat', lat);
+            if (lon) params.append('lon', lon);
+            if (radius) params.append('radius', radius);
+            if (sortBy) params.append('sort_by', sortBy);
+            
+            // Redirect with query parameters
+            window.location.href = `/youtube?${params.toString()}`;
+        }
+        
+        // ========================================
+        // GLOBAL VARIABLES AND FUNCTIONS
+        // ========================================
         
         // Global variables
         let IPFS_GATEWAY = '';
