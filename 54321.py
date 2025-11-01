@@ -2106,22 +2106,22 @@ async def check_zencard_route(request: Request, email: str, html: Optional[str] 
         script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1zencard_history.sh")
         result = subprocess.run([script_path, email, "true"], capture_output=True, text=True, timeout=60)
         
-        if result.returncode != 0:
-            logging.error(f"G1zencard_history.sh failed with return code {result.returncode}: {result.stderr}")
-            raise ValueError(f"Error in G1zencard_history.sh: {result.stderr}")
-        
-        # Parse JSON output from G1zencard_history.sh
+        # Parse JSON output from G1zencard_history.sh (script always outputs JSON, even on error)
         try:
             zencard_data = json.loads(result.stdout.strip())
         except json.JSONDecodeError as e:
             logging.error(f"Failed to parse G1zencard_history.sh output: {e}")
-            logging.error(f"Raw output: {result.stdout[:500]}")
+            logging.error(f"Return code: {result.returncode}, stderr: {result.stderr}")
+            logging.error(f"Raw stdout: {result.stdout[:500]}")
             raise ValueError(f"Invalid JSON from G1zencard_history.sh: {e}")
         
         # Check for errors in the response
         if "error" in zencard_data:
-            logging.error(f"G1zencard_history.sh returned error: {zencard_data['error']}")
-            raise HTTPException(status_code=500, detail=zencard_data['error'])
+            error_msg = zencard_data.get('error', 'Unknown error')
+            logging.warning(f"G1zencard_history.sh returned error: {error_msg}")
+            # Return 404 for "not found" errors, 500 for other errors
+            status_code = 404 if "not found" in error_msg.lower() or "not configured" in error_msg.lower() else 500
+            raise HTTPException(status_code=status_code, detail=error_msg)
         
         # If html parameter is provided, return HTML page
         if html is not None:
