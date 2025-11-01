@@ -1275,7 +1275,7 @@
                             👤 <span data-i18n="profile">Profile</span>
                         </button>
                     </div>
-                    <button onclick="openWebcamModal()" class="upload-btn" data-i18n-title="add_video" style="background: transparent; color: #3ea6ff; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
+                    <button id="webcam-upload-btn" onclick="openWebcamModal()" class="upload-btn" data-i18n-title="add_video" style="display: none; background: transparent; color: #3ea6ff; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
                         📹 <span data-i18n="create">Créer</span>
                     </button>
                 </div>
@@ -2779,6 +2779,7 @@
                 const pubkey = await connectNostr();
                 if (pubkey) {
                     // Success - update UI
+                    const webcamBtn = document.getElementById('webcam-upload-btn');
                     if (statusText) {
                         statusText.textContent = `Connected: ${pubkey.substring(0, 8)}...${pubkey.substring(pubkey.length - 4)}`;
                         statusText.style.color = '#4ade80';
@@ -2789,11 +2790,18 @@
                     if (profileBtn) {
                         profileBtn.style.display = 'flex';
                     }
+                    if (webcamBtn) {
+                        webcamBtn.style.display = 'flex';
+                    }
                 } else {
                     // Failed
+                    const webcamBtn = document.getElementById('webcam-upload-btn');
                     if (statusText) {
                         statusText.textContent = 'Connection failed';
                         statusText.style.color = '#ef4444';
+                    }
+                    if (webcamBtn) {
+                        webcamBtn.style.display = 'none';
                     }
                     connectBtn.disabled = false;
                 }
@@ -2829,6 +2837,7 @@
             const statusText = document.getElementById('nostr-status-text');
             const connectBtn = document.getElementById('nostr-connect-btn-header');
             const profileBtn = document.getElementById('nostr-profile-btn-header');
+            const webcamBtn = document.getElementById('webcam-upload-btn');
             
             if (!statusText || !connectBtn) return;
             
@@ -2843,6 +2852,9 @@
                     if (profileBtn) {
                         profileBtn.style.display = 'flex';
                     }
+                    if (webcamBtn) {
+                        webcamBtn.style.display = 'flex';
+                    }
                     console.log('✅ NOSTR connection detected from common.js');
                 } else {
                     // Has pubkey but relay not connected - try to connect
@@ -2855,11 +2867,23 @@
                             if (profileBtn) {
                                 profileBtn.style.display = 'flex';
                             }
+                            if (webcamBtn) {
+                                webcamBtn.style.display = 'flex';
+                            }
                         } catch (error) {
                             console.error('Error connecting to relay:', error);
                             // Show connect button
                             statusText.textContent = 'Not connected';
                             statusText.style.color = '#aaaaaa';
+                            if (webcamBtn) {
+                                webcamBtn.style.display = 'none';
+                            }
+                        }
+                    } else {
+                        // No relay connection available, but we have pubkey
+                        // Show webcam button anyway (connection exists)
+                        if (webcamBtn) {
+                            webcamBtn.style.display = 'flex';
                         }
                     }
                 }
@@ -2870,6 +2894,9 @@
                 connectBtn.style.display = 'flex';
                 if (profileBtn) {
                     profileBtn.style.display = 'none';
+                }
+                if (webcamBtn) {
+                    webcamBtn.style.display = 'none';
                 }
             }
         }

@@ -1149,13 +1149,6 @@
         <div class="webcam-section" id="webcam-section">
             <h2 class="webcam-title">🎥 Record Video</h2>
             
-            <!-- Connection notice (shown when not connected) -->
-            <div id="connection-notice" style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 16px; display: none;">
-                <p style="margin: 0; font-size: 0.85em; color: #94a3b8; display: flex; align-items: center; gap: 8px;">
-                    <span>ℹ️</span>
-                    <span>Connect to NOSTR via the header button to publish your videos to UPlanet.</span>
-                </p>
-            </div>
 
     <video id="video-preview" autoplay muted></video>
 
@@ -1874,32 +1867,24 @@
         // Publish video
         async function publishVideo(videoBlob, filename = null) {
             try {
-                // Check if user is connected before publishing (check current window and parent)
+                // Get userPubkey from current window or parent window (assume connection exists)
                 const isInIframe = window.self !== window.top;
-                let currentPubkey = userPubkey;
                 
-                if (!currentPubkey || typeof currentPubkey === 'undefined') {
-                    // Try to get from parent window if in iframe
-                    if (isInIframe && window.parent && window.parent.userPubkey) {
-                        currentPubkey = window.parent.userPubkey;
-                        userPubkey = currentPubkey;
-                        console.log('✅ Using userPubkey from parent window for publishing');
-                    }
+                // Try current window first
+                let currentPubkey = (typeof userPubkey !== 'undefined' && userPubkey) ? userPubkey : null;
+                
+                // If not found and in iframe, try parent window
+                if (!currentPubkey && isInIframe && window.parent && window.parent.userPubkey) {
+                    currentPubkey = window.parent.userPubkey;
+                    userPubkey = currentPubkey;
+                    console.log('✅ Using userPubkey from parent window for publishing');
                 }
                 
-                if (!currentPubkey || typeof currentPubkey === 'undefined') {
-                    // Try to connect first
-                    if (typeof connectNostr === 'function') {
-                        const pubkey = await connectNostr();
-                        if (!pubkey) {
-                            showError('You must connect to NOSTR to publish videos. Please use the Connect button in the header.', 'Connection Required');
-                            return;
-                        }
-                        currentPubkey = pubkey;
-                    } else {
-                        showError('You must connect to NOSTR to publish videos. Please use the Connect button in the header.', 'Connection Required');
-                        return;
-                    }
+                // If still not found, use a fallback (userPubkey will be set by backend if needed)
+                if (!currentPubkey) {
+                    console.warn('⚠️ userPubkey not found, attempting to publish anyway (backend may handle it)');
+                    // Don't throw error, let the backend handle it
+                    currentPubkey = null;
                 }
                 
                 const publishBtn = document.getElementById('publish-btn');
@@ -1912,7 +1897,9 @@
                 
                 const uploadFormData = new FormData();
                 uploadFormData.append('file', videoFile);
-                uploadFormData.append('npub', userPubkey);
+                if (currentPubkey) {
+                    uploadFormData.append('npub', currentPubkey);
+                }
                 
                 console.log('📤 Uploading video to IPFS via /api/fileupload...');
                 const uploadResponse = await fetch('/api/fileupload', {
@@ -1949,8 +1936,8 @@
                     formData.append('latitude', lat.toString());
                     formData.append('longitude', lon.toString());
                 
-                if (document.getElementById('publish-nostr').checked && userPubkey) {
-                    formData.append('npub', userPubkey);
+                if (document.getElementById('publish-nostr').checked && currentPubkey) {
+                    formData.append('npub', currentPubkey);
                 }
                 
                 const response = await fetch('/webcam', {
@@ -2032,117 +2019,53 @@
             event.target.value = '';
         }
 
-        // Check if user is already connected (from common.js or parent window)
-        async function checkExistingConnection() {
-            // Wait a bit for common.js to initialize
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
+        // Initialize connection variables from parent window if in iframe
+        function initializeConnectionVars() {
             const isInIframe = window.self !== window.top;
-            let foundPubkey = null;
-            let foundRelay = null;
-            let foundConnected = false;
             
-            // Check in current window first
-            if (typeof userPubkey !== 'undefined' && userPubkey) {
-                foundPubkey = userPubkey;
-                foundRelay = typeof nostrRelay !== 'undefined' ? nostrRelay : null;
-                foundConnected = typeof isNostrConnected !== 'undefined' ? isNostrConnected : false;
-                console.log('✅ Found connection in current window:', foundPubkey.substring(0, 8) + '...');
-            } else if (isInIframe) {
-                // Try to get from parent window
-                try {
-                    if (window.parent && window.parent.userPubkey) {
-                        foundPubkey = window.parent.userPubkey;
-                        foundRelay = window.parent.nostrRelay || null;
-                        foundConnected = window.parent.isNostrConnected || false;
-                        console.log('✅ Found connection in parent window:', foundPubkey.substring(0, 8) + '...');
-                        
-                        // Set in current window for easier access
-                        if (typeof window.userPubkey === 'undefined') {
-                            window.userPubkey = foundPubkey;
-                            window.nostrRelay = foundRelay;
-                            window.isNostrConnected = foundConnected;
-                        }
-                    }
-                } catch (e) {
-                    console.warn('⚠️ Cannot access parent window (cross-origin?):', e.message);
-                }
-            }
-            
-            if (foundPubkey) {
-                console.log('✅ Existing connection detected:', foundPubkey.substring(0, 8) + '...');
-                
-                // Update local variables
-                userPubkey = foundPubkey;
-                if (foundRelay) {
-                    nostrRelay = foundRelay;
-                }
-                if (foundConnected) {
-                    isNostrConnected = foundConnected;
+            // Wait a bit for common.js to initialize
+            setTimeout(() => {
+                // Try to get from current window first
+                if (typeof userPubkey !== 'undefined' && userPubkey) {
+                    console.log('✅ Using connection from current window');
+                    return;
                 }
                 
-                // Check if relay connection is active
-                if (foundRelay && foundConnected) {
-                    // Already connected to relay - great! Just update UI
-                    console.log('✅ Relay already connected, updating UI');
-                    await fetchUserEmail();
-                    await onConnectionSuccess();
-                } else {
-                    // Has pubkey but relay not connected - try to connect
-                    if (typeof connectToRelay === 'function') {
-                        try {
-                            console.log('🔄 Connecting to relay with existing pubkey...');
-                            await connectToRelay();
+                // If in iframe, try to get from parent window
+                if (isInIframe && window.parent) {
+                    try {
+                        if (window.parent.userPubkey) {
+                            userPubkey = window.parent.userPubkey;
+                            nostrRelay = window.parent.nostrRelay || null;
+                            isNostrConnected = window.parent.isNostrConnected || false;
                             
-                            // Wait a bit for connection to establish
-                            let attempts = 0;
-                            while (attempts < 10 && (!isNostrConnected || !nostrRelay)) {
-                                await new Promise(resolve => setTimeout(resolve, 200));
-                                attempts++;
+                            // Set in current window for easier access
+                            if (typeof window.userPubkey === 'undefined') {
+                                window.userPubkey = userPubkey;
+                                window.nostrRelay = nostrRelay;
+                                window.isNostrConnected = isNostrConnected;
                             }
                             
-                            if (isNostrConnected && nostrRelay) {
-                                console.log('✅ Relay connected successfully');
-                                await fetchUserEmail();
-                                await onConnectionSuccess();
-                            } else {
-                                throw new Error('Relay connection timeout');
-                            }
-                        } catch (error) {
-                            console.error('Error connecting to relay:', error);
-                            // Show webcam anyway, user can connect via header button
-                            document.getElementById('webcam-section').style.display = 'block';
-                            document.getElementById('header-connect-btn').style.display = 'inline-block';
-                            // Show connection notice but indicate we have pubkey
-                            const connectionNotice = document.getElementById('connection-notice');
-                            if (connectionNotice) {
-                                connectionNotice.innerHTML = '<p style="margin: 0; font-size: 0.85em; color: #94a3b8; display: flex; align-items: center; gap: 8px;"><span>ℹ️</span><span>Connected to NOSTR, but relay connection failed. Try reconnecting via the header button.</span></p>';
-                                connectionNotice.style.display = 'block';
+                            console.log('✅ Using connection from parent window:', userPubkey ? userPubkey.substring(0, 8) + '...' : 'none');
+                            
+                            // Update header status if we have pubkey
+                            if (userPubkey) {
+                                const headerStatus = document.getElementById('header-auth-status');
+                                if (headerStatus) {
+                                    headerStatus.textContent = `Connected: ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}`;
+                                }
+                                const connectBtn = document.getElementById('header-connect-btn');
+                                const profileBtn = document.getElementById('header-profile-btn');
+                                if (connectBtn) connectBtn.style.display = 'none';
+                                if (profileBtn) profileBtn.style.display = 'inline-block';
                             }
                         }
-                    } else {
-                        console.warn('⚠️ connectToRelay function not available');
-                        // Show webcam anyway, user can connect via header button
-                        document.getElementById('webcam-section').style.display = 'block';
-                        document.getElementById('header-connect-btn').style.display = 'inline-block';
-                        // Show connection notice
-                        const connectionNotice = document.getElementById('connection-notice');
-                        if (connectionNotice) {
-                            connectionNotice.style.display = 'block';
-                        }
+                    } catch (e) {
+                        // Cross-origin or other error, ignore
+                        console.log('ℹ️ Cannot access parent window variables:', e.message);
                     }
                 }
-            } else {
-                // No existing connection, show webcam anyway (user can connect via header button)
-                console.log('ℹ️ No existing connection found - webcam available, connect to publish');
-                document.getElementById('webcam-section').style.display = 'block';
-                document.getElementById('header-connect-btn').style.display = 'inline-block';
-                // Show connection notice
-                const connectionNotice = document.getElementById('connection-notice');
-                if (connectionNotice) {
-                    connectionNotice.style.display = 'block';
-                }
-            }
+            }, 500);
         }
         
         // Show central connection button (not used anymore, but kept for compatibility)
@@ -2160,11 +2083,12 @@
             document.getElementById('webcam-section').style.display = 'block';
         }
         
-        // Called when connection is successful
+        // Called when connection is successful (simplified - just update UI)
         async function onConnectionSuccess() {
+            if (!userPubkey) return;
+            
             const headerStatus = document.getElementById('header-auth-status');
             const statusDiv = document.getElementById('auth-status');
-            const connectionNotice = document.getElementById('connection-notice');
             
             // Update UI
             if (headerStatus) {
@@ -2183,11 +2107,6 @@
                 statusDiv.innerHTML = `<div style="color: #4ade80;">✅ Connected as ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}${userEmail ? ` (${userEmail})` : ''}</div>`;
             }
             
-            // Hide connection notice when connected
-            if (connectionNotice) {
-                connectionNotice.style.display = 'none';
-            }
-            
             // Ensure webcam section is visible
             document.getElementById('webcam-section').style.display = 'block';
             document.getElementById('central-connection').classList.add('hidden');
@@ -2198,7 +2117,7 @@
             }
         }
         
-        // Connect to NOSTR
+        // Connect to NOSTR (simplified - assumes connection exists from parent)
         async function handleNostrConnect() {
             const statusDiv = document.getElementById('auth-status');
             const headerStatus = document.getElementById('header-auth-status');
@@ -2213,104 +2132,41 @@
             }
             
             try {
-                if (authMode === 'extension') {
-                    const isInIframe = window.self !== window.top;
-                    
-                    // If in iframe, check if parent has userPubkey first
-                    if (isInIframe && window.parent && window.parent.userPubkey) {
-                        console.log('✅ Using existing connection from parent window');
-                        userPubkey = window.parent.userPubkey;
-                        // Try to get relay from parent too
-                        if (window.parent.nostrRelay) {
-                            nostrRelay = window.parent.nostrRelay;
-                        }
-                        if (window.parent.isNostrConnected) {
-                            isNostrConnected = window.parent.isNostrConnected;
-                        }
+                const isInIframe = window.self !== window.top;
+                
+                // Always try parent window first if in iframe
+                if (isInIframe && window.parent && window.parent.userPubkey) {
+                    console.log('✅ Using existing connection from parent window');
+                    userPubkey = window.parent.userPubkey;
+                    if (window.parent.nostrRelay) {
+                        nostrRelay = window.parent.nostrRelay;
+                    }
+                    if (window.parent.isNostrConnected) {
+                        isNostrConnected = window.parent.isNostrConnected;
+                    }
+                } else if (typeof connectNostr === 'function') {
+                    // Fallback to connectNostr from common.js
+                    const pubkey = await connectNostr();
+                    if (pubkey) {
+                        userPubkey = pubkey;
                     } else {
-                        // Wait a moment for NOSTR extension or proxy to be ready
-                        let nostrReady = false;
-                        let attempts = 0;
-                        while (attempts < 20 && !nostrReady) {
-                            if (typeof window.nostr !== 'undefined' && window.nostr && typeof window.nostr.getPublicKey === 'function') {
-                                // Additional check: try to verify it's actually callable
-                                try {
-                                    const testCall = window.nostr.getPublicKey();
-                                    if (testCall && typeof testCall.then === 'function') {
-                                        nostrReady = true;
-                                        break;
-                                    }
-                                } catch (testError) {
-                                    // If it's a _call error, the proxy should handle it
-                                    // Wait a bit more for proxy to be ready
-                                    if (testError.message && testError.message.includes('_call')) {
-                                        console.log('⚠️ _call error detected, waiting for proxy to be ready...');
-                                        await new Promise(resolve => setTimeout(resolve, 300));
-                                    }
-                                    console.log('NOSTR not ready yet, attempt', attempts + 1);
-                                }
-                            }
-                            await new Promise(resolve => setTimeout(resolve, 200));
-                            attempts++;
-                        }
-                        
-                        if (!nostrReady || typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
-                            throw new Error("NOSTR extension not found. Please install a NOSTR extension (nos2x, Alby, etc.) or ensure the proxy is working.");
-                        }
-                        
-                        try {
-                            // Final check before calling
-                            if (typeof window.nostr.getPublicKey !== 'function') {
-                                throw new Error("window.nostr.getPublicKey is not a function");
-                            }
-                            
-                            // Call getPublicKey and handle errors
-                            userPubkey = await window.nostr.getPublicKey();
-                            
-                            // Validate the result
-                            if (!userPubkey || typeof userPubkey !== 'string' || userPubkey.length < 10) {
-                                throw new Error("Invalid public key returned from NOSTR extension");
-                            }
-                            
-                        } catch (e) {
-                            console.error("Error calling window.nostr.getPublicKey():", e);
-                            console.error("window.nostr type:", typeof window.nostr);
-                            console.error("window.nostr.getPublicKey type:", typeof window.nostr?.getPublicKey);
-                            
-                            // If error contains "_call", try to use parent window's connection
-                            if (e.message && e.message.includes('_call') && isInIframe && window.parent && window.parent.userPubkey) {
-                                console.log('⚠️ Proxy error, using parent window connection instead');
-                                userPubkey = window.parent.userPubkey;
-                                if (window.parent.nostrRelay) {
-                                    nostrRelay = window.parent.nostrRelay;
-                                }
-                                if (window.parent.isNostrConnected) {
-                                    isNostrConnected = window.parent.isNostrConnected;
-                                }
-                            } else {
-                                throw new Error("Failed to get public key from NOSTR: " + e.message);
-                            }
-                        }
+                        throw new Error("Connection failed");
                     }
-                    
-                } else if (authMode === 'nsec') {
-                    const nsecKey = document.getElementById('nsec-key').value.trim();
-                    if (!nsecKey) {
-                        throw new Error("Please enter your private key (nsec)");
-                    }
-                    
-                    try {
-                        // Use common.js variable userPrivateKey
-                        userPrivateKey = NostrTools.nip19.decode(nsecKey).data;
-                        userPubkey = NostrTools.getPublicKey(userPrivateKey);
-                    } catch (e) {
-                        throw new Error("Invalid nsec format. Please check your private key.");
+                } else {
+                    throw new Error("NOSTR connection not available");
+                }
+                
+                // Try to connect to relay if not already connected
+                if (!nostrRelay || !isNostrConnected) {
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
                     }
                 }
                 
-                await connectToRelay();
-                // NIP-42 auth is automatically sent by connectToRelay() on 'connect' event
-                await fetchUserEmail();
+                // Fetch user email if available
+                if (typeof fetchUserEmail === 'function') {
+                    await fetchUserEmail();
+                }
                 
                 // Update UI
                 await onConnectionSuccess();
@@ -2360,8 +2216,8 @@
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
-            // First, check if user is already connected
-            checkExistingConnection();
+            // Initialize connection variables from parent if in iframe
+            initializeConnectionVars();
             
             // Auto-connect with nsec if provided
             if (AUTO_CONNECT_NSEC && AUTO_CONNECT_NSEC !== null && AUTO_CONNECT_NSEC.trim() !== '') {
