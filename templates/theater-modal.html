@@ -105,6 +105,11 @@
         .theater-actions {
             display: flex;
             gap: 8px;
+            align-items: center;
+        }
+        
+        .theater-actions .theater-close-btn {
+            margin-left: 8px;
         }
 
         .theater-action-btn {
@@ -608,12 +613,12 @@
 <body>
     <div class="theater-modal" id="theaterModal">
         <div class="theater-header">
-            <button class="theater-close-btn" onclick="handleCloseTheater()">✕</button>
             <div class="theater-title" id="theaterTitle">Loading...</div>
             <div class="theater-actions">
                 <button class="theater-action-btn" onclick="handleTheaterShare()" title="Partager">📡</button>
                 <button class="theater-action-btn" onclick="handleTheaterBookmark()" title="Bookmark">🔖</button>
                 <button class="theater-action-btn" onclick="handlePictureInPicture()" title="Picture-in-Picture">🖼️</button>
+                <button class="theater-close-btn" onclick="handleCloseTheater()" title="Fermer">✕</button>
             </div>
         </div>
         <div class="theater-body">
