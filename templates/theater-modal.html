@@ -592,6 +592,10 @@
                 max-height: 45vh;
                 border-left: none;
                 border-top: 1px solid #3f3f3f;
+                display: flex !important;
+                flex-direction: column;
+                overflow: hidden;
+                flex-shrink: 0;
             }
 
             .theater-video-info {
@@ -648,6 +652,34 @@
                 </div>
                 <div class="theater-related-videos" id="theaterRelatedVideos">
                     <!-- Related videos will be loaded here -->
+                    <!-- 
+                        RELATED VIDEOS LOADING:
+                        The related videos list is populated by functions in youtube.enhancements.js:
+                        
+                        1. loadRelatedVideosInTheater(videoData) - Line 2917 in youtube.enhancements.js
+                           - Called automatically when theater mode opens (from openTheaterMode)
+                           - Fetches related videos and renders HTML
+                           
+                        2. getRelatedVideos(videoData) - Line 1629 in youtube.enhancements.js
+                           - Main function that finds related videos using:
+                             a. getVideosByChannel(channel) - Videos from same channel
+                             b. getVideosByAuthors([authorId]) - Videos from same author
+                             c. getVideosByLocation(lat, lon) - Videos from same location (UMAP)
+                           - Returns up to 10 related videos (deduplicated)
+                           
+                        Helper functions used (all in youtube.enhancements.js):
+                        - getVideosByChannel(channelName) - Line 1492
+                        - getVideosByAuthors(authors) - Line 1447
+                        - getVideosByLocation(lat, lon) - Line 1580
+                        - getNetworkVideos(depth) - Line 1355 (for network-based recommendations)
+                        - getUserFollows(pubkey) - Line 1393 (for following-based recommendations)
+                        
+                        To improve related videos:
+                        1. Enhance getRelatedVideos() to use tag similarity
+                        2. Add content-based recommendations
+                        3. Use getNetworkVideos() for social network recommendations
+                        4. Combine multiple strategies with weighted scores
+                    -->
                 </div>
             </div>
             <div class="theater-comments-panel">
@@ -917,8 +949,9 @@
             if (authorId) {
                 try {
                     // Try to get profile from NOSTR if available
-                    if (typeof fetchProfile !== 'undefined') {
-                        const profile = await fetchProfile(authorId);
+                    // Use fetchUserMetadata from common.js (not fetchProfile)
+                    if (typeof fetchUserMetadata !== 'undefined') {
+                        const profile = await fetchUserMetadata(authorId);
                         if (profile) {
                             if (profile.display_name) {
                                 displayName = profile.display_name;
@@ -1007,8 +1040,9 @@
                     let authorName = 'Auteur de la vidéo';
                     if (authorId) {
                         try {
-                            if (typeof fetchProfile !== 'undefined') {
-                                const profile = await fetchProfile(authorId);
+                            // Use fetchUserMetadata from common.js
+                            if (typeof fetchUserMetadata !== 'undefined') {
+                                const profile = await fetchUserMetadata(authorId);
                                 if (profile && profile.display_name) {
                                     authorName = profile.display_name;
                                 } else if (profile && profile.name) {
@@ -1064,9 +1098,10 @@
                         
                         // Get author name
                         let authorName = event.pubkey.substring(0, 8) + '...';
-                        if (typeof fetchProfile !== 'undefined') {
+                        // Use fetchUserMetadata from common.js
+                        if (typeof fetchUserMetadata !== 'undefined') {
                             try {
-                                const profile = await fetchProfile(event.pubkey);
+                                const profile = await fetchUserMetadata(event.pubkey);
                                 if (profile && profile.display_name) {
                                     authorName = profile.display_name;
                                 } else if (profile && profile.name) {
@@ -1404,6 +1439,13 @@
             // Load comments
             if (videoData.eventId) {
                 loadVideoComments(videoData.eventId, videoData.authorId, videoData.content || videoData.description);
+            }
+            
+            // Load related videos (if function exists in parent or current window)
+            if (typeof loadRelatedVideosInTheater === 'function') {
+                loadRelatedVideosInTheater(videoData);
+            } else if (typeof window.parent !== 'undefined' && typeof window.parent.loadRelatedVideosInTheater === 'function') {
+                window.parent.loadRelatedVideosInTheater(videoData);
             }
         }
         

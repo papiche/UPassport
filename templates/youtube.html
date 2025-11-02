@@ -139,6 +139,25 @@
             font-size: 1.5em;
             font-weight: 700;
             color: #ff0000;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        
+        .sidebar-logo:hover {
+            transform: scale(1.1);
+        }
+        
+        .sidebar-logo.playing {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.15);
+            }
         }
         
         .sidebar-title {
@@ -1454,7 +1473,7 @@
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <div class="sidebar-logo">▶</div>
+                <div class="sidebar-logo" onclick="playAllVisibleVideos()" data-i18n-title="play_all_videos" title="Play all visible videos">▶</div>
                 <div class="sidebar-title">NOSTR Tube</div>
             </div>
             
@@ -2004,7 +2023,8 @@
                 network_videos_found: "vidéo(s) trouvée(s) dans votre réseau N²",
                 network_videos_description: "Les vidéos de vos amis et amis d'amis apparaîtront ici.",
                 engagement_stats: "Statistiques d'engagement",
-                add_timestamp: "Ajouter timestamp"
+                add_timestamp: "Ajouter timestamp",
+                play_all_videos: "Lire toutes les vidéos visibles"
             },
             en: {
                 all_videos: "All Videos",
@@ -2079,7 +2099,8 @@
                 network_videos_found: "video(s) found in your N² network",
                 network_videos_description: "Videos from your friends and friends of friends will appear here.",
                 engagement_stats: "Engagement statistics",
-                add_timestamp: "Add timestamp"
+                add_timestamp: "Add timestamp",
+                play_all_videos: "Play all visible videos"
             },
             es: {
                 all_videos: "Todos los Videos",
@@ -2154,7 +2175,8 @@
                 network_videos_found: "video(s) encontrado(s) en tu red N²",
                 network_videos_description: "Los videos de tus amigos y amigos de tus amigos aparecerán aquí.",
                 engagement_stats: "Estadísticas de compromiso",
-                add_timestamp: "Agregar marca de tiempo"
+                add_timestamp: "Agregar marca de tiempo",
+                play_all_videos: "Reproducir todos los videos visibles"
             }
         };
         
@@ -2379,6 +2401,56 @@
             }
             return url.startsWith('/ipfs/') ? `${gateway}${url}` : url;
         };
+        
+        /**
+         * Play all visible videos on the page
+         */
+        function playAllVisibleVideos() {
+            const logo = document.querySelector('.sidebar-logo');
+            if (!logo) return;
+            
+            // Get all visible videos (not hidden by filters)
+            const allVideos = document.querySelectorAll('.video');
+            const visibleVideos = Array.from(allVideos).filter(video => 
+                video.style.display !== 'none'
+            );
+            
+            if (visibleVideos.length === 0) {
+                console.log('No visible videos to play');
+                return;
+            }
+            
+            // Add playing animation to logo
+            logo.classList.add('playing');
+            
+            // Get all thumbnails from visible videos
+            const thumbnails = visibleVideos
+                .map(video => video.querySelector('.video-thumbnail'))
+                .filter(thumb => thumb !== null);
+            
+            if (thumbnails.length === 0) {
+                logo.classList.remove('playing');
+                return;
+            }
+            
+            console.log(`Playing ${thumbnails.length} visible videos...`);
+            
+            // Play videos sequentially with a small delay between each
+            // This prevents overwhelming the browser with too many simultaneous video streams
+            thumbnails.forEach((thumbnail, index) => {
+                setTimeout(() => {
+                    // Check if video is already playing, if not start it
+                    if (!thumbnail.classList.contains('playing')) {
+                        toggleVideoPlayer(thumbnail);
+                    }
+                }, index * 300); // 300ms delay between each video start
+            });
+            
+            // Remove animation after a short time
+            setTimeout(() => {
+                logo.classList.remove('playing');
+            }, 2000);
+        }
         
         // Toggle video player
         function toggleVideoPlayer(thumbnailElement) {
