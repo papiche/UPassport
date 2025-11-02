@@ -698,7 +698,7 @@
                 <div class="playlist-card" data-playlist-id="${playlist.id}">
                     <div class="playlist-card-header">
                         <div>
-                            <div class="playlist-card-title">${escapeHtml(playlist.name)}</div>
+                            <div class="playlist-card-title">${escapeHtmlText(playlist.name)}</div>
                             <div class="playlist-card-meta">
                                 <span>${videoCount} vidéo(s)</span>
                                 <span>•</span>
@@ -714,7 +714,7 @@
                             </button>
                         </div>
                     </div>
-                    ${playlist.description ? `<div class="playlist-card-description">${escapeHtml(playlist.description)}</div>` : ''}
+                    ${playlist.description ? `<div class="playlist-card-description">${escapeHtmlText(playlist.description)}</div>` : ''}
                     ${videoCount > 0 ? `
                         <div class="playlist-videos-preview">
                             ${Array(Math.min(videoCount, 4)).fill(0).map(() => `
@@ -730,23 +730,49 @@
          * Open create playlist modal
          */
         function openCreatePlaylistModal() {
-            if (!userPubkey) {
+            // Check both local and parent userPubkey
+            const currentUserPubkey = userPubkey || (window.parent && window.parent.userPubkey) || null;
+            
+            if (!currentUserPubkey) {
                 connectAndLoadPlaylists();
                 return;
             }
 
-            document.getElementById('createPlaylistModal').classList.add('active');
-            document.getElementById('playlistName').focus();
+            const modal = document.getElementById('createPlaylistModal');
+            const nameInput = document.getElementById('playlistName');
+            
+            if (modal) {
+                modal.classList.add('active');
+            }
+            if (nameInput) {
+                nameInput.focus();
+            }
         }
+        
+        // Expose function globally for onclick handlers
+        window.openCreatePlaylistModal = openCreatePlaylistModal;
 
         /**
          * Close create playlist modal
          */
         function closeCreatePlaylistModal() {
-            document.getElementById('createPlaylistModal').classList.remove('active');
-            document.getElementById('createPlaylistForm').reset();
-            document.getElementById('createPlaylistError').style.display = 'none';
+            const modal = document.getElementById('createPlaylistModal');
+            const form = document.getElementById('createPlaylistForm');
+            const errorDiv = document.getElementById('createPlaylistError');
+            
+            if (modal) {
+                modal.classList.remove('active');
+            }
+            if (form) {
+                form.reset();
+            }
+            if (errorDiv) {
+                errorDiv.style.display = 'none';
+            }
         }
+        
+        // Expose function globally
+        window.closeCreatePlaylistModal = closeCreatePlaylistModal;
 
         /**
          * Handle create playlist form submission
@@ -782,6 +808,9 @@
                 errorDiv.style.display = 'block';
             }
         }
+        
+        // Expose function globally for onsubmit handler
+        window.handleCreatePlaylist = handleCreatePlaylist;
 
         /**
          * View playlist details
@@ -790,6 +819,9 @@
             // Redirect to playlist view (could be implemented as a separate page)
             window.location.href = `/playlist?id=${playlistId}`;
         }
+        
+        // Expose function globally
+        window.viewPlaylist = viewPlaylist;
 
         /**
          * Share playlist
@@ -805,6 +837,9 @@
                 alert('❌ Erreur lors de la copie du lien');
             }
         }
+        
+        // Expose function globally
+        window.sharePlaylist = sharePlaylist;
 
         /**
          * Delete playlist
@@ -818,6 +853,9 @@
             // You would need to publish a deletion event or update the playlist to be empty
             alert('⚠️ La suppression des playlists sera implémentée prochainement');
         }
+        
+        // Expose function globally
+        window.deletePlaylist = deletePlaylist;
 
         /**
          * Connect and load playlists
@@ -852,16 +890,34 @@
                 alert('❌ Impossible de se connecter à NOSTR. Assurez-vous que common.js est chargé.');
             }
         }
+        
+        // Expose function globally
+        window.connectAndLoadPlaylists = connectAndLoadPlaylists;
 
-        // Use escapeHtml from youtube.enhancements.js if available, otherwise define fallback
-        const escapeHtml = typeof escapeHtml !== 'undefined' ? escapeHtml : 
-                          (typeof window.escapeHtml !== 'undefined' ? window.escapeHtml : 
-                          function(text) {
-                              if (typeof text !== 'string') return '';
-                              const div = document.createElement('div');
-                              div.textContent = text;
-                              return div.innerHTML;
-                          });
+        // Use escapeHtml from youtube.enhancements.js (already globally available)
+        // Create a helper function that uses the global escapeHtml
+        function escapeHtmlText(text) {
+            // Use global escapeHtml if available, otherwise fallback
+            if (typeof window.escapeHtml === 'function') {
+                return window.escapeHtml(text);
+            }
+            // Fallback if not available
+            if (typeof text !== 'string') return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // For compatibility, create alias if escapeHtml is not already defined
+        if (typeof window.escapeHtml === 'undefined' || typeof escapeHtml === 'undefined') {
+            // Only define if it doesn't exist yet
+            try {
+                window.escapeHtml = escapeHtmlText;
+            } catch (e) {
+                // Ignore if already defined as non-configurable
+                console.warn('Could not set window.escapeHtml, using fallback:', e);
+            }
+        }
 
         // Close modal on outside click
         document.getElementById('createPlaylistModal')?.addEventListener('click', (e) => {
