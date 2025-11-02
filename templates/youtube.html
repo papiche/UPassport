@@ -2327,6 +2327,52 @@
             // Check NOSTR connection status
             checkNostrConnectionStatus();
             
+            // Check if video parameter is in URL and auto-open theater modal
+            const urlParams = new URLSearchParams(window.location.search);
+            const videoParam = urlParams.get('video');
+            if (videoParam) {
+                // Wait for scripts to load (especially youtube.enhancements.js)
+                setTimeout(async () => {
+                    try {
+                        // Try to find video in DOM first (if it's already loaded)
+                        const videoElement = document.querySelector(`[data-event-id="${videoParam}"]`);
+                        if (videoElement) {
+                            const thumbnail = videoElement.closest('.video')?.querySelector('.video-thumbnail');
+                            if (thumbnail && typeof openVideoInTheater === 'function') {
+                                await openVideoInTheater(thumbnail);
+                                // Clean URL (remove video parameter)
+                                urlParams.delete('video');
+                                const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+                                window.history.replaceState({}, '', newUrl);
+                                return;
+                            }
+                        }
+                        
+                        // Otherwise, use openTheaterModeFromEvent to fetch from relay
+                        if (typeof window.openTheaterModeFromEvent === 'function') {
+                            await window.openTheaterModeFromEvent(videoParam);
+                            // Clean URL (remove video parameter)
+                            urlParams.delete('video');
+                            const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+                            window.history.replaceState({}, '', newUrl);
+                        } else {
+                            console.warn('openTheaterModeFromEvent not available, waiting...');
+                            // Retry after more scripts load
+                            setTimeout(async () => {
+                                if (typeof window.openTheaterModeFromEvent === 'function') {
+                                    await window.openTheaterModeFromEvent(videoParam);
+                                    urlParams.delete('video');
+                                    const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+                                    window.history.replaceState({}, '', newUrl);
+                                }
+                            }, 1500);
+                        }
+                    } catch (error) {
+                        console.error('Error auto-opening video:', error);
+                    }
+                }, 1000); // Wait 1 second for scripts to load
+            }
+            
             // Detect IPFS gateway first (from youtube.enhancements.js)
             if (typeof detectIPFSGatewayGlobal === 'function') {
                 detectIPFSGatewayGlobal();

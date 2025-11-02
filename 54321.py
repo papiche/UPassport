@@ -2235,7 +2235,8 @@ async def youtube_route(
     sort_by: Optional[str] = None,
     lat: Optional[float] = None,
     lon: Optional[float] = None,
-    radius: Optional[float] = None
+    radius: Optional[float] = None,
+    video: Optional[str] = None
 ):
     """YouTube video channels and search from NOSTR events
     
@@ -2439,10 +2440,50 @@ async def youtube_route(
             else:
                 ipfs_gateway = "https://ipfs.copylaradio.com"
             
+            # If video parameter is provided, find the video and pass it to template
+            auto_open_video = None
+            if video:
+                # Find video by message_id (event_id) in channel_playlists
+                for channel_name, channel_playlist in channel_playlists.items():
+                    # channel_playlist should have a 'videos' attribute
+                    playlist_videos = channel_playlist.get('videos', []) if isinstance(channel_playlist, dict) else getattr(channel_playlist, 'videos', [])
+                    for v in playlist_videos:
+                        if v.get('message_id') == video:
+                            auto_open_video = {
+                                'event_id': v.get('message_id', ''),
+                                'title': v.get('title', ''),
+                                'ipfs_url': v.get('ipfs_url', ''),
+                                'thumbnail_ipfs': v.get('thumbnail_ipfs', ''),
+                                'author_id': v.get('author_id', ''),
+                                'uploader': v.get('uploader', ''),
+                                'channel': v.get('channel_name', ''),
+                                'duration': v.get('duration', 0)
+                            }
+                            break
+                    if auto_open_video:
+                        break
+                
+                # If not found in playlists, search in original video_messages
+                if not auto_open_video:
+                    for v in video_messages:
+                        if v.get('message_id') == video:
+                            auto_open_video = {
+                                'event_id': v.get('message_id', ''),
+                                'title': v.get('title', ''),
+                                'ipfs_url': v.get('ipfs_url', ''),
+                                'thumbnail_ipfs': v.get('thumbnail_ipfs', ''),
+                                'author_id': v.get('author_id', ''),
+                                'uploader': v.get('uploader', ''),
+                                'channel': v.get('channel_name', ''),
+                                'duration': v.get('duration', 0)
+                            }
+                            break
+            
             return templates.TemplateResponse("youtube.html", {
                 "request": request,
                 "youtube_data": response_data,
-                "myIPFS": ipfs_gateway
+                "myIPFS": ipfs_gateway,
+                "auto_open_video": auto_open_video
             })
         
         # Return JSON response
