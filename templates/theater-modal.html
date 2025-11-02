@@ -130,6 +130,7 @@
 
         .theater-body {
             display: flex;
+            flex-direction: column;
             flex: 1;
             overflow: hidden;
         }
@@ -141,6 +142,58 @@
             position: relative;
             background: #000000;
             min-height: 0;
+        }
+        
+        /* Playlist controls */
+        .theater-playlist-controls {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 12px 24px;
+            background: rgba(15, 15, 15, 0.95);
+            border-bottom: 1px solid #3f3f3f;
+            flex-shrink: 0;
+        }
+        
+        .theater-playlist-controls.active {
+            display: flex;
+        }
+        
+        .playlist-nav-btn {
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #f1f1f1;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .playlist-nav-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #606060;
+        }
+        
+        .playlist-nav-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        .playlist-info {
+            color: #aaaaaa;
+            font-size: 0.85em;
+            flex: 1;
+            text-align: center;
+        }
+        
+        .playlist-progress {
+            color: #3ea6ff;
+            font-weight: 500;
         }
 
         .theater-video-wrapper {
@@ -261,12 +314,15 @@
         }
 
         .theater-comments-panel {
-            width: 400px;
+            width: 100%;
+            max-width: 100%;
             background: rgba(15, 15, 15, 0.95);
-            border-left: 1px solid #3f3f3f;
+            border-top: 1px solid #3f3f3f;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            flex-shrink: 0;
+            max-height: 40vh;
         }
 
         .theater-comments-header {
@@ -556,6 +612,19 @@
                 border-left: none;
                 border-top: 1px solid #3f3f3f;
             }
+            
+            .theater-playlist-controls {
+                flex-wrap: wrap;
+                padding: 8px 16px;
+                gap: 8px;
+            }
+            
+            .playlist-info {
+                width: 100%;
+                order: 3;
+                text-align: center;
+                margin-top: 4px;
+            }
         }
 
         @media (max-width: 768px) {
@@ -588,14 +657,27 @@
 
             .theater-comments-panel {
                 width: 100%;
-                height: 45vh;
-                max-height: 45vh;
+                height: 40vh;
+                max-height: 40vh;
                 border-left: none;
                 border-top: 1px solid #3f3f3f;
                 display: flex !important;
                 flex-direction: column;
                 overflow: hidden;
                 flex-shrink: 0;
+            }
+            
+            .theater-playlist-controls {
+                padding: 6px 12px;
+            }
+            
+            .playlist-nav-btn {
+                padding: 6px 12px;
+                font-size: 0.8em;
+            }
+            
+            .playlist-info {
+                font-size: 0.75em;
             }
 
             .theater-video-info {
@@ -681,6 +763,19 @@
                         4. Combine multiple strategies with weighted scores
                     -->
                 </div>
+            </div>
+            <!-- Playlist controls -->
+            <div class="theater-playlist-controls" id="theaterPlaylistControls">
+                <button class="playlist-nav-btn" id="playlistPrevBtn" onclick="playPreviousVideo()" title="Vidéo précédente">
+                    ⏮ Précédent
+                </button>
+                <div class="playlist-info">
+                    <span class="playlist-progress" id="playlistProgress">1 / 1</span>
+                    <span id="playlistTitle">Playlist</span>
+                </div>
+                <button class="playlist-nav-btn" id="playlistNextBtn" onclick="playNextVideo()" title="Vidéo suivante">
+                    Suivant ⏭
+                </button>
             </div>
             <div class="theater-comments-panel">
                 <div class="theater-comments-header">
@@ -1449,6 +1544,225 @@
             }
         }
         
+        // ========================================
+        // PLAYLIST MANAGEMENT FUNCTIONS
+        // ========================================
+        
+        let currentPlaylist = [];
+        let currentPlaylistIndex = -1;
+        let isPlaylistMode = false;
+        
+        /**
+         * Initialize playlist mode
+         */
+        function initializePlaylist(playlist, startIndex = 0) {
+            if (!playlist || !Array.isArray(playlist) || playlist.length === 0) {
+                // No playlist, hide controls
+                const controls = document.getElementById('theaterPlaylistControls');
+                if (controls) {
+                    controls.classList.remove('active');
+                }
+                isPlaylistMode = false;
+                return;
+            }
+            
+            currentPlaylist = playlist;
+            currentPlaylistIndex = Math.max(0, Math.min(startIndex, playlist.length - 1));
+            isPlaylistMode = true;
+            
+            // Show playlist controls
+            const controls = document.getElementById('theaterPlaylistControls');
+            if (controls) {
+                controls.classList.add('active');
+                updatePlaylistControls();
+            }
+            
+            // Listen for video end to auto-advance
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            if (videoPlayer) {
+                // Remove existing listeners to avoid duplicates
+                videoPlayer.removeEventListener('ended', handleVideoEnd);
+                videoPlayer.addEventListener('ended', handleVideoEnd, { once: false });
+            }
+        }
+        
+        /**
+         * Handle video end event - auto-advance to next video
+         */
+        async function handleVideoEnd() {
+            if (isPlaylistMode && currentPlaylistIndex < currentPlaylist.length - 1) {
+                // Auto-advance to next video after a short delay
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                if (isPlaylistMode) { // Check again in case playlist was stopped
+                    await playNextVideo();
+                }
+            }
+        }
+        
+        /**
+         * Play next video in playlist
+         */
+        async function playNextVideo() {
+            if (!isPlaylistMode || currentPlaylistIndex < 0) return;
+            
+            if (currentPlaylistIndex < currentPlaylist.length - 1) {
+                currentPlaylistIndex++;
+                await loadPlaylistVideo(currentPlaylistIndex);
+            }
+        }
+        
+        /**
+         * Play previous video in playlist
+         */
+        async function playPreviousVideo() {
+            if (!isPlaylistMode || currentPlaylistIndex < 0) return;
+            
+            if (currentPlaylistIndex > 0) {
+                currentPlaylistIndex--;
+                await loadPlaylistVideo(currentPlaylistIndex);
+            }
+        }
+        
+        /**
+         * Load video from playlist at given index
+         */
+        async function loadPlaylistVideo(index) {
+            if (index < 0 || index >= currentPlaylist.length) return;
+            
+            const videoData = currentPlaylist[index];
+            if (!videoData) return;
+            
+            // Update UI
+            updatePlaylistControls();
+            
+            // Clear current video
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            if (videoPlayer) {
+                videoPlayer.pause();
+                // Remove all source elements
+                while (videoPlayer.firstChild) {
+                    videoPlayer.removeChild(videoPlayer.firstChild);
+                }
+                videoPlayer.load();
+                
+                // Wait a bit before loading new video
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+            
+            // Convert IPFS URL if needed
+            let videoUrl = videoData.ipfsUrl;
+            if (typeof convertIPFSUrlGlobal !== 'undefined') {
+                videoUrl = convertIPFSUrlGlobal(videoData.ipfsUrl);
+            } else if (window.IPFS_GATEWAY && videoUrl.includes('/ipfs/')) {
+                const match = videoUrl.match(/\/ipfs\/[^?"#]+/);
+                if (match) {
+                    videoUrl = window.IPFS_GATEWAY + match[0];
+                }
+            }
+            
+            // Load new video source
+            if (videoPlayer && videoUrl) {
+                const source = document.createElement('source');
+                source.src = videoUrl;
+                source.type = 'video/mp4';
+                videoPlayer.appendChild(source);
+                
+                // Store metadata
+                if (videoData.eventId) {
+                    videoPlayer.setAttribute('data-event-id', videoData.eventId);
+                }
+                if (videoData.authorId) {
+                    videoPlayer.setAttribute('data-author-id', videoData.authorId);
+                }
+                
+                videoPlayer.load();
+            }
+            
+            // Update title
+            const titleEl = document.getElementById('theaterTitle');
+            if (titleEl && videoData.title) {
+                titleEl.textContent = videoData.title;
+            }
+            
+            // Update duration
+            const durationEl = document.getElementById('theaterDuration');
+            if (durationEl && videoData.duration) {
+                const minutes = Math.floor(videoData.duration / 60);
+                const seconds = videoData.duration % 60;
+                durationEl.textContent = ` • ${minutes}:${String(seconds).padStart(2, '0')}`;
+            } else if (durationEl) {
+                durationEl.textContent = '';
+            }
+            
+            // Update description
+            const descriptionEl = document.getElementById('theaterDescription');
+            if (descriptionEl) {
+                descriptionEl.textContent = videoData.description || videoData.content || '';
+            }
+            
+            // Load author
+            if (videoData.authorId || videoData.uploader) {
+                loadVideoAuthor(videoData.authorId, videoData.uploader);
+            }
+            
+            // Load comments
+            if (videoData.eventId) {
+                loadVideoComments(videoData.eventId, videoData.authorId, videoData.content || videoData.description);
+            }
+            
+            // Load stats (if function available)
+            if (videoData.eventId && videoData.authorId && videoData.ipfsUrl && typeof VideoStats !== 'undefined') {
+                try {
+                    const stats = new VideoStats(videoData.eventId, videoData.authorId, videoData.ipfsUrl);
+                    const statsData = await stats.refresh();
+                    if (statsData) {
+                        const likeCountEl = document.getElementById('likeCount');
+                        const shareCountEl = document.getElementById('shareCount');
+                        const commentCountEl = document.getElementById('commentCount');
+                        
+                        if (likeCountEl) likeCountEl.textContent = statsData.likes || 0;
+                        if (shareCountEl) shareCountEl.textContent = statsData.shares || 0;
+                        if (commentCountEl) commentCountEl.textContent = statsData.comments || 0;
+                    }
+                } catch (error) {
+                    console.error('Error loading stats:', error);
+                }
+            }
+            
+            // Ensure video starts playing
+            if (videoPlayer) {
+                videoPlayer.play().catch(err => {
+                    console.log('Auto-play prevented:', err);
+                });
+            }
+        }
+        
+        /**
+         * Update playlist control UI
+         */
+        function updatePlaylistControls() {
+            const progressEl = document.getElementById('playlistProgress');
+            const prevBtn = document.getElementById('playlistPrevBtn');
+            const nextBtn = document.getElementById('playlistNextBtn');
+            
+            if (progressEl) {
+                progressEl.textContent = `${currentPlaylistIndex + 1} / ${currentPlaylist.length}`;
+            }
+            
+            if (prevBtn) {
+                prevBtn.disabled = currentPlaylistIndex <= 0;
+            }
+            
+            if (nextBtn) {
+                nextBtn.disabled = currentPlaylistIndex >= currentPlaylist.length - 1;
+            }
+        }
+        
+        // Expose playlist functions globally
+        window.initializePlaylist = initializePlaylist;
+        window.playNextVideo = playNextVideo;
+        window.playPreviousVideo = playPreviousVideo;
+        
         // Expose functions globally
         window.submitTheaterComment = submitTheaterComment;
         window.addTimestampToComment = addTimestampToComment;
@@ -1457,12 +1771,47 @@
         
         // Initialize theater mode if videoData is passed
         if (window.videoData) {
-            if (typeof initializeTheaterMode === 'function') {
-                initializeTheaterMode(window.videoData);
-                // Also initialize locally to ensure comments are loaded
-                setTimeout(() => initializeTheaterModeLocal(window.videoData), 1000);
+            // Check if videoData has a playlist property
+            if (window.videoData.playlist && Array.isArray(window.videoData.playlist)) {
+                // Find current video index in playlist (match by eventId or ipfsUrl)
+                let startIndex = 0;
+                if (window.videoData.eventId) {
+                    const foundIndex = window.videoData.playlist.findIndex(v => 
+                        v.eventId === window.videoData.eventId
+                    );
+                    if (foundIndex >= 0) {
+                        startIndex = foundIndex;
+                    }
+                } else if (window.videoData.ipfsUrl) {
+                    const foundIndex = window.videoData.playlist.findIndex(v => 
+                        v.ipfsUrl === window.videoData.ipfsUrl
+                    );
+                    if (foundIndex >= 0) {
+                        startIndex = foundIndex;
+                    }
+                }
+                
+                // Initialize playlist mode with correct starting index
+                initializePlaylist(window.videoData.playlist, startIndex);
+                
+                // Remove playlist from videoData to avoid confusion
+                const videoDataWithoutPlaylist = { ...window.videoData };
+                delete videoDataWithoutPlaylist.playlist;
+                
+                if (typeof initializeTheaterMode === 'function') {
+                    initializeTheaterMode(videoDataWithoutPlaylist);
+                    setTimeout(() => initializeTheaterModeLocal(videoDataWithoutPlaylist), 1000);
+                } else {
+                    initializeTheaterModeLocal(videoDataWithoutPlaylist);
+                }
             } else {
-                initializeTheaterModeLocal(window.videoData);
+                // No playlist, normal mode
+                if (typeof initializeTheaterMode === 'function') {
+                    initializeTheaterMode(window.videoData);
+                    setTimeout(() => initializeTheaterModeLocal(window.videoData), 1000);
+                } else {
+                    initializeTheaterModeLocal(window.videoData);
+                }
             }
         }
 
@@ -1470,6 +1819,16 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 handleCloseTheater();
+            }
+            // Keyboard shortcuts for playlist navigation
+            if (isPlaylistMode) {
+                if (e.key === 'ArrowRight' && !e.ctrlKey && !e.metaKey) {
+                    // Right arrow: next video
+                    playNextVideo();
+                } else if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.metaKey) {
+                    // Left arrow: previous video
+                    playPreviousVideo();
+                }
             }
         });
     </script>

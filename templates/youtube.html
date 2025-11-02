@@ -4127,6 +4127,24 @@
                 return;
             }
             
+            // Prepare video data with playlist attached (only first time)
+            const videoDataWithPlaylist = { ...videoData };
+            if (currentPlaylistIndex === 0) {
+                // Attach full playlist to first video so theater modal can manage it
+                videoDataWithPlaylist.playlist = playlistVideos.map((v, idx) => ({
+                    title: v.title,
+                    ipfsUrl: v.ipfsUrl,
+                    thumbnailUrl: v.thumbnailUrl,
+                    eventId: v.eventId,
+                    authorId: v.authorId,
+                    channel: v.channel,
+                    uploader: v.uploader,
+                    content: v.content,
+                    description: v.description,
+                    duration: v.duration || null
+                }));
+            }
+            
             // Open video in theater mode
             const theaterModeFn = typeof openTheaterMode !== 'undefined' ? openTheaterMode : 
                                    (typeof window !== 'undefined' && window.openTheaterMode ? window.openTheaterMode : null);
@@ -4138,8 +4156,8 @@
                 // Wait a bit before opening theater
                 await new Promise(resolve => setTimeout(resolve, 300));
                 
-                // Open in theater mode
-                await theaterModeFn(videoData);
+                // Open in theater mode with playlist
+                await theaterModeFn(videoDataWithPlaylist);
             } else {
                 // Fallback: play inline
                 toggleVideoPlayer(videoData.thumbnail);
@@ -4148,44 +4166,14 @@
         
         /**
          * Listen for video end events to auto-advance playlist
+         * NOTE: Now handled by theater-modal.html, this function is kept for compatibility
+         * but doesn't do much - the theater modal handles auto-advance internally
          */
         function listenForPlaylistVideoEnd() {
-            // Check for theater video player end event
-            // The theater mode video player should be accessible
-            const checkInterval = setInterval(() => {
-                if (!isPlaylistPlaying) {
-                    clearInterval(checkInterval);
-                    return;
-                }
-                
-                // Try to find theater mode video player
-                const theaterPlayer = document.getElementById('theaterVideoPlayer') || 
-                                     document.querySelector('.theater-video-player video') ||
-                                     document.querySelector('#theaterModal video');
-                
-                if (theaterPlayer) {
-                    // Listen for ended event (only once per video)
-                    if (!theaterPlayer.dataset.playlistListenerAdded) {
-                        theaterPlayer.dataset.playlistListenerAdded = 'true';
-                        
-                        theaterPlayer.addEventListener('ended', async () => {
-                            if (isPlaylistPlaying) {
-                                // Move to next video
-                                currentPlaylistIndex++;
-                                
-                                // Remove listener flag for next video
-                                theaterPlayer.removeAttribute('data-playlist-listener-added');
-                                
-                                // Wait a moment before next video
-                                await new Promise(resolve => setTimeout(resolve, 1000));
-                                
-                                // Play next
-                                await playNextInPlaylist();
-                            }
-                        }, { once: true });
-                    }
-                }
-            }, 500); // Check every 500ms
+            // The theater modal now handles playlist auto-advance internally
+            // We just need to ensure the playlist is passed correctly
+            // This function is kept for backward compatibility but does minimal work
+            console.log('Playlist mode started - theater modal will handle auto-advance');
         }
         
         /**
