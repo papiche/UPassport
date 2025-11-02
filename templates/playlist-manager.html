@@ -62,11 +62,21 @@
             font-size: 1em;
             font-weight: 500;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(62, 166, 255, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .btn-create-playlist:hover {
             background: #2d8ce8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(62, 166, 255, 0.3);
+        }
+        
+        .btn-create-playlist:active {
+            transform: translateY(0);
         }
 
         .playlists-grid {
@@ -81,14 +91,34 @@
             border-radius: 12px;
             padding: 20px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border: 1px solid #3f3f3f;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .playlist-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3ea6ff, #4ade80);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
         }
 
         .playlist-card:hover {
             background: #212121;
-            border-color: #606060;
-            transform: translateY(-2px);
+            border-color: #3ea6ff;
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+        
+        .playlist-card:hover::before {
+            transform: scaleX(1);
         }
 
         .playlist-card-header {
@@ -127,16 +157,26 @@
             background: transparent;
             border: 1px solid #3f3f3f;
             color: #f1f1f1;
-            padding: 6px 12px;
-            border-radius: 16px;
-            font-size: 0.85em;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 1em;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
         }
 
         .playlist-action-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: #606060;
+            background: rgba(62, 166, 255, 0.15);
+            border-color: #3ea6ff;
+            transform: scale(1.1);
+        }
+        
+        .playlist-action-btn:active {
+            transform: scale(0.95);
         }
 
         .playlist-videos-preview {
@@ -164,6 +204,92 @@
         }
 
         /* Create Playlist Modal */
+        /* Toast Notification System */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #212121;
+            border: 1px solid #3f3f3f;
+            color: #ffffff;
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            z-index: 10001;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 300px;
+            max-width: 400px;
+            animation: slideInRight 0.3s ease-out;
+            font-size: 0.9em;
+        }
+        
+        .toast.success {
+            border-color: #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+        }
+        
+        .toast.error {
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+        
+        .toast.warning {
+            border-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+        }
+        
+        .toast-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .toast-content {
+            flex: 1;
+        }
+        
+        .toast-close {
+            background: transparent;
+            border: none;
+            color: #aaaaaa;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .toast-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+        
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+            to {
+                opacity: 0;
+            }
+        }
+        
         .modal {
             display: none;
             position: fixed;
@@ -171,24 +297,67 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
             z-index: 10000;
             align-items: center;
             justify-content: center;
+            animation: fadeIn 0.2s ease-out;
         }
 
         .modal.active {
             display: flex;
         }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
 
         .modal-content {
             background: #181818;
-            border-radius: 12px;
+            border-radius: 16px;
             padding: 32px;
             max-width: 500px;
             width: 90%;
             max-height: 90vh;
             overflow-y: auto;
+            border: 1px solid #3f3f3f;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            animation: slideUp 0.3s ease-out;
+            position: relative;
+        }
+        
+        .modal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .modal-content::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+        
+        .modal-content::-webkit-scrollbar-thumb {
+            background: #3f3f3f;
+            border-radius: 4px;
+        }
+        
+        .modal-content::-webkit-scrollbar-thumb:hover {
+            background: #606060;
         }
 
         .modal-header {
@@ -205,16 +374,24 @@
         .modal-close {
             background: transparent;
             border: none;
-            color: #ffffff;
-            font-size: 24px;
+            color: #94a3b8;
+            font-size: 28px;
             cursor: pointer;
-            padding: 8px;
+            padding: 4px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             border-radius: 50%;
-            transition: background 0.2s;
+            transition: all 0.2s ease;
+            line-height: 1;
         }
 
         .modal-close:hover {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            transform: rotate(90deg);
         }
 
         .form-group {
@@ -234,16 +411,24 @@
             background: #212121;
             border: 1px solid #3f3f3f;
             border-radius: 8px;
-            padding: 12px;
+            padding: 12px 16px;
             color: #ffffff;
             font-family: inherit;
             font-size: 1em;
+            transition: all 0.2s ease;
         }
 
         .form-group input:focus,
         .form-group textarea:focus {
             outline: none;
             border-color: #3ea6ff;
+            background: #1a1a1a;
+            box-shadow: 0 0 0 3px rgba(62, 166, 255, 0.1);
+        }
+        
+        .form-group input::placeholder,
+        .form-group textarea::placeholder {
+            color: #606060;
         }
 
         .form-group textarea {
@@ -267,11 +452,26 @@
             font-size: 1em;
             font-weight: 500;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(62, 166, 255, 0.2);
         }
 
         .btn-primary:hover {
             background: #2d8ce8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(62, 166, 255, 0.3);
+        }
+        
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+        
+        .btn-primary:disabled {
+            background: #3f3f3f;
+            color: #aaaaaa;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .btn-secondary {
@@ -941,6 +1141,42 @@
         window.closeCreatePlaylistModal = closeCreatePlaylistModal;
 
         /**
+         * Show toast notification
+         */
+        function showToast(message, type = 'success', duration = 4000) {
+            // Remove existing toasts
+            const existingToasts = document.querySelectorAll('.toast');
+            existingToasts.forEach(toast => toast.remove());
+            
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+            
+            toast.innerHTML = `
+                <div class="toast-icon">${icons[type] || icons.info}</div>
+                <div class="toast-content">${escapeHtmlText(message)}</div>
+                <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Auto-remove after duration
+            setTimeout(() => {
+                toast.style.animation = 'fadeOut 0.3s ease-out';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+        
+        // Expose globally
+        window.showToast = showToast;
+
+        /**
          * Handle create playlist form submission
          */
         async function handleCreatePlaylist(event) {
@@ -949,6 +1185,7 @@
             const name = document.getElementById('playlistName').value.trim();
             const description = document.getElementById('playlistDescription').value.trim();
             const errorDiv = document.getElementById('createPlaylistError');
+            const submitBtn = event.target.querySelector('button[type="submit"]');
 
             if (!name) {
                 errorDiv.textContent = 'Le nom de la playlist est requis';
@@ -958,12 +1195,18 @@
 
             try {
                 errorDiv.style.display = 'none';
+                submitBtn.disabled = true;
+                submitBtn.textContent = '⏳ Création...';
                 
                 // Create playlist with empty videos array
                 const playlist = await createPlaylist(name, description, []);
 
                 if (playlist) {
+                    showToast(`Playlist "${name}" créée avec succès !`, 'success');
                     closeCreatePlaylistModal();
+                    
+                    // Small delay for smoother UX
+                    await new Promise(resolve => setTimeout(resolve, 300));
                     await loadUserPlaylists();
                 } else {
                     throw new Error('Failed to create playlist');
@@ -972,6 +1215,9 @@
                 console.error('Error creating playlist:', error);
                 errorDiv.textContent = `Erreur: ${error.message}`;
                 errorDiv.style.display = 'block';
+                showToast(`Erreur: ${error.message}`, 'error');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Créer';
             }
         }
         
@@ -1344,16 +1590,10 @@
             
             try {
                 await navigator.clipboard.writeText(playlistUrl);
-                
-                // Show toast notification
-                const toast = document.createElement('div');
-                toast.textContent = '✅ Lien copié !';
-                toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #4ade80; color: white; padding: 12px 20px; border-radius: 8px; z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.3);';
-                document.body.appendChild(toast);
-                setTimeout(() => toast.remove(), 3000);
+                showToast('Lien copié dans le presse-papiers !', 'success');
             } catch (error) {
                 console.error('Error copying link:', error);
-                alert('❌ Erreur lors de la copie du lien');
+                showToast('Erreur lors de la copie du lien', 'error');
             }
         }
         
@@ -1383,10 +1623,12 @@
                 if (typeof window.removeVideoFromPlaylist === 'function') {
                     const success = await window.removeVideoFromPlaylist(playlistId, videoEventId);
                     if (success) {
+                        showToast('Vidéo retirée de la playlist', 'success');
                         // Reload playlist
+                        await new Promise(resolve => setTimeout(resolve, 300));
                         await loadSpecificPlaylist(playlistId);
                     } else {
-                        alert('❌ Erreur lors de la suppression de la vidéo');
+                        showToast('Erreur lors de la suppression de la vidéo', 'error');
                         buttonElement.disabled = false;
                         buttonElement.textContent = originalText;
                     }
@@ -1409,14 +1651,16 @@
                 try {
                     const success = await window.reorderPlaylistVideos(playlistId, oldIndex, newIndex);
                     if (success) {
+                        showToast('Ordre de la playlist mis à jour', 'success');
                         // Reload playlist to show new order
+                        await new Promise(resolve => setTimeout(resolve, 300));
                         await loadSpecificPlaylist(playlistId);
                     } else {
-                        alert('❌ Erreur lors du déplacement de la vidéo');
+                        showToast('Erreur lors du déplacement de la vidéo', 'error');
                     }
                 } catch (error) {
                     console.error('Error moving video:', error);
-                    alert('❌ Erreur: ' + error.message);
+                    showToast(`Erreur: ${error.message}`, 'error');
                 }
             } else {
                 alert('❌ Fonction de réorganisation non disponible');
@@ -1430,12 +1674,13 @@
             if (typeof window.exportPlaylist === 'function') {
                 try {
                     await window.exportPlaylist(playlistId);
+                    showToast('Playlist exportée avec succès !', 'success');
                 } catch (error) {
                     console.error('Error exporting playlist:', error);
-                    alert('❌ Erreur lors de l\'export: ' + error.message);
+                    showToast(`Erreur lors de l'export: ${error.message}`, 'error');
                 }
             } else {
-                alert('❌ Fonction d\'export non disponible');
+                showToast('Fonction d\'export non disponible', 'error');
             }
         }
         
@@ -1445,45 +1690,90 @@
         async function editPlaylistMetadataUI(playlistId) {
             // Fetch playlist to get current data
             if (typeof window.fetchPlaylistEvent !== 'function') {
-                alert('❌ Fonction de récupération non disponible');
+                showToast('Fonction de récupération non disponible', 'error');
                 return;
             }
             
             try {
                 const playlistEvent = await window.fetchPlaylistEvent(playlistId);
                 if (!playlistEvent) {
-                    alert('❌ Playlist non trouvée');
+                    showToast('Playlist non trouvée', 'error');
                     return;
                 }
                 
                 const playlistData = JSON.parse(playlistEvent.content);
                 
                 // Show edit modal (reuse create modal structure)
-                const newName = prompt('Nouveau nom de la playlist:', playlistData.name);
-                if (newName === null) return; // User cancelled
+                const modal = document.getElementById('createPlaylistModal');
+                const form = document.getElementById('createPlaylistForm');
+                const nameInput = document.getElementById('playlistName');
+                const descInput = document.getElementById('playlistDescription');
+                const title = document.querySelector('#createPlaylistModal .modal-header h2');
+                const errorDiv = document.getElementById('createPlaylistError');
                 
-                const newDescription = prompt('Nouvelle description (optionnel):', playlistData.description || '');
-                if (newDescription === null) return; // User cancelled
+                // Update modal title
+                if (title) title.textContent = '✏️ Modifier la playlist';
                 
-                if (!newName.trim()) {
-                    alert('❌ Le nom ne peut pas être vide');
-                    return;
-                }
+                // Pre-fill form
+                nameInput.value = playlistData.name || '';
+                descInput.value = playlistData.description || '';
+                errorDiv.style.display = 'none';
                 
-                if (typeof window.updatePlaylistMetadata === 'function') {
-                    const success = await window.updatePlaylistMetadata(playlistId, newName.trim(), newDescription.trim());
-                    if (success) {
-                        // Reload playlist
-                        await loadSpecificPlaylist(playlistId);
-                    } else {
-                        alert('❌ Erreur lors de la mise à jour');
+                // Show modal
+                modal.classList.add('active');
+                nameInput.focus();
+                nameInput.select();
+                
+                // Replace form handler temporarily
+                const originalHandler = form.onsubmit;
+                form.onsubmit = async (e) => {
+                    e.preventDefault();
+                    
+                    const newName = nameInput.value.trim();
+                    const newDescription = descInput.value.trim();
+                    
+                    if (!newName) {
+                        errorDiv.textContent = 'Le nom ne peut pas être vide';
+                        errorDiv.style.display = 'block';
+                        return;
                     }
-                } else {
-                    alert('❌ Fonction de mise à jour non disponible');
-                }
+                    
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = '⏳ Mise à jour...';
+                    
+                    try {
+                        if (typeof window.updatePlaylistMetadata === 'function') {
+                            const success = await window.updatePlaylistMetadata(playlistId, newName, newDescription);
+                            if (success) {
+                                showToast(`Playlist "${newName}" mise à jour avec succès !`, 'success');
+                                closeCreatePlaylistModal();
+                                
+                                // Restore original handler
+                                form.onsubmit = originalHandler;
+                                
+                                // Reload playlist
+                                await new Promise(resolve => setTimeout(resolve, 300));
+                                await loadSpecificPlaylist(playlistId);
+                            } else {
+                                throw new Error('Erreur lors de la mise à jour');
+                            }
+                        } else {
+                            throw new Error('Fonction de mise à jour non disponible');
+                        }
+                    } catch (error) {
+                        console.error('Error updating playlist:', error);
+                        errorDiv.textContent = `Erreur: ${error.message}`;
+                        errorDiv.style.display = 'block';
+                        showToast(`Erreur: ${error.message}`, 'error');
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Enregistrer';
+                    }
+                };
+                
             } catch (error) {
                 console.error('Error editing playlist:', error);
-                alert('❌ Erreur: ' + error.message);
+                showToast(`Erreur: ${error.message}`, 'error');
             }
         }
         
@@ -1492,7 +1782,47 @@
          * Uses NIP-09 kind 5 (Event Deletion Request)
          */
         async function deletePlaylistUI(playlistId) {
-            if (!confirm('⚠️ Êtes-vous sûr de vouloir supprimer cette playlist ? Cette action est irréversible.')) {
+            // Show custom confirmation dialog instead of browser confirm
+            const confirmed = await new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 10002; display: flex; align-items: center; justify-content: center;';
+                
+                const dialog = document.createElement('div');
+                dialog.style.cssText = 'background: #181818; border: 1px solid #3f3f3f; border-radius: 16px; padding: 32px; max-width: 400px; width: 90%; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);';
+                dialog.innerHTML = `
+                    <div style="margin-bottom: 24px;">
+                        <div style="font-size: 48px; text-align: center; margin-bottom: 16px;">⚠️</div>
+                        <h3 style="font-size: 1.3em; margin-bottom: 12px; color: #f1f1f1;">Supprimer la playlist ?</h3>
+                        <p style="color: #aaaaaa; line-height: 1.6;">Cette action est irréversible. La playlist sera supprimée définitivement.</p>
+                    </div>
+                    <div style="display: flex; gap: 12px;">
+                        <button id="confirm-delete-cancel" style="flex: 1; background: transparent; border: 1px solid #3f3f3f; color: #f1f1f1; padding: 12px 24px; border-radius: 20px; font-size: 0.9em; cursor: pointer; transition: all 0.2s;">Annuler</button>
+                        <button id="confirm-delete-ok" style="flex: 1; background: #ef4444; border: none; color: #ffffff; padding: 12px 24px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s;">Supprimer</button>
+                    </div>
+                `;
+                
+                overlay.appendChild(dialog);
+                document.body.appendChild(overlay);
+                
+                dialog.querySelector('#confirm-delete-cancel').onclick = () => {
+                    overlay.remove();
+                    resolve(false);
+                };
+                
+                dialog.querySelector('#confirm-delete-ok').onclick = () => {
+                    overlay.remove();
+                    resolve(true);
+                };
+                
+                overlay.onclick = (e) => {
+                    if (e.target === overlay) {
+                        overlay.remove();
+                        resolve(false);
+                    }
+                };
+            });
+            
+            if (!confirmed) {
                 return;
             }
             
@@ -1559,12 +1889,16 @@
                 
                 console.log('✅ Playlist deletion event published (kind 5):', signedEvent.id);
                 
-                // Redirect to playlist list
-                window.location.href = '/playlist';
+                showToast('Playlist supprimée avec succès', 'success');
+                
+                // Redirect to playlist list after a short delay
+                setTimeout(() => {
+                    window.location.href = '/playlist';
+                }, 1000);
                 
             } catch (error) {
                 console.error('Error deleting playlist:', error);
-                alert('❌ Erreur lors de la suppression: ' + error.message);
+                showToast(`Erreur lors de la suppression: ${error.message}`, 'error');
             }
         }
         

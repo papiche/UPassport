@@ -1413,6 +1413,85 @@
             background: #0f0f0f;
         }
         
+        /* Playlist Selection Modal Styles */
+        .playlist-select-item {
+            background: #181818;
+            border: 1px solid #3f3f3f;
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        
+        .playlist-select-item:hover {
+            background: #212121;
+            border-color: #3ea6ff;
+            transform: translateY(-2px);
+        }
+        
+        .playlist-select-item.selected {
+            background: rgba(62, 166, 255, 0.15);
+            border-color: #3ea6ff;
+        }
+        
+        .playlist-select-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .playlist-select-item-name {
+            font-weight: 500;
+            color: #f1f1f1;
+            margin-bottom: 4px;
+            font-size: 1em;
+        }
+        
+        .playlist-select-item-meta {
+            font-size: 0.85em;
+            color: #aaaaaa;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .playlist-select-item-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+        
+        .playlist-select-item-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .playlist-select-add-btn {
+            background: #3ea6ff;
+            border: none;
+            color: #ffffff;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        
+        .playlist-select-add-btn:hover {
+            background: #2d8ce8;
+        }
+        
+        .playlist-select-add-btn:disabled {
+            background: #3f3f3f;
+            color: #aaaaaa;
+            cursor: not-allowed;
+        }
+        
         @media (max-width: 768px) {
             .iframe-modal-container {
                 width: 100%;
@@ -1518,7 +1597,7 @@
                     <div id="nostr-header-status" style="display: flex; align-items: center; gap: 8px;">
                         <span id="nostr-status-text" style="font-size: 0.8em; color: #aaaaaa;">Not connected</span>
                         <button id="nostr-connect-btn-header" onclick="handleNostrConnectYoutube()" class="upload-btn" style="background: transparent; color: #3ea6ff; border: 1px solid #3f3f3f; padding: 6px 12px; border-radius: 18px; font-size: 0.85em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
-                            🔌 <span data-i18n="connect">Connect</span>
+                            🔌 <span data-i18n="connect_publish">Connect & Publish</span>
                         </button>
                         <button id="nostr-profile-btn-header" onclick="openNostrProfileYoutube()" class="upload-btn" style="display: none; background: transparent; color: #4ade80; border: 1px solid #3f3f3f; padding: 6px 12px; border-radius: 18px; font-size: 0.85em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
                             👤 <span data-i18n="profile">Profile</span>
@@ -1763,6 +1842,32 @@
         </div>
     </div>
     
+    <!-- Playlist Selection Modal -->
+    <div id="playlist-select-modal" class="iframe-modal" style="display: none;">
+        <div class="iframe-modal-overlay" onclick="closePlaylistSelectModal()"></div>
+        <div class="iframe-modal-container" style="max-width: 600px;">
+            <div class="iframe-modal-header">
+                <h3 id="playlist-select-title">📋 Ajouter à la playlist</h3>
+                <div class="iframe-modal-header-actions">
+                    <button class="iframe-modal-close" onclick="closePlaylistSelectModal()">&times;</button>
+                </div>
+            </div>
+            <div class="iframe-modal-content" style="padding: 24px; max-height: 70vh; overflow-y: auto;">
+                <div id="playlist-select-loading" class="loading" style="display: none; text-align: center; padding: 40px;">
+                    Chargement des playlists...
+                </div>
+                <div id="playlist-select-list" style="display: grid; gap: 12px;"></div>
+                <div id="playlist-select-empty" style="display: none; text-align: center; padding: 40px; color: #aaaaaa;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">📋</div>
+                    <p style="margin-bottom: 16px;">Vous n'avez aucune playlist</p>
+                    <button onclick="closePlaylistSelectModal(); openPlaylistManager();" class="btn-primary" style="background: #3ea6ff; border: none; color: #ffffff; padding: 10px 20px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer;">
+                        ➕ Créer une playlist
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Map View -->
     <div class="map-view" id="mapView">
         <div class="map-header">
@@ -1963,6 +2068,7 @@
                 connect_nostr_bookmark: "Vous devez vous connecter avec NOSTR pour bookmarker cette vidéo",
                 connect_nostr_like: "Vous devez vous connecter avec NOSTR pour liker cette vidéo",
                 connect: "Connect",
+                connect_publish: "Connect & Publish",
                 profile: "Profile",
                 n2_protocol_title: "Comment fonctionne la synchronisation décentralisée N² ?",
                 n2_principle: "🎯 Le principe : \"Les amis de mes amis sont mes amis\"",
@@ -2038,6 +2144,7 @@
                 connect_nostr_bookmark: "You must connect with NOSTR to bookmark this video",
                 connect_nostr_like: "You must connect with NOSTR to like this video",
                 connect: "Connect",
+                connect_publish: "Connect & Publish",
                 profile: "Profile",
                 n2_protocol_title: "How does N² decentralized synchronization work?",
                 n2_principle: "🎯 The principle: \"Friends of my friends are my friends\"",
@@ -2113,6 +2220,7 @@
                 connect_nostr_bookmark: "Debe conectarse con NOSTR para marcar este video",
                 connect_nostr_like: "Debe conectarse con NOSTR para dar me gusta a este video",
                 connect: "Conectar",
+                connect_publish: "Conectar y Publicar",
                 profile: "Perfil",
                 n2_protocol_title: "¿Cómo funciona la sincronización descentralizada N²?",
                 n2_principle: "🎯 El principio: \"Los amigos de mis amigos son mis amigos\"",
@@ -2398,6 +2506,23 @@
                 videoPlayer.innerHTML = 'Votre navigateur ne supporte pas la lecture vidéo.';
                 videoPlayer.load();
             } else {
+                // Stop all other playing videos first
+                document.querySelectorAll('.video-thumbnail.playing').forEach(otherThumbnail => {
+                    if (otherThumbnail !== videoContainer) {
+                        const otherPlayer = otherThumbnail.querySelector('.inline-video-player');
+                        if (otherPlayer) {
+                            otherPlayer.pause();
+                            otherPlayer.currentTime = 0;
+                        }
+                        otherThumbnail.classList.remove('playing');
+                        if (otherPlayer) {
+                            otherPlayer.style.display = 'none';
+                            otherPlayer.innerHTML = 'Votre navigateur ne supporte pas la lecture vidéo.';
+                            otherPlayer.load();
+                        }
+                    }
+                });
+                
                 // Start playing
                 const ipfsUrl = videoPlayer.getAttribute('data-ipfs-url');
                 // Use converted URL if available, otherwise convert now
@@ -3032,103 +3157,272 @@
                 return;
             }
             
-            // Fetch user's playlists
+            // Get video card element to extract IPFS URL
+            const videoCard = button.closest('.video');
+            const videoPlayer = videoCard?.querySelector('.inline-video-player');
+            const ipfsUrl = videoPlayer?.getAttribute('data-ipfs-url') || null;
+            
+            // Store button reference for later
+            window._currentAddToPlaylistButton = button;
+            window._currentVideoData = { eventId, authorId, title, ipfsUrl };
+            
+            // Open playlist selection modal
+            await openPlaylistSelectModal();
+        }
+        
+        /**
+         * Open playlist selection modal
+         */
+        async function openPlaylistSelectModal() {
+            const modal = document.getElementById('playlist-select-modal');
+            const loading = document.getElementById('playlist-select-loading');
+            const list = document.getElementById('playlist-select-list');
+            const empty = document.getElementById('playlist-select-empty');
+            
+            if (!modal) return;
+            
+            // Show modal and loading
+            modal.style.display = 'flex';
+            loading.style.display = 'block';
+            list.style.display = 'none';
+            empty.style.display = 'none';
+            list.innerHTML = '';
+            
+            // Prevent body scroll
+            document.body.style.overflow = 'hidden';
+            
             try {
+                // Ensure relay connection
                 if (!nostrRelay || !isNostrConnected) {
                     if (typeof connectToRelay === 'function') {
                         await connectToRelay();
                     } else {
-                        alert('❌ Impossible de se connecter au relay. Assurez-vous que common.js est chargé.');
-                        return;
+                        throw new Error('Impossible de se connecter au relay');
                     }
                 }
 
+                // Fetch user's playlists (kind 30005 and 10001 for backward compatibility)
                 const playlists = await new Promise((resolve) => {
-                    const sub = nostrRelay.sub([{
-                        kinds: [10001],
-                        authors: [userPubkey],
-                        limit: 20
-                    }]);
-
-                    const playlistList = [];
-                    const timeout = setTimeout(() => {
-                        sub.unsub();
-                        resolve(playlistList);
-                    }, 3000);
-
-                    sub.on('event', (event) => {
-                        try {
-                            const playlistData = JSON.parse(event.content);
-                            playlistList.push({
-                                id: event.id,
-                                name: playlistData.name || 'Untitled',
-                                event: event
+                    // First, fetch deletion events
+                    const deletions = new Promise((resolveDeletions) => {
+                        const deleteSub = nostrRelay.sub([{
+                            kinds: [5],
+                            authors: [userPubkey],
+                            limit: 1000
+                        }]);
+                        
+                        const deletionSet = new Set();
+                        const deleteTimeout = setTimeout(() => {
+                            deleteSub.unsub();
+                            resolveDeletions(deletionSet);
+                        }, 3000);
+                        
+                        deleteSub.on('event', (event) => {
+                            event.tags.forEach(tag => {
+                                if (tag[0] === 'e') {
+                                    deletionSet.add(tag[1]);
+                                } else if (tag[0] === 'a') {
+                                    deletionSet.add(tag[1]);
+                                }
                             });
-                        } catch (e) {
-                            console.warn('Error parsing playlist:', e);
-                        }
+                        });
+                        
+                        deleteSub.on('eose', () => {
+                            clearTimeout(deleteTimeout);
+                            deleteSub.unsub();
+                            resolveDeletions(deletionSet);
+                        });
                     });
+                    
+                    deletions.then((deletionSet) => {
+                        const sub = nostrRelay.sub([{
+                            kinds: [30005, 10001],
+                            authors: [userPubkey],
+                            limit: 100
+                        }]);
 
-                    sub.on('eose', () => {
-                        clearTimeout(timeout);
-                        sub.unsub();
-                        resolve(playlistList);
+                        const playlistList = [];
+                        const timeout = setTimeout(() => {
+                            sub.unsub();
+                            resolve(playlistList);
+                        }, 5000);
+
+                        sub.on('event', (event) => {
+                            try {
+                                // Check if deleted
+                                const dTag = event.tags.find(t => t[0] === 'd')?.[1];
+                                const isDeleted = deletionSet.has(event.id) || 
+                                                 (dTag && deletionSet.has(`${event.kind}:${event.pubkey}:${dTag}`));
+                                if (isDeleted) return;
+                                
+                                const playlistData = JSON.parse(event.content);
+                                playlistList.push({
+                                    id: event.id,
+                                    dTag: dTag,
+                                    name: playlistData.name || 'Untitled',
+                                    description: playlistData.description || '',
+                                    videoCount: (playlistData.videos || []).length,
+                                    event: event
+                                });
+                            } catch (e) {
+                                console.warn('Error parsing playlist:', e);
+                            }
+                        });
+
+                        sub.on('eose', () => {
+                            clearTimeout(timeout);
+                            sub.unsub();
+                            resolve(playlistList);
+                        });
                     });
                 });
 
+                loading.style.display = 'none';
+
                 if (playlists.length === 0) {
-                    if (confirm('Vous n\'avez aucune playlist. Voulez-vous en créer une ?')) {
-                        window.open('/playlist', '_blank');
-                    }
+                    empty.style.display = 'block';
                     return;
                 }
 
-                // Show playlist selection dialog
-                const selection = prompt(
-                    `Choisissez une playlist (tapez le numéro):\n\n${playlists.map((p, i) => `${i + 1}. ${p.name}`).join('\n')}`
-                );
-
-                if (selection === null) return;
-
-                const index = parseInt(selection) - 1;
-                if (isNaN(index) || index < 0 || index >= playlists.length) {
-                    alert('❌ Sélection invalide');
-                    return;
-                }
-
-                const selectedPlaylist = playlists[index];
+                // Render playlists
+                list.innerHTML = playlists.map(playlist => {
+                    const playlistIdentifier = playlist.dTag || playlist.id;
+                    return `
+                        <div class="playlist-select-item" data-playlist-id="${playlist.id}" data-playlist-dtag="${playlist.dTag || ''}">
+                            <div class="playlist-select-item-icon">📋</div>
+                            <div class="playlist-select-item-info">
+                                <div class="playlist-select-item-name">${escapeHtmlText(playlist.name)}</div>
+                                <div class="playlist-select-item-meta">
+                                    <span>${playlist.videoCount} vidéo${playlist.videoCount > 1 ? 's' : ''}</span>
+                                    ${playlist.description ? `<span>•</span><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtmlText(playlist.description)}</span>` : ''}
+                                </div>
+                            </div>
+                            <div class="playlist-select-item-actions">
+                                <button class="playlist-select-add-btn" onclick="selectPlaylistAndAdd('${playlist.id}', '${playlistIdentifier}')">
+                                    ➕ Ajouter
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
                 
-            button.disabled = true;
-            button.textContent = '⏳';
+                list.style.display = 'grid';
                 
+            } catch (error) {
+                console.error('Error loading playlists:', error);
+                loading.style.display = 'none';
+                list.innerHTML = `<div style="text-align: center; padding: 40px; color: #ef4444;">❌ Erreur: ${error.message}</div>`;
+                list.style.display = 'block';
+            }
+        }
+        
+        /**
+         * Select playlist and add video
+         */
+        async function selectPlaylistAndAdd(playlistId, playlistIdentifier) {
+            const button = window._currentAddToPlaylistButton;
+            const videoData = window._currentVideoData;
+            
+            if (!button || !videoData) {
+                console.error('No video data stored');
+                return;
+            }
+            
+            const { eventId, authorId, title, ipfsUrl } = videoData;
+            
+            // Disable all add buttons
+            document.querySelectorAll('.playlist-select-add-btn').forEach(btn => {
+                btn.disabled = true;
+                btn.textContent = '⏳';
+            });
+            
+            try {
                 // Try to use addToPlaylist from youtube.enhancements.js
+                // This function should handle both eventId and ipfsUrl
                 if (typeof window.addToPlaylist === 'function') {
-                    const success = await window.addToPlaylist(selectedPlaylist.id, eventId);
+                    // Pass eventId and ipfsUrl as an object or separately
+                    // Check if function accepts two params (eventId) or more (eventId, ipfsUrl)
+                    // For now, we'll pass just eventId and modify addToPlaylist to accept ipfsUrl
+                    const success = await window.addToPlaylist(playlistId, eventId, ipfsUrl);
                     if (success) {
+                        // Show success feedback
+                        const item = document.querySelector(`[data-playlist-id="${playlistId}"]`);
+                        if (item) {
+                            item.classList.add('selected');
+                            const btn = item.querySelector('.playlist-select-add-btn');
+                            if (btn) {
+                                btn.textContent = '✅ Ajouté';
+                                btn.style.background = '#4ade80';
+                            }
+                        }
+                        
+                        // Update button
                         button.textContent = '✅';
                         setTimeout(() => {
                             button.textContent = '➕';
-                            button.disabled = false;
                         }, 3000);
-                    } else {
-                        button.textContent = '❌';
+                        
+                        // Close modal after a short delay
                         setTimeout(() => {
-                            button.textContent = '➕';
-                            button.disabled = false;
-                        }, 3000);
+                            closePlaylistSelectModal();
+                        }, 1500);
+                    } else {
+                        throw new Error('Failed to add video to playlist');
                     }
                 } else {
-                    alert('❌ Fonction addToPlaylist non disponible. Assurez-vous que youtube.enhancements.js est chargé.');
-                    button.disabled = false;
-                    button.textContent = '➕';
+                    // Fallback: try to add manually
+                    // This would require implementing the full logic here
+                    // For now, show error
+                    throw new Error('Fonction addToPlaylist non disponible');
                 }
             } catch (error) {
                 console.error('Error adding to playlist:', error);
                 alert('❌ Erreur: ' + error.message);
-                button.disabled = false;
-                button.textContent = '➕';
+                
+                // Re-enable buttons
+                document.querySelectorAll('.playlist-select-add-btn').forEach(btn => {
+                    btn.disabled = false;
+                    btn.textContent = '➕ Ajouter';
+                });
             }
         }
+        
+        /**
+         * Close playlist selection modal
+         */
+        function closePlaylistSelectModal() {
+            const modal = document.getElementById('playlist-select-modal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            
+            // Restore body scroll
+            document.body.style.overflow = '';
+            
+            // Clear stored data
+            window._currentAddToPlaylistButton = null;
+            window._currentVideoData = null;
+        }
+        
+        /**
+         * Escape HTML text (fallback if not available from youtube.enhancements.js)
+         */
+        function escapeHtmlText(text) {
+            if (typeof window.escapeHtml === 'function') {
+                return window.escapeHtml(text);
+            }
+            if (typeof text !== 'string') return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Expose functions globally
+        window.addVideoToPlaylist = addVideoToPlaylist;
+        window.openPlaylistSelectModal = openPlaylistSelectModal;
+        window.selectPlaylistAndAdd = selectPlaylistAndAdd;
+        window.closePlaylistSelectModal = closePlaylistSelectModal;
+        window.escapeHtmlText = escapeHtmlText;
         
         /**
          * Like a video on NOSTR (send reaction event)
@@ -3645,6 +3939,11 @@
                     if (playlistManagerBtn) {
                         playlistManagerBtn.style.display = 'flex';
                     }
+                    
+                    // Automatically open webcam modal after successful connection
+                    // Wait a bit more for everything to be ready
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    openWebcamModal();
                 } else {
                     // Failed
                     const webcamBtn = document.getElementById('webcam-upload-btn');
