@@ -996,11 +996,43 @@
                 const comments = [];
                 
                 // Add original comment if available (from event 21/22 content)
+                // This is the initial comment/description posted with the video by the author
                 if (originalContent && originalContent.trim()) {
+                    // Get author name - try to fetch from profile or use a default
+                    let authorName = 'Auteur de la vidéo';
+                    if (authorId) {
+                        try {
+                            if (typeof fetchProfile !== 'undefined') {
+                                const profile = await fetchProfile(authorId);
+                                if (profile && profile.display_name) {
+                                    authorName = profile.display_name;
+                                } else if (profile && profile.name) {
+                                    authorName = profile.name;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Could not fetch profile for original comment author:', e);
+                            // Try to get from uploader name if available in parent window
+                            if (typeof window !== 'undefined' && window.parent) {
+                                try {
+                                    const theaterUploaderEl = window.parent.document.getElementById('theaterUploader');
+                                    if (theaterUploaderEl) {
+                                        const uploaderText = theaterUploaderEl.textContent || theaterUploaderEl.innerText;
+                                        if (uploaderText && uploaderText !== 'Loading...') {
+                                            authorName = uploaderText.trim();
+                                        }
+                                    }
+                                } catch (err) {
+                                    // Fallback to default
+                                }
+                            }
+                        }
+                    }
+                    
                     comments.push({
                         id: eventId,
                         authorId: authorId,
-                        authorName: 'Original',
+                        authorName: authorName,
                         content: originalContent,
                         timestamp: null,
                         isOriginal: true,

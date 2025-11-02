@@ -2281,6 +2281,7 @@ async def youtube_route(
             normalized_video = {
                 'title': video.get('title', ''),
                 'uploader': video.get('uploader', ''),
+                'content': video.get('content', ''),  # Comment/description from NOSTR event (NIP-71)
                 'duration': int(video.get('duration', 0)) if str(video.get('duration', 0)).isdigit() else 0,
                 'ipfs_url': video.get('ipfs_url', ''),
                 'youtube_url': video.get('youtube_url', '') or video.get('original_url', ''),
@@ -2462,7 +2463,8 @@ async def youtube_route(
                                 'author_id': v.get('author_id', ''),
                                 'uploader': v.get('uploader', ''),
                                 'channel': v.get('channel_name', ''),
-                                'duration': v.get('duration', 0)
+                                'duration': v.get('duration', 0),
+                                'content': v.get('content', '')  # Comment/description from event
                             }
                             break
                     if auto_open_video:
@@ -2480,7 +2482,8 @@ async def youtube_route(
                                 'author_id': v.get('author_id', ''),
                                 'uploader': v.get('uploader', ''),
                                 'channel': v.get('channel_name', ''),
-                                'duration': v.get('duration', 0)
+                                'duration': v.get('duration', 0),
+                                'content': v.get('content', '')  # Comment/description from event
                             }
                             break
             

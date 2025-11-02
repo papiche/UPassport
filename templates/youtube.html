@@ -3257,6 +3257,10 @@
             // Extract uploader from meta (first line, before •)
             const uploader = videoMeta.split('\n')[0].split('•')[0].trim() || 'Auteur inconnu';
             
+            // Extract content/description if available
+            const descriptionEl = videoCard.querySelector('.video-description');
+            const content = descriptionEl ? descriptionEl.textContent.trim() : '';
+            
             // Extract video data
             const videoData = {
                 title: videoTitle,
@@ -3271,7 +3275,8 @@
                     const match = videoMeta.match(/(\d+):(\d+)/);
                     return match ? parseInt(match[1]) * 60 + parseInt(match[2]) : null;
                 })(),
-                description: '' // Add if available in video data
+                content: content,  // Comment/description from NOSTR event
+                description: content  // Alias for compatibility
             };
             
             // Check if openTheaterMode is available from enhancements.js (check both global and window)
