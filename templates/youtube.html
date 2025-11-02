@@ -1169,6 +1169,35 @@
             font-weight: 500;
         }
         
+        .iframe-modal-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .iframe-modal-open-new {
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #94a3b8;
+            font-size: 1em;
+            cursor: pointer;
+            padding: 6px 12px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 16px;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        .iframe-modal-open-new:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #606060;
+            color: #ffffff;
+        }
+        
         .iframe-modal-close {
             background: none;
             border: none;
@@ -1218,6 +1247,12 @@
             
             .iframe-modal-header h3 {
                 font-size: 1em;
+            }
+            
+            .iframe-modal-open-new {
+                padding: 4px 8px;
+                font-size: 0.85em;
+                height: 28px;
             }
             
             .iframe-modal-close {
@@ -1506,7 +1541,12 @@
         <div class="iframe-modal-container">
             <div class="iframe-modal-header">
                 <h3 id="iframe-modal-title"></h3>
-                <button class="iframe-modal-close" onclick="closeIframeModal()">&times;</button>
+                <div class="iframe-modal-header-actions">
+                    <button class="iframe-modal-open-new" id="iframe-modal-open-new" onclick="openIframeInNewWindow()" title="Ouvrir dans une nouvelle fenêtre" style="display: none;">
+                        🔗 Ouvrir
+                    </button>
+                    <button class="iframe-modal-close" onclick="closeIframeModal()">&times;</button>
+                </div>
             </div>
             <div class="iframe-modal-content">
                 <iframe id="iframe-modal-iframe" src="" frameborder="0"></iframe>
@@ -2446,7 +2486,7 @@
         // ========================================
         
         /**
-         * Share a video on NOSTR
+         * Share a video on NOSTR - opens share modal with preview
          */
         async function shareVideo(button) {
             const title = button.getAttribute('data-title');
@@ -2468,43 +2508,82 @@
                 }
             }
             
+            // Get video card element to extract more data
+            const videoCard = button.closest('.video');
+            const thumbnailImg = videoCard?.querySelector('.thumbnail-img');
+            const videoPlayer = videoCard?.querySelector('.inline-video-player');
+            
+            // Extract thumbnail URL
+            let thumbnailUrl = null;
+            if (thumbnailImg) {
+                // Use converted URL if available, otherwise get from src or data-ipfs-url
+                thumbnailUrl = thumbnailImg.src || thumbnailImg.getAttribute('data-ipfs-url-converted') || thumbnailImg.getAttribute('data-ipfs-url');
+            }
+            
+            // Extract event ID and author ID if available
+            const eventId = videoPlayer?.getAttribute('data-event-id') || null;
+            const authorId = videoPlayer?.getAttribute('data-author-id') || null;
+            const channel = videoCard?.getAttribute('data-channel') || null;
+            
             // Use convertIPFSUrlGlobal if available (from youtube.enhancements.js)
             const convertFn = typeof convertIPFSUrlGlobal !== 'undefined' ? convertIPFSUrlGlobal : convertIPFSUrl;
             const fullUrl = convertFn(ipfsUrl);
             
-            // Get current NOSTR Tube gateway URL
-            const currentURL = window.location.origin;
-            const nostrTubeLink = `${currentURL}/youtube?html=1`;
+            // Prepare video data for share modal
+            const videoData = {
+                title: title || 'Untitled',
+                ipfsUrl: fullUrl,
+                thumbnailUrl: thumbnailUrl,
+                uploader: author || 'Unknown',
+                channel: channel,
+                eventId: eventId,
+                authorId: authorId
+            };
             
-            const message = `🎬 ${title}\n\n📹 ${fullUrl}\n\n🎞️ Watch on NOSTR Tube: ${nostrTubeLink}\n\n#NostrTube #Video`;
-            
-            const tags = [
-                ['r', fullUrl],
-                ['r', nostrTubeLink, 'web'],
-                ['title', title],
-                ['t', 'NostrTube'],
-                ['t', 'Video']
-            ];
-            
-            button.disabled = true;
-            button.textContent = '⏳ ' + t('sharing');
-            
-            try {
-                const result = await publishNote(message, tags);
-                if (result) {
-                    button.textContent = '✅ ' + t('shared');
+            // Use shareVideoWithPreview from youtube.enhancements.js if available
+            if (typeof window.shareVideoWithPreview === 'function') {
+                try {
+                    await window.shareVideoWithPreview(videoData);
+                } catch (error) {
+                    console.error('Error opening share modal:', error);
+                    alert('Erreur lors de l\'ouverture du modal de partage: ' + error.message);
+                }
+            } else {
+                // Fallback to old behavior if function not available
+                console.warn('shareVideoWithPreview not available, using fallback');
+                const currentURL = window.location.origin;
+                const nostrTubeLink = eventId ? `${currentURL}/youtube?html=1&video=${eventId}` : `${currentURL}/youtube?html=1`;
+                
+                const message = `🎬 ${title}\n\n📹 ${fullUrl}\n\n🎞️ Watch on NOSTR Tube: ${nostrTubeLink}\n\n#NostrTube #Video`;
+                
+                const tags = [
+                    ['r', fullUrl],
+                    ['r', nostrTubeLink, 'web'],
+                    ['title', title],
+                    ['t', 'NostrTube'],
+                    ['t', 'Video']
+                ];
+                
+                button.disabled = true;
+                button.textContent = '⏳ ' + t('sharing');
+                
+                try {
+                    const result = await publishNote(message, tags);
+                    if (result) {
+                        button.textContent = '✅ ' + t('shared');
+                        setTimeout(() => {
+                            button.textContent = '📡 ' + t('share');
+                            button.disabled = false;
+                        }, 3000);
+                    }
+                } catch (error) {
+                    console.error('Error sharing video:', error);
+                    button.textContent = '❌ ' + t('error');
                     setTimeout(() => {
                         button.textContent = '📡 ' + t('share');
                         button.disabled = false;
                     }, 3000);
                 }
-            } catch (error) {
-                console.error('Error sharing video:', error);
-                button.textContent = '❌ ' + t('error');
-                setTimeout(() => {
-                    button.textContent = '📡 ' + t('share');
-                    button.disabled = false;
-                }, 3000);
             }
         }
         
@@ -3189,10 +3268,10 @@
         }
         
         /**
-         * Open playlist manager in modal
+         * Open playlist manager in a new window
          */
         function openPlaylistManagerModal() {
-            openIframeModal('/playlist', '📋 Mes Playlists');
+            window.open('/playlist', '_blank', 'noopener,noreferrer');
         }
         
         /**
@@ -3202,11 +3281,29 @@
             const modal = document.getElementById('iframe-modal');
             const iframe = document.getElementById('iframe-modal-iframe');
             const titleEl = document.getElementById('iframe-modal-title');
+            const openNewBtn = document.getElementById('iframe-modal-open-new');
             
             if (!modal || !iframe) return;
             
             if (titleEl && title) {
                 titleEl.textContent = title;
+            }
+            
+            // Store URL for "open in new window" button
+            if (iframe.dataset) {
+                iframe.dataset.currentUrl = url;
+            } else {
+                iframe.setAttribute('data-current-url', url);
+            }
+            
+            // Show/hide "Open in new window" button based on URL type
+            // Only show for profile viewer (nostr_profile_viewer.html)
+            if (openNewBtn) {
+                if (url && url.includes('nostr_profile_viewer.html')) {
+                    openNewBtn.style.display = 'flex';
+                } else {
+                    openNewBtn.style.display = 'none';
+                }
             }
             
             // Reset iframe src to ensure clean load
@@ -3223,6 +3320,26 @@
                 // Prevent body scroll when modal is open
                 document.body.style.overflow = 'hidden';
             }, 50);
+        }
+        
+        /**
+         * Open iframe content in a new window
+         */
+        function openIframeInNewWindow() {
+            const iframe = document.getElementById('iframe-modal-iframe');
+            if (!iframe) return;
+            
+            // Get current URL from iframe data attribute or src
+            let url = null;
+            if (iframe.dataset && iframe.dataset.currentUrl) {
+                url = iframe.dataset.currentUrl;
+            } else {
+                url = iframe.getAttribute('data-current-url') || iframe.src;
+            }
+            
+            if (url) {
+                window.open(url, '_blank', 'noopener,noreferrer');
+            }
         }
         
         // Listen for messages from iframes requesting NOSTR extension access

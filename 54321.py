@@ -2214,11 +2214,16 @@ async def theater_modal_route(request: Request):
     return templates.TemplateResponse("theater-modal.html", {"request": request})
 
 @app.get("/playlist", response_class=HTMLResponse)
-async def playlist_manager_route(request: Request):
-    """Playlist manager for creating and managing video playlists"""
+async def playlist_manager_route(request: Request, id: Optional[str] = None):
+    """Playlist manager for creating and managing video playlists
+    
+    Args:
+        id: Optional playlist ID to open a specific playlist directly
+    """
     return templates.TemplateResponse("playlist-manager.html", {
         "request": request,
-        "myIPFS": get_myipfs_gateway()
+        "myIPFS": get_myipfs_gateway(),
+        "playlist_id": id
     })
 
 @app.get("/youtube")

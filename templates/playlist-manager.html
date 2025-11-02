@@ -551,6 +551,28 @@
         }
         
         // ========================================
+        // UTILITY FUNCTIONS
+        // ========================================
+        
+        /**
+         * Get playlist ID from URL or server template
+         * Must be defined before DOMContentLoaded uses it
+         */
+        function getPlaylistIdFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            let playlistId = urlParams.get('id');
+            {% if playlist_id %}
+            if (!playlistId) {
+                playlistId = '{{ playlist_id }}';
+            }
+            {% endif %}
+            return playlistId;
+        }
+        
+        // Expose globally
+        window.getPlaylistIdFromUrl = getPlaylistIdFromUrl;
+        
+        // ========================================
         // MAIN INITIALIZATION
         // ========================================
         
@@ -589,8 +611,16 @@
                 window.userPubkey = currentUserPubkey;
             }
 
-            // Load user's playlists
-            await loadUserPlaylists();
+            // Check if a specific playlist ID is requested via URL parameter
+            const playlistId = getPlaylistIdFromUrl();
+            
+            if (playlistId) {
+                // Load and display specific playlist
+                await loadSpecificPlaylist(playlistId);
+            } else {
+                // Load user's playlists list
+                await loadUserPlaylists();
+            }
         });
 
         /**
@@ -609,22 +639,61 @@
                     isNostrConnected = window.parent.isNostrConnected;
                     window.isNostrConnected = isNostrConnected;
                 }
+                if (window.parent.userPubkey && !userPubkey) {
+                    userPubkey = window.parent.userPubkey;
+                    window.userPubkey = userPubkey;
+                }
             }
             
-            if (!nostrRelay || !isNostrConnected) {
-                if (typeof connectToRelay === 'function') {
-                    await connectToRelay();
-                } else if (isInIframe && window.parent && typeof window.parent.connectToRelay === 'function') {
-                    await window.parent.connectToRelay();
-                    nostrRelay = window.parent.nostrRelay || null;
-                    isNostrConnected = window.parent.isNostrConnected || false;
+            // If not in iframe or connection not available from parent, establish local connection
+            if (!nostrRelay || !isNostrConnected || !userPubkey) {
+                // First, try to connect via common.js if not connected
+                if (!userPubkey && typeof connectNostr === 'function') {
+                    const pubkey = await connectNostr();
+                    if (pubkey) {
+                        userPubkey = pubkey;
+                        window.userPubkey = pubkey;
+                    }
                 }
+                
+                // Then, connect to relay
+                if (!nostrRelay || !isNostrConnected) {
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                        // Update variables after connection
+                        if (typeof nostrRelay !== 'undefined') {
+                            window.nostrRelay = nostrRelay;
+                        }
+                        if (typeof isNostrConnected !== 'undefined') {
+                            window.isNostrConnected = isNostrConnected;
+                        }
+                    } else if (isInIframe && window.parent && typeof window.parent.connectToRelay === 'function') {
+                        await window.parent.connectToRelay();
+                        nostrRelay = window.parent.nostrRelay || null;
+                        isNostrConnected = window.parent.isNostrConnected || false;
+                    }
+                }
+            }
+
+            // Final check
+            if (!userPubkey) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔒</div>
+                        <h3>Connexion requise</h3>
+                        <p>Connectez-vous avec NOSTR pour voir vos playlists</p>
+                        <button class="btn-create-playlist" onclick="connectAndLoadPlaylists()" style="margin-top: 16px;">
+                            Se connecter
+                        </button>
+                    </div>
+                `;
+                return;
             }
 
             if (!nostrRelay || !isNostrConnected) {
                 container.innerHTML = `
                     <div class="error">
-                        ❌ Impossible de se connecter au relay NOSTR
+                        ❌ Impossible de se connecter au relay NOSTR. Vérifiez votre connexion.
                     </div>
                 `;
                 return;
@@ -633,7 +702,7 @@
             try {
                 container.innerHTML = '<div class="loading">Chargement des playlists...</div>';
 
-                // Fetch playlists (kind 10001) created by current user
+                // Fetch playlists (kind 30005 for new playlists, 10001 for backward compatibility)
                 const playlists = await fetchUserPlaylists();
 
                 if (playlists.length === 0) {
@@ -654,7 +723,8 @@
                 document.querySelectorAll('.playlist-card').forEach(card => {
                     card.addEventListener('click', (e) => {
                         if (!e.target.closest('.playlist-actions')) {
-                            const playlistId = card.dataset.playlistId;
+                            // Use d-tag if available, otherwise event ID
+                            const playlistId = card.dataset.playlistDtag || card.dataset.playlistId;
                             viewPlaylist(playlistId);
                         }
                     });
@@ -693,11 +763,44 @@
                 return [];
             }
             
-            return new Promise((resolve) => {
+            return new Promise(async (resolve) => {
+                // First, fetch deletion events (kind 5) to know which playlists are deleted
+                const deletionEvents = await new Promise((resolveDeletions) => {
+                    const deleteSub = currentRelay.sub([{
+                        kinds: [5], // NIP-09 deletion events
+                        authors: [currentUserPubkey],
+                        limit: 1000
+                    }]);
+                    
+                    const deletions = new Set();
+                    const deleteTimeout = setTimeout(() => {
+                        deleteSub.unsub();
+                        resolveDeletions(deletions);
+                    }, 3000);
+                    
+                    deleteSub.on('event', (event) => {
+                        // Collect all deleted event IDs and coordinates
+                        event.tags.forEach(tag => {
+                            if (tag[0] === 'e') {
+                                deletions.add(tag[1]); // Event ID
+                            } else if (tag[0] === 'a') {
+                                deletions.add(tag[1]); // Event coordinate (kind:pubkey:d-tag)
+                            }
+                        });
+                    });
+                    
+                    deleteSub.on('eose', () => {
+                        clearTimeout(deleteTimeout);
+                        deleteSub.unsub();
+                        resolveDeletions(deletions);
+                    });
+                });
+                
+                // Now fetch playlists
                 const sub = currentRelay.sub([{
-                    kinds: [10001],
+                    kinds: [30005, 10001],
                     authors: [currentUserPubkey],
-                    limit: 50
+                    limit: 100
                 }]);
 
                 const playlists = [];
@@ -708,9 +811,21 @@
 
                 sub.on('event', (event) => {
                     try {
+                        // Check if this playlist is deleted
+                        const dTag = event.tags.find(t => t[0] === 'd')?.[1];
+                        const isDeleted = deletions.has(event.id) || 
+                                         (dTag && deletions.has(`${event.kind}:${event.pubkey}:${dTag}`));
+                        
+                        if (isDeleted) {
+                            // Skip deleted playlists
+                            return;
+                        }
+                        
                         const playlistData = JSON.parse(event.content);
+                        
                         playlists.push({
                             id: event.id,
+                            dTag: dTag, // Store d-tag for parameterized events
                             name: playlistData.name || 'Untitled',
                             description: playlistData.description || '',
                             videos: playlistData.videos || [],
@@ -736,9 +851,11 @@
         function renderPlaylistCard(playlist) {
             const videoCount = playlist.videos.length;
             const createdDate = new Date(playlist.createdAt * 1000).toLocaleDateString('fr-FR');
+            // Use d-tag if available (for kind 30005), otherwise use event ID
+            const playlistIdentifier = playlist.dTag || playlist.id;
 
             return `
-                <div class="playlist-card" data-playlist-id="${playlist.id}">
+                <div class="playlist-card" data-playlist-id="${playlist.id}" data-playlist-dtag="${playlist.dTag || ''}">
                     <div class="playlist-card-header">
                         <div>
                             <div class="playlist-card-title">${escapeHtmlText(playlist.name)}</div>
@@ -749,8 +866,11 @@
                             </div>
                         </div>
                         <div class="playlist-actions" onclick="event.stopPropagation();">
-                            <button class="playlist-action-btn" onclick="sharePlaylist('${playlist.id}')" title="Partager">
+                            <button class="playlist-action-btn" onclick="sharePlaylist('${playlistIdentifier}')" title="Partager">
                                 📡
+                            </button>
+                            <button class="playlist-action-btn" onclick="exportPlaylistUI('${playlist.id}')" title="Exporter">
+                                📥
                             </button>
                             <button class="playlist-action-btn" onclick="deletePlaylist('${playlist.id}')" title="Supprimer">
                                 🗑️
@@ -856,25 +976,316 @@
         window.handleCreatePlaylist = handleCreatePlaylist;
 
         /**
+         * Load and display a specific playlist by ID
+         */
+        async function loadSpecificPlaylist(playlistId) {
+            const container = document.getElementById('playlistsContainer');
+            
+            // Try to get relay from parent if in iframe
+            if (isInIframe && window.parent) {
+                if (window.parent.nostrRelay && !nostrRelay) {
+                    nostrRelay = window.parent.nostrRelay;
+                    window.nostrRelay = nostrRelay;
+                }
+                if (window.parent.isNostrConnected !== undefined && !isNostrConnected) {
+                    isNostrConnected = window.parent.isNostrConnected;
+                    window.isNostrConnected = isNostrConnected;
+                }
+                if (window.parent.userPubkey && !userPubkey) {
+                    userPubkey = window.parent.userPubkey;
+                    window.userPubkey = userPubkey;
+                }
+            }
+            
+            // If not in iframe or connection not available from parent, establish local connection
+            if (!nostrRelay || !isNostrConnected || !userPubkey) {
+                // First, try to connect via common.js if not connected
+                if (!userPubkey && typeof connectNostr === 'function') {
+                    const pubkey = await connectNostr();
+                    if (pubkey) {
+                        userPubkey = pubkey;
+                        window.userPubkey = pubkey;
+                    }
+                }
+                
+                // Then, connect to relay
+                if (!nostrRelay || !isNostrConnected) {
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                        // Update variables after connection
+                        if (typeof nostrRelay !== 'undefined') {
+                            window.nostrRelay = nostrRelay;
+                        }
+                        if (typeof isNostrConnected !== 'undefined') {
+                            window.isNostrConnected = isNostrConnected;
+                        }
+                    } else if (isInIframe && window.parent && typeof window.parent.connectToRelay === 'function') {
+                        await window.parent.connectToRelay();
+                        nostrRelay = window.parent.nostrRelay || null;
+                        isNostrConnected = window.parent.isNostrConnected || false;
+                    }
+                }
+            }
+
+            // Final check - if still not connected, show error
+            if (!userPubkey) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔒</div>
+                        <h3>Connexion requise</h3>
+                        <p>Connectez-vous avec NOSTR pour voir cette playlist</p>
+                        <button class="btn-create-playlist" onclick="connectAndLoadPlaylists()" style="margin-top: 16px;">
+                            Se connecter
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            if (!nostrRelay || !isNostrConnected) {
+                container.innerHTML = `
+                    <div class="error">
+                        ❌ Impossible de se connecter au relay NOSTR. Vérifiez votre connexion.
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                container.innerHTML = '<div class="loading">Chargement de la playlist...</div>';
+
+                // First, check if this playlist is deleted (kind 5)
+                const isDeleted = await new Promise((resolve) => {
+                    const deleteSub = nostrRelay.sub([{
+                        kinds: [5],
+                        authors: [userPubkey],
+                        limit: 1000
+                    }]);
+                    
+                    let deleted = false;
+                    const deleteTimeout = setTimeout(() => {
+                        deleteSub.unsub();
+                        resolve(deleted);
+                    }, 2000);
+                    
+                    deleteSub.on('event', (event) => {
+                        const isEventId = /^[0-9a-f]{64}$/i.test(playlistId);
+                        event.tags.forEach(tag => {
+                            if (tag[0] === 'e' && tag[1] === playlistId) {
+                                deleted = true;
+                            } else if (tag[0] === 'a' && !isEventId) {
+                                // Check if the coordinate matches
+                                const dTag = playlistId;
+                                if (tag[1] === `30005:${userPubkey}:${dTag}` || tag[1] === `10001:${userPubkey}:${dTag}`) {
+                                    deleted = true;
+                                }
+                            }
+                        });
+                    });
+                    
+                    deleteSub.on('eose', () => {
+                        clearTimeout(deleteTimeout);
+                        deleteSub.unsub();
+                        resolve(deleted);
+                    });
+                });
+                
+                if (isDeleted) {
+                    container.innerHTML = `
+                        <div class="error">
+                            ❌ Cette playlist a été supprimée
+                        </div>
+                        <button class="btn-create-playlist" onclick="window.location.href='/playlist'" style="margin-top: 16px;">
+                            ← Retour aux playlists
+                        </button>
+                    `;
+                    return;
+                }
+
+                // Fetch the specific playlist event (support both formats)
+                // Check if it's an event ID (64 hex) or d-tag identifier
+                const isEventId = /^[0-9a-f]{64}$/i.test(playlistId);
+                
+                const playlist = await new Promise((resolve) => {
+                    let filter;
+                    if (isEventId) {
+                        // Fetch by event ID
+                        filter = {
+                            kinds: [30005, 10001],
+                            ids: [playlistId],
+                            limit: 1
+                        };
+                    } else {
+                        // Fetch by d-tag identifier (parameterized replaceable event)
+                        filter = {
+                            kinds: [30005, 10001],
+                            authors: [userPubkey],
+                            '#d': [playlistId],
+                            limit: 1
+                        };
+                    }
+                    
+                    const sub = nostrRelay.sub([filter]);
+
+                    let playlistEvent = null;
+                    sub.on('event', (event) => {
+                        playlistEvent = event;
+                    });
+
+                    sub.on('eose', () => {
+                        sub.unsub();
+                        resolve(playlistEvent);
+                    });
+
+                    setTimeout(() => {
+                        sub.unsub();
+                        resolve(playlistEvent);
+                    }, 3000);
+                });
+
+                if (!playlist) {
+                    container.innerHTML = `
+                        <div class="error">
+                            ❌ Playlist non trouvée
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Parse playlist data
+                let playlistData;
+                try {
+                    playlistData = JSON.parse(playlist.content);
+                } catch (e) {
+                    container.innerHTML = `
+                        <div class="error">
+                            ❌ Erreur lors du parsing de la playlist
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Update header to show playlist name
+                const header = document.querySelector('.playlist-manager-header h1');
+                if (header) {
+                    header.textContent = `📋 ${escapeHtmlText(playlistData.name || 'Playlist')}`;
+                }
+
+                // Hide create button when viewing specific playlist
+                const createBtn = document.querySelector('.btn-create-playlist');
+                if (createBtn) {
+                    createBtn.style.display = 'none';
+                }
+
+                // Add back button first
+                const backBtn = document.createElement('button');
+                backBtn.textContent = '← Retour aux playlists';
+                backBtn.className = 'btn-create-playlist';
+                backBtn.style.marginBottom = '24px';
+                backBtn.onclick = () => {
+                    window.location.href = '/playlist';
+                };
+                container.innerHTML = '';
+                container.appendChild(backBtn);
+                
+                // Add description if available
+                if (playlistData.description) {
+                    const descDiv = document.createElement('div');
+                    descDiv.style.cssText = 'background: #181818; border-radius: 12px; padding: 16px; border: 1px solid #3f3f3f; margin-bottom: 24px; color: #aaaaaa;';
+                    descDiv.textContent = playlistData.description;
+                    container.appendChild(descDiv);
+                }
+                
+                // Check if current user is the playlist owner (enable edit mode)
+                const isPlaylistOwner = playlist.pubkey === userPubkey;
+                
+                // Add playlist management header with actions
+                if (isPlaylistOwner) {
+                    const actionsHeader = document.createElement('div');
+                    actionsHeader.style.cssText = 'display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; align-items: center;';
+                    actionsHeader.innerHTML = `
+                        <button class="playlist-manage-btn" onclick="exportPlaylistUI('${playlist.id}')" title="Exporter la playlist" style="background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.5); color: #3b82f6; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px;">
+                            📥 Exporter
+                        </button>
+                        <button class="playlist-manage-btn" onclick="editPlaylistMetadataUI('${playlist.id}')" title="Modifier les informations" style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.5); color: #f59e0b; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px;">
+                            ✏️ Modifier
+                        </button>
+                        <button class="playlist-manage-btn" onclick="deletePlaylistUI('${playlist.id}')" title="Supprimer la playlist" style="background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #ef4444; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px;">
+                            🗑️ Supprimer
+                        </button>
+                    `;
+                    container.appendChild(actionsHeader);
+                }
+                
+                // Load and display playlist videos using loadPlaylistVideos from youtube.enhancements.js
+                if (typeof window.loadPlaylistVideos === 'function') {
+                    // Create a container for videos
+                    const videosContainer = document.createElement('div');
+                    videosContainer.id = 'playlistVideosList';
+                    videosContainer.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px;';
+                    // Set data attributes for edit mode
+                    videosContainer.dataset.playlistId = playlist.id;
+                    videosContainer.dataset.isEditMode = isPlaylistOwner ? 'true' : 'false';
+                    container.appendChild(videosContainer);
+                    
+                    // Load videos
+                    await window.loadPlaylistVideos(playlistData.videos || [], videosContainer);
+                    
+                } else {
+                    // Fallback: display playlist info
+                    container.innerHTML = `
+                        <div style="margin-bottom: 24px;">
+                            <button class="btn-create-playlist" onclick="window.location.href='/playlist'" style="margin-bottom: 16px;">
+                                ← Retour aux playlists
+                            </button>
+                            <div style="background: #181818; border-radius: 12px; padding: 24px; border: 1px solid #3f3f3f;">
+                                <h2 style="margin-bottom: 12px;">${escapeHtmlText(playlistData.name || 'Playlist')}</h2>
+                                ${playlistData.description ? `<p style="color: #aaaaaa; margin-bottom: 16px;">${escapeHtmlText(playlistData.description)}</p>` : ''}
+                                <p style="color: #aaaaaa;">${playlistData.videos?.length || 0} vidéo(s) dans cette playlist</p>
+                                <p style="color: #888888; font-size: 0.9em; margin-top: 8px;">Fonction de visualisation des vidéos en cours de développement</p>
+                            </div>
+                        </div>
+                    `;
+                }
+
+            } catch (error) {
+                console.error('Error loading playlist:', error);
+                container.innerHTML = `
+                    <div class="error">
+                        ❌ Erreur lors du chargement de la playlist: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        /**
          * View playlist details
          */
         function viewPlaylist(playlistId) {
-            // Redirect to playlist view (could be implemented as a separate page)
+            // Redirect to playlist view with ID parameter
             window.location.href = `/playlist?id=${playlistId}`;
         }
         
         // Expose function globally
         window.viewPlaylist = viewPlaylist;
+        window.loadSpecificPlaylist = loadSpecificPlaylist;
 
         /**
          * Share playlist
          */
         async function sharePlaylist(playlistId) {
+            // Use d-tag or event ID for sharing
             const playlistUrl = `${window.location.origin}/playlist?id=${playlistId}`;
             
             try {
                 await navigator.clipboard.writeText(playlistUrl);
-                alert('✅ Lien de la playlist copié dans le presse-papiers !');
+                
+                // Show toast notification
+                const toast = document.createElement('div');
+                toast.textContent = '✅ Lien copié !';
+                toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #4ade80; color: white; padding: 12px 20px; border-radius: 8px; z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.3);';
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
             } catch (error) {
                 console.error('Error copying link:', error);
                 alert('❌ Erreur lors de la copie du lien');
@@ -885,20 +1296,220 @@
         window.sharePlaylist = sharePlaylist;
 
         /**
-         * Delete playlist
+         * Delete playlist (from playlist list view)
          */
         async function deletePlaylist(playlistId) {
-            if (!confirm('Êtes-vous sûr de vouloir supprimer cette playlist ?')) {
-                return;
-            }
-
-            // Note: NOSTR doesn't have delete events for kind 10001
-            // You would need to publish a deletion event or update the playlist to be empty
-            alert('⚠️ La suppression des playlists sera implémentée prochainement');
+            await deletePlaylistUI(playlistId);
         }
         
-        // Expose function globally
+        /**
+         * Remove video from playlist (UI handler)
+         */
+        async function removeVideoFromPlaylistUI(playlistId, videoEventId, buttonElement) {
+            if (!confirm('Êtes-vous sûr de vouloir retirer cette vidéo de la playlist ?')) {
+                return;
+            }
+            
+            const originalText = buttonElement.textContent;
+            buttonElement.disabled = true;
+            buttonElement.textContent = '⏳';
+            
+            try {
+                if (typeof window.removeVideoFromPlaylist === 'function') {
+                    const success = await window.removeVideoFromPlaylist(playlistId, videoEventId);
+                    if (success) {
+                        // Reload playlist
+                        await loadSpecificPlaylist(playlistId);
+                    } else {
+                        alert('❌ Erreur lors de la suppression de la vidéo');
+                        buttonElement.disabled = false;
+                        buttonElement.textContent = originalText;
+                    }
+                } else {
+                    throw new Error('removeVideoFromPlaylist function not available');
+                }
+            } catch (error) {
+                console.error('Error removing video:', error);
+                alert('❌ Erreur: ' + error.message);
+                buttonElement.disabled = false;
+                buttonElement.textContent = originalText;
+            }
+        }
+        
+        /**
+         * Move video in playlist (UI handler)
+         */
+        async function moveVideoInPlaylistUI(playlistId, oldIndex, newIndex) {
+            if (typeof window.reorderPlaylistVideos === 'function') {
+                try {
+                    const success = await window.reorderPlaylistVideos(playlistId, oldIndex, newIndex);
+                    if (success) {
+                        // Reload playlist to show new order
+                        await loadSpecificPlaylist(playlistId);
+                    } else {
+                        alert('❌ Erreur lors du déplacement de la vidéo');
+                    }
+                } catch (error) {
+                    console.error('Error moving video:', error);
+                    alert('❌ Erreur: ' + error.message);
+                }
+            } else {
+                alert('❌ Fonction de réorganisation non disponible');
+            }
+        }
+        
+        /**
+         * Export playlist (UI handler)
+         */
+        async function exportPlaylistUI(playlistId) {
+            if (typeof window.exportPlaylist === 'function') {
+                try {
+                    await window.exportPlaylist(playlistId);
+                } catch (error) {
+                    console.error('Error exporting playlist:', error);
+                    alert('❌ Erreur lors de l\'export: ' + error.message);
+                }
+            } else {
+                alert('❌ Fonction d\'export non disponible');
+            }
+        }
+        
+        /**
+         * Edit playlist metadata (UI handler)
+         */
+        async function editPlaylistMetadataUI(playlistId) {
+            // Fetch playlist to get current data
+            if (typeof window.fetchPlaylistEvent !== 'function') {
+                alert('❌ Fonction de récupération non disponible');
+                return;
+            }
+            
+            try {
+                const playlistEvent = await window.fetchPlaylistEvent(playlistId);
+                if (!playlistEvent) {
+                    alert('❌ Playlist non trouvée');
+                    return;
+                }
+                
+                const playlistData = JSON.parse(playlistEvent.content);
+                
+                // Show edit modal (reuse create modal structure)
+                const newName = prompt('Nouveau nom de la playlist:', playlistData.name);
+                if (newName === null) return; // User cancelled
+                
+                const newDescription = prompt('Nouvelle description (optionnel):', playlistData.description || '');
+                if (newDescription === null) return; // User cancelled
+                
+                if (!newName.trim()) {
+                    alert('❌ Le nom ne peut pas être vide');
+                    return;
+                }
+                
+                if (typeof window.updatePlaylistMetadata === 'function') {
+                    const success = await window.updatePlaylistMetadata(playlistId, newName.trim(), newDescription.trim());
+                    if (success) {
+                        // Reload playlist
+                        await loadSpecificPlaylist(playlistId);
+                    } else {
+                        alert('❌ Erreur lors de la mise à jour');
+                    }
+                } else {
+                    alert('❌ Fonction de mise à jour non disponible');
+                }
+            } catch (error) {
+                console.error('Error editing playlist:', error);
+                alert('❌ Erreur: ' + error.message);
+            }
+        }
+        
+        /**
+         * Delete playlist (UI handler)
+         * Uses NIP-09 kind 5 (Event Deletion Request)
+         */
+        async function deletePlaylistUI(playlistId) {
+            if (!confirm('⚠️ Êtes-vous sûr de vouloir supprimer cette playlist ? Cette action est irréversible.')) {
+                return;
+            }
+            
+            try {
+                // Fetch playlist to get event ID and metadata
+                const playlistEvent = await window.fetchPlaylistEvent(playlistId);
+                if (!playlistEvent) {
+                    alert('❌ Playlist non trouvée');
+                    return;
+                }
+                
+                // Verify user is the owner
+                if (playlistEvent.pubkey !== userPubkey) {
+                    alert('❌ Vous ne pouvez supprimer que vos propres playlists');
+                    return;
+                }
+                
+                // Create kind 5 deletion event (NIP-09)
+                const dTag = playlistEvent.tags.find(t => t[0] === 'd')?.[1];
+                const playlistKind = playlistEvent.kind;
+                
+                const tags = [
+                    ['e', playlistEvent.id], // Event ID reference
+                    ['k', String(playlistKind)] // Kind of the event being deleted
+                ];
+                
+                // For parameterized replaceable events (kind 30005), also add 'a' tag with coordinate
+                // This ensures all versions of the playlist are deleted
+                if (dTag && playlistKind === 30005) {
+                    tags.push([
+                        'a',
+                        `${playlistKind}:${playlistEvent.pubkey}:${dTag}`
+                    ]);
+                }
+                
+                const eventTemplate = {
+                    kind: 5, // NIP-09: Event Deletion Request
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: tags,
+                    content: 'Playlist supprimée' // Optional reason
+                };
+                
+                let signedEvent;
+                if (window.nostr && typeof window.nostr.signEvent === 'function') {
+                    signedEvent = await window.nostr.signEvent(eventTemplate);
+                } else {
+                    throw new Error("Nostr extension required");
+                }
+                
+                if (!nostrRelay || !isNostrConnected) {
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                    } else {
+                        throw new Error("Relay connection required");
+                    }
+                }
+                
+                const publishPromise = nostrRelay.publish(signedEvent);
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Publish timeout')), 10000);
+                });
+                
+                await Promise.race([publishPromise, timeoutPromise]);
+                
+                console.log('✅ Playlist deletion event published (kind 5):', signedEvent.id);
+                
+                // Redirect to playlist list
+                window.location.href = '/playlist';
+                
+            } catch (error) {
+                console.error('Error deleting playlist:', error);
+                alert('❌ Erreur lors de la suppression: ' + error.message);
+            }
+        }
+        
+        // Expose functions globally
         window.deletePlaylist = deletePlaylist;
+        window.removeVideoFromPlaylistUI = removeVideoFromPlaylistUI;
+        window.moveVideoInPlaylistUI = moveVideoInPlaylistUI;
+        window.exportPlaylistUI = exportPlaylistUI;
+        window.editPlaylistMetadataUI = editPlaylistMetadataUI;
+        window.deletePlaylistUI = deletePlaylistUI;
 
         /**
          * Connect and load playlists
@@ -915,6 +1526,13 @@
                 if (!nostrRelay || !isNostrConnected) {
                     if (typeof connectToRelay === 'function') {
                         await connectToRelay();
+                        // Update variables after connection
+                        if (typeof nostrRelay !== 'undefined') {
+                            window.nostrRelay = nostrRelay;
+                        }
+                        if (typeof isNostrConnected !== 'undefined') {
+                            window.isNostrConnected = isNostrConnected;
+                        }
                     } else if (window.parent && typeof window.parent.connectToRelay === 'function') {
                         await window.parent.connectToRelay();
                         nostrRelay = window.parent.nostrRelay || null;
@@ -922,12 +1540,41 @@
                     }
                 }
                 
-                await loadUserPlaylists();
+                // Load appropriate content based on URL
+                const targetPlaylistId = getPlaylistIdFromUrl();
+                if (targetPlaylistId) {
+                    await loadSpecificPlaylist(targetPlaylistId);
+                } else {
+                    await loadUserPlaylists();
+                }
             } else if (typeof connectNostr === 'function') {
-                // Fallback: use connectNostr from common.js
+                // Not in iframe or no parent connection: use local connection
                 const pubkey = await connectNostr();
                 if (pubkey) {
-                    await loadUserPlaylists();
+                    userPubkey = pubkey;
+                    window.userPubkey = pubkey;
+                    
+                    // Connect to relay
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                        // Update variables after connection
+                        if (typeof nostrRelay !== 'undefined') {
+                            window.nostrRelay = nostrRelay;
+                        }
+                        if (typeof isNostrConnected !== 'undefined') {
+                            window.isNostrConnected = isNostrConnected;
+                        }
+                    }
+                    
+                    // Load appropriate content based on URL
+                    const targetPlaylistId = getPlaylistIdFromUrl();
+                    if (targetPlaylistId) {
+                        await loadSpecificPlaylist(targetPlaylistId);
+                    } else {
+                        await loadUserPlaylists();
+                    }
+                } else {
+                    alert('❌ Connexion NOSTR échouée. Vérifiez votre extension NOSTR.');
                 }
             } else {
                 alert('❌ Impossible de se connecter à NOSTR. Assurez-vous que common.js est chargé.');

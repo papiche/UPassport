@@ -826,12 +826,24 @@
                 // Use existing modal (from parent)
                 const iframe = modal.querySelector('#iframe-modal-iframe') || modal.querySelector('iframe');
                 const titleEl = modal.querySelector('#iframe-modal-title') || modal.querySelector('h3');
+                const openNewBtn = modal.querySelector('#iframe-modal-open-new');
                 
                 if (iframe) {
+                    // Store URL for "open in new window" button
+                    if (iframe.dataset) {
+                        iframe.dataset.currentUrl = profileUrl;
+                    } else {
+                        iframe.setAttribute('data-current-url', profileUrl);
+                    }
                     iframe.src = profileUrl;
                 }
                 if (titleEl) {
                     titleEl.textContent = `👤 ${userName}`;
+                }
+                
+                // Show "Open in new window" button for profile viewer
+                if (openNewBtn) {
+                    openNewBtn.style.display = 'flex';
                 }
                 
                 // Ensure modal has high enough z-index
