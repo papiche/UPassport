@@ -386,32 +386,11 @@
         const isInIframe = window.self !== window.top;
         
         // Proxy for NOSTR extension when in iframe
+        // Create our own proxy that uses postMessage to communicate with parent
+        // This ensures we have a working proxy regardless of what common.js does
         if (isInIframe && window.parent) {
             let requestIdCounter = 0;
             const pendingRequests = new Map();
-            
-            // Create a proxy object for window.nostr that sends requests to parent
-            if (!window.nostr) {
-                window.nostr = {
-                    getPublicKey: async () => {
-                        return await proxyNostrRequest('getPublicKey', []);
-                    },
-                    signEvent: async (event) => {
-                        return await proxyNostrRequest('signEvent', [event]);
-                    },
-                    getRelays: async () => {
-                        return await proxyNostrRequest('getRelays', []);
-                    },
-                    nip04: {
-                        encrypt: async (pubkey, plaintext) => {
-                            return await proxyNostrRequest('nip04.encrypt', [pubkey, plaintext]);
-                        },
-                        decrypt: async (pubkey, ciphertext) => {
-                            return await proxyNostrRequest('nip04.decrypt', [pubkey, ciphertext]);
-                        }
-                    }
-                };
-            }
             
             // Proxy function to send NOSTR requests to parent
             function proxyNostrRequest(method, params) {
@@ -454,7 +433,71 @@
                 }
             });
             
-            console.log('✅ NOSTR proxy initialized for iframe mode');
+            // Create a working proxy object that uses postMessage
+            const nostrProxy = {
+                    getPublicKey: async () => {
+                        return await proxyNostrRequest('getPublicKey', []);
+                    },
+                    signEvent: async (event) => {
+                        return await proxyNostrRequest('signEvent', [event]);
+                    },
+                    getRelays: async () => {
+                        return await proxyNostrRequest('getRelays', []);
+                    },
+                    nip04: {
+                        encrypt: async (pubkey, plaintext) => {
+                            return await proxyNostrRequest('nip04.encrypt', [pubkey, plaintext]);
+                        },
+                        decrypt: async (pubkey, ciphertext) => {
+                            return await proxyNostrRequest('nip04.decrypt', [pubkey, ciphertext]);
+                        }
+                    },
+                    nip44: {
+                        encrypt: async (pubkey, plaintext) => {
+                            return await proxyNostrRequest('nip44.encrypt', [pubkey, plaintext]);
+                        },
+                        decrypt: async (pubkey, ciphertext) => {
+                            return await proxyNostrRequest('nip44.decrypt', [pubkey, ciphertext]);
+                        }
+                    }
+            };
+            
+            // Function to install/reinstall our proxy
+            function installProxy() {
+                try {
+                    Object.defineProperty(window, 'nostr', {
+                        value: nostrProxy,
+                        writable: true,
+                        configurable: true
+                    });
+                    console.log('✅ NOSTR proxy installed (playlist-manager)');
+                } catch (e) {
+                    // If defineProperty fails, try direct assignment
+                    window.nostr = nostrProxy;
+                    console.log('✅ NOSTR proxy installed via assignment (playlist-manager)');
+                }
+            }
+            
+            // Install proxy immediately
+            installProxy();
+            
+            // Reinstall proxy after a delay to override any proxy from common.js
+            setTimeout(installProxy, 1500);
+            
+            // Also reinstall if common.js tries to replace it
+            const nostrDescriptor = Object.getOwnPropertyDescriptor(window, 'nostr');
+            if (nostrDescriptor && nostrDescriptor.configurable) {
+                // Monitor for changes
+                let lastNostr = window.nostr;
+                setInterval(() => {
+                    if (window.nostr !== nostrProxy && window.nostr !== lastNostr) {
+                        // Something replaced our proxy, reinstall it
+                        console.warn('⚠️ window.nostr was replaced, reinstalling proxy');
+                        installProxy();
+                        lastNostr = window.nostr;
+                    }
+                }, 500);
+            }
         }
         
         // ========================================
