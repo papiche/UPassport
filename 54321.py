@@ -2211,7 +2211,10 @@ async def check_impots_route(request: Request, html: Optional[str] = None):
 @app.get("/theater", response_class=HTMLResponse)
 async def theater_modal_route(request: Request):
     """Theater mode modal for immersive video viewing"""
-    return templates.TemplateResponse("theater-modal.html", {"request": request})
+    return templates.TemplateResponse("theater-modal.html", {
+        "request": request,
+        "myIPFS": get_myipfs_gateway()
+    })
 
 @app.get("/playlist", response_class=HTMLResponse)
 async def playlist_manager_route(request: Request, id: Optional[str] = None):
