@@ -140,11 +140,13 @@
             font-weight: 700;
             color: #ff0000;
             cursor: pointer;
-            transition: transform 0.2s ease;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            user-select: none;
         }
         
         .sidebar-logo:hover {
             transform: scale(1.1);
+            opacity: 0.8;
         }
         
         .sidebar-logo.playing {
@@ -153,10 +155,10 @@
         
         @keyframes pulse {
             0%, 100% {
-                transform: scale(1);
+                opacity: 1;
             }
             50% {
-                transform: scale(1.15);
+                opacity: 0.6;
             }
         }
         
@@ -1473,7 +1475,7 @@
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <div class="sidebar-logo" onclick="playAllVisibleVideos()" data-i18n-title="play_all_videos" title="Play all visible videos">▶</div>
+                <div class="sidebar-logo" onclick="startPlaylistPlayback()" id="playlistLogo" title="Play all visible videos">▶</div>
                 <div class="sidebar-title">NOSTR Tube</div>
             </div>
             
@@ -2023,8 +2025,7 @@
                 network_videos_found: "vidéo(s) trouvée(s) dans votre réseau N²",
                 network_videos_description: "Les vidéos de vos amis et amis d'amis apparaîtront ici.",
                 engagement_stats: "Statistiques d'engagement",
-                add_timestamp: "Ajouter timestamp",
-                play_all_videos: "Lire toutes les vidéos visibles"
+                add_timestamp: "Ajouter timestamp"
             },
             en: {
                 all_videos: "All Videos",
@@ -2099,8 +2100,7 @@
                 network_videos_found: "video(s) found in your N² network",
                 network_videos_description: "Videos from your friends and friends of friends will appear here.",
                 engagement_stats: "Engagement statistics",
-                add_timestamp: "Add timestamp",
-                play_all_videos: "Play all visible videos"
+                add_timestamp: "Add timestamp"
             },
             es: {
                 all_videos: "Todos los Videos",
@@ -2175,8 +2175,7 @@
                 network_videos_found: "video(s) encontrado(s) en tu red N²",
                 network_videos_description: "Los videos de tus amigos y amigos de tus amigos aparecerán aquí.",
                 engagement_stats: "Estadísticas de compromiso",
-                add_timestamp: "Agregar marca de tiempo",
-                play_all_videos: "Reproducir todos los videos visibles"
+                add_timestamp: "Agregar marca de tiempo"
             }
         };
         
@@ -2401,56 +2400,6 @@
             }
             return url.startsWith('/ipfs/') ? `${gateway}${url}` : url;
         };
-        
-        /**
-         * Play all visible videos on the page
-         */
-        function playAllVisibleVideos() {
-            const logo = document.querySelector('.sidebar-logo');
-            if (!logo) return;
-            
-            // Get all visible videos (not hidden by filters)
-            const allVideos = document.querySelectorAll('.video');
-            const visibleVideos = Array.from(allVideos).filter(video => 
-                video.style.display !== 'none'
-            );
-            
-            if (visibleVideos.length === 0) {
-                console.log('No visible videos to play');
-                return;
-            }
-            
-            // Add playing animation to logo
-            logo.classList.add('playing');
-            
-            // Get all thumbnails from visible videos
-            const thumbnails = visibleVideos
-                .map(video => video.querySelector('.video-thumbnail'))
-                .filter(thumb => thumb !== null);
-            
-            if (thumbnails.length === 0) {
-                logo.classList.remove('playing');
-                return;
-            }
-            
-            console.log(`Playing ${thumbnails.length} visible videos...`);
-            
-            // Play videos sequentially with a small delay between each
-            // This prevents overwhelming the browser with too many simultaneous video streams
-            thumbnails.forEach((thumbnail, index) => {
-                setTimeout(() => {
-                    // Check if video is already playing, if not start it
-                    if (!thumbnail.classList.contains('playing')) {
-                        toggleVideoPlayer(thumbnail);
-                    }
-                }, index * 300); // 300ms delay between each video start
-            });
-            
-            // Remove animation after a short time
-            setTimeout(() => {
-                logo.classList.remove('playing');
-            }, 2000);
-        }
         
         // Toggle video player
         function toggleVideoPlayer(thumbnailElement) {
@@ -4081,6 +4030,198 @@
                 }
             }
         });
+        
+        // ========================================
+        // PLAYLIST AUTO-PLAY FUNCTIONS
+        // ========================================
+        
+        let currentPlaylistIndex = -1;
+        let playlistVideos = [];
+        let isPlaylistPlaying = false;
+        
+        /**
+         * Start playlist playback for all visible videos
+         * Toggle: if already playing, stop it
+         */
+        async function startPlaylistPlayback() {
+            // If already playing, stop it
+            if (isPlaylistPlaying) {
+                stopPlaylistPlayback();
+                return;
+            }
+            
+            // Collect all visible videos
+            const allVideos = document.querySelectorAll('.video');
+            const visibleVideos = Array.from(allVideos).filter(video => {
+                return video.style.display !== 'none' && 
+                       video.querySelector('.inline-video-player')?.getAttribute('data-ipfs-url');
+            });
+            
+            if (visibleVideos.length === 0) {
+                alert('❌ No videos available to play');
+                return;
+            }
+            
+            // Build playlist from visible videos
+            playlistVideos = visibleVideos.map(videoElement => {
+                const videoPlayer = videoElement.querySelector('.inline-video-player');
+                const videoTitleEl = videoElement.querySelector('.video-title');
+                const videoMetaEl = videoElement.querySelector('.video-meta');
+                const thumbnailElement = videoElement.querySelector('.video-thumbnail');
+                
+                const title = videoTitleEl ? videoTitleEl.textContent : 'Untitled';
+                const videoMeta = videoMetaEl ? videoMetaEl.textContent : '';
+                const uploader = videoMeta.split('\n')[0].split('•')[0].trim() || 'Unknown';
+                const descriptionEl = videoElement.querySelector('.video-description');
+                const content = descriptionEl ? descriptionEl.textContent.trim() : '';
+                
+                return {
+                    element: videoElement,
+                    thumbnail: thumbnailElement,
+                    title: title,
+                    ipfsUrl: videoPlayer.getAttribute('data-ipfs-url'),
+                    thumbnailUrl: thumbnailElement.querySelector('img')?.src || null,
+                    eventId: videoPlayer.getAttribute('data-event-id') || null,
+                    authorId: videoPlayer.getAttribute('data-author-id') || null,
+                    channel: videoElement.getAttribute('data-channel') || null,
+                    uploader: uploader,
+                    content: content,
+                    description: content
+                };
+            });
+            
+            // Update logo state
+            const logo = document.getElementById('playlistLogo') || document.querySelector('.sidebar-logo');
+            if (logo) {
+                logo.classList.add('playing');
+                logo.textContent = '⏸';
+                logo.title = 'Stop playlist playback (click to stop)';
+            }
+            
+            // Start playing from first video
+            currentPlaylistIndex = 0;
+            isPlaylistPlaying = true;
+            
+            // Play first video
+            await playNextInPlaylist();
+            
+            // Listen for video end events in theater mode
+            listenForPlaylistVideoEnd();
+        }
+        
+        /**
+         * Play next video in playlist
+         */
+        async function playNextInPlaylist() {
+            if (!isPlaylistPlaying || currentPlaylistIndex < 0 || currentPlaylistIndex >= playlistVideos.length) {
+                // Playlist finished
+                stopPlaylistPlayback();
+                return;
+            }
+            
+            const videoData = playlistVideos[currentPlaylistIndex];
+            if (!videoData || !videoData.thumbnail) {
+                // Skip invalid video and try next
+                currentPlaylistIndex++;
+                await playNextInPlaylist();
+                return;
+            }
+            
+            // Open video in theater mode
+            const theaterModeFn = typeof openTheaterMode !== 'undefined' ? openTheaterMode : 
+                                   (typeof window !== 'undefined' && window.openTheaterMode ? window.openTheaterMode : null);
+            
+            if (theaterModeFn && typeof theaterModeFn === 'function') {
+                // Scroll to video in list
+                videoData.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Wait a bit before opening theater
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
+                // Open in theater mode
+                await theaterModeFn(videoData);
+            } else {
+                // Fallback: play inline
+                toggleVideoPlayer(videoData.thumbnail);
+            }
+        }
+        
+        /**
+         * Listen for video end events to auto-advance playlist
+         */
+        function listenForPlaylistVideoEnd() {
+            // Check for theater video player end event
+            // The theater mode video player should be accessible
+            const checkInterval = setInterval(() => {
+                if (!isPlaylistPlaying) {
+                    clearInterval(checkInterval);
+                    return;
+                }
+                
+                // Try to find theater mode video player
+                const theaterPlayer = document.getElementById('theaterVideoPlayer') || 
+                                     document.querySelector('.theater-video-player video') ||
+                                     document.querySelector('#theaterModal video');
+                
+                if (theaterPlayer) {
+                    // Listen for ended event (only once per video)
+                    if (!theaterPlayer.dataset.playlistListenerAdded) {
+                        theaterPlayer.dataset.playlistListenerAdded = 'true';
+                        
+                        theaterPlayer.addEventListener('ended', async () => {
+                            if (isPlaylistPlaying) {
+                                // Move to next video
+                                currentPlaylistIndex++;
+                                
+                                // Remove listener flag for next video
+                                theaterPlayer.removeAttribute('data-playlist-listener-added');
+                                
+                                // Wait a moment before next video
+                                await new Promise(resolve => setTimeout(resolve, 1000));
+                                
+                                // Play next
+                                await playNextInPlaylist();
+                            }
+                        }, { once: true });
+                    }
+                }
+            }, 500); // Check every 500ms
+        }
+        
+        /**
+         * Stop playlist playback
+         */
+        function stopPlaylistPlayback() {
+            isPlaylistPlaying = false;
+            currentPlaylistIndex = -1;
+            playlistVideos = [];
+            
+            // Update logo state
+            const logo = document.getElementById('playlistLogo') || document.querySelector('.sidebar-logo');
+            if (logo) {
+                logo.classList.remove('playing');
+                logo.textContent = '▶';
+                logo.title = 'Play all visible videos';
+            }
+            
+            // Try to close theater mode if open (check for close function)
+            if (typeof window.closeTheaterMode === 'function') {
+                window.closeTheaterMode();
+            } else if (typeof closeTheaterMode === 'function') {
+                closeTheaterMode();
+            } else {
+                // Fallback: try to find and close theater modal manually
+                const theaterModal = document.getElementById('theaterModal') || 
+                                    document.querySelector('.theater-modal');
+                if (theaterModal && theaterModal.style.display !== 'none') {
+                    theaterModal.style.display = 'none';
+                }
+            }
+        }
+        
+        // Expose function globally
+        window.startPlaylistPlayback = startPlaylistPlayback;
+        window.stopPlaylistPlayback = stopPlaylistPlayback;
         
         // ========================================
         // MAP VIEW FUNCTIONS
