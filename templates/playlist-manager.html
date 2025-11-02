@@ -561,6 +561,7 @@
         function getPlaylistIdFromUrl() {
             const urlParams = new URLSearchParams(window.location.search);
             let playlistId = urlParams.get('id');
+            // Server template provides playlist_id if available
             {% if playlist_id %}
             if (!playlistId) {
                 playlistId = '{{ playlist_id }}';
@@ -589,7 +590,17 @@
                 return;
             }
 
-            // Check if user is connected (check both local and parent)
+            // Check if a specific playlist ID is requested via URL parameter
+            const playlistId = getPlaylistIdFromUrl();
+            
+            if (playlistId) {
+                // If a playlist ID is provided, try to load it without requiring user connection
+                // This allows sharing playlists with others who aren't connected
+                await loadSpecificPlaylist(playlistId);
+                return;
+            }
+            
+            // Only require connection for viewing user's own playlists list
             const currentUserPubkey = userPubkey || (window.parent && window.parent.userPubkey) || null;
             if (!currentUserPubkey) {
                 document.getElementById('playlistsContainer').innerHTML = `
@@ -611,16 +622,8 @@
                 window.userPubkey = currentUserPubkey;
             }
 
-            // Check if a specific playlist ID is requested via URL parameter
-            const playlistId = getPlaylistIdFromUrl();
-            
-            if (playlistId) {
-                // Load and display specific playlist
-                await loadSpecificPlaylist(playlistId);
-            } else {
-                // Load user's playlists list
-                await loadUserPlaylists();
-            }
+            // Load user's playlists list (already checked playlistId above)
+            await loadUserPlaylists();
         });
 
         /**
@@ -1027,25 +1030,60 @@
                 }
             }
 
-            // Final check - if still not connected, show error
-            if (!userPubkey) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🔒</div>
-                        <h3>Connexion requise</h3>
-                        <p>Connectez-vous avec NOSTR pour voir cette playlist</p>
-                        <button class="btn-create-playlist" onclick="connectAndLoadPlaylists()" style="margin-top: 16px;">
-                            Se connecter
-                        </button>
-                    </div>
-                `;
-                return;
+            // For viewing a specific playlist, we don't require user connection
+            // We only need relay connection to fetch the playlist
+            
+            // Try to establish relay connection if not available
+            if (!nostrRelay || !isNostrConnected) {
+                // Try to connect to relay (this doesn't require user authentication for reading)
+                if (typeof connectToRelay === 'function') {
+                    try {
+                        await connectToRelay();
+                    } catch (e) {
+                        console.warn('Could not connect to relay:', e);
+                    }
+                }
+                
+                // Try to get relay from parent if in iframe
+                if (isInIframe && window.parent && window.parent.nostrRelay) {
+                    nostrRelay = window.parent.nostrRelay;
+                    window.nostrRelay = nostrRelay;
+                    isNostrConnected = window.parent.isNostrConnected || false;
+                }
+            }
+            
+            // If still no relay, try to create a connection to default relay for reading
+            if (!nostrRelay) {
+                if (typeof DEFAULT_RELAYS !== 'undefined' && DEFAULT_RELAYS.length > 0) {
+                    const relayUrl = DEFAULT_RELAYS[0];
+                    if (typeof SimplePool !== 'undefined') {
+                        const pool = new SimplePool();
+                        try {
+                            const relay = await pool.ensureRelay(relayUrl);
+                            nostrRelay = relay;
+                            window.nostrRelay = relay;
+                            isNostrConnected = true;
+                        } catch (e) {
+                            console.error('Could not connect to default relay:', e);
+                        }
+                    } else if (typeof connect === 'function' && typeof relayInit === 'function') {
+                        // Try using nostr-tools connect function
+                        try {
+                            const relay = await connect(relayUrl);
+                            nostrRelay = relay;
+                            window.nostrRelay = relay;
+                            isNostrConnected = true;
+                        } catch (e) {
+                            console.error('Could not connect to default relay:', e);
+                        }
+                    }
+                }
             }
 
             if (!nostrRelay || !isNostrConnected) {
                 container.innerHTML = `
                     <div class="error">
-                        ❌ Impossible de se connecter au relay NOSTR. Vérifiez votre connexion.
+                        ❌ Impossible de se connecter au relay NOSTR pour charger la playlist. Vérifiez votre connexion internet.
                     </div>
                 `;
                 return;
@@ -1054,13 +1092,19 @@
             try {
                 container.innerHTML = '<div class="loading">Chargement de la playlist...</div>';
 
-                // First, check if this playlist is deleted (kind 5)
+                // Check if this playlist is deleted (kind 5)
+                // Note: For shared playlists, we may not know the author, so we check more broadly
                 const isDeleted = await new Promise((resolve) => {
-                    const deleteSub = nostrRelay.sub([{
+                    // Build filter - if we have playlist author info, we can filter by it
+                    const filter = {
                         kinds: [5],
-                        authors: [userPubkey],
                         limit: 1000
-                    }]);
+                    };
+                    
+                    // If we know the playlist's author (from event), filter by it
+                    // Otherwise, check all deletion events (might be slower but works for shared playlists)
+                    
+                    const deleteSub = nostrRelay.sub([filter]);
                     
                     let deleted = false;
                     const deleteTimeout = setTimeout(() => {
@@ -1074,9 +1118,9 @@
                             if (tag[0] === 'e' && tag[1] === playlistId) {
                                 deleted = true;
                             } else if (tag[0] === 'a' && !isEventId) {
-                                // Check if the coordinate matches
+                                // Check if the coordinate matches (for any author)
                                 const dTag = playlistId;
-                                if (tag[1] === `30005:${userPubkey}:${dTag}` || tag[1] === `10001:${userPubkey}:${dTag}`) {
+                                if (tag[1].includes(`:${dTag}`)) {
                                     deleted = true;
                                 }
                             }
@@ -1103,33 +1147,53 @@
                 }
 
                 // Fetch the specific playlist event (support both formats)
-                // Check if it's an event ID (64 hex) or d-tag identifier
-                const isEventId = /^[0-9a-f]{64}$/i.test(playlistId);
-                
-                const playlist = await new Promise((resolve) => {
-                    let filter;
-                    if (isEventId) {
-                        // Fetch by event ID
-                        filter = {
-                            kinds: [30005, 10001],
-                            ids: [playlistId],
-                            limit: 1
-                        };
-                    } else {
-                        // Fetch by d-tag identifier (parameterized replaceable event)
-                        filter = {
-                            kinds: [30005, 10001],
-                            authors: [userPubkey],
-                            '#d': [playlistId],
-                            limit: 1
-                        };
-                    }
+                    // Check if it's an event ID (64 hex) or d-tag identifier
+                    const isEventId = /^[0-9a-f]{64}$/i.test(playlistId);
+                    
+                    const playlist = await new Promise((resolve) => {
+                        let filter;
+                        if (isEventId) {
+                            // Fetch by event ID (works without knowing author)
+                            filter = {
+                                kinds: [30005, 10001],
+                                ids: [playlistId],
+                                limit: 1
+                            };
+                        } else {
+                            // Fetch by d-tag identifier (parameterized replaceable event)
+                            // For shared playlists, we don't know the author, so we need to search without author filter
+                            // This might be slower but allows viewing shared playlists
+                            // Try to get author from URL or try without author filter
+                            const urlParams = new URLSearchParams(window.location.search);
+                            const authorParam = urlParams.get('author');
+                            
+                            if (authorParam && /^[0-9a-f]{64}$/i.test(authorParam)) {
+                                // We have an author, use it for faster lookup
+                                filter = {
+                                    kinds: [30005, 10001],
+                                    authors: [authorParam],
+                                    '#d': [playlistId],
+                                    limit: 1
+                                };
+                            } else {
+                                // No author provided, search more broadly (this will be slower)
+                                // We'll need to fetch multiple events and filter
+                                filter = {
+                                    kinds: [30005, 10001],
+                                    '#d': [playlistId],
+                                    limit: 100 // Might return multiple if different authors have same d-tag
+                                };
+                            }
+                        }
                     
                     const sub = nostrRelay.sub([filter]);
 
                     let playlistEvent = null;
                     sub.on('event', (event) => {
-                        playlistEvent = event;
+                        // If we searched without author filter, take the first match
+                        if (!playlistEvent || !isEventId) {
+                            playlistEvent = event;
+                        }
                     });
 
                     sub.on('eose', () => {
@@ -1140,7 +1204,7 @@
                     setTimeout(() => {
                         sub.unsub();
                         resolve(playlistEvent);
-                    }, 3000);
+                    }, 5000);
                 });
 
                 if (!playlist) {
@@ -1197,7 +1261,8 @@
                 }
                 
                 // Check if current user is the playlist owner (enable edit mode)
-                const isPlaylistOwner = playlist.pubkey === userPubkey;
+                // userPubkey might be undefined if viewing shared playlist without connection
+                const isPlaylistOwner = userPubkey && playlist.pubkey === userPubkey;
                 
                 // Add playlist management header with actions
                 if (isPlaylistOwner) {
