@@ -131,6 +131,84 @@ fi
 # Calculate file hash (ox)
 FILE_HASH=$(sha256sum "$FILE_PATH" | awk '{print $1}')
 
+# Create info.json with all detected metadata
+# Use a temporary file in the same directory as the original file
+INFO_JSON_FILE="$(dirname "$FILE_PATH")/$(basename "$FILE_PATH" | sed 's/\.[^.]*$//').info.json"
+
+# Build NIP94 tags array string
+NIP94_TAGS_STR="[\"url\", \"/ipfs/$CID/$FILE_NAME\"], [\"x\", \"$FILE_HASH\"], [\"ox\", \"$FILE_HASH\"], [\"m\", \"$FILE_TYPE\"]"
+if [[ -n "$IMAGE_DIMENSIONS" ]] || [[ -n "$VIDEO_DIMENSIONS" ]]; then
+    DIM_VALUE="${IMAGE_DIMENSIONS:-$VIDEO_DIMENSIONS}"
+    NIP94_TAGS_STR="$NIP94_TAGS_STR, [\"dim\", \"$DIM_VALUE\"]"
+fi
+
+# Build image section if available
+IMAGE_SECTION=""
+if [[ -n "$IMAGE_DIMENSIONS" ]]; then
+    IMAGE_SECTION=",
+  \"image\": {
+    \"dimensions\": \"$IMAGE_DIMENSIONS\"
+  }"
+fi
+
+# Build media section if available
+MEDIA_SECTION=""
+if [[ "$FILE_TYPE" == "video/"* ]] || [[ "$FILE_TYPE" == "audio/"* ]]; then
+    MEDIA_SECTION=",
+  \"media\": {
+    \"duration\": ${DURATION:-0}$(if [[ -n "$VIDEO_CODECS" ]]; then echo ",
+    \"video_codecs\": \"$VIDEO_CODECS\""; fi)$(if [[ -n "$AUDIO_CODECS" ]]; then echo ",
+    \"audio_codecs\": \"$AUDIO_CODECS\""; fi)$(if [[ -n "$VIDEO_DIMENSIONS" ]]; then echo ",
+    \"dimensions\": \"$VIDEO_DIMENSIONS\""; fi)
+  }"
+fi
+
+# Construct info.json content
+INFO_JSON_CONTENT="{
+  \"file\": {
+    \"name\": \"$FILE_NAME\",
+    \"size\": $FILE_SIZE,
+    \"type\": \"$FILE_TYPE\",
+    \"hash\": \"$FILE_HASH\"
+  },
+  \"ipfs\": {
+    \"cid\": \"$CID\",
+    \"url\": \"/ipfs/$CID/$FILE_NAME\",
+    \"date\": \"$DATE\"
+  }$IMAGE_SECTION$MEDIA_SECTION,
+  \"metadata\": {
+    \"description\": \"$DESCRIPTION\",
+    \"type\": \"$IDISK\",
+    \"title\": \"\\\$:/$IDISK/$CID/$FILE_NAME\"
+  },
+  \"nostr\": {
+    \"nip94_tags\": [
+      $NIP94_TAGS_STR
+    ]
+  }
+}"
+
+# Write info.json to temporary location
+echo "$INFO_JSON_CONTENT" > "$INFO_JSON_FILE"
+
+# Add info.json to IPFS
+INFO_CID_OUTPUT=$(ipfs add -q "$INFO_JSON_FILE" 2>&1)
+INFO_CID=$(echo "$INFO_CID_OUTPUT" | tail -n 1)
+
+# Check if info.json was added successfully
+if [ -z "$INFO_CID" ]; then
+    echo "WARNING: Failed to add info.json to IPFS" >&2
+    INFO_CID_URL=""
+else
+    INFO_CID_URL="$myIPFS/ipfs/$INFO_CID/info.json"
+    echo "DEBUG: info.json CID: $INFO_CID, URL: $INFO_CID_URL" >&2
+    # Unpin info.json
+    ipfs pin rm "$INFO_CID" >&2
+fi
+
+# Clean up temporary info.json file
+rm -f "$INFO_JSON_FILE"
+
 # Construct JSON output
 NIP94_JSON="{
     \"tags\": [
@@ -153,6 +231,7 @@ JSON_OUTPUT="{
   \"duration\": ${DURATION:-0},
   \"fileSize\": ${FILE_SIZE:-0},
   \"fileName\": \"$FILE_NAME\",
+  \"info\": \"$INFO_CID\",
   \"unode\": \"$IPFSNODEID\",
   \"date\": \"$DATE\",
   \"description\": \"$DESCRIPTION\",

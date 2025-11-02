@@ -477,6 +477,8 @@ class UploadResponse(BaseModel):
     new_cid: Optional[str] = None
     timestamp: str
     auth_verified: Optional[bool] = False
+    fileName: Optional[str] = None
+    description: Optional[str] = None  # Description for images (AI-generated) or other files
 
 class DeleteRequest(BaseModel):
     file_path: str
@@ -3521,14 +3523,15 @@ async def upload_file_to_ipfs(
         
         target_dir.mkdir(parents=True, exist_ok=True)
         
-        # Sanitize filename
+        # Sanitize filename (keep original filename, don't rename)
         original_filename = file.filename if file.filename else "untitled_file"
         sanitized_filename = sanitize_filename_python(original_filename)
         
         # DEBUG: Log file type detection
         logging.info(f"📂 File type detected: '{file_type}' for file '{original_filename}'")
         
-        # For images, generate AI description and create smart filename
+        # For images, generate AI description but DON'T rename the file
+        description = None
         if file_type == 'image':
             try:
                 logging.info(f"🎨 Starting AI description generation for: {sanitized_filename}")
@@ -3543,9 +3546,9 @@ async def upload_file_to_ipfs(
                 describe_script = os.path.join(os.path.expanduser("~"), ".zen", "Astroport.ONE", "IA", "describe_image.py")
                 logging.info(f"🤖 Calling describe_image.py: {describe_script}")
                 
-                # Get AI description with custom prompt for filename generation
+                # Get AI description with custom prompt for description generation
                 # Pass the local file path directly (no IPFS upload needed)
-                custom_prompt = "Génère un titre de fichier (maximum 100 caractères) décrivant cette image en 10-15 mots clés. Sois concis et précis. Ne génère que le titre, sans phrase complète."
+                custom_prompt = "Décris ce qui se trouve sur cette image en 10-30 mots clés concis et précis. Ne génère qu'une description courte sans phrase complète, ni introduction."
                 desc_process = await asyncio.create_subprocess_exec(
                     "python3", describe_script, str(temp_image_path), "--json", "--prompt", custom_prompt,
                     stdout=asyncio.subprocess.PIPE,
@@ -3559,21 +3562,9 @@ async def upload_file_to_ipfs(
                     description = desc_json.get('description', '')
                     
                     if description:
-                        # Create filename from description (max 120 chars for better readability)
-                        # Remove special characters and limit length
-                        desc_clean = description[:120].strip()
-                        desc_clean = re.sub(r'[^\w\s-]', '', desc_clean)
-                        desc_clean = re.sub(r'[\s_]+', '_', desc_clean)
-                        desc_clean = desc_clean.strip('_')
-                        
-                        # Get original file extension
-                        _, ext = os.path.splitext(sanitized_filename)
-                        
-                        # Create new filename: description + timestamp + extension
-                        timestamp = int(time.time())
-                        sanitized_filename = f"{desc_clean}_{timestamp}{ext}"
-                        
-                        logging.info(f"✅ Image renamed with AI description: {sanitized_filename}")
+                        # Store AI description
+                        description = description.strip()
+                        logging.info(f"✅ AI description generated: {description[:100]}...")
                 else:
                     stderr_msg = desc_stderr.decode().strip()
                     logging.warning(f"❌ describe_image.py failed with code {desc_process.returncode}")
@@ -3594,7 +3585,7 @@ async def upload_file_to_ipfs(
                 logging.error(f"   Traceback: {traceback.format_exc()[:500]}")
                 # Continue with original filename if AI description fails
         
-        # Final file path with potentially AI-generated filename
+        # Final file path (keep original filename)
         file_path = target_dir / sanitized_filename
         
         # Save file to target directory
@@ -3616,6 +3607,9 @@ async def upload_file_to_ipfs(
                 # Clean up temporary files
                 os.remove(temp_file_path)
                 
+                # Get fileName from json_output (from upload2ipfs.sh) or use original filename
+                response_fileName = json_output.get('fileName') or sanitized_filename
+                
                 return UploadResponse(
                     success=True,
                     message=f"File uploaded successfully to IPFS",
@@ -3624,7 +3618,9 @@ async def upload_file_to_ipfs(
                     target_directory=str(target_dir),
                     new_cid=json_output.get('cid'),
                     timestamp=datetime.now().isoformat(),
-                    auth_verified=True
+                    auth_verified=True,
+                    fileName=response_fileName,  # Filename from IPFS upload (or original)
+                    description=description  # Description for images (AI-generated)
                 )
                 
             except (json.JSONDecodeError, FileNotFoundError) as e:
@@ -4594,7 +4590,7 @@ async def send_invitation_message(
             </div>
             
             <div style="text-align: center; margin: 30px 0;">
-                <a href="https://uplanet.org" style="background-color: #4CAF50; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">🚀 Rejoindre UPlanet</a>
+                <a href="https://qo-op.com" style="background-color: #4CAF50; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">🚀 Rejoindre UPlanet</a>
             </div>
             
             <footer style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
