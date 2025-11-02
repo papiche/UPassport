@@ -2216,7 +2216,10 @@ async def theater_modal_route(request: Request):
 @app.get("/playlist", response_class=HTMLResponse)
 async def playlist_manager_route(request: Request):
     """Playlist manager for creating and managing video playlists"""
-    return templates.TemplateResponse("playlist-manager.html", {"request": request})
+    return templates.TemplateResponse("playlist-manager.html", {
+        "request": request,
+        "myIPFS": get_myipfs_gateway()
+    })
 
 @app.get("/youtube")
 async def youtube_route(
