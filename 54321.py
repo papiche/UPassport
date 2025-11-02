@@ -479,6 +479,7 @@ class UploadResponse(BaseModel):
     auth_verified: Optional[bool] = False
     fileName: Optional[str] = None
     description: Optional[str] = None  # Description for images (AI-generated) or other files
+    info: Optional[str] = None  # CID of info.json file containing all metadata (from upload2ipfs.sh)
 
 class DeleteRequest(BaseModel):
     file_path: str
@@ -3609,6 +3610,8 @@ async def upload_file_to_ipfs(
                 
                 # Get fileName from json_output (from upload2ipfs.sh) or use original filename
                 response_fileName = json_output.get('fileName') or sanitized_filename
+                # Get info CID from json_output (info.json metadata file)
+                info_cid = json_output.get('info')
                 
                 return UploadResponse(
                     success=True,
@@ -3620,7 +3623,8 @@ async def upload_file_to_ipfs(
                     timestamp=datetime.now().isoformat(),
                     auth_verified=True,
                     fileName=response_fileName,  # Filename from IPFS upload (or original)
-                    description=description  # Description for images (AI-generated)
+                    description=description,  # Description for images (AI-generated)
+                    info=info_cid  # CID of info.json containing all metadata
                 )
                 
             except (json.JSONDecodeError, FileNotFoundError) as e:
