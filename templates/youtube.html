@@ -47,7 +47,67 @@
             height: 100vh;
             overflow-y: auto;
             z-index: 100;
-            transition: transform 0.3s ease;
+            transition: width 0.3s ease, transform 0.3s ease;
+        }
+        
+        .sidebar.collapsed {
+            width: 72px;
+        }
+        
+        .sidebar.collapsed .sidebar-title,
+        .sidebar.collapsed .sidebar-item-text,
+        .sidebar.collapsed .channel-info,
+        .sidebar.collapsed .channel-count,
+        .sidebar.collapsed .sidebar-section-title {
+            display: none;
+        }
+        
+        .sidebar.collapsed .sidebar-header {
+            padding: 16px;
+            justify-content: center;
+        }
+        
+        .sidebar.collapsed .sidebar-item {
+            padding: 10px;
+            justify-content: center;
+        }
+        
+        .sidebar.collapsed .channel-item {
+            padding: 10px;
+            justify-content: center;
+        }
+        
+        .sidebar-toggle-btn {
+            position: fixed;
+            top: 20px;
+            left: 260px;
+            z-index: 101;
+            background: #212121;
+            border: 1px solid #3f3f3f;
+            color: #ffffff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+        }
+        
+        .sidebar-toggle-btn:hover {
+            background: #3f3f3f;
+            border-color: #606060;
+        }
+        
+        .sidebar.collapsed ~ .main-content .sidebar-toggle-btn {
+            left: 92px;
+        }
+        
+        .sidebar.collapsed ~ .main-content {
+            margin-left: 72px;
         }
         
         .sidebar::-webkit-scrollbar {
@@ -234,6 +294,7 @@
             display: flex;
             flex-direction: column;
             background: #0f0f0f;
+            transition: margin-left 0.3s ease;
         }
         
         .header {
@@ -800,6 +861,11 @@
             bottom: 0;
             z-index: 1000;
             background: #0f0f0f;
+            transition: left 0.3s ease;
+        }
+        
+        .sidebar.collapsed ~ * .map-view {
+            left: 72px;
         }
         
         .map-view.active {
@@ -1210,12 +1276,22 @@
         footer {
             margin-left: 240px;
             width: calc(100% - 240px);
+            transition: margin-left 0.3s ease, width 0.3s ease;
+        }
+        
+        .sidebar.collapsed ~ * footer {
+            margin-left: 72px;
+            width: calc(100% - 72px);
         }
         
         @media (max-width: 768px) {
             footer {
                 margin-left: 0 !important;
                 width: 100% !important;
+            }
+            
+            .sidebar-toggle-btn {
+                display: none;
             }
         }
         
@@ -1422,16 +1498,19 @@
         
         <!-- Main content -->
         <main class="main-content">
+            <button class="sidebar-toggle-btn" onclick="toggleSidebarCollapse()" title="Replier/Déplier la sidebar" id="sidebarCollapseBtn">
+                ◀
+            </button>
             <div class="header">
             <div class="header-top">
                 <div style="display: flex; align-items: center; gap: 24px; width: 100%; justify-content: flex-end;">
                     <div class="header-stats">
                         <div class="header-stat">
-                            <span class="header-stat-number">{{ youtube_data.total_videos }}</span>
+                            <span class="header-stat-number" id="header-video-count">{{ youtube_data.total_videos }}</span>
                             <span data-i18n="videos">vidéos</span>
                         </div>
                         <div class="header-stat">
-                            <span class="header-stat-number">{{ youtube_data.total_channels }}</span>
+                            <span class="header-stat-number" id="header-channel-count">{{ youtube_data.total_channels }}</span>
                             <span data-i18n="channels">chaînes</span>
                         </div>
                     </div>
@@ -2378,7 +2457,7 @@
             // Title removed - no update needed
             
             // Apply search filter if active
-            filterVideos();
+            filterVideos(); // This will also call updateHeaderStats()
         }
         
         // Search functionality
@@ -2418,6 +2497,9 @@
             if (currentSort) {
                 sortVideosBy(currentSort);
             }
+            
+            // Update header stats
+            updateHeaderStats();
         }
         
         /**
@@ -2488,6 +2570,78 @@
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             sidebar.classList.toggle('open');
+        }
+        
+        /**
+         * Toggle sidebar collapse (desktop)
+         */
+        function toggleSidebarCollapse() {
+            const sidebar = document.getElementById('sidebar');
+            const btn = document.getElementById('sidebarCollapseBtn');
+            
+            sidebar.classList.toggle('collapsed');
+            
+            // Update button icon
+            if (sidebar.classList.contains('collapsed')) {
+                btn.textContent = '▶';
+                btn.title = 'Déplier la sidebar';
+            } else {
+                btn.textContent = '◀';
+                btn.title = 'Replier la sidebar';
+            }
+            
+            // Store preference in localStorage
+            localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+        }
+        
+        /**
+         * Restore sidebar state from localStorage
+         */
+        function restoreSidebarState() {
+            const collapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            if (collapsed) {
+                const sidebar = document.getElementById('sidebar');
+                const btn = document.getElementById('sidebarCollapseBtn');
+                if (sidebar && btn) {
+                    sidebar.classList.add('collapsed');
+                    btn.textContent = '▶';
+                    btn.title = 'Déplier la sidebar';
+                }
+            }
+        }
+        
+        /**
+         * Update header statistics with visible videos and channels
+         */
+        function updateHeaderStats() {
+            const videos = document.querySelectorAll('.video');
+            const visibleVideos = Array.from(videos).filter(video => 
+                video.style.display !== 'none'
+            );
+            
+            // Count visible videos
+            const videoCount = visibleVideos.length;
+            
+            // Count unique channels from visible videos
+            const visibleChannels = new Set();
+            visibleVideos.forEach(video => {
+                const channel = video.getAttribute('data-channel');
+                if (channel) {
+                    visibleChannels.add(channel);
+                }
+            });
+            const channelCount = visibleChannels.size;
+            
+            // Update header
+            const videoCountEl = document.getElementById('header-video-count');
+            const channelCountEl = document.getElementById('header-channel-count');
+            
+            if (videoCountEl) {
+                videoCountEl.textContent = videoCount;
+            }
+            if (channelCountEl) {
+                channelCountEl.textContent = channelCount;
+            }
         }
         
         // Convert all IPFS URLs for thumbnails (uses convertIPFSUrlGlobal from youtube.enhancements.js)
@@ -2572,6 +2726,9 @@
             
             // Apply dynamic theme
             applyDynamicTheme();
+            
+            // Restore sidebar state
+            restoreSidebarState();
             
             // Check NOSTR connection status
             checkNostrConnectionStatus();
@@ -2688,6 +2845,9 @@
             if (typeof userPubkey !== 'undefined' && userPubkey) {
                 setTimeout(() => loadNetworkVideos(), 2000); // Delay to ensure NOSTR is connected
             }
+            
+            // Initial header stats update
+            updateHeaderStats();
         });
         
         // ========================================
@@ -3240,6 +3400,9 @@
             
             // Update button states
             updateSortButtons(metric, sortDirection);
+            
+            // Update header stats after sorting
+            updateHeaderStats();
         }
         
         /**
