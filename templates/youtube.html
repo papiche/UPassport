@@ -584,8 +584,8 @@
         
         .video-engagement-overlay {
             position: absolute;
-            bottom: 8px;
-            left: 8px;
+            top: 8px;
+            right: 8px;
             display: flex;
             gap: 8px;
             background: rgba(0, 0, 0, 0.75);
@@ -632,6 +632,30 @@
             color: #aaaaaa;
             font-size: 0.75em;
             line-height: 1.5;
+        }
+        
+        .video-description {
+            margin-top: 8px;
+            color: #888888;
+            font-size: 0.7em;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            cursor: help;
+            transition: color 0.2s ease;
+        }
+        
+        .video-description:hover {
+            color: #aaaaaa;
+        }
+        
+        .video-description-full {
+            -webkit-line-clamp: unset;
+            line-clamp: unset;
+            max-height: none;
         }
         
         .video-meta .uploader-link {
@@ -1253,8 +1277,7 @@
         <main class="main-content">
             <div class="header">
             <div class="header-top">
-                <h1 id="pageTitle" data-i18n="all_videos">Toutes les vidéos</h1>
-                <div style="display: flex; align-items: center; gap: 24px;">
+                <div style="display: flex; align-items: center; gap: 24px; width: 100%; justify-content: flex-end;">
                     <div class="header-stats">
                         <div class="header-stat">
                             <span class="header-stat-number">{{ youtube_data.total_videos }}</span>
@@ -1413,8 +1436,15 @@
                                     • {{ (video.duration // 60) }}:{{ "%02d"|format(video.duration % 60) }}
                                     {% endif %}
                                     <br>
-                                    {{ video.download_date[:10] if video.download_date else (video.created_at[:10] if video.created_at else '') }}
+                                    {% if video.download_date %}
+                                    {{ video.download_date[:10] }} {{ video.download_date[11:19] if video.download_date|length > 10 else '' }}
+                                    {% elif video.created_at %}
+                                    {{ video.created_at[:10] }} {{ video.created_at[11:19] if video.created_at|length > 10 else '' }}
+                                    {% endif %}
                                 </div>
+                                {% if video.content and (video.kind == 21 or video.kind == 22) %}
+                                <div class="video-description" title="{{ video.content|e }}">{{ video.content|e }}</div>
+                                {% endif %}
                                 <div class="video-actions">
                                     <button class="video-action-btn" onclick="event.stopPropagation(); openVideoInTheater(this.closest('.video').querySelector('.video-thumbnail'))" title="Mode théâtre (double-clic sur la vidéo)">
                                         🎬 Théâtre
@@ -2155,12 +2185,7 @@
                 }
             });
             
-            // Update title
-            if (currentChannel) {
-                document.getElementById('pageTitle').textContent = channelName;
-            } else {
-                document.getElementById('pageTitle').textContent = t('all_videos');
-            }
+            // Title removed - no update needed
             
             // Apply search filter if active
             filterVideos();
