@@ -110,11 +110,24 @@
             flex-direction: column;
             position: relative;
             background: #000000;
+            min-height: 0;
+        }
+
+        .theater-video-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            min-height: 0;
+            background: #000000;
         }
 
         .theater-video-player {
             width: 100%;
             height: 100%;
+            max-width: 100%;
+            max-height: 100%;
             object-fit: contain;
             background: #000000;
         }
@@ -170,6 +183,19 @@
             padding: 16px 24px;
             background: rgba(15, 15, 15, 0.95);
             border-top: 1px solid #3f3f3f;
+            flex-shrink: 0;
+        }
+        
+        .theater-uploader-link {
+            color: #3ea6ff;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .theater-uploader-link:hover {
+            color: #5bb5ff;
+            text-decoration: underline;
         }
 
         .theater-video-stats {
@@ -319,18 +345,22 @@
         .theater-comment-item:last-child {
             border-bottom: none;
         }
-
-        .theater-uploader-link {
+        
+        .theater-comment-item.original-comment {
+            background: rgba(62, 166, 255, 0.05);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border-left: 3px solid #3ea6ff;
+        }
+        
+        .theater-comment-item.original-comment .theater-comment-author::after {
+            content: " (Original)";
+            font-size: 0.75em;
             color: #3ea6ff;
-            text-decoration: none;
-            transition: all 0.2s ease;
+            font-weight: normal;
         }
-        
-        .theater-uploader-link:hover {
-            color: #5bb5ff;
-            text-decoration: underline;
-        }
-        
+
         .theater-comment-author {
             font-weight: 500;
             font-size: 0.85em;
@@ -384,29 +414,35 @@
             padding: 16px;
             background: rgba(15, 15, 15, 0.95);
             border-top: 1px solid #3f3f3f;
-            max-height: 200px;
+            max-height: 250px;
             overflow-y: auto;
+            flex-shrink: 0;
         }
 
         .theater-related-videos h4 {
             font-size: 1em;
             margin-bottom: 12px;
+            color: #f1f1f1;
         }
 
         .related-videos-list {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 12px;
-            overflow-x: auto;
+            padding-bottom: 8px;
         }
 
         .related-video-item {
-            min-width: 200px;
             cursor: pointer;
             transition: transform 0.2s;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            padding: 8px;
         }
 
         .related-video-item:hover {
-            transform: scale(1.05);
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.05);
         }
 
         .related-video-thumbnail {
@@ -417,15 +453,38 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 48px;
+            font-size: 32px;
             margin-bottom: 8px;
             overflow: hidden;
+            position: relative;
         }
 
         .related-video-thumbnail img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
+
+        .related-video-thumbnail::after {
+            content: "▶";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .related-video-item:hover .related-video-thumbnail::after {
+            opacity: 1;
         }
 
         .related-video-title {
@@ -438,49 +497,85 @@
             -webkit-line-clamp: 2;
             line-clamp: 2;
             -webkit-box-orient: vertical;
+            color: #f1f1f1;
+            line-height: 1.3;
         }
 
         .related-video-author {
             font-size: 0.75em;
             color: #aaaaaa;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         @media (max-width: 1024px) {
-            .theater-comments-panel {
-                width: 100%;
-                max-width: 400px;
-            }
-
             .theater-body {
                 flex-direction: column;
             }
 
             .theater-video-container {
-                height: 60vh;
+                min-height: 60vh;
+                flex: 0 0 60vh;
+            }
+
+            .theater-comments-panel {
+                width: 100%;
+                max-width: 100%;
+                height: 40vh;
+                border-left: none;
+                border-top: 1px solid #3f3f3f;
             }
         }
 
         @media (max-width: 768px) {
             .theater-header {
                 padding: 12px 16px;
+                flex-wrap: wrap;
             }
 
             .theater-title {
-                font-size: 0.95em;
+                font-size: 0.9em;
+                margin: 8px 0;
+                order: 3;
+                width: 100%;
             }
 
             .theater-actions {
                 gap: 4px;
+                flex-wrap: wrap;
+                justify-content: flex-end;
             }
 
             .theater-action-btn {
-                padding: 6px 12px;
-                font-size: 0.8em;
+                padding: 6px 10px;
+                font-size: 0.75em;
+            }
+
+            .theater-video-wrapper {
+                min-height: 40vh;
             }
 
             .theater-comments-panel {
                 width: 100%;
-                height: 40vh;
+                height: 45vh;
+                max-height: 45vh;
+                border-left: none;
+                border-top: 1px solid #3f3f3f;
+            }
+
+            .theater-video-info {
+                padding: 12px 16px;
+            }
+
+            .theater-related-videos {
+                max-height: 180px;
+                padding: 12px;
+            }
+
+            .related-videos-list {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                gap: 8px;
             }
         }
     </style>
@@ -493,19 +588,20 @@
             <div class="theater-actions">
                 <button class="theater-action-btn" onclick="handleTheaterShare()">📡 Partager</button>
                 <button class="theater-action-btn" onclick="handleTheaterBookmark()">🔖 Bookmark</button>
-                <button class="theater-action-btn" onclick="handleAddToPlaylist()">➕ Playlist</button>
                 <button class="theater-action-btn" onclick="handlePictureInPicture()">🖼️ PiP</button>
             </div>
         </div>
         <div class="theater-body">
             <div class="theater-video-container">
-                <video 
-                    id="theaterVideoPlayer" 
-                    class="theater-video-player"
-                    controls 
-                    autoplay>
-                    Votre navigateur ne supporte pas la lecture vidéo.
-                </video>
+                <div class="theater-video-wrapper">
+                    <video 
+                        id="theaterVideoPlayer" 
+                        class="theater-video-player"
+                        controls 
+                        autoplay>
+                        Votre navigateur ne supporte pas la lecture vidéo.
+                    </video>
+                </div>
                 <div class="theater-video-info">
                     <div class="theater-video-stats" id="theaterVideoStats">
                         <span class="stat-item"><span id="likeCount">0</span> 👍</span>
@@ -513,7 +609,9 @@
                         <span class="stat-item"><span id="commentCount">0</span> 💬</span>
                     </div>
                     <div class="theater-video-meta" id="theaterVideoMeta">
-                        <strong id="theaterUploader">Loading...</strong>
+                        <span id="theaterUploaderContainer">
+                            <span id="theaterUploader">Loading...</span>
+                        </span>
                         <span id="theaterDuration"></span>
                     </div>
                     <div class="theater-description" id="theaterDescription"></div>
@@ -553,15 +651,6 @@
         // Wait for youtube.enhancements.js to load
         document.addEventListener('DOMContentLoaded', function() {
             // Ensure functions are available from parent or wait for them
-            if (typeof window.addToPlaylist === 'undefined') {
-                // Wait a bit for scripts to load
-                setTimeout(() => {
-                    if (typeof window.addToPlaylist === 'undefined') {
-                        console.warn('addToPlaylist function not found. Make sure youtube.enhancements.js is loaded.');
-                    }
-                }, 1000);
-            }
-            
             if (typeof window.theaterShareVideoWithPreview === 'undefined') {
                 setTimeout(() => {
                     if (typeof window.theaterShareVideoWithPreview === 'undefined') {
@@ -571,118 +660,6 @@
             }
         });
 
-        /**
-         * Add video to playlist from theater mode
-         */
-        async function addVideoToPlaylist() {
-            const videoPlayer = document.getElementById('theaterVideoPlayer');
-            if (!videoPlayer) return;
-
-            const eventId = videoPlayer.getAttribute('data-event-id');
-            if (!eventId) {
-                alert('Video event ID not found');
-                return;
-            }
-
-            if (!userPubkey) {
-                if (typeof connectNostr === 'function') {
-                    const connected = await connectNostr();
-                    if (!connected) {
-                        alert('You must be connected to add videos to playlists');
-                        return;
-                    }
-                } else {
-                    alert('NOSTR connection not available. Please ensure common.js is loaded.');
-                    return;
-                }
-            }
-
-            // Fetch user's playlists
-            try {
-                if (!nostrRelay || !isNostrConnected) {
-                    if (typeof connectToRelay === 'function') {
-                        await connectToRelay();
-                    } else {
-                        alert('Cannot connect to relay. Please ensure common.js is loaded.');
-                        return;
-                    }
-                }
-
-                const playlists = await new Promise((resolve) => {
-                    const sub = nostrRelay.sub([{
-                        kinds: [10001],
-                        authors: [userPubkey],
-                        limit: 20
-                    }]);
-
-                    const playlistList = [];
-                    const timeout = setTimeout(() => {
-                        sub.unsub();
-                        resolve(playlistList);
-                    }, 3000);
-
-                    sub.on('event', (event) => {
-                        try {
-                            const playlistData = JSON.parse(event.content);
-                            playlistList.push({
-                                id: event.id,
-                                name: playlistData.name || 'Untitled',
-                                event: event
-                            });
-                        } catch (e) {
-                            console.warn('Error parsing playlist:', e);
-                        }
-                    });
-
-                    sub.on('eose', () => {
-                        clearTimeout(timeout);
-                        sub.unsub();
-                        resolve(playlistList);
-                    });
-                });
-
-                if (playlists.length === 0) {
-                    if (confirm('Vous n\'avez aucune playlist. Voulez-vous en créer une ?')) {
-                        window.open('/playlist', '_blank');
-                    }
-                    return;
-                }
-
-                // Show playlist selection dialog
-                const selection = prompt(
-                    `Choisissez une playlist (tapez le numéro):\n\n${playlists.map((p, i) => `${i + 1}. ${p.name}`).join('\n')}`
-                );
-
-                if (selection === null) return;
-
-                const index = parseInt(selection) - 1;
-                if (isNaN(index) || index < 0 || index >= playlists.length) {
-                    alert('Sélection invalide');
-                    return;
-                }
-
-                const selectedPlaylist = playlists[index];
-                
-                // Try to use addToPlaylist from youtube.enhancements.js
-                if (typeof window.addToPlaylist === 'function') {
-                    const success = await window.addToPlaylist(selectedPlaylist.id, eventId);
-                    if (success) {
-                        alert(`✅ Vidéo ajoutée à "${selectedPlaylist.name}" !`);
-                    } else {
-                        alert('❌ Erreur lors de l\'ajout à la playlist');
-                    }
-                } else {
-                    alert('❌ Fonction addToPlaylist non disponible. Assurez-vous que youtube.enhancements.js est chargé.');
-                }
-            } catch (error) {
-                console.error('Error adding to playlist:', error);
-                alert('❌ Erreur: ' + error.message);
-            }
-        }
-        
-        // Expose function globally
-        window.addVideoToPlaylist = addVideoToPlaylist;
-        
         /**
          * Handle share button click - wrapper to ensure function is available
          */
@@ -714,18 +691,6 @@
             } else {
                 console.error('theaterBookmarkVideo not available');
                 alert('Fonction de bookmark non disponible. Assurez-vous que youtube.enhancements.js est chargé.');
-            }
-        }
-        
-        /**
-         * Handle add to playlist button click - wrapper to ensure function is available
-         */
-        async function handleAddToPlaylist() {
-            try {
-                await addVideoToPlaylist();
-            } catch (error) {
-                console.error('Error adding to playlist:', error);
-                alert('Erreur lors de l\'ajout à la playlist: ' + error.message);
             }
         }
         
@@ -783,13 +748,467 @@
         // Expose handlers globally
         window.handleTheaterShare = handleTheaterShare;
         window.handleTheaterBookmark = handleTheaterBookmark;
-        window.handleAddToPlaylist = handleAddToPlaylist;
         window.handlePictureInPicture = handlePictureInPicture;
         window.handleCloseTheater = handleCloseTheater;
 
+        /**
+         * Load and display video author information
+         */
+        async function loadVideoAuthor(authorId, authorName) {
+            const uploaderContainer = document.getElementById('theaterUploaderContainer');
+            if (!uploaderContainer) return;
+            
+            let displayName = authorName || 'Auteur inconnu';
+            
+            // If we have authorId, try to fetch profile and create link
+            if (authorId) {
+                try {
+                    // Try to get profile from NOSTR if available
+                    if (typeof fetchProfile !== 'undefined' && typeof openProfileModal !== 'undefined') {
+                        const profile = await fetchProfile(authorId);
+                        if (profile && profile.display_name) {
+                            displayName = profile.display_name;
+                        }
+                        
+                        // Create link to profile
+                        const link = document.createElement('a');
+                        link.href = '#';
+                        link.className = 'theater-uploader-link';
+                        link.textContent = displayName;
+                        link.onclick = function(e) {
+                            e.preventDefault();
+                            openProfileModal(authorId, displayName);
+                            return false;
+                        };
+                        uploaderContainer.innerHTML = '';
+                        uploaderContainer.appendChild(link);
+                    } else {
+                        // Fallback: just show name
+                        const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
+                        uploaderContainer.innerHTML = `<strong>${escapeFn(displayName)}</strong>`;
+                    }
+                } catch (error) {
+                    console.error('Error loading author profile:', error);
+                    const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
+                    uploaderContainer.innerHTML = `<strong>${escapeFn(displayName)}</strong>`;
+                }
+            } else {
+                // No authorId, just show name
+                const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
+                uploaderContainer.innerHTML = `<strong>${escapeFn(displayName)}</strong>`;
+            }
+        }
+        
+        /**
+         * Load comments for the video
+         */
+        async function loadVideoComments(eventId, authorId, originalContent) {
+            const commentsList = document.getElementById('theaterCommentsList');
+            const commentStats = document.getElementById('theaterCommentStats');
+            
+            if (!commentsList || !eventId) {
+                commentsList.innerHTML = '<div class="no-comments">Aucun commentaire disponible</div>';
+                return;
+            }
+            
+            commentsList.innerHTML = '<div class="loading-comments">Chargement des commentaires...</div>';
+            
+            try {
+                // Check if we have NOSTR functions
+                if (typeof nostrRelay === 'undefined' || !nostrRelay) {
+                    commentsList.innerHTML = '<div class="error-comments">NOSTR non connecté</div>';
+                    return;
+                }
+                
+                const comments = [];
+                
+                // Add original comment if available (from event 21/22 content)
+                if (originalContent && originalContent.trim()) {
+                    comments.push({
+                        id: eventId,
+                        authorId: authorId,
+                        authorName: 'Original',
+                        content: originalContent,
+                        timestamp: null,
+                        isOriginal: true,
+                        created_at: null
+                    });
+                }
+                
+                // Fetch comments from NOSTR (kind 1111 - NIP-22 comments)
+                const sub = nostrRelay.sub([{
+                    kinds: [1111],
+                    '#E': [eventId],
+                    limit: 100
+                }]);
+                
+                const timeout = setTimeout(() => {
+                    sub.unsub();
+                    displayComments(comments, commentStats);
+                }, 5000);
+                
+                sub.on('event', async (event) => {
+                    try {
+                        // Skip if this is the original event itself
+                        if (event.id === eventId) return;
+                        
+                        // Get author name
+                        let authorName = event.pubkey.substring(0, 8) + '...';
+                        if (typeof fetchProfile !== 'undefined') {
+                            try {
+                                const profile = await fetchProfile(event.pubkey);
+                                if (profile && profile.display_name) {
+                                    authorName = profile.display_name;
+                                } else if (profile && profile.name) {
+                                    authorName = profile.name;
+                                }
+                            } catch (e) {
+                                console.warn('Could not fetch profile for comment author:', e);
+                            }
+                        }
+                        
+                        // Extract timestamp from comment if available
+                        let timestamp = null;
+                        const timestampTag = event.tags.find(tag => tag[0] === 'timestamp');
+                        if (timestampTag && timestampTag[1]) {
+                            timestamp = parseInt(timestampTag[1]);
+                        }
+                        
+                        comments.push({
+                            id: event.id,
+                            authorId: event.pubkey,
+                            authorName: authorName,
+                            content: event.content,
+                            timestamp: timestamp,
+                            isOriginal: false,
+                            created_at: event.created_at
+                        });
+                    } catch (e) {
+                        console.error('Error processing comment:', e);
+                    }
+                });
+                
+                sub.on('eose', () => {
+                    clearTimeout(timeout);
+                    sub.unsub();
+                    displayComments(comments, commentStats);
+                });
+                
+            } catch (error) {
+                console.error('Error loading comments:', error);
+                commentsList.innerHTML = '<div class="error-comments">Erreur lors du chargement des commentaires</div>';
+            }
+        }
+        
+        /**
+         * Display comments (original first, then others sorted by date)
+         */
+        function displayComments(comments, commentStats) {
+            const commentsList = document.getElementById('theaterCommentsList');
+            if (!commentsList) return;
+            
+            // Sort comments: original first, then by created_at (newest first)
+            comments.sort((a, b) => {
+                if (a.isOriginal) return -1;
+                if (b.isOriginal) return 1;
+                return (b.created_at || 0) - (a.created_at || 0);
+            });
+            
+            if (comments.length === 0) {
+                commentsList.innerHTML = '<div class="no-comments">Aucun commentaire</div>';
+                if (commentStats) {
+                    commentStats.textContent = '0 commentaire(s)';
+                }
+                return;
+            }
+            
+            if (commentStats) {
+                commentStats.textContent = `${comments.length} commentaire${comments.length > 1 ? 's' : ''}`;
+            }
+            
+            // Use global functions if available (from youtube.enhancements.js or common.js)
+            const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
+            const formatRelativeFn = typeof formatRelativeTime !== 'undefined' ? formatRelativeTime : window.formatRelativeTime;
+            
+            const html = comments.map(comment => {
+                const timeAgo = comment.created_at && formatRelativeFn ? formatRelativeFn(comment.created_at) : '';
+                const timestampDisplay = comment.timestamp ? formatVideoTimestamp(comment.timestamp) : '';
+                
+                const authorLink = comment.authorId && typeof openProfileModal !== 'undefined'
+                    ? `<a href="#" onclick="event.preventDefault(); openProfileModal('${comment.authorId}', '${escapeFn(comment.authorName)}'); return false;" class="theater-uploader-link">${escapeFn(comment.authorName)}</a>`
+                    : escapeFn(comment.authorName);
+                
+                return `
+                    <div class="theater-comment-item ${comment.isOriginal ? 'original-comment' : ''}">
+                        <div class="theater-comment-author">${authorLink}</div>
+                        <div class="theater-comment-content">${escapeFn(comment.content)}</div>
+                        ${timestampDisplay ? `<button class="theater-comment-timestamp-link" onclick="seekToTimestamp(${comment.timestamp})">⏱️ ${timestampDisplay}</button>` : ''}
+                        ${timeAgo ? `<div class="theater-comment-time">${timeAgo}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+            
+            commentsList.innerHTML = html;
+        }
+        
+        /**
+         * Format timestamp for video comments (seconds to HH:MM:SS or MM:SS)
+         * Uses formatTime from youtube.enhancements.js if available, otherwise fallback
+         */
+        function formatVideoTimestamp(seconds) {
+            if (typeof formatTime === 'function') {
+                const formatted = formatTime(seconds);
+                // formatTime returns MM:SS, but we need to support HH:MM:SS for longer videos
+                const h = Math.floor(seconds / 3600);
+                if (h > 0) {
+                    const parts = formatted.split(':');
+                    if (parts.length === 2) {
+                        return `${h}:${formatted}`;
+                    }
+                }
+                return formatted;
+            }
+            // Fallback
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            if (h > 0) {
+                return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            }
+            return `${m}:${String(s).padStart(2, '0')}`;
+        }
+        
+        /**
+         * Seek to timestamp in video
+         */
+        function seekToTimestamp(seconds) {
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            if (videoPlayer && !isNaN(seconds)) {
+                videoPlayer.currentTime = seconds;
+                videoPlayer.play();
+            }
+        }
+        
+        /**
+         * Submit a comment
+         */
+        async function submitTheaterComment() {
+            const input = document.getElementById('theaterCommentInput');
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            
+            if (!input || !videoPlayer) return;
+            
+            // Validate and sanitize input
+            const validateFn = typeof validateInput !== 'undefined' ? validateInput : 
+                              (typeof window.validateInput !== 'undefined' ? window.validateInput : null);
+            const rawContent = input.value;
+            
+            if (!rawContent || !rawContent.trim()) {
+                alert('Le commentaire ne peut pas être vide');
+                return;
+            }
+            
+            // Sanitize content (max 5000 chars for comments)
+            const content = validateFn ? validateFn(rawContent, 5000, false) : rawContent.trim().substring(0, 5000);
+            
+            if (!content) {
+                alert('Le commentaire ne peut pas être vide');
+                return;
+            }
+            
+            const eventId = videoPlayer.getAttribute('data-event-id');
+            const authorId = videoPlayer.getAttribute('data-author-id');
+            
+            // Validate event ID format
+            const validateEventIdFn = typeof validateEventId !== 'undefined' ? validateEventId : 
+                                     (typeof window.validateEventId !== 'undefined' ? window.validateEventId : null);
+            if (!eventId) {
+                alert('ID de la vidéo non trouvé');
+                return;
+            }
+            
+            if (validateEventIdFn && !validateEventIdFn(eventId)) {
+                alert('ID de la vidéo invalide');
+                return;
+            }
+            
+            if (!userPubkey) {
+                const connected = typeof connectNostr === 'function' ? await connectNostr() : false;
+                if (!connected) {
+                    alert('Vous devez être connecté pour commenter');
+                    return;
+                }
+            }
+            
+            // Get current timestamp if available
+            const currentTime = videoPlayer.currentTime;
+            const timestamp = Math.floor(currentTime);
+            
+            try {
+                // Create comment event (kind 1111 - NIP-22)
+                const tags = [
+                    ['E', eventId, '', authorId || ''],
+                    ['K', '21'], // Root kind is 21 (or 22 for shorts)
+                    ['k', '1111'], // Parent kind is comment
+                    ['P', authorId || '', ''] // Root author
+                ];
+                
+                // Add timestamp if available
+                if (timestamp > 0) {
+                    tags.push(['timestamp', timestamp.toString()]);
+                }
+                
+                // Publish comment
+                if (typeof publishNote === 'function') {
+                    const result = await publishNote(content, tags);
+                    if (result) {
+                        input.value = '';
+                        // Show success message (non-blocking)
+                        const submitBtn = document.querySelector('.theater-comment-submit-btn');
+                        const originalText = submitBtn?.textContent || 'Publier';
+                        if (submitBtn) {
+                            submitBtn.textContent = '✅ Publié !';
+                            submitBtn.disabled = true;
+                            setTimeout(() => {
+                                submitBtn.textContent = originalText;
+                                submitBtn.disabled = false;
+                            }, 2000);
+                        }
+                        // Reload comments
+                        loadVideoComments(eventId, authorId, null);
+                    } else {
+                        alert('❌ Erreur lors de la publication du commentaire');
+                    }
+                } else {
+                    alert('Fonction de publication non disponible');
+                }
+            } catch (error) {
+                console.error('Error submitting comment:', error);
+                alert('Erreur lors de la publication du commentaire: ' + error.message);
+            }
+        }
+        
+        /**
+         * Add timestamp to comment
+         */
+        function addTimestampToComment() {
+            const input = document.getElementById('theaterCommentInput');
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            
+            if (!input || !videoPlayer) return;
+            
+            const currentTime = videoPlayer.currentTime;
+            const timestamp = formatVideoTimestamp(Math.floor(currentTime));
+            
+            // Add timestamp to input
+            const currentText = input.value;
+            if (currentText.includes('⏱️')) {
+                // Replace existing timestamp
+                input.value = currentText.replace(/⏱️ \d+:\d+(:\d+)?/, `⏱️ ${timestamp}`);
+            } else {
+                input.value = currentText + (currentText ? ' ' : '') + `⏱️ ${timestamp}`;
+            }
+            
+            // Focus input
+            input.focus();
+        }
+        
+        /**
+         * Local fallback for escapeHtml if not available globally
+         */
+        function escapeHtmlLocal(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Use global escapeHtml if available, otherwise use local fallback
+        if (typeof escapeHtml === 'undefined' && typeof window.escapeHtml === 'undefined') {
+            window.escapeHtml = escapeHtmlLocal;
+        }
+        
+        /**
+         * Initialize theater mode with video data (if not already initialized)
+         */
+        function initializeTheaterModeLocal(videoData) {
+            if (!videoData) return;
+            
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            const titleEl = document.getElementById('theaterTitle');
+            const durationEl = document.getElementById('theaterDuration');
+            const descriptionEl = document.getElementById('theaterDescription');
+            
+            // Set title
+            if (titleEl && videoData.title) {
+                titleEl.textContent = videoData.title;
+            }
+            
+            // Set video source
+            if (videoPlayer && videoData.ipfsUrl) {
+                // Convert IPFS URL if needed
+                let videoUrl = videoData.ipfsUrl;
+                if (typeof convertIPFSUrlGlobal !== 'undefined') {
+                    videoUrl = convertIPFSUrlGlobal(videoData.ipfsUrl);
+                } else if (window.IPFS_GATEWAY && videoUrl.includes('/ipfs/')) {
+                    const match = videoUrl.match(/\/ipfs\/[^?"#]+/);
+                    if (match) {
+                        videoUrl = window.IPFS_GATEWAY + match[0];
+                    }
+                }
+                
+                const source = document.createElement('source');
+                source.src = videoUrl;
+                source.type = 'video/mp4';
+                videoPlayer.appendChild(source);
+                videoPlayer.load();
+                
+                // Store metadata
+                if (videoData.eventId) {
+                    videoPlayer.setAttribute('data-event-id', videoData.eventId);
+                }
+                if (videoData.authorId) {
+                    videoPlayer.setAttribute('data-author-id', videoData.authorId);
+                }
+            }
+            
+            // Set duration
+            if (durationEl && videoData.duration) {
+                const minutes = Math.floor(videoData.duration / 60);
+                const seconds = videoData.duration % 60;
+                durationEl.textContent = ` • ${minutes}:${String(seconds).padStart(2, '0')}`;
+            }
+            
+            // Set description
+            if (descriptionEl && videoData.description) {
+                descriptionEl.textContent = videoData.description;
+            }
+            
+            // Load author
+            if (videoData.authorId || videoData.uploader) {
+                loadVideoAuthor(videoData.authorId, videoData.uploader);
+            }
+            
+            // Load comments
+            if (videoData.eventId) {
+                loadVideoComments(videoData.eventId, videoData.authorId, videoData.content || videoData.description);
+            }
+        }
+        
+        // Expose functions globally
+        window.submitTheaterComment = submitTheaterComment;
+        window.addTimestampToComment = addTimestampToComment;
+        window.loadVideoAuthor = loadVideoAuthor;
+        window.loadVideoComments = loadVideoComments;
+        
         // Initialize theater mode if videoData is passed
-        if (window.videoData && typeof initializeTheaterMode === 'function') {
-            initializeTheaterMode(window.videoData);
+        if (window.videoData) {
+            if (typeof initializeTheaterMode === 'function') {
+                initializeTheaterMode(window.videoData);
+                // Also initialize locally to ensure comments are loaded
+                setTimeout(() => initializeTheaterModeLocal(window.videoData), 1000);
+            } else {
+                initializeTheaterModeLocal(window.videoData);
+            }
         }
 
         // Listen for close button or ESC key

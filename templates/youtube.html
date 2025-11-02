@@ -1456,6 +1456,9 @@
                                         🔖 Bookmark
                                     </button>
                                     {% if video.message_id %}
+                                    <button class="video-action-btn" onclick="addVideoToPlaylist(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-title="{{ video.title }}">
+                                        ➕ Playlist
+                                    </button>
                                     <button class="video-action-btn" onclick="likeVideo(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-ipfs-url="{{ video.ipfs_url }}">
                                         👍 Like
                                     </button>
@@ -2493,6 +2496,132 @@
                     button.textContent = '🔖 ' + t('bookmark');
                     button.disabled = false;
                 }, 3000);
+            }
+        }
+        
+        /**
+         * Add video to playlist
+         */
+        async function addVideoToPlaylist(button) {
+            const eventId = button.getAttribute('data-event-id');
+            const authorId = button.getAttribute('data-author-id');
+            const title = button.getAttribute('data-title');
+            
+            // Check if common.js is loaded
+            if (typeof userPubkey === 'undefined') {
+                alert('❌ ' + t('error_common_js'));
+                return;
+            }
+            
+            // Check if user is connected
+            if (!userPubkey) {
+                const connected = await connectNostr();
+                if (!connected) {
+                    alert('❌ Vous devez être connecté pour ajouter des vidéos à une playlist');
+                    return;
+                }
+            }
+            
+            if (!eventId) {
+                alert('❌ ID de la vidéo non trouvé');
+                return;
+            }
+            
+            // Fetch user's playlists
+            try {
+                if (!nostrRelay || !isNostrConnected) {
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                    } else {
+                        alert('❌ Impossible de se connecter au relay. Assurez-vous que common.js est chargé.');
+                        return;
+                    }
+                }
+
+                const playlists = await new Promise((resolve) => {
+                    const sub = nostrRelay.sub([{
+                        kinds: [10001],
+                        authors: [userPubkey],
+                        limit: 20
+                    }]);
+
+                    const playlistList = [];
+                    const timeout = setTimeout(() => {
+                        sub.unsub();
+                        resolve(playlistList);
+                    }, 3000);
+
+                    sub.on('event', (event) => {
+                        try {
+                            const playlistData = JSON.parse(event.content);
+                            playlistList.push({
+                                id: event.id,
+                                name: playlistData.name || 'Untitled',
+                                event: event
+                            });
+                        } catch (e) {
+                            console.warn('Error parsing playlist:', e);
+                        }
+                    });
+
+                    sub.on('eose', () => {
+                        clearTimeout(timeout);
+                        sub.unsub();
+                        resolve(playlistList);
+                    });
+                });
+
+                if (playlists.length === 0) {
+                    if (confirm('Vous n\'avez aucune playlist. Voulez-vous en créer une ?')) {
+                        window.open('/playlist', '_blank');
+                    }
+                    return;
+                }
+
+                // Show playlist selection dialog
+                const selection = prompt(
+                    `Choisissez une playlist (tapez le numéro):\n\n${playlists.map((p, i) => `${i + 1}. ${p.name}`).join('\n')}`
+                );
+
+                if (selection === null) return;
+
+                const index = parseInt(selection) - 1;
+                if (isNaN(index) || index < 0 || index >= playlists.length) {
+                    alert('❌ Sélection invalide');
+                    return;
+                }
+
+                const selectedPlaylist = playlists[index];
+                
+                button.disabled = true;
+                button.textContent = '⏳ Ajout...';
+                
+                // Try to use addToPlaylist from youtube.enhancements.js
+                if (typeof window.addToPlaylist === 'function') {
+                    const success = await window.addToPlaylist(selectedPlaylist.id, eventId);
+                    if (success) {
+                        button.textContent = '✅ Ajouté !';
+                        setTimeout(() => {
+                            button.textContent = '➕ Playlist';
+                            button.disabled = false;
+                        }, 3000);
+                    } else {
+                        button.textContent = '❌ Erreur';
+                        setTimeout(() => {
+                            button.textContent = '➕ Playlist';
+                            button.disabled = false;
+                        }, 3000);
+                    }
+                } else {
+                    alert('❌ Fonction addToPlaylist non disponible. Assurez-vous que youtube.enhancements.js est chargé.');
+                    button.disabled = false;
+                    button.textContent = '➕ Playlist';
+                }
+            } catch (error) {
+                console.error('Error adding to playlist:', error);
+                alert('❌ Erreur: ' + error.message);
+                button.disabled = false;
+                button.textContent = '➕ Playlist';
             }
         }
         

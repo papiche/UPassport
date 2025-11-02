@@ -643,14 +643,14 @@
         }
 
         // Use escapeHtml from youtube.enhancements.js if available, otherwise define fallback
-        if (typeof window.escapeHtml === 'undefined') {
-            window.escapeHtml = function(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            };
-        }
-        const escapeHtml = window.escapeHtml;
+        const escapeHtml = typeof escapeHtml !== 'undefined' ? escapeHtml : 
+                          (typeof window.escapeHtml !== 'undefined' ? window.escapeHtml : 
+                          function(text) {
+                              if (typeof text !== 'string') return '';
+                              const div = document.createElement('div');
+                              div.textContent = text;
+                              return div.innerHTML;
+                          });
 
         // Close modal on outside click
         document.getElementById('createPlaylistModal')?.addEventListener('click', (e) => {
