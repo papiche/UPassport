@@ -2251,24 +2251,13 @@ async def youtube_route(
         radius: Radius in kilometers for geographic filtering (default: 2.0km if lat/lon provided)
     """
     try:
-        print(f"🎬 GET /youtube endpoint called")
-        print(f"   - Channel filter: {channel}")
-        print(f"   - Search: {search}")
-        print(f"   - Keywords: {keyword}")
-        logging.info(f"🎬 GET /youtube endpoint called - channel={channel}, search={search}, keyword={keyword}")
-        
         # Import the video channel functions
         import sys
         sys.path.append(os.path.expanduser("~/.zen/Astroport.ONE/IA"))
         from create_video_channel import fetch_and_process_nostr_events, create_channel_playlist
         
         # Fetch NOSTR events
-        print(f"📡 Fetching NOSTR events from ws://127.0.0.1:7777...")
-        logging.info(f"📡 Fetching NOSTR events from ws://127.0.0.1:7777...")
         video_messages = await fetch_and_process_nostr_events("ws://127.0.0.1:7777", 200)
-        
-        print(f"📊 Fetched {len(video_messages)} video event(s) from NOSTR")
-        logging.info(f"📊 Fetched {len(video_messages)} video event(s) from NOSTR")
         
         # Validate and normalize video data
         validated_videos = []
