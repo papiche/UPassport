@@ -3305,6 +3305,17 @@
                 return;
             }
             
+            // Establish relay connection once before processing batches
+            // This avoids multiple simultaneous connection attempts
+            if (typeof connectToRelay === 'function' && (!isNostrConnected || !nostrRelay)) {
+                try {
+                    await connectToRelay();
+                } catch (error) {
+                    console.error('Error connecting to relay for stats:', error);
+                    // Continue anyway, individual fetch calls will retry if needed
+                }
+            }
+            
             const videoCards = document.querySelectorAll('.video');
             const CONCURRENT_LIMIT = 3; // Limit to 3 concurrent requests
             const DELAY_BETWEEN_BATCHES = 500; // 500ms delay between batches
