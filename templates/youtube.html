@@ -4075,20 +4075,39 @@
                 const descriptionEl = videoElement.querySelector('.video-description');
                 const content = descriptionEl ? descriptionEl.textContent.trim() : '';
                 
+                // Extract duration from data attribute or meta
+                let duration = null;
+                const durationAttr = videoElement.getAttribute('data-duration');
+                if (durationAttr) {
+                    duration = parseInt(durationAttr) || null;
+                } else {
+                    // Try to parse from meta (format: "MM:SS")
+                    const durationMatch = videoMeta.match(/(\d+):(\d+)/);
+                    if (durationMatch) {
+                        duration = parseInt(durationMatch[1]) * 60 + parseInt(durationMatch[2]);
+                    }
+                }
+                
+                // Ensure eventId and authorId are properly extracted
+                const eventId = videoPlayer?.getAttribute('data-event-id') || null;
+                const authorId = videoPlayer?.getAttribute('data-author-id') || null;
+                const ipfsUrl = videoPlayer?.getAttribute('data-ipfs-url') || null;
+                
                 return {
                     element: videoElement,
                     thumbnail: thumbnailElement,
                     title: title,
-                    ipfsUrl: videoPlayer.getAttribute('data-ipfs-url'),
+                    ipfsUrl: ipfsUrl,
                     thumbnailUrl: thumbnailElement.querySelector('img')?.src || null,
-                    eventId: videoPlayer.getAttribute('data-event-id') || null,
-                    authorId: videoPlayer.getAttribute('data-author-id') || null,
+                    eventId: eventId,
+                    authorId: authorId,
                     channel: videoElement.getAttribute('data-channel') || null,
                     uploader: uploader,
                     content: content,
-                    description: content
+                    description: content,
+                    duration: duration
                 };
-            });
+            }).filter(v => v.ipfsUrl && v.eventId); // Filter out videos without eventId or ipfsUrl
             
             // Update logo state
             const logo = document.getElementById('playlistLogo') || document.querySelector('.sidebar-logo');

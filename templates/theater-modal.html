@@ -28,6 +28,8 @@
             height: 100%;
             top: 0;
             left: 0;
+            margin: 0;
+            padding: 0;
         }
 
         .theater-modal {
@@ -42,6 +44,16 @@
             background: #000000;
             overflow-y: auto;
             overflow-x: hidden;
+        }
+        
+        /* Ensure scroll works properly - body should allow scrolling for the modal */
+        html {
+            overflow: hidden;
+        }
+        
+        body {
+            overflow-y: auto;
+            height: 100vh;
         }
         
         /* Ensure scroll works only within the modal */
@@ -194,6 +206,166 @@
         .playlist-progress {
             color: #3ea6ff;
             font-weight: 500;
+        }
+        
+        /* Playlist list panel */
+        .theater-playlist-list {
+            position: fixed;
+            right: -320px;
+            top: 0;
+            width: 320px;
+            height: 100vh;
+            background: rgba(15, 15, 15, 0.98);
+            border-left: 1px solid #3f3f3f;
+            z-index: 10003;
+            transition: right 0.3s ease;
+            overflow-y: auto;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .theater-playlist-list.open {
+            right: 0;
+        }
+        
+        .theater-playlist-list-header {
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            background: rgba(21, 21, 21, 0.95);
+        }
+        
+        .theater-playlist-list-header h3 {
+            margin: 0;
+            font-size: 1.1em;
+            color: #f1f1f1;
+        }
+        
+        .playlist-toggle-btn {
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #f1f1f1;
+            padding: 6px 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+        
+        .playlist-toggle-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .theater-playlist-items {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        
+        .playlist-item {
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        
+        .playlist-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: #3f3f3f;
+        }
+        
+        .playlist-item.active {
+            background: rgba(62, 166, 255, 0.15);
+            border-color: #3ea6ff;
+        }
+        
+        .playlist-item-thumbnail {
+            width: 80px;
+            height: 60px;
+            background: #2a2a2a;
+            border-radius: 6px;
+            flex-shrink: 0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .playlist-item-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .playlist-item-thumbnail::after {
+            content: "▶";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .playlist-item:hover .playlist-item-thumbnail::after {
+            opacity: 1;
+        }
+        
+        .playlist-item-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .playlist-item-title {
+            font-size: 0.85em;
+            font-weight: 500;
+            color: #f1f1f1;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .playlist-item-meta {
+            font-size: 0.75em;
+            color: #aaaaaa;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .playlist-item-number {
+            font-size: 0.7em;
+            color: #3ea6ff;
+            font-weight: 600;
+            margin-right: 4px;
+        }
+        
+        .playlist-item.active .playlist-item-number {
+            color: #ffffff;
         }
 
         .theater-video-wrapper {
@@ -679,6 +851,15 @@
             .playlist-info {
                 font-size: 0.75em;
             }
+            
+            .theater-playlist-list {
+                width: 100%;
+                right: -100%;
+            }
+            
+            .theater-playlist-list.open {
+                right: 0;
+            }
 
             .theater-video-info {
                 padding: 12px 16px;
@@ -704,6 +885,7 @@
                 <button class="theater-action-btn" onclick="handleTheaterShare()" title="Partager">📡</button>
                 <button class="theater-action-btn" onclick="handleTheaterBookmark()" title="Bookmark">🔖</button>
                 <button class="theater-action-btn" onclick="handlePictureInPicture()" title="Picture-in-Picture">🖼️</button>
+                <button class="theater-action-btn" id="playlistListToggleBtn" onclick="togglePlaylistList()" title="Afficher la playlist" style="display: none;">📋</button>
                 <button class="theater-close-btn" onclick="handleCloseTheater()" title="Fermer">✕</button>
             </div>
         </div>
@@ -800,6 +982,17 @@
                     <div class="loading-comments">Chargement des commentaires...</div>
                 </div>
             </div>
+        </div>
+    </div>
+    
+    <!-- Playlist list panel -->
+    <div class="theater-playlist-list" id="theaterPlaylistList">
+        <div class="theater-playlist-list-header">
+            <h3>📋 Playlist</h3>
+            <button class="playlist-toggle-btn" onclick="togglePlaylistList()">✕</button>
+        </div>
+        <div class="theater-playlist-items" id="theaterPlaylistItems">
+            <!-- Playlist items will be populated here -->
         </div>
     </div>
 
@@ -1562,6 +1755,10 @@
                 if (controls) {
                     controls.classList.remove('active');
                 }
+                const toggleBtn = document.getElementById('playlistListToggleBtn');
+                if (toggleBtn) {
+                    toggleBtn.style.display = 'none';
+                }
                 isPlaylistMode = false;
                 return;
             }
@@ -1577,12 +1774,79 @@
                 updatePlaylistControls();
             }
             
+            // Show playlist list toggle button
+            const toggleBtn = document.getElementById('playlistListToggleBtn');
+            if (toggleBtn) {
+                toggleBtn.style.display = 'flex';
+            }
+            
+            // Populate playlist list
+            renderPlaylistList();
+            
             // Listen for video end to auto-advance
             const videoPlayer = document.getElementById('theaterVideoPlayer');
             if (videoPlayer) {
                 // Remove existing listeners to avoid duplicates
                 videoPlayer.removeEventListener('ended', handleVideoEnd);
                 videoPlayer.addEventListener('ended', handleVideoEnd, { once: false });
+            }
+        }
+        
+        /**
+         * Render playlist list
+         */
+        function renderPlaylistList() {
+            const container = document.getElementById('theaterPlaylistItems');
+            if (!container || !currentPlaylist || currentPlaylist.length === 0) return;
+            
+            const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
+            
+            container.innerHTML = currentPlaylist.map((video, index) => {
+                const isActive = index === currentPlaylistIndex;
+                const thumbnailUrl = video.thumbnailUrl || '';
+                const duration = video.duration ? formatVideoTimestamp(video.duration) : '';
+                
+                return `
+                    <div class="playlist-item ${isActive ? 'active' : ''}" 
+                         onclick="playPlaylistItem(${index})"
+                         data-index="${index}">
+                        <div class="playlist-item-thumbnail">
+                            ${thumbnailUrl 
+                                ? `<img src="${escapeFn(thumbnailUrl)}" alt="${escapeFn(video.title || '')}" loading="lazy">`
+                                : '<span style="font-size: 24px; color: #606060;">🎬</span>'
+                            }
+                        </div>
+                        <div class="playlist-item-info">
+                            <div class="playlist-item-title">
+                                <span class="playlist-item-number">${index + 1}.</span>
+                                ${escapeFn(video.title || 'Untitled')}
+                            </div>
+                            <div class="playlist-item-meta">
+                                ${escapeFn(video.uploader || 'Unknown')}${duration ? ' • ' + duration : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        /**
+         * Play a specific item from playlist
+         */
+        async function playPlaylistItem(index) {
+            if (index < 0 || index >= currentPlaylist.length) return;
+            currentPlaylistIndex = index;
+            await loadPlaylistVideo(index);
+            renderPlaylistList(); // Re-render to update active state
+        }
+        
+        /**
+         * Toggle playlist list visibility
+         */
+        function togglePlaylistList() {
+            const listPanel = document.getElementById('theaterPlaylistList');
+            if (listPanel) {
+                listPanel.classList.toggle('open');
             }
         }
         
@@ -1756,12 +2020,24 @@
             if (nextBtn) {
                 nextBtn.disabled = currentPlaylistIndex >= currentPlaylist.length - 1;
             }
+            
+            // Update playlist list to highlight current item
+            renderPlaylistList();
+            
+            // Scroll active item into view in playlist list
+            const activeItem = document.querySelector(`.playlist-item[data-index="${currentPlaylistIndex}"]`);
+            if (activeItem) {
+                activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
         }
         
         // Expose playlist functions globally
         window.initializePlaylist = initializePlaylist;
         window.playNextVideo = playNextVideo;
         window.playPreviousVideo = playPreviousVideo;
+        window.playPlaylistItem = playPlaylistItem;
+        window.togglePlaylistList = togglePlaylistList;
+        window.renderPlaylistList = renderPlaylistList;
         
         // Expose functions globally
         window.submitTheaterComment = submitTheaterComment;
