@@ -677,21 +677,29 @@
         }
         
         .video-action-btn {
-            padding: 6px 12px;
+            padding: 8px;
             background: transparent;
             border: 1px solid #3f3f3f;
             color: #f1f1f1;
-            border-radius: 18px;
-            font-size: 0.75em;
+            border-radius: 8px;
+            font-size: 1.2em;
             cursor: pointer;
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
-            gap: 4px;
+            justify-content: center;
+            min-width: 36px;
+            height: 36px;
+            line-height: 1;
         }
         
         .video-action-btn:hover {
             background: #3f3f3f;
+            border-color: #606060;
+        }
+        
+        .video-action-btn:active {
+            transform: scale(0.95);
         }
         
         .no-results {
@@ -1114,7 +1122,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 10000;
+            z-index: 10002;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1298,11 +1306,14 @@
                             👤 <span data-i18n="profile">Profile</span>
                         </button>
                     </div>
-                    <button id="webcam-upload-btn" onclick="openWebcamModal()" class="upload-btn" data-i18n-title="add_video" style="display: none; background: transparent; color: #3ea6ff; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
-                        📹 <span data-i18n="create">Créer</span>
-                    </button>
+                        <button id="webcam-upload-btn" onclick="openWebcamModal()" class="upload-btn" data-i18n-title="add_video" style="display: none; background: transparent; color: #3ea6ff; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
+                            📹 <span data-i18n="create">Créer</span>
+                        </button>
+                        <button id="playlist-manager-btn" onclick="openPlaylistManagerModal()" class="upload-btn" title="Administrer mes playlists" style="display: none; background: transparent; color: #f59e0b; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
+                            📋 <span>Playlists</span>
+                        </button>
+                    </div>
                 </div>
-            </div>
             </div>
             
             <div class="search-bar">
@@ -1447,24 +1458,24 @@
                                 {% endif %}
                                 <div class="video-actions">
                                     <button class="video-action-btn" onclick="event.stopPropagation(); openVideoInTheater(this.closest('.video').querySelector('.video-thumbnail'))" title="Mode théâtre (double-clic sur la vidéo)">
-                                        🎬 Théâtre
+                                        🎬
                                     </button>
-                                    <button class="video-action-btn" onclick="shareVideo(this)" data-title="{{ video.title }}" data-url="{{ video.ipfs_url }}" data-author="{{ video.uploader }}">
-                                        📡 Partager
+                                    <button class="video-action-btn" onclick="shareVideo(this)" data-title="{{ video.title }}" data-url="{{ video.ipfs_url }}" data-author="{{ video.uploader }}" title="Partager">
+                                        📡
                                     </button>
-                                    <button class="video-action-btn" onclick="bookmarkVideo(this)" data-title="{{ video.title }}" data-url="{{ video.ipfs_url }}">
-                                        🔖 Bookmark
+                                    <button class="video-action-btn" onclick="bookmarkVideo(this)" data-title="{{ video.title }}" data-url="{{ video.ipfs_url }}" title="Bookmark">
+                                        🔖
                                     </button>
                                     {% if video.message_id %}
-                                    <button class="video-action-btn" onclick="addVideoToPlaylist(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-title="{{ video.title }}">
-                                        ➕ Playlist
+                                    <button class="video-action-btn" onclick="addVideoToPlaylist(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-title="{{ video.title }}" title="Ajouter à la playlist">
+                                        ➕
                                     </button>
-                                    <button class="video-action-btn" onclick="likeVideo(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-ipfs-url="{{ video.ipfs_url }}">
-                                        👍 Like
+                                    <button class="video-action-btn" onclick="likeVideo(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-ipfs-url="{{ video.ipfs_url }}" title="Like">
+                                        👍
                                     </button>
                                     {% endif %}
                                     {% if video.youtube_url %}
-                                    <a href="{{ video.youtube_url }}" target="_blank" class="video-action-btn">🔗 YouTube</a>
+                                    <a href="{{ video.youtube_url }}" target="_blank" class="video-action-btn" title="Voir sur YouTube">🔗</a>
                                     {% endif %}
                                 </div>
                             </div>
@@ -2593,35 +2604,35 @@
 
                 const selectedPlaylist = playlists[index];
                 
-                button.disabled = true;
-                button.textContent = '⏳ Ajout...';
+            button.disabled = true;
+            button.textContent = '⏳';
                 
                 // Try to use addToPlaylist from youtube.enhancements.js
                 if (typeof window.addToPlaylist === 'function') {
                     const success = await window.addToPlaylist(selectedPlaylist.id, eventId);
                     if (success) {
-                        button.textContent = '✅ Ajouté !';
+                        button.textContent = '✅';
                         setTimeout(() => {
-                            button.textContent = '➕ Playlist';
+                            button.textContent = '➕';
                             button.disabled = false;
                         }, 3000);
                     } else {
-                        button.textContent = '❌ Erreur';
+                        button.textContent = '❌';
                         setTimeout(() => {
-                            button.textContent = '➕ Playlist';
+                            button.textContent = '➕';
                             button.disabled = false;
                         }, 3000);
                     }
                 } else {
                     alert('❌ Fonction addToPlaylist non disponible. Assurez-vous que youtube.enhancements.js est chargé.');
                     button.disabled = false;
-                    button.textContent = '➕ Playlist';
+                    button.textContent = '➕';
                 }
             } catch (error) {
                 console.error('Error adding to playlist:', error);
                 alert('❌ Erreur: ' + error.message);
                 button.disabled = false;
-                button.textContent = '➕ Playlist';
+                button.textContent = '➕';
             }
         }
         
@@ -2970,6 +2981,10 @@
                     if (webcamBtn) {
                         webcamBtn.style.display = 'flex';
                     }
+                    const playlistManagerBtn = document.getElementById('playlist-manager-btn');
+                    if (playlistManagerBtn) {
+                        playlistManagerBtn.style.display = 'flex';
+                    }
                 } else {
                     // Failed
                     const webcamBtn = document.getElementById('webcam-upload-btn');
@@ -2979,6 +2994,10 @@
                     }
                     if (webcamBtn) {
                         webcamBtn.style.display = 'none';
+                    }
+                    const playlistManagerBtn = document.getElementById('playlist-manager-btn');
+                    if (playlistManagerBtn) {
+                        playlistManagerBtn.style.display = 'none';
                     }
                     connectBtn.disabled = false;
                 }
@@ -3032,6 +3051,10 @@
                     if (webcamBtn) {
                         webcamBtn.style.display = 'flex';
                     }
+                    const playlistManagerBtn = document.getElementById('playlist-manager-btn');
+                    if (playlistManagerBtn) {
+                        playlistManagerBtn.style.display = 'flex';
+                    }
                     console.log('✅ NOSTR connection detected from common.js');
                 } else {
                     // Has pubkey but relay not connected - try to connect
@@ -3047,6 +3070,10 @@
                             if (webcamBtn) {
                                 webcamBtn.style.display = 'flex';
                             }
+                            const playlistManagerBtn = document.getElementById('playlist-manager-btn');
+                            if (playlistManagerBtn) {
+                                playlistManagerBtn.style.display = 'flex';
+                            }
                         } catch (error) {
                             console.error('Error connecting to relay:', error);
                             // Show connect button
@@ -3055,12 +3082,20 @@
                             if (webcamBtn) {
                                 webcamBtn.style.display = 'none';
                             }
+                            const playlistManagerBtn = document.getElementById('playlist-manager-btn');
+                            if (playlistManagerBtn) {
+                                playlistManagerBtn.style.display = 'none';
+                            }
                         }
                     } else {
                         // No relay connection available, but we have pubkey
                         // Show webcam button anyway (connection exists)
                         if (webcamBtn) {
                             webcamBtn.style.display = 'flex';
+                        }
+                        const playlistManagerBtn = document.getElementById('playlist-manager-btn');
+                        if (playlistManagerBtn) {
+                            playlistManagerBtn.style.display = 'flex';
                         }
                     }
                 }
@@ -3074,6 +3109,10 @@
                 }
                 if (webcamBtn) {
                     webcamBtn.style.display = 'none';
+                }
+                const playlistManagerBtn = document.getElementById('playlist-manager-btn');
+                if (playlistManagerBtn) {
+                    playlistManagerBtn.style.display = 'none';
                 }
             }
         }
@@ -3118,6 +3157,13 @@
         }
         
         /**
+         * Open playlist manager in modal
+         */
+        function openPlaylistManagerModal() {
+            openIframeModal('/playlist', '📋 Mes Playlists');
+        }
+        
+        /**
          * Open generic iframe modal
          */
         function openIframeModal(url, title = '') {
@@ -3133,6 +3179,9 @@
             
             // Reset iframe src to ensure clean load
             iframe.src = '';
+            
+            // Ensure modal has highest z-index (above theater modal and share modal)
+            modal.style.zIndex = '10002';
             
             // Wait a bit before setting the new src to allow iframe to reset
             setTimeout(() => {

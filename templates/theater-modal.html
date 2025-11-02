@@ -752,50 +752,173 @@
         window.handleCloseTheater = handleCloseTheater;
 
         /**
+         * Open profile modal with correct z-index for theater mode
+         */
+        async function openProfileModalInTheater(authorId, userName = 'Profile') {
+            // Get IPFS gateway
+            let ipfsGateway = '';
+            if (window.IPFS_GATEWAY) {
+                ipfsGateway = window.IPFS_GATEWAY;
+            } else if (typeof detectIPFSGatewayGlobal === 'function') {
+                detectIPFSGatewayGlobal();
+                ipfsGateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+            } else {
+                const currentURL = new URL(window.location.href);
+                const hostname = currentURL.hostname;
+                if (hostname === '127.0.0.1' || hostname === 'localhost') {
+                    ipfsGateway = 'http://127.0.0.1:8080';
+                } else if (hostname.startsWith('u.')) {
+                    const baseDomain = hostname.substring('u.'.length);
+                    ipfsGateway = `${currentURL.protocol}//ipfs.${baseDomain}`;
+                } else {
+                    ipfsGateway = 'https://ipfs.copylaradio.com';
+                }
+            }
+            
+            const profileUrl = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${authorId}`;
+            
+            // Check if iframe modal exists in parent (youtube.html), otherwise create one
+            let modal = document.getElementById('iframe-modal');
+            if (!modal && typeof window.parent !== 'undefined' && window.parent.document) {
+                // We're in an iframe, check parent
+                modal = window.parent.document.getElementById('iframe-modal');
+            }
+            
+            if (modal) {
+                // Use existing modal (from parent)
+                const iframe = modal.querySelector('#iframe-modal-iframe') || modal.querySelector('iframe');
+                const titleEl = modal.querySelector('#iframe-modal-title') || modal.querySelector('h3');
+                
+                if (iframe) {
+                    iframe.src = profileUrl;
+                }
+                if (titleEl) {
+                    titleEl.textContent = `👤 ${userName}`;
+                }
+                
+                // Ensure modal has high enough z-index
+                modal.style.zIndex = '10002';
+                modal.style.display = 'flex';
+                
+                // Prevent body scroll when modal is open
+                const body = modal.ownerDocument.body;
+                if (body) {
+                    body.style.overflow = 'hidden';
+                }
+            } else if (typeof openProfileModal !== 'undefined') {
+                // Use parent's openProfileModal function if available
+                openProfileModal(authorId, userName);
+            } else if (typeof window.parent !== 'undefined' && typeof window.parent.openProfileModal === 'function') {
+                // Call parent's openProfileModal
+                window.parent.openProfileModal(authorId, userName);
+            } else {
+                // Fallback: open in new window
+                window.open(profileUrl, '_blank');
+            }
+        }
+        
+        /**
+         * Close iframe modal in theater context
+         */
+        function closeIframeModalInTheater() {
+            let modal = document.getElementById('iframe-modal');
+            if (!modal && typeof window.parent !== 'undefined' && window.parent.document) {
+                modal = window.parent.document.getElementById('iframe-modal');
+            }
+            
+            if (modal) {
+                modal.style.display = 'none';
+                const iframe = modal.querySelector('#iframe-modal-iframe') || modal.querySelector('iframe');
+                if (iframe) {
+                    iframe.src = '';
+                }
+                const body = modal.ownerDocument.body;
+                if (body) {
+                    body.style.overflow = '';
+                }
+            }
+        }
+        
+        /**
          * Load and display video author information
          */
         async function loadVideoAuthor(authorId, authorName) {
             const uploaderContainer = document.getElementById('theaterUploaderContainer');
             if (!uploaderContainer) return;
             
+            // Try to get current name from DOM first (in case it was already set by openTheaterMode)
+            const uploaderEl = document.getElementById('theaterUploader');
             let displayName = authorName || 'Auteur inconnu';
+            
+            // Extract name from existing DOM element if available
+            if (uploaderEl) {
+                const existingName = uploaderEl.textContent || uploaderEl.innerText;
+                if (existingName && existingName !== 'Loading...' && existingName.trim()) {
+                    displayName = existingName.trim();
+                }
+            }
             
             // If we have authorId, try to fetch profile and create link
             if (authorId) {
                 try {
                     // Try to get profile from NOSTR if available
-                    if (typeof fetchProfile !== 'undefined' && typeof openProfileModal !== 'undefined') {
+                    if (typeof fetchProfile !== 'undefined') {
                         const profile = await fetchProfile(authorId);
-                        if (profile && profile.display_name) {
-                            displayName = profile.display_name;
+                        if (profile) {
+                            if (profile.display_name) {
+                                displayName = profile.display_name;
+                            } else if (profile.name) {
+                                displayName = profile.name;
+                            }
                         }
-                        
-                        // Create link to profile
-                        const link = document.createElement('a');
-                        link.href = '#';
-                        link.className = 'theater-uploader-link';
-                        link.textContent = displayName;
-                        link.onclick = function(e) {
-                            e.preventDefault();
-                            openProfileModal(authorId, displayName);
-                            return false;
-                        };
-                        uploaderContainer.innerHTML = '';
-                        uploaderContainer.appendChild(link);
-                    } else {
-                        // Fallback: just show name
-                        const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
-                        uploaderContainer.innerHTML = `<strong>${escapeFn(displayName)}</strong>`;
+                    }
+                    
+                    // Create link to profile
+                    const link = document.createElement('a');
+                    link.href = '#';
+                    link.className = 'theater-uploader-link';
+                    link.textContent = displayName;
+                    link.onclick = function(e) {
+                        e.preventDefault();
+                        openProfileModalInTheater(authorId, displayName);
+                        return false;
+                    };
+                    uploaderContainer.innerHTML = '';
+                    uploaderContainer.appendChild(link);
+                    
+                    // Also update theaterUploader if it exists separately
+                    if (uploaderEl && uploaderEl !== uploaderContainer) {
+                        uploaderEl.textContent = displayName;
                     }
                 } catch (error) {
                     console.error('Error loading author profile:', error);
+                    // Still show the name even if profile fetch fails
                     const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
-                    uploaderContainer.innerHTML = `<strong>${escapeFn(displayName)}</strong>`;
+                    
+                    // Create link anyway with the name we have
+                    const link = document.createElement('a');
+                    link.href = '#';
+                    link.className = 'theater-uploader-link';
+                    link.textContent = displayName;
+                    link.onclick = function(e) {
+                        e.preventDefault();
+                        openProfileModalInTheater(authorId, displayName);
+                        return false;
+                    };
+                    uploaderContainer.innerHTML = '';
+                    uploaderContainer.appendChild(link);
+                    
+                    if (uploaderEl && uploaderEl !== uploaderContainer) {
+                        uploaderEl.textContent = displayName;
+                    }
                 }
             } else {
                 // No authorId, just show name
                 const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
                 uploaderContainer.innerHTML = `<strong>${escapeFn(displayName)}</strong>`;
+                if (uploaderEl && uploaderEl !== uploaderContainer) {
+                    uploaderEl.textContent = displayName;
+                }
             }
         }
         
@@ -934,8 +1057,11 @@
                 const timeAgo = comment.created_at && formatRelativeFn ? formatRelativeFn(comment.created_at) : '';
                 const timestampDisplay = comment.timestamp ? formatVideoTimestamp(comment.timestamp) : '';
                 
-                const authorLink = comment.authorId && typeof openProfileModal !== 'undefined'
-                    ? `<a href="#" onclick="event.preventDefault(); openProfileModal('${comment.authorId}', '${escapeFn(comment.authorName)}'); return false;" class="theater-uploader-link">${escapeFn(comment.authorName)}</a>`
+                // Use openProfileModalInTheater if available, otherwise fallback to openProfileModal
+                const openProfileFn = typeof openProfileModalInTheater !== 'undefined' ? 'openProfileModalInTheater' :
+                                     (typeof openProfileModal !== 'undefined' ? 'openProfileModal' : null);
+                const authorLink = comment.authorId && openProfileFn
+                    ? `<a href="#" onclick="event.preventDefault(); ${openProfileFn}('${comment.authorId}', '${escapeFn(comment.authorName)}'); return false;" class="theater-uploader-link">${escapeFn(comment.authorName)}</a>`
                     : escapeFn(comment.authorName);
                 
                 return `
