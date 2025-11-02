@@ -368,6 +368,82 @@
             color: #717171;
         }
         
+        .sort-buttons {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+        
+        .sort-btn {
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #f1f1f1;
+            border-radius: 12px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 40px;
+            height: 40px;
+            line-height: 1;
+        }
+        
+        .sort-btn:hover {
+            background: #3f3f3f;
+            border-color: #606060;
+        }
+        
+        .sort-btn.active {
+            background: rgba(62, 166, 255, 0.15);
+            border-color: #3ea6ff;
+            color: #3ea6ff;
+        }
+        
+        .sort-btn.sort-desc::after {
+            content: ' ↓';
+            font-size: 12px;
+            margin-left: 4px;
+        }
+        
+        .sort-btn.sort-asc::after {
+            content: ' ↑';
+            font-size: 12px;
+            margin-left: 4px;
+        }
+        
+        .filter-dropdown {
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #f1f1f1;
+            border-radius: 12px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            padding: 8px 12px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            font-family: inherit;
+        }
+        
+        .filter-dropdown:hover {
+            background: #3f3f3f;
+            border-color: #606060;
+        }
+        
+        .filter-dropdown:focus {
+            outline: none;
+            border-color: #065fd4;
+        }
+        
+        .filter-dropdown option {
+            background: #212121;
+            color: #f1f1f1;
+        }
+        
         .advanced-search-toggle {
             padding: 10px 16px;
             background: transparent;
@@ -1065,6 +1141,34 @@
                 padding: 12px 20px;
             }
             
+            .search-row {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            
+            .sort-buttons {
+                order: 2;
+            }
+            
+            .sort-btn {
+                min-width: 36px;
+                height: 36px;
+                font-size: 16px;
+                padding: 6px 10px;
+            }
+            
+            .filter-dropdown {
+                height: 36px;
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+            
+            .advanced-search-toggle {
+                order: 3;
+                font-size: 12px;
+                padding: 8px 12px;
+            }
+            
             .videos {
                 grid-template-columns: 1fr;
                 padding: 16px 20px;
@@ -1344,7 +1448,7 @@
                         <button id="webcam-upload-btn" onclick="openWebcamModal()" class="upload-btn" data-i18n-title="add_video" style="display: none; background: transparent; color: #3ea6ff; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
                             📹 <span data-i18n="create">Créer</span>
                         </button>
-                        <button id="playlist-manager-btn" onclick="openPlaylistManagerModal()" class="upload-btn" title="Administrer mes playlists" style="display: none; background: transparent; color: #f59e0b; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
+                        <button id="playlist-manager-btn" onclick="openPlaylistManager()" class="upload-btn" title="Administrer mes playlists" style="display: none; background: transparent; color: #f59e0b; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
                             📋 <span>Playlists</span>
                         </button>
                     </div>
@@ -1354,6 +1458,30 @@
             <div class="search-bar">
                 <div class="search-row">
                     <input type="text" class="search-input" data-i18n-placeholder="search_videos" placeholder="Rechercher des vidéos..." id="searchInput">
+                    <div class="sort-buttons" style="display: flex; gap: 4px; align-items: center;">
+                        <button class="sort-btn" onclick="sortVideosBy('likes')" title="Trier par likes" id="sort-likes-btn">
+                            👍
+                        </button>
+                        <button class="sort-btn" onclick="sortVideosBy('comments')" title="Trier par commentaires" id="sort-comments-btn">
+                            💬
+                        </button>
+                        <button class="sort-btn" onclick="sortVideosBy('shares')" title="Trier par partages" id="sort-shares-btn">
+                            📡
+                        </button>
+                    </div>
+                    <select class="filter-dropdown" id="dateFilter" onchange="applyQuickFilters()" title="Filtrer par date">
+                        <option value="all">📅 Toutes les dates</option>
+                        <option value="today">Aujourd'hui</option>
+                        <option value="week">Cette semaine</option>
+                        <option value="month">Ce mois</option>
+                        <option value="year">Cette année</option>
+                    </select>
+                    <select class="filter-dropdown" id="durationFilter" onchange="applyQuickFilters()" title="Filtrer par durée">
+                        <option value="all">⏱️ Toutes les durées</option>
+                        <option value="short">Courte (< 5 min)</option>
+                        <option value="medium">Moyenne (5-20 min)</option>
+                        <option value="long">Longue (> 20 min)</option>
+                    </select>
                     <button class="advanced-search-toggle" onclick="toggleAdvancedSearch()">
                         🔍 <span data-i18n="advanced_search">Recherche avancée</span>
                     </button>
@@ -1441,7 +1569,9 @@
                              data-channel="{{ channel_name }}" 
                              data-uploader="{{ video.uploader|lower }}"
                              data-lat="{{ video.latitude if video.latitude else 0 }}"
-                             data-lon="{{ video.longitude if video.longitude else 0 }}">
+                             data-lon="{{ video.longitude if video.longitude else 0 }}"
+                             data-duration="{{ video.duration if video.duration else 0 }}"
+                             data-date="{{ video.download_date if video.download_date else (video.created_at if video.created_at else '') }}">
                             <div class="video-thumbnail" onclick="toggleVideoPlayer(this)" ondblclick="openVideoInTheater(this)">
                                 {% if video.thumbnail_ipfs %}
                                 <img src="" alt="Thumbnail" class="thumbnail-img" data-ipfs-url="{{ video.thumbnail_ipfs }}">
@@ -2075,6 +2205,12 @@
             document.getElementById('radiusFilter').value = '';
             document.getElementById('sortByFilter').value = '';
             
+            // Clear quick filters
+            const dateFilter = document.getElementById('dateFilter');
+            const durationFilter = document.getElementById('durationFilter');
+            if (dateFilter) dateFilter.value = 'all';
+            if (durationFilter) durationFilter.value = 'all';
+            
             // Reset to show all videos
             filterVideos();
         }
@@ -2258,6 +2394,8 @@
         function filterVideos() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const videos = document.querySelectorAll('.video');
+            const dateFilter = document.getElementById('dateFilter')?.value || 'all';
+            const durationFilter = document.getElementById('durationFilter')?.value || 'all';
             
             videos.forEach(video => {
                 const title = video.querySelector('.video-title').textContent.toLowerCase();
@@ -2266,13 +2404,84 @@
                 
                 const matchesSearch = !searchTerm || title.includes(searchTerm) || meta.includes(searchTerm);
                 const matchesChannel = !currentChannel || videoChannel === currentChannel;
+                const matchesDate = matchesDateFilter(video, dateFilter);
+                const matchesDuration = matchesDurationFilter(video, durationFilter);
                 
-                if (matchesSearch && matchesChannel) {
+                if (matchesSearch && matchesChannel && matchesDate && matchesDuration) {
                     video.style.display = 'block';
                 } else {
                     video.style.display = 'none';
                 }
             });
+            
+            // Re-apply current sort if active (only for visible videos)
+            if (currentSort) {
+                sortVideosBy(currentSort);
+            }
+        }
+        
+        /**
+         * Check if video matches date filter
+         */
+        function matchesDateFilter(video, filterValue) {
+            if (filterValue === 'all') return true;
+            
+            const dateStr = video.getAttribute('data-date');
+            if (!dateStr) return true; // Show videos without date
+            
+            // Parse date from string (format: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)
+            const dateStrClean = dateStr.substring(0, 10); // Get YYYY-MM-DD part
+            const videoDate = new Date(dateStrClean + 'T00:00:00');
+            if (isNaN(videoDate.getTime())) return true; // Invalid date, show it
+            
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            
+            switch (filterValue) {
+                case 'today':
+                    return videoDate.getTime() === today.getTime();
+                case 'week':
+                    const weekAgo = new Date(today);
+                    weekAgo.setDate(today.getDate() - 7);
+                    return videoDate >= weekAgo;
+                case 'month':
+                    const monthAgo = new Date(today);
+                    monthAgo.setMonth(today.getMonth() - 1);
+                    return videoDate >= monthAgo;
+                case 'year':
+                    const yearAgo = new Date(today);
+                    yearAgo.setFullYear(today.getFullYear() - 1);
+                    return videoDate >= yearAgo;
+                default:
+                    return true;
+            }
+        }
+        
+        /**
+         * Check if video matches duration filter
+         */
+        function matchesDurationFilter(video, filterValue) {
+            if (filterValue === 'all') return true;
+            
+            const duration = parseInt(video.getAttribute('data-duration') || '0');
+            
+            switch (filterValue) {
+                case 'short':
+                    return duration > 0 && duration < 300; // < 5 minutes
+                case 'medium':
+                    return duration >= 300 && duration <= 1200; // 5-20 minutes
+                case 'long':
+                    return duration > 1200; // > 20 minutes
+                default:
+                    return true;
+            }
+        }
+        
+        /**
+         * Apply quick filters (date and duration)
+         */
+        function applyQuickFilters() {
+            filterVideos();
         }
         
         // Toggle sidebar (mobile)
@@ -2799,11 +3008,21 @@
                         const stats = new VideoStats(eventId, authorId, ipfsUrl);
                         const statsData = await stats.refresh();
                         if (statsData) {
+                            // Update data attributes for sorting
+                            videoCard.setAttribute('data-likes', statsData.likes);
+                            videoCard.setAttribute('data-comments', statsData.comments);
+                            videoCard.setAttribute('data-shares', statsData.shares);
+                            
                             statsElement.innerHTML = `
                                 <span class="video-engagement-item">👍 ${statsData.likes}</span>
                                 <span class="video-engagement-item">💬 ${statsData.comments}</span>
                                 <span class="video-engagement-item">📡 ${statsData.shares}</span>
                             `;
+                            
+                            // Re-apply current sort if active
+                            if (currentSort) {
+                                sortVideosBy(currentSort);
+                            }
                         }
                     }
                     
@@ -2914,11 +3133,21 @@
                         try {
                             const stats = new VideoStats(eventId, authorId, ipfsUrl);
                             const statsData = await stats.refresh();
+                            
+                            // Store stats in data attributes for sorting
+                            const likesCount = statsData ? statsData.likes : 0;
+                            const commentsCount = statsData ? statsData.comments : 0;
+                            const sharesCount = statsData ? statsData.shares : 0;
+                            
+                            card.setAttribute('data-likes', likesCount);
+                            card.setAttribute('data-comments', commentsCount);
+                            card.setAttribute('data-shares', sharesCount);
+                            
                             if (statsData) {
                                 statsElement.innerHTML = `
-                                    <span class="video-engagement-item">👍 ${statsData.likes}</span>
-                                    <span class="video-engagement-item">💬 ${statsData.comments}</span>
-                                    <span class="video-engagement-item">📡 ${statsData.shares}</span>
+                                    <span class="video-engagement-item">👍 ${likesCount}</span>
+                                    <span class="video-engagement-item">💬 ${commentsCount}</span>
+                                    <span class="video-engagement-item">📡 ${sharesCount}</span>
                                 `;
                             } else {
                                 statsElement.innerHTML = `
@@ -2930,9 +3159,110 @@
                         } catch (error) {
                             console.error('Error loading stats for video:', error);
                             statsElement.innerHTML = '<span style="font-size: 10px;">...</span>';
+                            // Set default values for sorting
+                            card.setAttribute('data-likes', '0');
+                            card.setAttribute('data-comments', '0');
+                            card.setAttribute('data-shares', '0');
                         }
+                    } else {
+                        // No stats element, but set defaults for sorting anyway
+                        card.setAttribute('data-likes', '0');
+                        card.setAttribute('data-comments', '0');
+                        card.setAttribute('data-shares', '0');
                     }
+                } else {
+                    // No event ID, set defaults for sorting
+                    card.setAttribute('data-likes', '0');
+                    card.setAttribute('data-comments', '0');
+                    card.setAttribute('data-shares', '0');
                 }
+            }
+        }
+        
+        // ========================================
+        // SORT VIDEOS BY ENGAGEMENT
+        // ========================================
+        
+        let currentSort = null; // 'likes', 'comments', 'shares'
+        let sortDirection = 'desc'; // 'asc' or 'desc'
+        
+        /**
+         * Sort videos by engagement metric (likes, comments, or shares)
+         * Only sorts visible videos (respects current filters)
+         */
+        function sortVideosBy(metric) {
+            const container = document.getElementById('videosContainer');
+            if (!container) return;
+            
+            // Get all videos
+            const allVideos = Array.from(container.querySelectorAll('.video'));
+            
+            // Separate visible and hidden videos
+            const visibleVideos = allVideos.filter(video => 
+                video.style.display !== 'none'
+            );
+            const hiddenVideos = allVideos.filter(video => 
+                video.style.display === 'none'
+            );
+            
+            // If no visible videos, don't sort
+            if (visibleVideos.length === 0) {
+                return;
+            }
+            
+            // Toggle direction if clicking the same metric
+            if (currentSort === metric) {
+                sortDirection = sortDirection === 'desc' ? 'asc' : 'desc';
+            } else {
+                currentSort = metric;
+                sortDirection = 'desc'; // Default to descending
+            }
+            
+            // Sort visible videos only
+            visibleVideos.sort((a, b) => {
+                const aValue = parseInt(a.getAttribute(`data-${metric}`) || '0');
+                const bValue = parseInt(b.getAttribute(`data-${metric}`) || '0');
+                
+                if (sortDirection === 'desc') {
+                    return bValue - aValue; // Descending: higher first
+                } else {
+                    return aValue - bValue; // Ascending: lower first
+                }
+            });
+            
+            // Reorder videos in DOM: first visible (sorted), then hidden
+            visibleVideos.forEach(video => {
+                container.appendChild(video);
+            });
+            hiddenVideos.forEach(video => {
+                container.appendChild(video);
+            });
+            
+            // Update button states
+            updateSortButtons(metric, sortDirection);
+        }
+        
+        /**
+         * Update sort button visual states
+         */
+        function updateSortButtons(activeMetric, direction) {
+            const buttons = {
+                'likes': document.getElementById('sort-likes-btn'),
+                'comments': document.getElementById('sort-comments-btn'),
+                'shares': document.getElementById('sort-shares-btn')
+            };
+            
+            // Reset all buttons
+            Object.values(buttons).forEach(btn => {
+                if (btn) {
+                    btn.classList.remove('active', 'sort-asc', 'sort-desc');
+                }
+            });
+            
+            // Set active button
+            const activeBtn = buttons[activeMetric];
+            if (activeBtn) {
+                activeBtn.classList.add('active', direction === 'asc' ? 'sort-asc' : 'sort-desc');
             }
         }
         
@@ -3268,16 +3598,23 @@
         }
         
         /**
-         * Open playlist manager in a new window
+         * Open playlist manager in a new window (never in modal)
          */
-        function openPlaylistManagerModal() {
+        function openPlaylistManager() {
             window.open('/playlist', '_blank', 'noopener,noreferrer');
         }
         
         /**
          * Open generic iframe modal
+         * NOTE: Never opens /playlist in modal - it always opens in new window
          */
         function openIframeModal(url, title = '') {
+            // Force /playlist to always open in new window, never in modal
+            if (url && (url.includes('/playlist') || url.startsWith('/playlist'))) {
+                window.open(url, '_blank', 'noopener,noreferrer');
+                return;
+            }
+            
             const modal = document.getElementById('iframe-modal');
             const iframe = document.getElementById('iframe-modal-iframe');
             const titleEl = document.getElementById('iframe-modal-title');

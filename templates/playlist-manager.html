@@ -765,26 +765,26 @@
             
             return new Promise(async (resolve) => {
                 // First, fetch deletion events (kind 5) to know which playlists are deleted
-                const deletionEvents = await new Promise((resolveDeletions) => {
+                const deletions = await new Promise((resolveDeletions) => {
                     const deleteSub = currentRelay.sub([{
                         kinds: [5], // NIP-09 deletion events
                         authors: [currentUserPubkey],
                         limit: 1000
                     }]);
                     
-                    const deletions = new Set();
+                    const deletionSet = new Set();
                     const deleteTimeout = setTimeout(() => {
                         deleteSub.unsub();
-                        resolveDeletions(deletions);
+                        resolveDeletions(deletionSet);
                     }, 3000);
                     
                     deleteSub.on('event', (event) => {
                         // Collect all deleted event IDs and coordinates
                         event.tags.forEach(tag => {
                             if (tag[0] === 'e') {
-                                deletions.add(tag[1]); // Event ID
+                                deletionSet.add(tag[1]); // Event ID
                             } else if (tag[0] === 'a') {
-                                deletions.add(tag[1]); // Event coordinate (kind:pubkey:d-tag)
+                                deletionSet.add(tag[1]); // Event coordinate (kind:pubkey:d-tag)
                             }
                         });
                     });
@@ -792,7 +792,7 @@
                     deleteSub.on('eose', () => {
                         clearTimeout(deleteTimeout);
                         deleteSub.unsub();
-                        resolveDeletions(deletions);
+                        resolveDeletions(deletionSet);
                     });
                 });
                 
