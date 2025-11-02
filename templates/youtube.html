@@ -3144,12 +3144,37 @@
                 return;
             }
             
-            // Check if user is connected
-            if (!userPubkey) {
-                const connected = await connectNostr();
-                if (!connected) {
-                    alert('❌ ' + t('connect_nostr_like'));
+            // Auto-connect if not connected
+            if (!userPubkey || (typeof userPubkey === 'undefined')) {
+                // Try to connect automatically
+                if (typeof connectNostr === 'function') {
+                    try {
+                        const pubkey = await connectNostr();
+                        if (!pubkey) {
+                            alert('❌ Connexion requise pour liker. Veuillez vous connecter avec NOSTR.');
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('Error auto-connecting:', error);
+                        alert('❌ Erreur lors de la connexion automatique. Veuillez vous connecter manuellement.');
+                        return;
+                    }
+                } else {
+                    alert('❌ Connexion requise pour liker. Veuillez vous connecter avec NOSTR.');
                     return;
+                }
+            }
+            
+            // Ensure relay connection
+            if (!isNostrConnected || !nostrRelay) {
+                if (typeof connectToRelay === 'function') {
+                    try {
+                        await connectToRelay();
+                    } catch (error) {
+                        console.error('Error connecting to relay:', error);
+                        alert('❌ Erreur lors de la connexion au relay.');
+                        return;
+                    }
                 }
             }
             
@@ -3270,6 +3295,7 @@
         /**
          * Load engagement stats for all videos on page
          * Uses VideoStats class from youtube.enhancements.js
+         * Limits concurrent requests to avoid "too many concurrent REQs" errors
          */
         async function loadAllVideoStats() {
             // Wait a bit for NOSTR to be ready
@@ -3280,61 +3306,75 @@
             }
             
             const videoCards = document.querySelectorAll('.video');
+            const CONCURRENT_LIMIT = 3; // Limit to 3 concurrent requests
+            const DELAY_BETWEEN_BATCHES = 500; // 500ms delay between batches
             
-            for (const card of videoCards) {
+            // First, set default values for all videos
+            videoCards.forEach(card => {
+                card.setAttribute('data-likes', '0');
+                card.setAttribute('data-comments', '0');
+                card.setAttribute('data-shares', '0');
+            });
+            
+            // Collect all videos that need stats
+            const videosToLoad = [];
+            videoCards.forEach(card => {
                 const videoPlayer = card.querySelector('.inline-video-player');
                 const eventId = videoPlayer?.getAttribute('data-event-id');
                 const ipfsUrl = videoPlayer?.getAttribute('data-ipfs-url');
                 const authorId = videoPlayer?.getAttribute('data-author-id');
+                const statsElement = card.querySelector('.video-engagement-overlay');
                 
-                if (eventId && ipfsUrl && authorId) {
-                    const statsElement = card.querySelector('.video-engagement-overlay');
-                    if (statsElement) {
-                        try {
-                            const stats = new VideoStats(eventId, authorId, ipfsUrl);
-                            const statsData = await stats.refresh();
-                            
-                            // Store stats in data attributes for sorting
-                            const likesCount = statsData ? statsData.likes : 0;
-                            const commentsCount = statsData ? statsData.comments : 0;
-                            const sharesCount = statsData ? statsData.shares : 0;
-                            
-                            card.setAttribute('data-likes', likesCount);
-                            card.setAttribute('data-comments', commentsCount);
-                            card.setAttribute('data-shares', sharesCount);
-                            
-                            if (statsData) {
-                                statsElement.innerHTML = `
-                                    <span class="video-engagement-item">👍 ${likesCount}</span>
-                                    <span class="video-engagement-item">💬 ${commentsCount}</span>
-                                    <span class="video-engagement-item">📡 ${sharesCount}</span>
-                                `;
-                            } else {
-                                statsElement.innerHTML = `
-                                    <span class="video-engagement-item">👍 0</span>
-                                    <span class="video-engagement-item">💬 0</span>
-                                    <span class="video-engagement-item">📡 0</span>
-                                `;
-                            }
-                        } catch (error) {
-                            console.error('Error loading stats for video:', error);
-                            statsElement.innerHTML = '<span style="font-size: 10px;">...</span>';
-                            // Set default values for sorting
-                            card.setAttribute('data-likes', '0');
-                            card.setAttribute('data-comments', '0');
-                            card.setAttribute('data-shares', '0');
+                if (eventId && ipfsUrl && authorId && statsElement) {
+                    videosToLoad.push({ card, eventId, ipfsUrl, authorId, statsElement });
+                }
+            });
+            
+            // Process in batches to avoid too many concurrent requests
+            for (let i = 0; i < videosToLoad.length; i += CONCURRENT_LIMIT) {
+                const batch = videosToLoad.slice(i, i + CONCURRENT_LIMIT);
+                
+                // Process batch concurrently
+                await Promise.all(batch.map(async ({ card, eventId, ipfsUrl, authorId, statsElement }) => {
+                    try {
+                        const stats = new VideoStats(eventId, authorId, ipfsUrl);
+                        const statsData = await stats.refresh();
+                        
+                        // Store stats in data attributes for sorting
+                        const likesCount = statsData ? statsData.likes : 0;
+                        const commentsCount = statsData ? statsData.comments : 0;
+                        const sharesCount = statsData ? statsData.shares : 0;
+                        
+                        card.setAttribute('data-likes', likesCount);
+                        card.setAttribute('data-comments', commentsCount);
+                        card.setAttribute('data-shares', sharesCount);
+                        
+                        if (statsData) {
+                            statsElement.innerHTML = `
+                                <span class="video-engagement-item">👍 ${likesCount}</span>
+                                <span class="video-engagement-item">💬 ${commentsCount}</span>
+                                <span class="video-engagement-item">📡 ${sharesCount}</span>
+                            `;
+                        } else {
+                            statsElement.innerHTML = `
+                                <span class="video-engagement-item">👍 0</span>
+                                <span class="video-engagement-item">💬 0</span>
+                                <span class="video-engagement-item">📡 0</span>
+                            `;
                         }
-                    } else {
-                        // No stats element, but set defaults for sorting anyway
+                    } catch (error) {
+                        console.error('Error loading stats for video:', error);
+                        statsElement.innerHTML = '<span style="font-size: 10px;">...</span>';
+                        // Set default values for sorting
                         card.setAttribute('data-likes', '0');
                         card.setAttribute('data-comments', '0');
                         card.setAttribute('data-shares', '0');
                     }
-                } else {
-                    // No event ID, set defaults for sorting
-                    card.setAttribute('data-likes', '0');
-                    card.setAttribute('data-comments', '0');
-                    card.setAttribute('data-shares', '0');
+                }));
+                
+                // Wait before processing next batch (except for the last batch)
+                if (i + CONCURRENT_LIMIT < videosToLoad.length) {
+                    await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
                 }
             }
         }
