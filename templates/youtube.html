@@ -2902,22 +2902,8 @@
             }
         }
         
-        function theaterBookmarkVideo() {
-            // Prefer the function from youtube.enhancements.js
-            if (typeof window.theaterBookmarkVideo === 'function') {
-                return window.theaterBookmarkVideo();
-            }
-            // Fallback to local bookmarkVideo if available
-            const videoPlayer = document.getElementById('theaterVideoPlayer');
-            if (videoPlayer && typeof bookmarkVideo === 'function') {
-                const ipfsUrl = videoPlayer.getAttribute('data-ipfs-url');
-                const title = document.querySelector('.theater-title')?.textContent || '';
-                const tempBtn = document.createElement('button');
-                tempBtn.setAttribute('data-title', title);
-                tempBtn.setAttribute('data-url', ipfsUrl);
-                bookmarkVideo(tempBtn);
-            }
-        }
+        // theaterBookmarkVideo is defined in youtube.enhancements.js and exposed globally
+        // No need to redefine it here to avoid recursion
         
         // Listen for PiP events
         document.addEventListener('enterpictureinpicture', function(event) {

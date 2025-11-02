@@ -23,6 +23,11 @@
             background: rgba(0, 0, 0, 0.95);
             color: #ffffff;
             overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
         }
 
         .theater-modal {
@@ -35,6 +40,26 @@
             display: flex;
             flex-direction: column;
             background: #000000;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        /* Ensure scroll works only within the modal */
+        .theater-modal::-webkit-scrollbar {
+            width: 12px;
+        }
+        
+        .theater-modal::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+        
+        .theater-modal::-webkit-scrollbar-thumb {
+            background: #3f3f3f;
+            border-radius: 6px;
+        }
+        
+        .theater-modal::-webkit-scrollbar-thumb:hover {
+            background: #606060;
         }
 
         .theater-header {
@@ -586,9 +611,9 @@
             <button class="theater-close-btn" onclick="handleCloseTheater()">✕</button>
             <div class="theater-title" id="theaterTitle">Loading...</div>
             <div class="theater-actions">
-                <button class="theater-action-btn" onclick="handleTheaterShare()">📡 Partager</button>
-                <button class="theater-action-btn" onclick="handleTheaterBookmark()">🔖 Bookmark</button>
-                <button class="theater-action-btn" onclick="handlePictureInPicture()">🖼️ PiP</button>
+                <button class="theater-action-btn" onclick="handleTheaterShare()" title="Partager">📡</button>
+                <button class="theater-action-btn" onclick="handleTheaterBookmark()" title="Bookmark">🔖</button>
+                <button class="theater-action-btn" onclick="handlePictureInPicture()" title="Picture-in-Picture">🖼️</button>
             </div>
         </div>
         <div class="theater-body">
@@ -681,9 +706,22 @@
          * Handle bookmark button click - wrapper to ensure function is available
          */
         async function handleTheaterBookmark() {
-            if (typeof window.theaterBookmarkVideo === 'function') {
+            // IMPORTANT: Get the function from parent window if available, to avoid recursion
+            // The function should be defined in youtube.enhancements.js, not in theater-modal.html
+            let bookmarkFn = null;
+            
+            // Try parent window first (if we're in iframe)
+            if (window.parent && window.parent !== window && typeof window.parent.theaterBookmarkVideo === 'function') {
+                bookmarkFn = window.parent.theaterBookmarkVideo;
+            }
+            // Otherwise try current window, but make sure it's not this function itself
+            else if (typeof window.theaterBookmarkVideo === 'function' && window.theaterBookmarkVideo !== handleTheaterBookmark) {
+                bookmarkFn = window.theaterBookmarkVideo;
+            }
+            
+            if (bookmarkFn && typeof bookmarkFn === 'function') {
                 try {
-                    await window.theaterBookmarkVideo();
+                    await bookmarkFn();
                 } catch (error) {
                     console.error('Error bookmarking video:', error);
                     alert('Erreur lors de l\'ajout au bookmark: ' + error.message);
