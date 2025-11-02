@@ -2287,8 +2287,6 @@ async def youtube_route(
                 'thumbnail_ipfs': video.get('thumbnail_ipfs', ''),
                 'metadata_ipfs': video.get('metadata_ipfs', ''),
                 'subtitles': video.get('subtitles', []),
-                'description': video.get('description', ''),  # Description from video event content
-                'content': video.get('description', ''),  # Alias for template compatibility
                 'channel_name': video.get('channel_name', ''),
                 'topic_keywords': video.get('topic_keywords', ''),
                 'created_at': video.get('created_at', ''),
@@ -2315,8 +2313,7 @@ async def youtube_route(
             if search:
                 search_lower = search.lower()
                 if not (search_lower in video.get('title', '').lower() or 
-                       search_lower in video.get('topic_keywords', '').lower() or
-                       search_lower in video.get('description', '').lower()):
+                       search_lower in video.get('topic_keywords', '').lower()):
                     continue
             
             # Filter by keywords if specified
