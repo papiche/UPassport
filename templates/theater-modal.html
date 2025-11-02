@@ -30,6 +30,7 @@
             left: 0;
             margin: 0;
             padding: 0;
+            touch-action: pan-y; /* Enable vertical scroll on touch devices */
         }
 
         .theater-modal {
@@ -44,16 +45,21 @@
             background: #000000;
             overflow-y: auto;
             overflow-x: hidden;
+            -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+            touch-action: pan-y; /* Enable vertical panning */
         }
         
         /* Ensure scroll works properly - body should allow scrolling for the modal */
         html {
             overflow: hidden;
+            height: 100%;
         }
         
         body {
             overflow-y: auto;
-            height: 100vh;
+            overflow-x: hidden;
+            height: 100%;
+            -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
         }
         
         /* Ensure scroll works only within the modal */
@@ -800,9 +806,15 @@
         }
 
         @media (max-width: 768px) {
+            .theater-modal {
+                min-height: 100vh;
+                height: auto;
+            }
+            
             .theater-header {
                 padding: 12px 16px;
                 flex-wrap: wrap;
+                flex-shrink: 0;
             }
 
             .theater-title {
@@ -825,18 +837,31 @@
 
             .theater-video-wrapper {
                 min-height: 40vh;
+                flex-shrink: 0;
+            }
+            
+            .theater-body {
+                min-height: calc(100vh - 60px);
+                display: flex;
+                flex-direction: column;
             }
 
             .theater-comments-panel {
                 width: 100%;
-                height: 40vh;
-                max-height: 40vh;
+                min-height: 300px;
+                max-height: none;
                 border-left: none;
                 border-top: 1px solid #3f3f3f;
                 display: flex !important;
                 flex-direction: column;
-                overflow: hidden;
+                overflow: visible;
                 flex-shrink: 0;
+            }
+            
+            .theater-comments-list {
+                flex: 1;
+                overflow-y: auto;
+                max-height: 50vh;
             }
             
             .theater-playlist-controls {
@@ -2049,6 +2074,8 @@
         if (window.videoData) {
             // Check if videoData has a playlist property
             if (window.videoData.playlist && Array.isArray(window.videoData.playlist)) {
+                console.log(`🎬 Theater modal received playlist: ${window.videoData.playlist.length} videos`, window.videoData.playlist);
+                
                 // Find current video index in playlist (match by eventId or ipfsUrl)
                 let startIndex = 0;
                 if (window.videoData.eventId) {
@@ -2066,6 +2093,8 @@
                         startIndex = foundIndex;
                     }
                 }
+                
+                console.log(`🎬 Starting playlist at index ${startIndex}`);
                 
                 // Initialize playlist mode with correct starting index
                 initializePlaylist(window.videoData.playlist, startIndex);

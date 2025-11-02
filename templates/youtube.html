@@ -4052,10 +4052,27 @@
             
             // Collect all visible videos
             const allVideos = document.querySelectorAll('.video');
+            console.log(`📋 Found ${allVideos.length} total videos on page`);
+            
             const visibleVideos = Array.from(allVideos).filter(video => {
-                return video.style.display !== 'none' && 
-                       video.querySelector('.inline-video-player')?.getAttribute('data-ipfs-url');
+                const isVisible = video.style.display !== 'none';
+                const videoPlayer = video.querySelector('.inline-video-player');
+                const hasIpfsUrl = videoPlayer?.getAttribute('data-ipfs-url');
+                
+                if (!isVisible) {
+                    console.log('Video filtered (hidden):', video.querySelector('.video-title')?.textContent);
+                    return false;
+                }
+                
+                if (!hasIpfsUrl) {
+                    console.warn('Video filtered (no ipfsUrl):', video.querySelector('.video-title')?.textContent);
+                    return false;
+                }
+                
+                return true;
             });
+            
+            console.log(`📋 Found ${visibleVideos.length} visible videos with ipfsUrl`);
             
             if (visibleVideos.length === 0) {
                 alert('❌ No videos available to play');
@@ -4107,7 +4124,23 @@
                     description: content,
                     duration: duration
                 };
-            }).filter(v => v.ipfsUrl && v.eventId); // Filter out videos without eventId or ipfsUrl
+            });
+            
+            // Filter out videos without ipfsUrl (required for playback)
+            // eventId is optional - some videos might not have it yet
+            playlistVideos = playlistVideos.filter(v => {
+                if (!v.ipfsUrl) {
+                    console.warn('Video filtered (no ipfsUrl):', v.title);
+                    return false;
+                }
+                return true;
+            });
+            
+            console.log(`📋 Playlist built: ${playlistVideos.length} videos collected`, playlistVideos.map(v => ({
+                title: v.title,
+                eventId: v.eventId || 'NO_EVENT_ID',
+                ipfsUrl: v.ipfsUrl ? 'HAS_IPFS' : 'NO_IPFS'
+            })));
             
             // Update logo state
             const logo = document.getElementById('playlistLogo') || document.querySelector('.sidebar-logo');
@@ -4146,23 +4179,26 @@
                 return;
             }
             
-            // Prepare video data with playlist attached (only first time)
+            // Always attach full playlist to video data so theater modal can manage it
             const videoDataWithPlaylist = { ...videoData };
-            if (currentPlaylistIndex === 0) {
-                // Attach full playlist to first video so theater modal can manage it
-                videoDataWithPlaylist.playlist = playlistVideos.map((v, idx) => ({
-                    title: v.title,
-                    ipfsUrl: v.ipfsUrl,
-                    thumbnailUrl: v.thumbnailUrl,
-                    eventId: v.eventId,
-                    authorId: v.authorId,
-                    channel: v.channel,
-                    uploader: v.uploader,
-                    content: v.content,
-                    description: v.description,
-                    duration: v.duration || null
-                }));
-            }
+            
+            // Attach full playlist with ALL videos
+            const playlistToSend = playlistVideos.map((v, idx) => ({
+                title: v.title,
+                ipfsUrl: v.ipfsUrl,
+                thumbnailUrl: v.thumbnailUrl,
+                eventId: v.eventId || null, // Can be null for videos without NOSTR event
+                authorId: v.authorId || null,
+                channel: v.channel || null,
+                uploader: v.uploader || 'Unknown',
+                content: v.content || '',
+                description: v.description || v.content || '',
+                duration: v.duration || null
+            }));
+            
+            console.log(`🎬 Sending playlist to theater modal: ${playlistToSend.length} videos`, playlistToSend);
+            
+            videoDataWithPlaylist.playlist = playlistToSend;
             
             // Open video in theater mode
             const theaterModeFn = typeof openTheaterMode !== 'undefined' ? openTheaterMode : 
