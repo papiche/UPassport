@@ -644,6 +644,10 @@
             transition: transform 0.2s ease;
         }
         
+        .video-thumbnail .thumbnail-animated {
+            /* Animated thumbnails (GIFs) play automatically */
+        }
+        
         .video-thumbnail .thumbnail-placeholder {
             display: flex;
             align-items: center;
@@ -1612,6 +1616,15 @@
                         <button id="playlist-manager-btn" onclick="openPlaylistManager()" class="upload-btn" title="Administrer mes playlists" style="display: none; background: transparent; color: #f59e0b; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
                             📋 <span>Playlists</span>
                         </button>
+                        <div class="thumbnail-type-selector" style="display: none; align-items: center; gap: 8px; margin-left: 12px;">
+                            <label for="thumbnail-type-toggle" style="font-size: 0.8em; color: #aaaaaa; cursor: pointer;">
+                                <span data-i18n="thumbnail_type">Type de miniature:</span>
+                            </label>
+                            <button id="thumbnail-type-toggle" onclick="toggleThumbnailType()" title="Toggle between static and animated thumbnails" style="background: transparent; border: 1px solid #3f3f3f; color: #f1f1f1; padding: 6px 12px; border-radius: 16px; font-size: 0.85em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px;">
+                                <span id="thumbnail-type-icon">🖼️</span>
+                                <span id="thumbnail-type-text" data-i18n="thumbnail_static">Statique</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1734,8 +1747,12 @@
                              data-duration="{{ video.duration if video.duration else 0 }}"
                              data-date="{{ video.download_date if video.download_date else (video.created_at if video.created_at else '') }}">
                             <div class="video-thumbnail" onclick="toggleVideoPlayer(this)" ondblclick="openVideoInTheater(this)">
-                                {% if video.thumbnail_ipfs %}
+                                {% if video.thumbnail_ipfs or video.gifanim_ipfs %}
+                                {% if video.gifanim_ipfs %}
+                                <img src="" alt="Animated Thumbnail" class="thumbnail-img thumbnail-animated" data-ipfs-url="{{ video.gifanim_ipfs }}" data-thumbnail-static="{{ video.thumbnail_ipfs if video.thumbnail_ipfs else '' }}" data-thumbnail-animated="{{ video.gifanim_ipfs }}">
+                                {% else %}
                                 <img src="" alt="Thumbnail" class="thumbnail-img" data-ipfs-url="{{ video.thumbnail_ipfs }}">
+                                {% endif %}
                                 {% else %}
                                 <div class="thumbnail-placeholder">🎬</div>
                                 {% endif %}
@@ -2114,7 +2131,10 @@
                 network_videos_description: "Les vidéos de vos amis et amis d'amis apparaîtront ici.",
                 engagement_stats: "Statistiques d'engagement",
                 add_timestamp: "Ajouter timestamp",
-                ready_to_record: "Prêt à enregistrer"
+                ready_to_record: "Prêt à enregistrer",
+                thumbnail_type: "Type de miniature:",
+                thumbnail_static: "Statique",
+                thumbnail_animated: "Animé"
             },
             en: {
                 all_videos: "All Videos",
@@ -2191,7 +2211,10 @@
                 network_videos_description: "Videos from your friends and friends of friends will appear here.",
                 engagement_stats: "Engagement statistics",
                 add_timestamp: "Add timestamp",
-                ready_to_record: "Ready to record"
+                ready_to_record: "Ready to record",
+                thumbnail_type: "Thumbnail type:",
+                thumbnail_static: "Static",
+                thumbnail_animated: "Animated"
             },
             es: {
                 all_videos: "Todos los Videos",
@@ -2268,7 +2291,10 @@
                 network_videos_description: "Los videos de tus amigos y amigos de tus amigos aparecerán aquí.",
                 engagement_stats: "Estadísticas de compromiso",
                 add_timestamp: "Agregar marca de tiempo",
-                ready_to_record: "Listo para grabar"
+                ready_to_record: "Listo para grabar",
+                thumbnail_type: "Tipo de miniatura:",
+                thumbnail_static: "Estática",
+                thumbnail_animated: "Animada"
             }
         };
         
@@ -2775,6 +2801,87 @@
             }
         }
         
+        // ========================================
+        // THUMBNAIL TYPE SELECTOR (Static/Animated)
+        // ========================================
+        
+        // Global state for thumbnail type preference
+        let thumbnailTypePreference = localStorage.getItem('thumbnailTypePreference') || 'animated'; // 'static' or 'animated'
+        
+        /**
+         * Toggle between static and animated thumbnails
+         */
+        function toggleThumbnailType() {
+            thumbnailTypePreference = thumbnailTypePreference === 'animated' ? 'static' : 'animated';
+            localStorage.setItem('thumbnailTypePreference', thumbnailTypePreference);
+            
+            // Update UI
+            updateThumbnailTypeUI();
+            
+            // Update all thumbnails
+            updateAllThumbnails();
+        }
+        
+        /**
+         * Update thumbnail type selector UI
+         */
+        function updateThumbnailTypeUI() {
+            const icon = document.getElementById('thumbnail-type-icon');
+            const text = document.getElementById('thumbnail-type-text');
+            
+            if (icon && text) {
+                if (thumbnailTypePreference === 'animated') {
+                    icon.textContent = '🎬';
+                    text.textContent = t('thumbnail_animated');
+                } else {
+                    icon.textContent = '🖼️';
+                    text.textContent = t('thumbnail_static');
+                }
+            }
+        }
+        
+        /**
+         * Update all thumbnails based on current preference
+         */
+        function updateAllThumbnails() {
+            const convertFn = typeof convertIPFSUrlGlobal !== 'undefined' ? convertIPFSUrlGlobal : convertIPFSUrl;
+            
+            document.querySelectorAll('.video-thumbnail .thumbnail-img').forEach(img => {
+                // Check if this thumbnail supports both types
+                const staticThumbnail = img.getAttribute('data-thumbnail-static');
+                const animatedThumbnail = img.getAttribute('data-thumbnail-animated');
+                
+                if (staticThumbnail && animatedThumbnail) {
+                    // This thumbnail can switch between static and animated
+                    const selectedThumbnail = thumbnailTypePreference === 'animated' ? animatedThumbnail : staticThumbnail;
+                    const convertedUrl = convertFn(selectedThumbnail);
+                    
+                    if (convertedUrl) {
+                        img.src = convertedUrl;
+                        img.setAttribute('data-ipfs-url', selectedThumbnail);
+                        img.setAttribute('data-ipfs-url-converted', convertedUrl);
+                        
+                        // Update class to indicate type
+                        if (thumbnailTypePreference === 'animated') {
+                            img.classList.add('thumbnail-animated');
+                        } else {
+                            img.classList.remove('thumbnail-animated');
+                        }
+                    }
+                } else {
+                    // Single thumbnail type - just convert it
+                    let ipfsUrl = img.getAttribute('data-ipfs-url');
+                    if (ipfsUrl) {
+                        const convertedUrl = convertFn(ipfsUrl);
+                        if (convertedUrl) {
+                            img.src = convertedUrl;
+                            img.setAttribute('data-ipfs-url-converted', convertedUrl);
+                        }
+                    }
+                }
+            });
+        }
+        
         // Convert all IPFS URLs for thumbnails (uses convertIPFSUrlGlobal from youtube.enhancements.js)
         function convertAllIPFSUrls() {
             // Ensure IPFS_GATEWAY is set
@@ -2785,49 +2892,8 @@
                 window.IPFS_GATEWAY = 'https://ipfs.copylaradio.com';
             }
             
-            // Use convertIPFSUrlGlobal if available, otherwise fallback
-            const convertFn = typeof convertIPFSUrlGlobal !== 'undefined' ? convertIPFSUrlGlobal : convertIPFSUrl;
-            
-            // Convert thumbnail images - prioritize data-ipfs-url attribute
-            document.querySelectorAll('.video-thumbnail .thumbnail-img').forEach(img => {
-                // First, check if there's a data-ipfs-url attribute (from template)
-                let ipfsUrl = img.getAttribute('data-ipfs-url');
-                
-                if (ipfsUrl) {
-                    // Convert the IPFS URL from data attribute
-                    const convertedUrl = convertFn(ipfsUrl);
-                    if (convertedUrl) {
-                        img.src = convertedUrl;
-                        // Keep data-ipfs-url for reference, but also update src
-                        img.setAttribute('data-ipfs-url-converted', convertedUrl);
-                        return; // Skip the src-based conversion below
-                    }
-                }
-                
-                // Fallback: check existing src attribute (for dynamically added images)
-                const src = img.getAttribute('src');
-                if (!src || src === '') return;
-                
-                // Check if URL contains /ipfs/ path (even if it's a full URL with wrong domain)
-                if (src.includes('/ipfs/')) {
-                    // Extract the /ipfs/... part from the URL
-                    const ipfsMatch = src.match(/\/ipfs\/[^?"#]+/);
-                    if (ipfsMatch) {
-                        const ipfsPath = ipfsMatch[0];
-                        // Convert to correct gateway
-                        const convertedUrl = convertFn(ipfsPath);
-                        if (convertedUrl && convertedUrl !== src) {
-                            img.src = convertedUrl;
-                            console.log(`✅ Converted thumbnail URL: ${src.substring(0, 50)}... → ${convertedUrl.substring(0, 50)}...`);
-                        }
-                    }
-                } else if (src.startsWith('/ipfs/') || src.startsWith('ipfs://')) {
-                    const convertedUrl = convertFn(src);
-                    if (convertedUrl && convertedUrl !== src) {
-                        img.src = convertedUrl;
-                    }
-                }
-            });
+            // Update all thumbnails based on preference
+            updateAllThumbnails();
             
             // Also convert video data-ipfs-url attributes (keep original for NOSTR, but log conversion)
             document.querySelectorAll('.inline-video-player[data-ipfs-url]').forEach(player => {
@@ -2859,6 +2925,9 @@
             
             // Restore sidebar state
             restoreSidebarState();
+            
+            // Initialize thumbnail type preference
+            updateThumbnailTypeUI();
             
             // Check NOSTR connection status
             checkNostrConnectionStatus();
@@ -3930,6 +3999,15 @@
                 }
                 if (playlistManagerBtn) {
                     playlistManagerBtn.style.display = 'flex';
+                }
+                
+                // Show thumbnail type selector (if any video has animated thumbnails)
+                const thumbnailSelector = document.querySelector('.thumbnail-type-selector');
+                if (thumbnailSelector) {
+                    const hasAnimatedThumbnails = document.querySelectorAll('.thumbnail-img[data-thumbnail-animated]').length > 0;
+                    if (hasAnimatedThumbnails) {
+                        thumbnailSelector.style.display = 'flex';
+                    }
                 }
                 
                 // Show ready indicator

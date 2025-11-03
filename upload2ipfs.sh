@@ -80,6 +80,12 @@ DURATION="0"
 # Initialize text (empty by default)
 TEXT=""
 
+# Initialize thumbnail CID (empty by default, will be set for video files)
+THUMBNAIL_CID=""
+
+# Initialize animated GIF CID (empty by default, will be set for video files)
+GIFANIM_CID=""
+
 # Text file check
 if [[ "$FILE_TYPE" == "text/"* ]]; then
   DESCRIPTION="Plain text file" && IDISK="text"
@@ -113,6 +119,96 @@ elif [[ "$FILE_TYPE" == "video/"* ]]; then
         IDISK="video"
          if [[ -n "$VIDEO_DIMENSIONS" ]]; then
             NIP94_TAGS="$NIP94_TAGS, [\"dim\", \"$VIDEO_DIMENSIONS\"]"
+        fi
+        
+        # Generate thumbnail for video files
+        THUMBNAIL_CID=""
+        if command -v ffmpeg &> /dev/null; then
+            echo "DEBUG: Generating thumbnail for video..." >&2
+            THUMBNAIL_PATH="$(dirname "$FILE_PATH")/$(basename "$FILE_PATH" | sed 's/\.[^.]*$//').thumb.jpg"
+            
+            # Extract thumbnail at 1 second (or 10% of duration if longer than 10 seconds)
+            THUMBNAIL_TIME="00:00:01"
+            if [[ -n "$DURATION_RAW" ]] && [[ "$DURATION_RAW" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+                DURATION_SEC=$(echo "$DURATION_RAW" | awk '{print int($1)}')
+                if [[ $DURATION_SEC -gt 10 ]]; then
+                    # Use 10% of duration for thumbnail (use awk for floating point math, no bc dependency)
+                    THUMBNAIL_SEC=$(echo "$DURATION_RAW" | awk '{print int($1 * 0.1)}')
+                    HOURS=$((THUMBNAIL_SEC / 3600))
+                    MINS=$(((THUMBNAIL_SEC % 3600) / 60))
+                    SECS=$((THUMBNAIL_SEC % 60))
+                    THUMBNAIL_TIME=$(printf "%02d:%02d:%02d" $HOURS $MINS $SECS)
+                fi
+            fi
+            
+            # Generate thumbnail using ffmpeg
+            if ffmpeg -i "$FILE_PATH" -ss "$THUMBNAIL_TIME" -vframes 1 -y "$THUMBNAIL_PATH" 2>/dev/null; then
+                if [[ -f "$THUMBNAIL_PATH" ]]; then
+                    echo "DEBUG: Thumbnail generated, adding to IPFS..." >&2
+                    THUMBNAIL_CID_OUTPUT=$(ipfs add -q "$THUMBNAIL_PATH" 2>&1)
+                    THUMBNAIL_CID=$(echo "$THUMBNAIL_CID_OUTPUT" | tail -n 1)
+                    
+                    if [[ -n "$THUMBNAIL_CID" ]]; then
+                        echo "DEBUG: Thumbnail CID: $THUMBNAIL_CID" >&2
+                        # Unpin thumbnail to save space (it will be pinned by the user if needed)
+                        ipfs pin rm "$THUMBNAIL_CID" >&2
+                    else
+                        echo "WARNING: Failed to get thumbnail CID from IPFS" >&2
+                    fi
+                    
+                    # Clean up temporary thumbnail file
+                    rm -f "$THUMBNAIL_PATH"
+                else
+                    echo "WARNING: Thumbnail file was not created" >&2
+                fi
+            else
+                echo "WARNING: Failed to generate thumbnail with ffmpeg" >&2
+            fi
+            
+            # Generate animated GIF for video files (using phi ratio: 0.618)
+            GIFANIM_CID=""
+            echo "DEBUG: Generating animated GIF for video..." >&2
+            GIFANIM_PATH="$(dirname "$FILE_PATH")/$(basename "$FILE_PATH" | sed 's/\.[^.]*$//').gif"
+            
+            # Calculate PROBETIME at phi ratio (0.618) of duration
+            PROBETIME="1"
+            if [[ -n "$DURATION_RAW" ]] && [[ "$DURATION_RAW" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+                # Use awk for floating point math (phi * duration), no bc dependency
+                PROBETIME_SEC=$(echo "$DURATION_RAW" | awk '{print int($1 * 0.618)}')
+                if [[ $PROBETIME_SEC -lt 1 ]]; then
+                    PROBETIME_SEC=1
+                fi
+                HOURS=$((PROBETIME_SEC / 3600))
+                MINS=$(((PROBETIME_SEC % 3600) / 60))
+                SECS=$((PROBETIME_SEC % 60))
+                PROBETIME=$(printf "%02d:%02d:%02d" $HOURS $MINS $SECS)
+            fi
+            
+            # Generate animated GIF using ffmpeg (1.6 seconds starting at phi ratio)
+            if ffmpeg -loglevel quiet -ss "$PROBETIME" -t 1.6 -i "$FILE_PATH" -y "$GIFANIM_PATH" 2>/dev/null; then
+                if [[ -f "$GIFANIM_PATH" ]] && [[ -s "$GIFANIM_PATH" ]]; then
+                    echo "DEBUG: Animated GIF generated, adding to IPFS..." >&2
+                    GIFANIM_CID_OUTPUT=$(ipfs add -q "$GIFANIM_PATH" 2>&1)
+                    GIFANIM_CID=$(echo "$GIFANIM_CID_OUTPUT" | tail -n 1)
+                    
+                    if [[ -n "$GIFANIM_CID" ]]; then
+                        echo "DEBUG: Animated GIF CID: $GIFANIM_CID" >&2
+                        # Unpin GIF to save space (it will be pinned by the user if needed)
+                        ipfs pin rm "$GIFANIM_CID" >&2
+                    else
+                        echo "WARNING: Failed to get animated GIF CID from IPFS" >&2
+                    fi
+                    
+                    # Clean up temporary GIF file
+                    rm -f "$GIFANIM_PATH"
+                else
+                    echo "WARNING: Animated GIF file was not created or is empty" >&2
+                fi
+            else
+                echo "WARNING: Failed to generate animated GIF with ffmpeg" >&2
+            fi
+        else
+            echo "WARNING: ffmpeg not available, cannot generate thumbnail or animated GIF" >&2
         fi
     else
       DURATION="0"
@@ -177,7 +273,9 @@ if [[ "$FILE_TYPE" == "video/"* ]] || [[ "$FILE_TYPE" == "audio/"* ]]; then
     \"duration\": ${DURATION:-0}$(if [[ -n "$VIDEO_CODECS" ]]; then echo ",
     \"video_codecs\": \"$VIDEO_CODECS\""; fi)$(if [[ -n "$AUDIO_CODECS" ]]; then echo ",
     \"audio_codecs\": \"$AUDIO_CODECS\""; fi)$(if [[ -n "$VIDEO_DIMENSIONS" ]]; then echo ",
-    \"dimensions\": \"$VIDEO_DIMENSIONS\""; fi)
+    \"dimensions\": \"$VIDEO_DIMENSIONS\""; fi)$(if [[ -n "$THUMBNAIL_CID" ]]; then echo ",
+    \"thumbnail_ipfs\": \"$THUMBNAIL_CID\""; fi)$(if [[ -n "$GIFANIM_CID" ]]; then echo ",
+    \"gifanim_ipfs\": \"$GIFANIM_CID\""; fi)
   }"
 fi
 
@@ -250,6 +348,9 @@ JSON_OUTPUT="{
   \"fileSize\": ${FILE_SIZE:-0},
   \"fileName\": \"$FILE_NAME\",
   \"info\": \"$INFO_CID\",
+  \"thumbnail_ipfs\": \"$THUMBNAIL_CID\",
+  \"gifanim_ipfs\": \"$GIFANIM_CID\",
+  \"dimensions\": \"${VIDEO_DIMENSIONS:-${IMAGE_DIMENSIONS:-}}\",
   \"unode\": \"$IPFSNODEID\",
   \"date\": \"$DATE\",
   \"description\": \"$DESCRIPTION\",

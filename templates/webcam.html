@@ -1984,6 +1984,39 @@
                 const formData = new FormData();
                 formData.append('player', playerValue);
                 formData.append('ipfs_cid', uploadResult.new_cid);  // Send CID instead of video_blob
+                // Pass thumbnail_ipfs from upload2ipfs.sh (centralized thumbnail generation)
+                if (uploadResult.thumbnail_ipfs) {
+                    formData.append('thumbnail_ipfs', uploadResult.thumbnail_ipfs);
+                    console.log('✅ Using thumbnail from upload2ipfs.sh:', uploadResult.thumbnail_ipfs);
+                }
+                // Pass gifanim_ipfs from upload2ipfs.sh (centralized animated GIF generation)
+                if (uploadResult.gifanim_ipfs) {
+                    formData.append('gifanim_ipfs', uploadResult.gifanim_ipfs);
+                    console.log('✅ Using animated GIF from upload2ipfs.sh:', uploadResult.gifanim_ipfs);
+                }
+                // Pass metadata from upload2ipfs.sh (centralized extraction)
+                if (uploadResult.info) {
+                    formData.append('info_cid', uploadResult.info);
+                }
+                // Pass duration and dimensions from upload result if available
+                // Check direct fields first (from JSON response of upload2ipfs.sh)
+                if (uploadResult.duration !== undefined && uploadResult.duration !== null) {
+                    formData.append('duration', uploadResult.duration.toString());
+                    console.log('✅ Using duration from upload2ipfs.sh:', uploadResult.duration);
+                }
+                // Get dimensions from direct field or metadata
+                if (uploadResult.dimensions) {
+                    formData.append('video_dimensions', uploadResult.dimensions);
+                    console.log('✅ Using dimensions from upload2ipfs.sh:', uploadResult.dimensions);
+                } else if (uploadResult.metadata && uploadResult.metadata.media && uploadResult.metadata.media.dimensions) {
+                    formData.append('video_dimensions', uploadResult.metadata.media.dimensions);
+                    console.log('✅ Using dimensions from metadata:', uploadResult.metadata.media.dimensions);
+                }
+                // Fallback: duration from metadata if not in direct field
+                if (!uploadResult.duration && uploadResult.metadata && uploadResult.metadata.media && uploadResult.metadata.media.duration) {
+                    formData.append('duration', uploadResult.metadata.media.duration.toString());
+                    console.log('✅ Using duration from metadata:', uploadResult.metadata.media.duration);
+                }
                 formData.append('title', document.getElementById('video-title').value);
                 formData.append('description', document.getElementById('video-description').value);
                 formData.append('publish_nostr', document.getElementById('publish-nostr').checked ? 'true' : 'false');
