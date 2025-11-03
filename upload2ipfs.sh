@@ -17,6 +17,7 @@ ME="${0##*/}"
 
 FILE_PATH="$1"
 OUTPUT_FILE="$2"
+USER_PUBKEY_HEX="$3"  # Optional: user's hex public key for provenance tracking
 
 if [ -z "$FILE_PATH" ]; then
   echo '{"status": "error", "message": "No file path provided.", "debug": "FILE_PATH is empty"}' > "$OUTPUT_FILE"
@@ -26,6 +27,13 @@ fi
 if [ -z "$OUTPUT_FILE" ]; then
   echo '{"status": "error", "message": "No temporary file path provided.", "debug": "OUTPUT_FILE is empty"}' > "$OUTPUT_FILE"
   exit 1
+fi
+
+# Log user pubkey if provided (for provenance tracking)
+if [ -n "$USER_PUBKEY_HEX" ]; then
+  echo "DEBUG: User pubkey: ${USER_PUBKEY_HEX:0:16}... (provenance tracking enabled)" >&2
+else
+  echo "DEBUG: No user pubkey provided (provenance tracking disabled)" >&2
 fi
 
 
@@ -50,7 +58,222 @@ if [ "$FILE_SIZE" -gt "$MAX_FILE_SIZE" ]; then
     exit 1
 fi
 
+# Calculate file hash FIRST (before IPFS upload) for provenance tracking
+FILE_HASH=$(sha256sum "$FILE_PATH" | awk '{print $1}')
+echo "DEBUG: File hash (SHA256): $FILE_HASH" >&2
+
+# Initialize SKIP_IPFS_UPLOAD flag (will be set to true if provenance tracking finds existing upload)
+SKIP_IPFS_UPLOAD=false
+
+################################################################################
+# PROVENANCE TRACKING: Check if this file (hash) already exists in NOSTR
+# THIS HAPPENS **BEFORE** IPFS UPLOAD TO AVOID REDUNDANT UPLOADS
+################################################################################
+ORIGINAL_EVENT_ID=""
+ORIGINAL_AUTHOR=""
+ORIGINAL_EVENT_JSON=""
+UPLOAD_CHAIN=""
+PROVENANCE_TAGS=""
+
+if [ -n "$USER_PUBKEY_HEX" ]; then
+    echo "DEBUG: Checking for existing NOSTR events with this file hash..." >&2
+    
+    # Path to nostr_get_events.sh (in Astroport.ONE/tools or current directory)
+    NOSTR_GET_EVENTS="${HOME}/.zen/Astroport.ONE/tools/nostr_get_events.sh"
+    
+    if [ -f "$NOSTR_GET_EVENTS" ]; then
+        # Search for events with this file hash
+        echo "DEBUG: Searching for hash $FILE_HASH in NOSTR events..." >&2
+        
+        # Search for all NIP-94 events (kind 1063) and filter locally
+        EXISTING_EVENTS=$(bash "$NOSTR_GET_EVENTS" --kind 1063 --limit 1000 2>/dev/null || echo "")
+        
+        if [ -n "$EXISTING_EVENTS" ]; then
+            echo "DEBUG: Found NIP-94 events, checking for matching hash..." >&2
+            
+            # Filter events with matching 'x' tag (file hash)
+            if command -v jq &> /dev/null; then
+                # Use jq to find events with matching hash in tags
+                MATCHING_EVENT=$(echo "$EXISTING_EVENTS" | jq -r --arg hash "$FILE_HASH" '
+                    select(.tags[]? | select(.[0] == "x" and .[1] == $hash))
+                ' | head -n 1)
+                
+                if [ -n "$MATCHING_EVENT" ]; then
+                    ORIGINAL_EVENT_ID=$(echo "$MATCHING_EVENT" | jq -r '.id')
+                    ORIGINAL_AUTHOR=$(echo "$MATCHING_EVENT" | jq -r '.pubkey')
+                    ORIGINAL_EVENT_JSON="$MATCHING_EVENT"
+                    
+                    echo "DEBUG: ✅ Found original event! ID: ${ORIGINAL_EVENT_ID:0:16}..., Author: ${ORIGINAL_AUTHOR:0:16}..." >&2
+                    
+                    # Extract existing CID and metadata from original event
+                    ORIGINAL_CID=""
+                    ORIGINAL_URL=$(echo "$MATCHING_EVENT" | jq -r '.tags[]? | select(.[0] == "url") | .[1]' 2>/dev/null || echo "")
+                    if [ -n "$ORIGINAL_URL" ]; then
+                        # Extract CID from URL (format: /ipfs/QmXXX/filename or https://gateway/ipfs/QmXXX/filename)
+                        ORIGINAL_CID=$(echo "$ORIGINAL_URL" | grep -oP '(?<=ipfs/)[^/]+' | head -n 1)
+                        if [ -n "$ORIGINAL_CID" ]; then
+                            echo "DEBUG: 💾 Original CID found: $ORIGINAL_CID" >&2
+                            echo "DEBUG: 🚀 Skipping IPFS upload, reusing existing CID..." >&2
+                            
+                            # Reuse the existing CID instead of uploading again
+                            CID="$ORIGINAL_CID"
+                            
+                            # Try to retrieve existing metadata from original event
+                            # Check if there's an 'info' tag with info.json CID
+                            ORIGINAL_INFO_CID=$(echo "$MATCHING_EVENT" | jq -r '.tags[]? | select(.[0] == "info") | .[1]' 2>/dev/null || echo "")
+                            if [ -n "$ORIGINAL_INFO_CID" ] && [ "$ORIGINAL_INFO_CID" != "null" ]; then
+                                echo "DEBUG: 📋 Original info.json CID found: $ORIGINAL_INFO_CID" >&2
+                                
+                                # Try to fetch existing metadata from IPFS using ipfs get (downloads AND pins)
+                                if command -v ipfs &> /dev/null; then
+                                    echo "DEBUG: 📥 Downloading info.json from IPFS (this also pins it)..." >&2
+                                    
+                                    # Create temporary file for info.json
+                                    TEMP_INFO_FILE="${HOME}/.zen/tmp/info_${ORIGINAL_INFO_CID}.json"
+                                    mkdir -p "$(dirname "$TEMP_INFO_FILE")"
+                                    
+                                    # Download info.json via ipfs get (automatically pins it)
+                                    if ipfs get -o "$TEMP_INFO_FILE" "$ORIGINAL_INFO_CID" >/dev/null 2>&1; then
+                                        echo "DEBUG: ✅ Downloaded and pinned info.json" >&2
+                                        
+                                        # Read the downloaded file
+                                        ORIGINAL_METADATA=$(cat "$TEMP_INFO_FILE" 2>/dev/null || echo "")
+                                        
+                                        # Clean up temporary file
+                                        rm -f "$TEMP_INFO_FILE"
+                                        
+                                        if [ -n "$ORIGINAL_METADATA" ]; then
+                                            # Extract metadata from original info.json
+                                            if command -v jq &> /dev/null; then
+                                                # Extract all metadata to avoid re-extraction
+                                                DURATION=$(echo "$ORIGINAL_METADATA" | jq -r '.media.duration // 0' 2>/dev/null || echo "0")
+                                                VIDEO_DIMENSIONS=$(echo "$ORIGINAL_METADATA" | jq -r '.media.dimensions // ""' 2>/dev/null || echo "")
+                                                VIDEO_CODECS=$(echo "$ORIGINAL_METADATA" | jq -r '.media.video_codecs // ""' 2>/dev/null || echo "")
+                                                AUDIO_CODECS=$(echo "$ORIGINAL_METADATA" | jq -r '.media.audio_codecs // ""' 2>/dev/null || echo "")
+                                                THUMBNAIL_CID=$(echo "$ORIGINAL_METADATA" | jq -r '.media.thumbnail_ipfs // ""' 2>/dev/null || echo "")
+                                                GIFANIM_CID=$(echo "$ORIGINAL_METADATA" | jq -r '.media.gifanim_ipfs // ""' 2>/dev/null || echo "")
+                                                IMAGE_DIMENSIONS=$(echo "$ORIGINAL_METADATA" | jq -r '.image.dimensions // ""' 2>/dev/null || echo "")
+                                                DESCRIPTION=$(echo "$ORIGINAL_METADATA" | jq -r '.metadata.description // ""' 2>/dev/null || echo "")
+                                                FILE_TYPE=$(echo "$ORIGINAL_METADATA" | jq -r '.file.type // ""' 2>/dev/null || echo "$FILE_TYPE")
+                                                IDISK=$(echo "$ORIGINAL_METADATA" | jq -r '.metadata.type // ""' 2>/dev/null || echo "")
+                                                
+                                                echo "DEBUG: ✅ Reused metadata: duration=$DURATION, dimensions=$VIDEO_DIMENSIONS, thumbnail=$THUMBNAIL_CID, gifanim=$GIFANIM_CID" >&2
+                                                
+                                                # Download and pin the main CID, thumbnail, and GIF using ipfs get
+                                                echo "DEBUG: 📥 Downloading and pinning main file and assets..." >&2
+                                                
+                                                # Create temporary directory for downloads
+                                                TEMP_GET_DIR="${HOME}/.zen/tmp/ipfs_get_$$"
+                                                mkdir -p "$TEMP_GET_DIR"
+                                                
+                                                # Download main file (this also pins it automatically)
+                                                if ipfs get -o "$TEMP_GET_DIR/main" "$CID" >/dev/null 2>&1; then
+                                                    echo "DEBUG: ✅ Downloaded and pinned main file: $CID" >&2
+                                                    rm -rf "$TEMP_GET_DIR/main"
+                                                else
+                                                    echo "DEBUG: ⚠️ Could not download main CID (may not be available on network)" >&2
+                                                fi
+                                                
+                                                # Download thumbnail if available
+                                                if [ -n "$THUMBNAIL_CID" ]; then
+                                                    if ipfs get -o "$TEMP_GET_DIR/thumb" "$THUMBNAIL_CID" >/dev/null 2>&1; then
+                                                        echo "DEBUG: ✅ Downloaded and pinned thumbnail: $THUMBNAIL_CID" >&2
+                                                        rm -rf "$TEMP_GET_DIR/thumb"
+                                                    fi
+                                                fi
+                                                
+                                                # Download animated GIF if available
+                                                if [ -n "$GIFANIM_CID" ]; then
+                                                    if ipfs get -o "$TEMP_GET_DIR/gif" "$GIFANIM_CID" >/dev/null 2>&1; then
+                                                        echo "DEBUG: ✅ Downloaded and pinned animated GIF: $GIFANIM_CID" >&2
+                                                        rm -rf "$TEMP_GET_DIR/gif"
+                                                    fi
+                                                fi
+                                                
+                                                # Clean up temporary directory
+                                                rm -rf "$TEMP_GET_DIR"
+                                                
+                                                # Reuse existing info.json CID
+                                                INFO_CID="$ORIGINAL_INFO_CID"
+                                                
+                                                # Skip IPFS upload and metadata extraction
+                                                SKIP_IPFS_UPLOAD=true
+                                            fi
+                                        fi
+                                    else
+                                        echo "DEBUG: ⚠️ Could not download info.json from IPFS (may not be available)" >&2
+                                    fi
+                                fi
+                            fi
+                        fi
+                    fi
+                    
+                    # Check if there's already an upload chain in the original event
+                    EXISTING_CHAIN=$(echo "$MATCHING_EVENT" | jq -r '.tags[]? | select(.[0] == "upload_chain") | .[1]' 2>/dev/null || echo "")
+                    
+                    if [ -n "$EXISTING_CHAIN" ] && [ "$EXISTING_CHAIN" != "null" ]; then
+                        # Append current user to existing chain
+                        if [[ "$EXISTING_CHAIN" != *"$USER_PUBKEY_HEX"* ]]; then
+                            UPLOAD_CHAIN="$EXISTING_CHAIN,$USER_PUBKEY_HEX"
+                            echo "DEBUG: Extended upload chain: ${UPLOAD_CHAIN:0:80}..." >&2
+                        else
+                            UPLOAD_CHAIN="$EXISTING_CHAIN"
+                            echo "DEBUG: User already in chain, keeping existing chain" >&2
+                        fi
+                    else
+                        # Create new chain with original author and current user
+                        if [ "$ORIGINAL_AUTHOR" != "$USER_PUBKEY_HEX" ]; then
+                            UPLOAD_CHAIN="$ORIGINAL_AUTHOR,$USER_PUBKEY_HEX"
+                            echo "DEBUG: Created new upload chain: ${UPLOAD_CHAIN:0:50}..." >&2
+                        else
+                            UPLOAD_CHAIN="$ORIGINAL_AUTHOR"
+                            echo "DEBUG: Same user re-uploading, single entry in chain" >&2
+                        fi
+                    fi
+                    
+                    # Build provenance tags for NIP-94 event
+                    PROVENANCE_TAGS=", [\"e\", \"$ORIGINAL_EVENT_ID\", \"\", \"mention\"]"
+                    if [ "$ORIGINAL_AUTHOR" != "$USER_PUBKEY_HEX" ]; then
+                        PROVENANCE_TAGS="$PROVENANCE_TAGS, [\"p\", \"$ORIGINAL_AUTHOR\"]"
+                    fi
+                    
+                    echo "DEBUG: Provenance tags created for original event reference" >&2
+                else
+                    echo "DEBUG: No matching events found with this hash" >&2
+                fi
+            else
+                echo "WARNING: jq not available, skipping provenance check" >&2
+            fi
+        else
+            echo "DEBUG: No NIP-94 events found in relay" >&2
+        fi
+    else
+        echo "WARNING: nostr_get_events.sh not found, skipping provenance check" >&2
+        echo "WARNING: Searched paths: ${HOME}/.zen/Astroport.ONE/tools/nostr_get_events.sh, ${MY_PATH}/../Astroport.ONE/tools/nostr_get_events.sh" >&2
+    fi
+else
+    echo "DEBUG: Provenance tracking disabled (no user pubkey provided)" >&2
+fi
+
+# Log provenance results
+if [ -n "$ORIGINAL_EVENT_ID" ]; then
+    echo "DEBUG: 🔗 Provenance established:" >&2
+    echo "DEBUG:   - Original event: $ORIGINAL_EVENT_ID" >&2
+    echo "DEBUG:   - Original author: $ORIGINAL_AUTHOR" >&2
+    echo "DEBUG:   - Upload chain: $UPLOAD_CHAIN" >&2
+    echo "DEBUG:   - SKIP_IPFS_UPLOAD: $SKIP_IPFS_UPLOAD" >&2
+else
+    echo "DEBUG: 📝 First upload of this file (no provenance found)" >&2
+fi
+
+################################################################################
+# END PROVENANCE TRACKING
+################################################################################
+
 # Attempt to add the file to IPFS and capture the output
+# (This will be skipped if provenance tracking found an existing CID)
+if [ "$SKIP_IPFS_UPLOAD" != "true" ]; then
+    echo "DEBUG: 📤 Uploading file to IPFS..." >&2
 CID_OUTPUT=$(ipfs add -wq "$FILE_PATH" 2>&1)
 
 # Extract the CID
@@ -64,6 +287,7 @@ fi
 
 # Log the CID
 echo "DEBUG: CID: $CID" >&2
+fi
 
 # Get current date
 DATE=$(date +"%Y-%m-%d %H:%M %z")
@@ -112,7 +336,7 @@ elif [[ "$FILE_TYPE" == "video/"* ]]; then
         else
             DURATION="$DURATION_RAW"
             DURATION_DESC="$DURATION"
-        fi
+         fi
         VIDEO_CODECS=$(ffprobe -v error -select_streams v -show_entries stream=codec_name -of csv=p=0 "$FILE_PATH" 2>/dev/null | sed -z 's/\n/, /g;s/, $//')
         VIDEO_DIMENSIONS=$(ffprobe -v error -select_streams v -show_entries stream=width,height -of csv=s=x:p=0 "$FILE_PATH" 2>/dev/null)
         DESCRIPTION="Video, Duration: $DURATION_DESC seconds, Codecs: $VIDEO_CODECS"
@@ -121,9 +345,8 @@ elif [[ "$FILE_TYPE" == "video/"* ]]; then
             NIP94_TAGS="$NIP94_TAGS, [\"dim\", \"$VIDEO_DIMENSIONS\"]"
         fi
         
-        # Generate thumbnail for video files
-        THUMBNAIL_CID=""
-        if command -v ffmpeg &> /dev/null; then
+        # Generate thumbnail for video files (skip if already have from provenance)
+        if [ -z "$THUMBNAIL_CID" ] && command -v ffmpeg &> /dev/null; then
             echo "DEBUG: Generating thumbnail for video..." >&2
             THUMBNAIL_PATH="$(dirname "$FILE_PATH")/$(basename "$FILE_PATH" | sed 's/\.[^.]*$//').thumb.jpg"
             
@@ -165,9 +388,9 @@ elif [[ "$FILE_TYPE" == "video/"* ]]; then
                 echo "WARNING: Failed to generate thumbnail with ffmpeg" >&2
             fi
             
-            # Generate animated GIF for video files (using phi ratio: 0.618)
-            GIFANIM_CID=""
-            echo "DEBUG: Generating animated GIF for video..." >&2
+            # Generate animated GIF for video files (skip if already have from provenance)
+            if [ -z "$GIFANIM_CID" ]; then
+                echo "DEBUG: Generating animated GIF for video..." >&2
             GIFANIM_PATH="$(dirname "$FILE_PATH")/$(basename "$FILE_PATH" | sed 's/\.[^.]*$//').gif"
             
             # Calculate PROBETIME at phi ratio (0.618) of duration
@@ -207,9 +430,15 @@ elif [[ "$FILE_TYPE" == "video/"* ]]; then
             else
                 echo "WARNING: Failed to generate animated GIF with ffmpeg" >&2
             fi
+            fi  # End of GIFANIM_CID check
         else
             echo "WARNING: ffmpeg not available, cannot generate thumbnail or animated GIF" >&2
         fi
+    elif [ "$SKIP_IPFS_UPLOAD" == "true" ]; then
+        # Metadata already loaded from provenance tracking
+        echo "DEBUG: ✅ Using metadata from original upload (provenance tracking)" >&2
+        DESCRIPTION="Video (reused from provenance)"
+        IDISK="video"
     else
       DURATION="0"
       DURATION_DESC="N/A"
@@ -222,12 +451,12 @@ elif [[ "$FILE_TYPE" == "audio/"* ]]; then
        DURATION_RAW=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$FILE_PATH" 2>/dev/null)
        # Validate DURATION is numeric, default to 0 if not
        if [[ -z "$DURATION_RAW" ]] || ! [[ "$DURATION_RAW" =~ ^[0-9]+\.?[0-9]*$ ]]; then
-           DURATION="0"
+            DURATION="0"
            DURATION_DESC="N/A"
        else
            DURATION="$DURATION_RAW"
            DURATION_DESC="$DURATION"
-       fi
+        fi
         AUDIO_CODECS=$(ffprobe -v error -select_streams a -show_entries stream=codec_name -of csv=p=0 "$FILE_PATH" 2>/dev/null | sed -z 's/\n/, /g;s/, $//')
         DESCRIPTION="Audio, Duration: $DURATION_DESC seconds, Codecs: $AUDIO_CODECS"
         IDISK="audio"
@@ -242,8 +471,8 @@ else
     IDISK="other"
 fi
 
-# Calculate file hash (ox)
-FILE_HASH=$(sha256sum "$FILE_PATH" | awk '{print $1}')
+# Note: Provenance tracking already done above (before IPFS upload)
+# No need to recalculate hash or search NOSTR again
 
 # Create info.json with all detected metadata
 # Use a temporary file in the same directory as the original file
@@ -279,6 +508,18 @@ if [[ "$FILE_TYPE" == "video/"* ]] || [[ "$FILE_TYPE" == "audio/"* ]]; then
   }"
 fi
 
+# Build provenance section if available
+PROVENANCE_SECTION=""
+if [ -n "$ORIGINAL_EVENT_ID" ]; then
+    PROVENANCE_SECTION=",
+  \"provenance\": {
+    \"original_event_id\": \"$ORIGINAL_EVENT_ID\",
+    \"original_author\": \"$ORIGINAL_AUTHOR\",
+    \"upload_chain\": \"$UPLOAD_CHAIN\",
+    \"is_reupload\": true
+  }"
+fi
+
 # Construct info.json content
 INFO_JSON_CONTENT="{
   \"file\": {
@@ -291,7 +532,7 @@ INFO_JSON_CONTENT="{
     \"cid\": \"$CID\",
     \"url\": \"/ipfs/$CID/$FILE_NAME\",
     \"date\": \"$DATE\"
-  }$IMAGE_SECTION$MEDIA_SECTION,
+  }$IMAGE_SECTION$MEDIA_SECTION$PROVENANCE_SECTION,
   \"metadata\": {
     \"description\": \"$DESCRIPTION\",
     \"type\": \"$IDISK\",
@@ -325,17 +566,33 @@ fi
 # Clean up temporary info.json file
 rm -f "$INFO_JSON_FILE"
 
-# Construct JSON output
+# Construct JSON output with provenance tags
 NIP94_JSON="{
     \"tags\": [
       [\"url\", \"$myIPFS/ipfs/$CID/$FILE_NAME\" ],
       [\"x\", \"$FILE_HASH\" ],
       [\"ox\", \"$FILE_HASH\" ],
       [\"m\", \"$FILE_TYPE\"]
-      $NIP94_TAGS
+      $NIP94_TAGS$PROVENANCE_TAGS"
+if [ -n "$UPLOAD_CHAIN" ]; then
+    NIP94_JSON="$NIP94_JSON, [\"upload_chain\", \"$UPLOAD_CHAIN\"]"
+fi
+NIP94_JSON="$NIP94_JSON
     ],
     \"content\": \"\"
 }"
+
+# Build provenance JSON section
+PROVENANCE_JSON=""
+if [ -n "$ORIGINAL_EVENT_ID" ]; then
+    PROVENANCE_JSON=",
+  \"provenance\": {
+    \"original_event_id\": \"$ORIGINAL_EVENT_ID\",
+    \"original_author\": \"$ORIGINAL_AUTHOR\",
+    \"upload_chain\": \"$UPLOAD_CHAIN\",
+    \"is_reupload\": true
+  }"
+fi
 
 JSON_OUTPUT="{
   \"status\": \"success\",
@@ -355,7 +612,7 @@ JSON_OUTPUT="{
   \"date\": \"$DATE\",
   \"description\": \"$DESCRIPTION\",
   \"text\": \"$TEXT\",
-  \"title\": \"\$:/$IDISK/$CID/$FILE_NAME\"
+  \"title\": \"\$:/$IDISK/$CID/$FILE_NAME\"$PROVENANCE_JSON
 }"
 
 # Log JSON output to stderr before writing to temp file

@@ -3411,7 +3411,31 @@ async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
         temp_file_path = f"tmp/temp_{uuid.uuid4()}.json"
 
         script_path = "./upload2ipfs.sh"
-        return_code, last_line = await run_script(script_path, file_location, temp_file_path)
+        
+        # Get user pubkey for provenance tracking from NIP-98 Authorization header
+        user_pubkey_hex = ""
+        try:
+            # Extract Authorization header (NIP-98)
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Nostr "):
+                # Decode the base64-encoded NIP-98 event
+                auth_base64 = auth_header.replace("Nostr ", "").strip()
+                auth_json = base64.b64decode(auth_base64).decode('utf-8')
+                auth_event = json.loads(auth_json)
+                
+                # Extract pubkey from the NIP-98 event (kind 27235)
+                if auth_event.get("kind") == 27235 and "pubkey" in auth_event:
+                    user_pubkey_hex = auth_event["pubkey"]
+                    logging.info(f"🔑 NIP-98 Auth: Provenance tracking enabled for user: {user_pubkey_hex[:16]}...")
+                else:
+                    logging.warning(f"⚠️ Invalid NIP-98 event: kind={auth_event.get('kind')}")
+            else:
+                logging.info(f"ℹ️ No NIP-98 Authorization header, uploading without provenance tracking")
+        except Exception as e:
+            logging.warning(f"⚠️ Could not extract pubkey from NIP-98 Authorization header: {e}")
+        
+        # Pass user pubkey as 3rd parameter to upload2ipfs.sh
+        return_code, last_line = await run_script(script_path, file_location, temp_file_path, user_pubkey_hex)
 
         if return_code == 0:
           try:
@@ -3628,7 +3652,17 @@ async def upload_file_to_ipfs(
         temp_file_path = f"tmp/temp_{uuid.uuid4()}.json"
         script_path = "./upload2ipfs.sh"
         
-        return_code, last_line = await run_script(script_path, str(file_path), temp_file_path)
+        # Get user pubkey for provenance tracking (if authenticated)
+        user_pubkey_hex = ""
+        try:
+            if npub and npub != "anonymous":
+                user_pubkey_hex = npub_to_hex(npub)
+                logging.info(f"🔑 Provenance tracking enabled for user: {user_pubkey_hex[:16]}...")
+        except Exception as e:
+            logging.warning(f"⚠️ Could not convert npub to hex for provenance: {e}")
+        
+        # Pass user pubkey as 3rd parameter to upload2ipfs.sh
+        return_code, last_line = await run_script(script_path, str(file_path), temp_file_path, user_pubkey_hex)
         
         if return_code == 0:
             try:
