@@ -247,46 +247,15 @@
         }
         
         .header {
-            background: #212121;
+            background: linear-gradient(135deg, #1a1a1a 0%, #212121 100%);
             color: #ffffff;
-            padding: 20px 40px;
-            border-bottom: 1px solid #3f3f3f;
+            padding: 24px 40px;
+            border-bottom: 2px solid #3f3f3f;
             position: sticky;
             top: 0;
             z-index: 50;
             backdrop-filter: blur(10px);
-        }
-        
-        .header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-        
-        .header h1 {
-            margin: 0;
-            font-size: 1.5em;
-            font-weight: 400;
-            color: #ffffff;
-        }
-        
-        .header-stats {
-            display: flex;
-            gap: 24px;
-            font-size: 0.875em;
-            color: #aaaaaa;
-        }
-        
-        .header-stat {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        
-        .header-stat-number {
-            color: #ffffff;
-            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
         }
         
         .upload-btn {
@@ -1113,18 +1082,19 @@
                 padding: 16px 20px;
             }
             
-            .header-top {
+            /* Stack header elements vertically on mobile */
+            .header .d-flex.justify-content-between {
                 flex-direction: column;
-                align-items: flex-start;
-                gap: 12px;
+                align-items: stretch !important;
+                gap: 1rem !important;
             }
             
-            .header h1 {
-                font-size: 1.2em;
+            .header .d-flex.gap-4 {
+                justify-content: space-around;
             }
             
-            .header-stats {
-                font-size: 0.8em;
+            #nostr-header-status {
+                justify-content: center;
             }
             
             .upload-btn {
@@ -1578,48 +1548,64 @@
             
             <!-- Desktop sidebar toggle removed - not needed with offcanvas -->
             <div class="header">
-            <div class="header-top">
-                <div class="d-flex align-items-center gap-3 w-100 justify-content-end flex-wrap">
-                    <div class="header-stats d-flex gap-3">
-                        <div class="d-flex flex-column align-items-center">
-                            <span class="fs-4 fw-bold text-primary" id="header-video-count">{{ youtube_data.total_videos }}</span>
-                            <span class="text-secondary small" data-i18n="videos">vidéos</span>
+                <!-- Top Row: Stats + Connection Status -->
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-3">
+                    <!-- Left: Stats -->
+                    <div class="d-flex gap-4">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-play-circle-fill text-primary fs-4"></i>
+                            <div>
+                                <div class="d-flex align-items-baseline gap-1">
+                                    <span class="fs-3 fw-bold text-white" id="header-video-count">{{ youtube_data.total_videos }}</span>
+                                    <span class="text-secondary small" data-i18n="videos">vidéos</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="d-flex flex-column align-items-center">
-                            <span class="fs-4 fw-bold text-primary" id="header-channel-count">{{ youtube_data.total_channels }}</span>
-                            <span class="text-secondary small" data-i18n="channels">chaînes</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-collection-play text-primary fs-4"></i>
+                            <div>
+                                <div class="d-flex align-items-baseline gap-1">
+                                    <span class="fs-3 fw-bold text-white" id="header-channel-count">{{ youtube_data.total_channels }}</span>
+                                    <span class="text-secondary small" data-i18n="channels">chaînes</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <!-- NOSTR Connection Status -->
-                    <div id="nostr-header-status" class="d-flex align-items-center gap-2">
-                        <span id="nostr-status-text" class="small text-secondary">Not connected</span>
-                        <button id="nostr-connect-btn-header" onclick="handleNostrConnectYoutube()" class="btn btn-sm btn-outline-primary">
+                    
+                    <!-- Right: NOSTR Status -->
+                    <div id="nostr-header-status" class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="d-flex align-items-center gap-2 px-3 py-2 bg-dark rounded border border-secondary">
+                            <i class="bi bi-broadcast text-primary"></i>
+                            <span id="nostr-status-text" class="small text-secondary">Not connected</span>
+                        </div>
+                        <button id="nostr-connect-btn-header" onclick="handleNostrConnectYoutube()" class="btn btn-sm btn-primary">
                             <i class="bi bi-plug"></i> <span data-i18n="connect_publish">Connect & Publish</span>
                         </button>
                         <button id="nostr-profile-btn-header" onclick="openNostrProfileYoutube()" class="btn btn-sm btn-outline-success d-none" style="display: none;">
                             <i class="bi bi-person-circle"></i> <span data-i18n="profile">Profile</span>
                         </button>
-                        <span id="nostr-ready-indicator" class="badge bg-success d-none" style="display: none;">
-                            <i class="bi bi-check-circle"></i> <span data-i18n="ready_to_record">Ready to record</span>
-                        </span>
                     </div>
-                        <button id="webcam-upload-btn" onclick="openWebcamModal()" class="btn btn-primary d-none" title="Ajouter une vidéo" style="display: none;">
-                            <i class="bi bi-camera-video"></i> <span data-i18n="create">Créer</span>
+                </div>
+                
+                <!-- Bottom Row: Action Buttons -->
+                <div class="d-flex gap-2 flex-wrap">
+                    <button id="webcam-upload-btn" onclick="openWebcamModal()" class="btn btn-sm btn-success d-none" title="Ajouter une vidéo" style="display: none;">
+                        <i class="bi bi-camera-video-fill"></i> <span data-i18n="create">Créer</span>
+                    </button>
+                    <button id="playlist-manager-btn" onclick="openPlaylistManager()" class="btn btn-sm btn-warning d-none" title="Administrer mes playlists" style="display: none;">
+                        <i class="bi bi-list-ul"></i> <span>Playlists</span>
+                    </button>
+                    <span id="nostr-ready-indicator" class="badge bg-success align-self-center d-none" style="display: none; padding: 0.5rem 0.75rem;">
+                        <i class="bi bi-check-circle"></i> <span data-i18n="ready_to_record">Ready to record</span>
+                    </span>
+                    <div class="thumbnail-type-selector d-none align-items-center gap-2 ms-auto">
+                        <span class="small text-secondary" data-i18n="thumbnail_type">Type de miniature:</span>
+                        <button id="thumbnail-type-toggle" onclick="toggleThumbnailType()" 
+                                title="Toggle between static and animated thumbnails" 
+                                class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+                            <span id="thumbnail-type-icon">🖼️</span>
+                            <span id="thumbnail-type-text" data-i18n="thumbnail_static">Statique</span>
                         </button>
-                        <button id="playlist-manager-btn" onclick="openPlaylistManager()" class="btn btn-warning d-none" title="Administrer mes playlists" style="display: none;">
-                            <i class="bi bi-list-ul"></i> <span>Playlists</span>
-                        </button>
-                        <div class="thumbnail-type-selector d-none align-items-center gap-2 ms-3">
-                            <label for="thumbnail-type-toggle" class="small text-secondary mb-0 cursor-pointer">
-                                <span data-i18n="thumbnail_type">Type de miniature:</span>
-                            </label>
-                            <button id="thumbnail-type-toggle" onclick="toggleThumbnailType()" 
-                                    title="Toggle between static and animated thumbnails" 
-                                    class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
-                                <span id="thumbnail-type-icon">🖼️</span>
-                                <span id="thumbnail-type-text" data-i18n="thumbnail_static">Statique</span>
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -1901,31 +1887,60 @@
     </div>
     
     <!-- Footer -->
-    <footer class="bg-dark border-top border-secondary py-3 px-4">
+    <footer class="bg-dark border-top border-secondary py-4 px-4">
         <div class="container-fluid" style="max-width: 1400px;">
-            <!-- Compact footer header (always visible) -->
-            <div class="d-flex justify-content-between align-items-center cursor-pointer flex-wrap gap-3" onclick="toggleFooter()">
-                <div class="d-flex align-items-center gap-3">
-                    <span class="small text-secondary">
-                        © 2025 NOSTR Tube - <span data-i18n="powered_by">Propulsé par</span> 
-                        <a href="https://github.com/papiche/Astroport.ONE" target="_blank" class="text-primary text-decoration-none">Astroport.ONE</a>
-                    </span>
-                </div>
-                <div class="d-flex align-items-center gap-3 flex-wrap">
-                    <!-- Language selector -->
-                    <div class="language-selector">
-                        <button class="language-btn" onclick="event.stopPropagation(); changeLanguage('fr')" data-lang="fr">🇫🇷 FR</button>
-                        <button class="language-btn" onclick="event.stopPropagation(); changeLanguage('en')" data-lang="en">🇬🇧 EN</button>
-                        <button class="language-btn" onclick="event.stopPropagation(); changeLanguage('es')" data-lang="es">🇪🇸 ES</button>
+            <!-- Top Row: Brand, Links, Language -->
+            <div class="row g-4 mb-4">
+                <!-- Column 1: Brand & Description -->
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <i class="bi bi-play-circle-fill text-primary fs-3"></i>
+                        <h5 class="mb-0 text-white">NOSTR Tube</h5>
                     </div>
-                    <button class="btn btn-sm btn-outline-secondary" id="footerToggleBtn">
-                        <span id="footerToggleIcon">▼</span> <span data-i18n="more_info">Plus d'infos</span>
+                    <p class="text-secondary small mb-2" data-i18n="about_desc">
+                        Une plateforme vidéo décentralisée construite sur le protocole NOSTR et synchronisée via le réseau Astroport (Protocole N²).
+                    </p>
+                    <p class="small text-secondary mb-0">
+                        © 2025 - <span data-i18n="powered_by">Propulsé par</span> 
+                        <a href="https://github.com/papiche/Astroport.ONE" target="_blank" class="text-primary text-decoration-none">Astroport.ONE</a>
+                    </p>
+                </div>
+                
+                <!-- Column 2: Quick Links -->
+                <div class="col-md-4">
+                    <h6 class="text-white mb-3" data-i18n="resources">Ressources</h6>
+                    <div class="d-flex flex-column gap-2">
+                        <a href="/youtube?html=1" class="text-secondary text-decoration-none small d-flex align-items-center gap-2">
+                            <i class="bi bi-house"></i> <span data-i18n="home">Accueil</span>
+                        </a>
+                        <a href="#" onclick="event.preventDefault(); openWebcamModal(); return false;" class="text-secondary text-decoration-none small d-flex align-items-center gap-2">
+                            <i class="bi bi-camera-video"></i> <span data-i18n="add_video">Ajouter une vidéo</span>
+                        </a>
+                        <a href="{{ myIPFS }}/ipns/coracle.copylaradio.com" target="_blank" class="text-secondary text-decoration-none small d-flex align-items-center gap-2">
+                            <i class="bi bi-globe"></i> <span>Coracle</span>
+                        </a>
+                        <a href="https://github.com/papiche/UPassport/blob/main/templates/youtube.html" target="_blank" class="text-secondary text-decoration-none small d-flex align-items-center gap-2">
+                            <i class="bi bi-code-square"></i> <span data-i18n="view_source">Voir le code source</span>
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Column 3: Language & Info -->
+                <div class="col-md-4">
+                    <h6 class="text-white mb-3">Langue / Language</h6>
+                    <div class="d-flex gap-2 mb-4">
+                        <button class="language-btn active" onclick="changeLanguage('fr')" data-lang="fr">🇫🇷 FR</button>
+                        <button class="language-btn" onclick="changeLanguage('en')" data-lang="en">🇬🇧 EN</button>
+                        <button class="language-btn" onclick="changeLanguage('es')" data-lang="es">🇪🇸 ES</button>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary w-100" onclick="toggleFooter()">
+                        <i class="bi bi-info-circle"></i> <span id="footerToggleIcon">▼</span> <span data-i18n="n2_protocol_title">Comment fonctionne la synchronisation N² ?</span>
                     </button>
                 </div>
             </div>
             
             <!-- Expandable footer content -->
-            <div id="footerExpandable" class="d-none mt-4">
+            <div id="footerExpandable" class="d-none border-top border-secondary pt-4">
             <!-- Footer Links -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 32px; margin-bottom: 24px;">
                     <div>
@@ -2392,18 +2407,13 @@
         function toggleFooter() {
             const expandable = document.getElementById('footerExpandable');
             const icon = document.getElementById('footerToggleIcon');
-            const footer = document.querySelector('footer');
             
             if (expandable.classList.contains('d-none')) {
                 expandable.classList.remove('d-none');
                 icon.textContent = '▲';
-                footer.classList.add('py-4');
-                footer.classList.remove('py-3');
             } else {
                 expandable.classList.add('d-none');
                 icon.textContent = '▼';
-                footer.classList.remove('py-4');
-                footer.classList.add('py-3');
             }
         }
         
