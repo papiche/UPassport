@@ -1602,6 +1602,9 @@
                         <button id="nostr-profile-btn-header" onclick="openNostrProfileYoutube()" class="upload-btn" style="display: none; background: transparent; color: #4ade80; border: 1px solid #3f3f3f; padding: 6px 12px; border-radius: 18px; font-size: 0.85em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
                             👤 <span data-i18n="profile">Profile</span>
                         </button>
+                        <span id="nostr-ready-indicator" style="display: none; font-size: 0.75em; color: #4ade80; font-weight: 500; padding: 4px 8px; background: rgba(74, 222, 128, 0.1); border-radius: 12px; border: 1px solid rgba(74, 222, 128, 0.3);">
+                            ✅ <span data-i18n="ready_to_record">Ready to record</span>
+                        </span>
                     </div>
                         <button id="webcam-upload-btn" onclick="openWebcamModal()" class="upload-btn" data-i18n-title="add_video" style="display: none; background: transparent; color: #3ea6ff; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
                             📹 <span data-i18n="create">Créer</span>
@@ -2110,7 +2113,8 @@
                 network_videos_found: "vidéo(s) trouvée(s) dans votre réseau N²",
                 network_videos_description: "Les vidéos de vos amis et amis d'amis apparaîtront ici.",
                 engagement_stats: "Statistiques d'engagement",
-                add_timestamp: "Ajouter timestamp"
+                add_timestamp: "Ajouter timestamp",
+                ready_to_record: "Prêt à enregistrer"
             },
             en: {
                 all_videos: "All Videos",
@@ -2186,7 +2190,8 @@
                 network_videos_found: "video(s) found in your N² network",
                 network_videos_description: "Videos from your friends and friends of friends will appear here.",
                 engagement_stats: "Engagement statistics",
-                add_timestamp: "Add timestamp"
+                add_timestamp: "Add timestamp",
+                ready_to_record: "Ready to record"
             },
             es: {
                 all_videos: "Todos los Videos",
@@ -2262,7 +2267,8 @@
                 network_videos_found: "video(s) encontrado(s) en tu red N²",
                 network_videos_description: "Los videos de tus amigos y amigos de tus amigos aparecerán aquí.",
                 engagement_stats: "Estadísticas de compromiso",
-                add_timestamp: "Agregar marca de tiempo"
+                add_timestamp: "Agregar marca de tiempo",
+                ready_to_record: "Listo para grabar"
             }
         };
         
@@ -2856,6 +2862,9 @@
             
             // Check NOSTR connection status
             checkNostrConnectionStatus();
+            
+            // Start monitoring connection state (keeps UI in sync)
+            startNostrConnectionMonitoring();
             
             // Check if video parameter is in URL and auto-open theater modal
             const urlParams = new URLSearchParams(window.location.search);
@@ -3886,12 +3895,81 @@
         // ========================================
         
         /**
+         * Update NOSTR connection UI based on current state
+         * Called whenever connection state might have changed
+         */
+        function updateNostrConnectionUI() {
+            const statusText = document.getElementById('nostr-status-text');
+            const connectBtn = document.getElementById('nostr-connect-btn-header');
+            const profileBtn = document.getElementById('nostr-profile-btn-header');
+            const webcamBtn = document.getElementById('webcam-upload-btn');
+            const playlistManagerBtn = document.getElementById('playlist-manager-btn');
+            const readyIndicator = document.getElementById('nostr-ready-indicator');
+            
+            if (!statusText || !connectBtn) return;
+            
+            // Check current connection state
+            const isConnected = typeof userPubkey !== 'undefined' && userPubkey && 
+                               typeof isNostrConnected !== 'undefined' && isNostrConnected &&
+                               typeof nostrRelay !== 'undefined' && nostrRelay;
+            
+            if (isConnected) {
+                // Connected - show connected state
+                const shortPubkey = userPubkey.substring(0, 8) + '...' + userPubkey.substring(userPubkey.length - 4);
+                statusText.textContent = `Connected: ${shortPubkey}`;
+                statusText.style.color = '#4ade80';
+                
+                // Hide connect button, show profile button
+                connectBtn.style.display = 'none';
+                if (profileBtn) {
+                    profileBtn.style.display = 'flex';
+                }
+                
+                // Show action buttons
+                if (webcamBtn) {
+                    webcamBtn.style.display = 'flex';
+                }
+                if (playlistManagerBtn) {
+                    playlistManagerBtn.style.display = 'flex';
+                }
+                
+                // Show ready indicator
+                if (readyIndicator) {
+                    readyIndicator.style.display = 'inline-flex';
+                }
+            } else {
+                // Not connected - show not connected state
+                statusText.textContent = 'Not connected';
+                statusText.style.color = '#aaaaaa';
+                
+                // Show connect button, hide profile button
+                connectBtn.style.display = 'flex';
+                connectBtn.disabled = false;
+                if (profileBtn) {
+                    profileBtn.style.display = 'none';
+                }
+                
+                // Hide action buttons
+                if (webcamBtn) {
+                    webcamBtn.style.display = 'none';
+                }
+                if (playlistManagerBtn) {
+                    playlistManagerBtn.style.display = 'none';
+                }
+                
+                // Hide ready indicator
+                if (readyIndicator) {
+                    readyIndicator.style.display = 'none';
+                }
+            }
+        }
+        
+        /**
          * Handle NOSTR connection from youtube.html header
          */
         async function handleNostrConnectYoutube() {
             const statusText = document.getElementById('nostr-status-text');
             const connectBtn = document.getElementById('nostr-connect-btn-header');
-            const profileBtn = document.getElementById('nostr-profile-btn-header');
             
             // Check if common.js is available
             if (typeof connectNostr === 'undefined') {
@@ -3910,57 +3988,36 @@
                 const pubkey = await connectNostr(true); // forceAuth = true
                 if (pubkey) {
                     // Wait a bit for relay connection to stabilize
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                    await new Promise(resolve => setTimeout(resolve, 800));
                     
                     // Also force send NIP-42 auth event explicitly (backup)
                     if (typeof sendNIP42Auth === 'function' && typeof DEFAULT_RELAYS !== 'undefined' && DEFAULT_RELAYS.length > 0) {
                         const relayUrl = DEFAULT_RELAYS[0];
                         console.log('📤 Force sending NIP-42 auth event for manual connection (explicit)...');
-                        await sendNIP42Auth(relayUrl, true); // forceSend = true
+                        await sendNIP42Auth(relayUrl, true).catch(err => {
+                            console.warn('⚠️ NIP-42 auth error (non-critical):', err);
+                        });
                     }
                     
-                    // Success - update UI
-                    const webcamBtn = document.getElementById('webcam-upload-btn');
-                    if (statusText) {
-                        statusText.textContent = `Connected: ${pubkey.substring(0, 8)}...${pubkey.substring(pubkey.length - 4)}`;
-                        statusText.style.color = '#4ade80';
-                    }
-                    if (connectBtn) {
-                        connectBtn.style.display = 'none';
-                    }
-                    if (profileBtn) {
-                        profileBtn.style.display = 'flex';
-                    }
-                    if (webcamBtn) {
-                        webcamBtn.style.display = 'flex';
-                    }
-                    const playlistManagerBtn = document.getElementById('playlist-manager-btn');
-                    if (playlistManagerBtn) {
-                        playlistManagerBtn.style.display = 'flex';
-                    }
+                    // Update UI immediately
+                    updateNostrConnectionUI();
                     
                     // Automatically open webcam modal after successful connection
                     // Wait a bit more for everything to be ready
                     await new Promise(resolve => setTimeout(resolve, 300));
                     openWebcamModal();
                 } else {
-                    // Failed
-                    const webcamBtn = document.getElementById('webcam-upload-btn');
+                    // Failed - update UI
+                    updateNostrConnectionUI();
                     if (statusText) {
                         statusText.textContent = 'Connection failed';
                         statusText.style.color = '#ef4444';
-                    }
-                    if (webcamBtn) {
-                        webcamBtn.style.display = 'none';
-                    }
-                    const playlistManagerBtn = document.getElementById('playlist-manager-btn');
-                    if (playlistManagerBtn) {
-                        playlistManagerBtn.style.display = 'none';
                     }
                     connectBtn.disabled = false;
                 }
             } catch (error) {
                 console.error('NOSTR connection error:', error);
+                updateNostrConnectionUI();
                 if (statusText) {
                     statusText.textContent = 'Connection error';
                     statusText.style.color = '#ef4444';
@@ -3982,97 +4039,65 @@
         }
         
         /**
-         * Check and update NOSTR connection status on page load
+         * Check and update NOSTR connection status on page load and periodically
          */
         async function checkNostrConnectionStatus() {
             // Wait for common.js to initialize
             await new Promise(resolve => setTimeout(resolve, 500));
             
-            const statusText = document.getElementById('nostr-status-text');
-            const connectBtn = document.getElementById('nostr-connect-btn-header');
-            const profileBtn = document.getElementById('nostr-profile-btn-header');
-            const webcamBtn = document.getElementById('webcam-upload-btn');
-            
-            if (!statusText || !connectBtn) return;
-            
             // Check if already connected via common.js
             if (typeof userPubkey !== 'undefined' && userPubkey) {
                 // Check if relay is connected
                 if (typeof nostrRelay !== 'undefined' && nostrRelay && typeof isNostrConnected !== 'undefined' && isNostrConnected) {
-                    // Already connected
-                    statusText.textContent = `Connected: ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}`;
-                    statusText.style.color = '#4ade80';
-                    connectBtn.style.display = 'none';
-                    if (profileBtn) {
-                        profileBtn.style.display = 'flex';
-                    }
-                    if (webcamBtn) {
-                        webcamBtn.style.display = 'flex';
-                    }
-                    const playlistManagerBtn = document.getElementById('playlist-manager-btn');
-                    if (playlistManagerBtn) {
-                        playlistManagerBtn.style.display = 'flex';
-                    }
+                    // Already connected - update UI
+                    updateNostrConnectionUI();
                     console.log('✅ NOSTR connection detected from common.js');
                 } else {
                     // Has pubkey but relay not connected - try to connect
                     if (typeof connectToRelay === 'function') {
                         try {
                             await connectToRelay();
-                            statusText.textContent = `Connected: ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}`;
-                            statusText.style.color = '#4ade80';
-                            connectBtn.style.display = 'none';
-                            if (profileBtn) {
-                                profileBtn.style.display = 'flex';
-                            }
-                            if (webcamBtn) {
-                                webcamBtn.style.display = 'flex';
-                            }
-                            const playlistManagerBtn = document.getElementById('playlist-manager-btn');
-                            if (playlistManagerBtn) {
-                                playlistManagerBtn.style.display = 'flex';
-                            }
+                            // Wait a bit for connection to stabilize
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                            updateNostrConnectionUI();
                         } catch (error) {
                             console.error('Error connecting to relay:', error);
-                            // Show connect button
-                            statusText.textContent = 'Not connected';
-                            statusText.style.color = '#aaaaaa';
-                            if (webcamBtn) {
-                                webcamBtn.style.display = 'none';
-                            }
-                            const playlistManagerBtn = document.getElementById('playlist-manager-btn');
-                            if (playlistManagerBtn) {
-                                playlistManagerBtn.style.display = 'none';
-                            }
+                            updateNostrConnectionUI();
                         }
                     } else {
-                        // No relay connection available, but we have pubkey
-                        // Show webcam button anyway (connection exists)
-                        if (webcamBtn) {
-                            webcamBtn.style.display = 'flex';
-                        }
-                        const playlistManagerBtn = document.getElementById('playlist-manager-btn');
-                        if (playlistManagerBtn) {
-                            playlistManagerBtn.style.display = 'flex';
-                        }
+                        // No relay connection function available
+                        updateNostrConnectionUI();
                     }
                 }
             } else {
                 // Not connected
-                statusText.textContent = 'Not connected';
-                statusText.style.color = '#aaaaaa';
-                connectBtn.style.display = 'flex';
-                if (profileBtn) {
-                    profileBtn.style.display = 'none';
-                }
-                if (webcamBtn) {
-                    webcamBtn.style.display = 'none';
-                }
-                const playlistManagerBtn = document.getElementById('playlist-manager-btn');
-                if (playlistManagerBtn) {
-                    playlistManagerBtn.style.display = 'none';
-                }
+                updateNostrConnectionUI();
             }
+        }
+        
+        /**
+         * Start monitoring NOSTR connection state periodically
+         * This ensures UI stays in sync even after page interactions (e.g., closing modals)
+         */
+        function startNostrConnectionMonitoring() {
+            // Check connection status every 2 seconds
+            setInterval(() => {
+                // Only update if state might have changed (don't spam updates)
+                const isCurrentlyConnected = typeof userPubkey !== 'undefined' && userPubkey && 
+                                           typeof isNostrConnected !== 'undefined' && isNostrConnected &&
+                                           typeof nostrRelay !== 'undefined' && nostrRelay;
+                
+                const connectBtn = document.getElementById('nostr-connect-btn-header');
+                const readyIndicator = document.getElementById('nostr-ready-indicator');
+                
+                // Check if UI state matches actual state
+                const uiShowsConnected = connectBtn && connectBtn.style.display === 'none';
+                
+                if (isCurrentlyConnected !== uiShowsConnected) {
+                    console.log('🔄 NOSTR connection state changed, updating UI...');
+                    updateNostrConnectionUI();
+                }
+            }, 2000); // Check every 2 seconds
         }
         
         // ========================================
@@ -4296,6 +4321,14 @@
             
             // Restore body scroll
             document.body.style.overflow = '';
+            
+            // Update NOSTR connection UI after closing modal
+            // This ensures the UI stays in sync after interactions (e.g., publishing video)
+            if (typeof updateNostrConnectionUI === 'function') {
+                setTimeout(() => {
+                    updateNostrConnectionUI();
+                }, 300); // Small delay to let state settle
+            }
         }
         
         // Close modal on ESC key
