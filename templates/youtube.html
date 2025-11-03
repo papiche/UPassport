@@ -2794,7 +2794,6 @@
                         img.src = convertedUrl;
                         // Keep data-ipfs-url for reference, but also update src
                         img.setAttribute('data-ipfs-url-converted', convertedUrl);
-                        console.log(`✅ Converted thumbnail from data-ipfs-url: ${ipfsUrl.substring(0, 50)}... → ${convertedUrl.substring(0, 50)}...`);
                         return; // Skip the src-based conversion below
                     }
                 }
