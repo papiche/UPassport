@@ -85,11 +85,22 @@ if [ -n "$USER_PUBKEY_HEX" ]; then
         # Search for events with this file hash
         echo "DEBUG: Searching for hash $FILE_HASH in NOSTR events..." >&2
         
-        # Search for all NIP-94 events (kind 1063) and filter locally
-        EXISTING_EVENTS=$(bash "$NOSTR_GET_EVENTS" --kind 1063 --limit 1000 2>/dev/null || echo "")
+        # Determine file type to optimize search
+        if [[ "$FILE_TYPE" == "video/"* ]]; then
+            # For videos: search in kind 21/22 (NIP-71 video events)
+            echo "DEBUG: Video file detected, searching in kind 21/22 (NIP-71)..." >&2
+            EXISTING_EVENTS_21=$(bash "$NOSTR_GET_EVENTS" --kind 21 --limit 1000 2>/dev/null || echo "")
+            EXISTING_EVENTS_22=$(bash "$NOSTR_GET_EVENTS" --kind 22 --limit 1000 2>/dev/null || echo "")
+            # Combine both results
+            EXISTING_EVENTS="$EXISTING_EVENTS_21"$'\n'"$EXISTING_EVENTS_22"
+        else
+            # For other files: search in kind 1063 (NIP-94 file metadata)
+            echo "DEBUG: Non-video file detected, searching in kind 1063 (NIP-94)..." >&2
+            EXISTING_EVENTS=$(bash "$NOSTR_GET_EVENTS" --kind 1063 --limit 1000 2>/dev/null || echo "")
+        fi
         
         if [ -n "$EXISTING_EVENTS" ]; then
-            echo "DEBUG: Found NIP-94 events, checking for matching hash..." >&2
+            echo "DEBUG: Found NOSTR events, checking for matching hash..." >&2
             
             # Filter events with matching 'x' tag (file hash)
             if command -v jq &> /dev/null; then
@@ -245,7 +256,7 @@ if [ -n "$USER_PUBKEY_HEX" ]; then
                 echo "WARNING: jq not available, skipping provenance check" >&2
             fi
         else
-            echo "DEBUG: No NIP-94 events found in relay" >&2
+            echo "DEBUG: No NIP-94/NIP-71 events found in relay" >&2
         fi
     else
         echo "WARNING: nostr_get_events.sh not found, skipping provenance check" >&2
@@ -324,6 +335,43 @@ elif [[ "$FILE_TYPE" == "image/"* ]]; then
   DESCRIPTION="Image, Dimensions: $IMAGE_DIMENSIONS"
   IDISK="image"
     NIP94_TAGS="$NIP94_TAGS, [\"dim\", \"$IMAGE_DIMENSIONS\"]"
+    
+    # Generate JPG thumbnail for non-JPG images (skip if already have from provenance)
+    if [ -z "$THUMBNAIL_CID" ] && command -v convert &> /dev/null; then
+        # Check if image is not already JPG/JPEG
+        if [[ ! "$FILE_TYPE" =~ ^image/jpe?g$ ]]; then
+            echo "DEBUG: Generating JPG thumbnail for image..." >&2
+            THUMBNAIL_PATH="$(dirname "$FILE_PATH")/$(basename "$FILE_PATH" | sed 's/\.[^.]*$//').thumb.jpg"
+            
+            # Convert to JPG with quality 85, max dimension 1200px
+            if convert "$FILE_PATH" -resize 1200x1200\> -quality 85 -strip "$THUMBNAIL_PATH" 2>/dev/null; then
+                if [[ -f "$THUMBNAIL_PATH" ]]; then
+                    echo "DEBUG: Thumbnail generated, adding to IPFS..." >&2
+                    THUMBNAIL_CID_OUTPUT=$(ipfs add -q "$THUMBNAIL_PATH" 2>&1)
+                    THUMBNAIL_CID=$(echo "$THUMBNAIL_CID_OUTPUT" | tail -n 1)
+                    
+                    if [[ -n "$THUMBNAIL_CID" ]]; then
+                        echo "DEBUG: Thumbnail CID: $THUMBNAIL_CID" >&2
+                        # Unpin thumbnail to save space
+                        ipfs pin rm "$THUMBNAIL_CID" >&2
+                    else
+                        echo "WARNING: Failed to get thumbnail CID from IPFS" >&2
+                    fi
+                    
+                    # Clean up temporary thumbnail file
+                    rm -f "$THUMBNAIL_PATH"
+                else
+                    echo "WARNING: Thumbnail file was not created" >&2
+                fi
+            else
+                echo "WARNING: Failed to generate thumbnail with convert" >&2
+            fi
+        else
+            echo "DEBUG: Image is already JPG, no thumbnail needed" >&2
+        fi
+    elif [ -z "$THUMBNAIL_CID" ]; then
+        echo "WARNING: ImageMagick convert not available, cannot generate thumbnail" >&2
+    fi
 
 # Video file check (using ffprobe)
 elif [[ "$FILE_TYPE" == "video/"* ]]; then
@@ -479,7 +527,11 @@ fi
 INFO_JSON_FILE="$(dirname "$FILE_PATH")/$(basename "$FILE_PATH" | sed 's/\.[^.]*$//').info.json"
 
 # Build NIP94 tags array string
-NIP94_TAGS_STR="[\"url\", \"/ipfs/$CID/$FILE_NAME\"], [\"x\", \"$FILE_HASH\"], [\"ox\", \"$FILE_HASH\"], [\"m\", \"$FILE_TYPE\"]"
+# Note: We only use 'x' (not 'ox') because we don't transform files
+# NIP-94: 'ox' is for original file hash before transformations
+#         'x' is for file hash after transformations
+# Since upload2ipfs.sh doesn't transform files, ox would be redundant with x
+NIP94_TAGS_STR="[\"url\", \"/ipfs/$CID/$FILE_NAME\"], [\"x\", \"$FILE_HASH\"], [\"m\", \"$FILE_TYPE\"]"
 if [[ -n "$IMAGE_DIMENSIONS" ]] || [[ -n "$VIDEO_DIMENSIONS" ]]; then
     DIM_VALUE="${IMAGE_DIMENSIONS:-$VIDEO_DIMENSIONS}"
     NIP94_TAGS_STR="$NIP94_TAGS_STR, [\"dim\", \"$DIM_VALUE\"]"
@@ -567,13 +619,20 @@ fi
 rm -f "$INFO_JSON_FILE"
 
 # Construct JSON output with provenance tags
+# Note: We only use 'x' (not 'ox') because we don't transform files
 NIP94_JSON="{
     \"tags\": [
       [\"url\", \"$myIPFS/ipfs/$CID/$FILE_NAME\" ],
       [\"x\", \"$FILE_HASH\" ],
-      [\"ox\", \"$FILE_HASH\" ],
-      [\"m\", \"$FILE_TYPE\"]
-      $NIP94_TAGS$PROVENANCE_TAGS"
+      [\"m\", \"$FILE_TYPE\"]"
+
+# Add info tag if we have an info.json CID
+if [ -n "$INFO_CID" ]; then
+    NIP94_JSON="$NIP94_JSON, [\"info\", \"$INFO_CID\"]"
+fi
+
+NIP94_JSON="$NIP94_JSON$NIP94_TAGS$PROVENANCE_TAGS"
+
 if [ -n "$UPLOAD_CHAIN" ]; then
     NIP94_JSON="$NIP94_JSON, [\"upload_chain\", \"$UPLOAD_CHAIN\"]"
 fi
@@ -604,6 +663,7 @@ JSON_OUTPUT="{
   \"duration\": ${DURATION:-0},
   \"fileSize\": ${FILE_SIZE:-0},
   \"fileName\": \"$FILE_NAME\",
+  \"fileHash\": \"$FILE_HASH\",
   \"info\": \"$INFO_CID\",
   \"thumbnail_ipfs\": \"$THUMBNAIL_CID\",
   \"gifanim_ipfs\": \"$GIFANIM_CID\",

@@ -1998,6 +1998,27 @@
                 if (uploadResult.info) {
                     formData.append('info_cid', uploadResult.info);
                 }
+                // Pass file hash for provenance tracking (CRITICAL for deduplication)
+                if (uploadResult.fileHash) {
+                    formData.append('file_hash', uploadResult.fileHash);
+                    console.log('✅ Using file hash from upload2ipfs.sh:', uploadResult.fileHash.substring(0, 16) + '...');
+                } else {
+                    console.warn('⚠️ No file hash provided from upload2ipfs.sh');
+                }
+                // Pass MIME type from upload2ipfs.sh (supports multiple video formats)
+                if (uploadResult.mimeType) {
+                    formData.append('mime_type', uploadResult.mimeType);
+                    console.log('✅ Using MIME type from upload2ipfs.sh:', uploadResult.mimeType);
+                } else {
+                    console.warn('⚠️ No MIME type provided, will use default video/webm');
+                }
+                // Pass upload_chain if provenance detected (for re-uploads)
+                if (uploadResult.provenance && uploadResult.provenance.upload_chain) {
+                    formData.append('upload_chain', uploadResult.provenance.upload_chain);
+                    console.log('🔗 Using upload chain from provenance:', uploadResult.provenance.upload_chain);
+                } else {
+                    console.log('📝 No provenance - this is a first upload');
+                }
                 // Pass duration and dimensions from upload result if available
                 // Check direct fields first (from JSON response of upload2ipfs.sh)
                 if (uploadResult.duration !== undefined && uploadResult.duration !== null) {

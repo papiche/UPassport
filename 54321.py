@@ -2780,6 +2780,9 @@ async def process_webcam_video(
     thumbnail_ipfs: str = Form(default=""),  # Thumbnail CID from upload2ipfs.sh (optional, centralized generation)
     gifanim_ipfs: str = Form(default=""),  # Animated GIF CID from upload2ipfs.sh (optional, centralized generation)
     info_cid: str = Form(default=""),  # Info.json CID from upload2ipfs.sh (optional, contains metadata)
+    file_hash: str = Form(default=""),  # SHA256 hash from upload2ipfs.sh (required for provenance)
+    mime_type: str = Form(default="video/webm"),  # MIME type from upload2ipfs.sh (default: video/webm)
+    upload_chain: str = Form(default=""),  # Upload chain from upload2ipfs.sh provenance (for re-uploads)
     duration: str = Form(default="0"),  # Duration from upload2ipfs.sh (optional, for video kind determination)
     video_dimensions: str = Form(default="640x480"),  # Video dimensions from upload2ipfs.sh (optional, for imeta tag)
     title: str = Form(default=""),
@@ -3037,12 +3040,29 @@ async def process_webcam_video(
                         
                         # Build NIP-71 tags compatible with create_video_channel.py
                         logging.info(f"🏷️  Building NOSTR tags...")
+                        
+                        # Use file_hash from upload2ipfs.sh (REQUIRED for provenance)
+                        if not file_hash:
+                            logging.error(f"❌ No file hash provided from upload2ipfs.sh - provenance tracking will not work!")
+                            # File hash is critical for deduplication and provenance
+                            file_hash = ""  # Empty hash = provenance disabled for this event
+                        
+                        video_hash = file_hash
+                        if video_hash:
+                            logging.info(f"🔐 Using file hash for 'x' tag: {video_hash[:16]}... (from upload2ipfs.sh)")
+                        else:
+                            logging.warning(f"⚠️ Event will be published WITHOUT file hash - deduplication impossible")
+                        
+                        # Use mime_type from upload2ipfs.sh (supports multiple video formats)
+                        video_mime = mime_type if mime_type else "video/webm"
+                        logging.info(f"🎞️  Using MIME type: {video_mime}")
+                        
                         tags = [
                             ["title", title],
                             ["url", ipfs_url],  # CRITICAL: Add url tag for create_video_channel.py compatibility
-                            ["m", "video/webm"],  # CRITICAL: Media type tag for create_video_channel.py
+                            ["m", video_mime],  # CRITICAL: Media type tag (dynamic, not hardcoded)
                             ["imeta", f"dim {video_dimensions}", f"url {ipfs_url}", 
-                             f"x {hashlib.sha256(ipfs_url.encode()).hexdigest()}", "m video/webm"],
+                             f"x {video_hash}", f"m {video_mime}"],
                             ["duration", str(duration)],
                             ["published_at", str(int(time.time()))],
                             ["t", "YouTubeDownload"],  # Compatible with /youtube view
@@ -3052,7 +3072,7 @@ async def process_webcam_video(
                         ]
                         logging.info(f"✅ Initial tags created (count: {len(tags)})")
                         logging.info(f"🔗 Added critical 'url' tag for compatibility: {ipfs_url}")
-                        logging.info(f"🎞️  Added critical 'm' tag for video type: video/webm")
+                        logging.info(f"🎞️  Added critical 'm' tag for video type: {video_mime}")
                         
                         # Add channel tag based on user (compatible with create_video_channel.py)
                         channel_name = player.replace('@', '_').replace('.', '_')
@@ -3114,6 +3134,28 @@ async def process_webcam_video(
                                 tags[imeta_index].append(f"gifanim {gifanim_url}")
                             logging.info(f"🎬 Added animated GIF reference: {gifanim_url}")
                             logging.info(f"🎬 Added animated GIF for NIP-71 extension compatibility")
+                        
+                        # Add info.json CID for metadata reuse (CRITICAL for provenance)
+                        if info_cid:
+                            tags.append(["info", info_cid])
+                            logging.info(f"📋 Added info.json reference: {info_cid}")
+                        else:
+                            logging.warning(f"⚠️ No info.json CID provided - metadata cannot be reused")
+                        
+                        # Add direct 'x' tag for file hash (in addition to imeta)
+                        # This allows upload2ipfs.sh to find the event by hash
+                        if file_hash:
+                            tags.append(["x", file_hash])
+                            logging.info(f"🔐 Added direct 'x' tag for provenance: {file_hash[:16]}...")
+                        else:
+                            logging.warning(f"⚠️ No file hash - provenance and deduplication disabled")
+                        
+                        # Add upload_chain if this is a re-upload (from upload2ipfs.sh provenance)
+                        if upload_chain:
+                            tags.append(["upload_chain", upload_chain])
+                            logging.info(f"🔗 Added upload chain: {upload_chain[:50]}...")
+                        else:
+                            logging.info(f"📝 No upload chain - this is a first upload")
                         
                         # Add reference to original webcam URL
                         tags.append(["r", f"webcam://{player}", "Webcam"])
@@ -3681,6 +3723,74 @@ async def upload_file_to_ipfs(
                 thumbnail_cid = json_output.get('thumbnail_ipfs') or ''
                 # Get animated GIF CID from json_output (generated by upload2ipfs.sh for videos)
                 gifanim_cid = json_output.get('gifanim_ipfs') or ''
+                
+                # Publish NIP-94 (kind 1063) event for non-video files to enable provenance
+                # This allows upload2ipfs.sh to find and deduplicate these files in future uploads
+                file_mime = json_output.get('mimeType', '')
+                provenance_info = json_output.get('provenance', {})
+                is_reupload = provenance_info.get('is_reupload', False)
+                
+                # Only publish kind 1063 for non-video files AND only for first uploads (not re-uploads)
+                if not file_mime.startswith('video/') and not is_reupload and user_pubkey_hex:
+                    logging.info(f"📝 Publishing NIP-94 (kind 1063) event for {file_type} file: {response_fileName}")
+                    
+                    try:
+                        # Get nip94_event from upload2ipfs.sh response
+                        nip94_event = json_output.get('nip94_event', {})
+                        
+                        if nip94_event and 'tags' in nip94_event:
+                            # Get user's NOSTR secret file
+                            user_dir = get_authenticated_user_directory(npub)
+                            secret_file = user_dir / ".secret.nostr"
+                            
+                            if secret_file.exists():
+                                nostr_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/nostr_send_note.py")
+                                
+                                if os.path.exists(nostr_script):
+                                    # Build content for the event
+                                    file_type_display = file_type.capitalize()
+                                    content = f"📄 {file_type_display}: {response_fileName}"
+                                    if description:
+                                        content += f"\n\n{description}"
+                                    
+                                    # Build tags JSON from nip94_event
+                                    tags_json = json.dumps(nip94_event.get('tags', []))
+                                    
+                                    # Publish kind 1063 event
+                                    nostr_cmd = [
+                                        "python3", nostr_script,
+                                        "--keyfile", str(secret_file),
+                                        "--content", content,
+                                        "--tags", tags_json,
+                                        "--kind", "1063",
+                                        "--relays", "ws://127.0.0.1:7777,wss://relay.copylaradio.com",
+                                        "--json"
+                                    ]
+                                    
+                                    result = subprocess.run(nostr_cmd, capture_output=True, text=True, timeout=30)
+                                    
+                                    if result.returncode == 0:
+                                        result_json = json.loads(result.stdout)
+                                        event_id = result_json.get('event_id', '')
+                                        relays_success = result_json.get('relays_success', 0)
+                                        logging.info(f"✅ Published kind 1063 event: {event_id} (to {relays_success} relays)")
+                                    else:
+                                        logging.warning(f"⚠️ Failed to publish kind 1063: {result.stderr}")
+                                else:
+                                    logging.debug(f"⚠️ nostr_send_note.py not found, skipping kind 1063 publication")
+                            else:
+                                logging.debug(f"⚠️ No secret file found, skipping kind 1063 publication")
+                        else:
+                            logging.debug(f"⚠️ No nip94_event in response, skipping kind 1063 publication")
+                    except Exception as e:
+                        logging.warning(f"⚠️ Could not publish kind 1063 event: {e}")
+                else:
+                    if file_mime.startswith('video/'):
+                        logging.info(f"📹 Video file - kind 21/22 will be published by /webcam endpoint")
+                    elif is_reupload:
+                        logging.info(f"🔗 Re-upload detected - kind 1063 already exists, skipping publication")
+                    elif not user_pubkey_hex:
+                        logging.info(f"👤 No user pubkey - skipping kind 1063 publication")
                 
                 return UploadResponse(
                     success=True,
