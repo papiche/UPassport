@@ -2892,6 +2892,9 @@
                 window.IPFS_GATEWAY = 'https://ipfs.copylaradio.com';
             }
             
+            // Define convertFn for this scope
+            const convertFn = typeof convertIPFSUrlGlobal !== 'undefined' ? convertIPFSUrlGlobal : convertIPFSUrl;
+            
             // Update all thumbnails based on preference
             updateAllThumbnails();
             
