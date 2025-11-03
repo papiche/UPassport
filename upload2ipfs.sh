@@ -74,6 +74,12 @@ DESCRIPTION=""
 # Initialize additional nip94 tags
 NIP94_TAGS=""
 
+# Initialize duration (numeric value for JSON, 0 for non-media files)
+DURATION="0"
+
+# Initialize text (empty by default)
+TEXT=""
+
 # Text file check
 if [[ "$FILE_TYPE" == "text/"* ]]; then
   DESCRIPTION="Plain text file" && IDISK="text"
@@ -92,34 +98,46 @@ elif [[ "$FILE_TYPE" == "image/"* ]]; then
 # Video file check (using ffprobe)
 elif [[ "$FILE_TYPE" == "video/"* ]]; then
     if command -v ffprobe &> /dev/null; then
-        DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$FILE_PATH" 2>/dev/null)
-          if [[ -z "$DURATION" ]]; then
+        DURATION_RAW=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$FILE_PATH" 2>/dev/null)
+        # Validate DURATION is numeric, default to 0 if not
+        if [[ -z "$DURATION_RAW" ]] || ! [[ "$DURATION_RAW" =~ ^[0-9]+\.?[0-9]*$ ]]; then
             DURATION="0"
-         fi
+            DURATION_DESC="N/A"
+        else
+            DURATION="$DURATION_RAW"
+            DURATION_DESC="$DURATION"
+        fi
         VIDEO_CODECS=$(ffprobe -v error -select_streams v -show_entries stream=codec_name -of csv=p=0 "$FILE_PATH" 2>/dev/null | sed -z 's/\n/, /g;s/, $//')
         VIDEO_DIMENSIONS=$(ffprobe -v error -select_streams v -show_entries stream=width,height -of csv=s=x:p=0 "$FILE_PATH" 2>/dev/null)
-        DESCRIPTION="Video, Duration: $DURATION seconds, Codecs: $VIDEO_CODECS"
+        DESCRIPTION="Video, Duration: $DURATION_DESC seconds, Codecs: $VIDEO_CODECS"
         IDISK="video"
          if [[ -n "$VIDEO_DIMENSIONS" ]]; then
             NIP94_TAGS="$NIP94_TAGS, [\"dim\", \"$VIDEO_DIMENSIONS\"]"
         fi
     else
       DURATION="0"
+      DURATION_DESC="N/A"
       DESCRIPTION="Video, Could not get duration (ffprobe missing)"
     fi
 
  # Audio file check (using ffprobe)
 elif [[ "$FILE_TYPE" == "audio/"* ]]; then
     if command -v ffprobe &> /dev/null; then
-       DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$FILE_PATH" 2>/dev/null)
-         if [[ -z "$DURATION" ]]; then
-            DURATION="0"
-        fi
+       DURATION_RAW=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$FILE_PATH" 2>/dev/null)
+       # Validate DURATION is numeric, default to 0 if not
+       if [[ -z "$DURATION_RAW" ]] || ! [[ "$DURATION_RAW" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+           DURATION="0"
+           DURATION_DESC="N/A"
+       else
+           DURATION="$DURATION_RAW"
+           DURATION_DESC="$DURATION"
+       fi
         AUDIO_CODECS=$(ffprobe -v error -select_streams a -show_entries stream=codec_name -of csv=p=0 "$FILE_PATH" 2>/dev/null | sed -z 's/\n/, /g;s/, $//')
-        DESCRIPTION="Audio, Duration: $DURATION seconds, Codecs: $AUDIO_CODECS"
+        DESCRIPTION="Audio, Duration: $DURATION_DESC seconds, Codecs: $AUDIO_CODECS"
         IDISK="audio"
     else
          DURATION="0"
+         DURATION_DESC="N/A"
          DESCRIPTION="Audio, Could not get duration (ffprobe missing)"
     fi
 # Generic file check
