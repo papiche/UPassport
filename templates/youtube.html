@@ -43,7 +43,7 @@
             flex: 1;
         }
         
-        /* Sidebar - YouTube-like */
+        /* Sidebar - Desktop (always visible on large screens) */
         .sidebar {
             width: 240px;
             background: #0f0f0f;
@@ -54,68 +54,10 @@
             height: 100vh;
             overflow-y: auto;
             z-index: 100;
-            transition: width 0.3s ease, transform 0.3s ease;
+            transition: transform 0.3s ease;
         }
         
-        .sidebar.collapsed {
-            width: 72px;
-        }
-        
-        .sidebar.collapsed .sidebar-title,
-        .sidebar.collapsed .sidebar-item-text,
-        .sidebar.collapsed .channel-info,
-        .sidebar.collapsed .channel-count,
-        .sidebar.collapsed .sidebar-section-title {
-            display: none;
-        }
-        
-        .sidebar.collapsed .sidebar-header {
-            padding: 16px;
-            justify-content: center;
-        }
-        
-        .sidebar.collapsed .sidebar-item {
-            padding: 10px;
-            justify-content: center;
-        }
-        
-        .sidebar.collapsed .channel-item {
-            padding: 10px;
-            justify-content: center;
-        }
-        
-        .sidebar-toggle-btn {
-            position: fixed;
-            top: 20px;
-            left: 260px;
-            z-index: 101;
-            background: #212121;
-            border: 1px solid #3f3f3f;
-            color: #ffffff;
-            padding: 8px 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 18px;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 40px;
-            height: 40px;
-        }
-        
-        .sidebar-toggle-btn:hover {
-            background: #3f3f3f;
-            border-color: #606060;
-        }
-        
-        .sidebar.collapsed ~ .main-content .sidebar-toggle-btn {
-            left: 92px;
-        }
-        
-        .sidebar.collapsed ~ .main-content {
-            margin-left: 72px;
-        }
+        /* Sidebar toggle button removed - using Bootstrap offcanvas for mobile */
         
         .sidebar::-webkit-scrollbar {
             width: 8px;
@@ -871,10 +813,6 @@
             transition: left 0.3s ease;
         }
         
-        .sidebar.collapsed ~ * .map-view {
-            left: 72px;
-        }
-        
         .map-view.active {
             display: block;
         }
@@ -1286,19 +1224,10 @@
             transition: margin-left 0.3s ease, width 0.3s ease;
         }
         
-        .sidebar.collapsed ~ * footer {
-            margin-left: 72px;
-            width: calc(100% - 72px);
-        }
-        
         @media (max-width: 768px) {
             footer {
                 margin-left: 0 !important;
                 width: 100% !important;
-            }
-            
-            .sidebar-toggle-btn {
-                display: none;
             }
         }
         
@@ -1647,10 +1576,7 @@
                 <i class="bi bi-list"></i>
             </button>
             
-            <!-- Desktop sidebar toggle (visible uniquement sur desktop) -->
-            <button class="sidebar-toggle-btn d-none d-lg-block" onclick="toggleSidebarCollapse()" title="Replier/Déplier la sidebar" id="sidebarCollapseBtn">
-                ◀
-            </button>
+            <!-- Desktop sidebar toggle removed - not needed with offcanvas -->
             <div class="header">
             <div class="header-top">
                 <div class="d-flex align-items-center gap-3 w-100 justify-content-end flex-wrap">
@@ -2821,43 +2747,7 @@
             sidebar.classList.toggle('open');
         }
         
-        /**
-         * Toggle sidebar collapse (desktop)
-         */
-        function toggleSidebarCollapse() {
-            const sidebar = document.getElementById('sidebar');
-            const btn = document.getElementById('sidebarCollapseBtn');
-            
-            sidebar.classList.toggle('collapsed');
-            
-            // Update button icon
-            if (sidebar.classList.contains('collapsed')) {
-                btn.textContent = '▶';
-                btn.title = 'Déplier la sidebar';
-            } else {
-                btn.textContent = '◀';
-                btn.title = 'Replier la sidebar';
-            }
-            
-            // Store preference in localStorage
-            localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
-        }
-        
-        /**
-         * Restore sidebar state from localStorage
-         */
-        function restoreSidebarState() {
-            const collapsed = localStorage.getItem('sidebarCollapsed') === 'true';
-            if (collapsed) {
-                const sidebar = document.getElementById('sidebar');
-                const btn = document.getElementById('sidebarCollapseBtn');
-                if (sidebar && btn) {
-                    sidebar.classList.add('collapsed');
-                    btn.textContent = '▶';
-                    btn.title = 'Déplier la sidebar';
-                }
-            }
-        }
+        // Sidebar collapse functions removed - using Bootstrap offcanvas instead
         
         /**
          * Update header statistics with visible videos and channels
@@ -3057,8 +2947,7 @@
             // Apply dynamic theme
             applyDynamicTheme();
             
-            // Restore sidebar state
-            restoreSidebarState();
+            // Sidebar state restore removed - using Bootstrap offcanvas
             
             // Initialize thumbnail type preference
             updateThumbnailTypeUI();
@@ -3984,15 +3873,21 @@
                 'shares': document.getElementById('sort-shares-btn')
             };
             
+            const iconMap = {
+                'likes': 'bi-hand-thumbs-up',
+                'comments': 'bi-chat',
+                'shares': 'bi-share'
+            };
+            
             // Reset all buttons to outline-secondary
-            Object.values(buttons).forEach(btn => {
+            Object.entries(buttons).forEach(([metric, btn]) => {
                 if (btn) {
                     btn.classList.remove('btn-primary', 'btn-outline-primary');
                     btn.classList.add('btn-outline-secondary');
-                    // Remove direction indicators
+                    // Reset icon to base (no direction indicator)
                     const icon = btn.querySelector('i');
                     if (icon) {
-                        icon.className = icon.className.replace(/-down|-up/g, '');
+                        icon.className = `bi ${iconMap[metric]}`;
                     }
                 }
             });
@@ -4006,8 +3901,13 @@
                 // Update icon to show direction
                 const icon = activeBtn.querySelector('i');
                 if (icon) {
-                    const baseClass = icon.className.replace(/-down|-up/g, '');
-                    icon.className = direction === 'asc' ? `${baseClass}-up` : `${baseClass}-down`;
+                    const baseIcon = iconMap[activeMetric];
+                    // Add direction arrow as second icon class (without replacing)
+                    const arrowIcon = direction === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down';
+                    icon.className = `bi ${baseIcon}`;
+                    // Add arrow as text content or another element
+                    icon.innerHTML = direction === 'asc' ? '↑' : '↓';
+                    icon.style.position = 'relative';
                 }
             }
         }
