@@ -3659,30 +3659,29 @@
                         const statsData = await stats.refresh();
                         
                         // Store stats in data attributes for sorting
-                        const likesCount = statsData ? statsData.likes : 0;
-                        const commentsCount = statsData ? statsData.comments : 0;
-                        const sharesCount = statsData ? statsData.shares : 0;
+                        // Ensure all values are numbers, defaulting to 0 if undefined/null
+                        const likesCount = statsData ? (statsData.likes || 0) : 0;
+                        const commentsCount = statsData ? (statsData.comments || 0) : 0;
+                        const sharesCount = statsData ? (statsData.shares || 0) : 0;
                         
                         card.setAttribute('data-likes', likesCount);
                         card.setAttribute('data-comments', commentsCount);
                         card.setAttribute('data-shares', sharesCount);
                         
-                        if (statsData) {
-                            statsElement.innerHTML = `
-                                <span class="video-engagement-item">👍 ${likesCount}</span>
-                                <span class="video-engagement-item">💬 ${commentsCount}</span>
-                                <span class="video-engagement-item">📡 ${sharesCount}</span>
-                            `;
-                        } else {
-                            statsElement.innerHTML = `
-                                <span class="video-engagement-item">👍 0</span>
-                                <span class="video-engagement-item">💬 0</span>
-                                <span class="video-engagement-item">📡 0</span>
-                            `;
-                        }
+                        // Always display stats (even if all zeros) to ensure UI consistency
+                        statsElement.innerHTML = `
+                            <span class="video-engagement-item">👍 ${likesCount}</span>
+                            <span class="video-engagement-item">💬 ${commentsCount}</span>
+                            <span class="video-engagement-item">📡 ${sharesCount}</span>
+                        `;
                     } catch (error) {
                         console.error('Error loading stats for video:', error);
-                        statsElement.innerHTML = '<span style="font-size: 10px;">...</span>';
+                        // Display zeros on error instead of "..." to ensure UI consistency
+                        statsElement.innerHTML = `
+                            <span class="video-engagement-item">👍 0</span>
+                            <span class="video-engagement-item">💬 0</span>
+                            <span class="video-engagement-item">📡 0</span>
+                        `;
                         // Set default values for sorting
                         card.setAttribute('data-likes', '0');
                         card.setAttribute('data-comments', '0');
