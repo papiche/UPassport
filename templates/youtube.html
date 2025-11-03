@@ -15,6 +15,13 @@
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/leaflet.css" />
     <script src="{{ myIPFS }}/ipns/copylaradio.com/leaflet.js"></script>
     
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    
     <style>
         * {
             box-sizing: border-box;
@@ -644,10 +651,6 @@
             transition: transform 0.2s ease;
         }
         
-        .video-thumbnail .thumbnail-animated {
-            /* Animated thumbnails (GIFs) play automatically */
-        }
-        
         .video-thumbnail .thumbnail-placeholder {
             display: flex;
             align-items: center;
@@ -723,29 +726,29 @@
             display: block;
         }
         
-        .video-engagement-overlay {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            display: flex;
-            gap: 8px;
-            background: rgba(0, 0, 0, 0.75);
+        /* video-engagement-overlay styles are now in youtube.enhancements.css */
+        .video-engagement-overlay .badge {
             backdrop-filter: blur(4px);
-            padding: 6px 10px;
-            border-radius: 16px;
-            font-size: 11px;
-            color: #ffffff;
-            z-index: 10;
-            align-items: center;
-            pointer-events: none;
+            font-size: 0.7rem;
+            font-weight: 500;
         }
         
-        .video-engagement-item {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            font-weight: 500;
-            white-space: nowrap;
+        /* GIF animation on hover support */
+        .video-thumbnail .gifanim-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            object-fit: cover;
+            z-index: 5;
+        }
+        
+        .video:hover .gifanim-overlay {
+            opacity: 1;
         }
         
         .engagement-loading {
@@ -1531,96 +1534,162 @@
     </style>
 </head>
 <body>
-    <button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
-    
-    <div class="container">
-        <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <div class="sidebar-logo">▶</div>
-                <div class="sidebar-title">NOSTR Tube</div>
+    <!-- Offcanvas Sidebar pour mobile -->
+    <div class="offcanvas offcanvas-start bg-dark text-white" data-bs-scroll="true" tabindex="-1" id="sidebarOffcanvas" aria-labelledby="sidebarOffcanvasLabel">
+        <div class="offcanvas-header border-bottom border-secondary">
+            <h5 class="offcanvas-title d-flex align-items-center gap-2" id="sidebarOffcanvasLabel">
+                <i class="bi bi-play-circle-fill text-primary"></i> NOSTR Tube
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body p-0">
+            <div class="p-3 border-bottom border-secondary">
+                <h6 class="text-uppercase text-secondary small mb-2" data-i18n="navigation">Navigation</h6>
+                <div class="list-group list-group-flush bg-transparent">
+                    <a href="/youtube?html=1" class="list-group-item list-group-item-action bg-dark text-white border-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-house-fill"></i>
+                        <span data-i18n="home">Accueil</span>
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action bg-dark text-white border-0 d-flex align-items-center gap-2" onclick="toggleMapView(); return false;">
+                        <i class="bi bi-map-fill"></i>
+                        <span data-i18n="map_view">Vue Carte</span>
+                    </a>
+                    <a href="{{ myIPFS }}/ipns/coracle.copylaradio.com" class="list-group-item list-group-item-action bg-dark text-white border-0 d-flex align-items-center gap-2" target="_blank">
+                        <i class="bi bi-globe"></i>
+                        <span>Coracle</span>
+                    </a>
+                </div>
             </div>
             
-            <div class="sidebar-section">
-                <div class="sidebar-section-title" data-i18n="navigation">Navigation</div>
-                <a href="/youtube?html=1" class="sidebar-item active">
-                    <div class="sidebar-icon">🏠</div>
-                    <div class="sidebar-item-text">
-                        <div class="sidebar-item-name" data-i18n="home">Accueil</div>
-                    </div>
-                </a>
-                <div class="sidebar-item" onclick="toggleMapView()">
-                    <div class="sidebar-icon">🗺️</div>
-                    <div class="sidebar-item-text">
-                        <div class="sidebar-item-name" data-i18n="map_view">Vue Carte</div>
+            <div class="p-3">
+                <h6 class="text-uppercase text-secondary small mb-2">
+                    <span data-i18n="channels">Chaînes</span> 
+                    <span class="badge bg-primary rounded-pill">{{ youtube_data.total_channels }}</span>
+                </h6>
+                <div class="list-group list-group-flush bg-transparent">
+                    {% if youtube_data.channels %}
+                        {% for channel_name, channel_data in youtube_data.channels.items() %}
+                        <a href="#" class="list-group-item list-group-item-action bg-dark text-white border-0 d-flex align-items-center gap-2" 
+                           onclick="filterByChannel('{{ channel_name }}'); return false;" 
+                           data-channel="{{ channel_name }}">
+                            <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; font-size: 0.7rem; font-weight: bold;">
+                                {{ channel_name[:2].upper() }}
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold small">{{ channel_data.channel_info.display_name or channel_name }}</div>
+                                <div class="text-secondary" style="font-size: 0.7rem;">
+                                    {{ channel_data.channel_info.video_count }} vidéo{{ 's' if channel_data.channel_info.video_count > 1 else '' }}
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Desktop sidebar (visible uniquement sur desktop) -->
+    <aside class="sidebar d-none d-lg-block" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">▶</div>
+            <div class="sidebar-title">NOSTR Tube</div>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-section-title" data-i18n="navigation">Navigation</div>
+            <a href="/youtube?html=1" class="sidebar-item active">
+                <div class="sidebar-icon">🏠</div>
+                <div class="sidebar-item-text">
+                    <div class="sidebar-item-name" data-i18n="home">Accueil</div>
+                </div>
+            </a>
+            <div class="sidebar-item" onclick="toggleMapView()">
+                <div class="sidebar-icon">🗺️</div>
+                <div class="sidebar-item-text">
+                    <div class="sidebar-item-name" data-i18n="map_view">Vue Carte</div>
+                </div>
+            </div>
+            <a href="{{ myIPFS }}/ipns/coracle.copylaradio.com" class="sidebar-item" target="_blank">
+                <div class="sidebar-icon">🌐</div>
+                <div class="sidebar-item-text">
+                    <div class="sidebar-item-name">Coracle</div>
+                </div>
+            </a>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-section-title"><span data-i18n="channels">Chaînes</span> ({{ youtube_data.total_channels }})</div>
+            {% if youtube_data.channels %}
+                {% for channel_name, channel_data in youtube_data.channels.items() %}
+                <div class="channel-item" onclick="filterByChannel('{{ channel_name }}')" data-channel="{{ channel_name }}">
+                    <div class="channel-icon">{{ channel_name[:2].upper() }}</div>
+                    <div class="channel-info">
+                        <div class="channel-name">{{ channel_data.channel_info.display_name or channel_name }}</div>
+                        <div class="channel-count">{{ channel_data.channel_info.video_count }} vidéo{{ 's' if channel_data.channel_info.video_count > 1 else '' }}</div>
                     </div>
                 </div>
-                <a href="{{ myIPFS }}/ipns/coracle.copylaradio.com" class="sidebar-item" target="_blank">
-                    <div class="sidebar-icon">🌐</div>
-                    <div class="sidebar-item-text">
-                        <div class="sidebar-item-name">Coracle</div>
-                    </div>
-                </a>
-            </div>
-            
-            <div class="sidebar-section">
-                <div class="sidebar-section-title"><span data-i18n="channels">Chaînes</span> ({{ youtube_data.total_channels }})</div>
-                {% if youtube_data.channels %}
-                    {% for channel_name, channel_data in youtube_data.channels.items() %}
-                    <div class="channel-item" onclick="filterByChannel('{{ channel_name }}')" data-channel="{{ channel_name }}">
-                        <div class="channel-icon">{{ channel_name[:2].upper() }}</div>
-                        <div class="channel-info">
-                            <div class="channel-name">{{ channel_data.channel_info.display_name or channel_name }}</div>
-                            <div class="channel-count">{{ channel_data.channel_info.video_count }} vidéo{{ 's' if channel_data.channel_info.video_count > 1 else '' }}</div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                {% endif %}
-            </div>
-        </aside>
-        
+                {% endfor %}
+            {% endif %}
+        </div>
+    </aside>
+    
+    <div class="container">
         <!-- Main content -->
         <main class="main-content">
-            <button class="sidebar-toggle-btn" onclick="toggleSidebarCollapse()" title="Replier/Déplier la sidebar" id="sidebarCollapseBtn">
+            <!-- Mobile menu toggle (visible uniquement sur mobile) -->
+            <button class="btn btn-primary d-lg-none position-fixed" 
+                    style="top: 10px; left: 10px; z-index: 1040;" 
+                    type="button" 
+                    data-bs-toggle="offcanvas" 
+                    data-bs-target="#sidebarOffcanvas" 
+                    aria-controls="sidebarOffcanvas">
+                <i class="bi bi-list"></i>
+            </button>
+            
+            <!-- Desktop sidebar toggle (visible uniquement sur desktop) -->
+            <button class="sidebar-toggle-btn d-none d-lg-block" onclick="toggleSidebarCollapse()" title="Replier/Déplier la sidebar" id="sidebarCollapseBtn">
                 ◀
             </button>
             <div class="header">
             <div class="header-top">
-                <div style="display: flex; align-items: center; gap: 24px; width: 100%; justify-content: flex-end;">
-                    <div class="header-stats">
-                        <div class="header-stat">
-                            <span class="header-stat-number" id="header-video-count">{{ youtube_data.total_videos }}</span>
-                            <span data-i18n="videos">vidéos</span>
+                <div class="d-flex align-items-center gap-3 w-100 justify-content-end flex-wrap">
+                    <div class="header-stats d-flex gap-3">
+                        <div class="d-flex flex-column align-items-center">
+                            <span class="fs-4 fw-bold text-primary" id="header-video-count">{{ youtube_data.total_videos }}</span>
+                            <span class="text-secondary small" data-i18n="videos">vidéos</span>
                         </div>
-                        <div class="header-stat">
-                            <span class="header-stat-number" id="header-channel-count">{{ youtube_data.total_channels }}</span>
-                            <span data-i18n="channels">chaînes</span>
+                        <div class="d-flex flex-column align-items-center">
+                            <span class="fs-4 fw-bold text-primary" id="header-channel-count">{{ youtube_data.total_channels }}</span>
+                            <span class="text-secondary small" data-i18n="channels">chaînes</span>
                         </div>
                     </div>
                     <!-- NOSTR Connection Status -->
-                    <div id="nostr-header-status" style="display: flex; align-items: center; gap: 8px;">
-                        <span id="nostr-status-text" style="font-size: 0.8em; color: #aaaaaa;">Not connected</span>
-                        <button id="nostr-connect-btn-header" onclick="handleNostrConnectYoutube()" class="upload-btn" style="background: transparent; color: #3ea6ff; border: 1px solid #3f3f3f; padding: 6px 12px; border-radius: 18px; font-size: 0.85em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
-                            🔌 <span data-i18n="connect_publish">Connect & Publish</span>
+                    <div id="nostr-header-status" class="d-flex align-items-center gap-2">
+                        <span id="nostr-status-text" class="small text-secondary">Not connected</span>
+                        <button id="nostr-connect-btn-header" onclick="handleNostrConnectYoutube()" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-plug"></i> <span data-i18n="connect_publish">Connect & Publish</span>
                         </button>
-                        <button id="nostr-profile-btn-header" onclick="openNostrProfileYoutube()" class="upload-btn" style="display: none; background: transparent; color: #4ade80; border: 1px solid #3f3f3f; padding: 6px 12px; border-radius: 18px; font-size: 0.85em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
-                            👤 <span data-i18n="profile">Profile</span>
+                        <button id="nostr-profile-btn-header" onclick="openNostrProfileYoutube()" class="btn btn-sm btn-outline-success d-none" style="display: none;">
+                            <i class="bi bi-person-circle"></i> <span data-i18n="profile">Profile</span>
                         </button>
-                        <span id="nostr-ready-indicator" style="display: none; font-size: 0.75em; color: #4ade80; font-weight: 500; padding: 4px 8px; background: rgba(74, 222, 128, 0.1); border-radius: 12px; border: 1px solid rgba(74, 222, 128, 0.3);">
-                            ✅ <span data-i18n="ready_to_record">Ready to record</span>
+                        <span id="nostr-ready-indicator" class="badge bg-success d-none" style="display: none;">
+                            <i class="bi bi-check-circle"></i> <span data-i18n="ready_to_record">Ready to record</span>
                         </span>
                     </div>
-                        <button id="webcam-upload-btn" onclick="openWebcamModal()" class="upload-btn" data-i18n-title="add_video" style="display: none; background: transparent; color: #3ea6ff; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
-                            📹 <span data-i18n="create">Créer</span>
+                        <button id="webcam-upload-btn" onclick="openWebcamModal()" class="btn btn-primary d-none" title="Ajouter une vidéo" style="display: none;">
+                            <i class="bi bi-camera-video"></i> <span data-i18n="create">Créer</span>
                         </button>
-                        <button id="playlist-manager-btn" onclick="openPlaylistManager()" class="upload-btn" title="Administrer mes playlists" style="display: none; background: transparent; color: #f59e0b; border: 1px solid #3f3f3f; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit;">
-                            📋 <span>Playlists</span>
+                        <button id="playlist-manager-btn" onclick="openPlaylistManager()" class="btn btn-warning d-none" title="Administrer mes playlists" style="display: none;">
+                            <i class="bi bi-list-ul"></i> <span>Playlists</span>
                         </button>
-                        <div class="thumbnail-type-selector" style="display: none; align-items: center; gap: 8px; margin-left: 12px;">
-                            <label for="thumbnail-type-toggle" style="font-size: 0.8em; color: #aaaaaa; cursor: pointer;">
+                        <div class="thumbnail-type-selector d-none align-items-center gap-2 ms-3">
+                            <label for="thumbnail-type-toggle" class="small text-secondary mb-0 cursor-pointer">
                                 <span data-i18n="thumbnail_type">Type de miniature:</span>
                             </label>
-                            <button id="thumbnail-type-toggle" onclick="toggleThumbnailType()" title="Toggle between static and animated thumbnails" style="background: transparent; border: 1px solid #3f3f3f; color: #f1f1f1; padding: 6px 12px; border-radius: 16px; font-size: 0.85em; font-weight: 500; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 4px;">
+                            <button id="thumbnail-type-toggle" onclick="toggleThumbnailType()" 
+                                    title="Toggle between static and animated thumbnails" 
+                                    class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
                                 <span id="thumbnail-type-icon">🖼️</span>
                                 <span id="thumbnail-type-text" data-i18n="thumbnail_static">Statique</span>
                             </button>
@@ -1629,107 +1698,111 @@
                 </div>
             </div>
             
-            <div class="search-bar">
-                <div class="search-row">
-                    <input type="text" class="search-input" data-i18n-placeholder="search_videos" placeholder="Rechercher des vidéos..." id="searchInput">
-                    <div class="sort-buttons" style="display: flex; gap: 4px; align-items: center;">
-                        <button class="sort-btn" onclick="sortVideosBy('likes')" title="Trier par likes" id="sort-likes-btn">
-                            👍
+            <div class="search-bar mt-3">
+                <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                    <input type="text" class="form-control flex-grow-1" style="min-width: 250px;" data-i18n-placeholder="search_videos" placeholder="Rechercher des vidéos..." id="searchInput">
+                    <div class="btn-group" role="group" aria-label="Sort buttons">
+                        <button class="btn btn-outline-secondary" onclick="sortVideosBy('likes')" title="Trier par likes" id="sort-likes-btn" data-bs-toggle="tooltip">
+                            <i class="bi bi-hand-thumbs-up"></i>
                         </button>
-                        <button class="sort-btn" onclick="sortVideosBy('comments')" title="Trier par commentaires" id="sort-comments-btn">
-                            💬
+                        <button class="btn btn-outline-secondary" onclick="sortVideosBy('comments')" title="Trier par commentaires" id="sort-comments-btn" data-bs-toggle="tooltip">
+                            <i class="bi bi-chat"></i>
                         </button>
-                        <button class="sort-btn" onclick="sortVideosBy('shares')" title="Trier par partages" id="sort-shares-btn">
-                            📡
+                        <button class="btn btn-outline-secondary" onclick="sortVideosBy('shares')" title="Trier par partages" id="sort-shares-btn" data-bs-toggle="tooltip">
+                            <i class="bi bi-share"></i>
                         </button>
                     </div>
-                    <select class="filter-dropdown" id="dateFilter" onchange="applyQuickFilters()" title="Filtrer par date">
+                    <select class="form-select" id="dateFilter" onchange="applyQuickFilters()" title="Filtrer par date" style="width: auto;">
                         <option value="all">📅 Toutes les dates</option>
                         <option value="today">Aujourd'hui</option>
                         <option value="week">Cette semaine</option>
                         <option value="month">Ce mois</option>
                         <option value="year">Cette année</option>
                     </select>
-                    <select class="filter-dropdown" id="durationFilter" onchange="applyQuickFilters()" title="Filtrer par durée">
+                    <select class="form-select" id="durationFilter" onchange="applyQuickFilters()" title="Filtrer par durée" style="width: auto;">
                         <option value="all">⏱️ Toutes les durées</option>
                         <option value="short">Courte (< 5 min)</option>
                         <option value="medium">Moyenne (5-20 min)</option>
                         <option value="long">Longue (> 20 min)</option>
                     </select>
-                    <button class="advanced-search-toggle" onclick="toggleAdvancedSearch()">
-                        🔍 <span data-i18n="advanced_search">Recherche avancée</span>
+                    <button class="btn btn-outline-info" onclick="toggleAdvancedSearch()">
+                        <i class="bi bi-search"></i> <span data-i18n="advanced_search">Recherche avancée</span>
                     </button>
                 </div>
                 
                 <!-- Advanced Search Panel -->
-                <div class="advanced-search-panel" id="advancedSearchPanel">
-                    <div class="advanced-search-grid">
-                        <div class="search-field">
-                            <label data-i18n="channel_label">Chaîne</label>
-                            <input type="text" id="channelFilter" placeholder="Nom de la chaîne">
+                <div class="collapse mt-3" id="advancedSearchPanel">
+                    <div class="card bg-dark border-secondary">
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="channelFilter" class="form-label text-secondary small" data-i18n="channel_label">Chaîne</label>
+                                    <input type="text" class="form-control form-control-sm" id="channelFilter" placeholder="Nom de la chaîne">
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label for="keywordFilter" class="form-label text-secondary small" data-i18n="keyword_label">Mot-clé</label>
+                                    <input type="text" class="form-control form-control-sm" id="keywordFilter" placeholder="Mot-clé dans le titre">
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label for="dateFromFilter" class="form-label text-secondary small" data-i18n="date_from_label">Date de début</label>
+                                    <input type="date" class="form-control form-control-sm" id="dateFromFilter">
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label for="dateToFilter" class="form-label text-secondary small" data-i18n="date_to_label">Date de fin</label>
+                                    <input type="date" class="form-control form-control-sm" id="dateToFilter">
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label for="durationMinFilter" class="form-label text-secondary small" data-i18n="duration_min_label">Durée min (sec)</label>
+                                    <input type="number" class="form-control form-control-sm" id="durationMinFilter" placeholder="ex: 60" min="0">
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label for="durationMaxFilter" class="form-label text-secondary small" data-i18n="duration_max_label">Durée max (sec)</label>
+                                    <input type="number" class="form-control form-control-sm" id="durationMaxFilter" placeholder="ex: 600" min="0">
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <label for="latFilter" class="form-label text-secondary small" data-i18n="latitude_label">Latitude</label>
+                                    <input type="number" class="form-control form-control-sm" id="latFilter" placeholder="ex: 48.8566" step="0.0001">
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <label for="lonFilter" class="form-label text-secondary small" data-i18n="longitude_label">Longitude</label>
+                                    <input type="number" class="form-control form-control-sm" id="lonFilter" placeholder="ex: 2.3522" step="0.0001">
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <label for="radiusFilter" class="form-label text-secondary small" data-i18n="radius_label">Rayon (km)</label>
+                                    <input type="number" class="form-control form-control-sm" id="radiusFilter" placeholder="ex: 10" min="0" step="0.1">
+                                </div>
+                                
+                                <div class="col-12">
+                                    <label for="sortByFilter" class="form-label text-secondary small" data-i18n="sort_by_label">Trier par</label>
+                                    <select class="form-select form-select-sm" id="sortByFilter">
+                                        <option value="">-- Sélectionner --</option>
+                                        <option value="date_desc">Date (plus récent)</option>
+                                        <option value="date_asc">Date (plus ancien)</option>
+                                        <option value="duration_desc">Durée (plus long)</option>
+                                        <option value="duration_asc">Durée (plus court)</option>
+                                        <option value="title_asc">Titre (A-Z)</option>
+                                        <option value="title_desc">Titre (Z-A)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex gap-2 mt-3 justify-content-end">
+                                <button class="btn btn-secondary btn-sm" onclick="clearAdvancedSearch()">
+                                    <i class="bi bi-x-circle"></i> <span data-i18n="clear_filters">Effacer les filtres</span>
+                                </button>
+                                <button class="btn btn-primary btn-sm" onclick="applyAdvancedSearch()">
+                                    <i class="bi bi-check-circle"></i> <span data-i18n="apply_filters">Appliquer les filtres</span>
+                                </button>
+                            </div>
                         </div>
-                        
-                        <div class="search-field">
-                            <label data-i18n="keyword_label">Mot-clé</label>
-                            <input type="text" id="keywordFilter" placeholder="Mot-clé dans le titre">
-                        </div>
-                        
-                        <div class="search-field">
-                            <label data-i18n="date_from_label">Date de début</label>
-                            <input type="date" id="dateFromFilter">
-                        </div>
-                        
-                        <div class="search-field">
-                            <label data-i18n="date_to_label">Date de fin</label>
-                            <input type="date" id="dateToFilter">
-                        </div>
-                        
-                        <div class="search-field">
-                            <label data-i18n="duration_min_label">Durée min (sec)</label>
-                            <input type="number" id="durationMinFilter" placeholder="ex: 60" min="0">
-                        </div>
-                        
-                        <div class="search-field">
-                            <label data-i18n="duration_max_label">Durée max (sec)</label>
-                            <input type="number" id="durationMaxFilter" placeholder="ex: 600" min="0">
-                        </div>
-                        
-                        <div class="search-field">
-                            <label data-i18n="latitude_label">Latitude</label>
-                            <input type="number" id="latFilter" placeholder="ex: 48.8566" step="0.0001">
-                        </div>
-                        
-                        <div class="search-field">
-                            <label data-i18n="longitude_label">Longitude</label>
-                            <input type="number" id="lonFilter" placeholder="ex: 2.3522" step="0.0001">
-                        </div>
-                        
-                        <div class="search-field">
-                            <label data-i18n="radius_label">Rayon (km)</label>
-                            <input type="number" id="radiusFilter" placeholder="ex: 10" min="0" step="0.1">
-                        </div>
-                        
-                        <div class="search-field">
-                            <label data-i18n="sort_by_label">Trier par</label>
-                            <select id="sortByFilter">
-                                <option value="">-- Sélectionner --</option>
-                                <option value="date_desc">Date (plus récent)</option>
-                                <option value="date_asc">Date (plus ancien)</option>
-                                <option value="duration_desc">Durée (plus long)</option>
-                                <option value="duration_asc">Durée (plus court)</option>
-                                <option value="title_asc">Titre (A-Z)</option>
-                                <option value="title_desc">Titre (Z-A)</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="search-actions">
-                        <button class="search-button secondary" onclick="clearAdvancedSearch()">
-                            <span data-i18n="clear_filters">Effacer les filtres</span>
-                        </button>
-                        <button class="search-button" onclick="applyAdvancedSearch()">
-                            <span data-i18n="apply_filters">Appliquer les filtres</span>
-                        </button>
                     </div>
                 </div>
             </div>
@@ -1747,14 +1820,13 @@
                              data-duration="{{ video.duration if video.duration else 0 }}"
                              data-date="{{ video.download_date if video.download_date else (video.created_at if video.created_at else '') }}">
                             <div class="video-thumbnail" onclick="toggleVideoPlayer(this)" ondblclick="openVideoInTheater(this)">
-                                {% if video.thumbnail_ipfs or video.gifanim_ipfs %}
-                                {% if video.gifanim_ipfs %}
-                                <img src="" alt="Animated Thumbnail" class="thumbnail-img thumbnail-animated" data-ipfs-url="{{ video.gifanim_ipfs }}" data-thumbnail-static="{{ video.thumbnail_ipfs if video.thumbnail_ipfs else '' }}" data-thumbnail-animated="{{ video.gifanim_ipfs }}">
-                                {% else %}
+                                {% if video.thumbnail_ipfs %}
                                 <img src="" alt="Thumbnail" class="thumbnail-img" data-ipfs-url="{{ video.thumbnail_ipfs }}">
-                                {% endif %}
                                 {% else %}
                                 <div class="thumbnail-placeholder">🎬</div>
+                                {% endif %}
+                                {% if video.gifanim_ipfs %}
+                                <img src="" alt="Animated Thumbnail" class="gifanim-overlay" data-ipfs-url="{{ video.gifanim_ipfs }}" style="display: none;">
                                 {% endif %}
                                 <div class="play-overlay">
                                     <div class="play-button">▶</div>
@@ -1799,26 +1871,28 @@
                                 {% if video.content and (video.kind == 21 or video.kind == 22) %}
                                 <div class="video-description" title="{{ video.content|e }}">{{ video.content|e }}</div>
                                 {% endif %}
-                                <div class="video-actions">
-                                    <button class="video-action-btn" onclick="event.stopPropagation(); openVideoInTheater(this.closest('.video').querySelector('.video-thumbnail'))" title="Mode théâtre (double-clic sur la vidéo)">
-                                        🎬
+                                <div class="video-actions d-flex gap-2 mt-2">
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); openVideoInTheater(this.closest('.video').querySelector('.video-thumbnail'))" title="Mode théâtre (double-clic sur la vidéo)" data-bs-toggle="tooltip">
+                                        <i class="bi bi-film"></i>
                                     </button>
-                                    <button class="video-action-btn" onclick="shareVideo(this)" data-title="{{ video.title }}" data-url="{{ video.ipfs_url }}" data-author="{{ video.uploader }}" title="Partager">
-                                        📡
+                                    <button class="btn btn-sm btn-outline-primary" onclick="shareVideo(this)" data-title="{{ video.title }}" data-url="{{ video.ipfs_url }}" data-author="{{ video.uploader }}" title="Partager" data-bs-toggle="tooltip">
+                                        <i class="bi bi-share"></i>
                                     </button>
-                                    <button class="video-action-btn" onclick="bookmarkVideo(this)" data-title="{{ video.title }}" data-url="{{ video.ipfs_url }}" title="Bookmark">
-                                        🔖
+                                    <button class="btn btn-sm btn-outline-warning" onclick="bookmarkVideo(this)" data-title="{{ video.title }}" data-url="{{ video.ipfs_url }}" title="Bookmark" data-bs-toggle="tooltip">
+                                        <i class="bi bi-bookmark"></i>
                                     </button>
                                     {% if video.message_id %}
-                                    <button class="video-action-btn" onclick="addVideoToPlaylist(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-title="{{ video.title }}" title="Ajouter à la playlist">
-                                        ➕
+                                    <button class="btn btn-sm btn-outline-info" onclick="addVideoToPlaylist(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-title="{{ video.title }}" title="Ajouter à la playlist" data-bs-toggle="tooltip">
+                                        <i class="bi bi-plus-circle"></i>
                                     </button>
-                                    <button class="video-action-btn" onclick="likeVideo(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-ipfs-url="{{ video.ipfs_url }}" title="Like">
-                                        👍
+                                    <button class="btn btn-sm btn-outline-success" onclick="likeVideo(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-ipfs-url="{{ video.ipfs_url }}" title="Like" data-bs-toggle="tooltip">
+                                        <i class="bi bi-hand-thumbs-up"></i>
                                     </button>
                                     {% endif %}
                                     {% if video.youtube_url %}
-                                    <a href="{{ video.youtube_url }}" target="_blank" class="video-action-btn" title="Voir sur YouTube">🔗</a>
+                                    <a href="{{ video.youtube_url }}" target="_blank" class="btn btn-sm btn-outline-danger" title="Voir sur YouTube" data-bs-toggle="tooltip">
+                                        <i class="bi bi-youtube"></i>
+                                    </a>
                                     {% endif %}
                                 </div>
                             </div>
@@ -1843,46 +1917,49 @@
         </main>
     </div>
     
-    <!-- Generic Modal for iframes (profiles, webcam, etc.) -->
-    <div id="iframe-modal" class="iframe-modal" style="display: none;">
-        <div class="iframe-modal-overlay" onclick="closeIframeModal()"></div>
-        <div class="iframe-modal-container">
-            <div class="iframe-modal-header">
-                <h3 id="iframe-modal-title"></h3>
-                <div class="iframe-modal-header-actions">
-                    <button class="iframe-modal-open-new" id="iframe-modal-open-new" onclick="openIframeInNewWindow()" title="Ouvrir dans une nouvelle fenêtre" style="display: none;">
-                        🔗 Ouvrir
-                    </button>
-                    <button class="iframe-modal-close" onclick="closeIframeModal()">&times;</button>
+    <!-- Generic Modal for iframes (profiles, webcam, etc.) - Bootstrap Modal -->
+    <div class="modal fade" id="iframe-modal" tabindex="-1" aria-labelledby="iframe-modal-title" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 90%; height: 90vh;">
+            <div class="modal-content bg-dark border-secondary" style="height: 100%;">
+                <div class="modal-header border-secondary bg-dark">
+                    <h5 class="modal-title text-white" id="iframe-modal-title">Loading...</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="iframe-modal-open-new" onclick="openIframeInNewWindow()" title="Ouvrir dans une nouvelle fenêtre" style="display: none;">
+                            <i class="bi bi-box-arrow-up-right"></i> Ouvrir
+                        </button>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
                 </div>
-            </div>
-            <div class="iframe-modal-content">
-                <iframe id="iframe-modal-iframe" src="" frameborder="0"></iframe>
+                <div class="modal-body p-0" style="height: calc(100% - 60px); overflow: hidden;">
+                    <iframe id="iframe-modal-iframe" src="" frameborder="0" style="width: 100%; height: 100%; border: none; background: #0f0f0f;"></iframe>
+                </div>
             </div>
         </div>
     </div>
     
-    <!-- Playlist Selection Modal -->
-    <div id="playlist-select-modal" class="iframe-modal" style="display: none;">
-        <div class="iframe-modal-overlay" onclick="closePlaylistSelectModal()"></div>
-        <div class="iframe-modal-container" style="max-width: 600px;">
-            <div class="iframe-modal-header">
-                <h3 id="playlist-select-title">📋 Ajouter à la playlist</h3>
-                <div class="iframe-modal-header-actions">
-                    <button class="iframe-modal-close" onclick="closePlaylistSelectModal()">&times;</button>
+    <!-- Playlist Selection Modal - Bootstrap Modal -->
+    <div class="modal fade" id="playlist-select-modal" tabindex="-1" aria-labelledby="playlist-select-title" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary bg-dark">
+                    <h5 class="modal-title text-white" id="playlist-select-title">📋 Ajouter à la playlist</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-            </div>
-            <div class="iframe-modal-content" style="padding: 24px; max-height: 70vh; overflow-y: auto;">
-                <div id="playlist-select-loading" class="loading" style="display: none; text-align: center; padding: 40px;">
-                    Chargement des playlists...
-                </div>
-                <div id="playlist-select-list" style="display: grid; gap: 12px;"></div>
-                <div id="playlist-select-empty" style="display: none; text-align: center; padding: 40px; color: #aaaaaa;">
-                    <div style="font-size: 48px; margin-bottom: 16px;">📋</div>
-                    <p style="margin-bottom: 16px;">Vous n'avez aucune playlist</p>
-                    <button onclick="closePlaylistSelectModal(); openPlaylistManager();" class="btn-primary" style="background: #3ea6ff; border: none; color: #ffffff; padding: 10px 20px; border-radius: 20px; font-size: 0.9em; font-weight: 500; cursor: pointer;">
-                        ➕ Créer une playlist
-                    </button>
+                <div class="modal-body">
+                    <div id="playlist-select-loading" class="text-center py-5" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                        <p class="text-secondary mt-3">Chargement des playlists...</p>
+                    </div>
+                    <div id="playlist-select-list" class="d-grid gap-2"></div>
+                    <div id="playlist-select-empty" class="text-center py-5 text-secondary" style="display: none;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">📋</div>
+                        <p class="mb-3">Vous n'avez aucune playlist</p>
+                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="openPlaylistManager();">
+                            <i class="bi bi-plus-circle"></i> Créer une playlist
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1898,31 +1975,31 @@
     </div>
     
     <!-- Footer -->
-    <footer style="background: #212121; border-top: 1px solid #3f3f3f; padding: 12px 40px; transition: all 0.3s ease;">
-        <div style="max-width: 1400px; margin: 0 auto;">
+    <footer class="bg-dark border-top border-secondary py-3 px-4">
+        <div class="container-fluid" style="max-width: 1400px;">
             <!-- Compact footer header (always visible) -->
-            <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleFooter()">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="font-size: 14px; color: #aaaaaa;">
+            <div class="d-flex justify-content-between align-items-center cursor-pointer flex-wrap gap-3" onclick="toggleFooter()">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="small text-secondary">
                         © 2025 NOSTR Tube - <span data-i18n="powered_by">Propulsé par</span> 
-                        <a href="https://github.com/papiche/Astroport.ONE" target="_blank" style="color: #3ea6ff; text-decoration: none;">Astroport.ONE</a>
+                        <a href="https://github.com/papiche/Astroport.ONE" target="_blank" class="text-primary text-decoration-none">Astroport.ONE</a>
                     </span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 16px;">
+                <div class="d-flex align-items-center gap-3 flex-wrap">
                     <!-- Language selector -->
                     <div class="language-selector">
                         <button class="language-btn" onclick="event.stopPropagation(); changeLanguage('fr')" data-lang="fr">🇫🇷 FR</button>
                         <button class="language-btn" onclick="event.stopPropagation(); changeLanguage('en')" data-lang="en">🇬🇧 EN</button>
                         <button class="language-btn" onclick="event.stopPropagation(); changeLanguage('es')" data-lang="es">🇪🇸 ES</button>
                     </div>
-                    <button style="background: transparent; border: 1px solid #3f3f3f; color: #aaaaaa; padding: 6px 12px; border-radius: 12px; font-size: 12px; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.background='#3f3f3f'" onmouseout="this.style.background='transparent'" id="footerToggleBtn">
+                    <button class="btn btn-sm btn-outline-secondary" id="footerToggleBtn">
                         <span id="footerToggleIcon">▼</span> <span data-i18n="more_info">Plus d'infos</span>
                     </button>
                 </div>
             </div>
             
             <!-- Expandable footer content -->
-            <div id="footerExpandable" style="display: none; margin-top: 20px;">
+            <div id="footerExpandable" class="d-none mt-4">
             <!-- Footer Links -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 32px; margin-bottom: 24px;">
                     <div>
@@ -2391,14 +2468,16 @@
             const icon = document.getElementById('footerToggleIcon');
             const footer = document.querySelector('footer');
             
-            if (expandable.style.display === 'none') {
-                expandable.style.display = 'block';
+            if (expandable.classList.contains('d-none')) {
+                expandable.classList.remove('d-none');
                 icon.textContent = '▲';
-                footer.style.padding = '24px 40px';
+                footer.classList.add('py-4');
+                footer.classList.remove('py-3');
             } else {
-                expandable.style.display = 'none';
+                expandable.classList.add('d-none');
                 icon.textContent = '▼';
-                footer.style.padding = '12px 40px';
+                footer.classList.remove('py-4');
+                footer.classList.add('py-3');
             }
         }
         
@@ -2408,7 +2487,11 @@
         
         function toggleAdvancedSearch() {
             const panel = document.getElementById('advancedSearchPanel');
-            panel.classList.toggle('active');
+            if (panel) {
+                const bsCollapse = new bootstrap.Collapse(panel, {
+                    toggle: true
+                });
+            }
         }
         
         function clearAdvancedSearch() {
@@ -2592,14 +2675,23 @@
         function filterByChannel(channelName) {
             currentChannel = currentChannel === channelName ? null : channelName;
             
-            // Update UI
-            document.querySelectorAll('.channel-item').forEach(item => {
+            // Update UI for both desktop sidebar and mobile offcanvas
+            document.querySelectorAll('.channel-item, .list-group-item[data-channel]').forEach(item => {
                 if (item.getAttribute('data-channel') === channelName) {
                     item.classList.toggle('active');
                 } else {
                     item.classList.remove('active');
                 }
             });
+            
+            // Close the offcanvas on mobile after selecting a channel
+            const offcanvasElement = document.getElementById('sidebarOffcanvas');
+            if (offcanvasElement) {
+                const offcanvas = bootstrap.Offcanvas.getInstance(offcanvasElement);
+                if (offcanvas) {
+                    offcanvas.hide();
+                }
+            }
             
             // Filter videos
             const videos = document.querySelectorAll('.video');
@@ -2880,6 +2972,45 @@
                     }
                 }
             });
+            
+            // Setup GIF animation on hover (lazy load) - optimized approach
+            document.querySelectorAll('.gifanim-overlay:not([data-hover-initialized])').forEach(gifImg => {
+                const ipfsUrl = gifImg.getAttribute('data-ipfs-url');
+                if (!ipfsUrl) return;
+                
+                // Mark as initialized
+                gifImg.setAttribute('data-hover-initialized', 'true');
+                
+                // Get parent video element
+                const videoElement = gifImg.closest('.video');
+                if (!videoElement) return;
+                
+                // Load GIF on first hover
+                let loaded = false;
+                const loadGif = () => {
+                    if (loaded) return;
+                    loaded = true;
+                    
+                    const convertedUrl = convertFn(ipfsUrl);
+                    if (convertedUrl) {
+                        gifImg.src = convertedUrl;
+                        gifImg.style.display = 'block';
+                        console.log('🎞️ GIF loaded on hover:', convertedUrl.substring(0, 60) + '...');
+                    }
+                };
+                
+                // Load on hover
+                videoElement.addEventListener('mouseenter', loadGif, { once: false });
+                
+                // Preload after page is fully loaded (low priority, staggered)
+                if (document.readyState === 'complete') {
+                    setTimeout(loadGif, 3000 + Math.random() * 2000);
+                } else {
+                    window.addEventListener('load', () => {
+                        setTimeout(loadGif, 3000 + Math.random() * 2000);
+                    });
+                }
+            });
         }
         
         // Convert all IPFS URLs for thumbnails (uses convertIPFSUrlGlobal from youtube.enhancements.js)
@@ -2931,6 +3062,12 @@
             
             // Initialize thumbnail type preference
             updateThumbnailTypeUI();
+            
+            // Initialize Bootstrap tooltips
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
             
             // Check NOSTR connection status
             checkNostrConnectionStatus();
@@ -3251,25 +3388,28 @@
         }
         
         /**
-         * Open playlist selection modal
+         * Open playlist selection modal using Bootstrap Modal API
          */
         async function openPlaylistSelectModal() {
-            const modal = document.getElementById('playlist-select-modal');
+            const modalElement = document.getElementById('playlist-select-modal');
             const loading = document.getElementById('playlist-select-loading');
             const list = document.getElementById('playlist-select-list');
             const empty = document.getElementById('playlist-select-empty');
             
-            if (!modal) return;
+            if (!modalElement) return;
             
-            // Show modal and loading
-            modal.style.display = 'flex';
+            // Show loading state
             loading.style.display = 'block';
             list.style.display = 'none';
             empty.style.display = 'none';
             list.innerHTML = '';
             
-            // Prevent body scroll
-            document.body.style.overflow = 'hidden';
+            // Use Bootstrap Modal API to show modal
+            const bsModal = new bootstrap.Modal(modalElement, {
+                backdrop: true,
+                keyboard: true
+            });
+            bsModal.show();
             
             try {
                 // Ensure relay connection
@@ -3468,16 +3608,16 @@
         }
         
         /**
-         * Close playlist selection modal
+         * Close playlist selection modal using Bootstrap Modal API
          */
         function closePlaylistSelectModal() {
-            const modal = document.getElementById('playlist-select-modal');
-            if (modal) {
-                modal.style.display = 'none';
+            const modalElement = document.getElementById('playlist-select-modal');
+            if (modalElement) {
+                const bsModal = bootstrap.Modal.getInstance(modalElement);
+                if (bsModal) {
+                    bsModal.hide();
+                }
             }
-            
-            // Restore body scroll
-            document.body.style.overflow = '';
             
             // Clear stored data
             window._currentAddToPlaylistButton = null;
@@ -3573,9 +3713,9 @@
                             videoCard.setAttribute('data-shares', statsData.shares);
                             
                             statsElement.innerHTML = `
-                                <span class="video-engagement-item">👍 ${statsData.likes}</span>
-                                <span class="video-engagement-item">💬 ${statsData.comments}</span>
-                                <span class="video-engagement-item">📡 ${statsData.shares}</span>
+                                <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> ${statsData.likes}</span>
+                                <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> ${statsData.comments}</span>
+                                <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> ${statsData.shares}</span>
                             `;
                             
                             // Re-apply current sort if active
@@ -3742,17 +3882,17 @@
                         
                         // Always display stats (even if all zeros) to ensure UI consistency
                         statsElement.innerHTML = `
-                            <span class="video-engagement-item">👍 ${likesCount}</span>
-                            <span class="video-engagement-item">💬 ${commentsCount}</span>
-                            <span class="video-engagement-item">📡 ${sharesCount}</span>
+                            <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> ${likesCount}</span>
+                            <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> ${commentsCount}</span>
+                            <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> ${sharesCount}</span>
                         `;
                     } catch (error) {
                         console.error('Error loading stats for video:', error);
                         // Display zeros on error instead of "..." to ensure UI consistency
                         statsElement.innerHTML = `
-                            <span class="video-engagement-item">👍 0</span>
-                            <span class="video-engagement-item">💬 0</span>
-                            <span class="video-engagement-item">📡 0</span>
+                            <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> 0</span>
+                            <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> 0</span>
+                            <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> 0</span>
                         `;
                         // Set default values for sorting
                         card.setAttribute('data-likes', '0');
@@ -3835,7 +3975,7 @@
         }
         
         /**
-         * Update sort button visual states
+         * Update sort button visual states using Bootstrap classes
          */
         function updateSortButtons(activeMetric, direction) {
             const buttons = {
@@ -3844,17 +3984,31 @@
                 'shares': document.getElementById('sort-shares-btn')
             };
             
-            // Reset all buttons
+            // Reset all buttons to outline-secondary
             Object.values(buttons).forEach(btn => {
                 if (btn) {
-                    btn.classList.remove('active', 'sort-asc', 'sort-desc');
+                    btn.classList.remove('btn-primary', 'btn-outline-primary');
+                    btn.classList.add('btn-outline-secondary');
+                    // Remove direction indicators
+                    const icon = btn.querySelector('i');
+                    if (icon) {
+                        icon.className = icon.className.replace(/-down|-up/g, '');
+                    }
                 }
             });
             
-            // Set active button
+            // Set active button with primary color and direction indicator
             const activeBtn = buttons[activeMetric];
             if (activeBtn) {
-                activeBtn.classList.add('active', direction === 'asc' ? 'sort-asc' : 'sort-desc');
+                activeBtn.classList.remove('btn-outline-secondary');
+                activeBtn.classList.add('btn-primary');
+                
+                // Update icon to show direction
+                const icon = activeBtn.querySelector('i');
+                if (icon) {
+                    const baseClass = icon.className.replace(/-down|-up/g, '');
+                    icon.className = direction === 'asc' ? `${baseClass}-up` : `${baseClass}-down`;
+                }
             }
         }
         
@@ -3988,20 +4142,25 @@
                 // Connected - show connected state
                 const shortPubkey = userPubkey.substring(0, 8) + '...' + userPubkey.substring(userPubkey.length - 4);
                 statusText.textContent = `Connected: ${shortPubkey}`;
-                statusText.style.color = '#4ade80';
+                statusText.classList.remove('text-secondary');
+                statusText.classList.add('text-success');
                 
                 // Hide connect button, show profile button
+                connectBtn.classList.add('d-none');
                 connectBtn.style.display = 'none';
                 if (profileBtn) {
-                    profileBtn.style.display = 'flex';
+                    profileBtn.classList.remove('d-none');
+                    profileBtn.style.display = 'inline-flex';
                 }
                 
                 // Show action buttons
                 if (webcamBtn) {
-                    webcamBtn.style.display = 'flex';
+                    webcamBtn.classList.remove('d-none');
+                    webcamBtn.style.display = 'inline-flex';
                 }
                 if (playlistManagerBtn) {
-                    playlistManagerBtn.style.display = 'flex';
+                    playlistManagerBtn.classList.remove('d-none');
+                    playlistManagerBtn.style.display = 'inline-flex';
                 }
                 
                 // Show thumbnail type selector (if any video has animated thumbnails)
@@ -4015,30 +4174,37 @@
                 
                 // Show ready indicator
                 if (readyIndicator) {
+                    readyIndicator.classList.remove('d-none');
                     readyIndicator.style.display = 'inline-flex';
                 }
             } else {
                 // Not connected - show not connected state
                 statusText.textContent = 'Not connected';
-                statusText.style.color = '#aaaaaa';
+                statusText.classList.remove('text-success');
+                statusText.classList.add('text-secondary');
                 
                 // Show connect button, hide profile button
-                connectBtn.style.display = 'flex';
+                connectBtn.classList.remove('d-none');
+                connectBtn.style.display = 'inline-flex';
                 connectBtn.disabled = false;
                 if (profileBtn) {
+                    profileBtn.classList.add('d-none');
                     profileBtn.style.display = 'none';
                 }
                 
                 // Hide action buttons
                 if (webcamBtn) {
+                    webcamBtn.classList.add('d-none');
                     webcamBtn.style.display = 'none';
                 }
                 if (playlistManagerBtn) {
+                    playlistManagerBtn.classList.add('d-none');
                     playlistManagerBtn.style.display = 'none';
                 }
                 
                 // Hide ready indicator
                 if (readyIndicator) {
+                    readyIndicator.classList.add('d-none');
                     readyIndicator.style.display = 'none';
                 }
             }
@@ -4060,7 +4226,8 @@
             connectBtn.disabled = true;
             if (statusText) {
                 statusText.textContent = 'Connecting...';
-                statusText.style.color = '#3ea6ff';
+                statusText.classList.remove('text-secondary', 'text-success', 'text-danger');
+                statusText.classList.add('text-info');
             }
             
             try {
@@ -4091,7 +4258,8 @@
                     updateNostrConnectionUI();
                     if (statusText) {
                         statusText.textContent = 'Connection failed';
-                        statusText.style.color = '#ef4444';
+                        statusText.classList.remove('text-secondary', 'text-success', 'text-info');
+                        statusText.classList.add('text-danger');
                     }
                     connectBtn.disabled = false;
                 }
@@ -4100,7 +4268,8 @@
                 updateNostrConnectionUI();
                 if (statusText) {
                     statusText.textContent = 'Connection error';
-                    statusText.style.color = '#ef4444';
+                    statusText.classList.remove('text-secondary', 'text-success', 'text-info');
+                    statusText.classList.add('text-danger');
                 }
                 connectBtn.disabled = false;
             }
@@ -4227,7 +4396,7 @@
         }
         
         /**
-         * Open generic iframe modal
+         * Open generic iframe modal using Bootstrap Modal API
          * NOTE: Never opens /playlist in modal - it always opens in new window
          */
         function openIframeModal(url, title = '') {
@@ -4237,13 +4406,14 @@
                 return;
             }
             
-            const modal = document.getElementById('iframe-modal');
+            const modalElement = document.getElementById('iframe-modal');
             const iframe = document.getElementById('iframe-modal-iframe');
             const titleEl = document.getElementById('iframe-modal-title');
             const openNewBtn = document.getElementById('iframe-modal-open-new');
             
-            if (!modal || !iframe) return;
+            if (!modalElement || !iframe) return;
             
+            // Update title
             if (titleEl && title) {
                 titleEl.textContent = title;
             }
@@ -4259,7 +4429,7 @@
             // Only show for profile viewer (nostr_profile_viewer.html)
             if (openNewBtn) {
                 if (url && url.includes('nostr_profile_viewer.html')) {
-                    openNewBtn.style.display = 'flex';
+                    openNewBtn.style.display = 'inline-block';
                 } else {
                     openNewBtn.style.display = 'none';
                 }
@@ -4268,16 +4438,16 @@
             // Reset iframe src to ensure clean load
             iframe.src = '';
             
-            // Ensure modal has highest z-index (above theater modal and share modal)
-            modal.style.zIndex = '10002';
-            
             // Wait a bit before setting the new src to allow iframe to reset
             setTimeout(() => {
                 iframe.src = url;
-                modal.style.display = 'flex';
                 
-                // Prevent body scroll when modal is open
-                document.body.style.overflow = 'hidden';
+                // Use Bootstrap Modal API to show modal
+                const bsModal = new bootstrap.Modal(modalElement, {
+                    backdrop: 'static',
+                    keyboard: true
+                });
+                bsModal.show();
             }, 50);
         }
         
@@ -4384,40 +4554,25 @@
             }
         });
         
-        /**
-         * Close iframe modal
-         */
-        function closeIframeModal() {
-            const modal = document.getElementById('iframe-modal');
-            const iframe = document.getElementById('iframe-modal-iframe');
-            
-            if (modal) {
-                modal.style.display = 'none';
-            }
-            
-            if (iframe) {
-                iframe.src = ''; // Stop loading
-            }
-            
-            // Restore body scroll
-            document.body.style.overflow = '';
-            
-            // Update NOSTR connection UI after closing modal
-            // This ensures the UI stays in sync after interactions (e.g., publishing video)
-            if (typeof updateNostrConnectionUI === 'function') {
-                setTimeout(() => {
-                    updateNostrConnectionUI();
-                }, 300); // Small delay to let state settle
-            }
-        }
+        // Bootstrap modals handle ESC key automatically, no need for custom listener
         
-        // Close modal on ESC key
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                const modal = document.getElementById('iframe-modal');
-                if (modal && modal.style.display !== 'none') {
-                    closeIframeModal();
-                }
+        // Listen for Bootstrap modal close events to update NOSTR UI and cleanup
+        document.addEventListener('DOMContentLoaded', function() {
+            const iframeModal = document.getElementById('iframe-modal');
+            if (iframeModal) {
+                iframeModal.addEventListener('hidden.bs.modal', function () {
+                    const iframe = document.getElementById('iframe-modal-iframe');
+                    if (iframe) {
+                        iframe.src = ''; // Stop loading
+                    }
+                    
+                    // Update NOSTR connection UI after closing modal
+                    if (typeof updateNostrConnectionUI === 'function') {
+                        setTimeout(() => {
+                            updateNostrConnectionUI();
+                        }, 300); // Small delay to let state settle
+                    }
+                });
             }
         });
         
@@ -4434,6 +4589,15 @@
         function toggleMapView() {
             const mapView = document.getElementById('mapView');
             const isActive = mapView.classList.contains('active');
+            
+            // Close the offcanvas on mobile when opening map view
+            const offcanvasElement = document.getElementById('sidebarOffcanvas');
+            if (offcanvasElement) {
+                const offcanvas = bootstrap.Offcanvas.getInstance(offcanvasElement);
+                if (offcanvas) {
+                    offcanvas.hide();
+                }
+            }
             
             if (isActive) {
                 // Close map

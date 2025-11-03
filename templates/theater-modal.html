@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Theater Mode - Nostr Tube</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    
     <!-- Nostr integration -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
     <!-- Common.js with NOSTR functions -->
@@ -11,19 +17,15 @@
     <!-- NOSTR Tube functions -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.js"></script>
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.css" />
+    
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
+        /* Minimal custom CSS - most styling handled by Bootstrap */
         body {
             font-family: 'Roboto', 'Arial', sans-serif;
             background: rgba(0, 0, 0, 0.95);
             color: #ffffff;
-            /* Remove overflow: hidden and position: fixed to allow scroll in modal */
-            /* These cause conflicts when theater-modal is loaded/embedded in youtube.html */
             margin: 0;
             padding: 0;
         }
@@ -40,11 +42,9 @@
             background: #000000;
             overflow-y: auto;
             overflow-x: hidden;
-            /* Ensure scroll works properly */
             overscroll-behavior: contain;
         }
         
-        /* Ensure scroll works only within the modal */
         .theater-modal::-webkit-scrollbar {
             width: 12px;
         }
@@ -60,107 +60,6 @@
         
         .theater-modal::-webkit-scrollbar-thumb:hover {
             background: #606060;
-        }
-        
-        /* When embedded in youtube.html, prevent body scroll on parent */
-        .theater-modal-open {
-            overflow: hidden;
-        }
-        
-        /* Ensure body doesn't interfere when modal is standalone */
-        body:has(.theater-modal) {
-            overflow: hidden;
-        }
-
-        .theater-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px 24px;
-            background: rgba(15, 15, 15, 0.95);
-            border-bottom: 1px solid #3f3f3f;
-            z-index: 10001;
-        }
-
-        .theater-close-btn {
-            background: transparent;
-            border: none;
-            color: #ffffff;
-            font-size: 24px;
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 50%;
-            transition: background 0.2s;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .theater-close-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .theater-title {
-            flex: 1;
-            margin: 0 16px;
-            font-size: 1.1em;
-            font-weight: 500;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .theater-actions {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        
-        .theater-actions .theater-close-btn {
-            margin-left: 8px;
-        }
-
-        .theater-action-btn {
-            background: transparent;
-            border: 1px solid #3f3f3f;
-            color: #f1f1f1;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.9em;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .theater-action-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: #606060;
-        }
-
-        .theater-body {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
-
-        .theater-video-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            background: #000000;
-            min-height: 0;
-        }
-
-        .theater-video-wrapper {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            min-height: 0;
-            background: #000000;
         }
 
         .theater-video-player {
@@ -198,33 +97,6 @@
         .comment-timeline-marker:hover {
             transform: translateX(-50%) scale(1.5);
         }
-
-        .comment-timeline-tooltip {
-            position: absolute;
-            bottom: 12px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            white-space: nowrap;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s;
-        }
-
-        .comment-timeline-marker:hover .comment-timeline-tooltip {
-            opacity: 1;
-        }
-
-        .theater-video-info {
-            padding: 16px 24px;
-            background: rgba(15, 15, 15, 0.95);
-            border-top: 1px solid #3f3f3f;
-            flex-shrink: 0;
-        }
         
         .theater-uploader-link {
             color: #3ea6ff;
@@ -236,154 +108,6 @@
         .theater-uploader-link:hover {
             color: #5bb5ff;
             text-decoration: underline;
-        }
-
-        .theater-video-stats {
-            display: flex;
-            gap: 24px;
-            margin-bottom: 8px;
-        }
-
-        .stat-item {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 0.9em;
-            color: #aaaaaa;
-        }
-
-        .stat-item span {
-            color: #ffffff;
-            font-weight: 500;
-        }
-
-        .theater-video-meta {
-            font-size: 0.95em;
-            color: #aaaaaa;
-            margin-bottom: 8px;
-        }
-
-        .theater-description {
-            font-size: 0.9em;
-            color: #d1d1d1;
-            line-height: 1.5;
-            margin-top: 8px;
-        }
-
-        .theater-comments-panel {
-            width: 400px;
-            background: rgba(15, 15, 15, 0.95);
-            border-left: 1px solid #3f3f3f;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .theater-comments-header {
-            padding: 16px;
-            border-bottom: 1px solid #3f3f3f;
-        }
-
-        .theater-comments-header h3 {
-            font-size: 1.1em;
-            margin-bottom: 4px;
-        }
-
-        .theater-comment-stats {
-            font-size: 0.85em;
-            color: #aaaaaa;
-        }
-
-        .theater-comment-form {
-            padding: 16px;
-            border-bottom: 1px solid #3f3f3f;
-        }
-
-        .theater-comment-form textarea {
-            width: 100%;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid #3f3f3f;
-            border-radius: 8px;
-            padding: 12px;
-            color: #ffffff;
-            font-family: inherit;
-            font-size: 0.9em;
-            resize: vertical;
-            min-height: 80px;
-            margin-bottom: 8px;
-        }
-
-        .theater-comment-form textarea:focus {
-            outline: none;
-            border-color: #3ea6ff;
-        }
-
-        .theater-comment-form-actions {
-            display: flex;
-            gap: 8px;
-            justify-content: flex-end;
-        }
-
-        .theater-comment-submit-btn,
-        .theater-comment-timestamp-btn {
-            background: #3ea6ff;
-            border: none;
-            color: #ffffff;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.85em;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .theater-comment-submit-btn:hover {
-            background: #2d8ce8;
-        }
-
-        .theater-comment-timestamp-btn {
-            background: transparent;
-            border: 1px solid #3f3f3f;
-        }
-
-        .theater-comment-timestamp-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .theater-comments-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px;
-        }
-
-        .theater-comments-list::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .theater-comments-list::-webkit-scrollbar-track {
-            background: #0f0f0f;
-        }
-
-        .theater-comments-list::-webkit-scrollbar-thumb {
-            background: #3f3f3f;
-            border-radius: 4px;
-        }
-
-        .loading-comments,
-        .no-comments,
-        .error-comments {
-            text-align: center;
-            padding: 32px;
-            color: #aaaaaa;
-            font-size: 0.9em;
-        }
-
-        .theater-comment-item {
-            padding: 12px 0;
-            border-bottom: 1px solid #2a2a2a;
-        }
-
-        .theater-comment-item:last-child {
-            border-bottom: none;
         }
         
         .theater-comment-item.original-comment {
@@ -401,44 +125,6 @@
             font-weight: normal;
         }
 
-        .theater-comment-author {
-            font-weight: 500;
-            font-size: 0.85em;
-            margin-bottom: 4px;
-            color: #3ea6ff;
-        }
-
-        .theater-comment-content {
-            font-size: 0.9em;
-            line-height: 1.5;
-            margin-bottom: 4px;
-            word-wrap: break-word;
-        }
-
-        .theater-comment-timestamp-link {
-            background: transparent;
-            border: none;
-            color: #3ea6ff;
-            font-size: 0.85em;
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 4px;
-            transition: background 0.2s;
-        }
-
-        .theater-comment-timestamp-link:hover {
-            background: rgba(62, 166, 255, 0.1);
-        }
-
-        .theater-comment-time {
-            font-size: 0.75em;
-            color: #606060;
-        }
-
-        .live-comment {
-            animation: slideIn 0.3s ease-out;
-        }
-
         @keyframes slideIn {
             from {
                 opacity: 0;
@@ -449,195 +135,34 @@
                 transform: translateY(0);
             }
         }
-
-        .theater-related-videos {
-            padding: 16px;
-            background: rgba(15, 15, 15, 0.95);
-            border-top: 1px solid #3f3f3f;
-            max-height: 250px;
-            overflow-y: auto;
-            flex-shrink: 0;
-        }
-
-        .theater-related-videos h4 {
-            font-size: 1em;
-            margin-bottom: 12px;
-            color: #f1f1f1;
-        }
-
-        .related-videos-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 12px;
-            padding-bottom: 8px;
-        }
-
-        .related-video-item {
-            cursor: pointer;
-            transition: transform 0.2s;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 8px;
-            padding: 8px;
-        }
-
-        .related-video-item:hover {
-            transform: translateY(-2px);
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        .related-video-thumbnail {
-            width: 100%;
-            aspect-ratio: 16/9;
-            background: #2a2a2a;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 32px;
-            margin-bottom: 8px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .related-video-thumbnail img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .related-video-thumbnail::after {
-            content: "▶";
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-
-        .related-video-item:hover .related-video-thumbnail::after {
-            opacity: 1;
-        }
-
-        .related-video-title {
-            font-size: 0.85em;
-            font-weight: 500;
-            margin-bottom: 4px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            line-clamp: 2;
-            -webkit-box-orient: vertical;
-            color: #f1f1f1;
-            line-height: 1.3;
-        }
-
-        .related-video-author {
-            font-size: 0.75em;
-            color: #aaaaaa;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        @media (max-width: 1024px) {
-            .theater-body {
-                flex-direction: column;
-            }
-
-            .theater-video-container {
-                min-height: 60vh;
-                flex: 0 0 60vh;
-            }
-
-            .theater-comments-panel {
-                width: 100%;
-                max-width: 100%;
-                height: 40vh;
-                border-left: none;
-                border-top: 1px solid #3f3f3f;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .theater-header {
-                padding: 12px 16px;
-                flex-wrap: wrap;
-            }
-
-            .theater-title {
-                font-size: 0.9em;
-                margin: 8px 0;
-                order: 3;
-                width: 100%;
-            }
-
-            .theater-actions {
-                gap: 4px;
-                flex-wrap: wrap;
-                justify-content: flex-end;
-            }
-
-            .theater-action-btn {
-                padding: 6px 10px;
-                font-size: 0.75em;
-            }
-
-            .theater-video-wrapper {
-                min-height: 40vh;
-            }
-
-            .theater-comments-panel {
-                width: 100%;
-                height: 45vh;
-                max-height: 45vh;
-                border-left: none;
-                border-top: 1px solid #3f3f3f;
-                display: flex !important;
-                flex-direction: column;
-                overflow: hidden;
-                flex-shrink: 0;
-            }
-
-            .theater-video-info {
-                padding: 12px 16px;
-            }
-
-            .theater-related-videos {
-                max-height: 180px;
-                padding: 12px;
-            }
-
-            .related-videos-list {
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-                gap: 8px;
-            }
+        
+        .live-comment {
+            animation: slideIn 0.3s ease-out;
         }
     </style>
 </head>
-<body>
+<body class="bg-dark text-white">
     <div class="theater-modal" id="theaterModal">
-        <div class="theater-header">
-            <div class="theater-title" id="theaterTitle">Loading...</div>
-            <div class="theater-actions">
-                <button class="theater-action-btn" onclick="handleTheaterShare()" title="Partager">📡</button>
-                <button class="theater-action-btn" onclick="handleTheaterBookmark()" title="Bookmark">🔖</button>
-                <button class="theater-action-btn" onclick="handlePictureInPicture()" title="Picture-in-Picture">🖼️</button>
-                <button class="theater-close-btn" onclick="handleCloseTheater()" title="Fermer">✕</button>
+        <div class="bg-dark border-bottom border-secondary p-3" style="z-index: 10001;">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <h5 class="flex-grow-1 mb-0 text-truncate" id="theaterTitle">Loading...</h5>
+                <div class="d-flex gap-2 align-items-center">
+                    <button class="btn btn-sm btn-outline-primary" onclick="handleTheaterShare()" title="Partager" data-bs-toggle="tooltip">
+                        <i class="bi bi-share"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="handleTheaterBookmark()" title="Bookmark" data-bs-toggle="tooltip">
+                        <i class="bi bi-bookmark"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" onclick="handlePictureInPicture()" title="Picture-in-Picture" data-bs-toggle="tooltip">
+                        <i class="bi-pip"></i>
+                    </button>
+                    <button class="btn btn-close btn-close-white" onclick="handleCloseTheater()" title="Fermer" data-bs-toggle="tooltip"></button>
+                </div>
             </div>
         </div>
-        <div class="theater-body">
-            <div class="theater-video-container">
-                <div class="theater-video-wrapper">
+        <div class="d-flex flex-fill overflow-hidden">
+            <div class="flex-fill d-flex flex-column bg-black position-relative" style="min-height: 0;">
+                <div class="flex-fill d-flex align-items-center justify-content-center position-relative bg-black" style="min-height: 0;">
                     <video 
                         id="theaterVideoPlayer" 
                         class="theater-video-player"
@@ -646,73 +171,46 @@
                         Votre navigateur ne supporte pas la lecture vidéo.
                     </video>
                 </div>
-                <div class="theater-video-info">
-                    <div class="theater-video-stats" id="theaterVideoStats">
-                        <span class="stat-item"><span id="likeCount">0</span> 👍</span>
-                        <span class="stat-item"><span id="shareCount">0</span> 📡</span>
-                        <span class="stat-item"><span id="commentCount">0</span> 💬</span>
+                <div class="p-3 bg-dark border-top border-secondary">
+                    <div class="d-flex gap-4 mb-2" id="theaterVideoStats">
+                        <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> <span id="likeCount">0</span></span>
+                        <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> <span id="shareCount">0</span></span>
+                        <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> <span id="commentCount">0</span></span>
                     </div>
-                    <div class="theater-video-meta" id="theaterVideoMeta">
+                    <div class="small text-secondary mb-2" id="theaterVideoMeta">
                         <span id="theaterUploaderContainer">
                             <span id="theaterUploader">Loading...</span>
                         </span>
                         <span id="theaterDuration"></span>
                     </div>
-                    <div class="theater-description" id="theaterDescription"></div>
+                    <div class="small text-white-50 lh-base" id="theaterDescription"></div>
                 </div>
-                <div class="theater-related-videos" id="theaterRelatedVideos">
-                    <!-- Related videos will be loaded here -->
-                    <!-- 
-                        RELATED VIDEOS LOADING:
-                        The related videos list is populated by functions in youtube.enhancements.js:
-                        
-                        1. loadRelatedVideosInTheater(videoData) - Line 2917 in youtube.enhancements.js
-                           - Called automatically when theater mode opens (from openTheaterMode)
-                           - Fetches related videos and renders HTML
-                           
-                        2. getRelatedVideos(videoData) - Line 1629 in youtube.enhancements.js
-                           - Main function that finds related videos using:
-                             a. getVideosByChannel(channel) - Videos from same channel
-                             b. getVideosByAuthors([authorId]) - Videos from same author
-                             c. getVideosByLocation(lat, lon) - Videos from same location (UMAP)
-                           - Returns up to 10 related videos (deduplicated)
-                           
-                        Helper functions used (all in youtube.enhancements.js):
-                        - getVideosByChannel(channelName) - Line 1492
-                        - getVideosByAuthors(authors) - Line 1447
-                        - getVideosByLocation(lat, lon) - Line 1580
-                        - getNetworkVideos(depth) - Line 1355 (for network-based recommendations)
-                        - getUserFollows(pubkey) - Line 1393 (for following-based recommendations)
-                        
-                        To improve related videos:
-                        1. Enhance getRelatedVideos() to use tag similarity
-                        2. Add content-based recommendations
-                        3. Use getNetworkVideos() for social network recommendations
-                        4. Combine multiple strategies with weighted scores
-                    -->
+                <div class="p-3 bg-dark border-top border-secondary overflow-auto" style="max-height: 250px; flex-shrink: 0;" id="theaterRelatedVideos">
+                    <!-- Related videos will be loaded here by youtube.enhancements.js -->
                 </div>
             </div>
-            <div class="theater-comments-panel">
-                <div class="theater-comments-header">
-                    <h3>💬 Commentaires</h3>
-                    <div class="theater-comment-stats" id="theaterCommentStats">0 commentaire(s)</div>
+            <div class="bg-dark border-start border-secondary d-flex flex-column overflow-hidden" style="width: 400px;">
+                <div class="p-3 border-bottom border-secondary">
+                    <h6 class="mb-1"><i class="bi bi-chat-dots"></i> Commentaires</h6>
+                    <div class="small text-secondary" id="theaterCommentStats">0 commentaire(s)</div>
                 </div>
-                <div class="theater-comment-form" id="theaterCommentForm">
+                <div class="p-3 border-bottom border-secondary" id="theaterCommentForm">
                     <textarea 
                         id="theaterCommentInput" 
+                        class="form-control bg-dark text-white border-secondary mb-2"
                         placeholder="Ajouter un commentaire..."
                         rows="3"></textarea>
-                    <div class="theater-comment-form-actions">
-                        <button class="theater-comment-submit-btn" onclick="submitTheaterComment()">
-                            Publier
+                    <div class="d-flex gap-2 justify-content-end">
+                        <button class="btn btn-sm btn-primary" onclick="submitTheaterComment()">
+                            <i class="bi bi-send"></i> Publier
                         </button>
-                        <button class="theater-comment-timestamp-btn" id="theaterTimestampBtn" onclick="addTimestampToComment()">
-                            ⏱️ Ajouter timestamp
+                        <button class="btn btn-sm btn-outline-secondary" id="theaterTimestampBtn" onclick="addTimestampToComment()">
+                            <i class="bi bi-clock"></i> Timestamp
                         </button>
                     </div>
                 </div>
-                <div class="theater-comments-list" id="theaterCommentsList">
-                    <div class="loading-comments">Chargement des commentaires...</div>
+                <div class="flex-fill overflow-auto p-3" id="theaterCommentsList">
+                    <div class="text-center text-secondary py-5">Chargement des commentaires...</div>
                 </div>
             </div>
         </div>
@@ -720,8 +218,14 @@
 
     <!-- Scripts will be loaded from parent page or via URL params -->
     <script>
-        // Wait for youtube.enhancements.js to load
+        // Initialize Bootstrap tooltips
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize tooltips
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+            
             // Ensure functions are available from parent or wait for them
             if (typeof window.theaterShareVideoWithPreview === 'undefined') {
                 setTimeout(() => {

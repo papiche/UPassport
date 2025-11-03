@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Playlist Manager - Nostr Tube</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    
     <!-- Nostr integration -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
     <!-- Common.js with NOSTR functions -->
@@ -12,87 +17,28 @@
     <script src="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.js"></script>
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.css" />
     
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
         body {
             font-family: 'Roboto', 'Arial', sans-serif;
             background: #0f0f0f;
             color: #ffffff;
             min-height: 100vh;
-            padding: 20px;
-        }
-        
-        /* When loaded in iframe modal, adjust padding */
-        @media (max-width: 1200px) {
-            body {
-                padding: 16px;
-            }
-        }
-
-        .playlist-manager-container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .playlist-manager-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 32px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid #3f3f3f;
-        }
-
-        .playlist-manager-header h1 {
-            font-size: 2em;
-            font-weight: 600;
-        }
-
-        .btn-create-playlist {
-            background: #3ea6ff;
-            border: none;
-            color: #ffffff;
-            padding: 12px 24px;
-            border-radius: 24px;
-            font-size: 1em;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 8px rgba(62, 166, 255, 0.2);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn-create-playlist:hover {
-            background: #2d8ce8;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(62, 166, 255, 0.3);
-        }
-        
-        .btn-create-playlist:active {
-            transform: translateY(0);
         }
 
         .playlists-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 24px;
-            margin-bottom: 32px;
         }
 
         .playlist-card {
             background: #181818;
-            border-radius: 12px;
-            padding: 20px;
+            border: 1px solid #3f3f3f;
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            border: 1px solid #3f3f3f;
             position: relative;
             overflow: hidden;
         }
@@ -121,75 +67,9 @@
             transform: scaleX(1);
         }
 
-        .playlist-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 12px;
-        }
-
-        .playlist-card-title {
-            font-size: 1.2em;
-            font-weight: 500;
-            margin-bottom: 4px;
-        }
-
-        .playlist-card-description {
-            font-size: 0.9em;
-            color: #aaaaaa;
-            margin-bottom: 12px;
-            line-height: 1.5;
-        }
-
-        .playlist-card-meta {
-            display: flex;
-            gap: 16px;
-            font-size: 0.85em;
-            color: #aaaaaa;
-        }
-
-        .playlist-actions {
-            display: flex;
-            gap: 8px;
-        }
-
-        .playlist-action-btn {
-            background: transparent;
-            border: 1px solid #3f3f3f;
-            color: #f1f1f1;
-            padding: 8px 14px;
-            border-radius: 20px;
-            font-size: 1em;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 40px;
-            height: 40px;
-        }
-
-        .playlist-action-btn:hover {
-            background: rgba(62, 166, 255, 0.15);
-            border-color: #3ea6ff;
-            transform: scale(1.1);
-        }
-        
-        .playlist-action-btn:active {
-            transform: scale(0.95);
-        }
-
-        .playlist-videos-preview {
-            margin-top: 16px;
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-        }
-
         .playlist-video-thumbnail {
             aspect-ratio: 16/9;
             background: #2a2a2a;
-            border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -202,378 +82,56 @@
             height: 100%;
             object-fit: cover;
         }
-
-        /* Create Playlist Modal */
-        /* Toast Notification System */
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background: #212121;
-            border: 1px solid #3f3f3f;
-            color: #ffffff;
-            padding: 16px 20px;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-            z-index: 10001;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            min-width: 300px;
-            max-width: 400px;
-            animation: slideInRight 0.3s ease-out;
-            font-size: 0.9em;
-        }
         
-        .toast.success {
-            border-color: #4ade80;
-            background: rgba(74, 222, 128, 0.1);
-        }
-        
-        .toast.error {
-            border-color: #ef4444;
-            background: rgba(239, 68, 68, 0.1);
-        }
-        
-        .toast.warning {
-            border-color: #f59e0b;
-            background: rgba(245, 158, 11, 0.1);
-        }
-        
-        .toast-icon {
-            font-size: 20px;
-            flex-shrink: 0;
-        }
-        
-        .toast-content {
-            flex: 1;
-        }
-        
-        .toast-close {
-            background: transparent;
-            border: none;
-            color: #aaaaaa;
-            cursor: pointer;
-            font-size: 18px;
-            padding: 0;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 4px;
-            transition: all 0.2s;
-        }
-        
-        .toast-close:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: #ffffff;
-        }
-        
-        @keyframes slideInRight {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-        
-        @keyframes fadeOut {
-            from {
-                opacity: 1;
-            }
-            to {
-                opacity: 0;
-            }
-        }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(4px);
-            z-index: 10000;
-            align-items: center;
-            justify-content: center;
-            animation: fadeIn 0.2s ease-out;
-        }
-
-        .modal.active {
-            display: flex;
-        }
-        
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-            to {
-                opacity: 1;
-            }
-        }
-        
-        @keyframes slideUp {
-            from {
-                transform: translateY(20px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        .modal-content {
-            background: #181818;
-            border-radius: 16px;
-            padding: 32px;
-            max-width: 500px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-            border: 1px solid #3f3f3f;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-            animation: slideUp 0.3s ease-out;
-            position: relative;
-        }
-        
-        .modal-content::-webkit-scrollbar {
-            width: 8px;
-        }
-        
-        .modal-content::-webkit-scrollbar-track {
-            background: #0f0f0f;
-        }
-        
-        .modal-content::-webkit-scrollbar-thumb {
-            background: #3f3f3f;
-            border-radius: 4px;
-        }
-        
-        .modal-content::-webkit-scrollbar-thumb:hover {
-            background: #606060;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-        }
-
-        .modal-header h2 {
-            font-size: 1.5em;
-        }
-
-        .modal-close {
-            background: transparent;
-            border: none;
-            color: #94a3b8;
-            font-size: 28px;
-            cursor: pointer;
-            padding: 4px;
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            transition: all 0.2s ease;
-            line-height: 1;
-        }
-
-        .modal-close:hover {
-            background: rgba(239, 68, 68, 0.15);
-            color: #ef4444;
-            transform: rotate(90deg);
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: #f1f1f1;
-        }
-
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            background: #212121;
-            border: 1px solid #3f3f3f;
-            border-radius: 8px;
-            padding: 12px 16px;
-            color: #ffffff;
-            font-family: inherit;
-            font-size: 1em;
-            transition: all 0.2s ease;
-        }
-
-        .form-group input:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #3ea6ff;
-            background: #1a1a1a;
-            box-shadow: 0 0 0 3px rgba(62, 166, 255, 0.1);
-        }
-        
-        .form-group input::placeholder,
-        .form-group textarea::placeholder {
-            color: #606060;
-        }
-
-        .form-group textarea {
-            resize: vertical;
-            min-height: 100px;
-        }
-
-        .form-actions {
-            display: flex;
-            gap: 12px;
-            justify-content: flex-end;
-            margin-top: 24px;
-        }
-
-        .btn-primary {
-            background: #3ea6ff;
-            border: none;
-            color: #ffffff;
-            padding: 12px 24px;
-            border-radius: 24px;
-            font-size: 1em;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 8px rgba(62, 166, 255, 0.2);
-        }
-
-        .btn-primary:hover {
-            background: #2d8ce8;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(62, 166, 255, 0.3);
-        }
-        
-        .btn-primary:active {
-            transform: translateY(0);
-        }
-        
-        .btn-primary:disabled {
-            background: #3f3f3f;
-            color: #aaaaaa;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .btn-secondary {
-            background: transparent;
-            border: 1px solid #3f3f3f;
-            color: #f1f1f1;
-            padding: 12px 24px;
-            border-radius: 24px;
-            font-size: 1em;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: #606060;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 80px 20px;
-            color: #aaaaaa;
-        }
-
-        .empty-state-icon {
-            font-size: 64px;
-            margin-bottom: 16px;
-            opacity: 0.5;
-        }
-
-        .empty-state h3 {
-            font-size: 1.5em;
-            margin-bottom: 8px;
-            color: #f1f1f1;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #aaaaaa;
-        }
-
-        .error {
-            background: rgba(255, 59, 48, 0.1);
-            border: 1px solid rgba(255, 59, 48, 0.3);
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 16px;
-            color: #ff3b30;
-        }
-
-        @media (max-width: 768px) {
-            .playlists-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .playlist-videos-preview {
-                grid-template-columns: repeat(3, 1fr);
-            }
+        .playlist-manage-btn:hover {
+            opacity: 0.8;
         }
     </style>
 </head>
-<body>
-    <div class="playlist-manager-container">
-        <div class="playlist-manager-header">
-            <h1>📋 Mes Playlists</h1>
-            <button class="btn-create-playlist" onclick="openCreatePlaylistModal()">
-                ➕ Créer une playlist
+<body class="p-3 p-lg-4">
+    <div class="container-fluid" style="max-width: 1200px;">
+        <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom border-secondary">
+            <h1 class="h2 mb-0"><i class="bi bi-collection-play"></i> Mes Playlists</h1>
+            <button class="btn btn-primary rounded-pill d-flex align-items-center gap-2" onclick="openCreatePlaylistModal()">
+                <i class="bi bi-plus-circle"></i> Créer une playlist
             </button>
         </div>
 
-        <div id="playlistsContainer" class="playlists-grid">
-            <div class="loading">Chargement des playlists...</div>
+        <div id="playlistsContainer" class="playlists-grid mb-4">
+            <div class="text-center py-5 text-secondary">Chargement des playlists...</div>
         </div>
     </div>
 
-    <!-- Create Playlist Modal -->
-    <div id="createPlaylistModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Créer une playlist</h2>
-                <button class="modal-close" onclick="closeCreatePlaylistModal()">✕</button>
+    <!-- Create Playlist Modal (Bootstrap) -->
+    <div class="modal fade" id="createPlaylistModal" tabindex="-1" aria-labelledby="createPlaylistModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark text-white border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="createPlaylistModalLabel">Créer une playlist</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createPlaylistForm" onsubmit="handleCreatePlaylist(event)">
+                        <div class="mb-3">
+                            <label for="playlistName" class="form-label">Nom de la playlist *</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="playlistName" required placeholder="Ma super playlist" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="playlistDescription" class="form-label">Description (optionnel)</label>
+                            <textarea class="form-control bg-dark text-white border-secondary" id="playlistDescription" rows="3" placeholder="Description de la playlist..."></textarea>
+                        </div>
+                        <div class="alert alert-danger d-none" id="createPlaylistError" role="alert"></div>
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">
+                                Annuler
+                            </button>
+                            <button type="submit" class="btn btn-primary rounded-pill">
+                                Créer
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
-            <form id="createPlaylistForm" onsubmit="handleCreatePlaylist(event)">
-                <div class="form-group">
-                    <label for="playlistName">Nom de la playlist *</label>
-                    <input type="text" id="playlistName" required placeholder="Ma super playlist" />
-                </div>
-                <div class="form-group">
-                    <label for="playlistDescription">Description (optionnel)</label>
-                    <textarea id="playlistDescription" placeholder="Description de la playlist..."></textarea>
-                </div>
-                <div id="createPlaylistError" class="error" style="display: none;"></div>
-                <div class="form-actions">
-                    <button type="button" class="btn-secondary" onclick="closeCreatePlaylistModal()">
-                        Annuler
-                    </button>
-                    <button type="submit" class="btn-primary">
-                        Créer
-                    </button>
-                </div>
-            </form>
         </div>
     </div>
 
@@ -804,12 +362,12 @@
             const currentUserPubkey = userPubkey || (window.parent && window.parent.userPubkey) || null;
             if (!currentUserPubkey) {
                 document.getElementById('playlistsContainer').innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🔒</div>
-                        <h3>Connexion requise</h3>
-                        <p>Connectez-vous avec NOSTR pour voir vos playlists</p>
-                        <button class="btn-create-playlist" onclick="connectAndLoadPlaylists()" style="margin-top: 16px;">
-                            Se connecter
+                    <div class="text-center py-5">
+                        <div class="display-1 mb-3 opacity-50"><i class="bi bi-lock"></i></div>
+                        <h3 class="h4 mb-2">Connexion requise</h3>
+                        <p class="text-secondary mb-3">Connectez-vous avec NOSTR pour voir vos playlists</p>
+                        <button class="btn btn-primary rounded-pill d-inline-flex align-items-center gap-2" onclick="connectAndLoadPlaylists()">
+                            <i class="bi bi-box-arrow-in-right"></i> Se connecter
                         </button>
                     </div>
                 `;
@@ -881,12 +439,12 @@
             // Final check
             if (!userPubkey) {
                 container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🔒</div>
-                        <h3>Connexion requise</h3>
-                        <p>Connectez-vous avec NOSTR pour voir vos playlists</p>
-                        <button class="btn-create-playlist" onclick="connectAndLoadPlaylists()" style="margin-top: 16px;">
-                            Se connecter
+                    <div class="text-center py-5">
+                        <div class="display-1 mb-3 opacity-50"><i class="bi bi-lock"></i></div>
+                        <h3 class="h4 mb-2">Connexion requise</h3>
+                        <p class="text-secondary mb-3">Connectez-vous avec NOSTR pour voir vos playlists</p>
+                        <button class="btn btn-primary rounded-pill d-inline-flex align-items-center gap-2" onclick="connectAndLoadPlaylists()">
+                            <i class="bi bi-box-arrow-in-right"></i> Se connecter
                         </button>
                     </div>
                 `;
@@ -895,25 +453,26 @@
 
             if (!nostrRelay || !isNostrConnected) {
                 container.innerHTML = `
-                    <div class="error">
-                        ❌ Impossible de se connecter au relay NOSTR. Vérifiez votre connexion.
+                    <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <div>Impossible de se connecter au relay NOSTR. Vérifiez votre connexion.</div>
                     </div>
                 `;
                 return;
             }
 
             try {
-                container.innerHTML = '<div class="loading">Chargement des playlists...</div>';
+                container.innerHTML = '<div class="text-center py-5 text-secondary">Chargement des playlists...</div>';
 
                 // Fetch playlists (kind 30005 for new playlists, 10001 for backward compatibility)
                 const playlists = await fetchUserPlaylists();
 
                 if (playlists.length === 0) {
                     container.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">📋</div>
-                            <h3>Aucune playlist</h3>
-                            <p>Créez votre première playlist pour organiser vos vidéos favorites</p>
+                        <div class="text-center py-5">
+                            <div class="display-1 mb-3 opacity-50"><i class="bi bi-collection-play"></i></div>
+                            <h3 class="h4 mb-2">Aucune playlist</h3>
+                            <p class="text-secondary">Créez votre première playlist pour organiser vos vidéos favorites</p>
                         </div>
                     `;
                     return;
@@ -925,19 +484,26 @@
                 // Attach click handlers
                 document.querySelectorAll('.playlist-card').forEach(card => {
                     card.addEventListener('click', (e) => {
-                        if (!e.target.closest('.playlist-actions')) {
+                        if (!e.target.closest('.d-flex.gap-1')) {
                             // Use d-tag if available, otherwise event ID
                             const playlistId = card.dataset.playlistDtag || card.dataset.playlistId;
                             viewPlaylist(playlistId);
                         }
                     });
                 });
+                
+                // Initialize tooltips
+                const tooltipTriggerList = [].slice.call(container.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                tooltipTriggerList.map(function (tooltipTriggerEl) {
+                    return new bootstrap.Tooltip(tooltipTriggerEl);
+                });
 
             } catch (error) {
                 console.error('Error loading playlists:', error);
                 container.innerHTML = `
-                    <div class="error">
-                        ❌ Erreur lors du chargement des playlists: ${error.message}
+                    <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <div>Erreur lors du chargement des playlists: ${error.message}</div>
                     </div>
                 `;
             }
@@ -1058,33 +624,35 @@
             const playlistIdentifier = playlist.dTag || playlist.id;
 
             return `
-                <div class="playlist-card" data-playlist-id="${playlist.id}" data-playlist-dtag="${playlist.dTag || ''}">
-                    <div class="playlist-card-header">
-                        <div>
-                            <div class="playlist-card-title">${escapeHtmlText(playlist.name)}</div>
-                            <div class="playlist-card-meta">
-                                <span>${videoCount} vidéo(s)</span>
+                <div class="playlist-card rounded-3 p-3" data-playlist-id="${playlist.id}" data-playlist-dtag="${playlist.dTag || ''}">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div class="flex-grow-1 me-2">
+                            <h5 class="mb-1">${escapeHtmlText(playlist.name)}</h5>
+                            <div class="d-flex gap-2 small text-secondary">
+                                <span><i class="bi bi-collection-play"></i> ${videoCount} vidéo(s)</span>
                                 <span>•</span>
-                                <span>${createdDate}</span>
+                                <span><i class="bi bi-calendar3"></i> ${createdDate}</span>
                             </div>
                         </div>
-                        <div class="playlist-actions" onclick="event.stopPropagation();">
-                            <button class="playlist-action-btn" onclick="sharePlaylist('${playlistIdentifier}')" title="Partager">
-                                📡
+                        <div class="d-flex gap-1" onclick="event.stopPropagation();">
+                            <button class="btn btn-sm btn-outline-info rounded-circle" onclick="sharePlaylist('${playlistIdentifier}')" title="Partager" data-bs-toggle="tooltip">
+                                <i class="bi bi-share"></i>
                             </button>
-                            <button class="playlist-action-btn" onclick="exportPlaylistUI('${playlist.id}')" title="Exporter">
-                                📥
+                            <button class="btn btn-sm btn-outline-primary rounded-circle" onclick="exportPlaylistUI('${playlist.id}')" title="Exporter" data-bs-toggle="tooltip">
+                                <i class="bi bi-download"></i>
                             </button>
-                            <button class="playlist-action-btn" onclick="deletePlaylist('${playlist.id}')" title="Supprimer">
-                                🗑️
+                            <button class="btn btn-sm btn-outline-danger rounded-circle" onclick="deletePlaylist('${playlist.id}')" title="Supprimer" data-bs-toggle="tooltip">
+                                <i class="bi bi-trash"></i>
                             </button>
                         </div>
                     </div>
-                    ${playlist.description ? `<div class="playlist-card-description">${escapeHtmlText(playlist.description)}</div>` : ''}
+                    ${playlist.description ? `<p class="small text-secondary mb-2 lh-base">${escapeHtmlText(playlist.description)}</p>` : ''}
                     ${videoCount > 0 ? `
-                        <div class="playlist-videos-preview">
+                        <div class="d-grid gap-2 mt-3" style="grid-template-columns: repeat(4, 1fr);">
                             ${Array(Math.min(videoCount, 4)).fill(0).map(() => `
-                                <div class="playlist-video-thumbnail">🎬</div>
+                                <div class="playlist-video-thumbnail rounded-2">
+                                    <i class="bi bi-film"></i>
+                                </div>
                             `).join('')}
                         </div>
                     ` : ''}
@@ -1104,15 +672,14 @@
                 return;
             }
 
-            const modal = document.getElementById('createPlaylistModal');
-            const nameInput = document.getElementById('playlistName');
+            const modalEl = document.getElementById('createPlaylistModal');
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
             
-            if (modal) {
-                modal.classList.add('active');
-            }
-            if (nameInput) {
-                nameInput.focus();
-            }
+            // Focus on name input after modal is shown
+            modalEl.addEventListener('shown.bs.modal', function () {
+                document.getElementById('playlistName').focus();
+            }, { once: true });
         }
         
         // Expose function globally for onclick handlers
@@ -1122,18 +689,20 @@
          * Close create playlist modal
          */
         function closeCreatePlaylistModal() {
-            const modal = document.getElementById('createPlaylistModal');
+            const modalEl = document.getElementById('createPlaylistModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) {
+                modal.hide();
+            }
+            
             const form = document.getElementById('createPlaylistForm');
             const errorDiv = document.getElementById('createPlaylistError');
             
-            if (modal) {
-                modal.classList.remove('active');
-            }
             if (form) {
                 form.reset();
             }
             if (errorDiv) {
-                errorDiv.style.display = 'none';
+                errorDiv.classList.add('d-none');
             }
         }
         
@@ -1141,36 +710,66 @@
         window.closeCreatePlaylistModal = closeCreatePlaylistModal;
 
         /**
-         * Show toast notification
+         * Show toast notification (Bootstrap Toast)
          */
         function showToast(message, type = 'success', duration = 4000) {
-            // Remove existing toasts
-            const existingToasts = document.querySelectorAll('.toast');
+            // Remove existing custom toasts (non-Bootstrap)
+            const existingToasts = document.querySelectorAll('.toast:not(.toast-bootstrap)');
             existingToasts.forEach(toast => toast.remove());
             
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
+            // Create Bootstrap toast container if it doesn't exist
+            let toastContainer = document.getElementById('toastContainer');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toastContainer';
+                toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+                toastContainer.style.zIndex = '10001';
+                document.body.appendChild(toastContainer);
+            }
             
             const icons = {
-                success: '✅',
-                error: '❌',
-                warning: '⚠️',
-                info: 'ℹ️'
+                success: 'bi-check-circle-fill text-success',
+                error: 'bi-x-circle-fill text-danger',
+                warning: 'bi-exclamation-triangle-fill text-warning',
+                info: 'bi-info-circle-fill text-info'
             };
             
-            toast.innerHTML = `
-                <div class="toast-icon">${icons[type] || icons.info}</div>
-                <div class="toast-content">${escapeHtmlText(message)}</div>
-                <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+            const bgColors = {
+                success: 'bg-success',
+                error: 'bg-danger',
+                warning: 'bg-warning',
+                info: 'bg-info'
+            };
+            
+            const toastEl = document.createElement('div');
+            toastEl.className = 'toast toast-bootstrap align-items-center text-white border-0';
+            toastEl.classList.add(bgColors[type] || bgColors.info);
+            toastEl.setAttribute('role', 'alert');
+            toastEl.setAttribute('aria-live', 'assertive');
+            toastEl.setAttribute('aria-atomic', 'true');
+            
+            toastEl.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body d-flex align-items-center gap-2">
+                        <i class="bi ${icons[type] || icons.info}"></i>
+                        <span>${escapeHtmlText(message)}</span>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
             `;
             
-            document.body.appendChild(toast);
+            toastContainer.appendChild(toastEl);
             
-            // Auto-remove after duration
-            setTimeout(() => {
-                toast.style.animation = 'fadeOut 0.3s ease-out';
-                setTimeout(() => toast.remove(), 300);
-            }, duration);
+            const bsToast = new bootstrap.Toast(toastEl, {
+                delay: duration,
+                autohide: true
+            });
+            bsToast.show();
+            
+            // Remove from DOM after hidden
+            toastEl.addEventListener('hidden.bs.toast', () => {
+                toastEl.remove();
+            });
         }
         
         // Expose globally
@@ -1189,14 +788,14 @@
 
             if (!name) {
                 errorDiv.textContent = 'Le nom de la playlist est requis';
-                errorDiv.style.display = 'block';
+                errorDiv.classList.remove('d-none');
                 return;
             }
 
             try {
-                errorDiv.style.display = 'none';
+                errorDiv.classList.add('d-none');
                 submitBtn.disabled = true;
-                submitBtn.textContent = '⏳ Création...';
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Création...';
                 
                 // Create playlist with empty videos array
                 const playlist = await createPlaylist(name, description, []);
@@ -1214,7 +813,7 @@
             } catch (error) {
                 console.error('Error creating playlist:', error);
                 errorDiv.textContent = `Erreur: ${error.message}`;
-                errorDiv.style.display = 'block';
+                errorDiv.classList.remove('d-none');
                 showToast(`Erreur: ${error.message}`, 'error');
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Créer';
@@ -1328,15 +927,16 @@
 
             if (!nostrRelay || !isNostrConnected) {
                 container.innerHTML = `
-                    <div class="error">
-                        ❌ Impossible de se connecter au relay NOSTR pour charger la playlist. Vérifiez votre connexion internet.
+                    <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <div>Impossible de se connecter au relay NOSTR pour charger la playlist. Vérifiez votre connexion internet.</div>
                     </div>
                 `;
                 return;
             }
 
             try {
-                container.innerHTML = '<div class="loading">Chargement de la playlist...</div>';
+                container.innerHTML = '<div class="text-center py-5 text-secondary">Chargement de la playlist...</div>';
 
                 // Check if this playlist is deleted (kind 5)
                 // Note: For shared playlists, we may not know the author, so we check more broadly
@@ -1382,11 +982,12 @@
                 
                 if (isDeleted) {
                     container.innerHTML = `
-                        <div class="error">
-                            ❌ Cette playlist a été supprimée
+                        <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <div>Cette playlist a été supprimée</div>
                         </div>
-                        <button class="btn-create-playlist" onclick="window.location.href='/playlist'" style="margin-top: 16px;">
-                            ← Retour aux playlists
+                        <button class="btn btn-primary rounded-pill d-inline-flex align-items-center gap-2" onclick="window.location.href='/playlist'">
+                            <i class="bi bi-arrow-left"></i> Retour aux playlists
                         </button>
                     `;
                     return;
@@ -1455,8 +1056,9 @@
 
                 if (!playlist) {
                     container.innerHTML = `
-                        <div class="error">
-                            ❌ Playlist non trouvée
+                        <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <div>Playlist non trouvée</div>
                         </div>
                     `;
                     return;
@@ -1468,8 +1070,9 @@
                     playlistData = JSON.parse(playlist.content);
                 } catch (e) {
                     container.innerHTML = `
-                        <div class="error">
-                            ❌ Erreur lors du parsing de la playlist
+                        <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <div>Erreur lors du parsing de la playlist</div>
                         </div>
                     `;
                     return;
@@ -1482,16 +1085,15 @@
                 }
 
                 // Hide create button when viewing specific playlist
-                const createBtn = document.querySelector('.btn-create-playlist');
+                const createBtn = document.querySelector('.btn.btn-primary.rounded-pill');
                 if (createBtn) {
                     createBtn.style.display = 'none';
                 }
 
                 // Add back button first
                 const backBtn = document.createElement('button');
-                backBtn.textContent = '← Retour aux playlists';
-                backBtn.className = 'btn-create-playlist';
-                backBtn.style.marginBottom = '24px';
+                backBtn.innerHTML = '<i class="bi bi-arrow-left me-2"></i>Retour aux playlists';
+                backBtn.className = 'btn btn-secondary rounded-pill mb-4';
                 backBtn.onclick = () => {
                     window.location.href = '/playlist';
                 };
@@ -1501,7 +1103,7 @@
                 // Add description if available
                 if (playlistData.description) {
                     const descDiv = document.createElement('div');
-                    descDiv.style.cssText = 'background: #181818; border-radius: 12px; padding: 16px; border: 1px solid #3f3f3f; margin-bottom: 24px; color: #aaaaaa;';
+                    descDiv.className = 'alert alert-secondary mb-4';
                     descDiv.textContent = playlistData.description;
                     container.appendChild(descDiv);
                 }
@@ -1513,19 +1115,25 @@
                 // Add playlist management header with actions
                 if (isPlaylistOwner) {
                     const actionsHeader = document.createElement('div');
-                    actionsHeader.style.cssText = 'display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; align-items: center;';
+                    actionsHeader.className = 'd-flex gap-2 mb-4 flex-wrap';
                     actionsHeader.innerHTML = `
-                        <button class="playlist-manage-btn" onclick="exportPlaylistUI('${playlist.id}')" title="Exporter la playlist" style="background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.5); color: #3b82f6; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px;">
-                            📥 Exporter
+                        <button class="btn btn-sm btn-outline-primary rounded-pill d-flex align-items-center gap-2 playlist-manage-btn" onclick="exportPlaylistUI('${playlist.id}')" title="Exporter la playlist" data-bs-toggle="tooltip">
+                            <i class="bi bi-download"></i> Exporter
                         </button>
-                        <button class="playlist-manage-btn" onclick="editPlaylistMetadataUI('${playlist.id}')" title="Modifier les informations" style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.5); color: #f59e0b; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px;">
-                            ✏️ Modifier
+                        <button class="btn btn-sm btn-outline-warning rounded-pill d-flex align-items-center gap-2 playlist-manage-btn" onclick="editPlaylistMetadataUI('${playlist.id}')" title="Modifier les informations" data-bs-toggle="tooltip">
+                            <i class="bi bi-pencil"></i> Modifier
                         </button>
-                        <button class="playlist-manage-btn" onclick="deletePlaylistUI('${playlist.id}')" title="Supprimer la playlist" style="background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #ef4444; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px;">
-                            🗑️ Supprimer
+                        <button class="btn btn-sm btn-outline-danger rounded-pill d-flex align-items-center gap-2 playlist-manage-btn" onclick="deletePlaylistUI('${playlist.id}')" title="Supprimer la playlist" data-bs-toggle="tooltip">
+                            <i class="bi bi-trash"></i> Supprimer
                         </button>
                     `;
                     container.appendChild(actionsHeader);
+                    
+                    // Initialize tooltips
+                    const tooltipTriggerList = [].slice.call(actionsHeader.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                    tooltipTriggerList.map(function (tooltipTriggerEl) {
+                        return new bootstrap.Tooltip(tooltipTriggerEl);
+                    });
                 }
                 
                 // Load and display playlist videos using loadPlaylistVideos from youtube.enhancements.js
@@ -1562,8 +1170,9 @@
             } catch (error) {
                 console.error('Error loading playlist:', error);
                 container.innerHTML = `
-                    <div class="error">
-                        ❌ Erreur lors du chargement de la playlist: ${error.message}
+                    <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <div>Erreur lors du chargement de la playlist: ${error.message}</div>
                     </div>
                 `;
             }
@@ -1704,25 +1313,30 @@
                 const playlistData = JSON.parse(playlistEvent.content);
                 
                 // Show edit modal (reuse create modal structure)
-                const modal = document.getElementById('createPlaylistModal');
+                const modalEl = document.getElementById('createPlaylistModal');
                 const form = document.getElementById('createPlaylistForm');
                 const nameInput = document.getElementById('playlistName');
                 const descInput = document.getElementById('playlistDescription');
-                const title = document.querySelector('#createPlaylistModal .modal-header h2');
+                const title = document.getElementById('createPlaylistModalLabel');
                 const errorDiv = document.getElementById('createPlaylistError');
                 
                 // Update modal title
-                if (title) title.textContent = '✏️ Modifier la playlist';
+                if (title) title.textContent = 'Modifier la playlist';
                 
                 // Pre-fill form
                 nameInput.value = playlistData.name || '';
                 descInput.value = playlistData.description || '';
-                errorDiv.style.display = 'none';
+                errorDiv.classList.add('d-none');
                 
                 // Show modal
-                modal.classList.add('active');
-                nameInput.focus();
-                nameInput.select();
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+                
+                // Focus and select name input after modal is shown
+                modalEl.addEventListener('shown.bs.modal', function () {
+                    nameInput.focus();
+                    nameInput.select();
+                }, { once: true });
                 
                 // Replace form handler temporarily
                 const originalHandler = form.onsubmit;
@@ -1734,13 +1348,13 @@
                     
                     if (!newName) {
                         errorDiv.textContent = 'Le nom ne peut pas être vide';
-                        errorDiv.style.display = 'block';
+                        errorDiv.classList.remove('d-none');
                         return;
                     }
                     
                     const submitBtn = form.querySelector('button[type="submit"]');
                     submitBtn.disabled = true;
-                    submitBtn.textContent = '⏳ Mise à jour...';
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Mise à jour...';
                     
                     try {
                         if (typeof window.updatePlaylistMetadata === 'function') {
@@ -1764,7 +1378,7 @@
                     } catch (error) {
                         console.error('Error updating playlist:', error);
                         errorDiv.textContent = `Erreur: ${error.message}`;
-                        errorDiv.style.display = 'block';
+                        errorDiv.classList.remove('d-none');
                         showToast(`Erreur: ${error.message}`, 'error');
                         submitBtn.disabled = false;
                         submitBtn.textContent = 'Enregistrer';
@@ -2008,19 +1622,8 @@
             }
         }
 
-        // Close modal on outside click
-        document.getElementById('createPlaylistModal')?.addEventListener('click', (e) => {
-            if (e.target.id === 'createPlaylistModal') {
-                closeCreatePlaylistModal();
-            }
-        });
-
-        // Close modal on ESC key
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeCreatePlaylistModal();
-            }
-        });
+        // Bootstrap Modal handles closing on backdrop click and ESC key automatically
+        // No need for manual event listeners
     </script>
 </body>
 </html>
