@@ -187,6 +187,15 @@
                         <span id="theaterDuration"></span>
                     </div>
                     <div class="small text-white-50 lh-base" id="theaterDescription"></div>
+                    
+                    <!-- Provenance section -->
+                    <div class="mt-3 pt-3 border-top border-secondary" id="theaterProvenanceSection" style="display: none;">
+                        <div class="small">
+                            <div class="text-secondary mb-2"><i class="bi bi-diagram-3"></i> <strong>Provenance</strong></div>
+                            <div id="theaterUploadChain" class="mb-2"></div>
+                            <div class="d-flex gap-2 flex-wrap" id="theaterProvenanceLinks"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="p-3 bg-dark border-top border-secondary overflow-auto" style="max-height: 250px; flex-shrink: 0;" id="theaterRelatedVideos">
                     <!-- Related videos will be loaded here by youtube.enhancements.js -->
@@ -1031,6 +1040,9 @@
                 if (videoData.authorId) {
                     videoPlayer.setAttribute('data-author-id', videoData.authorId);
                 }
+                if (videoData.ipfsUrl) {
+                    videoPlayer.setAttribute('data-ipfs-url', videoData.ipfsUrl);
+                }
             }
             
             // Set duration
@@ -1050,6 +1062,9 @@
                 loadVideoAuthor(videoData.authorId, videoData.uploader);
             }
             
+            // Load provenance info
+            loadProvenanceInfo(videoData);
+            
             // Load comments
             if (videoData.eventId) {
                 loadVideoComments(videoData.eventId, videoData.authorId, videoData.content || videoData.description);
@@ -1063,11 +1078,93 @@
             }
         }
         
+        /**
+         * Load and display provenance information
+         */
+        function loadProvenanceInfo(videoData) {
+            const provenanceSection = document.getElementById('theaterProvenanceSection');
+            const uploadChainEl = document.getElementById('theaterUploadChain');
+            const provenanceLinksEl = document.getElementById('theaterProvenanceLinks');
+            
+            if (!provenanceSection || !uploadChainEl || !provenanceLinksEl) return;
+            
+            let hasProvenance = false;
+            let linksHtml = '';
+            
+            // Display upload chain (distribution history)
+            if (videoData.upload_chain) {
+                const pubkeys = videoData.upload_chain.split(',').filter(p => p.trim());
+                if (pubkeys.length > 0) {
+                    hasProvenance = true;
+                    
+                    // Show chain with arrows
+                    const chainHtml = pubkeys.map((pubkey, index) => {
+                        const shortKey = pubkey.substring(0, 8) + '...';
+                        const arrow = index < pubkeys.length - 1 ? ' <i class="bi bi-arrow-right"></i> ' : '';
+                        return `<span class="badge bg-secondary" title="${pubkey}">${shortKey}</span>${arrow}`;
+                    }).join('');
+                    
+                    uploadChainEl.innerHTML = `
+                        <div class="text-white-50">
+                            <i class="bi bi-diagram-3-fill text-info"></i> <strong>Distribution:</strong> ${chainHtml}
+                            <small class="text-secondary">(${pubkeys.length} partage${pubkeys.length > 1 ? 's' : ''})</small>
+                        </div>
+                    `;
+                }
+            }
+            
+            // Add info.json link
+            if (videoData.info_cid) {
+                hasProvenance = true;
+                const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+                const infoUrl = `${gateway}/ipfs/${videoData.info_cid}/info.json`;
+                linksHtml += `
+                    <a href="${infoUrl}" target="_blank" class="btn btn-sm btn-outline-info" title="Métadonnées complètes">
+                        <i class="bi bi-file-earmark-code"></i> info.json
+                    </a>
+                `;
+            }
+            
+            // Add file hash badge (verification)
+            if (videoData.file_hash) {
+                hasProvenance = true;
+                const shortHash = videoData.file_hash.substring(0, 16) + '...';
+                linksHtml += `
+                    <span class="badge bg-dark border border-secondary" title="Hash SHA-256: ${videoData.file_hash}">
+                        <i class="bi bi-shield-check text-success"></i> ${shortHash}
+                    </span>
+                `;
+            }
+            
+            // Add animated GIF indicator (if available)
+            if (videoData.gifanim_ipfs) {
+                hasProvenance = true;
+                const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+                const gifUrl = videoData.gifanim_ipfs.startsWith('/ipfs/') 
+                    ? `${gateway}${videoData.gifanim_ipfs}`
+                    : `${gateway}/ipfs/${videoData.gifanim_ipfs}`;
+                linksHtml += `
+                    <a href="${gifUrl}" target="_blank" class="btn btn-sm btn-outline-warning" title="Aperçu animé">
+                        <i class="bi bi-film"></i> GIF
+                    </a>
+                `;
+            }
+            
+            // Display provenance section if we have any info
+            if (hasProvenance) {
+                provenanceLinksEl.innerHTML = linksHtml;
+                provenanceSection.style.display = 'block';
+            } else {
+                provenanceSection.style.display = 'none';
+            }
+        }
+        
         // Expose functions globally
         window.submitTheaterComment = submitTheaterComment;
         window.addTimestampToComment = addTimestampToComment;
         window.loadVideoAuthor = loadVideoAuthor;
         window.loadVideoComments = loadVideoComments;
+        window.loadProvenanceInfo = loadProvenanceInfo;
         
         // Initialize theater mode if videoData is passed
         if (window.videoData) {

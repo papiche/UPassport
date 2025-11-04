@@ -1132,9 +1132,12 @@
                     <label for="video-upload">
                         📁 Upload Video File (.mp4, .webm, .mov)
                     </label>
-                    <input type="file" id="video-upload" accept="video/*,.mp4,.webm,.mov">
+                    <input type="file" id="video-upload" accept="video/*,.mp4,.webm,.mov" capture="environment">
                     <small>
-                        Supported formats: MP4, WebM, MOV (max 500MB)
+                        Supported formats: MP4, WebM, MOV (max 500MB)<br>
+                        <span class="mobile-hint" style="display: none; color: #3ea6ff;">
+                            📱 On mobile: Use your camera app, then select the video file
+                        </span>
                     </small>
                 </div>
             </div>
@@ -1455,6 +1458,23 @@
         let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         let isAndroid = /Android/.test(navigator.userAgent);
+        
+        // Show mobile hint and adapt UI for mobile devices
+        if (isMobile) {
+            const mobileHint = document.querySelector('.mobile-hint');
+            if (mobileHint) {
+                mobileHint.style.display = 'inline';
+            }
+            
+            // Hide webcam recording section on mobile (limited browser support)
+            const recordSection = document.querySelector('.recording-section');
+            if (recordSection) {
+                recordSection.style.opacity = '0.5';
+                recordSection.title = 'Webcam recording may not be supported on mobile. Please use file upload instead.';
+            }
+            
+            console.log('📱 Mobile device detected - File upload recommended for better compatibility');
+        }
         
         // Location and map variables
         let currentLocation = null;

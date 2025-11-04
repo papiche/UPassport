@@ -668,6 +668,7 @@ JSON_OUTPUT="{
   \"thumbnail_ipfs\": \"$THUMBNAIL_CID\",
   \"gifanim_ipfs\": \"$GIFANIM_CID\",
   \"dimensions\": \"${VIDEO_DIMENSIONS:-${IMAGE_DIMENSIONS:-}}\",
+  \"upload_chain\": \"$UPLOAD_CHAIN\",
   \"unode\": \"$IPFSNODEID\",
   \"date\": \"$DATE\",
   \"description\": \"$DESCRIPTION\",
