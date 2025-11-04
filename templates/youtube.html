@@ -1864,6 +1864,15 @@
         <div id="videoMap"></div>
     </div>
     
+    <!-- Theater Mode Modal (Bootstrap Modal - Persistent) -->
+    <div class="modal fade" id="theaterModal" tabindex="-1" aria-labelledby="theaterModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="true">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content bg-dark" style="height: 100vh;">
+                <!-- Content will be injected dynamically by openTheaterMode() -->
+            </div>
+        </div>
+    </div>
+    
     <!-- Footer -->
     <footer class="bg-dark border-top border-secondary py-2 px-3 mt-auto">
         <div class="container-fluid">
@@ -2506,27 +2515,8 @@
             return url.startsWith('/ipfs/') ? `${gateway}${url}` : url;
         };
         
-        // Click handling variables to prevent conflict between click and double-click
-        let clickTimer = null;
-        let clickPrevent = false;
-        
         // Toggle video player
         function toggleVideoPlayer(thumbnailElement) {
-            // If double-click detection is active, ignore single click
-            if (clickPrevent) {
-                return;
-            }
-            
-            // Set up delay to distinguish single click from double-click
-            clearTimeout(clickTimer);
-            clickTimer = setTimeout(() => {
-                // Execute single click action (toggle inline player)
-                executeToggleVideoPlayer(thumbnailElement);
-            }, 250); // 250ms delay
-        }
-        
-        // Actual toggle video player logic
-        function executeToggleVideoPlayer(thumbnailElement) {
             const videoPlayer = thumbnailElement.querySelector('.inline-video-player');
             const videoContainer = thumbnailElement;
             
@@ -3740,15 +3730,6 @@
          * Open video in theater mode from video card
          */
         async function openVideoInTheater(thumbnailElement) {
-            // Cancel single click timer when double-click detected
-            clearTimeout(clickTimer);
-            clickPrevent = true;
-            
-            // Reset prevent flag after a short delay
-            setTimeout(() => {
-                clickPrevent = false;
-            }, 300);
-            
             if (!thumbnailElement) return;
             
             const videoCard = thumbnailElement.closest('.video');
@@ -4454,20 +4435,15 @@
         }
         
         // Listen for messages from iframes requesting NOSTR extension access
-        // Also listen for close-theater-modal messages
         window.addEventListener('message', function(event) {
-            // Handle close theater modal requests
+            // Handle close theater modal requests (deprecated - now uses Bootstrap Modal)
             if (event.data && event.data.type === 'close-theater-modal') {
-                // Try to close theater modal if it exists
-                if (typeof window.closeTheaterMode === 'function') {
+                console.log('📩 Received close-theater-modal message (using closeTheaterMode)');
+                // Use the proper closeTheaterMode function
+                if (typeof closeTheaterMode === 'function') {
+                    closeTheaterMode();
+                } else if (typeof window.closeTheaterMode === 'function') {
                     window.closeTheaterMode();
-                } else {
-                    // Try to find and remove theater modal
-                    const theaterModal = document.getElementById('theaterModal') || 
-                                       document.querySelector('.theater-modal');
-                    if (theaterModal) {
-                        theaterModal.remove();
-                    }
                 }
                 return;
             }
