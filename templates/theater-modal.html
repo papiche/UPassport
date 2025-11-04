@@ -147,16 +147,16 @@
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <h5 class="flex-grow-1 mb-0 text-truncate" id="theaterTitle">Loading...</h5>
                 <div class="d-flex gap-2 align-items-center">
-                    <button class="btn btn-sm btn-outline-success" onclick="handleTheaterLike()" title="Liker" data-bs-toggle="tooltip">
+                    <button class="btn btn-sm btn-outline-success" id="theaterLikeBtn" title="Liker" data-bs-toggle="tooltip">
                         <i class="bi bi-hand-thumbs-up"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-primary" onclick="handleTheaterShare()" title="Partager" data-bs-toggle="tooltip">
+                    <button class="btn btn-sm btn-outline-primary" id="theaterShareBtn" title="Partager" data-bs-toggle="tooltip">
                         <i class="bi bi-share"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-warning" onclick="handleTheaterBookmark()" title="Bookmark" data-bs-toggle="tooltip">
+                    <button class="btn btn-sm btn-outline-warning" id="theaterBookmarkBtn" title="Bookmark" data-bs-toggle="tooltip">
                         <i class="bi bi-bookmark"></i>
                     </button>
-                    <button class="btn btn-close btn-close-white" onclick="handleCloseTheater()" title="Fermer (ESC)" data-bs-toggle="tooltip" aria-label="Close"></button>
+                    <button class="btn btn-close btn-close-white" id="closeTheaterBtn" title="Fermer (ESC)" data-bs-toggle="tooltip" aria-label="Close"></button>
                 </div>
             </div>
         </div>
@@ -210,10 +210,10 @@
                         placeholder="Ajouter un commentaire..."
                         rows="3"></textarea>
                     <div class="d-flex gap-2 justify-content-end">
-                        <button class="btn btn-sm btn-primary" onclick="submitTheaterComment()">
+                        <button class="btn btn-sm btn-primary" id="submitTheaterCommentBtn">
                             <i class="bi bi-send"></i> Publier
                         </button>
-                        <button class="btn btn-sm btn-outline-secondary" id="theaterTimestampBtn" onclick="addTimestampToComment()">
+                        <button class="btn btn-sm btn-outline-secondary" id="theaterTimestampBtn">
                             <i class="bi bi-clock"></i> Timestamp
                         </button>
                     </div>
@@ -227,13 +227,76 @@
 
     <!-- Scripts will be loaded from parent page or via URL params -->
     <script>
-        // Initialize Bootstrap tooltips
+        /**
+         * Handle close button click - wrapper to ensure function is available
+         * Defined early to ensure it's available when DOMContentLoaded fires
+         */
+        function handleCloseTheater() {
+            if (typeof window.closeTheaterMode === 'function') {
+                window.closeTheaterMode();
+            } else {
+                // Fallback: try to close modal directly
+                const modal = document.getElementById('theaterModal');
+                if (modal) {
+                    const videoPlayer = document.getElementById('theaterVideoPlayer');
+                    if (videoPlayer) {
+                        videoPlayer.pause();
+                        videoPlayer.src = '';
+                        videoPlayer.load();
+                    }
+                    modal.remove();
+                } else {
+                    // Try window.close if modal not found (might be in iframe)
+                    window.close();
+                }
+            }
+        }
+        
+        // Expose function globally early
+        window.handleCloseTheater = handleCloseTheater;
+        
+        // Initialize Bootstrap tooltips and event listeners
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize tooltips
             const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
             tooltipTriggerList.map(function (tooltipTriggerEl) {
                 return new bootstrap.Tooltip(tooltipTriggerEl);
             });
+            
+            // Attach event listeners to buttons (safer than onclick)
+            const closeBtn = document.getElementById('closeTheaterBtn');
+            if (closeBtn && typeof handleCloseTheater === 'function') {
+                closeBtn.addEventListener('click', handleCloseTheater);
+            }
+            
+            // Attach listeners for other buttons - functions are defined later but hoisted
+            // Use a small delay to ensure all functions are available
+            setTimeout(() => {
+                const likeBtn = document.getElementById('theaterLikeBtn');
+                if (likeBtn && typeof handleTheaterLike === 'function') {
+                    likeBtn.addEventListener('click', handleTheaterLike);
+                }
+                
+                const shareBtn = document.getElementById('theaterShareBtn');
+                if (shareBtn && typeof handleTheaterShare === 'function') {
+                    shareBtn.addEventListener('click', handleTheaterShare);
+                }
+                
+                const bookmarkBtn = document.getElementById('theaterBookmarkBtn');
+                if (bookmarkBtn && typeof handleTheaterBookmark === 'function') {
+                    bookmarkBtn.addEventListener('click', handleTheaterBookmark);
+                }
+                
+                const submitCommentBtn = document.getElementById('submitTheaterCommentBtn');
+                if (submitCommentBtn && typeof submitTheaterComment === 'function') {
+                    submitCommentBtn.addEventListener('click', submitTheaterComment);
+                }
+                
+                const timestampBtn = document.getElementById('theaterTimestampBtn');
+                if (timestampBtn && typeof addTimestampToComment === 'function') {
+                    timestampBtn.addEventListener('click', addTimestampToComment);
+                }
+            }, 0);
             
             // Ensure functions are available from parent or wait for them
             if (typeof window.theaterShareVideoWithPreview === 'undefined') {
@@ -415,35 +478,10 @@
             }
         }
         
-        /**
-         * Handle close button click - wrapper to ensure function is available
-         */
-        function handleCloseTheater() {
-            if (typeof window.closeTheaterMode === 'function') {
-                window.closeTheaterMode();
-            } else {
-                // Fallback: try to close modal directly
-                const modal = document.getElementById('theaterModal');
-                if (modal) {
-                    const videoPlayer = document.getElementById('theaterVideoPlayer');
-                    if (videoPlayer) {
-                        videoPlayer.pause();
-                        videoPlayer.src = '';
-                        videoPlayer.load();
-                    }
-                    modal.remove();
-                } else {
-                    // Try window.close if modal not found (might be in iframe)
-                    window.close();
-                }
-            }
-        }
-        
-        // Expose handlers globally
+        // Expose handlers globally (handleCloseTheater already defined and exposed earlier)
         window.handleTheaterShare = handleTheaterShare;
         window.handleTheaterLike = handleTheaterLike;
         window.handleTheaterBookmark = handleTheaterBookmark;
-        window.handleCloseTheater = handleCloseTheater;
 
         /**
          * Open profile modal with correct z-index for theater mode
