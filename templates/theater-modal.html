@@ -147,6 +147,9 @@
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <h5 class="flex-grow-1 mb-0 text-truncate" id="theaterTitle">Loading...</h5>
                 <div class="d-flex gap-2 align-items-center">
+                    <button class="btn btn-sm btn-outline-success" onclick="handleTheaterLike()" title="Liker" data-bs-toggle="tooltip">
+                        <i class="bi bi-hand-thumbs-up"></i>
+                    </button>
                     <button class="btn btn-sm btn-outline-primary" onclick="handleTheaterShare()" title="Partager" data-bs-toggle="tooltip">
                         <i class="bi bi-share"></i>
                     </button>
@@ -154,9 +157,9 @@
                         <i class="bi bi-bookmark"></i>
                     </button>
                     <button class="btn btn-sm btn-outline-info" onclick="handlePictureInPicture()" title="Picture-in-Picture" data-bs-toggle="tooltip">
-                        <i class="bi-pip"></i>
+                        <i class="bi bi-pip"></i>
                     </button>
-                    <button class="btn btn-close btn-close-white" onclick="handleCloseTheater()" title="Fermer" data-bs-toggle="tooltip"></button>
+                    <button class="btn btn-close btn-close-white" onclick="handleCloseTheater()" title="Fermer (ESC)" data-bs-toggle="tooltip" aria-label="Close"></button>
                 </div>
             </div>
         </div>
@@ -254,6 +257,102 @@
         }
         
         /**
+         * Handle like button click - wrapper for liking video from theater mode
+         */
+        async function handleTheaterLike() {
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            if (!videoPlayer) {
+                alert('Vidéo non trouvée');
+                return;
+            }
+            
+            const eventId = videoPlayer.getAttribute('data-event-id');
+            const authorId = videoPlayer.getAttribute('data-author-id');
+            const ipfsUrl = videoPlayer.getAttribute('data-ipfs-url');
+            
+            if (!eventId) {
+                alert('ID de la vidéo non trouvé');
+                return;
+            }
+            
+            // Check if user is connected
+            if (typeof userPubkey === 'undefined' || !userPubkey) {
+                if (typeof connectNostr === 'function') {
+                    try {
+                        const pubkey = await connectNostr();
+                        if (!pubkey) {
+                            alert('❌ Connexion requise pour liker. Veuillez vous connecter avec NOSTR.');
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('Error connecting:', error);
+                        alert('❌ Erreur lors de la connexion. Veuillez vous connecter manuellement.');
+                        return;
+                    }
+                } else {
+                    alert('❌ Connexion requise pour liker.');
+                    return;
+                }
+            }
+            
+            // Ensure relay connection
+            if (typeof isNostrConnected !== 'undefined' && !isNostrConnected) {
+                if (typeof connectToRelay === 'function') {
+                    try {
+                        await connectToRelay();
+                    } catch (error) {
+                        console.error('Error connecting to relay:', error);
+                        alert('❌ Erreur lors de la connexion au relay.');
+                        return;
+                    }
+                }
+            }
+            
+            // Find the like button and update its state
+            const likeBtn = document.querySelector('button[onclick="handleTheaterLike()"]');
+            const originalHtml = likeBtn ? likeBtn.innerHTML : '';
+            
+            if (likeBtn) {
+                likeBtn.disabled = true;
+                likeBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+            }
+            
+            try {
+                // Send like (using sendLike from common.js)
+                if (typeof sendLike === 'function') {
+                    const result = await sendLike(eventId, authorId, '+');
+                    if (result) {
+                        if (likeBtn) {
+                            likeBtn.innerHTML = '<i class="bi bi-hand-thumbs-up-fill text-success"></i>';
+                            setTimeout(() => {
+                                likeBtn.innerHTML = originalHtml;
+                                likeBtn.disabled = false;
+                            }, 2000);
+                        }
+                        
+                        // Refresh stats
+                        const likeCountEl = document.getElementById('likeCount');
+                        if (likeCountEl) {
+                            const currentCount = parseInt(likeCountEl.textContent || '0');
+                            likeCountEl.textContent = currentCount + 1;
+                        }
+                    } else {
+                        throw new Error('Failed to send like');
+                    }
+                } else {
+                    throw new Error('sendLike function not available');
+                }
+            } catch (error) {
+                console.error('Error liking video:', error);
+                alert('Erreur lors du like: ' + error.message);
+                if (likeBtn) {
+                    likeBtn.innerHTML = originalHtml;
+                    likeBtn.disabled = false;
+                }
+            }
+        }
+        
+        /**
          * Handle bookmark button click - wrapper to ensure function is available
          */
         async function handleTheaterBookmark() {
@@ -336,6 +435,7 @@
         
         // Expose handlers globally
         window.handleTheaterShare = handleTheaterShare;
+        window.handleTheaterLike = handleTheaterLike;
         window.handleTheaterBookmark = handleTheaterBookmark;
         window.handlePictureInPicture = handlePictureInPicture;
         window.handleCloseTheater = handleCloseTheater;

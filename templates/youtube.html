@@ -41,6 +41,7 @@
         .container {
             display: flex;
             flex: 1;
+            min-height: 0;
         }
         
         /* Sidebar - Desktop (always visible on large screens) */
@@ -247,15 +248,15 @@
         }
         
         .header {
-            background: linear-gradient(135deg, #1a1a1a 0%, #212121 100%);
+            background: #212121;
             color: #ffffff;
-            padding: 24px 40px;
-            border-bottom: 2px solid #3f3f3f;
+            padding: 12px 24px;
+            border-bottom: 1px solid #3f3f3f;
             position: sticky;
             top: 0;
-            z-index: 50;
+            z-index: 1030;
             backdrop-filter: blur(10px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
         
         .upload-btn {
@@ -1191,7 +1192,6 @@
         footer {
             margin-left: 240px;
             width: calc(100% - 240px);
-            transition: margin-left 0.3s ease, width 0.3s ease;
         }
         
         @media (max-width: 768px) {
@@ -1548,65 +1548,43 @@
             
             <!-- Desktop sidebar toggle removed - not needed with offcanvas -->
             <div class="header">
-                <!-- Top Row: Stats + Connection Status -->
-                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-3">
-                    <!-- Left: Stats -->
-                    <div class="d-flex gap-4">
-                        <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-play-circle-fill text-primary fs-4"></i>
-                            <div>
-                                <div class="d-flex align-items-baseline gap-1">
-                                    <span class="fs-3 fw-bold text-white" id="header-video-count">{{ youtube_data.total_videos }}</span>
-                                    <span class="text-secondary small" data-i18n="videos">vidéos</span>
-                                </div>
+                <div class="container-fluid px-0">
+                    <nav class="navbar navbar-expand-lg navbar-dark p-0">
+                        <div class="d-flex align-items-center gap-3 flex-grow-1 flex-wrap">
+                            <!-- Stats compacts -->
+                            <div class="d-flex gap-3 small">
+                                <span class="badge bg-primary">
+                                    <i class="bi bi-play-circle-fill"></i> <span id="header-video-count">{{ youtube_data.total_videos }}</span>
+                                </span>
+                                <span class="badge bg-info">
+                                    <i class="bi bi-collection-play"></i> <span id="header-channel-count">{{ youtube_data.total_channels }}</span>
+                                </span>
+                            </div>
+                            
+                            <!-- NOSTR Status compact -->
+                            <div id="nostr-header-status" class="d-flex align-items-center gap-2">
+                                <span id="nostr-status-text" class="badge bg-secondary">
+                                    <i class="bi bi-broadcast"></i> Not connected
+                                </span>
+                                <button id="nostr-connect-btn-header" onclick="handleNostrConnectYoutube()" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-plug"></i>
+                                </button>
+                                <button id="nostr-profile-btn-header" onclick="openNostrProfileYoutube()" class="btn btn-sm btn-success d-none">
+                                    <i class="bi bi-person-circle"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Action buttons compacts -->
+                            <div class="d-flex gap-1 ms-auto">
+                                <button id="webcam-upload-btn" onclick="openWebcamModal()" class="btn btn-sm btn-success d-none" title="Créer">
+                                    <i class="bi bi-camera-video-fill"></i>
+                                </button>
+                                <button id="playlist-manager-btn" onclick="openPlaylistManager()" class="btn btn-sm btn-warning d-none" title="Playlists">
+                                    <i class="bi bi-list-ul"></i>
+                                </button>
                             </div>
                         </div>
-                        <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-collection-play text-primary fs-4"></i>
-                            <div>
-                                <div class="d-flex align-items-baseline gap-1">
-                                    <span class="fs-3 fw-bold text-white" id="header-channel-count">{{ youtube_data.total_channels }}</span>
-                                    <span class="text-secondary small" data-i18n="channels">chaînes</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Right: NOSTR Status -->
-                    <div id="nostr-header-status" class="d-flex align-items-center gap-2 flex-wrap">
-                        <div class="d-flex align-items-center gap-2 px-3 py-2 bg-dark rounded border border-secondary">
-                            <i class="bi bi-broadcast text-primary"></i>
-                            <span id="nostr-status-text" class="small text-secondary">Not connected</span>
-                        </div>
-                        <button id="nostr-connect-btn-header" onclick="handleNostrConnectYoutube()" class="btn btn-sm btn-primary">
-                            <i class="bi bi-plug"></i> <span data-i18n="connect_publish">Connect & Publish</span>
-                        </button>
-                        <button id="nostr-profile-btn-header" onclick="openNostrProfileYoutube()" class="btn btn-sm btn-outline-success d-none" style="display: none;">
-                            <i class="bi bi-person-circle"></i> <span data-i18n="profile">Profile</span>
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Bottom Row: Action Buttons -->
-                <div class="d-flex gap-2 flex-wrap">
-                    <button id="webcam-upload-btn" onclick="openWebcamModal()" class="btn btn-sm btn-success d-none" title="Ajouter une vidéo" style="display: none;">
-                        <i class="bi bi-camera-video-fill"></i> <span data-i18n="create">Créer</span>
-                    </button>
-                    <button id="playlist-manager-btn" onclick="openPlaylistManager()" class="btn btn-sm btn-warning d-none" title="Administrer mes playlists" style="display: none;">
-                        <i class="bi bi-list-ul"></i> <span>Playlists</span>
-                    </button>
-                    <span id="nostr-ready-indicator" class="badge bg-success align-self-center d-none" style="display: none; padding: 0.5rem 0.75rem;">
-                        <i class="bi bi-check-circle"></i> <span data-i18n="ready_to_record">Ready to record</span>
-                    </span>
-                    <div class="thumbnail-type-selector d-none align-items-center gap-2 ms-auto">
-                        <span class="small text-secondary" data-i18n="thumbnail_type">Type de miniature:</span>
-                        <button id="thumbnail-type-toggle" onclick="toggleThumbnailType()" 
-                                title="Toggle between static and animated thumbnails" 
-                                class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
-                            <span id="thumbnail-type-icon">🖼️</span>
-                            <span id="thumbnail-type-text" data-i18n="thumbnail_static">Statique</span>
-                        </button>
-                    </div>
+                    </nav>
                 </div>
             </div>
             
@@ -1887,60 +1865,49 @@
     </div>
     
     <!-- Footer -->
-    <footer class="bg-dark border-top border-secondary py-4 px-4">
-        <div class="container-fluid" style="max-width: 1400px;">
-            <!-- Top Row: Brand, Links, Language -->
-            <div class="row g-4 mb-4">
-                <!-- Column 1: Brand & Description -->
-                <div class="col-md-4">
-                    <div class="d-flex align-items-center gap-2 mb-3">
-                        <i class="bi bi-play-circle-fill text-primary fs-3"></i>
-                        <h5 class="mb-0 text-white">NOSTR Tube</h5>
-                    </div>
-                    <p class="text-secondary small mb-2" data-i18n="about_desc">
-                        Une plateforme vidéo décentralisée construite sur le protocole NOSTR et synchronisée via le réseau Astroport (Protocole N²).
-                    </p>
-                    <p class="small text-secondary mb-0">
-                        © 2025 - <span data-i18n="powered_by">Propulsé par</span> 
+    <footer class="bg-dark border-top border-secondary py-2 px-3 mt-auto">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <!-- Left: Brand & Copyright -->
+                <div class="d-flex align-items-center gap-2 small">
+                    <i class="bi bi-play-circle-fill text-primary"></i>
+                    <span class="text-white-50">
+                        © 2025 NOSTR Tube - 
                         <a href="https://github.com/papiche/Astroport.ONE" target="_blank" class="text-primary text-decoration-none">Astroport.ONE</a>
-                    </p>
+                    </span>
                 </div>
                 
-                <!-- Column 2: Quick Links -->
-                <div class="col-md-4">
-                    <h6 class="text-white mb-3" data-i18n="resources">Ressources</h6>
-                    <div class="d-flex flex-column gap-2">
-                        <a href="/youtube?html=1" class="text-secondary text-decoration-none small d-flex align-items-center gap-2">
-                            <i class="bi bi-house"></i> <span data-i18n="home">Accueil</span>
-                        </a>
-                        <a href="#" onclick="event.preventDefault(); openWebcamModal(); return false;" class="text-secondary text-decoration-none small d-flex align-items-center gap-2">
-                            <i class="bi bi-camera-video"></i> <span data-i18n="add_video">Ajouter une vidéo</span>
-                        </a>
-                        <a href="{{ myIPFS }}/ipns/coracle.copylaradio.com" target="_blank" class="text-secondary text-decoration-none small d-flex align-items-center gap-2">
-                            <i class="bi bi-globe"></i> <span>Coracle</span>
-                        </a>
-                        <a href="https://github.com/papiche/UPassport/blob/main/templates/youtube.html" target="_blank" class="text-secondary text-decoration-none small d-flex align-items-center gap-2">
-                            <i class="bi bi-code-square"></i> <span data-i18n="view_source">Voir le code source</span>
-                        </a>
-                    </div>
+                <!-- Center: Quick Links -->
+                <div class="d-flex gap-3 small">
+                    <a href="/youtube?html=1" class="text-secondary text-decoration-none">
+                        <i class="bi bi-house"></i>
+                    </a>
+                    <a href="#" onclick="event.preventDefault(); openWebcamModal(); return false;" class="text-secondary text-decoration-none">
+                        <i class="bi bi-camera-video"></i>
+                    </a>
+                    <a href="{{ myIPFS }}/ipns/coracle.copylaradio.com" target="_blank" class="text-secondary text-decoration-none">
+                        <i class="bi bi-globe"></i>
+                    </a>
+                    <a href="https://github.com/papiche/UPassport/blob/main/templates/youtube.html" target="_blank" class="text-secondary text-decoration-none">
+                        <i class="bi bi-code-square"></i>
+                    </a>
                 </div>
                 
-                <!-- Column 3: Language & Info -->
-                <div class="col-md-4">
-                    <h6 class="text-white mb-3">Langue / Language</h6>
-                    <div class="d-flex gap-2 mb-4">
-                        <button class="language-btn active" onclick="changeLanguage('fr')" data-lang="fr">🇫🇷 FR</button>
-                        <button class="language-btn" onclick="changeLanguage('en')" data-lang="en">🇬🇧 EN</button>
-                        <button class="language-btn" onclick="changeLanguage('es')" data-lang="es">🇪🇸 ES</button>
+                <!-- Right: Language & Info -->
+                <div class="d-flex align-items-center gap-2">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button class="btn btn-outline-secondary btn-sm active" onclick="changeLanguage('fr')" data-lang="fr" style="padding: 2px 8px; font-size: 0.75rem;">FR</button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="changeLanguage('en')" data-lang="en" style="padding: 2px 8px; font-size: 0.75rem;">EN</button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="changeLanguage('es')" data-lang="es" style="padding: 2px 8px; font-size: 0.75rem;">ES</button>
                     </div>
-                    <button class="btn btn-sm btn-outline-primary w-100" onclick="toggleFooter()">
-                        <i class="bi bi-info-circle"></i> <span id="footerToggleIcon">▼</span> <span data-i18n="n2_protocol_title">Comment fonctionne la synchronisation N² ?</span>
+                    <button class="btn btn-sm btn-outline-info" onclick="toggleFooter()" style="padding: 2px 8px; font-size: 0.75rem;">
+                        <i class="bi bi-info-circle"></i> <span id="footerToggleIcon">▼</span>
                     </button>
                 </div>
             </div>
             
             <!-- Expandable footer content -->
-            <div id="footerExpandable" class="d-none border-top border-secondary pt-4">
+            <div id="footerExpandable" class="d-none border-top border-secondary pt-3 mt-2">
             <!-- Footer Links -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 32px; margin-bottom: 24px;">
                     <div>
@@ -3082,6 +3049,9 @@
             // Load engagement stats for all videos
             loadAllVideoStats();
             
+            // Setup lazy loading for videos
+            setupLazyLoadVideos();
+            
             // Load network videos if user is connected
             if (typeof userPubkey !== 'undefined' && userPubkey) {
                 setTimeout(() => loadNetworkVideos(), 2000); // Delay to ensure NOSTR is connected
@@ -3090,6 +3060,110 @@
             // Initial header stats update
             updateHeaderStats();
         });
+        
+        // ========================================
+        // LAZY LOADING FOR VIDEOS
+        // ========================================
+        
+        /**
+         * Setup lazy loading for video thumbnails and stats
+         */
+        function setupLazyLoadVideos() {
+            const videos = document.querySelectorAll('.video');
+            
+            // Only enable lazy loading if there are many videos
+            if (videos.length < 20) {
+                return; // No need for lazy loading with few videos
+            }
+            
+            // Hide videos initially (keep first 12 visible)
+            videos.forEach((video, index) => {
+                if (index >= 12) {
+                    video.style.display = 'none';
+                    video.setAttribute('data-lazy', 'true');
+                }
+            });
+            
+            // Setup Intersection Observer for lazy loading
+            const observerOptions = {
+                root: null,
+                rootMargin: '500px', // Load 500px before entering viewport
+                threshold: 0.01
+            };
+            
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const video = entry.target;
+                        if (video.getAttribute('data-lazy') === 'true') {
+                            video.style.display = 'block';
+                            video.removeAttribute('data-lazy');
+                            observer.unobserve(video);
+                            
+                            // Load stats for this video
+                            loadVideoStats(video);
+                        }
+                    }
+                });
+            }, observerOptions);
+            
+            // Observe all lazy videos
+            videos.forEach(video => {
+                if (video.getAttribute('data-lazy') === 'true') {
+                    observer.observe(video);
+                }
+            });
+            
+            // Also observe the last visible video to trigger loading more
+            const lastVisibleIndex = Math.min(11, videos.length - 1);
+            if (lastVisibleIndex >= 0) {
+                observer.observe(videos[lastVisibleIndex]);
+            }
+        }
+        
+        /**
+         * Load stats for a single video
+         */
+        async function loadVideoStats(videoCard) {
+            const videoPlayer = videoCard.querySelector('.inline-video-player');
+            const eventId = videoPlayer?.getAttribute('data-event-id');
+            const ipfsUrl = videoPlayer?.getAttribute('data-ipfs-url');
+            const authorId = videoPlayer?.getAttribute('data-author-id');
+            const statsElement = videoCard.querySelector('.video-engagement-overlay');
+            
+            if (!eventId || !ipfsUrl || !authorId || !statsElement) return;
+            
+            try {
+                if (typeof VideoStats !== 'undefined') {
+                    const stats = new VideoStats(eventId, authorId, ipfsUrl);
+                    const statsData = await stats.refresh();
+                    
+                    const likesCount = statsData ? (statsData.likes || 0) : 0;
+                    const commentsCount = statsData ? (statsData.comments || 0) : 0;
+                    const sharesCount = statsData ? (statsData.shares || 0) : 0;
+                    
+                    videoCard.setAttribute('data-likes', likesCount);
+                    videoCard.setAttribute('data-comments', commentsCount);
+                    videoCard.setAttribute('data-shares', sharesCount);
+                    
+                    statsElement.innerHTML = `
+                        <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> ${likesCount}</span>
+                        <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> ${commentsCount}</span>
+                        <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> ${sharesCount}</span>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading stats for video:', error);
+                statsElement.innerHTML = `
+                    <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> 0</span>
+                    <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> 0</span>
+                    <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> 0</span>
+                `;
+                videoCard.setAttribute('data-likes', '0');
+                videoCard.setAttribute('data-comments', '0');
+                videoCard.setAttribute('data-shares', '0');
+            }
+        }
         
         // ========================================
         // NOSTR VIDEO SHARING FUNCTIONS
@@ -4039,7 +4113,6 @@
             const profileBtn = document.getElementById('nostr-profile-btn-header');
             const webcamBtn = document.getElementById('webcam-upload-btn');
             const playlistManagerBtn = document.getElementById('playlist-manager-btn');
-            const readyIndicator = document.getElementById('nostr-ready-indicator');
             
             if (!statusText || !connectBtn) return;
             
@@ -4049,73 +4122,44 @@
                                typeof nostrRelay !== 'undefined' && nostrRelay;
             
             if (isConnected) {
-                // Connected - show connected state
-                const shortPubkey = userPubkey.substring(0, 8) + '...' + userPubkey.substring(userPubkey.length - 4);
-                statusText.textContent = `Connected: ${shortPubkey}`;
-                statusText.classList.remove('text-secondary');
-                statusText.classList.add('text-success');
+                // Connected - show connected state (compact)
+                const shortPubkey = userPubkey.substring(0, 6) + '...';
+                statusText.innerHTML = `<i class="bi bi-broadcast"></i> ${shortPubkey}`;
+                statusText.classList.remove('bg-secondary');
+                statusText.classList.add('bg-success');
                 
                 // Hide connect button, show profile button
                 connectBtn.classList.add('d-none');
-                connectBtn.style.display = 'none';
                 if (profileBtn) {
                     profileBtn.classList.remove('d-none');
-                    profileBtn.style.display = 'inline-flex';
                 }
                 
                 // Show action buttons
                 if (webcamBtn) {
                     webcamBtn.classList.remove('d-none');
-                    webcamBtn.style.display = 'inline-flex';
                 }
                 if (playlistManagerBtn) {
                     playlistManagerBtn.classList.remove('d-none');
-                    playlistManagerBtn.style.display = 'inline-flex';
-                }
-                
-                // Show thumbnail type selector (if any video has animated thumbnails)
-                const thumbnailSelector = document.querySelector('.thumbnail-type-selector');
-                if (thumbnailSelector) {
-                    const hasAnimatedThumbnails = document.querySelectorAll('.thumbnail-img[data-thumbnail-animated]').length > 0;
-                    if (hasAnimatedThumbnails) {
-                        thumbnailSelector.style.display = 'flex';
-                    }
-                }
-                
-                // Show ready indicator
-                if (readyIndicator) {
-                    readyIndicator.classList.remove('d-none');
-                    readyIndicator.style.display = 'inline-flex';
                 }
             } else {
                 // Not connected - show not connected state
-                statusText.textContent = 'Not connected';
-                statusText.classList.remove('text-success');
-                statusText.classList.add('text-secondary');
+                statusText.innerHTML = '<i class="bi bi-broadcast"></i> Not connected';
+                statusText.classList.remove('bg-success');
+                statusText.classList.add('bg-secondary');
                 
                 // Show connect button, hide profile button
                 connectBtn.classList.remove('d-none');
-                connectBtn.style.display = 'inline-flex';
                 connectBtn.disabled = false;
                 if (profileBtn) {
                     profileBtn.classList.add('d-none');
-                    profileBtn.style.display = 'none';
                 }
                 
                 // Hide action buttons
                 if (webcamBtn) {
                     webcamBtn.classList.add('d-none');
-                    webcamBtn.style.display = 'none';
                 }
                 if (playlistManagerBtn) {
                     playlistManagerBtn.classList.add('d-none');
-                    playlistManagerBtn.style.display = 'none';
-                }
-                
-                // Hide ready indicator
-                if (readyIndicator) {
-                    readyIndicator.classList.add('d-none');
-                    readyIndicator.style.display = 'none';
                 }
             }
         }
