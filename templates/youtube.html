@@ -2506,8 +2506,27 @@
             return url.startsWith('/ipfs/') ? `${gateway}${url}` : url;
         };
         
+        // Click handling variables to prevent conflict between click and double-click
+        let clickTimer = null;
+        let clickPrevent = false;
+        
         // Toggle video player
         function toggleVideoPlayer(thumbnailElement) {
+            // If double-click detection is active, ignore single click
+            if (clickPrevent) {
+                return;
+            }
+            
+            // Set up delay to distinguish single click from double-click
+            clearTimeout(clickTimer);
+            clickTimer = setTimeout(() => {
+                // Execute single click action (toggle inline player)
+                executeToggleVideoPlayer(thumbnailElement);
+            }, 250); // 250ms delay
+        }
+        
+        // Actual toggle video player logic
+        function executeToggleVideoPlayer(thumbnailElement) {
             const videoPlayer = thumbnailElement.querySelector('.inline-video-player');
             const videoContainer = thumbnailElement;
             
@@ -3721,6 +3740,15 @@
          * Open video in theater mode from video card
          */
         async function openVideoInTheater(thumbnailElement) {
+            // Cancel single click timer when double-click detected
+            clearTimeout(clickTimer);
+            clickPrevent = true;
+            
+            // Reset prevent flag after a short delay
+            setTimeout(() => {
+                clickPrevent = false;
+            }, 300);
+            
             if (!thumbnailElement) return;
             
             const videoCard = thumbnailElement.closest('.video');
