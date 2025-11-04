@@ -2995,7 +2995,7 @@ async def process_webcam_video(
         if publish_nostr.lower() == "true" and npub:
             logging.info(f"✅ Starting NOSTR publishing process...")
             try:
-                # Verify NOSTR authentication like in /api/fileupload
+                # Verify NOSTR authentication
                 if not await verify_nostr_auth(npub):
                     return templates.TemplateResponse("webcam.html", {
                         "request": request, 
@@ -3007,235 +3007,115 @@ async def process_webcam_video(
                 user_dir = get_authenticated_user_directory(npub)
                 secret_file = user_dir / ".secret.nostr"
                 
-                print(f"🔑 Checking for secret file: {secret_file}")
-                print(f"🔑 Secret file exists: {secret_file.exists()}")
                 logging.info(f"🔑 Checking for secret file: {secret_file}")
-                logging.info(f"🔑 Secret file exists: {secret_file.exists()}")
                 
-                if secret_file.exists():
-                    print(f"✅ Secret file found, reading content...")
-                    logging.info(f"✅ Secret file found, reading content...")
-                    with open(secret_file, 'r') as f:
-                        secret_content = f.read()
-                    
-                    print(f"📄 Secret content length: {len(secret_content)} chars")
-                    logging.info(f"📄 Secret content length: {len(secret_content)} chars")
-                    
-                    # Extract NSEC from secret file
-                    nsec_match = re.search(r'NSEC=([^\s;]+)', secret_content)
-                    if nsec_match:
-                        nsec_key = nsec_match.group(1)
-                        print(f"✅ NSEC key found in secret file")
-                        logging.info(f"✅ NSEC key found in secret file")
-                        
-                        # Determine video kind (22 for short videos, 21 for regular)
-                        video_kind = "22" if duration <= 60 else "21"
-                        logging.info(f"📊 Video kind determined: {video_kind} (duration: {duration}s, threshold: 60s)")
-                        
-                        # Create NIP-71 video event compatible with /youtube view
-                        video_content = f"🎬 {title}\n\n📹 Webcam: {ipfs_url}"
-                        if description:
-                            video_content += f"\n\n📝 Description: {description}"
-                        logging.info(f"📄 Video content prepared (length: {len(video_content)} chars)")
-                        
-                        # Build NIP-71 tags compatible with create_video_channel.py
-                        logging.info(f"🏷️  Building NOSTR tags...")
-                        
-                        # Use file_hash from upload2ipfs.sh (REQUIRED for provenance)
-                        if not file_hash:
-                            logging.error(f"❌ No file hash provided from upload2ipfs.sh - provenance tracking will not work!")
-                            # File hash is critical for deduplication and provenance
-                            file_hash = ""  # Empty hash = provenance disabled for this event
-                        
-                        video_hash = file_hash
-                        if video_hash:
-                            logging.info(f"🔐 Using file hash for 'x' tag: {video_hash[:16]}... (from upload2ipfs.sh)")
-                        else:
-                            logging.warning(f"⚠️ Event will be published WITHOUT file hash - deduplication impossible")
-                        
-                        # Use mime_type from upload2ipfs.sh (supports multiple video formats)
-                        video_mime = mime_type if mime_type else "video/webm"
-                        logging.info(f"🎞️  Using MIME type: {video_mime}")
-                        
-                        tags = [
-                            ["title", title],
-                            ["url", ipfs_url],  # CRITICAL: Add url tag for create_video_channel.py compatibility
-                            ["m", video_mime],  # CRITICAL: Media type tag (dynamic, not hardcoded)
-                            ["imeta", f"dim {video_dimensions}", f"url {ipfs_url}", 
-                             f"x {video_hash}", f"m {video_mime}"],
-                            ["duration", str(duration)],
-                            ["published_at", str(int(time.time()))],
-                            ["t", "YouTubeDownload"],  # Compatible with /youtube view
-                            ["t", "VideoChannel"],     # Compatible with create_video_channel.py
-                            ["t", "WebcamRecording"],  # Specific to webcam
-                            ["t", "ShortVideo"] if duration <= 60 else ["t", "RegularVideo"]
-                        ]
-                        logging.info(f"✅ Initial tags created (count: {len(tags)})")
-                        logging.info(f"🔗 Added critical 'url' tag for compatibility: {ipfs_url}")
-                        logging.info(f"🎞️  Added critical 'm' tag for video type: {video_mime}")
-                        
-                        # Add channel tag based on user (compatible with create_video_channel.py)
-                        channel_name = player.replace('@', '_').replace('.', '_')
-                        tags.append(["t", f"Channel-{channel_name}"])
-                        logging.info(f"📺 Added channel tag: Channel-{channel_name}")
-                        
-                        # Always add geographic coordinates (UMAP anchoring) - default to 0.00, 0.00 if not provided
-                        try:
-                            lat = float(latitude) if latitude else 0.00
-                            lon = float(longitude) if longitude else 0.00
-                            tags.append(["g", f"{lat},{lon}"])  # Geohash tag for UMAP (compatible with create_video_channel.py)
-                            tags.append(["location", f"{lat:.2f},{lon:.2f}"])  # Human-readable location
-                            tags.append(["latitude", str(lat)])  # Separate latitude tag for easier filtering
-                            tags.append(["longitude", str(lon)])  # Separate longitude tag for easier filtering
-                            logging.info(f"📍 Added location to video: {lat:.2f}, {lon:.2f}")
-                        except (ValueError, TypeError):
-                            # Fallback to 0.00, 0.00 if invalid
-                            lat = 0.00
-                            lon = 0.00
-                            tags.append(["g", f"{lat},{lon}"])
-                            tags.append(["location", f"{lat:.2f},{lon:.2f}"])
-                            tags.append(["latitude", str(lat)])
-                            tags.append(["longitude", str(lon)])
-                            logging.warning("⚠️ Invalid coordinates provided, using default 0.00, 0.00")
-                        
-                        # Add topic tags from title (compatible with create_video_channel.py)
-                        topic_keywords = title.lower().replace('webcam', '').replace('recording', '').strip()
-                        if topic_keywords:
-                            topic_words = [word for word in topic_keywords.split() if len(word) > 3]
-                            for word in topic_words[:3]:  # Limit to 3 topic tags
-                                tags.append(["t", f"Topic-{word}"])
-                            logging.info(f"🔖 Added {len(topic_words[:3])} topic tags")
-                        
-                        if final_thumbnail_ipfs:
-                            # Add thumbnail as both 'r' reference and standard 'image' tag
-                            # Use thumbnail from upload2ipfs.sh (centralized generation)
-                            # Construct URL from CID (no need to store redundant thumbnail_url)
-                            thumbnail_url = f"/ipfs/{final_thumbnail_ipfs}"
-                            tags.append(["r", thumbnail_url, "Thumbnail"])
-                            tags.append(["image", thumbnail_url])  # Standard image tag for better compatibility
-                            tags.append(["thumbnail_ipfs", final_thumbnail_ipfs])  # CID for info.json reference
-                            # Add thumbnail to imeta tag for NIP-71/NIP-92 compatibility
-                            imeta_index = next((i for i, tag in enumerate(tags) if tag[0] == 'imeta'), -1)
-                            if imeta_index >= 0:
-                                # Add thumbnail to existing imeta tag
-                                tags[imeta_index].append(f"image {thumbnail_url}")
-                            logging.info(f"🖼️  Added thumbnail reference: {thumbnail_url}")
-                            logging.info(f"🖼️  Added thumbnail as standard 'image' tag for NIP-71 compatibility")
-                        
-                        # Add animated GIF if available (from upload2ipfs.sh)
-                        if final_gifanim_ipfs:
-                            # Construct URL from CID (no need to store redundant gifanim_url)
-                            gifanim_url = f"/ipfs/{final_gifanim_ipfs}"
-                            tags.append(["gifanim_ipfs", final_gifanim_ipfs])  # CID for info.json reference
-                            # Add animated GIF to imeta tag for NIP-71 extension compatibility
-                            imeta_index = next((i for i, tag in enumerate(tags) if tag[0] == 'imeta'), -1)
-                            if imeta_index >= 0:
-                                # Add gifanim to existing imeta tag
-                                tags[imeta_index].append(f"gifanim {gifanim_url}")
-                            logging.info(f"🎬 Added animated GIF reference: {gifanim_url}")
-                            logging.info(f"🎬 Added animated GIF for NIP-71 extension compatibility")
-                        
-                        # Add info.json CID for metadata reuse (CRITICAL for provenance)
-                        if info_cid:
-                            tags.append(["info", info_cid])
-                            logging.info(f"📋 Added info.json reference: {info_cid}")
-                        else:
-                            logging.warning(f"⚠️ No info.json CID provided - metadata cannot be reused")
-                        
-                        # Add direct 'x' tag for file hash (in addition to imeta)
-                        # This allows upload2ipfs.sh to find the event by hash
-                        if file_hash:
-                            tags.append(["x", file_hash])
-                            logging.info(f"🔐 Added direct 'x' tag for provenance: {file_hash[:16]}...")
-                        else:
-                            logging.warning(f"⚠️ No file hash - provenance and deduplication disabled")
-                        
-                        # Add upload_chain if this is a re-upload (from upload2ipfs.sh provenance)
-                        if upload_chain:
-                            tags.append(["upload_chain", upload_chain])
-                            logging.info(f"🔗 Added upload chain: {upload_chain[:50]}...")
-                        else:
-                            logging.info(f"📝 No upload chain - this is a first upload")
-                        
-                        # Add reference to original webcam URL
-                        tags.append(["r", f"webcam://{player}", "Webcam"])
-                        logging.info(f"📹 Added webcam reference: webcam://{player}")
-                        
-                        logging.info(f"✅ Total tags built: {len(tags)}")
-                        
-                        # Send NOSTR event with new unified API
-                        nostr_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/nostr_send_note.py")
-                        logging.info(f"📄 Looking for NOSTR script: {nostr_script}")
-                        logging.info(f"📁 Script exists: {os.path.exists(nostr_script)}")
-                        logging.info(f"🔑 Secret file exists: {secret_file.exists()}")
-                        
-                        if os.path.exists(nostr_script) and secret_file.exists():
-                            # Use new API with keyfile parameter
-                            nostr_cmd = [
-                                "python3", nostr_script,
-                                "--keyfile", str(secret_file),
-                                "--content", video_content,
-                                "--relays", "ws://127.0.0.1:7777,wss://relay.copylaradio.com",
-                                "--tags", json.dumps(tags),
-                                "--kind", str(video_kind),
-                                "--json"  # Get JSON output for parsing
-                            ]
-                            
-                            logging.info(f"🚀 Executing NOSTR publish command with kind {video_kind}")
-                            logging.info(f"📝 Video content: {video_content[:100]}...")
-                            logging.info(f"🏷️  Tags JSON length: {len(json.dumps(tags))} chars")
-                            logging.info(f"🔧 Full command: {' '.join(nostr_cmd[:4])} ... (args truncated)")
-                            
-                            nostr_result = subprocess.run(nostr_cmd, capture_output=True, text=True, timeout=30)
-                            logging.info(f"📊 NOSTR script return code: {nostr_result.returncode}")
-                            logging.info(f"📤 NOSTR script stdout (first 500 chars): {nostr_result.stdout[:500]}")
-                            if nostr_result.stderr:
-                                logging.warning(f"⚠️ NOSTR script stderr: {nostr_result.stderr}")
-                            
-                            if nostr_result.returncode == 0:
-                                try:
-                                    # Parse JSON output
-                                    result_json = json.loads(nostr_result.stdout)
-                                    nostr_event_id = result_json.get('event_id', '')
-                                    relays_success = result_json.get('relays_success', 0)
-                                    relays_total = result_json.get('relays_total', 0)
-                                    
-                                    logging.info(f"✅ NOSTR video event (kind {video_kind}) published: {nostr_event_id}")
-                                    logging.info(f"📡 Published to {relays_success}/{relays_total} relay(s)")
-                                    logging.info(f"🎉 Event successfully sent to NOSTR network!")
-                                except json.JSONDecodeError as json_err:
-                                    # Fallback to old parsing method
-                                    logging.warning(f"⚠️ Failed to parse JSON output: {json_err}")
-                                    logging.info(f"📤 NOSTR script output (full): {nostr_result.stdout}")
-                                    output_lines = nostr_result.stdout.strip().split('\n')
-                                    for line in output_lines:
-                                        if 'Event ID:' in line or 'event_id:' in line or '- ID:' in line:
-                                            nostr_event_id = line.split(':')[-1].strip()
-                                            break
-                                    logging.info(f"✅ NOSTR video event (kind {video_kind}) published: {nostr_event_id}")
-                            else:
-                                logging.error(f"❌ Failed to publish NOSTR event (return code: {nostr_result.returncode})")
-                                logging.error(f"❌ stderr: {nostr_result.stderr}")
-                                logging.error(f"❌ stdout: {nostr_result.stdout}")
-                        else:
-                            if not os.path.exists(nostr_script):
-                                print(f"⚠️ NOSTR script not found: {nostr_script}")
-                                logging.warning(f"⚠️ NOSTR script not found: {nostr_script}")
-                            if not secret_file.exists():
-                                print(f"⚠️ NOSTR keyfile not found: {secret_file}")
-                                logging.warning(f"⚠️ NOSTR keyfile not found: {secret_file}")
-                    else:
-                        print(f"❌ NSEC key NOT found in secret file!")
-                        logging.error(f"❌ NSEC key NOT found in secret file!")
-                        logging.error(f"❌ Secret file content: {secret_content}")
-                else:
-                    print(f"❌ Secret file does NOT exist: {secret_file}")
+                if not secret_file.exists():
                     logging.error(f"❌ Secret file does NOT exist: {secret_file}")
+                    return templates.TemplateResponse("webcam.html", {
+                        "request": request, 
+                        "error": "NOSTR secret file not found. Please check your configuration.", 
+                        "recording": False
+                    })
+                
+                logging.info(f"✅ Secret file found, publishing via unified script...")
+                
+                # Prepare latitude and longitude
+                try:
+                    lat = float(latitude) if latitude else 0.00
+                    lon = float(longitude) if longitude else 0.00
+                except (ValueError, TypeError):
+                    lat = 0.00
+                    lon = 0.00
+                
+                # Use unified publish_nostr_video.sh script
+                publish_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/publish_nostr_video.sh")
+                
+                if not os.path.exists(publish_script):
+                    logging.error(f"❌ Unified publish script not found: {publish_script}")
+                    return templates.TemplateResponse("webcam.html", {
+                        "request": request, 
+                        "error": "NOSTR publish script not found. Please check installation.", 
+                        "recording": False
+                    })
+                
+                # Build command for unified script
+                publish_cmd = [
+                    "bash", publish_script,
+                    "--nsec", str(secret_file),
+                    "--ipfs-cid", ipfs_cid,
+                    "--filename", filename,
+                    "--title", title,
+                    "--json"
+                ]
+                
+                # Add optional parameters
+                if description:
+                    publish_cmd.extend(["--description", description])
+                if final_thumbnail_ipfs:
+                    publish_cmd.extend(["--thumbnail-cid", final_thumbnail_ipfs])
+                if final_gifanim_ipfs:
+                    publish_cmd.extend(["--gifanim-cid", final_gifanim_ipfs])
+                if info_cid:
+                    publish_cmd.extend(["--info-cid", info_cid])
+                if file_hash:
+                    publish_cmd.extend(["--file-hash", file_hash])
+                if mime_type:
+                    publish_cmd.extend(["--mime-type", mime_type])
+                if upload_chain:
+                    publish_cmd.extend(["--upload-chain", upload_chain])
+                
+                publish_cmd.extend([
+                    "--duration", str(duration),
+                    "--dimensions", video_dimensions,
+                    "--latitude", str(lat),
+                    "--longitude", str(lon),
+                    "--channel", player
+                ])
+                
+                logging.info(f"🚀 Executing unified NOSTR publish script...")
+                logging.info(f"📝 Title: {title}")
+                logging.info(f"⏱️  Duration: {duration}s")
+                logging.info(f"📍 Location: {lat:.2f}, {lon:.2f}")
+                logging.info(f"🔐 File hash: {file_hash[:16] if file_hash else 'N/A'}...")
+                logging.info(f"🔗 Upload chain: {upload_chain[:50] if upload_chain else 'N/A'}...")
+                
+                # Execute unified script
+                publish_result = subprocess.run(publish_cmd, capture_output=True, text=True, timeout=30)
+                
+                logging.info(f"📊 Publish script return code: {publish_result.returncode}")
+                
+                if publish_result.returncode == 0:
+                    try:
+                        # Parse JSON output
+                        result_json = json.loads(publish_result.stdout)
+                        nostr_event_id = result_json.get('event_id', '')
+                        relays_success = result_json.get('relays_success', 0)
+                        relays_total = result_json.get('relays_total', 0)
+                        video_kind = result_json.get('kind', 21)
+                        
+                        logging.info(f"✅ NOSTR video event (kind {video_kind}) published: {nostr_event_id}")
+                        logging.info(f"📡 Published to {relays_success}/{relays_total} relay(s)")
+                        logging.info(f"🎉 Event successfully sent to NOSTR network!")
+                        
+                        print(f"✅ NOSTR event published: {nostr_event_id[:16]}...")
+                    except json.JSONDecodeError as json_err:
+                        logging.warning(f"⚠️ Failed to parse JSON output: {json_err}")
+                        logging.info(f"📤 Script output: {publish_result.stdout}")
+                        # Try to extract event ID from output
+                        nostr_event_id = publish_result.stdout.strip().split('\n')[-1] if publish_result.stdout else ""
+                        logging.info(f"✅ NOSTR video event published: {nostr_event_id}")
+                else:
+                    logging.error(f"❌ Failed to publish NOSTR event (return code: {publish_result.returncode})")
+                    logging.error(f"❌ stderr: {publish_result.stderr}")
+                    logging.error(f"❌ stdout: {publish_result.stdout}")
+                    
+            except subprocess.TimeoutExpired:
+                logging.error(f"❌ NOSTR publishing timeout (>30s)")
+                print(f"❌ NOSTR publishing timeout")
             except Exception as e:
-                print(f"❌ Exception in NOSTR publishing: {e}")
-                print(f"❌ Traceback: {traceback.format_exc()}")
                 logging.error(f"❌ Error during NOSTR publishing: {e}")
                 logging.error(f"❌ Traceback: {traceback.format_exc()}")
+                print(f"❌ Exception in NOSTR publishing: {e}")
         else:
             logging.info(f"⚠️ NOSTR publishing skipped - Conditions not met")
             logging.info(f"   - publish_nostr.lower() == 'true': {publish_nostr.lower() == 'true'}")
@@ -3628,7 +3508,7 @@ async def upload_file_to_ipfs(
         # DEBUG: Log file type detection
         logging.info(f"📂 File type detected: '{file_type}' for file '{original_filename}'")
         
-        # For images, generate AI description but DON'T rename the file
+        # For images, generate AI description 
         description = None
         if file_type == 'image':
             try:
@@ -3724,73 +3604,65 @@ async def upload_file_to_ipfs(
                 # Get animated GIF CID from json_output (generated by upload2ipfs.sh for videos)
                 gifanim_cid = json_output.get('gifanim_ipfs') or ''
                 
-                # Publish NIP-94 (kind 1063) event for non-video files to enable provenance
-                # This allows upload2ipfs.sh to find and deduplicate these files in future uploads
+                # Publish NOSTR event using unified publish_nostr_file.sh
+                # This handles all file types: NIP-94 (kind 1063) for general files, delegates to video script for videos
                 file_mime = json_output.get('mimeType', '')
                 provenance_info = json_output.get('provenance', {})
                 is_reupload = provenance_info.get('is_reupload', False)
                 
-                # Only publish kind 1063 for non-video files AND only for first uploads (not re-uploads)
+                # Only publish for non-video first uploads (videos are published by /webcam endpoint)
+                # Re-uploads are skipped (provenance already established)
                 if not file_mime.startswith('video/') and not is_reupload and user_pubkey_hex:
-                    logging.info(f"📝 Publishing NIP-94 (kind 1063) event for {file_type} file: {response_fileName}")
+                    logging.info(f"📝 Publishing NOSTR event for {file_type} file: {response_fileName}")
                     
                     try:
-                        # Get nip94_event from upload2ipfs.sh response
-                        nip94_event = json_output.get('nip94_event', {})
+                        # Get user's NOSTR secret file
+                        user_dir = get_authenticated_user_directory(npub)
+                        secret_file = user_dir / ".secret.nostr"
                         
-                        if nip94_event and 'tags' in nip94_event:
-                            # Get user's NOSTR secret file
-                            user_dir = get_authenticated_user_directory(npub)
-                            secret_file = user_dir / ".secret.nostr"
+                        if secret_file.exists():
+                            publish_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/publish_nostr_file.sh")
                             
-                            if secret_file.exists():
-                                nostr_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/nostr_send_note.py")
+                            if os.path.exists(publish_script):
+                                # Build description for the event
+                                file_type_display = file_type.capitalize()
+                                event_description = f"{file_type_display}: {response_fileName}"
+                                if description:
+                                    event_description = f"{description}"
                                 
-                                if os.path.exists(nostr_script):
-                                    # Build content for the event
-                                    file_type_display = file_type.capitalize()
-                                    content = f"📄 {file_type_display}: {response_fileName}"
-                                    if description:
-                                        content += f"\n\n{description}"
-                                    
-                                    # Build tags JSON from nip94_event
-                                    tags_json = json.dumps(nip94_event.get('tags', []))
-                                    
-                                    # Publish kind 1063 event
-                                    nostr_cmd = [
-                                        "python3", nostr_script,
-                                        "--keyfile", str(secret_file),
-                                        "--content", content,
-                                        "--tags", tags_json,
-                                        "--kind", "1063",
-                                        "--relays", "ws://127.0.0.1:7777,wss://relay.copylaradio.com",
-                                        "--json"
-                                    ]
-                                    
-                                    result = subprocess.run(nostr_cmd, capture_output=True, text=True, timeout=30)
-                                    
-                                    if result.returncode == 0:
-                                        result_json = json.loads(result.stdout)
-                                        event_id = result_json.get('event_id', '')
-                                        relays_success = result_json.get('relays_success', 0)
-                                        logging.info(f"✅ Published kind 1063 event: {event_id} (to {relays_success} relays)")
-                                    else:
-                                        logging.warning(f"⚠️ Failed to publish kind 1063: {result.stderr}")
+                                # Use unified script with --auto mode (reads upload2ipfs.sh JSON output)
+                                publish_cmd = [
+                                    "bash", publish_script,
+                                    "--auto", temp_file_path,
+                                    "--nsec", str(secret_file),
+                                    "--title", response_fileName,
+                                    "--description", event_description,
+                                    "--json"
+                                ]
+                                
+                                result = subprocess.run(publish_cmd, capture_output=True, text=True, timeout=30)
+                                
+                                if result.returncode == 0:
+                                    result_json = json.loads(result.stdout)
+                                    event_id = result_json.get('event_id', '')
+                                    kind = result_json.get('kind', 1063)
+                                    relays_success = result_json.get('relays_success', 0)
+                                    logging.info(f"✅ Published NOSTR event (kind {kind}): {event_id} (to {relays_success} relays)")
                                 else:
-                                    logging.debug(f"⚠️ nostr_send_note.py not found, skipping kind 1063 publication")
+                                    logging.warning(f"⚠️ Failed to publish NOSTR event: {result.stderr}")
                             else:
-                                logging.debug(f"⚠️ No secret file found, skipping kind 1063 publication")
+                                logging.debug(f"⚠️ publish_nostr_file.sh not found, skipping NOSTR publication")
                         else:
-                            logging.debug(f"⚠️ No nip94_event in response, skipping kind 1063 publication")
+                            logging.debug(f"⚠️ No secret file found, skipping NOSTR publication")
                     except Exception as e:
-                        logging.warning(f"⚠️ Could not publish kind 1063 event: {e}")
+                        logging.warning(f"⚠️ Could not publish NOSTR event: {e}")
                 else:
                     if file_mime.startswith('video/'):
                         logging.info(f"📹 Video file - kind 21/22 will be published by /webcam endpoint")
                     elif is_reupload:
-                        logging.info(f"🔗 Re-upload detected - kind 1063 already exists, skipping publication")
+                        logging.info(f"🔗 Re-upload detected - NOSTR event already exists, skipping publication")
                     elif not user_pubkey_hex:
-                        logging.info(f"👤 No user pubkey - skipping kind 1063 publication")
+                        logging.info(f"👤 No user pubkey - skipping NOSTR publication")
                 
                 return UploadResponse(
                     success=True,
