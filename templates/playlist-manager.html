@@ -86,6 +86,214 @@
         .playlist-manage-btn:hover {
             opacity: 0.8;
         }
+        
+        /* Video list styles */
+        .video-list-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        
+        .video-list-item {
+            background: #181818;
+            border: 1px solid #3f3f3f;
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            gap: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: grab;
+            position: relative;
+        }
+        
+        .video-list-item:hover {
+            background: #212121;
+            border-color: #3ea6ff;
+            transform: translateX(4px);
+        }
+        
+        .video-list-item.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+            transform: rotate(2deg);
+        }
+        
+        .video-list-item.drag-over {
+            border-color: #4ade80;
+            background: #1a2e1a;
+        }
+        
+        .video-drag-handle {
+            display: flex;
+            align-items: center;
+            color: #666;
+            cursor: grab;
+            padding: 8px;
+            font-size: 20px;
+        }
+        
+        .video-drag-handle:active {
+            cursor: grabbing;
+        }
+        
+        .video-thumbnail-container {
+            flex-shrink: 0;
+            width: 200px;
+            height: 112px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #2a2a2a;
+            position: relative;
+        }
+        
+        .video-thumbnail-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .video-thumbnail-container .play-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transition: opacity 0.2s;
+            cursor: pointer;
+        }
+        
+        .video-thumbnail-container:hover .play-overlay {
+            opacity: 1;
+        }
+        
+        .video-thumbnail-container .play-overlay i {
+            font-size: 48px;
+            color: #fff;
+        }
+        
+        .video-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+        }
+        
+        .video-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: #fff;
+            margin: 0;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .video-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 14px;
+            color: #aaaaaa;
+            flex-wrap: wrap;
+        }
+        
+        .video-actions {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+            flex-shrink: 0;
+        }
+        
+        .video-player-embedded {
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 12px;
+            background: #000;
+        }
+        
+        .video-player-embedded iframe {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            border: none;
+        }
+        
+        .video-item-expanded {
+            flex-direction: column;
+        }
+        
+        .video-item-expanded .video-thumbnail-container {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 16 / 9;
+        }
+        
+        .remove-video-btn {
+            background: transparent;
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .remove-video-btn:hover {
+            background: #ef4444;
+            color: #fff;
+        }
+        
+        .empty-playlist {
+            text-align: center;
+            padding: 48px 24px;
+            color: #666;
+        }
+        
+        .empty-playlist i {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+        
+        .empty-playlist h4 {
+            color: #aaaaaa;
+            margin-bottom: 8px;
+        }
+        
+        .empty-playlist .text-muted {
+            color: #888888;
+            font-size: 0.9em;
+        }
+        
+        /* Improved drag feedback */
+        .video-list-item.dragging {
+            box-shadow: 0 8px 24px rgba(62, 166, 255, 0.4);
+        }
+        
+        /* Smooth transitions for video expansion */
+        .video-player-embedded {
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     </style>
 </head>
 <body class="p-3 p-lg-4">
@@ -363,11 +571,12 @@
             if (!currentUserPubkey) {
                 document.getElementById('playlistsContainer').innerHTML = `
                     <div class="text-center py-5">
-                        <div class="display-1 mb-3 opacity-50"><i class="bi bi-lock"></i></div>
+                        <div class="display-1 mb-3 opacity-50"><i class="bi bi-key"></i></div>
                         <h3 class="h4 mb-2">Connexion requise</h3>
-                        <p class="text-secondary mb-3">Connectez-vous avec NOSTR pour voir vos playlists</p>
+                        <p class="text-secondary mb-3">L'extension Nostr avec la clé de votre MULTIPASS est requise pour la connexion.</p>
+                        <p class="text-muted small mb-4">Votre MULTIPASS contient votre identité NOSTR et vos playlists.</p>
                         <button class="btn btn-primary rounded-pill d-inline-flex align-items-center gap-2" onclick="connectAndLoadPlaylists()">
-                            <i class="bi bi-box-arrow-in-right"></i> Se connecter
+                            <i class="bi bi-box-arrow-in-right"></i> Se connecter avec MULTIPASS
                         </button>
                     </div>
                 `;
@@ -440,11 +649,12 @@
             if (!userPubkey) {
                 container.innerHTML = `
                     <div class="text-center py-5">
-                        <div class="display-1 mb-3 opacity-50"><i class="bi bi-lock"></i></div>
+                        <div class="display-1 mb-3 opacity-50"><i class="bi bi-key"></i></div>
                         <h3 class="h4 mb-2">Connexion requise</h3>
-                        <p class="text-secondary mb-3">Connectez-vous avec NOSTR pour voir vos playlists</p>
+                        <p class="text-secondary mb-3">L'extension Nostr avec la clé de votre MULTIPASS est requise pour la connexion.</p>
+                        <p class="text-muted small mb-4">Votre MULTIPASS contient votre identité NOSTR et vos playlists.</p>
                         <button class="btn btn-primary rounded-pill d-inline-flex align-items-center gap-2" onclick="connectAndLoadPlaylists()">
-                            <i class="bi bi-box-arrow-in-right"></i> Se connecter
+                            <i class="bi bi-box-arrow-in-right"></i> Se connecter avec MULTIPASS
                         </button>
                     </div>
                 `;
@@ -1136,36 +1346,16 @@
                     });
                 }
                 
-                // Load and display playlist videos using loadPlaylistVideos from youtube.enhancements.js
-                if (typeof window.loadPlaylistVideos === 'function') {
-                    // Create a container for videos
-                    const videosContainer = document.createElement('div');
-                    videosContainer.id = 'playlistVideosList';
-                    videosContainer.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px;';
-                    // Set data attributes for edit mode
-                    videosContainer.dataset.playlistId = playlist.id;
-                    videosContainer.dataset.isEditMode = isPlaylistOwner ? 'true' : 'false';
-                    container.appendChild(videosContainer);
-                    
-                    // Load videos
-                    await window.loadPlaylistVideos(playlistData.videos || [], videosContainer);
-                    
-                } else {
-                    // Fallback: display playlist info
-                    container.innerHTML = `
-                        <div style="margin-bottom: 24px;">
-                            <button class="btn-create-playlist" onclick="window.location.href='/playlist'" style="margin-bottom: 16px;">
-                                ← Retour aux playlists
-                            </button>
-                            <div style="background: #181818; border-radius: 12px; padding: 24px; border: 1px solid #3f3f3f;">
-                                <h2 style="margin-bottom: 12px;">${escapeHtmlText(playlistData.name || 'Playlist')}</h2>
-                                ${playlistData.description ? `<p style="color: #aaaaaa; margin-bottom: 16px;">${escapeHtmlText(playlistData.description)}</p>` : ''}
-                                <p style="color: #aaaaaa;">${playlistData.videos?.length || 0} vidéo(s) dans cette playlist</p>
-                                <p style="color: #888888; font-size: 0.9em; margin-top: 8px;">Fonction de visualisation des vidéos en cours de développement</p>
-                            </div>
-                        </div>
-                    `;
-                }
+                // Load and display playlist videos in a draggable list with embedded player
+                const videosContainer = document.createElement('div');
+                videosContainer.id = 'playlistVideosList';
+                videosContainer.className = 'video-list-container';
+                videosContainer.dataset.playlistId = playlist.id;
+                videosContainer.dataset.isEditMode = isPlaylistOwner ? 'true' : 'false';
+                container.appendChild(videosContainer);
+                
+                // Render videos in list format
+                await renderPlaylistVideosList(playlistData.videos || [], videosContainer, playlist.id, isPlaylistOwner);
 
             } catch (error) {
                 console.error('Error loading playlist:', error);
@@ -1177,6 +1367,263 @@
                 `;
             }
         }
+
+        /**
+         * Render playlist videos in a draggable list with embedded player
+         */
+        async function renderPlaylistVideosList(videos, container, playlistId, isEditMode) {
+            if (!videos || videos.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-playlist">
+                        <i class="bi bi-play-circle"></i>
+                        <h4>Aucune vidéo dans cette playlist</h4>
+                        <p class="text-muted">Ajoutez des vidéos depuis YouTube pour commencer</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Clear container
+            container.innerHTML = '';
+            
+            // Store currently playing video
+            let currentPlayingVideo = null;
+            
+            // Helper function to extract YouTube video ID
+            function extractYouTubeId(url) {
+                if (!url) return null;
+                const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+                return match ? match[1] : null;
+            }
+            
+            // Helper function to get YouTube embed URL
+            function getYouTubeEmbedUrl(videoId) {
+                return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+            }
+            
+            // Helper function to format duration
+            function formatDuration(seconds) {
+                if (!seconds) return '';
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            }
+            
+            // Create video items
+            videos.forEach((video, index) => {
+                const videoItem = document.createElement('div');
+                videoItem.className = 'video-list-item';
+                videoItem.dataset.videoIndex = index;
+                videoItem.dataset.videoId = video.id || video.eventId || index;
+                
+                const videoUrl = video.url || video.youtubeUrl || '';
+                const videoId = extractYouTubeId(videoUrl);
+                const thumbnailUrl = video.thumbnail || (videoId ? `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg` : '');
+                const title = video.title || 'Sans titre';
+                const duration = formatDuration(video.duration || video.length);
+                const channel = video.channel || video.channelName || '';
+                
+                videoItem.innerHTML = `
+                    ${isEditMode ? `
+                        <div class="video-drag-handle" draggable="true">
+                            <i class="bi bi-grip-vertical"></i>
+                        </div>
+                    ` : ''}
+                    <div class="video-thumbnail-container" data-video-url="${escapeHtmlText(videoUrl)}" data-video-id="${videoId || ''}">
+                        ${thumbnailUrl ? `<img src="${escapeHtmlText(thumbnailUrl)}" alt="${escapeHtmlText(title)}" loading="lazy">` : `
+                            <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #666;">
+                                <i class="bi bi-film" style="font-size: 48px;"></i>
+                            </div>
+                        `}
+                        <div class="play-overlay">
+                            <i class="bi bi-play-circle-fill"></i>
+                        </div>
+                    </div>
+                    <div class="video-info">
+                        <h4 class="video-title">${escapeHtmlText(title)}</h4>
+                        <div class="video-meta">
+                            ${channel ? `<span><i class="bi bi-person"></i> ${escapeHtmlText(channel)}</span>` : ''}
+                            ${duration ? `<span><i class="bi bi-clock"></i> ${duration}</span>` : ''}
+                        </div>
+                    </div>
+                    ${isEditMode ? `
+                        <div class="video-actions">
+                            <button class="remove-video-btn" onclick="removeVideoFromPlaylistUI('${playlistId}', '${videoItem.dataset.videoId}', this)">
+                                <i class="bi bi-trash"></i> Retirer
+                            </button>
+                        </div>
+                    ` : ''}
+                `;
+                
+                container.appendChild(videoItem);
+                
+                // Handle click on thumbnail to play video
+                const thumbnail = videoItem.querySelector('.video-thumbnail-container');
+                thumbnail.addEventListener('click', () => {
+                    if (!videoId) {
+                        showToast('URL vidéo invalide', 'error');
+                        return;
+                    }
+                    
+                    // Close any currently playing video
+                    if (currentPlayingVideo && currentPlayingVideo !== videoItem) {
+                        const existingPlayer = currentPlayingVideo.querySelector('.video-player-embedded');
+                        if (existingPlayer) {
+                            existingPlayer.remove();
+                            currentPlayingVideo.classList.remove('video-item-expanded');
+                        }
+                    }
+                    
+                    // Toggle current video
+                    const existingPlayer = videoItem.querySelector('.video-player-embedded');
+                    if (existingPlayer) {
+                        // Already playing, close it
+                        existingPlayer.remove();
+                        videoItem.classList.remove('video-item-expanded');
+                        currentPlayingVideo = null;
+                    } else {
+                        // Not playing, open it
+                        const playerDiv = document.createElement('div');
+                        playerDiv.className = 'video-player-embedded';
+                        playerDiv.innerHTML = `<iframe src="${getYouTubeEmbedUrl(videoId)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+                        
+                        videoItem.classList.add('video-item-expanded');
+                        videoItem.appendChild(playerDiv);
+                        currentPlayingVideo = videoItem;
+                        
+                        // Scroll to video
+                        videoItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                });
+            });
+            
+            // Setup drag and drop for reordering (only in edit mode)
+            if (isEditMode) {
+                setupDragAndDrop(container, playlistId);
+            }
+        }
+        
+        /**
+         * Setup drag and drop for video reordering
+         */
+        function setupDragAndDrop(container, playlistId) {
+            let draggedElement = null;
+            let draggedIndex = null;
+            let originalOrder = [];
+            
+            const updateIndices = () => {
+                const items = container.querySelectorAll('.video-list-item');
+                items.forEach((item, index) => {
+                    item.dataset.videoIndex = index;
+                });
+            };
+            
+            const getItems = () => {
+                return container.querySelectorAll('.video-list-item');
+            };
+            
+            container.addEventListener('dragstart', (e) => {
+                if (!e.target.closest('.video-drag-handle')) return;
+                
+                draggedElement = e.target.closest('.video-list-item');
+                if (!draggedElement) return;
+                
+                const items = getItems();
+                draggedIndex = Array.from(items).indexOf(draggedElement);
+                originalOrder = Array.from(items);
+                
+                draggedElement.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', draggedIndex.toString());
+            });
+            
+            container.addEventListener('dragend', () => {
+                if (draggedElement) {
+                    draggedElement.classList.remove('dragging');
+                }
+                getItems().forEach(i => i.classList.remove('drag-over'));
+                updateIndices();
+            });
+            
+            container.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                
+                if (!draggedElement) return;
+                
+                const afterElement = getDragAfterElement(container, e.clientY);
+                const items = getItems();
+                
+                items.forEach(i => i.classList.remove('drag-over'));
+                
+                if (afterElement == null) {
+                    container.appendChild(draggedElement);
+                } else {
+                    container.insertBefore(draggedElement, afterElement);
+                }
+                
+                // Highlight drop target
+                const currentItem = e.target.closest('.video-list-item');
+                if (currentItem && currentItem !== draggedElement) {
+                    currentItem.classList.add('drag-over');
+                }
+            });
+            
+            container.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                
+                if (!draggedElement || draggedIndex === null) return;
+                
+                const items = getItems();
+                const newIndex = Array.from(items).indexOf(draggedElement);
+                
+                if (newIndex !== draggedIndex && newIndex >= 0) {
+                    // Save original index before reordering
+                    const videoId = draggedElement.dataset.videoId;
+                    
+                    // Show loading state
+                    showToast('Mise à jour de l\'ordre...', 'info', 2000);
+                    
+                    // Reorder videos in playlist
+                    try {
+                        await moveVideoInPlaylistUI(playlistId, draggedIndex, newIndex);
+                    } catch (error) {
+                        console.error('Error reordering:', error);
+                        // Revert visual order on error
+                        if (originalOrder.length > 0) {
+                            container.innerHTML = '';
+                            originalOrder.forEach(item => container.appendChild(item));
+                            updateIndices();
+                        }
+                    }
+                }
+                
+                items.forEach(i => i.classList.remove('drag-over'));
+                draggedElement = null;
+                draggedIndex = null;
+            });
+        }
+        
+        /**
+         * Get the element after which to insert the dragged element
+         */
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.video-list-item:not(.dragging)')];
+            
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+        
+        // Expose function globally
+        window.renderPlaylistVideosList = renderPlaylistVideosList;
 
         /**
          * View playlist details
