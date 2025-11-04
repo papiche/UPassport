@@ -435,10 +435,14 @@ elif [[ "$FILE_TYPE" == "video/"* ]]; then
             else
                 echo "WARNING: Failed to generate thumbnail with ffmpeg" >&2
             fi
-            
-            # Generate animated GIF for video files (skip if already have from provenance)
-            if [ -z "$GIFANIM_CID" ]; then
-                echo "DEBUG: Generating animated GIF for video..." >&2
+        else
+            echo "DEBUG: Thumbnail exists from provenance, skipping generation" >&2
+        fi
+        
+        # Generate animated GIF for video files (skip if already have from provenance)
+        # This should be independent of thumbnail generation
+        if [ -z "$GIFANIM_CID" ] && command -v ffmpeg &> /dev/null; then
+            echo "DEBUG: Generating animated GIF for video..." >&2
             GIFANIM_PATH="$(dirname "$FILE_PATH")/$(basename "$FILE_PATH" | sed 's/\.[^.]*$//').gif"
             
             # Calculate PROBETIME at phi ratio (0.618) of duration
@@ -478,9 +482,8 @@ elif [[ "$FILE_TYPE" == "video/"* ]]; then
             else
                 echo "WARNING: Failed to generate animated GIF with ffmpeg" >&2
             fi
-            fi  # End of GIFANIM_CID check
         else
-            echo "WARNING: ffmpeg not available, cannot generate thumbnail or animated GIF" >&2
+            echo "DEBUG: Animated GIF exists from provenance or ffmpeg not available, skipping generation" >&2
         fi
     elif [ "$SKIP_IPFS_UPLOAD" == "true" ]; then
         # Metadata already loaded from provenance tracking
