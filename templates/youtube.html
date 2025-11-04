@@ -4426,7 +4426,24 @@
         }
         
         // Listen for messages from iframes requesting NOSTR extension access
+        // Also listen for close-theater-modal messages
         window.addEventListener('message', function(event) {
+            // Handle close theater modal requests
+            if (event.data && event.data.type === 'close-theater-modal') {
+                // Try to close theater modal if it exists
+                if (typeof window.closeTheaterMode === 'function') {
+                    window.closeTheaterMode();
+                } else {
+                    // Try to find and remove theater modal
+                    const theaterModal = document.getElementById('theaterModal') || 
+                                       document.querySelector('.theater-modal');
+                    if (theaterModal) {
+                        theaterModal.remove();
+                    }
+                }
+                return;
+            }
+            
             // Handle NOSTR extension proxy requests from iframes
             if (event.data && event.data.type === 'nostr-request') {
                 const { requestId, method, params } = event.data;

@@ -69,6 +69,19 @@
             max-height: 100%;
             object-fit: contain;
             background: #000000;
+            position: relative;
+            z-index: 1;
+            display: block;
+        }
+        
+        /* Ensure video container is visible */
+        .theater-modal .flex-fill {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .theater-modal .position-relative {
+            z-index: 1;
         }
 
         .comment-timeline-overlay {
@@ -138,6 +151,62 @@
         
         .live-comment {
             animation: slideIn 0.3s ease-out;
+        }
+        
+        /* Related videos styling */
+        .theater-related-video-item {
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            background: #181818;
+            border: 1px solid #3f3f3f;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .theater-related-video-item:hover {
+            background: #212121;
+            border-color: #3ea6ff;
+            transform: translateX(4px);
+        }
+        
+        .theater-related-video-thumbnail {
+            flex-shrink: 0;
+            width: 160px;
+            height: 90px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #2a2a2a;
+        }
+        
+        .theater-related-video-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .theater-related-video-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .theater-related-video-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #f1f1f1;
+            margin-bottom: 4px;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .theater-related-video-meta {
+            font-size: 12px;
+            color: #aaaaaa;
         }
     </style>
 </head>
@@ -230,25 +299,56 @@
         /**
          * Handle close button click - wrapper to ensure function is available
          * Defined early to ensure it's available when DOMContentLoaded fires
+         * Works in all contexts: iframe, new window, or embedded
          */
         function handleCloseTheater() {
+            // First, pause and cleanup video
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            if (videoPlayer) {
+                videoPlayer.pause();
+                videoPlayer.src = '';
+                videoPlayer.load();
+            }
+            
+            // Try to use closeTheaterMode from parent or global context
             if (typeof window.closeTheaterMode === 'function') {
-                window.closeTheaterMode();
-            } else {
-                // Fallback: try to close modal directly
-                const modal = document.getElementById('theaterModal');
-                if (modal) {
-                    const videoPlayer = document.getElementById('theaterVideoPlayer');
-                    if (videoPlayer) {
-                        videoPlayer.pause();
-                        videoPlayer.src = '';
-                        videoPlayer.load();
-                    }
-                    modal.remove();
-                } else {
-                    // Try window.close if modal not found (might be in iframe)
-                    window.close();
+                try {
+                    window.closeTheaterMode();
+                    return;
+                } catch (e) {
+                    console.warn('closeTheaterMode failed, trying fallback:', e);
                 }
+            }
+            
+            // Try parent window if we're in an iframe
+            if (window.parent && window.parent !== window) {
+                if (typeof window.parent.closeTheaterMode === 'function') {
+                    try {
+                        window.parent.closeTheaterMode();
+                        return;
+                    } catch (e) {
+                        console.warn('Parent closeTheaterMode failed:', e);
+                    }
+                }
+                
+                // Try to close via postMessage
+                try {
+                    window.parent.postMessage({ type: 'close-theater-modal' }, '*');
+                    return;
+                } catch (e) {
+                    console.warn('PostMessage close failed:', e);
+                }
+            }
+            
+            // Fallback: try to remove modal directly
+            const modal = document.getElementById('theaterModal');
+            if (modal) {
+                modal.remove();
+            }
+            
+            // Last resort: try window.close if we're in a popup
+            if (window.opener) {
+                window.close();
             }
         }
         
@@ -592,7 +692,7 @@
             
             // Try to get current name from DOM first (in case it was already set by openTheaterMode)
             const uploaderEl = document.getElementById('theaterUploader');
-            let displayName = authorName || 'Auteur...';
+            let displayName = authorName || 'Auteur inconnu';
             
             // Extract name from existing DOM element if available
             if (uploaderEl) {
@@ -602,64 +702,65 @@
                 }
             }
             
+            // Escape HTML function
+            const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
+            
             // If we have authorId, try to fetch profile and create link
             if (authorId) {
+                // Show name immediately (don't wait for profile fetch)
+                const link = document.createElement('a');
+                link.href = '#';
+                link.className = 'theater-uploader-link';
+                link.textContent = displayName;
+                link.onclick = function(e) {
+                    e.preventDefault();
+                    openProfileModalInTheater(authorId, displayName);
+                    return false;
+                };
+                uploaderContainer.innerHTML = '';
+                uploaderContainer.appendChild(link);
+                
+                // Also update theaterUploader if it exists separately
+                if (uploaderEl && uploaderEl !== uploaderContainer) {
+                    uploaderEl.textContent = displayName;
+                }
+                
+                // Then try to fetch profile in background (non-blocking)
                 try {
                     // Try to get profile from NOSTR if available
                     // Use fetchUserMetadata from common.js (not fetchProfile)
                     if (typeof fetchUserMetadata !== 'undefined') {
-                        const profile = await fetchUserMetadata(authorId);
+                        // Use timeout to avoid blocking
+                        const profilePromise = Promise.race([
+                            fetchUserMetadata(authorId),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+                        ]);
+                        
+                        const profile = await profilePromise;
                         if (profile) {
+                            let newDisplayName = displayName;
                             if (profile.display_name) {
-                                displayName = profile.display_name;
+                                newDisplayName = profile.display_name;
                             } else if (profile.name) {
-                                displayName = profile.name;
+                                newDisplayName = profile.name;
+                            }
+                            
+                            // Update display name if we got a better one
+                            if (newDisplayName !== displayName) {
+                                displayName = newDisplayName;
+                                link.textContent = displayName;
+                                if (uploaderEl && uploaderEl !== uploaderContainer) {
+                                    uploaderEl.textContent = displayName;
+                                }
                             }
                         }
                     }
-                    
-                    // Create link to profile
-                    const link = document.createElement('a');
-                    link.href = '#';
-                    link.className = 'theater-uploader-link';
-                    link.textContent = displayName;
-                    link.onclick = function(e) {
-                        e.preventDefault();
-                        openProfileModalInTheater(authorId, displayName);
-                        return false;
-                    };
-                    uploaderContainer.innerHTML = '';
-                    uploaderContainer.appendChild(link);
-                    
-                    // Also update theaterUploader if it exists separately
-                    if (uploaderEl && uploaderEl !== uploaderContainer) {
-                        uploaderEl.textContent = displayName;
-                    }
                 } catch (error) {
-                    console.error('Error loading author profile:', error);
-                    // Still show the name even if profile fetch fails
-                    const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
-                    
-                    // Create link anyway with the name we have
-                    const link = document.createElement('a');
-                    link.href = '#';
-                    link.className = 'theater-uploader-link';
-                    link.textContent = displayName;
-                    link.onclick = function(e) {
-                        e.preventDefault();
-                        openProfileModalInTheater(authorId, displayName);
-                        return false;
-                    };
-                    uploaderContainer.innerHTML = '';
-                    uploaderContainer.appendChild(link);
-                    
-                    if (uploaderEl && uploaderEl !== uploaderContainer) {
-                        uploaderEl.textContent = displayName;
-                    }
+                    // Silently fail - we already have a name displayed
+                    console.warn('Could not fetch author profile:', error);
                 }
             } else {
                 // No authorId, just show name
-                const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
                 uploaderContainer.innerHTML = `<strong>${escapeFn(displayName)}</strong>`;
                 if (uploaderEl && uploaderEl !== uploaderContainer) {
                     uploaderEl.textContent = displayName;
@@ -668,14 +769,16 @@
         }
         
         /**
-         * Load comments for the video
+         * Load comments for the video (optimized with timeout and limits)
          */
         async function loadVideoComments(eventId, authorId, originalContent) {
             const commentsList = document.getElementById('theaterCommentsList');
             const commentStats = document.getElementById('theaterCommentStats');
             
             if (!commentsList || !eventId) {
-                commentsList.innerHTML = '<div class="no-comments">Aucun commentaire disponible</div>';
+                if (commentsList) {
+                    commentsList.innerHTML = '<div class="no-comments">Aucun commentaire disponible</div>';
+                }
                 return;
             }
             
@@ -689,38 +792,50 @@
                 }
                 
                 const comments = [];
+                const MAX_COMMENTS = 50; // Limit to avoid performance issues
                 
                 // Add original comment if available (from event 21/22 content)
                 // This is the initial comment/description posted with the video by the author
                 if (originalContent && originalContent.trim()) {
-                    // Get author name - try to fetch from profile or use a default
+                    // Get author name - use provided name or try to fetch, but don't block
                     let authorName = 'Auteur de la vidéo';
+                    
+                    // First try to use the name from uploader parameter if available
+                    // Note: videoData is not available in this scope, we use the authorId parameter
+                    
+                    // Then try to get from DOM if available
                     if (authorId) {
                         try {
-                            // Use fetchUserMetadata from common.js
-                            if (typeof fetchUserMetadata !== 'undefined') {
-                                const profile = await fetchUserMetadata(authorId);
-                                if (profile && profile.display_name) {
-                                    authorName = profile.display_name;
-                                } else if (profile && profile.name) {
-                                    authorName = profile.name;
+                            const uploaderContainer = document.getElementById('theaterUploaderContainer');
+                            if (uploaderContainer) {
+                                const link = uploaderContainer.querySelector('a');
+                                if (link && link.textContent && link.textContent !== 'Loading...') {
+                                    authorName = link.textContent.trim();
                                 }
                             }
                         } catch (e) {
-                            console.warn('Could not fetch profile for original comment author:', e);
-                            // Try to get from uploader name if available in parent window
-                            if (typeof window !== 'undefined' && window.parent) {
-                                try {
-                                    const theaterUploaderEl = window.parent.document.getElementById('theaterUploader');
-                                    if (theaterUploaderEl) {
-                                        const uploaderText = theaterUploaderEl.textContent || theaterUploaderEl.innerText;
-                                        if (uploaderText && uploaderText !== 'Loading...') {
-                                            authorName = uploaderText.trim();
-                                        }
+                            // Continue to fetch
+                        }
+                        
+                        // Try to fetch profile (with timeout, non-blocking)
+                        if (typeof fetchUserMetadata !== 'undefined') {
+                            try {
+                                const profilePromise = Promise.race([
+                                    fetchUserMetadata(authorId),
+                                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1500))
+                                ]);
+                                
+                                const profile = await profilePromise;
+                                if (profile) {
+                                    if (profile.display_name) {
+                                        authorName = profile.display_name;
+                                    } else if (profile.name) {
+                                        authorName = profile.name;
                                     }
-                                } catch (err) {
-                                    // Fallback to default
                                 }
+                            } catch (e) {
+                                // Use default or already found name
+                                console.warn('Could not fetch profile for original comment author:', e);
                             }
                         }
                     }
@@ -740,33 +855,55 @@
                 const sub = nostrRelay.sub([{
                     kinds: [1111],
                     '#E': [eventId],
-                    limit: 100
+                    limit: MAX_COMMENTS
                 }]);
                 
                 const timeout = setTimeout(() => {
                     sub.unsub();
                     displayComments(comments, commentStats);
-                }, 5000);
+                }, 3000); // Reduced timeout for better performance
+                
+                // Cache for author names to avoid duplicate requests
+                const authorNameCache = new Map();
                 
                 sub.on('event', async (event) => {
                     try {
                         // Skip if this is the original event itself
                         if (event.id === eventId) return;
                         
-                        // Get author name
-                        let authorName = event.pubkey.substring(0, 8) + '...';
-                        // Use fetchUserMetadata from common.js
-                        if (typeof fetchUserMetadata !== 'undefined') {
+                        // Stop if we reached max comments
+                        if (comments.length >= MAX_COMMENTS) {
+                            sub.unsub();
+                            return;
+                        }
+                        
+                        // Get author name (use cache if available)
+                        let authorName = authorNameCache.get(event.pubkey) || event.pubkey.substring(0, 8) + '...';
+                        
+                        // Fetch profile only if not in cache (optimize performance)
+                        if (!authorNameCache.has(event.pubkey) && typeof fetchUserMetadata !== 'undefined') {
                             try {
-                                const profile = await fetchUserMetadata(event.pubkey);
-                                if (profile && profile.display_name) {
-                                    authorName = profile.display_name;
-                                } else if (profile && profile.name) {
-                                    authorName = profile.name;
+                                // Use timeout to avoid blocking
+                                const profilePromise = Promise.race([
+                                    fetchUserMetadata(event.pubkey),
+                                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
+                                ]);
+                                
+                                const profile = await profilePromise;
+                                if (profile) {
+                                    if (profile.display_name) {
+                                        authorName = profile.display_name;
+                                    } else if (profile.name) {
+                                        authorName = profile.name;
+                                    }
+                                    authorNameCache.set(event.pubkey, authorName);
                                 }
                             } catch (e) {
-                                console.warn('Could not fetch profile for comment author:', e);
+                                // Use default name and cache it to avoid retry
+                                authorNameCache.set(event.pubkey, authorName);
                             }
+                        } else if (authorNameCache.has(event.pubkey)) {
+                            authorName = authorNameCache.get(event.pubkey);
                         }
                         
                         // Extract timestamp from comment if available
@@ -1061,13 +1198,15 @@
                     }
                 }
                 
+                // Clear existing sources first
+                videoPlayer.innerHTML = '';
+                
                 const source = document.createElement('source');
                 source.src = videoUrl;
                 source.type = 'video/mp4';
                 videoPlayer.appendChild(source);
-                videoPlayer.load();
                 
-                // Store metadata
+                // Store metadata before loading
                 if (videoData.eventId) {
                     videoPlayer.setAttribute('data-event-id', videoData.eventId);
                 }
@@ -1077,6 +1216,14 @@
                 if (videoData.ipfsUrl) {
                     videoPlayer.setAttribute('data-ipfs-url', videoData.ipfsUrl);
                 }
+                
+                // Load video
+                videoPlayer.load();
+                
+                // Ensure video is visible and on top
+                videoPlayer.style.display = 'block';
+                videoPlayer.style.zIndex = '1';
+                videoPlayer.style.position = 'relative';
             }
             
             // Set duration
@@ -1109,6 +1256,9 @@
                 loadRelatedVideosInTheater(videoData);
             } else if (typeof window.parent !== 'undefined' && typeof window.parent.loadRelatedVideosInTheater === 'function') {
                 window.parent.loadRelatedVideosInTheater(videoData);
+            } else {
+                // Fallback: load related videos with thumbnails
+                loadRelatedVideosFallback(videoData);
             }
         }
         
@@ -1211,6 +1361,156 @@
             }
         }
 
+        /**
+         * Load related videos with thumbnails (fallback if function not available)
+         */
+        async function loadRelatedVideosFallback(videoData) {
+            const container = document.getElementById('theaterRelatedVideos');
+            if (!container || !videoData || !videoData.eventId) {
+                return;
+            }
+            
+            container.innerHTML = '<div class="text-center text-secondary py-3">Chargement des vidéos similaires...</div>';
+            
+            try {
+                // Try to fetch related videos from NOSTR
+                if (typeof nostrRelay === 'undefined' || !nostrRelay) {
+                    container.innerHTML = '<div class="text-center text-secondary py-3">Non connecté au relay</div>';
+                    return;
+                }
+                
+                // Fetch videos from same author or with similar tags
+                const relatedVideos = [];
+                const sub = nostrRelay.sub([{
+                    kinds: [21, 22],
+                    authors: videoData.authorId ? [videoData.authorId] : undefined,
+                    limit: 10
+                }]);
+                
+                const timeout = setTimeout(() => {
+                    sub.unsub();
+                    displayRelatedVideos(relatedVideos, container);
+                }, 3000);
+                
+                sub.on('event', (event) => {
+                    // Skip current video
+                    if (event.id === videoData.eventId) return;
+                    
+                    try {
+                        let videoInfo = {};
+                        if (event.content) {
+                            try {
+                                videoInfo = JSON.parse(event.content);
+                            } catch (e) {
+                                // Content might be plain text
+                                videoInfo.description = event.content;
+                            }
+                        }
+                        
+                        // Extract IPFS URL from tags
+                        const ipfsTag = event.tags.find(t => t[0] === 'r' && t[1]?.includes('/ipfs/'));
+                        const ipfsUrl = ipfsTag ? ipfsTag[1] : null;
+                        
+                        // Extract thumbnail
+                        const thumbnailTag = event.tags.find(t => t[0] === 'image' || t[0] === 'thumbnail');
+                        const thumbnailUrl = thumbnailTag ? thumbnailTag[1] : null;
+                        
+                        relatedVideos.push({
+                            id: event.id,
+                            title: videoInfo.title || 'Sans titre',
+                            description: videoInfo.description || '',
+                            ipfsUrl: ipfsUrl,
+                            thumbnailUrl: thumbnailUrl,
+                            authorId: event.pubkey,
+                            event: event
+                        });
+                    } catch (e) {
+                        console.warn('Error parsing related video:', e);
+                    }
+                });
+                
+                sub.on('eose', () => {
+                    clearTimeout(timeout);
+                    sub.unsub();
+                    displayRelatedVideos(relatedVideos, container);
+                });
+            } catch (error) {
+                console.error('Error loading related videos:', error);
+                container.innerHTML = '<div class="text-center text-secondary py-3">Erreur lors du chargement</div>';
+            }
+        }
+        
+        /**
+         * Display related videos with thumbnails
+         */
+        function displayRelatedVideos(videos, container) {
+            if (!videos || videos.length === 0) {
+                container.innerHTML = '<div class="text-center text-secondary py-3">Aucune vidéo similaire</div>';
+                return;
+            }
+            
+            const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
+            const convertFn = typeof convertIPFSUrlGlobal !== 'undefined' ? convertIPFSUrlGlobal : function(url) {
+                if (!url) return '';
+                if (!window.IPFS_GATEWAY) {
+                    window.IPFS_GATEWAY = 'https://ipfs.copylaradio.com';
+                }
+                if (url.includes('/ipfs/')) {
+                    const match = url.match(/\/ipfs\/[^?"#]+/);
+                    if (match) return window.IPFS_GATEWAY + match[0];
+                }
+                return url.startsWith('/ipfs/') ? window.IPFS_GATEWAY + url : url;
+            };
+            
+            container.innerHTML = videos.map(video => {
+                const thumbnailUrl = video.thumbnailUrl ? convertFn(video.thumbnailUrl) : null;
+                const videoUrl = video.ipfsUrl ? convertFn(video.ipfsUrl) : null;
+                
+                return `
+                    <div class="theater-related-video-item" onclick="openRelatedVideoInTheater('${video.id}', '${escapeFn(video.title)}', '${videoUrl || ''}', '${video.authorId || ''}')">
+                        <div class="theater-related-video-thumbnail">
+                            ${thumbnailUrl ? `<img src="${escapeFn(thumbnailUrl)}" alt="${escapeFn(video.title)}" loading="lazy">` : `
+                                <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #666;">
+                                    <i class="bi bi-film" style="font-size: 32px;"></i>
+                                </div>
+                            `}
+                        </div>
+                        <div class="theater-related-video-info">
+                            <div class="theater-related-video-title">${escapeFn(video.title)}</div>
+                            ${video.description ? `<div class="theater-related-video-meta">${escapeFn(video.description.substring(0, 100))}${video.description.length > 100 ? '...' : ''}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        /**
+         * Open related video in theater mode
+         */
+        function openRelatedVideoInTheater(eventId, title, ipfsUrl, authorId) {
+            // Try to use openTheaterModeFromEvent if available
+            if (typeof window.openTheaterModeFromEvent === 'function') {
+                window.openTheaterModeFromEvent(eventId);
+            } else if (window.parent && typeof window.parent.openTheaterModeFromEvent === 'function') {
+                window.parent.openTheaterModeFromEvent(eventId);
+            } else {
+                // Fallback: reload page with video parameter
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.set('video', eventId);
+                window.location.href = currentUrl.toString();
+            }
+        }
+        
+        // Expose function globally
+        window.openRelatedVideoInTheater = openRelatedVideoInTheater;
+        
+        // Listen for close messages from parent
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'close-theater-modal') {
+                handleCloseTheater();
+            }
+        });
+        
         // Listen for close button or ESC key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
