@@ -575,6 +575,16 @@
         <div class="theater-header">
             <h5 class="mb-0 text-truncate flex-grow-1" id="theaterTitle" style="max-width: 60%;">Loading...</h5>
             <div class="d-flex gap-2 align-items-center">
+                <!-- NOSTR Connection Status (only shown in standalone mode) -->
+                <div id="theaterNostrStatus" class="d-flex align-items-center gap-2" style="display: none !important;">
+                    <span id="theaterNostrStatusBadge" class="badge bg-secondary">
+                        <i class="bi bi-broadcast"></i> Not connected
+                    </span>
+                    <button id="theaterNostrConnectBtn" class="btn btn-sm btn-primary" style="display: none;">
+                        <i class="bi bi-plug"></i> Connect
+                    </button>
+                </div>
+                
                 <button class="btn btn-sm btn-outline-success" id="theaterLikeBtn" title="Liker">
                     <i class="bi bi-hand-thumbs-up"></i>
                 </button>
@@ -584,7 +594,8 @@
                 <button class="btn btn-sm btn-outline-warning" id="theaterBookmarkBtn" title="Bookmark">
                     <i class="bi bi-bookmark"></i>
                 </button>
-                <button class="btn btn-close btn-close-white" id="closeTheaterBtn" title="Fermer (ESC)" aria-label="Close"></button>
+                <!-- Close button only shown when opened as modal from youtube.html -->
+                <button class="btn btn-close btn-close-white" id="closeTheaterBtn" title="Fermer (ESC)" aria-label="Close" style="display: none;"></button>
             </div>
         </div>
         
@@ -776,6 +787,41 @@
         
         // Initialize Bootstrap tooltips and event listeners
         document.addEventListener('DOMContentLoaded', function() {
+            // Detect if we're in standalone mode (direct page) or modal mode (iframe/embedded)
+            const isStandaloneMode = !window.opener && window.parent === window;
+            
+            // Configure UI based on mode
+            const closeBtn = document.getElementById('closeTheaterBtn');
+            const nostrStatusDiv = document.getElementById('theaterNostrStatus');
+            const nostrStatusBadge = document.getElementById('theaterNostrStatusBadge');
+            const nostrConnectBtn = document.getElementById('theaterNostrConnectBtn');
+            
+            if (isStandaloneMode) {
+                // Standalone mode: hide close button, show NOSTR status
+                if (closeBtn) {
+                    closeBtn.style.display = 'none';
+                }
+                if (nostrStatusDiv) {
+                    nostrStatusDiv.style.display = 'flex !important';
+                    nostrStatusDiv.classList.remove('d-none');
+                    nostrStatusDiv.removeAttribute('style'); // Remove inline style to use flex
+                }
+                
+                // Update NOSTR connection status
+                updateTheaterNostrStatus();
+                
+                // Monitor NOSTR connection status
+                setInterval(updateTheaterNostrStatus, 2000);
+            } else {
+                // Modal mode: show close button, hide NOSTR status
+                if (closeBtn) {
+                    closeBtn.style.display = 'block';
+                }
+                if (nostrStatusDiv) {
+                    nostrStatusDiv.style.display = 'none !important';
+                }
+            }
+            
             // Initialize tooltips
             const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
             tooltipTriggerList.map(function (tooltipTriggerEl) {
@@ -783,8 +829,7 @@
             });
             
             // Attach event listeners to buttons (safer than onclick)
-            const closeBtn = document.getElementById('closeTheaterBtn');
-            if (closeBtn) {
+            if (closeBtn && !isStandaloneMode) {
                 // Remove any existing listeners first
                 closeBtn.onclick = null;
                 // Add the click handler
@@ -793,6 +838,35 @@
                     e.stopPropagation();
                     if (typeof handleCloseTheater === 'function') {
                         handleCloseTheater();
+                    }
+                });
+            }
+            
+            // NOSTR connect button handler
+            if (nostrConnectBtn) {
+                nostrConnectBtn.addEventListener('click', async function(e) {
+                    e.preventDefault();
+                    if (typeof connectNostr === 'function') {
+                        try {
+                            nostrConnectBtn.disabled = true;
+                            nostrConnectBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Connecting...';
+                            const pubkey = await connectNostr(true); // Force auth
+                            if (pubkey) {
+                                updateTheaterNostrStatus();
+                                // Reload video if there's a video ID in URL
+                                const urlParams = new URLSearchParams(window.location.search);
+                                const videoId = urlParams.get('video');
+                                if (videoId && typeof loadVideoFromEventIdStandalone === 'function') {
+                                    await loadVideoFromEventIdStandalone(videoId);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Connection error:', error);
+                            alert('Erreur de connexion: ' + error.message);
+                        } finally {
+                            nostrConnectBtn.disabled = false;
+                            updateTheaterNostrStatus();
+                        }
                     }
                 });
             }
@@ -835,6 +909,36 @@
                 }, 1000);
             }
         });
+        
+        /**
+         * Update NOSTR connection status in theater header
+         */
+        function updateTheaterNostrStatus() {
+            const nostrStatusBadge = document.getElementById('theaterNostrStatusBadge');
+            const nostrConnectBtn = document.getElementById('theaterNostrConnectBtn');
+            
+            if (!nostrStatusBadge || !nostrConnectBtn) return;
+            
+            // Check connection state
+            const isConnected = typeof userPubkey !== 'undefined' && userPubkey && 
+                               typeof isNostrConnected !== 'undefined' && isNostrConnected &&
+                               typeof nostrRelay !== 'undefined' && nostrRelay;
+            
+            if (isConnected) {
+                // Connected
+                const shortPubkey = userPubkey.substring(0, 6) + '...';
+                nostrStatusBadge.innerHTML = `<i class="bi bi-broadcast"></i> ${shortPubkey}`;
+                nostrStatusBadge.classList.remove('bg-secondary', 'bg-warning');
+                nostrStatusBadge.classList.add('bg-success');
+                nostrConnectBtn.style.display = 'none';
+            } else {
+                // Not connected
+                nostrStatusBadge.innerHTML = '<i class="bi bi-broadcast"></i> Not connected';
+                nostrStatusBadge.classList.remove('bg-success', 'bg-warning');
+                nostrStatusBadge.classList.add('bg-secondary');
+                nostrConnectBtn.style.display = 'block';
+            }
+        }
 
         /**
          * Handle share button click - wrapper to ensure function is available
