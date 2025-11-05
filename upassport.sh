@@ -1270,27 +1270,24 @@ echo "${MY_PATH}/pdf/${PUBKEY}/_index.html"
 if [[ -n "$CAPTAINEMAIL" && -s "${MY_PATH}/pdf/${PUBKEY}/_index.html" ]]; then
     echo "Envoi du passport créé au CAPITAINE : $CAPTAINEMAIL"
     
-    # Créer un message d'accompagnement
-    PASSPORT_MESSAGE="${MY_PATH}/tmp/${PUBKEY}.passport_message.txt"
-    cat > "$PASSPORT_MESSAGE" << EOF
-🎫 Nouveau Passport UPlanet créé !
+    # Créer un message HTML d'accompagnement à partir du template
+    PASSPORT_MESSAGE="${MY_PATH}/tmp/${PUBKEY}.passport_captain.html"
+    
+    cat $HOME/.zen/Astroport.ONE/templates/NOSTR/passport_captain_email.html \
+        | sed -e "s~_MEMBERUID_~${MEMBERUID}~g" \
+              -e "s~_PUBKEY_~${PUBKEY}~g" \
+              -e "s~_DATE_~$(date -u)~g" \
+              -e "s~_UPLANET8_~UPlanet:${UPLANETG1PUB:0:8}~g" \
+              -e "s~_AMOUNT_~${AMOUNT}~g" \
+              -e "s~_LAT_~${LAT}~g" \
+              -e "s~_LON_~${LON}~g" \
+              -e "s~_TOTAL_~${TOTAL}~g" \
+              -e "s~_IPFS_URL_~${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/~g" \
+              -e "s~_WOT_STATUS_~Email trouvé dans 1ère TX : ${FIRST_TX_EMAIL:-"Aucun"} | Authentification WoT : ❌ Non trouvé~g" \
+        > "$PASSPORT_MESSAGE"
 
-Membre : ${MEMBERUID}
-Clé publique : ${PUBKEY}
-Date de création : $(date -u)
-UPlanet : ${UPLANETG1PUB:0:8}
-
-Le passport est disponible à l'adresse :
-${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/
-
-Détails du membre :
-- Solde : ${AMOUNT}
-- Localisation : ${LAT}, ${LON}
-- TOTAL : ${TOTAL} ZEN
-EOF
-
-    # Envoyer l'email avec le passport
-    if $HOME/.zen/Astroport.ONE/tools/mailjet.sh "$CAPTAINEMAIL" "$PASSPORT_MESSAGE" 2>/dev/null; then
+    # Envoyer l'email HTML avec le passport
+    if $HOME/.zen/Astroport.ONE/tools/mailjet.sh "$CAPTAINEMAIL" "$PASSPORT_MESSAGE" "🎫 New UPlanet Passport - ${MEMBERUID}" 2>/dev/null; then
         echo "✅ Passport envoyé avec succès au CAPITAINE : $CAPTAINEMAIL"
     else
         echo "⚠️  Erreur lors de l'envoi du passport au CAPITAINE : $CAPTAINEMAIL"
@@ -1312,37 +1309,24 @@ fi
 if [[ -n "$WOT_AUTHENTICATED_EMAIL" && -s "${MY_PATH}/pdf/${PUBKEY}/_index.html" ]]; then
     echo "Envoi du passport à l'utilisateur authentifié WoT : $WOT_AUTHENTICATED_EMAIL"
     
-    # Créer un message personnalisé pour l'utilisateur
-    USER_PASSPORT_MESSAGE="${MY_PATH}/tmp/${PUBKEY}.user_passport_message.txt"
-    cat > "$USER_PASSPORT_MESSAGE" << EOF
-🎫 Votre Passport UPlanet est prêt !
+    # Créer un message HTML personnalisé pour l'utilisateur à partir du template
+    USER_PASSPORT_MESSAGE="${MY_PATH}/tmp/${PUBKEY}.user_passport.html"
+    
+    cat $HOME/.zen/Astroport.ONE/templates/NOSTR/passport_user_email.html \
+        | sed -e "s~_MEMBERUID_~${MEMBERUID}~g" \
+              -e "s~_PUBKEY_~${PUBKEY}~g" \
+              -e "s~_DATE_~$(date -u)~g" \
+              -e "s~_UPLANET8_~UPlanet:${UPLANETG1PUB:0:8}~g" \
+              -e "s~_AMOUNT_~${AMOUNT}~g" \
+              -e "s~_LAT_~${LAT}~g" \
+              -e "s~_LON_~${LON}~g" \
+              -e "s~_TOTAL_~${TOTAL}~g" \
+              -e "s~_IPFS_URL_~${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/~g" \
+              -e "s~_EMAIL_~${WOT_AUTHENTICATED_EMAIL}~g" \
+        > "$USER_PASSPORT_MESSAGE"
 
-Bonjour,
-
-Votre passport UPlanet a été créé avec succès pour le membre : ${MEMBERUID}
-
-📋 Détails de votre passport :
-- Membre : ${MEMBERUID}
-- Clé publique : ${PUBKEY}
-- Date de création : $(date -u)
-- UPlanet : ${UPLANETG1PUB:0:8}
-- Solde : ${AMOUNT}
-- Localisation : ${LAT}, ${LON}
-- TOTAL : ${TOTAL} ZEN
-
-🌐 Votre passport est accessible à l'adresse :
-${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/
-
-Votre email ${WOT_AUTHENTICATED_EMAIL} a été authentifié par la Web of Trust (WoT).
-
-Bienvenue dans l'écosystème UPlanet !
-
----
-Astroport.ONE - UPlanet Network
-EOF
-
-    # Envoyer l'email avec le passport à l'utilisateur
-    if $HOME/.zen/Astroport.ONE/tools/mailjet.sh "$WOT_AUTHENTICATED_EMAIL" "$USER_PASSPORT_MESSAGE" "Votre Passport UPlanet [${MEMBERUID}]" 2>/dev/null; then
+    # Envoyer l'email HTML avec le passport à l'utilisateur
+    if $HOME/.zen/Astroport.ONE/tools/mailjet.sh "$WOT_AUTHENTICATED_EMAIL" "$USER_PASSPORT_MESSAGE" "🎫 Your UPlanet Passport - ${MEMBERUID}" 2>/dev/null; then
         echo "✅ Passport envoyé avec succès à l'utilisateur WoT : $WOT_AUTHENTICATED_EMAIL"
     else
         echo "⚠️  Erreur lors de l'envoi du passport à l'utilisateur : $WOT_AUTHENTICATED_EMAIL"
@@ -1356,37 +1340,23 @@ else
         
         # Envoyer une notification au CAPITAINE quand aucun email WoT n'est trouvé
         if [[ -n "$CAPTAINEMAIL" && -s "${MY_PATH}/pdf/${PUBKEY}/_index.html" ]]; then
-            CAPTAIN_NOTIFICATION="${MY_PATH}/tmp/${PUBKEY}.captain_notification.txt"
-            cat > "$CAPTAIN_NOTIFICATION" << EOF
-🚨 Passport UPlanet créé - Aucun email WoT authentifié
-
-Un nouveau passport UPlanet a été créé mais aucun email authentifié par la Web of Trust n'a été trouvé.
-
-📋 Détails du passport :
-- Membre : ${MEMBERUID}
-- Clé publique : ${PUBKEY}
-- Date de création : $(date -u)
-- UPlanet : ${UPLANETG1PUB:0:8}
-- Solde : ${AMOUNT}
-- Localisation : ${LAT}, ${LON}
-- TOTAL : ${TOTAL} ZEN
-
-🌐 Le passport est accessible à l'adresse :
-${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/
-
-⚠️  Statut email :
-- Email trouvé dans 1ère TX : ${FIRST_TX_EMAIL:-"Aucun"}
-- Authentification WoT : ❌ Non trouvé dans ~/.zen/game/nostr/
-
-Action requise : Vérifier si l'utilisateur doit être contacté par d'autres moyens.
-
----
-Astroport.ONE - UPlanet Network
-Notification automatique
-EOF
+            CAPTAIN_NOTIFICATION="${MY_PATH}/tmp/${PUBKEY}.captain_notification.html"
+            
+            cat $HOME/.zen/Astroport.ONE/templates/NOSTR/passport_captain_email.html \
+                | sed -e "s~_MEMBERUID_~${MEMBERUID}~g" \
+                      -e "s~_PUBKEY_~${PUBKEY}~g" \
+                      -e "s~_DATE_~$(date -u)~g" \
+                      -e "s~_UPLANET8_~UPlanet:${UPLANETG1PUB:0:8}~g" \
+                      -e "s~_AMOUNT_~${AMOUNT}~g" \
+                      -e "s~_LAT_~${LAT}~g" \
+                      -e "s~_LON_~${LON}~g" \
+                      -e "s~_TOTAL_~${TOTAL}~g" \
+                      -e "s~_IPFS_URL_~${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/~g" \
+                      -e "s~_WOT_STATUS_~⚠️ Email trouvé dans 1ère TX : ${FIRST_TX_EMAIL:-"Aucun"} | Authentification WoT : ❌ Non trouvé dans ~/.zen/game/nostr/~g" \
+                > "$CAPTAIN_NOTIFICATION"
 
             # Envoyer la notification au CAPITAINE
-            if $HOME/.zen/Astroport.ONE/tools/mailjet.sh "$CAPTAINEMAIL" "$CAPTAIN_NOTIFICATION" "🚨 Passport UPlanet - Aucun email WoT [${MEMBERUID}]" 2>/dev/null; then
+            if $HOME/.zen/Astroport.ONE/tools/mailjet.sh "$CAPTAINEMAIL" "$CAPTAIN_NOTIFICATION" "🚨 Passport UPlanet - No WoT email [${MEMBERUID}]" 2>/dev/null; then
                 echo "✅ Notification envoyée au CAPITAINE : $CAPTAINEMAIL"
             else
                 echo "⚠️  Erreur lors de l'envoi de la notification au CAPITAINE : $CAPTAINEMAIL"
