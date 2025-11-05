@@ -3439,6 +3439,8 @@ async def upload_file_to_ipfs(
                 
                 # Check if it's a Netscape cookie file format
                 is_netscape_format = False
+                detected_domain = None
+                
                 if '# Netscape HTTP Cookie File' in content_text or '# HTTP Cookie File' in content_text:
                     is_netscape_format = True
                     logging.info("✅ Detected Netscape cookie file format (header)")
@@ -3454,28 +3456,107 @@ async def upload_file_to_ipfs(
                             logging.info("✅ Detected cookie file format (tab-separated, 7+ columns)")
                 
                 if is_netscape_format:
+                    # Extract domain from cookie file content
+                    # Parse all cookie lines to find domains
+                    domains = set()
+                    lines = content_text.split('\n')
+                    for line in lines:
+                        line = line.strip()
+                        # Skip comments and empty lines
+                        if not line or line.startswith('#'):
+                            continue
+                        # Parse cookie line (domain is first field)
+                        parts = line.split('\t')
+                        if len(parts) >= 7:
+                            domain = parts[0].strip()
+                            # Remove leading dot from domain (e.g., .youtube.com -> youtube.com)
+                            if domain.startswith('.'):
+                                domain = domain[1:]
+                            domains.add(domain)
+                    
+                    # Analyze domains to decide if it's single-domain or multi-domain
+                    if domains:
+                        # Get base domains (remove subdomains for comparison)
+                        base_domains = set()
+                        for domain in domains:
+                            # Get the main domain (last 2 parts: example.com from music.example.com)
+                            parts = domain.split('.')
+                            if len(parts) >= 2:
+                                base_domain = '.'.join(parts[-2:])
+                                base_domains.add(base_domain)
+                            else:
+                                base_domains.add(domain)
+                        
+                        # If multiple different base domains, it's a multi-domain cookie file
+                        if len(base_domains) > 1:
+                            detected_domain = "multi-domain"
+                            logging.info(f"🌐 Detected multi-domain cookie file: {', '.join(sorted(base_domains))}")
+                        else:
+                            # Single domain (or subdomains of same domain)
+                            # Sort domains by length (shorter = more general, e.g., youtube.com vs music.youtube.com)
+                            sorted_domains = sorted(domains, key=len)
+                            detected_domain = sorted_domains[0]
+                            logging.info(f"🌐 Detected single-domain cookie: {detected_domain}")
+                    
                     # Get the user's root directory (parent of APP)
                     hex_pubkey = npub_to_hex(npub)
                     user_root_dir = find_user_directory_by_hex(hex_pubkey)
                     
-                    # Save cookie file to user's root directory as .cookie.txt
-                    cookie_path = user_root_dir / ".cookie.txt"
+                    # Save cookie file with domain-specific name (hidden file with leading dot)
+                    # Cookies are saved directly in user's NOSTR root directory
+                    if detected_domain and detected_domain != "multi-domain":
+                        # Single domain: Save as .domain.cookie (e.g., .leboncoin.fr.cookie, .youtube.com.cookie)
+                        cookie_filename = f".{detected_domain}.cookie"
+                        cookie_path = user_root_dir / cookie_filename
+                        
+                        # Also save as legacy .cookie.txt for backward compatibility with YouTube scripts
+                        if 'youtube.com' in detected_domain or 'youtube' in detected_domain.lower():
+                            legacy_cookie_path = user_root_dir / ".cookie.txt"
+                            async with aiofiles.open(legacy_cookie_path, 'wb') as legacy_file:
+                                await legacy_file.write(file_content)
+                            logging.info(f"✅ YouTube cookie also saved to legacy path: {legacy_cookie_path}")
+                    elif detected_domain == "multi-domain":
+                        # Multi-domain: Save as generic .cookie.txt (user's full browser cookies)
+                        cookie_filename = ".cookie.txt"
+                        cookie_path = user_root_dir / cookie_filename
+                        logging.info("🌐 Multi-domain cookie file detected, saving as generic .cookie.txt")
+                    else:
+                        # Fallback: save as generic .cookie.txt if domain detection failed
+                        cookie_filename = ".cookie.txt"
+                        cookie_path = user_root_dir / cookie_filename
+                        logging.warning("⚠️ Could not detect domain, saving as generic .cookie.txt")
                     
+                    # Save main cookie file
                     async with aiofiles.open(cookie_path, 'wb') as cookie_file:
                         await cookie_file.write(file_content)
                     
                     logging.info(f"✅ Cookie file saved to: {cookie_path}")
                     
+                    # Build user-friendly message
+                    if detected_domain and detected_domain != "multi-domain":
+                        domain_message = f"{detected_domain}"
+                        if 'youtube' in detected_domain.lower():
+                            domain_message += " - YouTube downloads will now use your authentication"
+                        elif 'leboncoin' in detected_domain.lower():
+                            domain_message += " - Leboncoin scraping will now use your authentication"
+                        else:
+                            domain_message += " - Services for this domain will now use your authentication"
+                    elif detected_domain == "multi-domain":
+                        domain_message = "Multiple domains (full browser cookies) - All services will use your authentication"
+                    else:
+                        domain_message = "Generic cookie file"
+                    
                     # Return success response without generating IPFS structure
                     return UploadResponse(
                         success=True,
-                        message="Cookie file uploaded successfully. YouTube downloads will now use your authentication.",
+                        message=f"Cookie file uploaded successfully for {domain_message}",
                         file_path=str(cookie_path.relative_to(user_root_dir.parent)),
                         file_type="netscape_cookies",
                         target_directory=str(user_root_dir),
                         new_cid=None,  # No IPFS generation for sensitive cookie files
                         timestamp=datetime.now().isoformat(),
-                        auth_verified=True
+                        auth_verified=True,
+                        description=f"Domain: {detected_domain or 'unknown'}"
                     )
                 else:
                     # Not a cookie file, will be processed as normal text file below
