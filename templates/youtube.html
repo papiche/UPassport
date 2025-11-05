@@ -1576,7 +1576,30 @@
                             </div>
                             
                             <!-- Action buttons compacts -->
-                            <div class="d-flex gap-1 ms-auto">
+                            <div class="d-flex gap-1 ms-auto align-items-center">
+                                <!-- Theater Mode Switch -->
+                                <div class="d-flex align-items-center gap-2 me-2">
+                                    <span class="small text-secondary" style="white-space: nowrap;">
+                                        <i class="bi bi-film"></i> Théâtre:
+                                    </span>
+                                    <div class="btn-group btn-group-sm" role="group" aria-label="Theater mode">
+                                        <button type="button" 
+                                                class="btn btn-outline-secondary" 
+                                                id="theater-mode-tab-btn"
+                                                onclick="setTheaterMode('tab')"
+                                                title="Ouvrir en nouvel onglet">
+                                            <i class="bi bi-window"></i>
+                                        </button>
+                                        <button type="button" 
+                                                class="btn btn-outline-secondary" 
+                                                id="theater-mode-modal-btn"
+                                                onclick="setTheaterMode('modal')"
+                                                title="Ouvrir en modal">
+                                            <i class="bi bi-pip"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
                                 <button id="webcam-upload-btn" onclick="openWebcamModal()" class="btn btn-sm btn-success d-none" title="Créer">
                                     <i class="bi bi-camera-video-fill"></i>
                                 </button>
@@ -3787,10 +3810,19 @@
             const eventId = videoPlayer.getAttribute('data-event-id');
             
             if (eventId) {
-                // Open /theater?video=XXX in a new tab
-                const theaterUrl = `/theater?video=${eventId}`;
-                console.log('🎬 Opening theater mode in new tab:', theaterUrl);
-                window.open(theaterUrl, '_blank', 'noopener,noreferrer');
+                // Check user preference (stored in localStorage)
+                const openInModal = localStorage.getItem('theater-mode-preference') === 'modal';
+                
+                if (openInModal) {
+                    // Open in iframe modal (stays on same page)
+                    console.log('🎬 Opening theater mode in modal:', eventId);
+                    openTheaterInModal(eventId);
+                } else {
+                    // Open in new tab (default, better full-screen experience)
+                    const theaterUrl = `/theater?video=${eventId}`;
+                    console.log('🎬 Opening theater mode in new tab:', theaterUrl);
+                    window.open(theaterUrl, '_blank', 'noopener,noreferrer');
+                }
             } else {
                 console.warn('⚠️ No event ID found, falling back to inline player');
                 // Fallback to inline player if no event ID
@@ -3798,8 +3830,154 @@
             }
         }
         
+        /**
+         * Open theater mode in iframe modal
+         * Alternative to opening in new tab
+         */
+        function openTheaterInModal(eventId) {
+            const iframeModal = document.getElementById('iframe-modal');
+            if (!iframeModal) {
+                console.error('❌ iframe-modal not found');
+                // Fallback to new tab
+                window.open(`/theater?video=${eventId}`, '_blank');
+                return;
+            }
+            
+            const iframe = document.getElementById('iframe-modal-iframe');
+            const titleEl = document.getElementById('iframe-modal-title');
+            const openNewBtn = document.getElementById('iframe-modal-open-new');
+            
+            if (!iframe) {
+                console.error('❌ iframe-modal-iframe not found');
+                return;
+            }
+            
+            // Set theater URL
+            const theaterUrl = `/theater?video=${eventId}`;
+            iframe.src = theaterUrl;
+            iframe.dataset.currentUrl = theaterUrl;
+            
+            // Update modal title
+            if (titleEl) {
+                titleEl.textContent = '🎬 Mode Théâtre';
+            }
+            
+            // Show "open in new window" button
+            if (openNewBtn) {
+                openNewBtn.style.display = 'flex';
+            }
+            
+            // Show modal
+            iframeModal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            
+            console.log('✅ Theater modal opened');
+        }
+        
         // Expose openVideoInTheater globally for onclick handlers (must be after function definition)
         window.openVideoInTheater = openVideoInTheater;
+        window.openTheaterInModal = openTheaterInModal;
+        
+        /**
+         * Set theater mode preference (tab or modal)
+         */
+        function setTheaterMode(mode) {
+            // Validate mode
+            if (mode !== 'tab' && mode !== 'modal') {
+                console.error('Invalid theater mode:', mode);
+                return;
+            }
+            
+            // Save preference
+            if (mode === 'tab') {
+                localStorage.removeItem('theater-mode-preference');
+            } else {
+                localStorage.setItem('theater-mode-preference', mode);
+            }
+            
+            // Update UI
+            updateTheaterModeUI();
+            
+            // Show feedback
+            const modeText = mode === 'modal' ? 'Modal' : 'Nouvel onglet';
+            const icon = mode === 'modal' ? '🖼️' : '🪟';
+            console.log(`${icon} Mode théâtre: ${modeText}`);
+            
+            // Optional: Show toast notification
+            showTheaterModeToast(modeText, icon);
+        }
+        
+        /**
+         * Update theater mode UI to reflect current preference
+         */
+        function updateTheaterModeUI() {
+            const currentMode = localStorage.getItem('theater-mode-preference') || 'tab';
+            const tabBtn = document.getElementById('theater-mode-tab-btn');
+            const modalBtn = document.getElementById('theater-mode-modal-btn');
+            
+            if (tabBtn && modalBtn) {
+                if (currentMode === 'modal') {
+                    tabBtn.classList.remove('btn-primary', 'active');
+                    tabBtn.classList.add('btn-outline-secondary');
+                    modalBtn.classList.remove('btn-outline-secondary');
+                    modalBtn.classList.add('btn-primary', 'active');
+                } else {
+                    modalBtn.classList.remove('btn-primary', 'active');
+                    modalBtn.classList.add('btn-outline-secondary');
+                    tabBtn.classList.remove('btn-outline-secondary');
+                    tabBtn.classList.add('btn-primary', 'active');
+                }
+            }
+        }
+        
+        /**
+         * Show toast notification for theater mode change
+         */
+        function showTheaterModeToast(modeText, icon) {
+            // Create toast element if it doesn't exist
+            let toastContainer = document.getElementById('theater-mode-toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'theater-mode-toast-container';
+                toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
+                toastContainer.style.zIndex = '11';
+                document.body.appendChild(toastContainer);
+            }
+            
+            // Create toast
+            const toastId = 'theater-mode-toast-' + Date.now();
+            const toastHtml = `
+                <div id="${toastId}" class="toast align-items-center text-white bg-dark border-secondary" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            ${icon} Mode théâtre: <strong>${modeText}</strong>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            `;
+            
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            
+            // Show toast
+            const toastElement = document.getElementById(toastId);
+            if (toastElement && typeof bootstrap !== 'undefined') {
+                const toast = new bootstrap.Toast(toastElement, { delay: 2000 });
+                toast.show();
+                
+                // Remove after hiding
+                toastElement.addEventListener('hidden.bs.toast', function() {
+                    toastElement.remove();
+                });
+            }
+        }
+        
+        // Expose functions globally
+        window.setTheaterMode = setTheaterMode;
+        window.updateTheaterModeUI = updateTheaterModeUI;
+        
+        // Initialize theater mode UI on page load
+        updateTheaterModeUI();
         
         // extractDurationFromMeta is in youtube.enhancements.js
         

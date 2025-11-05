@@ -575,16 +575,6 @@
         <div class="theater-header">
             <h5 class="mb-0 text-truncate flex-grow-1" id="theaterTitle" style="max-width: 60%;">Loading...</h5>
             <div class="d-flex gap-2 align-items-center">
-                <!-- NOSTR Connection Status (only shown in standalone mode) -->
-                <div id="theaterNostrStatus" class="d-flex align-items-center gap-2" style="display: none !important;">
-                    <span id="theaterNostrStatusBadge" class="badge bg-secondary">
-                        <i class="bi bi-broadcast"></i> Not connected
-                    </span>
-                    <button id="theaterNostrConnectBtn" class="btn btn-sm btn-primary" style="display: none;">
-                        <i class="bi bi-plug"></i> Connect
-                    </button>
-                </div>
-                
                 <button class="btn btn-sm btn-outline-success" id="theaterLikeBtn" title="Liker">
                     <i class="bi bi-hand-thumbs-up"></i>
                 </button>
@@ -594,8 +584,7 @@
                 <button class="btn btn-sm btn-outline-warning" id="theaterBookmarkBtn" title="Bookmark">
                     <i class="bi bi-bookmark"></i>
                 </button>
-                <!-- Close button only shown when opened as modal from youtube.html -->
-                <button class="btn btn-close btn-close-white" id="closeTheaterBtn" title="Fermer (ESC)" aria-label="Close" style="display: none;"></button>
+                <button class="btn btn-close btn-close-white" id="closeTheaterBtn" title="Fermer (ESC)" aria-label="Close"></button>
             </div>
         </div>
         
@@ -692,7 +681,35 @@
                 videoPlayer.load();
             }
             
-            // Try multiple strategies to close the modal
+            // Detect context: are we in a standalone window/tab or an iframe?
+            const isStandalone = (window.parent === window) || (window.location === window.parent.location);
+            
+            if (isStandalone) {
+                // Standalone mode (opened in new tab from youtube.html)
+                console.log('📤 Closing standalone theater window/tab');
+                
+                // Try to close the window (works if opened via window.open)
+                try {
+                    window.close();
+                } catch (e) {
+                    console.warn('⚠️ Could not close window:', e);
+                }
+                
+                // If window.close() didn't work (not opened via JS), try going back in history
+                if (!window.closed) {
+                    console.log('📤 Attempting to go back in history');
+                    // Check if there's a previous page in history
+                    if (window.history.length > 1) {
+                        window.history.back();
+                    } else {
+                        // Fallback: redirect to youtube page
+                        window.location.href = '/youtube?html=1';
+                    }
+                }
+                return;
+            }
+            
+            // If we're in an iframe or modal context, use the original strategies
             let closed = false;
             
             // Strategy 1: Try to use closeTheaterMode from parent or global context
@@ -771,12 +788,6 @@
                 }
             }
             
-            // Strategy 4: Last resort - try window.close if we're in a popup
-            if (!closed && window.opener) {
-                console.log('📤 Attempting to close window (popup mode)');
-                window.close();
-            }
-            
             if (!closed) {
                 console.error('❌ All close strategies failed');
             }
@@ -787,41 +798,6 @@
         
         // Initialize Bootstrap tooltips and event listeners
         document.addEventListener('DOMContentLoaded', function() {
-            // Detect if we're in standalone mode (direct page) or modal mode (iframe/embedded)
-            const isStandaloneMode = !window.opener && window.parent === window;
-            
-            // Configure UI based on mode
-            const closeBtn = document.getElementById('closeTheaterBtn');
-            const nostrStatusDiv = document.getElementById('theaterNostrStatus');
-            const nostrStatusBadge = document.getElementById('theaterNostrStatusBadge');
-            const nostrConnectBtn = document.getElementById('theaterNostrConnectBtn');
-            
-            if (isStandaloneMode) {
-                // Standalone mode: hide close button, show NOSTR status
-                if (closeBtn) {
-                    closeBtn.style.display = 'none';
-                }
-                if (nostrStatusDiv) {
-                    nostrStatusDiv.style.display = 'flex !important';
-                    nostrStatusDiv.classList.remove('d-none');
-                    nostrStatusDiv.removeAttribute('style'); // Remove inline style to use flex
-                }
-                
-                // Update NOSTR connection status
-                updateTheaterNostrStatus();
-                
-                // Monitor NOSTR connection status
-                setInterval(updateTheaterNostrStatus, 2000);
-            } else {
-                // Modal mode: show close button, hide NOSTR status
-                if (closeBtn) {
-                    closeBtn.style.display = 'block';
-                }
-                if (nostrStatusDiv) {
-                    nostrStatusDiv.style.display = 'none !important';
-                }
-            }
-            
             // Initialize tooltips
             const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
             tooltipTriggerList.map(function (tooltipTriggerEl) {
@@ -829,7 +805,8 @@
             });
             
             // Attach event listeners to buttons (safer than onclick)
-            if (closeBtn && !isStandaloneMode) {
+            const closeBtn = document.getElementById('closeTheaterBtn');
+            if (closeBtn) {
                 // Remove any existing listeners first
                 closeBtn.onclick = null;
                 // Add the click handler
@@ -838,35 +815,6 @@
                     e.stopPropagation();
                     if (typeof handleCloseTheater === 'function') {
                         handleCloseTheater();
-                    }
-                });
-            }
-            
-            // NOSTR connect button handler
-            if (nostrConnectBtn) {
-                nostrConnectBtn.addEventListener('click', async function(e) {
-                    e.preventDefault();
-                    if (typeof connectNostr === 'function') {
-                        try {
-                            nostrConnectBtn.disabled = true;
-                            nostrConnectBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Connecting...';
-                            const pubkey = await connectNostr(true); // Force auth
-                            if (pubkey) {
-                                updateTheaterNostrStatus();
-                                // Reload video if there's a video ID in URL
-                                const urlParams = new URLSearchParams(window.location.search);
-                                const videoId = urlParams.get('video');
-                                if (videoId && typeof loadVideoFromEventIdStandalone === 'function') {
-                                    await loadVideoFromEventIdStandalone(videoId);
-                                }
-                            }
-                        } catch (error) {
-                            console.error('Connection error:', error);
-                            alert('Erreur de connexion: ' + error.message);
-                        } finally {
-                            nostrConnectBtn.disabled = false;
-                            updateTheaterNostrStatus();
-                        }
                     }
                 });
             }
@@ -909,36 +857,6 @@
                 }, 1000);
             }
         });
-        
-        /**
-         * Update NOSTR connection status in theater header
-         */
-        function updateTheaterNostrStatus() {
-            const nostrStatusBadge = document.getElementById('theaterNostrStatusBadge');
-            const nostrConnectBtn = document.getElementById('theaterNostrConnectBtn');
-            
-            if (!nostrStatusBadge || !nostrConnectBtn) return;
-            
-            // Check connection state
-            const isConnected = typeof userPubkey !== 'undefined' && userPubkey && 
-                               typeof isNostrConnected !== 'undefined' && isNostrConnected &&
-                               typeof nostrRelay !== 'undefined' && nostrRelay;
-            
-            if (isConnected) {
-                // Connected
-                const shortPubkey = userPubkey.substring(0, 6) + '...';
-                nostrStatusBadge.innerHTML = `<i class="bi bi-broadcast"></i> ${shortPubkey}`;
-                nostrStatusBadge.classList.remove('bg-secondary', 'bg-warning');
-                nostrStatusBadge.classList.add('bg-success');
-                nostrConnectBtn.style.display = 'none';
-            } else {
-                // Not connected
-                nostrStatusBadge.innerHTML = '<i class="bi bi-broadcast"></i> Not connected';
-                nostrStatusBadge.classList.remove('bg-success', 'bg-warning');
-                nostrStatusBadge.classList.add('bg-secondary');
-                nostrConnectBtn.style.display = 'block';
-            }
-        }
 
         /**
          * Handle share button click - wrapper to ensure function is available
@@ -1712,9 +1630,11 @@
             const durationEl = document.getElementById('theaterDuration');
             const descriptionEl = document.getElementById('theaterDescription');
             
-            // Set title
+            // Set title in the page and in the <title> tag
             if (titleEl && videoData.title) {
                 titleEl.textContent = videoData.title;
+                // Update browser tab title
+                document.title = `${videoData.title} - Theater Mode`;
             }
             
             // Set video source
@@ -1923,10 +1843,47 @@
          */
         async function loadVideoFromEventIdStandalone(eventId) {
             try {
+                // Check if user needs to connect first
+                const needsConnection = typeof userPubkey === 'undefined' || !userPubkey;
+                
                 // Ensure NOSTR connection
                 if (typeof nostrRelay === 'undefined' || !nostrRelay) {
                     if (typeof connectToRelay === 'function') {
                         console.log('🔌 Connecting to NOSTR relay...');
+                        
+                        // If user is not connected, ask for permission first
+                        if (needsConnection) {
+                            const shouldConnect = confirm('Cette vidéo nécessite une connexion NOSTR pour être visionnée.\n\nVoulez-vous vous connecter maintenant ?');
+                            if (!shouldConnect) {
+                                document.getElementById('theaterTitle').textContent = 'Connexion requise';
+                                const videoContainer = document.querySelector('.theater-video-container');
+                                if (videoContainer) {
+                                    videoContainer.innerHTML = `
+                                        <div style="text-align: center; padding: 40px; color: #ffffff;">
+                                            <h3>🔌 Connexion NOSTR requise</h3>
+                                            <p style="color: #aaaaaa; margin: 20px 0;">Vous devez être connecté à NOSTR pour visionner cette vidéo.</p>
+                                            <button class="btn btn-primary btn-lg" onclick="attemptNostrConnection()">
+                                                <i class="bi bi-plug"></i> Se connecter avec NOSTR
+                                            </button>
+                                        </div>
+                                    `;
+                                }
+                                return;
+                            }
+                            
+                            // Try to connect with user's permission
+                            if (typeof connectNostr === 'function') {
+                                try {
+                                    const pubkey = await connectNostr();
+                                    if (!pubkey) {
+                                        throw new Error('Connexion NOSTR refusée ou échouée');
+                                    }
+                                } catch (connErr) {
+                                    throw new Error('Impossible de se connecter à NOSTR: ' + connErr.message);
+                                }
+                            }
+                        }
+                        
                         await connectToRelay();
                         // Wait a bit for connection to stabilize
                         await new Promise(resolve => setTimeout(resolve, 500));
@@ -2031,6 +1988,11 @@
                 
                 console.log('✅ Video data parsed:', videoData);
                 
+                // Update page title with video title
+                if (videoData.title) {
+                    document.title = `${videoData.title} - Theater Mode`;
+                }
+                
                 // Initialize theater mode with this data
                 if (typeof initializeTheaterMode === 'function') {
                     initializeTheaterMode(videoData);
@@ -2041,12 +2003,46 @@
             } catch (error) {
                 console.error('❌ Error loading video:', error);
                 document.getElementById('theaterTitle').textContent = 'Erreur de chargement';
-                alert('Impossible de charger la vidéo: ' + error.message);
+                
+                const videoContainer = document.querySelector('.theater-video-container');
+                if (videoContainer) {
+                    videoContainer.innerHTML = `
+                        <div style="text-align: center; padding: 40px; color: #ffffff;">
+                            <h3>❌ Erreur</h3>
+                            <p style="color: #aaaaaa; margin: 20px 0;">${error.message}</p>
+                            <button class="btn btn-secondary" onclick="window.history.back()">
+                                <i class="bi bi-arrow-left"></i> Retour
+                            </button>
+                        </div>
+                    `;
+                }
             }
         }
         
-        // Expose function globally
+        /**
+         * Attempt NOSTR connection (called from connection prompt)
+         */
+        async function attemptNostrConnection() {
+            try {
+                if (typeof connectNostr === 'function') {
+                    const pubkey = await connectNostr();
+                    if (pubkey) {
+                        // Reload the page to retry loading the video
+                        window.location.reload();
+                    } else {
+                        alert('Connexion NOSTR refusée ou échouée');
+                    }
+                } else {
+                    alert('Fonction de connexion NOSTR non disponible');
+                }
+            } catch (error) {
+                alert('Erreur lors de la connexion: ' + error.message);
+            }
+        }
+        
+        // Expose functions globally
         window.loadVideoFromEventIdStandalone = loadVideoFromEventIdStandalone;
+        window.attemptNostrConnection = attemptNostrConnection;
 
         /**
          * Load related videos with thumbnails (fallback if function not available)
