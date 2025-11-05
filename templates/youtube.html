@@ -630,7 +630,8 @@
         
         .video-thumbnail.playing .thumbnail-img,
         .video-thumbnail.playing .thumbnail-placeholder,
-        .video-thumbnail.playing .play-overlay {
+        .video-thumbnail.playing .play-overlay,
+        .video-thumbnail.playing .gifanim-overlay {
             display: none;
         }
         
@@ -2529,6 +2530,13 @@
                 videoContainer.classList.remove('playing');
                 videoPlayer.style.display = 'none';
                 
+                // Restore GIF animation visibility (will show on hover)
+                const gifOverlay = videoContainer.querySelector('.gifanim-overlay');
+                if (gifOverlay) {
+                    gifOverlay.style.display = 'block';
+                    gifOverlay.style.opacity = ''; // Reset to CSS-controlled opacity
+                }
+                
                 // Remove source to free memory
                 videoPlayer.innerHTML = 'Votre navigateur ne supporte pas la lecture vidéo.';
                 videoPlayer.load();
@@ -2549,6 +2557,13 @@
                         }
                     }
                 });
+                
+                // Hide GIF animation when starting video playback
+                const gifOverlay = videoContainer.querySelector('.gifanim-overlay');
+                if (gifOverlay) {
+                    gifOverlay.style.opacity = '0';
+                    gifOverlay.style.display = 'none';
+                }
                 
                 // Start playing
                 const ipfsUrl = videoPlayer.getAttribute('data-ipfs-url');
