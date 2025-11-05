@@ -302,6 +302,8 @@
          * Works in all contexts: iframe, new window, or embedded
          */
         function handleCloseTheater() {
+            console.log('🔴 handleCloseTheater called');
+            
             // First, pause and cleanup video
             const videoPlayer = document.getElementById('theaterVideoPlayer');
             if (videoPlayer) {
@@ -310,45 +312,93 @@
                 videoPlayer.load();
             }
             
-            // Try to use closeTheaterMode from parent or global context
+            // Try multiple strategies to close the modal
+            let closed = false;
+            
+            // Strategy 1: Try to use closeTheaterMode from parent or global context
             if (typeof window.closeTheaterMode === 'function') {
                 try {
+                    console.log('📤 Attempting to close via window.closeTheaterMode');
                     window.closeTheaterMode();
+                    closed = true;
                     return;
                 } catch (e) {
-                    console.warn('closeTheaterMode failed, trying fallback:', e);
+                    console.warn('⚠️ closeTheaterMode failed:', e);
                 }
             }
             
-            // Try parent window if we're in an iframe
-            if (window.parent && window.parent !== window) {
+            // Strategy 2: Try parent window if we're in an iframe
+            if (!closed && window.parent && window.parent !== window) {
                 if (typeof window.parent.closeTheaterMode === 'function') {
                     try {
+                        console.log('📤 Attempting to close via parent.closeTheaterMode');
                         window.parent.closeTheaterMode();
+                        closed = true;
                         return;
                     } catch (e) {
-                        console.warn('Parent closeTheaterMode failed:', e);
+                        console.warn('⚠️ Parent closeTheaterMode failed:', e);
                     }
                 }
                 
-                // Try to close via postMessage
-                try {
-                    window.parent.postMessage({ type: 'close-theater-modal' }, '*');
-                    return;
-                } catch (e) {
-                    console.warn('PostMessage close failed:', e);
+                // Try to close via postMessage as backup
+                if (!closed) {
+                    try {
+                        console.log('📤 Attempting to close via postMessage');
+                        window.parent.postMessage({ type: 'close-theater-modal' }, '*');
+                        closed = true;
+                        return;
+                    } catch (e) {
+                        console.warn('⚠️ PostMessage close failed:', e);
+                    }
                 }
             }
             
-            // Fallback: try to remove modal directly
-            const modal = document.getElementById('theaterModal');
-            if (modal) {
-                modal.remove();
+            // Strategy 3: Try to close Bootstrap modal directly
+            if (!closed) {
+                const modalEl = document.getElementById('theaterModal') || 
+                               document.querySelector('.theater-modal') ||
+                               document.body.querySelector('[id*="theater"]');
+                
+                if (modalEl) {
+                    try {
+                        console.log('📤 Attempting to close Bootstrap modal directly');
+                        // Try Bootstrap modal API first
+                        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                            const bsModal = bootstrap.Modal.getInstance(modalEl);
+                            if (bsModal) {
+                                bsModal.hide();
+                                closed = true;
+                                return;
+                            }
+                        }
+                        
+                        // Fallback: remove modal directly
+                        modalEl.style.display = 'none';
+                        modalEl.classList.remove('show');
+                        document.body.classList.remove('modal-open');
+                        
+                        // Remove backdrop if exists
+                        const backdrop = document.querySelector('.modal-backdrop');
+                        if (backdrop) {
+                            backdrop.remove();
+                        }
+                        
+                        closed = true;
+                        return;
+                    } catch (e) {
+                        console.warn('⚠️ Direct modal close failed:', e);
+                    }
+                }
             }
             
-            // Last resort: try window.close if we're in a popup
-            if (window.opener) {
+            // Strategy 4: Last resort - try window.close if we're in a popup
+            if (!closed && window.opener) {
+                console.log('📤 Attempting to close window (popup mode)');
                 window.close();
+            }
+            
+            if (!closed) {
+                console.error('❌ All close strategies failed');
             }
         }
         
@@ -365,8 +415,17 @@
             
             // Attach event listeners to buttons (safer than onclick)
             const closeBtn = document.getElementById('closeTheaterBtn');
-            if (closeBtn && typeof handleCloseTheater === 'function') {
-                closeBtn.addEventListener('click', handleCloseTheater);
+            if (closeBtn) {
+                // Remove any existing listeners first
+                closeBtn.onclick = null;
+                // Add the click handler
+                closeBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (typeof handleCloseTheater === 'function') {
+                        handleCloseTheater();
+                    }
+                });
             }
             
             // Attach listeners for other buttons - functions are defined later but hoisted
