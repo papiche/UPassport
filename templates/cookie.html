@@ -421,12 +421,12 @@
             
             <!-- Upload Section -->
             <div class="section">
-                <h2>📤 UPLOAD COOKIE FILE</h2>
+                <h2 data-i18n="upload_title">📤 UPLOAD COOKIE FILE</h2>
                 <div class="upload-zone" id="upload-area" onclick="document.getElementById('cookie-file').click()">
                     <div class="upload-icon">☁️</div>
-                    <h3 style="color: var(--terminal-green); margin-bottom: 10px;">Drop your <code>cookies.txt</code> here</h3>
-                    <p style="color: var(--text-color);">or click to select</p>
-                    <p style="color: var(--terminal-cyan); font-size: 0.9rem; margin-top: 10px;">Format: Netscape HTTP Cookie File</p>
+                    <h3 style="color: var(--terminal-green); margin-bottom: 10px;"><span data-i18n="upload_drop">Drop your</span> <code>cookies.txt</code> <span data-i18n="upload_here">here</span></h3>
+                    <p style="color: var(--text-color);" data-i18n="upload_or_click">or click to select</p>
+                    <p style="color: var(--terminal-cyan); font-size: 0.9rem; margin-top: 10px;" data-i18n="upload_format">Format: Netscape HTTP Cookie File</p>
                     <input type="file" id="cookie-file" accept=".txt" style="display: none;" onchange="handleCookieUpload(event)">
                 </div>
                 <div id="upload-status"></div>
@@ -434,27 +434,27 @@
 
             <!-- What Cookies Do -->
             <div class="section">
-                <h2>💡 WHAT ARE COOKIES USED FOR?</h2>
-                <p>A cookie file contains your authentication session for a website. By sharing it with your UPlanet AI:</p>
+                <h2 data-i18n="what_cookies_title">💡 WHAT ARE COOKIES USED FOR?</h2>
+                <p data-i18n="what_cookies_intro">A cookie file contains your authentication session for a website. By sharing it with your UPlanet AI:</p>
                 <ul>
-                    <li><strong style="color: var(--terminal-cyan);">YouTube:</strong> Auto-sync your likes 👍, download your favorites</li>
-                    <li><strong style="color: var(--terminal-cyan);">Leboncoin:</strong> Search ads with your personal filters</li>
-                    <li><strong style="color: var(--terminal-cyan);">Any Site:</strong> Let your AI access content as you</li>
+                    <li><strong style="color: var(--terminal-cyan);"><span data-i18n="what_cookies_youtube">YouTube:</span></strong> <span data-i18n="what_cookies_youtube_desc">Auto-sync your likes 👍, download your favorites</span></li>
+                    <li><strong style="color: var(--terminal-cyan);"><span data-i18n="what_cookies_leboncoin">Leboncoin:</span></strong> <span data-i18n="what_cookies_leboncoin_desc">Search ads with your personal filters</span></li>
+                    <li><strong style="color: var(--terminal-cyan);"><span data-i18n="what_cookies_any">Any Site:</span></strong> <span data-i18n="what_cookies_any_desc">Let your AI access content as you</span></li>
                 </ul>
                 <div class="alert alert-warning">
-                    ⚠️ <strong>Security:</strong> Cookies are stored in your private MULTIPASS. Only you and your AI can access them.
+                    ⚠️ <strong><span data-i18n="what_cookies_security">Security:</span></strong> <span data-i18n="what_cookies_security_desc">Cookies are stored in your private MULTIPASS. Only you and your AI can access them.</span>
                 </div>
             </div>
 
             <!-- Instructions -->
             <div class="section">
-                <h2>📝 HOW TO EXPORT COOKIES</h2>
+                <h2 data-i18n="instructions_title">📝 HOW TO EXPORT COOKIES</h2>
                 
                 <div class="step">
                     <div class="step-number">1</div>
                     <div class="step-content">
-                        <h3>Install Browser Extension</h3>
-                        <p>Install <strong>"Get cookies.txt LOCALLY"</strong> extension:</p>
+                        <h3 data-i18n="step1_title">Install Browser Extension</h3>
+                        <p data-i18n="step1_content">Install <strong>"Get cookies.txt LOCALLY"</strong> extension:</p>
                         <div style="margin: 15px 0;">
                             <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" class="browser-link" target="_blank">
                                 Chrome / Edge
@@ -463,7 +463,7 @@
                                 Firefox
                             </a>
                         </div>
-                        <div class="alert alert-info">
+                        <div class="alert alert-info" data-i18n="step1_info">
                             💡 This extension exports cookies in the standard Netscape format, compatible with automation tools.
                         </div>
                     </div>
@@ -472,14 +472,14 @@
                 <div class="step">
                     <div class="step-number">2</div>
                     <div class="step-content">
-                        <h3>Open Private Window</h3>
-                        <p><strong>⚠️ IMPORTANT:</strong> Open an incognito/private browsing window:</p>
+                        <h3 data-i18n="step2_title">Open Private Window</h3>
+                        <p><strong data-i18n="step2_important">⚠️ IMPORTANT:</strong> <span data-i18n="step2_content">Open an incognito/private browsing window:</span></p>
                         <ul>
-                            <li><strong>Chrome/Edge:</strong> <code>Ctrl + Shift + N</code> (Win/Linux) or <code>Cmd + Shift + N</code> (Mac)</li>
-                            <li><strong>Firefox:</strong> <code>Ctrl + Shift + P</code> (Win/Linux) or <code>Cmd + Shift + P</code> (Mac)</li>
+                            <li><strong data-i18n="step2_chrome">Chrome/Edge:</strong> <code>Ctrl + Shift + N</code> <span data-i18n="step2_chrome_keys">(Win/Linux) or</span> <code>Cmd + Shift + N</code> <span data-i18n="step2_chrome_keys_mac">(Mac)</span></li>
+                            <li><strong data-i18n="step2_firefox">Firefox:</strong> <code>Ctrl + Shift + P</code> <span data-i18n="step2_firefox_keys">(Win/Linux) or</span> <code>Cmd + Shift + P</code> <span data-i18n="step2_firefox_keys_mac">(Mac)</span></li>
                         </ul>
                         <div class="alert alert-warning">
-                            ⚠️ <strong>Why private?</strong> To prevent the website from invalidating your cookies after export. The private session stays isolated from your normal browsing.
+                            ⚠️ <strong data-i18n="step2_why">Why private?</strong> <span data-i18n="step2_why_desc">To prevent the website from invalidating your cookies after export. The private session stays isolated from your normal browsing.</span>
                         </div>
                     </div>
                 </div>
@@ -487,15 +487,15 @@
                 <div class="step">
                     <div class="step-number">3</div>
                     <div class="step-content">
-                        <h3>Login to Website</h3>
-                        <p>In the private window:</p>
+                        <h3 data-i18n="step3_title">Login to Website</h3>
+                        <p data-i18n="step3_content">In the private window:</p>
                         <ol>
-                            <li>Go to the website (e.g., <code>youtube.com</code>, <code>leboncoin.fr</code>)</li>
-                            <li>Login with your credentials</li>
-                            <li>Browse normally (watch a video, view listings...)</li>
-                            <li>Make sure you're authenticated</li>
+                            <li data-i18n="step3_1">Go to the website (e.g., <code>youtube.com</code>, <code>leboncoin.fr</code>)</li>
+                            <li data-i18n="step3_2">Login with your credentials</li>
+                            <li data-i18n="step3_3">Browse normally (watch a video, view listings...)</li>
+                            <li data-i18n="step3_4">Make sure you're authenticated</li>
                         </ol>
-                        <div class="alert alert-info">
+                        <div class="alert alert-info" data-i18n="step3_tip">
                             💡 <strong>Tip:</strong> The more you browse, the more complete and effective your cookies will be.
                         </div>
                     </div>
@@ -504,15 +504,15 @@
                 <div class="step">
                     <div class="step-number">4</div>
                     <div class="step-content">
-                        <h3>Export Cookies</h3>
-                        <p>Still in the private window:</p>
+                        <h3 data-i18n="step4_title">Export Cookies</h3>
+                        <p data-i18n="step4_content">Still in the private window:</p>
                         <ol>
-                            <li>Click the <strong>"Get cookies.txt LOCALLY"</strong> extension icon in toolbar</li>
-                            <li>Select <strong>"Netscape"</strong> format (very important!)</li>
-                            <li>Click <strong>"Export"</strong></li>
-                            <li>The <code>cookies.txt</code> file downloads automatically</li>
+                            <li data-i18n="step4_1">Click the <strong>"Get cookies.txt LOCALLY"</strong> extension icon in toolbar</li>
+                            <li data-i18n="step4_2">Select <strong>"Netscape"</strong> format (very important!)</li>
+                            <li data-i18n="step4_3">Click <strong>"Export"</strong></li>
+                            <li data-i18n="step4_4">The <code>cookies.txt</code> file downloads automatically</li>
                         </ol>
-                        <div class="alert alert-warning">
+                        <div class="alert alert-warning" data-i18n="step4_warning">
                             ⚠️ <strong>Close the private window</strong> now and don't use it anymore. You can continue using the site normally in your regular browser.
                         </div>
                     </div>
@@ -521,14 +521,14 @@
                 <div class="step">
                     <div class="step-number">5</div>
                     <div class="step-content">
-                        <h3>Upload to MULTIPASS</h3>
-                        <p>Scroll back to the top and drop the <code>cookies.txt</code> file in the upload zone.</p>
-                        <div class="alert alert-success">
+                        <h3 data-i18n="step5_title">Upload to MULTIPASS</h3>
+                        <p data-i18n="step5_content">Scroll back to the top and drop the <code>cookies.txt</code> file in the upload zone.</p>
+                        <div class="alert alert-success" data-i18n="step5_auto">
                             ✅ <strong>Automatic:</strong> The system will detect the domain and securely store your cookies in your MULTIPASS.
                         </div>
                         <div style="text-align: center; margin-top: 20px;">
                             <button class="button" onclick="document.getElementById('upload-area').scrollIntoView({behavior: 'smooth'})">
-                                ↑ Go to Upload Zone
+                                <span data-i18n="step5_button">↑ Go to Upload Zone</span>
                             </button>
                         </div>
                     </div>
@@ -537,22 +537,27 @@
 
             <!-- FAQ -->
             <div class="section">
-                <h2>❓ FREQUENTLY ASKED QUESTIONS</h2>
+                <h2 data-i18n="faq_title">❓ FREQUENTLY ASKED QUESTIONS</h2>
                 
-                <h3>Are my cookies secure?</h3>
-                <p>Yes! Your cookies are stored in your personal MULTIPASS, encrypted and accessible only by you and your AI. No one else can access them.</p>
+                <h3 data-i18n="faq_q1">Are my cookies secure?</h3>
+                <p data-i18n="faq_a1">Yes! Your cookies are stored in your personal MULTIPASS, encrypted and accessible only by you and your AI. No one else can access them.</p>
 
-                <h3>How long do cookies stay valid?</h3>
-                <p>Generally between 2 weeks and 6 months depending on the website. If your cookies expire, just re-export and re-upload a new file.</p>
+                <h3 data-i18n="faq_q2">How long do cookies stay valid?</h3>
+                <p data-i18n="faq_a2">Generally between 2 weeks and 6 months depending on the website. If your cookies expire, just re-export and re-upload a new file.</p>
 
-                <h3>Can I upload cookies from multiple sites?</h3>
-                <p>Yes! You can export and upload cookies from each site separately. The system will automatically detect the domain and store them correctly.</p>
+                <h3 data-i18n="faq_q3">Can I upload cookies from multiple sites?</h3>
+                <p data-i18n="faq_a3">Yes! You can export and upload cookies from each site separately. The system will automatically detect the domain and store them correctly.</p>
 
-                <h3>Will my normal browsing be affected?</h3>
-                <p>No! Exporting in a private window ensures your normal session isn't disrupted. You can continue using sites normally.</p>
+                <h3 data-i18n="faq_q4">Will my normal browsing be affected?</h3>
+                <p data-i18n="faq_a4">No! Exporting in a private window ensures your normal session isn't disrupted. You can continue using sites normally.</p>
 
-                <h3>What does my AI do with my cookies?</h3>
-                <p>Your AI uses your cookies to <strong>acess content as if it were you</strong> </p>
+                <h3 data-i18n="faq_q5">What does my AI do with my cookies?</h3>
+                <p data-i18n="faq_a5_title">Your AI uses your cookies to:</p>
+                <ul>
+                    <li data-i18n="faq_a5_youtube"><strong>YouTube:</strong> Sync your likes, download your favorite videos</li>
+                    <li data-i18n="faq_a5_leboncoin"><strong>Leboncoin:</strong> Search with your personal filters</li>
+                    <li data-i18n="faq_a5_other"><strong>Other sites:</strong> Access content as if it were you</li>
+                </ul>
 
             </div>
 
@@ -674,6 +679,9 @@
 
                 document.getElementById('main-content').style.display = 'block';
                 document.getElementById('auth-section').style.display = 'none';
+                
+                // Re-apply translations to the now-visible main content
+                i18n.applyTranslations();
                 
                 // Update nav status
                 const navStatus = document.getElementById('nav-status');
