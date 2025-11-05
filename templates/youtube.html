@@ -2066,8 +2066,7 @@
                 share: "Partager",
                 bookmark: "Bookmark",
                 like: "Like",
-                play: "Lire",
-                view: "Voir",
+                watch: "Regarder",
                 videos_at_location: "vidéos à cet emplacement",
                 no_videos_found: "Aucune vidéo trouvée",
                 check_connection: "Vérifiez la connexion au relay NOSTR ou ajoutez des vidéos via",
@@ -4780,8 +4779,7 @@
                             <div class="map-popup-title">${escapeHtml(video.title)}</div>
                             <div class="map-popup-meta">${uploaderDisplay}${metaDisplay ? '<br>' + escapeHtml(metaDisplay) : ''}</div>
                             <div class="map-popup-actions">
-                                <button class="map-popup-btn" onclick="playVideoFromMap('${video.ipfsUrl}')">▶ ${t('play')}</button>
-                                <button class="map-popup-btn" onclick="closeMapAndScrollTo('${escapeHtml(video.title)}')">👁️ ${t('view')}</button>
+                                <button class="map-popup-btn" onclick="openVideoFromMap('${escapeHtml(video.title)}', '${video.ipfsUrl}', '${video.authorId || ''}', '${escapeHtml(video.uploader || '')}', '${video.channel || ''}')">▶️ ${t('watch')}</button>
                             </div>
                         </div>
                     </div>
@@ -4824,8 +4822,7 @@
                                         <div class="map-popup-video-item-title">${escapeHtml(video.title)}</div>
                                         <div class="map-popup-video-item-meta">${uploaderDisplay}${metaDisplay ? '<br>' + escapeHtml(metaDisplay) : ''}</div>
                                         <div class="map-popup-video-item-actions">
-                                            <button class="map-popup-btn-small" onclick="playVideoFromMap('${video.ipfsUrl}')">▶</button>
-                                            <button class="map-popup-btn-small" onclick="closeMapAndScrollTo('${escapeHtml(video.title)}')">👁️</button>
+                                            <button class="map-popup-btn-small" onclick="openVideoFromMap('${escapeHtml(video.title)}', '${video.ipfsUrl}', '${video.authorId || ''}', '${escapeHtml(video.uploader || '')}', '${video.channel || ''}')">▶️</button>
                                         </div>
                                     </div>
                                 </div>
@@ -4849,50 +4846,85 @@
         // Note: escapeHtml is defined in youtube.enhancements.js and should be globally available
         
         /**
-         * Play video from map popup
+         * Open video in theater mode from map popup
+         * Replaces both playVideoFromMap and closeMapAndScrollTo
          */
-        function playVideoFromMap(ipfsUrl) {
-            // Close map
+        function openVideoFromMap(title, ipfsUrl, authorId, uploader, channel) {
+            console.log(`🗺️ Opening video from map: ${title}`);
+            
+            // Close map first
             toggleMapView();
             
-            // Find and play the video
+            // Find the video element to extract more metadata
             const videos = document.querySelectorAll('.video');
-            videos.forEach(videoElement => {
+            let videoData = null;
+            
+            for (const videoElement of videos) {
                 const videoPlayer = videoElement.querySelector('.inline-video-player');
-                if (videoPlayer && videoPlayer.getAttribute('data-ipfs-url') === ipfsUrl) {
-                    const thumbnail = videoElement.querySelector('.video-thumbnail');
-                    if (thumbnail) {
-                        // Scroll to video
-                        videoElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        // Play video after a short delay
-                        setTimeout(() => {
-                            toggleVideoPlayer(thumbnail);
-                        }, 500);
-                    }
-                }
-            });
-        }
-        
-        /**
-         * Close map and scroll to video
-         */
-        function closeMapAndScrollTo(title) {
-            // Close map
-            toggleMapView();
-            
-            // Find and scroll to the video
-            const videos = document.querySelectorAll('.video');
-            videos.forEach(videoElement => {
                 const videoTitle = videoElement.querySelector('.video-title')?.textContent;
-                if (videoTitle === title) {
-                    videoElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    // Highlight the video briefly
-                    videoElement.style.outline = '2px solid #ff0000';
-                    setTimeout(() => {
-                        videoElement.style.outline = 'none';
-                    }, 2000);
+                
+                // Match by IPFS URL or title
+                if ((videoPlayer && videoPlayer.getAttribute('data-ipfs-url') === ipfsUrl) || videoTitle === title) {
+                    const videoMetaEl = videoElement.querySelector('.video-meta');
+                    const thumbnailEl = videoElement.querySelector('.thumbnail-img, .gifanim-overlay');
+                    const eventId = videoPlayer?.getAttribute('data-event-id') || null;
+                    
+                    // Extract duration from meta
+                    let duration = null;
+                    if (videoMetaEl) {
+                        const meta = videoMetaEl.textContent || '';
+                        const durationMatch = meta.match(/(\d+):(\d+)/);
+                        if (durationMatch) {
+                            duration = parseInt(durationMatch[1]) * 60 + parseInt(durationMatch[2]);
+                        }
+                    }
+                    
+                    // Extract content/description if available
+                    const descriptionEl = videoElement.querySelector('.video-description');
+                    const content = descriptionEl ? descriptionEl.textContent.trim() : '';
+                    
+                    videoData = {
+                        title: title,
+                        ipfsUrl: ipfsUrl,
+                        thumbnailUrl: thumbnailEl?.src || null,
+                        eventId: eventId,
+                        authorId: authorId || null,
+                        channel: channel || null,
+                        uploader: uploader || 'Auteur inconnu',
+                        duration: duration,
+                        content: content,
+                        description: content
+                    };
+                    
+                    break;
                 }
-            });
+            }
+            
+            // If video not found in DOM, create minimal videoData
+            if (!videoData) {
+                console.warn('⚠️ Video not found in DOM, using minimal data');
+                videoData = {
+                    title: title,
+                    ipfsUrl: ipfsUrl,
+                    thumbnailUrl: null,
+                    eventId: null,
+                    authorId: authorId || null,
+                    channel: channel || null,
+                    uploader: uploader || 'Auteur inconnu',
+                    duration: null,
+                    content: '',
+                    description: ''
+                };
+            }
+            
+            // Open theater mode with the video data
+            if (typeof openTheaterMode === 'function') {
+                console.log('✅ Opening theater mode with data:', videoData);
+                openTheaterMode(videoData);
+            } else {
+                console.error('❌ openTheaterMode function not available');
+                alert('Erreur: Fonction d\'ouverture du théâtre non disponible');
+            }
         }
     </script>
 </body>
