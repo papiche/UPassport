@@ -5,643 +5,589 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🍪 Cookie Manager - UPlanet MULTIPASS</title>
     
-    <!-- Bootstrap 5 CSS -->
-    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
-    
-    <!-- Bootstrap 5 JS Bundle -->
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
-    
-    <!-- NOSTR integration -->
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    <!-- UPlanet Common JS (includes NOSTR functions) -->
+    <script src="/UPlanet/earth/common.js"></script>
     
     <style>
+        @import url('./fonts.css');
+
         :root {
-            --bs-primary: #4ade80;
-            --bs-success: #22c55e;
-            --bs-warning: #fbbf24;
-            --bs-info: #3b82f6;
-            --bs-danger: #ef4444;
-            --bs-dark: #0f172a;
-            --accent: #4ade80;
-            --accent-hover: #22c55e;
-            --muted: #64748b;
-            --text: #e8e8e8;
-            --border: rgba(74, 222, 128, 0.3);
+            --terminal-bg: #0a0a12;
+            --terminal-green: #0f0;
+            --terminal-cyan: #0ff;
+            --terminal-purple: #b19cd9;
+            --terminal-orange: #ff851b;
+            --terminal-glow: rgba(0, 255, 0, 0.7);
+            --terminal-border: #333;
+            --text-color: #e0e0e0;
+            --text-shadow: 0 0 8px var(--terminal-glow);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
         body {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
-            color: #e8e8e8;
+            background: #000;
+            font-family: 'Inconsolata', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             min-height: 100vh;
-            padding-top: 70px;
-        }
-
-        .navbar {
-            background: rgba(15, 23, 42, 0.95) !important;
-            backdrop-filter: blur(10px);
-            border-bottom: 2px solid rgba(74, 222, 128, 0.3);
-        }
-
-        .navbar-brand {
-            color: #4ade80 !important;
-            font-weight: 700;
-            font-size: 1.5rem;
-        }
-
-        .nav-link {
-            color: #cbd5e1 !important;
-            transition: all 0.3s;
-        }
-
-        .nav-link:hover, .nav-link.active {
-            color: #4ade80 !important;
-            background: rgba(74, 222, 128, 0.1);
-            border-radius: 8px;
-        }
-
-        .card {
-            background: rgba(15, 23, 42, 0.9);
-            border: 1px solid rgba(74, 222, 128, 0.3);
-            border-radius: 15px;
-            color: #e8e8e8;
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(74, 222, 128, 0.2);
-        }
-
-        .card-header {
-            background: linear-gradient(135deg, rgba(74, 222, 128, 0.2), rgba(34, 197, 94, 0.1));
-            border-bottom: 1px solid rgba(74, 222, 128, 0.3);
-            color: #4ade80;
-            font-weight: 600;
-        }
-
-        .hero-section {
-            background: linear-gradient(135deg, rgba(74, 222, 128, 0.1), rgba(34, 197, 94, 0.05));
-            border: 2px solid rgba(74, 222, 128, 0.3);
-            border-radius: 20px;
-            padding: 40px;
-            margin-bottom: 30px;
-            text-align: center;
-        }
-
-        .hero-title {
-            font-size: 3rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #4ade80, #22c55e, #10b981);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 15px;
-        }
-
-        .hero-subtitle {
-            color: #fbbf24;
-            font-size: 1.2rem;
-            font-weight: 500;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #4ade80, #22c55e);
-            border: none;
-            font-weight: 600;
-            padding: 12px 24px;
-            border-radius: 10px;
-            transition: all 0.3s;
-        }
-
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #22c55e, #16a34a);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(74, 222, 128, 0.4);
-        }
-
-        .btn-outline-primary {
-            border: 2px solid #4ade80;
-            color: #4ade80;
-            font-weight: 600;
-        }
-
-        .btn-outline-primary:hover {
-            background: #4ade80;
-            border-color: #4ade80;
-            color: #0f172a;
-        }
-
-        .step-card {
+            padding: 20px;
             position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Matrix-style background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 255, 0, 0.03) 2px,
+                    rgba(0, 255, 0, 0.03) 4px
+                );
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 900px;
+            width: 100%;
+            background: var(--terminal-bg);
+            border: 2px solid var(--terminal-green);
+            border-radius: 8px;
+            box-shadow: 
+                0 0 20px rgba(0, 255, 0, 0.3),
+                inset 0 0 50px rgba(0, 255, 0, 0.05);
+            padding: 30px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--terminal-green);
+            padding-bottom: 20px;
+        }
+
+        h1 {
+            color: var(--terminal-green);
+            font-size: 2.5rem;
+            text-shadow: var(--text-shadow);
+            margin-bottom: 10px;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            color: var(--terminal-cyan);
+            font-size: 1.1rem;
+            text-shadow: 0 0 5px var(--terminal-cyan);
+        }
+
+        /* Navigation */
+        .nav-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: rgba(0, 255, 0, 0.05);
+            border: 1px solid var(--terminal-border);
+            border-radius: 5px;
             margin-bottom: 20px;
         }
 
-        .step-number {
-            position: absolute;
-            top: -15px;
-            left: 20px;
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, #4ade80, #22c55e);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #0f172a;
-            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
-        }
-
-        .alert-info {
-            background: rgba(59, 130, 246, 0.1);
-            border: 1px solid rgba(59, 130, 246, 0.3);
-            color: #3b82f6;
-        }
-
-        .alert-warning {
-            background: rgba(251, 191, 36, 0.1);
-            border: 1px solid rgba(251, 191, 36, 0.3);
-            color: #fbbf24;
-        }
-
-        .alert-success {
-            background: rgba(74, 222, 128, 0.1);
-            border: 1px solid rgba(74, 222, 128, 0.3);
-            color: #4ade80;
-        }
-
-        .browser-btn {
-            display: inline-block;
-            padding: 12px 24px;
-            border: 2px solid rgba(74, 222, 128, 0.3);
-            border-radius: 10px;
-            margin: 5px;
-            transition: all 0.3s;
-            color: #e8e8e8;
+        .nav-links a {
+            color: var(--terminal-cyan);
             text-decoration: none;
+            margin: 0 10px;
+            transition: all 0.3s;
         }
 
-        .browser-btn:hover {
-            border-color: #4ade80;
-            background: rgba(74, 222, 128, 0.1);
-            color: #4ade80;
+        .nav-links a:hover {
+            color: var(--terminal-green);
+            text-shadow: 0 0 8px var(--terminal-green);
+        }
+
+        /* Auth Section */
+        #auth-section {
+            text-align: center;
+            padding: 40px 20px;
+            border: 1px dashed var(--terminal-green);
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        #auth-section h3 {
+            color: var(--terminal-purple);
+            margin-bottom: 20px;
+            text-shadow: 0 0 8px var(--terminal-purple);
+        }
+
+        .button {
+            background: transparent;
+            border: 2px solid var(--terminal-green);
+            color: var(--terminal-green);
+            padding: 12px 30px;
+            font-size: 1rem;
+            font-family: 'Inconsolata', monospace;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+            border-radius: 5px;
+        }
+
+        .button:hover {
+            background: var(--terminal-green);
+            color: #000;
+            box-shadow: 0 0 20px var(--terminal-glow);
             transform: translateY(-2px);
         }
 
-        .upload-area {
-            border: 2px dashed #4ade80;
-            border-radius: 15px;
+        .button:active {
+            transform: translateY(0);
+        }
+
+        /* Upload Section */
+        .upload-zone {
+            border: 2px dashed var(--terminal-green);
             padding: 40px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s;
-            background: rgba(74, 222, 128, 0.05);
+            border-radius: 5px;
+            margin: 20px 0;
+            background: rgba(0, 255, 0, 0.02);
         }
 
-        .upload-area:hover {
-            border-color: #22c55e;
-            background: rgba(74, 222, 128, 0.1);
-            transform: scale(1.02);
+        .upload-zone:hover {
+            border-color: var(--terminal-cyan);
+            background: rgba(0, 255, 255, 0.05);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
         }
 
-        .upload-area.drag-over {
-            border-color: #fbbf24;
-            background: rgba(251, 191, 36, 0.1);
+        .upload-zone.drag-over {
+            border-color: var(--terminal-orange);
+            background: rgba(255, 133, 27, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: var(--terminal-green);
+            margin-bottom: 15px;
+            text-shadow: var(--text-shadow);
+        }
+
+        /* Instructions */
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            background: rgba(0, 255, 0, 0.02);
+            border: 1px solid var(--terminal-border);
+            border-left: 3px solid var(--terminal-green);
+            border-radius: 5px;
+        }
+
+        .section h2 {
+            color: var(--terminal-cyan);
+            margin-bottom: 15px;
+            text-shadow: 0 0 8px var(--terminal-cyan);
+            font-size: 1.5rem;
+        }
+
+        .section h3 {
+            color: var(--terminal-purple);
+            margin-top: 20px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 5px var(--terminal-purple);
+        }
+
+        .section p, .section li {
+            color: var(--text-color);
+            line-height: 1.8;
+            margin-bottom: 10px;
+        }
+
+        .section ul {
+            padding-left: 25px;
+        }
+
+        .section li {
+            margin: 8px 0;
         }
 
         code {
-            background: rgba(0, 0, 0, 0.3);
-            color: #4ade80;
-            padding: 4px 8px;
-            border-radius: 4px;
+            background: #000;
+            color: var(--terminal-green);
+            padding: 2px 8px;
+            border-radius: 3px;
+            border: 1px solid var(--terminal-border);
             font-family: 'Courier New', monospace;
         }
 
-        .badge {
-            font-size: 0.85rem;
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-weight: 600;
+        /* Step Indicators */
+        .step {
+            display: flex;
+            align-items: flex-start;
+            margin: 20px 0;
         }
 
-        .form-control, .form-select {
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(74, 222, 128, 0.3);
-            color: #e8e8e8;
-            border-radius: 10px;
-            padding: 12px;
+        .step-number {
+            min-width: 40px;
+            height: 40px;
+            background: var(--terminal-green);
+            color: #000;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+            box-shadow: 0 0 15px var(--terminal-glow);
         }
 
-        .form-control:focus, .form-select:focus {
-            background: rgba(15, 23, 42, 0.9);
-            border-color: #4ade80;
-            box-shadow: 0 0 0 0.2rem rgba(74, 222, 128, 0.25);
-            color: #e8e8e8;
+        .step-content {
+            flex: 1;
         }
 
+        /* Alerts */
+        .alert {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border-left: 4px solid;
+        }
+
+        .alert-info {
+            background: rgba(0, 255, 255, 0.1);
+            border-color: var(--terminal-cyan);
+            color: var(--terminal-cyan);
+        }
+
+        .alert-warning {
+            background: rgba(255, 133, 27, 0.1);
+            border-color: var(--terminal-orange);
+            color: var(--terminal-orange);
+        }
+
+        .alert-success {
+            background: rgba(0, 255, 0, 0.1);
+            border-color: var(--terminal-green);
+            color: var(--terminal-green);
+        }
+
+        /* Links */
+        .browser-link {
+            display: inline-block;
+            margin: 10px;
+            padding: 12px 20px;
+            border: 1px solid var(--terminal-cyan);
+            border-radius: 5px;
+            color: var(--terminal-cyan);
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .browser-link:hover {
+            background: var(--terminal-cyan);
+            color: #000;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+
+        /* Status Messages */
+        #auth-status, #upload-status {
+            margin-top: 15px;
+        }
+
+        .status-connected {
+            color: var(--terminal-green);
+            text-shadow: 0 0 8px var(--terminal-glow);
+        }
+
+        .status-error {
+            color: #ff0000;
+            text-shadow: 0 0 8px rgba(255, 0, 0, 0.7);
+        }
+
+        /* Responsive */
         @media (max-width: 768px) {
-            .hero-title {
+            h1 {
                 font-size: 2rem;
+            }
+            .container {
+                padding: 20px;
+            }
+            .step {
+                flex-direction: column;
+            }
+            .step-number {
+                margin-bottom: 10px;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Navigation Bootstrap -->
-    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">
-                <i class="bi bi-cookie"></i> Cookie Manager
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/">
-                            <i class="bi bi-house"></i> Home
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/astro">
-                            <i class="bi bi-cloud-upload"></i> uDRIVE
-                        </a>
-                    </li>
-                </ul>
-                <div id="nostr-header-actions">
-                    <button class="btn btn-outline-primary me-2" id="nav-menu-connect" onclick="connectToNOSTR()" style="display: block;">
-                        <i class="bi bi-key"></i> Connect NOSTR
-                    </button>
-                    <span id="nav-user-status" class="text-success" style="display: none;">
-                        <i class="bi bi-person-check"></i> <span id="nav-user-email"></span>
-                    </span>
-                </div>
+    <div class="container">
+        <!-- Navigation -->
+        <div class="nav-bar">
+            <div class="nav-links">
+                <a href="/">🏠 Home</a>
+                <a href="/astro">☁️ uDRIVE</a>
             </div>
+            <div id="nav-status"></div>
         </div>
-    </nav>
 
-    <div class="container-fluid py-4">
-        <div class="container">
-            <!-- Hero Section -->
-            <div class="hero-section">
-                <div class="hero-title">
-                    <i class="bi bi-cookie"></i> Cookie Manager
+        <!-- Header -->
+        <div class="header">
+            <h1>🍪 COOKIE MANAGER</h1>
+            <p class="subtitle">Share Your Authenticated Sessions With Your UPlanet AI</p>
+        </div>
+
+        <!-- Authentication Section -->
+        <div id="auth-section">
+            <h3>🔑 NOSTR Authentication Required</h3>
+            <p style="color: var(--text-color); margin: 20px 0;">Connect your MULTIPASS to upload cookies</p>
+            <button class="button" id="connect-btn" onclick="connectToNOSTR()">
+                Connect with NOSTR
+            </button>
+            <div id="auth-status"></div>
+        </div>
+
+        <!-- Main Content (hidden until authenticated) -->
+        <div id="main-content" style="display: none;">
+            
+            <!-- Upload Section -->
+            <div class="section">
+                <h2>📤 UPLOAD COOKIE FILE</h2>
+                <div class="upload-zone" id="upload-area" onclick="document.getElementById('cookie-file').click()">
+                    <div class="upload-icon">☁️</div>
+                    <h3 style="color: var(--terminal-green); margin-bottom: 10px;">Drop your <code>cookies.txt</code> here</h3>
+                    <p style="color: var(--text-color);">or click to select</p>
+                    <p style="color: var(--terminal-cyan); font-size: 0.9rem; margin-top: 10px;">Format: Netscape HTTP Cookie File</p>
+                    <input type="file" id="cookie-file" accept=".txt" style="display: none;" onchange="handleCookieUpload(event)">
                 </div>
-                <div class="hero-subtitle">
-                    Partagez vos sessions authentifiées avec votre IA UPlanet
+                <div id="upload-status"></div>
+            </div>
+
+            <!-- What Cookies Do -->
+            <div class="section">
+                <h2>💡 WHAT ARE COOKIES USED FOR?</h2>
+                <p>A cookie file contains your authentication session for a website. By sharing it with your UPlanet AI:</p>
+                <ul>
+                    <li><strong style="color: var(--terminal-cyan);">YouTube:</strong> Auto-sync your likes 👍, download your favorites</li>
+                    <li><strong style="color: var(--terminal-cyan);">Leboncoin:</strong> Search ads with your personal filters</li>
+                    <li><strong style="color: var(--terminal-cyan);">Any Site:</strong> Let your AI access content as you</li>
+                </ul>
+                <div class="alert alert-warning">
+                    ⚠️ <strong>Security:</strong> Cookies are stored in your private MULTIPASS. Only you and your AI can access them.
                 </div>
             </div>
 
-            <!-- What is it Section -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <i class="bi bi-info-circle-fill"></i> Qu'est-ce qu'un Cookie ?
-                </div>
-                <div class="card-body">
-                    <p class="lead">Un cookie est un fichier qui contient vos informations de session pour un site web.</p>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h5 class="text-info"><i class="bi bi-check-circle"></i> Ce que vous pouvez faire</h5>
-                            <ul>
-                                <li>✅ <strong>YouTube :</strong> Synchroniser automatiquement vos likes 👍</li>
-                                <li>✅ <strong>Leboncoin :</strong> Rechercher des annonces avec vos filtres</li>
-                                <li>✅ <strong>Tout site :</strong> Permettre à votre IA d'accéder comme vous</li>
-                            </ul>
-                        </div>
-                        <div class="col-md-6">
-                            <h5 class="text-warning"><i class="bi bi-shield-lock"></i> Sécurité</h5>
-                            <ul>
-                                <li>🔒 Cookies stockés dans votre MULTIPASS privé</li>
-                                <li>🔒 Accessible uniquement par votre IA personnelle</li>
-                                <li>🔒 Jamais partagé avec d'autres utilisateurs</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Authentication Section -->
-            <div class="card mb-4" id="auth-section">
-                <div class="card-body text-center p-5">
-                    <h3 class="mb-4"><i class="bi bi-key"></i> Authentification NOSTR</h3>
-                    <p class="text-muted mb-4">Connectez-vous avec votre MULTIPASS pour uploader vos cookies</p>
-                    <button class="btn btn-primary btn-lg" id="connect-btn" onclick="connectToNOSTR()">
-                        <i class="bi bi-plug-fill"></i> Se connecter avec NOSTR
-                    </button>
-                    <div id="auth-status" class="mt-3"></div>
-                </div>
-            </div>
-
-            <!-- Main Content (hidden until authenticated) -->
-            <div id="main-content" style="display: none;">
+            <!-- Instructions -->
+            <div class="section">
+                <h2>📝 HOW TO EXPORT COOKIES</h2>
                 
-                <!-- Upload Section -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <i class="bi bi-cloud-upload-fill"></i> Upload Rapide
-                    </div>
-                    <div class="card-body">
-                        <div class="upload-area" id="upload-area" onclick="document.getElementById('cookie-file').click()">
-                            <i class="bi bi-cloud-arrow-up" style="font-size: 4rem; color: #4ade80;"></i>
-                            <h4 class="mt-3">Cliquez ou glissez votre fichier <code>cookies.txt</code></h4>
-                            <p class="text-muted">Format Netscape HTTP Cookie File</p>
-                            <input type="file" id="cookie-file" accept=".txt" style="display: none;" onchange="handleCookieUpload(event)">
-                        </div>
-                        <div id="upload-status" class="mt-3" style="display: none;"></div>
-                    </div>
-                </div>
-
-                <!-- Instructions Section -->
-                <h3 class="text-center mb-4 mt-5">
-                    <i class="bi bi-list-ol"></i> Comment exporter vos cookies ?
-                </h3>
-
-                <!-- Step 1 -->
-                <div class="card step-card">
+                <div class="step">
                     <div class="step-number">1</div>
-                    <div class="card-body" style="padding-top: 40px;">
-                        <h4 class="card-title"><i class="bi bi-puzzle"></i> Installer l'extension</h4>
-                        <p>Installez l'extension <strong>"Get cookies.txt LOCALLY"</strong> dans votre navigateur :</p>
-                        <div class="text-center my-3">
-                            <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" class="browser-btn" target="_blank">
-                                <i class="bi bi-google"></i> Chrome
+                    <div class="step-content">
+                        <h3>Install Browser Extension</h3>
+                        <p>Install <strong>"Get cookies.txt LOCALLY"</strong> extension:</p>
+                        <div style="margin: 15px 0;">
+                            <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" class="browser-link" target="_blank">
+                                Chrome / Edge
                             </a>
-                            <a href="https://addons.mozilla.org/firefox/addon/get-cookies-txt-locally/" class="browser-btn" target="_blank">
-                                <i class="bi bi-browser-firefox"></i> Firefox
-                            </a>
-                            <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" class="browser-btn" target="_blank">
-                                <i class="bi bi-microsoft"></i> Edge
+                            <a href="https://addons.mozilla.org/firefox/addon/get-cookies-txt-locally/" class="browser-link" target="_blank">
+                                Firefox
                             </a>
                         </div>
                         <div class="alert alert-info">
-                            <i class="bi bi-lightbulb"></i> <strong>Pourquoi cette extension ?</strong><br>
-                            Elle permet d'exporter vos cookies au format standard Netscape, compatible avec tous les outils d'automatisation.
+                            💡 This extension exports cookies in the standard Netscape format, compatible with automation tools.
                         </div>
                     </div>
                 </div>
 
-                <!-- Step 2 -->
-                <div class="card step-card">
+                <div class="step">
                     <div class="step-number">2</div>
-                    <div class="card-body" style="padding-top: 40px;">
-                        <h4 class="card-title"><i class="bi bi-incognito"></i> Ouvrir une fenêtre privée</h4>
-                        <p><strong>⚠️ IMPORTANT :</strong> Ouvrez une fenêtre de navigation privée/incognito :</p>
+                    <div class="step-content">
+                        <h3>Open Private Window</h3>
+                        <p><strong>⚠️ IMPORTANT:</strong> Open an incognito/private browsing window:</p>
                         <ul>
-                            <li><strong>Chrome/Edge :</strong> <code>Ctrl + Shift + N</code> (Windows/Linux) ou <code>Cmd + Shift + N</code> (Mac)</li>
-                            <li><strong>Firefox :</strong> <code>Ctrl + Shift + P</code> (Windows/Linux) ou <code>Cmd + Shift + P</code> (Mac)</li>
+                            <li><strong>Chrome/Edge:</strong> <code>Ctrl + Shift + N</code> (Win/Linux) or <code>Cmd + Shift + N</code> (Mac)</li>
+                            <li><strong>Firefox:</strong> <code>Ctrl + Shift + P</code> (Win/Linux) or <code>Cmd + Shift + P</code> (Mac)</li>
                         </ul>
                         <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i> <strong>Pourquoi une fenêtre privée ?</strong><br>
-                            Pour éviter que le site web invalide vos cookies après l'export. La session privée reste isolée de votre navigation normale.
+                            ⚠️ <strong>Why private?</strong> To prevent the website from invalidating your cookies after export. The private session stays isolated from your normal browsing.
                         </div>
                     </div>
                 </div>
 
-                <!-- Step 3 -->
-                <div class="card step-card">
+                <div class="step">
                     <div class="step-number">3</div>
-                    <div class="card-body" style="padding-top: 40px;">
-                        <h4 class="card-title"><i class="bi bi-box-arrow-in-right"></i> Se connecter au site</h4>
-                        <p>Dans la fenêtre privée :</p>
+                    <div class="step-content">
+                        <h3>Login to Website</h3>
+                        <p>In the private window:</p>
                         <ol>
-                            <li>Allez sur le site dont vous voulez exporter les cookies (ex: <code>youtube.com</code>, <code>leboncoin.fr</code>)</li>
-                            <li>Connectez-vous avec vos identifiants</li>
-                            <li>Naviguez normalement sur le site (regardez une vidéo, parcourez des annonces...)</li>
-                            <li>Assurez-vous d'être bien authentifié</li>
+                            <li>Go to the website (e.g., <code>youtube.com</code>, <code>leboncoin.fr</code>)</li>
+                            <li>Login with your credentials</li>
+                            <li>Browse normally (watch a video, view listings...)</li>
+                            <li>Make sure you're authenticated</li>
                         </ol>
                         <div class="alert alert-info">
-                            <i class="bi bi-lightbulb"></i> <strong>Astuce :</strong> Plus vous naviguez, plus vos cookies seront complets et efficaces.
+                            💡 <strong>Tip:</strong> The more you browse, the more complete and effective your cookies will be.
                         </div>
                     </div>
                 </div>
 
-                <!-- Step 4 -->
-                <div class="card step-card">
+                <div class="step">
                     <div class="step-number">4</div>
-                    <div class="card-body" style="padding-top: 40px;">
-                        <h4 class="card-title"><i class="bi bi-download"></i> Exporter les cookies</h4>
-                        <p>Toujours dans la fenêtre privée :</p>
+                    <div class="step-content">
+                        <h3>Export Cookies</h3>
+                        <p>Still in the private window:</p>
                         <ol>
-                            <li>Cliquez sur l'icône de l'extension <strong>"Get cookies.txt LOCALLY"</strong> dans la barre d'outils</li>
-                            <li>Sélectionnez le format <strong>"Netscape"</strong> (très important !)</li>
-                            <li>Cliquez sur <strong>"Export"</strong></li>
-                            <li>Le fichier <code>cookies.txt</code> se télécharge automatiquement</li>
+                            <li>Click the <strong>"Get cookies.txt LOCALLY"</strong> extension icon in toolbar</li>
+                            <li>Select <strong>"Netscape"</strong> format (very important!)</li>
+                            <li>Click <strong>"Export"</strong></li>
+                            <li>The <code>cookies.txt</code> file downloads automatically</li>
                         </ol>
                         <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i> <strong>Important :</strong> Fermez maintenant la fenêtre privée et ne l'utilisez plus. Vous pouvez continuer à utiliser le site normalement dans votre navigateur habituel.
+                            ⚠️ <strong>Close the private window</strong> now and don't use it anymore. You can continue using the site normally in your regular browser.
                         </div>
                     </div>
                 </div>
 
-                <!-- Step 5 -->
-                <div class="card step-card">
+                <div class="step">
                     <div class="step-number">5</div>
-                    <div class="card-body" style="padding-top: 40px;">
-                        <h4 class="card-title"><i class="bi bi-cloud-upload"></i> Uploader le fichier</h4>
-                        <p>Retournez en haut de cette page et uploadez le fichier <code>cookies.txt</code> dans la zone de dépôt.</p>
+                    <div class="step-content">
+                        <h3>Upload to MULTIPASS</h3>
+                        <p>Scroll back to the top and drop the <code>cookies.txt</code> file in the upload zone.</p>
                         <div class="alert alert-success">
-                            <i class="bi bi-check-circle"></i> <strong>Automatique :</strong> Le système détectera automatiquement le domaine et stockera vos cookies de manière sécurisée dans votre MULTIPASS.
+                            ✅ <strong>Automatic:</strong> The system will detect the domain and securely store your cookies in your MULTIPASS.
                         </div>
-                        <div class="text-center mt-3">
-                            <a href="#upload-area" class="btn btn-primary btn-lg">
-                                <i class="bi bi-arrow-up-circle"></i> Aller à l'upload
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- FAQ Section -->
-                <div class="card mt-5">
-                    <div class="card-header">
-                        <i class="bi bi-question-circle-fill"></i> Questions Fréquentes
-                    </div>
-                    <div class="card-body">
-                        <div class="accordion" id="faqAccordion">
-                            <div class="accordion-item" style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(74, 222, 128, 0.2);">
-                                <h2 class="accordion-header">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq1" style="background: rgba(15, 23, 42, 0.8); color: #e8e8e8;">
-                                        <strong>Mes cookies sont-ils en sécurité ?</strong>
-                                    </button>
-                                </h2>
-                                <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body" style="color: #cbd5e1;">
-                                        Oui ! Vos cookies sont stockés dans votre MULTIPASS personnel, crypté et accessible uniquement par vous et votre IA. Personne d'autre ne peut y accéder.
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="accordion-item" style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(74, 222, 128, 0.2);">
-                                <h2 class="accordion-header">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2" style="background: rgba(15, 23, 42, 0.8); color: #e8e8e8;">
-                                        <strong>Combien de temps les cookies restent-ils valides ?</strong>
-                                    </button>
-                                </h2>
-                                <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body" style="color: #cbd5e1;">
-                                        Généralement entre 2 semaines et 6 mois selon le site. Si vos cookies expirent, il suffit de réexporter et réuploader un nouveau fichier.
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="accordion-item" style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(74, 222, 128, 0.2);">
-                                <h2 class="accordion-header">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3" style="background: rgba(15, 23, 42, 0.8); color: #e8e8e8;">
-                                        <strong>Puis-je uploader des cookies de plusieurs sites ?</strong>
-                                    </button>
-                                </h2>
-                                <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body" style="color: #cbd5e1;">
-                                        Oui ! Vous pouvez exporter et uploader les cookies de chaque site séparément. Le système détectera automatiquement le domaine et les stockera correctement.
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="accordion-item" style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(74, 222, 128, 0.2);">
-                                <h2 class="accordion-header">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq4" style="background: rgba(15, 23, 42, 0.8); color: #e8e8e8;">
-                                        <strong>Ma navigation normale est-elle affectée ?</strong>
-                                    </button>
-                                </h2>
-                                <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body" style="color: #cbd5e1;">
-                                        Non ! L'export en fenêtre privée garantit que votre session normale n'est pas perturbée. Vous pouvez continuer à utiliser les sites normalement.
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="accordion-item" style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(74, 222, 128, 0.2);">
-                                <h2 class="accordion-header">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq5" style="background: rgba(15, 23, 42, 0.8); color: #e8e8e8;">
-                                        <strong>Que fait mon IA avec mes cookies ?</strong>
-                                    </button>
-                                </h2>
-                                <div id="faq5" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body" style="color: #cbd5e1;">
-                                        Votre IA utilise vos cookies pour :
-                                        <ul class="mt-2">
-                                            <li><strong>YouTube :</strong> Synchroniser vos likes, télécharger vos vidéos préférées</li>
-                                            <li><strong>Leboncoin :</strong> Effectuer des recherches avec vos filtres personnels</li>
-                                            <li><strong>Autres sites :</strong> Accéder aux contenus comme si c'était vous</li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
+                        <div style="text-align: center; margin-top: 20px;">
+                            <button class="button" onclick="document.getElementById('upload-area').scrollIntoView({behavior: 'smooth'})">
+                                ↑ Go to Upload Zone
+                            </button>
                         </div>
                     </div>
                 </div>
-
             </div>
+
+            <!-- FAQ -->
+            <div class="section">
+                <h2>❓ FREQUENTLY ASKED QUESTIONS</h2>
+                
+                <h3>Are my cookies secure?</h3>
+                <p>Yes! Your cookies are stored in your personal MULTIPASS, encrypted and accessible only by you and your AI. No one else can access them.</p>
+
+                <h3>How long do cookies stay valid?</h3>
+                <p>Generally between 2 weeks and 6 months depending on the website. If your cookies expire, just re-export and re-upload a new file.</p>
+
+                <h3>Can I upload cookies from multiple sites?</h3>
+                <p>Yes! You can export and upload cookies from each site separately. The system will automatically detect the domain and store them correctly.</p>
+
+                <h3>Will my normal browsing be affected?</h3>
+                <p>No! Exporting in a private window ensures your normal session isn't disrupted. You can continue using sites normally.</p>
+
+                <h3>What does my AI do with my cookies?</h3>
+                <p>Your AI uses your cookies to:</p>
+                <ul>
+                    <li><strong>YouTube:</strong> Sync your likes, download your favorite videos</li>
+                    <li><strong>Leboncoin:</strong> Search with your personal filters</li>
+                    <li><strong>Other sites:</strong> Access content as if it were you</li>
+                </ul>
+            </div>
+
         </div>
     </div>
 
     <script>
         // Global variables
-        let USPOT_API_BASE = '';
-        let DEFAULT_RELAYS = [];
-        let nostrRelay = null;
-        let isNostrConnected = false;
         let userPubkey = null;
         let userNpub = null;
         let userEmail = null;
 
-        // Detect uSPOT API
-        function detectUSPOTAPI() {
-            const url = new URL(window.location.href);
-            const hostname = url.hostname;
+        // Get API base from common.js
+        const USPOT_API_BASE = typeof detectUSPOTAPI === 'function' ? (detectUSPOTAPI(), getAPIBaseUrl()) : 'https://u.copylaradio.com';
 
-            if (hostname === "127.0.0.1" || hostname === "localhost") {
-                USPOT_API_BASE = `http://127.0.0.1:54321`;
-                DEFAULT_RELAYS = [`ws://127.0.0.1:7777`];
-            } else if (hostname.startsWith("ipfs.")) {
-                const base = hostname.substring(5);
-                USPOT_API_BASE = `https://u.${base}`;
-                DEFAULT_RELAYS = [`wss://relay.${base}`];
-            } else if (hostname.startsWith("u.")) {
-                const base = hostname.substring(2);
-                USPOT_API_BASE = `https://u.${base}`;
-                DEFAULT_RELAYS = [`wss://relay.${base}`];
-            } else {
-                USPOT_API_BASE = `https://u.copylaradio.com`;
-                DEFAULT_RELAYS = [`wss://relay.copylaradio.com`];
-            }
-
-            console.log('API Base:', USPOT_API_BASE);
-        }
-
-        // Connect to NOSTR
+        // Connect to NOSTR using common.js functions
         async function connectToNOSTR() {
             const btn = document.getElementById('connect-btn');
             const status = document.getElementById('auth-status');
             
             btn.disabled = true;
-            status.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Connexion en cours...</div>';
+            status.innerHTML = '<div class="alert alert-info">⏳ Connecting to NOSTR...</div>';
 
             try {
-                if (!window.nostr) {
-                    throw new Error('Extension NOSTR non trouvée. Installez nos2x, Alby, ou une extension compatible.');
+                // Use common.js connectNostr() function
+                const connected = await connectNostr(false);
+                
+                if (!connected || !window.userPubkey) {
+                    throw new Error('NOSTR extension not found. Install nos2x, Alby, or compatible extension.');
                 }
 
-                userPubkey = await window.nostr.getPublicKey();
-                userNpub = NostrTools.nip19.npubEncode(userPubkey);
+                userPubkey = window.userPubkey;
+                
+                // Encode to npub using window.NostrTools from common.js
+                if (window.NostrTools && window.NostrTools.nip19) {
+                    userNpub = window.NostrTools.nip19.npubEncode(userPubkey);
+                } else {
+                    userNpub = userPubkey;
+                }
 
-                // Get user profile to extract email
-                const profile = await window.nostr.getPublicKey();
-                console.log('Connected as:', userNpub);
+                console.log('✅ Connected as:', userNpub);
 
-                // Try to get email from NOSTR profile
+                // Try to get email from NOSTR profile using common.js function
                 try {
-                    const relay = NostrTools.relayInit(DEFAULT_RELAYS[0]);
-                    await relay.connect();
-                    
-                    const sub = relay.sub([{
-                        kinds: [0],
-                        authors: [userPubkey],
-                        limit: 1
-                    }]);
-                    
-                    sub.on('event', (event) => {
-                        try {
-                            const content = JSON.parse(event.content);
-                            if (content.email) {
-                                userEmail = content.email;
-                                document.getElementById('nav-user-email').textContent = userEmail;
-                            }
-                        } catch (e) {
-                            console.warn('Could not parse profile:', e);
+                    if (typeof fetchUserEmailWithFallback === 'function') {
+                        userEmail = await fetchUserEmailWithFallback(userPubkey);
+                        if (userEmail) {
+                            console.log('📧 User email:', userEmail);
                         }
-                    });
-                    
-                    setTimeout(() => {
-                        sub.unsub();
-                        relay.close();
-                    }, 2000);
+                    }
                 } catch (e) {
-                    console.warn('Could not fetch profile:', e);
+                    console.warn('Could not fetch user email:', e);
                 }
 
+                // Update UI
+                const npubShort = userNpub.substring(0, 12) + '...' + userNpub.substring(userNpub.length - 4);
                 status.innerHTML = `
                     <div class="alert alert-success">
-                        <i class="bi bi-check-circle-fill"></i> Connecté en tant que ${userNpub.substring(0, 12)}...${userNpub.substring(userNpub.length - 4)}
+                        ✅ Connected as ${userEmail || npubShort}
                     </div>
                 `;
-                btn.textContent = '✅ Connecté';
-                btn.classList.remove('btn-outline-primary');
-                btn.classList.add('btn-success');
+                
+                btn.textContent = '✅ CONNECTED';
+                btn.style.borderColor = 'var(--terminal-green)';
+                btn.style.color = 'var(--terminal-green)';
 
                 document.getElementById('main-content').style.display = 'block';
                 document.getElementById('auth-section').style.display = 'none';
                 
-                // Update nav
-                document.getElementById('nav-menu-connect').style.display = 'none';
-                document.getElementById('nav-user-status').style.display = 'inline-block';
-                if (userEmail) {
-                    document.getElementById('nav-user-email').textContent = userEmail;
-                } else {
-                    document.getElementById('nav-user-email').textContent = userNpub.substring(0, 12) + '...';
+                // Update nav status
+                const navStatus = document.getElementById('nav-status');
+                if (navStatus) {
+                    navStatus.innerHTML = `<span class="status-connected">● ${userEmail || npubShort}</span>`;
                 }
 
             } catch (error) {
-                status.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle-fill"></i> ${error.message}</div>`;
+                console.error('Connection error:', error);
+                status.innerHTML = `<div class="alert alert-warning">⚠️ ${error.message}</div>`;
                 btn.disabled = false;
             }
         }
@@ -652,15 +598,14 @@
             if (!file) return;
 
             if (!userNpub) {
-                alert('Veuillez vous connecter d\'abord avec NOSTR');
+                alert('Please connect with NOSTR first');
                 return;
             }
 
-            const uploadArea = document.getElementById('upload-area');
             const uploadStatus = document.getElementById('upload-status');
             
             uploadStatus.style.display = 'block';
-            uploadStatus.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Upload en cours...</div>';
+            uploadStatus.innerHTML = '<div class="alert alert-info">⏳ Uploading cookie file...</div>';
 
             try {
                 const formData = new FormData();
@@ -674,21 +619,18 @@
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.detail || `Erreur d'upload: ${response.status}`);
+                    throw new Error(errorData.detail || `Upload error: ${response.status}`);
                 }
 
                 const result = await response.json();
-                console.log('Upload result:', result);
+                console.log('✅ Upload result:', result);
 
-                let message = '✅ Cookie uploadé avec succès !';
-                if (result.message) {
-                    message = result.message;
-                }
+                let message = result.message || '✅ Cookie uploaded successfully!';
+                let details = result.description ? `<br><small style="color: var(--terminal-cyan);">${result.description}</small>` : '';
 
                 uploadStatus.innerHTML = `
                     <div class="alert alert-success">
-                        <i class="bi bi-check-circle-fill"></i> ${message}
-                        ${result.description ? `<br><small>${result.description}</small>` : ''}
+                        ${message}${details}
                     </div>
                 `;
 
@@ -698,8 +640,8 @@
             } catch (error) {
                 console.error('Upload error:', error);
                 uploadStatus.innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="bi bi-x-circle-fill"></i> Erreur d'upload: ${error.message}
+                    <div class="alert alert-warning">
+                        ⚠️ Upload failed: ${error.message}
                     </div>
                 `;
             }
@@ -742,10 +684,18 @@
             }, false);
         }
 
-        // Initialize
+        // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
-            detectUSPOTAPI();
+            console.log('🍪 Cookie Manager initialized');
+            
+            // Detect API from common.js
+            if (typeof detectUSPOTAPI === 'function') {
+                detectUSPOTAPI();
+            }
+            
             setupDragAndDrop();
+            
+            console.log('API Base:', USPOT_API_BASE);
         });
     </script>
 </body>
