@@ -4,175 +4,161 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🔐 UPlanet Oracle - Permit Management</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/leaflet.css"/>
+    
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    
     <!-- NOSTR integration -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    <!-- Leaflet JavaScript -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/leaflet.js"></script>
+    
     <style>
         :root {
-            --bg: #0f1724;
-            --card-bg: #1a2332;
+            --bs-primary: #4ade80;
+            --bs-success: #22c55e;
+            --bs-warning: #fbbf24;
+            --bs-dark: #0f172a;
             --accent: #4ade80;
             --accent-hover: #22c55e;
             --muted: #64748b;
-            --text: #e2e8f0;
-            --border: rgba(74, 222, 128, 0.2);
+            --text: #e8e8e8;
+            --border: rgba(74, 222, 128, 0.3);
             --error: #ef4444;
-            --warning: #f59e0b;
-            --success: #10b981;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #0f1724 0%, #1a2332 100%);
-            color: var(--text);
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            color: #e8e8e8;
             min-height: 100vh;
-            padding: 20px;
+            padding-top: 70px;
         }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
+        .navbar {
+            background: rgba(15, 23, 42, 0.95) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 2px solid rgba(74, 222, 128, 0.3);
         }
 
-        header {
-            text-align: center;
-            margin-bottom: 40px;
-            padding: 30px;
-            background: var(--card-bg);
-            border-radius: 20px;
-            border: 1px solid var(--border);
+        .navbar-brand {
+            color: #4ade80 !important;
+            font-weight: 700;
+            font-size: 1.5rem;
         }
 
-        h1 {
-            font-size: 2.5em;
-            color: var(--accent);
-            margin-bottom: 10px;
-            text-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+        .nav-link {
+            color: #cbd5e1 !important;
+            transition: all 0.3s;
         }
 
-        .subtitle {
-            color: var(--muted);
-            font-size: 1.1em;
-        }
-
-        .auth-section {
-            background: var(--card-bg);
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 30px;
-            border: 1px solid var(--border);
-        }
-
-        .btn {
-            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-            color: white;
-            border: none;
-            padding: 12px 24px;
+        .nav-link:hover, .nav-link.active {
+            color: #4ade80 !important;
+            background: rgba(74, 222, 128, 0.1);
             border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
+        }
+
+        .card {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 15px;
+            color: #e8e8e8;
+        }
+
+        .card-header {
+            background: rgba(74, 222, 128, 0.1);
+            border-bottom: 1px solid rgba(74, 222, 128, 0.3);
+            color: #4ade80;
             font-weight: 600;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
-        .btn:hover {
+        .btn-primary {
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            border: none;
+            font-weight: 600;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3);
+            box-shadow: 0 4px 15px rgba(74, 222, 128, 0.4);
         }
 
-        .btn:disabled {
-            background: var(--muted);
-            cursor: not-allowed;
-            transform: none;
+        .btn-outline-primary {
+            border-color: #4ade80;
+            color: #4ade80;
         }
 
-        .btn-secondary {
-            background: linear-gradient(135deg, #6366f1, #4f46e5);
+        .btn-outline-primary:hover {
+            background: #4ade80;
+            border-color: #4ade80;
+            color: #0f172a;
         }
 
         .btn-danger {
             background: linear-gradient(135deg, #ef4444, #dc2626);
         }
 
-        .status-message {
-            padding: 12px;
+        .badge {
+            font-size: 0.9rem;
+            padding: 0.5em 0.75em;
+        }
+
+        .alert {
             border-radius: 8px;
-            margin: 10px 0;
         }
 
-        .status-success {
+        .alert-success {
             background: rgba(16, 185, 129, 0.1);
-            border: 1px solid var(--success);
-            color: var(--success);
+            border: 1px solid #22c55e;
+            color: #22c55e;
         }
 
-        .status-error {
+        .alert-danger {
             background: rgba(239, 68, 68, 0.1);
-            border: 1px solid var(--error);
-            color: var(--error);
+            border: 1px solid #ef4444;
+            color: #ef4444;
         }
 
-        .status-info {
+        .alert-info {
             background: rgba(99, 102, 241, 0.1);
             border: 1px solid #6366f1;
             color: #6366f1;
         }
 
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            border-bottom: 2px solid var(--border);
-            padding-bottom: 10px;
+        /* Tab System using Bootstrap Nav */
+        .nav-tabs {
+            border-bottom: 2px solid rgba(74, 222, 128, 0.3);
         }
 
-        .tab {
-            padding: 12px 24px;
-            cursor: pointer;
+        .nav-tabs .nav-link {
+            color: #64748b;
+            border: none;
             border-radius: 8px 8px 0 0;
-            transition: all 0.3s ease;
-            color: var(--muted);
+            padding: 12px 24px;
             font-weight: 600;
+            transition: all 0.3s;
         }
 
-        .tab:hover {
-            color: var(--accent);
+        .nav-tabs .nav-link:hover {
+            color: #4ade80;
             background: rgba(74, 222, 128, 0.1);
         }
 
-        .tab.active {
-            color: var(--accent);
+        .nav-tabs .nav-link.active {
+            color: #4ade80;
             background: rgba(74, 222, 128, 0.15);
-            border-bottom: 3px solid var(--accent);
+            border-bottom: 3px solid #4ade80;
         }
 
         .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        .card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            border: 1px solid var(--border);
-            transition: all 0.3s ease;
-        }
-
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.2);
+            padding-top: 20px;
         }
 
         .permit-grid {
@@ -182,238 +168,27 @@
             margin-top: 20px;
         }
 
-        .permit-card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid var(--border);
-            transition: all 0.3s ease;
-        }
-
-        .permit-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.2);
-            border-color: var(--accent);
-        }
-
-        .permit-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 15px;
-        }
-
-        .permit-title {
-            font-size: 1.2em;
-            font-weight: 700;
-            color: var(--accent);
-            margin-bottom: 5px;
-        }
-
-        .permit-id {
-            font-size: 0.85em;
-            color: var(--muted);
-            font-family: monospace;
-        }
-
-        .permit-description {
-            color: var(--text);
-            line-height: 1.6;
-            margin-bottom: 15px;
-        }
-
-        .permit-meta {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 0.85em;
-            font-weight: 600;
-            background: rgba(74, 222, 128, 0.1);
-            color: var(--accent);
-            border: 1px solid var(--accent);
-        }
-
-        .badge-warning {
-            background: rgba(245, 158, 11, 0.1);
-            color: var(--warning);
-            border-color: var(--warning);
-        }
-
-        .badge-info {
-            background: rgba(99, 102, 241, 0.1);
-            color: #6366f1;
-            border-color: #6366f1;
-        }
-
-        .badge-error {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--error);
-            border-color: var(--error);
-        }
-
-        .request-list {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .request-card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 20px;
-            border-left: 4px solid var(--accent);
-        }
-
-        .request-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 10px;
-        }
-
-        .progress-bar {
-            height: 8px;
-            background: rgba(74, 222, 128, 0.2);
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 10px 0;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
-            transition: width 0.3s ease;
-        }
-
-        .attestation-item {
-            background: rgba(74, 222, 128, 0.05);
-            border-radius: 8px;
-            padding: 12px;
-            margin: 8px 0;
-            border-left: 3px solid var(--accent);
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
+        /* Modal using Bootstrap */
         .modal-content {
-            background: var(--card-bg);
+            background: rgba(15, 23, 42, 0.98);
+            border: 1px solid rgba(74, 222, 128, 0.3);
             border-radius: 15px;
-            padding: 30px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-            border: 1px solid var(--border);
+            color: #e8e8e8;
         }
 
         .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(74, 222, 128, 0.3);
         }
 
-        .modal-close {
-            font-size: 28px;
-            cursor: pointer;
-            color: var(--muted);
-            transition: all 0.3s ease;
+        .modal-footer {
+            border-top: 1px solid rgba(74, 222, 128, 0.3);
         }
 
-        .modal-close:hover {
-            color: var(--error);
-            transform: rotate(90deg);
+        .btn-close {
+            filter: invert(1);
         }
 
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: var(--text);
-        }
-
-        .form-group input,
-        .form-group textarea,
-        .form-group select {
-            width: 100%;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text);
-            font-size: 14px;
-            transition: all 0.3s ease;
-        }
-
-        .form-group input:focus,
-        .form-group textarea:focus,
-        .form-group select:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
-        }
-
-        .form-group textarea {
-            min-height: 100px;
-            resize: vertical;
-        }
-
-        .holders-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .holder-item {
-            background: rgba(74, 222, 128, 0.05);
-            border-radius: 8px;
-            padding: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-left: 3px solid var(--accent);
-        }
-
-        .npub-link {
-            color: var(--accent);
-            text-decoration: none;
-            font-family: monospace;
-            font-size: 0.9em;
-            transition: all 0.3s ease;
-        }
-
-        .npub-link:hover {
-            text-decoration: underline;
-            color: var(--accent-hover);
-        }
-
+        /* Loading spinner */
         .loading {
             text-align: center;
             padding: 40px;
@@ -430,10 +205,11 @@
             50% { opacity: 0.5; }
         }
 
+        /* Empty state */
         .empty-state {
             text-align: center;
             padding: 60px 20px;
-            color: var(--muted);
+            color: #64748b;
         }
 
         .empty-state-icon {
@@ -442,296 +218,79 @@
             opacity: 0.5;
         }
 
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-            flex-wrap: wrap;
-        }
-
-        .filter-bar {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-            align-items: center;
-            border: 1px solid var(--border);
-        }
-
-        .filter-bar select {
-            padding: 8px 12px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text);
-        }
-
-        /* Info Section Styles */
-        .info-section {
-            background: var(--card-bg);
+        /* Progress bar customization */
+        .progress {
+            height: 30px;
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
-            border: 1px solid var(--border);
         }
 
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
+        .progress-bar {
+            background: linear-gradient(90deg, #4ade80, #fbbf24);
+            border-radius: 15px;
         }
 
-        .info-card {
-            background: rgba(74, 222, 128, 0.05);
-            border-radius: 12px;
-            padding: 20px;
-            border-left: 4px solid var(--accent);
-            transition: all 0.3s ease;
-        }
-
-        .info-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.2);
-            border-left-width: 6px;
-        }
-
-        .info-card-icon {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-
-        .info-card-title {
-            font-size: 1.2em;
-            font-weight: 700;
-            color: var(--accent);
-            margin-bottom: 10px;
-        }
-
-        .info-card-text {
-            color: var(--text);
-            line-height: 1.6;
-            font-size: 0.95em;
-        }
-
-        .flow-diagram {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: 30px 0;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .flow-step {
-            flex: 1;
-            min-width: 180px;
-            background: rgba(74, 222, 128, 0.05);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            border: 2px solid var(--border);
-            transition: all 0.3s ease;
-        }
-
-        .flow-step:hover {
-            transform: scale(1.05);
-            border-color: var(--accent);
-            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.2);
-        }
-
-        .flow-step-number {
-            background: var(--accent);
-            color: var(--bg);
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 1.2em;
-            margin: 0 auto 10px;
-        }
-
-        .flow-step-title {
-            font-weight: 700;
-            color: var(--accent);
-            margin-bottom: 8px;
-        }
-
-        .flow-step-desc {
-            font-size: 0.9em;
-            color: var(--muted);
-        }
-
-        .flow-arrow {
-            color: var(--accent);
-            font-size: 2em;
-            margin: 0 10px;
-        }
-
-        .nostr-kinds-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-            font-size: 0.9em;
-        }
-
-        .nostr-kinds-table th,
-        .nostr-kinds-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .nostr-kinds-table th {
-            background: rgba(74, 222, 128, 0.1);
-            color: var(--accent);
-            font-weight: 700;
-        }
-
-        .nostr-kinds-table tr:hover {
-            background: rgba(74, 222, 128, 0.05);
-        }
-
-        .kind-badge {
-            background: var(--accent);
-            color: var(--bg);
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-family: monospace;
-            font-weight: 700;
-        }
-
-        .toggle-button {
-            background: rgba(74, 222, 128, 0.1);
-            border: 1px solid var(--accent);
-            color: var(--accent);
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            width: 100%;
-            text-align: center;
-            margin: 10px 0;
-        }
-
-        .toggle-button:hover {
-            background: var(--accent);
-            color: var(--bg);
-        }
-
-        .collapsible-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-        }
-
-        .collapsible-content.active {
-            max-height: 2000px;
-        }
-
-        /* Responsive Design */
-        @media (max-width: 1200px) {
-            .permit-grid {
-                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            }
-        }
-
+        /* Responsive */
         @media (max-width: 768px) {
             body {
-                padding: 10px;
-            }
-
-            h1 {
-                font-size: 1.8em;
-            }
-
-            header {
-                padding: 20px;
+                padding-top: 60px;
             }
 
             .permit-grid {
                 grid-template-columns: 1fr;
             }
 
-            .info-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .flow-diagram {
-                flex-direction: column;
-            }
-
-            .flow-arrow {
-                transform: rotate(90deg);
-                margin: 10px 0;
-            }
-
-            .tabs {
-                flex-wrap: wrap;
-                gap: 5px;
-            }
-
-            .tab {
+            .nav-tabs .nav-link {
                 padding: 8px 12px;
                 font-size: 0.9em;
-            }
-
-            .modal-content {
-                padding: 20px;
-                width: 95%;
-            }
-
-            .nostr-kinds-table {
-                font-size: 0.8em;
-            }
-
-            .nostr-kinds-table th,
-            .nostr-kinds-table td {
-                padding: 8px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            h1 {
-                font-size: 1.5em;
-            }
-
-            .subtitle {
-                font-size: 0.9em;
-            }
-
-            .btn {
-                padding: 10px 16px;
-                font-size: 14px;
-            }
-
-            .action-buttons {
-                flex-direction: column;
-            }
-
-            .action-buttons .btn {
-                width: 100%;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header>
-            <h1>🔐 UPlanet Oracle</h1>
-            <p class="subtitle">Decentralized Permit & License Management System</p>
-            <p style="color: var(--muted); margin-top: 10px; font-size: 0.95em;">
-                Web of Trust meets Professional Competence Certification
-            </p>
-        </header>
+    <!-- Navigation Bootstrap -->
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#"><i class="bi bi-shield-lock"></i> ORACLE</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">
+                            <i class="bi bi-house"></i> Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/plantnet.html">
+                            <i class="bi bi-flower1"></i> Flora Quest (ORE)
+                        </a>
+                    </li>
+                </ul>
+                <div id="nostr-header-actions">
+                    <button class="btn btn-outline-primary me-2" id="nav-menu-connect" onclick="connectToNOSTR()">
+                        <i class="bi bi-key"></i> Connexion
+                    </button>
+                    <span id="nav-user-status" class="text-success" style="display: none;">
+                        <i class="bi bi-person-check"></i> <span id="nav-user-npub"></span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid" style="padding-top: 30px;">
+        <div class="container">
+            <!-- Header Info Section -->
+            <div class="card mb-4">
+                <div class="card-body text-center">
+                    <h1 class="display-4 fw-bold text-success mb-3">
+                        <i class="bi bi-shield-lock"></i> UPlanet Oracle
+                    </h1>
+                    <p class="lead text-warning">Web of Trust • Competence Certification • Verifiable Credentials</p>
+                </div>
+            </div>
 
         <!-- Information Section -->
         <div class="info-section" id="info-section">
@@ -979,74 +538,245 @@
                     </p>
                 </div>
             </div>
-        </div>
-
-        <!-- Authentication Section -->
-        <div class="auth-section" id="auth-section">
-            <div id="auth-content">
-                <button class="btn" id="connect-btn" onclick="connectToNOSTR()">
-                    🔌 Connect with NOSTR
-                </button>
-                <div id="auth-status" style="margin-top: 15px;"></div>
             </div>
         </div>
+
+            <!-- Authentication Section -->
+            <div class="card mb-4" id="auth-section">
+                <div class="card-body">
+                    <div id="auth-content">
+                        <button class="btn btn-primary btn-lg" id="connect-btn" onclick="connectToNOSTR()">
+                            <i class="bi bi-plug"></i> Connect with NOSTR
+                        </button>
+                        <div id="auth-status" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
 
         <!-- Main Content -->
         <div id="main-content" style="display: none;">
-            <!-- Tabs -->
-            <div class="tabs">
-                <div class="tab active" onclick="switchTab('permits')">
-                    📜 Available Permits
-                </div>
-                <div class="tab" onclick="switchTab('my-permits')">
-                    🎯 My Permits
-                </div>
-                <div class="tab" onclick="switchTab('pending-requests')">
-                    ⏳ Pending Requests
-                </div>
-                <div class="tab" onclick="switchTab('my-attestations')">
-                    ✍️ My Attestations
-                </div>
-            </div>
-
-            <!-- Tab Content: Available Permits -->
-            <div id="permits-tab" class="tab-content active">
-                <div class="filter-bar">
-                    <label style="color: var(--text); font-weight: 600;">Filter by type:</label>
-                    <select id="permit-filter" onchange="filterPermits()">
-                        <option value="all">All Permits</option>
-                    </select>
-                </div>
-                <div id="permits-list" class="loading"></div>
-            </div>
-
-            <!-- Tab Content: My Permits -->
-            <div id="my-permits-tab" class="tab-content">
-                <div class="action-buttons" style="margin-bottom: 20px;">
-                    <button class="btn" onclick="openRequestModal()">
-                        ➕ Request New Permit
+            <!-- Tabs using Bootstrap Nav Tabs -->
+            <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="permits-tab" data-bs-toggle="tab" data-bs-target="#permits" type="button">
+                        <i class="bi bi-file-text"></i> Available Permits
                     </button>
-                </div>
-                <div id="my-permits-list" class="loading"></div>
-            </div>
-
-            <!-- Tab Content: Pending Requests -->
-            <div id="pending-requests-tab" class="tab-content">
-                <div class="filter-bar">
-                    <label style="color: var(--text); font-weight: 600;">Filter by permit:</label>
-                    <select id="request-filter" onchange="filterRequests()">
-                        <option value="all">All Requests</option>
-                    </select>
-                    <button class="btn btn-secondary" onclick="refreshRequests()">
-                        🔄 Refresh
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="my-permits-tab" data-bs-toggle="tab" data-bs-target="#my-permits" type="button">
+                        <i class="bi bi-award"></i> My Permits
                     </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="pending-requests-tab" data-bs-toggle="tab" data-bs-target="#pending-requests" type="button">
+                        <i class="bi bi-hourglass-split"></i> Pending Requests
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="my-attestations-tab" data-bs-toggle="tab" data-bs-target="#my-attestations" type="button">
+                        <i class="bi bi-pen"></i> My Attestations
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="ore-contracts-tab" data-bs-toggle="tab" data-bs-target="#ore-contracts" type="button">
+                        <i class="bi bi-flower1"></i> ORE Contracts
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation" id="admin-tab-nav" style="display: none;">
+                    <button class="nav-link" id="admin-tab" data-bs-toggle="tab" data-bs-target="#admin" type="button">
+                        <i class="bi bi-gear"></i> Admin (Captain)
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Tab Content using Bootstrap -->
+            <div class="tab-content" id="mainTabsContent">
+
+                <!-- Tab Pane: Available Permits -->
+                <div class="tab-pane fade show active" id="permits" role="tabpanel">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <label class="fw-bold">Filter by type:</label>
+                                <select id="permit-filter" class="form-select w-auto" onchange="filterPermits()">
+                                    <option value="all">All Permits</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="permits-list" class="loading"></div>
                 </div>
-                <div id="pending-requests-list" class="loading"></div>
+
+                <!-- Tab Pane: My Permits -->
+                <div class="tab-pane fade" id="my-permits" role="tabpanel">
+                    <div class="mb-3">
+                        <button class="btn btn-primary" onclick="openRequestModal()">
+                            <i class="bi bi-plus-circle"></i> Request New Permit
+                        </button>
+                    </div>
+                    <div id="my-permits-list" class="loading"></div>
+                </div>
+
+                <!-- Tab Pane: Pending Requests -->
+                <div class="tab-pane fade" id="pending-requests" role="tabpanel">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <label class="fw-bold">Filter by permit:</label>
+                                    <select id="request-filter" class="form-select w-auto" onchange="filterRequests()">
+                                        <option value="all">All Requests</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-secondary" onclick="refreshRequests()">
+                                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="pending-requests-list" class="loading"></div>
+                </div>
+
+                <!-- Tab Pane: My Attestations -->
+                <div class="tab-pane fade" id="my-attestations" role="tabpanel">
+                    <div id="my-attestations-list" class="loading"></div>
+                </div>
+
+                <!-- Tab Pane: ORE Contracts -->
+                <div class="tab-pane fade" id="ore-contracts" role="tabpanel">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <label class="fw-bold">Filter:</label>
+                                    <select id="ore-filter" class="form-select w-auto" onchange="filterOREContracts()">
+                                        <option value="all">All UMAPs</option>
+                                        <option value="active">Active Contracts</option>
+                                        <option value="pending">Pending Validation</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-secondary" onclick="refreshOREContracts()">
+                                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                <!-- Map for ORE visualization -->
+                <div class="card" style="margin-bottom: 20px;">
+                    <h3 style="color: var(--accent); margin-bottom: 15px;">
+                        🗺️ ORE Contracts Map
+                    </h3>
+                    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                    <div id="ore-map" style="height: 500px; border-radius: 12px;"></div>
+                    <div style="margin-top: 15px; padding: 15px; background: rgba(74, 222, 128, 0.05); border-radius: 8px;">
+                        <strong style="color: var(--accent);">Map Legend:</strong>
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            <li><span style="color: #fbbf24;">🏆 Yellow</span> - Active ORE Contract (8+ plants)</li>
+                            <li><span style="color: #22c55e;">🟢 Green</span> - Validated UMAP (1-7 plants)</li>
+                            <li><span style="color: #3b82f6;">🔵 Blue</span> - UMAP DID exists</li>
+                        </ul>
+                    </div>
+                </div>
+                <div id="ore-contracts-list" class="loading"></div>
             </div>
 
-            <!-- Tab Content: My Attestations -->
-            <div id="my-attestations-tab" class="tab-content">
-                <div id="my-attestations-list" class="loading"></div>
+            <!-- Tab Content: Admin (Captain) -->
+            <div id="admin-tab-content" class="tab-content">
+                <div class="info-section" style="background: rgba(239, 68, 68, 0.1); border-color: var(--error);">
+                    <h3 style="color: var(--error); margin-bottom: 15px;">
+                        🔐 Captain Administration Panel
+                    </h3>
+                    <p style="color: var(--text); margin-bottom: 20px;">
+                        You are authenticated as the station captain. You have administrative privileges to manage the Oracle system.
+                    </p>
+                </div>
+
+                <!-- Admin Actions Grid -->
+                <div class="info-grid">
+                    <div class="info-card">
+                        <div class="info-card-icon">🚀</div>
+                        <div class="info-card-title">Issue Credentials</div>
+                        <div class="info-card-text">
+                            Manually trigger credential issuance for validated permit requests.
+                        </div>
+                        <button class="btn" onclick="showPendingIssuance()" style="margin-top: 10px; width: 100%;">
+                            View Pending
+                        </button>
+                    </div>
+
+                    <div class="info-card">
+                        <div class="info-card-icon">❌</div>
+                        <div class="info-card-title">Revoke Credentials</div>
+                        <div class="info-card-text">
+                            Revoke issued credentials in case of misconduct or false attestations.
+                        </div>
+                        <button class="btn btn-danger" onclick="showRevocationInterface()" style="margin-top: 10px; width: 100%;">
+                            Manage Revocations
+                        </button>
+                    </div>
+
+                    <div class="info-card">
+                        <div class="info-card-icon">⏱️</div>
+                        <div class="info-card-title">Expire Old Requests</div>
+                        <div class="info-card-text">
+                            Mark stale requests (> 90 days) as expired to clean up the system.
+                        </div>
+                        <button class="btn btn-secondary" onclick="expireOldRequests()" style="margin-top: 10px; width: 100%;">
+                            Run Expiration
+                        </button>
+                    </div>
+
+                    <div class="info-card">
+                        <div class="info-card-icon">🌱</div>
+                        <div class="info-card-title">Activate ORE Contracts</div>
+                        <div class="info-card-text">
+                            Activate ORE contracts for UMAPs that have reached the 8-plant threshold.
+                        </div>
+                        <button class="btn" onclick="showOREActivation()" style="margin-top: 10px; width: 100%;">
+                            Activate Contracts
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Admin Stats -->
+                <div class="card" style="margin-top: 30px;">
+                    <h3 style="color: var(--accent); margin-bottom: 15px;">
+                        📊 System Statistics
+                    </h3>
+                    <div id="admin-stats" class="info-grid">
+                        <div class="info-card">
+                            <div class="info-card-icon">📋</div>
+                            <div class="info-card-title">Total Requests</div>
+                            <div class="info-card-text" id="stat-total-requests">Loading...</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-card-icon">✅</div>
+                            <div class="info-card-title">Validated Requests</div>
+                            <div class="info-card-text" id="stat-validated-requests">Loading...</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-card-icon">🎫</div>
+                            <div class="info-card-title">Active Credentials</div>
+                            <div class="info-card-text" id="stat-active-credentials">Loading...</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-card-icon">🌱</div>
+                            <div class="info-card-title">Active ORE Contracts</div>
+                            <div class="info-card-text" id="stat-ore-contracts">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity Log -->
+                <div class="card" style="margin-top: 20px;">
+                    <h3 style="color: var(--accent); margin-bottom: 15px;">
+                        📜 Recent Activity
+                    </h3>
+                    <div id="admin-activity-log" style="max-height: 400px; overflow-y: auto;">
+                        <div class="loading"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1115,11 +845,14 @@
         let userPubkey = null;
         let userNpub = null;
         let userEmail = null;
+        let isCaptain = false; // Captain status (determined by NIP-42 auth)
 
         // Data caches
         let allPermitDefinitions = [];
         let allPermitRequests = [];
         let myPermitCredentials = [];
+        let allOREContracts = []; // ORE contracts (kind 30312)
+        let oreMap = null; // Leaflet map instance
 
         // Pre-loaded data from server (if available)
         let preloadedOracleData = null;
@@ -1188,6 +921,9 @@
                 // Send NIP-42 auth
                 await sendNIP42Auth();
 
+                // Check if user is captain (via API)
+                await checkCaptainStatus();
+
                 // Fetch user email from DID
                 userEmail = await fetchUserEmail(userPubkey);
 
@@ -1196,10 +932,16 @@
                     <div class="status-message status-success">
                         ✅ Connected as ${userNpub.substring(0, 12)}...${userNpub.substring(userNpub.length - 4)}
                         ${userEmail ? `<br>📧 ${userEmail}` : ''}
+                        ${isCaptain ? '<br>👑 <strong>Captain Access Granted</strong>' : ''}
                     </div>
                 `;
                 connectBtn.textContent = '✅ Connected';
                 connectBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+
+                // Show admin tab if captain
+                if (isCaptain) {
+                    document.getElementById('admin-tab').style.display = 'block';
+                }
 
                 // Show main content
                 document.getElementById('main-content').style.display = 'block';
@@ -1370,6 +1112,528 @@
             await loadPermitRequests();
             await loadMyPermitCredentials();
             await loadMyAttestations();
+            await loadOREContracts(); // Load ORE contracts
+            if (isCaptain) {
+                await loadAdminStats(); // Load admin statistics
+            }
+        }
+
+        // Check captain status via API
+        async function checkCaptainStatus() {
+            try {
+                // The server will check NIP-42 auth and determine if user is captain
+                // For now, we check if the user has PERMIT_WOT_DRAGON credential
+                const response = await fetch(`${USPOT_API_BASE}/api/permit/list?type=credentials&npub=${userNpub}`);
+                const data = await response.json();
+                
+                if (data.credentials) {
+                    // Check if user has WoT Dragon permit
+                    isCaptain = data.credentials.some(c => 
+                        c.permit_definition_id === 'PERMIT_WOT_DRAGON' && 
+                        c.status === 'active'
+                    );
+                }
+                
+                console.log('Captain status:', isCaptain);
+            } catch (error) {
+                console.error('Error checking captain status:', error);
+                isCaptain = false;
+            }
+        }
+
+        // Load ORE contracts from NOSTR (kind 30312)
+        async function loadOREContracts() {
+            try {
+                console.log('📡 Fetching ORE contracts from NOSTR...');
+                const filter = {
+                    kinds: [30312],  // ORE Meeting Space
+                    '#t': ['ORE'],
+                    limit: 500
+                };
+
+                allOREContracts = [];
+                const sub = nostrRelay.sub([filter]);
+
+                const timeout = setTimeout(() => {
+                    sub.unsub();
+                    renderOREContracts();
+                    if (oreMap) {
+                        displayOREOnMap();
+                    } else {
+                        initializeOREMap();
+                    }
+                }, 10000);
+
+                sub.on('event', (event) => {
+                    allOREContracts.push(event);
+                });
+
+                sub.on('eose', () => {
+                    clearTimeout(timeout);
+                    sub.unsub();
+                    console.log(`✅ Loaded ${allOREContracts.length} ORE contracts`);
+                    renderOREContracts();
+                    if (oreMap) {
+                        displayOREOnMap();
+                    } else {
+                        initializeOREMap();
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error loading ORE contracts:', error);
+                document.getElementById('ore-contracts-list').innerHTML = 
+                    '<div class="status-message status-error">❌ Failed to load ORE contracts</div>';
+            }
+        }
+
+        // Initialize ORE map
+        function initializeOREMap() {
+            if (typeof L === 'undefined') {
+                console.warn('Leaflet not loaded');
+                return;
+            }
+
+            const mapEl = document.getElementById('ore-map');
+            if (!mapEl) {
+                console.warn('Map element not found');
+                return;
+            }
+
+            // Initialize map centered on France
+            oreMap = L.map('ore-map').setView([46.0, 2.0], 6);
+
+            // Add tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(oreMap);
+
+            // Display ORE contracts on map
+            displayOREOnMap();
+        }
+
+        // Display ORE contracts on map
+        function displayOREOnMap() {
+            if (!oreMap) return;
+
+            // Clear existing markers
+            oreMap.eachLayer(layer => {
+                if (layer instanceof L.Marker || layer instanceof L.CircleMarker) {
+                    oreMap.removeLayer(layer);
+                }
+            });
+
+            // Add markers for each ORE contract
+            allOREContracts.forEach(contract => {
+                const geoTag = contract.tags.find(t => t[0] === 'g');
+                if (!geoTag || !geoTag[1]) return;
+
+                const [lat, lon] = geoTag[1].split(',').map(parseFloat);
+                if (isNaN(lat) || isNaN(lon)) return;
+
+                // Parse contract content to determine status
+                let plantCount = 0;
+                try {
+                    const content = JSON.parse(contract.content || '{}');
+                    plantCount = content.plants_count || 0;
+                } catch (e) {
+                    // Try to extract from content string
+                    const match = contract.content.match(/(\d+)\s+plant/i);
+                    if (match) plantCount = parseInt(match[1]);
+                }
+
+                // Determine marker color based on plant count
+                let color, status;
+                if (plantCount >= 8) {
+                    color = '#fbbf24'; // Gold - Active ORE contract
+                    status = 'Active ORE Contract';
+                } else if (plantCount > 0) {
+                    color = '#22c55e'; // Green - Validated UMAP
+                    status = 'Validated UMAP';
+                } else {
+                    color = '#3b82f6'; // Blue - DID exists
+                    status = 'UMAP DID';
+                }
+
+                const marker = L.circleMarker([lat, lon], {
+                    radius: plantCount >= 8 ? 12 : 8,
+                    fillColor: color,
+                    color: '#fff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.9
+                }).addTo(oreMap);
+
+                const date = new Date(contract.created_at * 1000).toLocaleDateString();
+                marker.bindPopup(`
+                    <div style="min-width: 200px;">
+                        <strong style="color: ${color};">${status}</strong><br>
+                        <small>UMAP: ${geoTag[1]}</small><br>
+                        <strong>Plants:</strong> ${plantCount}<br>
+                        <small style="color: #888;">Created: ${date}</small><br>
+                        <button onclick="viewOREContract('${contract.id}')" 
+                           class="btn btn-sm" 
+                           style="background: ${color}; color: white; border: none; margin-top: 5px; padding: 4px 8px;">
+                            View Details
+                        </button>
+                    </div>
+                `);
+            });
+
+            // Fit map to show all markers
+            if (allOREContracts.length > 0) {
+                const markers = [];
+                oreMap.eachLayer(layer => {
+                    if (layer instanceof L.CircleMarker) {
+                        markers.push(layer);
+                    }
+                });
+                if (markers.length > 0) {
+                    const group = new L.featureGroup(markers);
+                    oreMap.fitBounds(group.getBounds().pad(0.1));
+                }
+            }
+        }
+
+        // Render ORE contracts list
+        function renderOREContracts() {
+            const container = document.getElementById('ore-contracts-list');
+
+            if (allOREContracts.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🌱</div>
+                        <p>No ORE contracts found</p>
+                        <p style="color: var(--muted); font-size: 0.9em;">
+                            ORE contracts are created when UMAPs reach 8+ plant observations
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group contracts by status
+            const activeContracts = [];
+            const pendingContracts = [];
+            const otherContracts = [];
+
+            allOREContracts.forEach(contract => {
+                let plantCount = 0;
+                try {
+                    const content = JSON.parse(contract.content || '{}');
+                    plantCount = content.plants_count || 0;
+                } catch (e) {
+                    const match = contract.content.match(/(\d+)\s+plant/i);
+                    if (match) plantCount = parseInt(match[1]);
+                }
+
+                if (plantCount >= 8) {
+                    activeContracts.push({ ...contract, plantCount });
+                } else if (plantCount >= 5) {
+                    pendingContracts.push({ ...contract, plantCount });
+                } else {
+                    otherContracts.push({ ...contract, plantCount });
+                }
+            });
+
+            container.innerHTML = `
+                ${activeContracts.length > 0 ? `
+                    <h3 style="color: #fbbf24; margin: 20px 0 15px;">
+                        🏆 Active ORE Contracts (${activeContracts.length})
+                    </h3>
+                    <div class="permit-grid">
+                        ${activeContracts.map(c => renderOREContractCard(c)).join('')}
+                    </div>
+                ` : ''}
+                
+                ${pendingContracts.length > 0 ? `
+                    <h3 style="color: var(--warning); margin: 20px 0 15px;">
+                        ⏳ Pending Validation (${pendingContracts.length})
+                    </h3>
+                    <div class="permit-grid">
+                        ${pendingContracts.map(c => renderOREContractCard(c)).join('')}
+                    </div>
+                ` : ''}
+                
+                ${otherContracts.length > 0 ? `
+                    <h3 style="color: var(--muted); margin: 20px 0 15px;">
+                        📍 Other UMAPs (${otherContracts.length})
+                    </h3>
+                    <div class="permit-grid">
+                        ${otherContracts.map(c => renderOREContractCard(c)).join('')}
+                    </div>
+                ` : ''}
+            `;
+        }
+
+        // Render ORE contract card
+        function renderOREContractCard(contract) {
+            const geoTag = contract.tags.find(t => t[0] === 'g');
+            const umapCoords = geoTag ? geoTag[1] : 'Unknown';
+            const date = new Date(contract.created_at * 1000).toLocaleDateString();
+            const plantCount = contract.plantCount || 0;
+            const status = plantCount >= 8 ? 'active' : plantCount >= 5 ? 'pending' : 'inactive';
+            const statusColor = status === 'active' ? '#fbbf24' : status === 'pending' ? 'var(--warning)' : 'var(--muted)';
+
+            return `
+                <div class="permit-card">
+                    <div class="permit-header">
+                        <div>
+                            <div class="permit-title" style="color: ${statusColor};">
+                                UMAP ${umapCoords}
+                            </div>
+                            <div class="permit-id">${contract.id.substring(0, 16)}...</div>
+                        </div>
+                        <span class="badge" style="background: rgba(${status === 'active' ? '251, 191, 36' : status === 'pending' ? '245, 158, 11' : '100, 116, 139'}, 0.2); border-color: ${statusColor}; color: ${statusColor};">
+                            ${status.toUpperCase()}
+                        </span>
+                    </div>
+                    <div class="permit-meta">
+                        <span class="badge">
+                            🌱 ${plantCount} plants
+                        </span>
+                        <span class="badge badge-info">
+                            📅 ${date}
+                        </span>
+                    </div>
+                    <div class="permit-description" style="font-size: 0.9em; color: var(--text); margin: 10px 0;">
+                        ${contract.content ? contract.content.substring(0, 150) + (contract.content.length > 150 ? '...' : '') : 'No description'}
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" onclick="viewOREContract('${contract.id}')">
+                            📄 View Details
+                        </button>
+                        <button class="btn" onclick="centerMapOnUMAP('${umapCoords}')">
+                            🗺️ Show on Map
+                        </button>
+                        ${isCaptain && status === 'pending' ? `
+                            <button class="btn" onclick="activateOREContract('${contract.id}')">
+                                ✅ Activate Contract
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // View ORE contract details
+        function viewOREContract(contractId) {
+            const contract = allOREContracts.find(c => c.id === contractId);
+            if (!contract) {
+                alert('Contract not found');
+                return;
+            }
+
+            // Open in new window/modal with full details
+            const modal = document.createElement('div');
+            modal.className = 'modal active';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>ORE Contract Details</h2>
+                        <span class="modal-close" onclick="this.closest('.modal').remove()">&times;</span>
+                    </div>
+                    <div class="card">
+                        <h3>Contract ID</h3>
+                        <p style="font-family: monospace; word-break: break-all;">${contract.id}</p>
+                        
+                        <h3>Location</h3>
+                        <p>${contract.tags.find(t => t[0] === 'g')?.[1] || 'Unknown'}</p>
+                        
+                        <h3>Created</h3>
+                        <p>${new Date(contract.created_at * 1000).toLocaleString()}</p>
+                        
+                        <h3>Content</h3>
+                        <pre style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; overflow-x: auto; color: var(--text);">${contract.content || 'No content'}</pre>
+                        
+                        <h3>Tags</h3>
+                        <pre style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; overflow-x: auto; color: var(--text);">${JSON.stringify(contract.tags, null, 2)}</pre>
+                    </div>
+                    <div class="action-buttons" style="margin-top: 20px;">
+                        <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Close</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Center map on UMAP
+        function centerMapOnUMAP(umapCoords) {
+            if (!oreMap) {
+                // Switch to ORE contracts tab first
+                switchTab('ore-contracts');
+                setTimeout(() => {
+                    if (!oreMap) initializeOREMap();
+                    setTimeout(() => centerMapOnUMAP(umapCoords), 500);
+                }, 500);
+                return;
+            }
+
+            const [lat, lon] = umapCoords.split(',').map(parseFloat);
+            if (!isNaN(lat) && !isNaN(lon)) {
+                oreMap.setView([lat, lon], 13);
+            }
+        }
+
+        // Refresh ORE contracts
+        async function refreshOREContracts() {
+            document.getElementById('ore-contracts-list').innerHTML = '<div class="loading"></div>';
+            await loadOREContracts();
+        }
+
+        // Filter ORE contracts
+        function filterOREContracts() {
+            // TODO: Implement filtering based on dropdown selection
+            renderOREContracts();
+        }
+
+        // Admin functions
+        async function loadAdminStats() {
+            try {
+                // Count total requests
+                const totalRequests = allPermitRequests.length;
+                const validatedRequests = allPermitRequests.filter(r => r.status === 'validated').length;
+                const activeCredentials = myPermitCredentials.filter(c => c.status === 'active').length;
+                const activeOREContracts = allOREContracts.filter(c => {
+                    let plantCount = 0;
+                    try {
+                        const content = JSON.parse(c.content || '{}');
+                        plantCount = content.plants_count || 0;
+                    } catch (e) {
+                        const match = c.content.match(/(\d+)\s+plant/i);
+                        if (match) plantCount = parseInt(match[1]);
+                    }
+                    return plantCount >= 8;
+                }).length;
+
+                document.getElementById('stat-total-requests').textContent = totalRequests;
+                document.getElementById('stat-validated-requests').textContent = validatedRequests;
+                document.getElementById('stat-active-credentials').textContent = activeCredentials;
+                document.getElementById('stat-ore-contracts').textContent = activeOREContracts;
+
+                // Load activity log
+                await loadAdminActivityLog();
+            } catch (error) {
+                console.error('Error loading admin stats:', error);
+            }
+        }
+
+        async function loadAdminActivityLog() {
+            const logContainer = document.getElementById('admin-activity-log');
+            
+            // Combine all activities
+            const activities = [];
+            
+            // Recent requests
+            allPermitRequests.slice(0, 10).forEach(req => {
+                activities.push({
+                    time: req.created_at,
+                    type: 'request',
+                    text: `New permit request: ${req.permit_definition_id}`,
+                    icon: '📝'
+                });
+            });
+            
+            // Recent credentials
+            myPermitCredentials.slice(0, 10).forEach(cred => {
+                activities.push({
+                    time: new Date(cred.issued_at).getTime() / 1000,
+                    type: 'credential',
+                    text: `Credential issued: ${cred.permit_definition_id}`,
+                    icon: '✅'
+                });
+            });
+            
+            // Sort by time (most recent first)
+            activities.sort((a, b) => b.time - a.time);
+            
+            logContainer.innerHTML = activities.slice(0, 20).map(act => `
+                <div style="padding: 10px; margin: 5px 0; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid var(--accent);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 1.2em; margin-right: 8px;">${act.icon}</span>
+                            <span style="color: var(--text);">${act.text}</span>
+                        </div>
+                        <span style="color: var(--muted); font-size: 0.85em;">
+                            ${new Date(act.time * 1000).toLocaleString()}
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Admin actions
+        function showPendingIssuance() {
+            const pending = allPermitRequests.filter(r => r.status === 'validated' && !r.credential_id);
+            
+            if (pending.length === 0) {
+                alert('No pending credential issuance');
+                return;
+            }
+            
+            alert(`There are ${pending.length} requests ready for credential issuance.`);
+            // TODO: Implement full interface for manual issuance
+        }
+
+        function showRevocationInterface() {
+            alert('Revocation interface - coming soon');
+            // TODO: Implement revocation interface
+        }
+
+        async function expireOldRequests() {
+            if (!confirm('This will mark all requests older than 90 days as expired. Continue?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${USPOT_API_BASE}/api/permit/expire/all`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to expire old requests');
+                }
+                
+                alert('✅ Old requests expired successfully');
+                await loadPermitRequests();
+            } catch (error) {
+                console.error('Error expiring requests:', error);
+                alert('❌ Failed to expire requests: ' + error.message);
+            }
+        }
+
+        function showOREActivation() {
+            // Filter pending ORE contracts (5-7 plants)
+            const pending = allOREContracts.filter(c => {
+                let plantCount = 0;
+                try {
+                    const content = JSON.parse(c.content || '{}');
+                    plantCount = content.plants_count || 0;
+                } catch (e) {
+                    const match = c.content.match(/(\d+)\s+plant/i);
+                    if (match) plantCount = parseInt(match[1]);
+                }
+                return plantCount >= 5 && plantCount < 8;
+            });
+            
+            if (pending.length === 0) {
+                alert('No UMAPs ready for ORE activation');
+                return;
+            }
+            
+            alert(`There are ${pending.length} UMAPs pending ORE activation (5-7 plants).`);
+            // Switch to ORE contracts tab
+            switchTab('ore-contracts');
+        }
+
+        async function activateOREContract(contractId) {
+            if (!confirm('Activate this ORE contract?')) {
+                return;
+            }
+            
+            // TODO: Call API to activate ORE contract
+            alert('ORE contract activation - coming soon');
         }
 
         // Load permit definitions (kind 30500)
@@ -1797,11 +2061,18 @@
                 'permits': 'permits-tab',
                 'my-permits': 'my-permits-tab',
                 'pending-requests': 'pending-requests-tab',
-                'my-attestations': 'my-attestations-tab'
+                'my-attestations': 'my-attestations-tab',
+                'ore-contracts': 'ore-contracts-tab',
+                'admin': 'admin-tab-content'
             };
             
             document.getElementById(tabMap[tabName]).classList.add('active');
             event.target.classList.add('active');
+
+            // Initialize map when ORE contracts tab is opened
+            if (tabName === 'ore-contracts' && !oreMap) {
+                setTimeout(() => initializeOREMap(), 300);
+            }
         }
 
         // Open request modal
