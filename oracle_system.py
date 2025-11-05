@@ -40,8 +40,7 @@ from enum import Enum
 
 # Configuration
 NOSTR_RELAYS = os.getenv("NOSTR_RELAYS", "ws://127.0.0.1:7777 wss://relay.copylaradio.com").split()
-MY_PATH = Path(__file__).parent.parent
-TOOLS_PATH = MY_PATH / "Astroport.ONE" / "tools"
+TOOLS_PATH = Path(os.path.expandvars(os.path.expanduser("$HOME"))) / "Astroport.ONE" / "tools"
 
 # NOSTR Event Kinds for Permit System
 class PermitEventKind(Enum):
