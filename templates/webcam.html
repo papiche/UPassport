@@ -1096,8 +1096,13 @@
                 Connect to NOSTR to start recording and publishing your videos on UPlanet
             </p>
             <button class="central-connect-btn" onclick="handleNostrConnect()">
-                🔌 Connect to NOSTR
+                🔌 Connect with NOSTR Extension
             </button>
+            <p style="color: #94a3b8; margin-top: 20px; font-size: 0.9em;">
+                You'll need a NOSTR browser extension like <a href="https://getalby.com" target="_blank" style="color: #4ade80; text-decoration: underline;">Alby</a>, 
+                <a href="https://github.com/fiatjaf/nos2x" target="_blank" style="color: #4ade80; text-decoration: underline;">nos2x</a>, or 
+                <a href="https://www.getflamingo.org" target="_blank" style="color: #4ade80; text-decoration: underline;">Flamingo</a>
+            </p>
         </div>
         
         <!-- Webcam Recording Section (shown by default) -->
@@ -2290,15 +2295,34 @@
             
             // Try immediately
             if (tryGetConnection()) {
+                // Connection found - show webcam interface
+                onConnectionSuccess();
                 return;
             }
             
             // Retry with intervals if not found
             const retryInterval = setInterval(() => {
-                if (tryGetConnection() || attempts >= maxAttempts) {
+                if (tryGetConnection()) {
                     clearInterval(retryInterval);
+                    onConnectionSuccess();
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(retryInterval);
+                    // No connection found after all attempts
+                    // Show central connection button if not in iframe or if in standalone mode
+                    if (!isInIframe || window.location.search.includes('standalone=1')) {
+                        showConnectionPrompt();
+                    } else {
+                        console.log('⚠️ Running in iframe without connection - waiting for parent connection');
+                    }
                 }
             }, 500);
+        }
+        
+        // Show connection prompt when no connection is available
+        function showConnectionPrompt() {
+            console.log('📢 No NOSTR connection found - showing connection prompt');
+            document.getElementById('central-connection').classList.remove('hidden');
+            document.getElementById('webcam-section').style.display = 'none';
         }
         
         // Called when connection is successful (simplified - no UI updates needed without header)
@@ -2312,7 +2336,7 @@
             console.log('✅ Connection successful:', userPubkey.substring(0, 8) + '...');
         }
         
-        // Connect to NOSTR (simplified - assumes connection exists from parent, no UI)
+        // Connect to NOSTR (supports both standalone and iframe modes)
         async function handleNostrConnect() {
             try {
                 const isInIframe = window.self !== window.top;
@@ -2327,36 +2351,73 @@
                     if (window.parent.isNostrConnected) {
                         isNostrConnected = window.parent.isNostrConnected;
                     }
-                } else if (typeof connectNostr === 'function') {
-                    // Fallback to connectNostr from common.js
-                    const pubkey = await connectNostr();
-                    if (pubkey) {
-                        userPubkey = pubkey;
-                    } else {
-                        throw new Error("Connection failed");
-                    }
                 } else {
-                    throw new Error("NOSTR connection not available");
-                }
-                
-                // Try to connect to relay if not already connected
-                if (!nostrRelay || !isNostrConnected) {
+                    // Standalone mode or no parent connection
+                    console.log('🔌 Connecting to NOSTR extension in standalone mode...');
+                    
+                    // Check if NOSTR extension is available
+                    if (typeof window.nostr === 'undefined' || !window.nostr) {
+                        showError(
+                            'NOSTR extension not detected. Please install a NOSTR extension like Alby, nos2x, or Flamingo to continue.',
+                            'Extension Required'
+                        );
+                        throw new Error("NOSTR extension not available");
+                    }
+                    
+                    // Try to get public key from extension
+                    try {
+                        const pubkey = await window.nostr.getPublicKey();
+                        if (pubkey) {
+                            userPubkey = pubkey;
+                            if (typeof window !== 'undefined') {
+                                window.userPubkey = pubkey;
+                            }
+                            console.log('✅ Connected to NOSTR extension, pubkey:', pubkey.substring(0, 8) + '...');
+                        } else {
+                            throw new Error("No public key returned from extension");
+                        }
+                    } catch (extError) {
+                        console.error('❌ Extension error:', extError);
+                        showError(
+                            'Failed to connect to NOSTR extension. Please ensure you have authorized this site in your extension settings.',
+                            'Connection Failed'
+                        );
+                        throw extError;
+                    }
+                    
+                    // Try to connect to relay if function available
                     if (typeof connectToRelay === 'function') {
-                        await connectToRelay();
+                        try {
+                            await connectToRelay();
+                        } catch (relayError) {
+                            console.warn('⚠️ Failed to connect to relay:', relayError);
+                            // Don't fail connection if relay connection fails
+                        }
                     }
                 }
                 
                 // Fetch user email if available
                 if (typeof fetchUserEmail === 'function') {
                     await fetchUserEmail();
+                } else {
+                    // Set player field with pubkey if email not available
+                    const playerField = document.getElementById('player');
+                    if (playerField && userPubkey) {
+                        playerField.value = userPubkey;
+                    }
                 }
                 
-                // Update UI
+                // Update UI to show webcam interface
                 await onConnectionSuccess();
                 
+                showSuccess(
+                    'Successfully connected to NOSTR! You can now record and publish videos.',
+                    'Connected! 🎉'
+                );
+                
             } catch (error) {
-                console.error("Connection error:", error);
-                throw error;
+                console.error("❌ Connection error:", error);
+                // Error notification already shown in specific catch blocks
             }
         }
 
@@ -2399,6 +2460,13 @@
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
+            // Check if we're in standalone mode (not in iframe)
+            const isInIframe = window.self !== window.top;
+            const isStandalone = !isInIframe || window.location.search.includes('standalone=1');
+            
+            console.log('🚀 Initializing webcam page...');
+            console.log('📍 Mode:', isStandalone ? 'Standalone' : 'Iframe');
+            
             // Initialize connection variables from parent if in iframe
             initializeConnectionVars();
             
@@ -2442,6 +2510,20 @@
             
             // Initialize webcam features (always initialize, even if hidden)
             initWebcamFeatures();
+            
+            // If in standalone mode and no connection detected after a short delay, show connection prompt
+            if (isStandalone) {
+                setTimeout(() => {
+                    // Check if we have a connection
+                    if (!userPubkey && !window.userPubkey) {
+                        console.log('⚠️ No connection detected in standalone mode - showing connection prompt');
+                        showConnectionPrompt();
+                    } else {
+                        console.log('✅ Connection detected, showing webcam interface');
+                        onConnectionSuccess();
+                    }
+                }, 1500);
+            }
         });
         
         // Close modal when clicking outside
