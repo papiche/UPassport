@@ -21,22 +21,95 @@
     <!-- Bootstrap 5 JS Bundle -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
     <style>
+        body {
+            font-family: 'Roboto', 'Arial', sans-serif;
+            background: rgba(0, 0, 0, 0.95);
+            color: #ffffff;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .theater-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            background: #000000;
+            overflow: hidden;
+        }
+
+        /* Main content area with flex layout */
+        .theater-content-wrapper {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+        
         /* Video section: 2/3 width on desktop */
         .theater-video-section {
             flex: 2;
             min-width: 0;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        .theater-video-section::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .theater-video-section::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+        
+        .theater-video-section::-webkit-scrollbar-thumb {
+            background: #3f3f3f;
+            border-radius: 6px;
         }
         
         /* Comments section: 1/3 width on desktop */
         .theater-comments-section {
-            flex: 1;
+            flex: 0 0 400px;
+            width: 400px;
             min-width: 300px;
             max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-left: 1px solid #3f3f3f;
+        }
+        
+        /* Video player container - takes available space */
+        .theater-video-container {
+            flex: 1;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000000;
+            position: relative;
+        }
+
+        .theater-video-player {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            background: #000000;
+            display: block;
         }
         
         /* Related videos container: compact and at bottom */
         .theater-related-videos-container {
-            max-height: 240px;
+            max-height: 300px;
             overflow-y: auto;
             flex-shrink: 0;
         }
@@ -56,80 +129,29 @@
         
         /* Mobile: stack vertically */
         @media (max-width: 991px) {
+            .theater-content-wrapper {
+                flex-direction: column;
+            }
+            
             .theater-video-section {
                 flex: none;
                 width: 100%;
+                max-height: none;
             }
             
             .theater-comments-section {
                 flex: none;
                 width: 100%;
                 max-width: none;
+                min-width: 0;
                 border-left: none !important;
                 border-top: 1px solid #3f3f3f;
+                max-height: 50vh;
             }
-        }
-        
-        body {
-            font-family: 'Roboto', 'Arial', sans-serif;
-            background: rgba(0, 0, 0, 0.95);
-            color: #ffffff;
-            margin: 0;
-            padding: 0;
-        }
-
-        .theater-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 10000;
-            display: flex;
-            flex-direction: column;
-            background: #000000;
-            overflow-y: auto;
-            overflow-x: hidden;
-            overscroll-behavior: contain;
-        }
-        
-        .theater-modal::-webkit-scrollbar {
-            width: 12px;
-        }
-        
-        .theater-modal::-webkit-scrollbar-track {
-            background: #0f0f0f;
-        }
-        
-        .theater-modal::-webkit-scrollbar-thumb {
-            background: #3f3f3f;
-            border-radius: 6px;
-        }
-        
-        .theater-modal::-webkit-scrollbar-thumb:hover {
-            background: #606060;
-        }
-
-        .theater-video-player {
-            width: 100%;
-            height: 100%;
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            background: #000000;
-            position: relative;
-            z-index: 1;
-            display: block;
-        }
-        
-        /* Ensure video container is visible */
-        .theater-modal .flex-fill {
-            position: relative;
-            z-index: 1;
-        }
-        
-        .theater-modal .position-relative {
-            z-index: 1;
+            
+            .theater-video-container {
+                min-height: 250px;
+            }
         }
 
         .comment-timeline-overlay {
@@ -171,12 +193,21 @@
             text-decoration: underline;
         }
         
-        .theater-comment-item.original-comment {
-            background: rgba(62, 166, 255, 0.05);
+        .theater-comment-item {
+            background: #1a1a1a;
             padding: 12px;
             border-radius: 8px;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #2a2a2a;
+        }
+        
+        .theater-comment-item.original-comment {
+            background: rgba(62, 166, 255, 0.08);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
             border-left: 3px solid #3ea6ff;
+            border: 1px solid rgba(62, 166, 255, 0.3);
         }
         
         .theater-comment-item.original-comment .theater-comment-author::after {
@@ -184,6 +215,43 @@
             font-size: 0.75em;
             color: #3ea6ff;
             font-weight: normal;
+        }
+        
+        .theater-comment-author {
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+        
+        .theater-comment-content {
+            color: #e0e0e0;
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 6px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .theater-comment-time {
+            color: #999999;
+            font-size: 11px;
+        }
+        
+        .theater-comment-timestamp-link {
+            background: transparent;
+            border: none;
+            color: #3ea6ff;
+            cursor: pointer;
+            padding: 4px 0;
+            font-size: 11px;
+            margin-top: 4px;
+            display: inline-block;
+        }
+        
+        .theater-comment-timestamp-link:hover {
+            color: #5bb5ff;
+            text-decoration: underline;
         }
 
         @keyframes slideIn {
@@ -212,18 +280,19 @@
             margin-bottom: 8px;
             cursor: pointer;
             transition: all 0.2s ease;
+            min-height: 100px;
         }
         
         .theater-related-video-item:hover {
-            background: #212121;
+            background: #282828;
             border-color: #3ea6ff;
             transform: translateX(4px);
         }
         
         .theater-related-video-thumbnail {
             flex-shrink: 0;
-            width: 160px;
-            height: 90px;
+            width: 140px;
+            height: 78px;
             border-radius: 6px;
             overflow: hidden;
             background: #2a2a2a;
@@ -234,13 +303,14 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+            display: block;
         }
         
         .theater-related-video-thumbnail .duration-badge {
             position: absolute;
             bottom: 4px;
             right: 4px;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.9);
             color: white;
             padding: 2px 6px;
             border-radius: 3px;
@@ -255,6 +325,7 @@
             align-items: center;
             justify-content: center;
             background: #1a1a1a;
+            color: #666;
         }
         
         .theater-related-video-info {
@@ -268,7 +339,7 @@
         .theater-related-video-title {
             font-size: 14px;
             font-weight: 500;
-            color: #f1f1f1;
+            color: #ffffff;
             margin-bottom: 6px;
             line-height: 1.4;
             display: -webkit-box;
@@ -279,10 +350,11 @@
         
         .theater-related-video-meta {
             font-size: 12px;
-            color: #aaaaaa;
+            color: #cccccc;
             display: flex;
             align-items: center;
             gap: 8px;
+            line-height: 1.3;
         }
         
         .theater-related-video-meta .author-name {
@@ -293,7 +365,7 @@
         }
         
         .theater-related-video-meta .duration-text {
-            color: #888888;
+            color: #999999;
             flex-shrink: 0;
         }
         
@@ -437,11 +509,11 @@
                 </div>
             </div>
         </div>
-        <div class="d-flex flex-column flex-lg-row flex-fill overflow-hidden">
+        <div class="theater-content-wrapper">
             <!-- Video section: 2/3 width on desktop, full width on mobile -->
-            <div class="d-flex flex-column bg-black position-relative theater-video-section">
+            <div class="theater-video-section">
                 <!-- Video player -->
-                <div class="flex-fill d-flex align-items-center justify-content-center position-relative bg-black" style="min-height: 0;">
+                <div class="theater-video-container">
                     <video 
                         id="theaterVideoPlayer" 
                         class="theater-video-player"
@@ -483,12 +555,12 @@
             </div>
             
             <!-- Comments section: 1/3 width on desktop, below on mobile -->
-            <div class="bg-dark border-start border-secondary d-flex flex-column overflow-hidden theater-comments-section">
-                <div class="p-3 border-bottom border-secondary">
+            <div class="theater-comments-section">
+                <div class="p-3 border-bottom border-secondary bg-dark">
                     <h6 class="mb-1"><i class="bi bi-chat-dots"></i> Commentaires</h6>
                     <div class="small text-secondary" id="theaterCommentStats">0 commentaire(s)</div>
                 </div>
-                <div class="p-3 border-bottom border-secondary" id="theaterCommentForm">
+                <div class="p-3 border-bottom border-secondary bg-dark" id="theaterCommentForm">
                     <textarea 
                         id="theaterCommentInput" 
                         class="form-control bg-dark text-white border-secondary mb-2"
@@ -503,7 +575,7 @@
                         </button>
                     </div>
                 </div>
-                <div class="flex-fill overflow-auto p-3" id="theaterCommentsList">
+                <div class="flex-fill overflow-auto p-3 bg-dark" id="theaterCommentsList" style="flex: 1; min-height: 0;">
                     <div class="text-center text-secondary py-5">Chargement des commentaires...</div>
                 </div>
             </div>
