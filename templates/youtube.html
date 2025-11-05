@@ -2840,6 +2840,12 @@
                     // Single thumbnail type - just convert it
                     let ipfsUrl = img.getAttribute('data-ipfs-url');
                     if (ipfsUrl) {
+                        // Normalize the IPFS URL - handle naked CIDs
+                        if (!ipfsUrl.startsWith('/ipfs/') && !ipfsUrl.startsWith('ipfs://') && !ipfsUrl.startsWith('http')) {
+                            // It's a naked CID like "QmXXX..." or "bafy..."
+                            ipfsUrl = `/ipfs/${ipfsUrl}`;
+                        }
+                        
                         const convertedUrl = convertFn(ipfsUrl);
                         if (convertedUrl) {
                             img.src = convertedUrl;
@@ -2851,8 +2857,14 @@
             
             // Setup GIF animation on hover (lazy load) - optimized approach
             document.querySelectorAll('.gifanim-overlay:not([data-hover-initialized])').forEach(gifImg => {
-                const ipfsUrl = gifImg.getAttribute('data-ipfs-url');
+                let ipfsUrl = gifImg.getAttribute('data-ipfs-url');
                 if (!ipfsUrl) return;
+                
+                // Normalize the IPFS URL - handle naked CIDs
+                if (!ipfsUrl.startsWith('/ipfs/') && !ipfsUrl.startsWith('ipfs://') && !ipfsUrl.startsWith('http')) {
+                    // It's a naked CID like "QmXXX..." or "bafy..."
+                    ipfsUrl = `/ipfs/${ipfsUrl}`;
+                }
                 
                 // Mark as initialized
                 gifImg.setAttribute('data-hover-initialized', 'true');
