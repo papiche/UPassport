@@ -23,77 +23,60 @@
     <style>
         body {
             font-family: 'Roboto', 'Arial', sans-serif;
-            background: rgba(0, 0, 0, 0.95);
+            background: #000000;
             color: #ffffff;
             margin: 0;
             padding: 0;
             overflow: hidden;
         }
 
+        /* Theater modal - full screen grid layout */
         .theater-modal {
             position: fixed;
             top: 0;
             left: 0;
-            width: 100%;
+            width: 100vw;
             height: 100vh;
             z-index: 10000;
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-rows: auto 1fr;
             background: #000000;
             overflow: hidden;
         }
-
-        /* Main content area with flex layout */
-        .theater-content-wrapper {
+        
+        /* Header bar */
+        .theater-header {
+            grid-row: 1;
+            background: #181818;
+            border-bottom: 1px solid #3f3f3f;
+            padding: 12px 20px;
             display: flex;
-            flex: 1;
-            min-height: 0;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            z-index: 10001;
+        }
+        
+        /* Main content grid: video 2/3 x 2/3, comments right side, similar bottom */
+        .theater-content-grid {
+            grid-row: 2;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            grid-template-rows: 2fr 1fr;
+            gap: 0;
             overflow: hidden;
+            height: 100%;
         }
         
-        /* Video section: 2/3 width on desktop */
-        .theater-video-section {
-            flex: 2;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            overflow-x: hidden;
-        }
-        
-        .theater-video-section::-webkit-scrollbar {
-            width: 8px;
-        }
-        
-        .theater-video-section::-webkit-scrollbar-track {
-            background: #0f0f0f;
-        }
-        
-        .theater-video-section::-webkit-scrollbar-thumb {
-            background: #3f3f3f;
-            border-radius: 6px;
-        }
-        
-        /* Comments section: 1/3 width on desktop */
-        .theater-comments-section {
-            flex: 0 0 400px;
-            width: 400px;
-            min-width: 300px;
-            max-width: 400px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            border-left: 1px solid #3f3f3f;
-        }
-        
-        /* Video player container - takes available space */
+        /* Video player: top-left, spans 2/3 width x 2/3 height */
         .theater-video-container {
-            flex: 1;
-            min-height: 400px;
+            grid-column: 1;
+            grid-row: 1;
+            background: #000000;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #000000;
+            overflow: hidden;
             position: relative;
         }
 
@@ -104,53 +87,112 @@
             max-height: 100%;
             object-fit: contain;
             background: #000000;
-            display: block;
         }
         
-        /* Related videos container: compact and at bottom */
-        .theater-related-videos-container {
-            max-height: 300px;
-            overflow-y: auto;
+        /* Comments section: right side, full height */
+        .theater-comments-section {
+            grid-column: 2;
+            grid-row: 1 / 3;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #0f0f0f;
+            border-left: 1px solid #3f3f3f;
+        }
+        
+        .theater-comments-header {
             flex-shrink: 0;
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+            background: #181818;
         }
         
-        .theater-related-videos-container::-webkit-scrollbar {
+        .theater-comments-form {
+            flex-shrink: 0;
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+            background: #181818;
+        }
+        
+        .theater-comments-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            min-height: 0;
+        }
+        
+        .theater-comments-list::-webkit-scrollbar {
             width: 8px;
         }
         
-        .theater-related-videos-container::-webkit-scrollbar-track {
+        .theater-comments-list::-webkit-scrollbar-track {
             background: #0f0f0f;
         }
         
-        .theater-related-videos-container::-webkit-scrollbar-thumb {
+        .theater-comments-list::-webkit-scrollbar-thumb {
             background: #3f3f3f;
-            border-radius: 6px;
+            border-radius: 4px;
+        }
+        
+        /* Video info + related videos: bottom-left */
+        .theater-bottom-section {
+            grid-column: 1;
+            grid-row: 2;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            background: #181818;
+            border-top: 1px solid #3f3f3f;
+        }
+        
+        .theater-bottom-section::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .theater-bottom-section::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+        
+        .theater-bottom-section::-webkit-scrollbar-thumb {
+            background: #3f3f3f;
+            border-radius: 4px;
+        }
+        
+        .theater-video-info {
+            padding: 16px 20px;
+            border-bottom: 1px solid #3f3f3f;
+        }
+        
+        .theater-related-videos-container {
+            padding: 16px 20px;
         }
         
         /* Mobile: stack vertically */
         @media (max-width: 991px) {
-            .theater-content-wrapper {
-                flex-direction: column;
-            }
-            
-            .theater-video-section {
-                flex: none;
-                width: 100%;
-                max-height: none;
-            }
-            
-            .theater-comments-section {
-                flex: none;
-                width: 100%;
-                max-width: none;
-                min-width: 0;
-                border-left: none !important;
-                border-top: 1px solid #3f3f3f;
-                max-height: 50vh;
+            .theater-content-grid {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto;
             }
             
             .theater-video-container {
+                grid-column: 1;
+                grid-row: 1;
                 min-height: 250px;
+                max-height: 40vh;
+            }
+            
+            .theater-bottom-section {
+                grid-column: 1;
+                grid-row: 2;
+                max-height: 30vh;
+            }
+            
+            .theater-comments-section {
+                grid-column: 1;
+                grid-row: 3;
+                border-left: none;
+                border-top: 1px solid #3f3f3f;
+                max-height: 30vh;
             }
         }
 
@@ -492,39 +534,40 @@
 </head>
 <body class="bg-dark text-white">
     <div class="theater-modal" id="theaterModal">
-        <div class="bg-dark border-bottom border-secondary p-3" style="z-index: 10001;">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <h5 class="flex-grow-1 mb-0 text-truncate" id="theaterTitle">Loading...</h5>
-                <div class="d-flex gap-2 align-items-center">
-                    <button class="btn btn-sm btn-outline-success" id="theaterLikeBtn" title="Liker" data-bs-toggle="tooltip">
-                        <i class="bi bi-hand-thumbs-up"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-primary" id="theaterShareBtn" title="Partager" data-bs-toggle="tooltip">
-                        <i class="bi bi-share"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-warning" id="theaterBookmarkBtn" title="Bookmark" data-bs-toggle="tooltip">
-                        <i class="bi bi-bookmark"></i>
-                    </button>
-                    <button class="btn btn-close btn-close-white" id="closeTheaterBtn" title="Fermer (ESC)" data-bs-toggle="tooltip" aria-label="Close"></button>
-                </div>
+        <!-- Header -->
+        <div class="theater-header">
+            <h5 class="mb-0 text-truncate flex-grow-1" id="theaterTitle" style="max-width: 60%;">Loading...</h5>
+            <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-sm btn-outline-success" id="theaterLikeBtn" title="Liker">
+                    <i class="bi bi-hand-thumbs-up"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-primary" id="theaterShareBtn" title="Partager">
+                    <i class="bi bi-share"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-warning" id="theaterBookmarkBtn" title="Bookmark">
+                    <i class="bi bi-bookmark"></i>
+                </button>
+                <button class="btn btn-close btn-close-white" id="closeTheaterBtn" title="Fermer (ESC)" aria-label="Close"></button>
             </div>
         </div>
-        <div class="theater-content-wrapper">
-            <!-- Video section: 2/3 width on desktop, full width on mobile -->
-            <div class="theater-video-section">
-                <!-- Video player -->
-                <div class="theater-video-container">
-                    <video 
-                        id="theaterVideoPlayer" 
-                        class="theater-video-player"
-                        controls 
-                        autoplay>
-                        Votre navigateur ne supporte pas la lecture vidéo.
-                    </video>
-                </div>
-                
+        
+        <!-- Main content grid -->
+        <div class="theater-content-grid">
+            <!-- Video player: top-left (2/3 x 2/3) -->
+            <div class="theater-video-container">
+                <video 
+                    id="theaterVideoPlayer" 
+                    class="theater-video-player"
+                    controls 
+                    autoplay>
+                    Votre navigateur ne supporte pas la lecture vidéo.
+                </video>
+            </div>
+            
+            <!-- Bottom section: video info + related videos -->
+            <div class="theater-bottom-section">
                 <!-- Video info -->
-                <div class="p-3 bg-dark border-top border-secondary">
+                <div class="theater-video-info">
                     <div class="d-flex gap-3 mb-2" id="theaterVideoStats">
                         <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> <span id="likeCount">0</span></span>
                         <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> <span id="shareCount">0</span></span>
@@ -548,19 +591,20 @@
                     </div>
                 </div>
                 
-                <!-- Related videos: at bottom on mobile/desktop, limit to 3 -->
-                <div class="p-3 bg-dark border-top border-secondary theater-related-videos-container" id="theaterRelatedVideos">
+                <!-- Related videos -->
+                <div class="theater-related-videos-container" id="theaterRelatedVideos">
+                    <h6 class="mb-3 text-white"><i class="bi bi-film"></i> Vidéos similaires</h6>
                     <!-- Related videos will be loaded here by youtube.enhancements.js -->
                 </div>
             </div>
             
-            <!-- Comments section: 1/3 width on desktop, below on mobile -->
+            <!-- Comments section: right side (full height) -->
             <div class="theater-comments-section">
-                <div class="p-3 border-bottom border-secondary bg-dark">
-                    <h6 class="mb-1"><i class="bi bi-chat-dots"></i> Commentaires</h6>
+                <div class="theater-comments-header">
+                    <h6 class="mb-1 text-white"><i class="bi bi-chat-dots"></i> Commentaires</h6>
                     <div class="small text-secondary" id="theaterCommentStats">0 commentaire(s)</div>
                 </div>
-                <div class="p-3 border-bottom border-secondary bg-dark" id="theaterCommentForm">
+                <div class="theater-comments-form">
                     <textarea 
                         id="theaterCommentInput" 
                         class="form-control bg-dark text-white border-secondary mb-2"
@@ -575,7 +619,7 @@
                         </button>
                     </div>
                 </div>
-                <div class="flex-fill overflow-auto p-3 bg-dark" id="theaterCommentsList" style="flex: 1; min-height: 0;">
+                <div class="theater-comments-list" id="theaterCommentsList">
                     <div class="text-center text-secondary py-5">Chargement des commentaires...</div>
                 </div>
             </div>
