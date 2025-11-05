@@ -73,10 +73,7 @@
     "faq_q4": "Ma navigation normale est-elle affectée ?",
     "faq_a4": "Non ! L'export en fenêtre privée garantit que votre session normale n'est pas perturbée. Vous pouvez continuer à utiliser les sites normalement.",
     "faq_q5": "Que fait mon IA avec mes cookies ?",
-    "faq_a5_title": "Votre IA utilise vos cookies pour :",
-    "faq_a5_youtube": "<strong>YouTube:</strong> Synchroniser vos likes, télécharger vos vidéos préférées",
-    "faq_a5_leboncoin": "<strong>Leboncoin:</strong> Rechercher avec vos filtres personnels",
-    "faq_a5_other": "<strong>Autres sites:</strong> Accéder aux contenus comme si c'était vous"
+    "faq_a5": "Votre IA utilise vos cookies pour accéder aux contenus comme si c'était vous"
   },
   "en": {
     "title": "Cookie Manager - UPlanet MULTIPASS",
@@ -152,10 +149,7 @@
     "faq_q4": "Will my normal browsing be affected?",
     "faq_a4": "No! Exporting in a private window ensures your normal session isn't disrupted. You can continue using sites normally.",
     "faq_q5": "What does my AI do with my cookies?",
-    "faq_a5_title": "Your AI uses your cookies to:",
-    "faq_a5_youtube": "<strong>YouTube:</strong> Sync your likes, download your favorite videos",
-    "faq_a5_leboncoin": "<strong>Leboncoin:</strong> Search with your personal filters",
-    "faq_a5_other": "<strong>Other sites:</strong> Access content as if it were you"
+    "faq_a5": "Your AI uses your cookies to access content as if it were you"
   },
   "es": {
     "title": "Cookie Manager - UPlanet MULTIPASS",
@@ -231,10 +225,7 @@
     "faq_q4": "¿Se afectará mi navegación normal?",
     "faq_a4": "¡No! Exportar en ventana privada asegura que tu sesión normal no se interrumpa. Puedes continuar usando los sitios normalmente.",
     "faq_q5": "¿Qué hace mi IA con mis cookies?",
-    "faq_a5_title": "Tu IA usa tus cookies para:",
-    "faq_a5_youtube": "<strong>YouTube:</strong> Sincronizar tus likes, descargar tus videos favoritos",
-    "faq_a5_leboncoin": "<strong>Leboncoin:</strong> Buscar con tus filtros personales",
-    "faq_a5_other": "<strong>Otros sitios:</strong> Acceder a contenido como si fueras tú"
+    "faq_a5": "Tu IA usa tus cookies para acceder a contenido como si fueras tú"
   }
 }
 
