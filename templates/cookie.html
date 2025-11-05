@@ -8,6 +8,9 @@
     <!-- Nostr integration (same as astro_base.html) -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
     
+    <!-- i18n Library -->
+    <script src="/static/js/simpl-i18n.js"></script>
+    
     <style>
 
         :root {
@@ -338,32 +341,77 @@
             .step-number {
                 margin-bottom: 10px;
             }
+            .language-tabs {
+                flex-wrap: wrap;
+            }
+            .language-tab {
+                margin-bottom: 5px;
+            }
+        }
+        
+        /* Language Tabs */
+        .language-tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--terminal-border);
+            padding-bottom: 10px;
+        }
+
+        .language-tab {
+            padding: 10px 20px;
+            margin: 0 5px;
+            cursor: pointer;
+            border-radius: 5px;
+            background: rgba(0, 255, 0, 0.05);
+            border: 1px solid var(--terminal-border);
+            color: var(--terminal-cyan);
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .language-tab.active {
+            background: var(--terminal-green);
+            color: #000;
+            border-color: var(--terminal-green);
+        }
+
+        .language-tab:hover {
+            background: rgba(0, 255, 0, 0.1);
+            border-color: var(--terminal-cyan);
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Language Tabs -->
+        <div class="language-tabs">
+            <div class="language-tab active" data-lang="fr">Français</div>
+            <div class="language-tab" data-lang="en">English</div>
+            <div class="language-tab" data-lang="es">Español</div>
+        </div>
+
         <!-- Navigation -->
         <div class="nav-bar">
             <div class="nav-links">
-                <a href="/">🏠 Home</a>
-                <a href="/astro">☁️ uDRIVE</a>
+                <a href="/">🏠 <span data-i18n="nav_home">Home</span></a>
+                <a href="/astro">☁️ <span data-i18n="nav_udrive">uDRIVE</span></a>
             </div>
             <div id="nav-status"></div>
         </div>
 
         <!-- Header -->
         <div class="header">
-            <h1>🍪 COOKIE MANAGER</h1>
-            <p class="subtitle">Share Your Authenticated Sessions With Your UPlanet AI</p>
+            <h1 data-i18n="hero_title">🍪 COOKIE MANAGER</h1>
+            <p class="subtitle" data-i18n="hero_subtitle">Share Your Authenticated Sessions With Your UPlanet AI</p>
         </div>
 
         <!-- Authentication Section -->
         <div id="auth-section">
-            <h3>🔑 NOSTR Authentication Required</h3>
-            <p style="color: var(--text-color); margin: 20px 0;">Connect your MULTIPASS to upload cookies</p>
+            <h3>🔑 <span data-i18n="auth_title">NOSTR Authentication Required</span></h3>
+            <p style="color: var(--text-color); margin: 20px 0;" data-i18n="auth_subtitle">Connect your MULTIPASS to upload cookies</p>
             <button class="button" id="connect-btn" onclick="connectToNOSTR()">
-                Connect with NOSTR
+                <span data-i18n="auth_button">Connect with NOSTR</span>
             </button>
             <div id="auth-status"></div>
         </div>
@@ -504,18 +552,34 @@
                 <p>No! Exporting in a private window ensures your normal session isn't disrupted. You can continue using sites normally.</p>
 
                 <h3>What does my AI do with my cookies?</h3>
-                <p>Your AI uses your cookies to:</p>
-                <ul>
-                    <li><strong>YouTube:</strong> Sync your likes, download your favorite videos</li>
-                    <li><strong>Leboncoin:</strong> Search with your personal filters</li>
-                    <li><strong>Other sites:</strong> Access content as if it were you</li>
-                </ul>
+                <p>Your AI uses your cookies to <strong>acess content as if it were you</strong> </p>
+
             </div>
 
         </div>
     </div>
 
     <script>
+        // ========================================
+        // I18N SYSTEM
+        // ========================================
+        const i18n = new SimplI18n('/static/i18n/cookie_translations.json', 'fr');
+
+        // Language tab switching
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🍪 Cookie Manager initialized');
+            
+            // Initialize i18n
+            await i18n.init();
+            
+            // Initialize other components
+            detectUSPOTAPI();
+            setupDragAndDrop();
+        });
+
+        // ========================================
+        // NOSTR & UPLOAD LOGIC
+        // ========================================
         // Global variables (same pattern as astro_base.html)
         let USPOT_API_BASE = '';
         let USPOT_RELAY = '';
@@ -571,12 +635,12 @@
             const status = document.getElementById('auth-status');
             
             btn.disabled = true;
-            status.innerHTML = '<div class="alert alert-info">⏳ Connecting to NOSTR...</div>';
+            status.innerHTML = `<div class="alert alert-info">⏳ ${i18n.t('auth_connecting')}</div>`;
 
             try {
                 // Check for NOSTR extension
                 if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
-                    throw new Error('NOSTR extension not found. Please install nos2x, Alby, or compatible extension.');
+                    throw new Error(i18n.t('auth_error_extension'));
                 }
 
                 // Get public key from extension
@@ -600,7 +664,7 @@
                 const npubShort = userNpub.substring(0, 12) + '...' + userNpub.substring(userNpub.length - 4);
                 status.innerHTML = `
                     <div class="alert alert-success">
-                        ✅ Connected as ${npubShort}
+                        ✅ ${i18n.t('auth_connected')} ${npubShort}
                     </div>
                 `;
                 
@@ -728,14 +792,14 @@
             if (!file) return;
 
             if (!userNpub) {
-                alert('Please connect with NOSTR first');
+                alert(i18n.t('upload_connecting_first'));
                 return;
             }
 
             const uploadStatus = document.getElementById('upload-status');
             
             uploadStatus.style.display = 'block';
-            uploadStatus.innerHTML = '<div class="alert alert-info">⏳ Uploading cookie file...</div>';
+            uploadStatus.innerHTML = `<div class="alert alert-info">⏳ ${i18n.t('upload_in_progress')}</div>`;
 
             try {
                 const formData = new FormData();
@@ -749,13 +813,13 @@
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.detail || `Upload error: ${response.status}`);
+                    throw new Error(errorData.detail || `${i18n.t('upload_failed')}: ${response.status}`);
                 }
 
                 const result = await response.json();
                 console.log('✅ Upload result:', result);
 
-                let message = result.message || '✅ Cookie uploaded successfully!';
+                let message = result.message || `✅ ${i18n.t('upload_success')}`;
                 let details = result.description ? `<br><small style="color: var(--terminal-cyan);">${result.description}</small>` : '';
 
                 uploadStatus.innerHTML = `
@@ -771,7 +835,7 @@
                 console.error('Upload error:', error);
                 uploadStatus.innerHTML = `
                     <div class="alert alert-warning">
-                        ⚠️ Upload failed: ${error.message}
+                        ⚠️ ${i18n.t('upload_failed')}: ${error.message}
                     </div>
                 `;
             }
