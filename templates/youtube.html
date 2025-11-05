@@ -3765,6 +3765,7 @@
         
         /**
          * Open video in theater mode from video card
+         * Opens /theater?video=XXX in a new tab for perfect full-screen experience
          */
         async function openVideoInTheater(thumbnailElement) {
             if (!thumbnailElement) return;
@@ -3776,51 +3777,23 @@
             }
             
             const videoPlayer = videoCard.querySelector('.inline-video-player');
-            const videoTitleEl = videoCard.querySelector('.video-title');
-            const videoMetaEl = videoCard.querySelector('.video-meta');
             
             if (!videoPlayer) {
                 console.error('Video player not found');
                 return;
             }
             
-            const videoTitle = videoTitleEl ? videoTitleEl.textContent : 'Titre inconnu';
-            const videoMeta = videoMetaEl ? videoMetaEl.textContent : '';
+            // Get event ID to construct theater URL
+            const eventId = videoPlayer.getAttribute('data-event-id');
             
-            // Extract uploader from meta (first line, before •)
-            const uploader = videoMeta.split('\n')[0].split('•')[0].trim() || 'Auteur inconnu';
-            
-            // Extract content/description if available
-            const descriptionEl = videoCard.querySelector('.video-description');
-            const content = descriptionEl ? descriptionEl.textContent.trim() : '';
-            
-            // Extract video data
-            const videoData = {
-                title: videoTitle,
-                ipfsUrl: videoPlayer.getAttribute('data-ipfs-url'),
-                thumbnailUrl: thumbnailElement.querySelector('img')?.src || null,
-                eventId: videoPlayer.getAttribute('data-event-id') || null,
-                authorId: videoPlayer.getAttribute('data-author-id') || null,
-                channel: videoCard.getAttribute('data-channel') || null,
-                uploader: uploader,
-                duration: (() => {
-                    // Simple inline extraction (can be moved to youtube.enhancements.js if needed)
-                    const match = videoMeta.match(/(\d+):(\d+)/);
-                    return match ? parseInt(match[1]) * 60 + parseInt(match[2]) : null;
-                })(),
-                content: content,  // Comment/description from NOSTR event
-                description: content  // Alias for compatibility
-            };
-            
-            // Check if openTheaterMode is available from enhancements.js (check both global and window)
-            const theaterModeFn = typeof openTheaterMode !== 'undefined' ? openTheaterMode : 
-                                   (typeof window !== 'undefined' && window.openTheaterMode ? window.openTheaterMode : null);
-            
-            if (theaterModeFn && typeof theaterModeFn === 'function') {
-                await theaterModeFn(videoData);
+            if (eventId) {
+                // Open /theater?video=XXX in a new tab
+                const theaterUrl = `/theater?video=${eventId}`;
+                console.log('🎬 Opening theater mode in new tab:', theaterUrl);
+                window.open(theaterUrl, '_blank', 'noopener,noreferrer');
             } else {
-                console.error('openTheaterMode not available. Make sure youtube.enhancements.js is loaded.');
-                // Fallback to inline player
+                console.warn('⚠️ No event ID found, falling back to inline player');
+                // Fallback to inline player if no event ID
                 toggleVideoPlayer(thumbnailElement);
             }
         }
@@ -4892,7 +4865,7 @@
         
         /**
          * Open video in theater mode from map popup
-         * Replaces both playVideoFromMap and closeMapAndScrollTo
+         * Opens /theater?video=XXX in a new tab for perfect full-screen experience
          */
         function openVideoFromMap(title, ipfsUrl, authorId, uploader, channel) {
             console.log(`🗺️ Opening video from map: ${title}`);
@@ -4900,9 +4873,9 @@
             // Close map first
             toggleMapView();
             
-            // Find the video element to extract more metadata
+            // Find the video element to get the event ID
             const videos = document.querySelectorAll('.video');
-            let videoData = null;
+            let eventId = null;
             
             for (const videoElement of videos) {
                 const videoPlayer = videoElement.querySelector('.inline-video-player');
@@ -4910,65 +4883,19 @@
                 
                 // Match by IPFS URL or title
                 if ((videoPlayer && videoPlayer.getAttribute('data-ipfs-url') === ipfsUrl) || videoTitle === title) {
-                    const videoMetaEl = videoElement.querySelector('.video-meta');
-                    const thumbnailEl = videoElement.querySelector('.thumbnail-img, .gifanim-overlay');
-                    const eventId = videoPlayer?.getAttribute('data-event-id') || null;
-                    
-                    // Extract duration from meta
-                    let duration = null;
-                    if (videoMetaEl) {
-                        const meta = videoMetaEl.textContent || '';
-                        const durationMatch = meta.match(/(\d+):(\d+)/);
-                        if (durationMatch) {
-                            duration = parseInt(durationMatch[1]) * 60 + parseInt(durationMatch[2]);
-                        }
-                    }
-                    
-                    // Extract content/description if available
-                    const descriptionEl = videoElement.querySelector('.video-description');
-                    const content = descriptionEl ? descriptionEl.textContent.trim() : '';
-                    
-                    videoData = {
-                        title: title,
-                        ipfsUrl: ipfsUrl,
-                        thumbnailUrl: thumbnailEl?.src || null,
-                        eventId: eventId,
-                        authorId: authorId || null,
-                        channel: channel || null,
-                        uploader: uploader || 'Auteur inconnu',
-                        duration: duration,
-                        content: content,
-                        description: content
-                    };
-                    
+                    eventId = videoPlayer?.getAttribute('data-event-id') || null;
                     break;
                 }
             }
             
-            // If video not found in DOM, create minimal videoData
-            if (!videoData) {
-                console.warn('⚠️ Video not found in DOM, using minimal data');
-                videoData = {
-                    title: title,
-                    ipfsUrl: ipfsUrl,
-                    thumbnailUrl: null,
-                    eventId: null,
-                    authorId: authorId || null,
-                    channel: channel || null,
-                    uploader: uploader || 'Auteur inconnu',
-                    duration: null,
-                    content: '',
-                    description: ''
-                };
-            }
-            
-            // Open theater mode with the video data
-            if (typeof openTheaterMode === 'function') {
-                console.log('✅ Opening theater mode with data:', videoData);
-                openTheaterMode(videoData);
+            if (eventId) {
+                // Open /theater?video=XXX in a new tab
+                const theaterUrl = `/theater?video=${eventId}`;
+                console.log('🎬 Opening theater mode in new tab:', theaterUrl);
+                window.open(theaterUrl, '_blank', 'noopener,noreferrer');
             } else {
-                console.error('❌ openTheaterMode function not available');
-                alert('Erreur: Fonction d\'ouverture du théâtre non disponible');
+                console.warn('⚠️ No event ID found for video:', title);
+                alert('❌ Impossible d\'ouvrir cette vidéo en mode théâtre (ID non trouvé)');
             }
         }
     </script>

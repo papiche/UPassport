@@ -2218,11 +2218,16 @@ async def check_impots_route(request: Request, html: Optional[str] = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/theater", response_class=HTMLResponse)
-async def theater_modal_route(request: Request):
-    """Theater mode modal for immersive video viewing"""
+async def theater_modal_route(request: Request, video: Optional[str] = None):
+    """Theater mode modal for immersive video viewing
+    
+    Args:
+        video: Optional NOSTR event ID to load a specific video directly
+    """
     return templates.TemplateResponse("theater-modal.html", {
         "request": request,
-        "myIPFS": get_myipfs_gateway()
+        "myIPFS": get_myipfs_gateway(),
+        "video_id": video  # Pass video ID to template
     })
 
 @app.get("/playlist", response_class=HTMLResponse)

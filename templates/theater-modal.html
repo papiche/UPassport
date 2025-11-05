@@ -1801,6 +1801,36 @@
                 initializeTheaterModeLocal(window.videoData);
             }
         }
+        
+        // Check if video parameter is in URL and load it automatically
+        const urlParams = new URLSearchParams(window.location.search);
+        const videoId = urlParams.get('video') || '{{ video_id if video_id else "" }}';
+        
+        if (videoId && !window.videoData) {
+            console.log('🎬 Loading video from URL parameter:', videoId);
+            
+            // Wait for youtube.enhancements.js to load
+            let retryCount = 0;
+            const maxRetries = 10;
+            const checkInterval = setInterval(() => {
+                retryCount++;
+                
+                if (typeof window.openTheaterModeFromEvent === 'function') {
+                    clearInterval(checkInterval);
+                    console.log('✅ Found openTheaterModeFromEvent, loading video...');
+                    window.openTheaterModeFromEvent(videoId).catch(err => {
+                        console.error('❌ Error loading video:', err);
+                        document.getElementById('theaterTitle').textContent = 'Erreur de chargement';
+                        alert('Impossible de charger la vidéo: ' + err.message);
+                    });
+                } else if (retryCount >= maxRetries) {
+                    clearInterval(checkInterval);
+                    console.error('❌ openTheaterModeFromEvent not available after', maxRetries, 'retries');
+                    document.getElementById('theaterTitle').textContent = 'Fonction non disponible';
+                    alert('Erreur: Fonction de chargement non disponible. Assurez-vous que youtube.enhancements.js est chargé.');
+                }
+            }, 500); // Check every 500ms
+        }
 
         /**
          * Load related videos with thumbnails (fallback if function not available)
