@@ -3902,75 +3902,6 @@ async def upload_file(
         raise HTTPException(status_code=500, detail=f"Failed to process file: {e}")
 
 
-# --- Coinflip endpoints ---
-@app.post("/coinflip/start", response_model=CoinflipStartResponse)
-async def coinflip_start(payload: CoinflipStartRequest):
-    data = verify_token(payload.token)
-    if not data:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    sid = data.get("sid")
-    if not sid or sid not in COINFLIP_SESSIONS:
-        raise HTTPException(status_code=400, detail="Unknown session")
-    sess = COINFLIP_SESSIONS[sid]
-    # refresh exp short time to allow play window
-    exp = int(time.time()) + 300
-    token = sign_token({"npub": sess["npub"], "sid": sid, "exp": exp})
-    return CoinflipStartResponse(ok=True, sid=sid, exp=exp)
-
-
-@app.post("/coinflip/flip", response_model=CoinflipFlipResponse)
-async def coinflip_flip(payload: CoinflipFlipRequest):
-    data = verify_token(payload.token)
-    if not data:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    sid = data.get("sid")
-    if not sid or sid not in COINFLIP_SESSIONS:
-        raise HTTPException(status_code=400, detail="Unknown session")
-    sess = COINFLIP_SESSIONS[sid]
-    if not sess.get("paid"):
-        raise HTTPException(status_code=402, detail="Payment required")
-    # cryptographically strong coin flip
-    result = 'Heads' if secrets.randbits(1) == 0 else 'Tails'
-    if result == 'Heads':
-        sess["consecutive"] = int(sess.get("consecutive", 1)) + 1
-    return CoinflipFlipResponse(ok=True, sid=sid, result=result, consecutive=int(sess["consecutive"]))
-
-
-@app.post("/coinflip/payout", response_model=CoinflipPayoutResponse)
-async def coinflip_payout(payload: CoinflipPayoutRequest):
-    data = verify_token(payload.token)
-    if not data:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    sid = data.get("sid")
-    if not sid or sid not in COINFLIP_SESSIONS:
-        raise HTTPException(status_code=400, detail="Unknown session")
-    sess = COINFLIP_SESSIONS[sid]
-    if not sess.get("paid"):
-        raise HTTPException(status_code=402, detail="Payment required")
-    consecutive = int(sess.get("consecutive", 1))
-    raw = 2 ** (consecutive - 1)
-    # Apply MAX cap if the client provided at payment time via future extension; for now no cap
-    zen_amount = raw
-    g1_amount = f"{zen_amount / 10:.1f}"
-    # Trigger payout from captain to player if requested
-    # We reuse zen_send.sh with g1dest=PLAYER; player_id can be email or hex
-    player_id = payload.player_id or ""
-    script_path = os.path.join(SCRIPT_DIR, "zen_send.sh")
-    # captain sender hex is the npub asserted in token
-    sender_hex = data.get("npub")
-    args = [str(zen_amount), "", "PLAYER", sender_hex]
-    if player_id:
-        args.append(player_id)
-    return_code, last_line = await run_script(script_path, *args)
-    if return_code != 0:
-        raise HTTPException(status_code=500, detail="Payout script failed")
-    # Invalidate session
-    try:
-        del COINFLIP_SESSIONS[sid]
-    except Exception:
-        pass
-    return CoinflipPayoutResponse(ok=True, sid=sid, zen=zen_amount, g1_amount=g1_amount, tx=last_line.strip())
-
 @app.post("/api/upload_from_drive", response_model=UploadFromDriveResponse)
 async def upload_from_drive(request: UploadFromDriveRequest):
     # Log les données du propriétaire du drive source si fournies
@@ -4175,6 +4106,77 @@ async def delete_file(request: DeleteRequest):
     except Exception as e:
         logging.error(f"Erreur lors de la suppression authentifiée: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de la suppression: {str(e)}")
+
+
+
+# --- Coinflip endpoints ---
+@app.post("/coinflip/start", response_model=CoinflipStartResponse)
+async def coinflip_start(payload: CoinflipStartRequest):
+    data = verify_token(payload.token)
+    if not data:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    sid = data.get("sid")
+    if not sid or sid not in COINFLIP_SESSIONS:
+        raise HTTPException(status_code=400, detail="Unknown session")
+    sess = COINFLIP_SESSIONS[sid]
+    # refresh exp short time to allow play window
+    exp = int(time.time()) + 300
+    token = sign_token({"npub": sess["npub"], "sid": sid, "exp": exp})
+    return CoinflipStartResponse(ok=True, sid=sid, exp=exp)
+
+
+@app.post("/coinflip/flip", response_model=CoinflipFlipResponse)
+async def coinflip_flip(payload: CoinflipFlipRequest):
+    data = verify_token(payload.token)
+    if not data:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    sid = data.get("sid")
+    if not sid or sid not in COINFLIP_SESSIONS:
+        raise HTTPException(status_code=400, detail="Unknown session")
+    sess = COINFLIP_SESSIONS[sid]
+    if not sess.get("paid"):
+        raise HTTPException(status_code=402, detail="Payment required")
+    # cryptographically strong coin flip
+    result = 'Heads' if secrets.randbits(1) == 0 else 'Tails'
+    if result == 'Heads':
+        sess["consecutive"] = int(sess.get("consecutive", 1)) + 1
+    return CoinflipFlipResponse(ok=True, sid=sid, result=result, consecutive=int(sess["consecutive"]))
+
+
+@app.post("/coinflip/payout", response_model=CoinflipPayoutResponse)
+async def coinflip_payout(payload: CoinflipPayoutRequest):
+    data = verify_token(payload.token)
+    if not data:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    sid = data.get("sid")
+    if not sid or sid not in COINFLIP_SESSIONS:
+        raise HTTPException(status_code=400, detail="Unknown session")
+    sess = COINFLIP_SESSIONS[sid]
+    if not sess.get("paid"):
+        raise HTTPException(status_code=402, detail="Payment required")
+    consecutive = int(sess.get("consecutive", 1))
+    raw = 2 ** (consecutive - 1)
+    # Apply MAX cap if the client provided at payment time via future extension; for now no cap
+    zen_amount = raw
+    g1_amount = f"{zen_amount / 10:.1f}"
+    # Trigger payout from captain to player if requested
+    # We reuse zen_send.sh with g1dest=PLAYER; player_id can be email or hex
+    player_id = payload.player_id or ""
+    script_path = os.path.join(SCRIPT_DIR, "zen_send.sh")
+    # captain sender hex is the npub asserted in token
+    sender_hex = data.get("npub")
+    args = [str(zen_amount), "", "PLAYER", sender_hex]
+    if player_id:
+        args.append(player_id)
+    return_code, last_line = await run_script(script_path, *args)
+    if return_code != 0:
+        raise HTTPException(status_code=500, detail="Payout script failed")
+    # Invalidate session
+    try:
+        del COINFLIP_SESSIONS[sid]
+    except Exception:
+        pass
+    return CoinflipPayoutResponse(ok=True, sid=sid, zen=zen_amount, g1_amount=g1_amount, tx=last_line.strip())
 
 # Nouveaux modèles pour l'analyse des réseaux NOSTR N2
 class N2NetworkNode(BaseModel):
