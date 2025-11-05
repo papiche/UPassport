@@ -2051,7 +2051,7 @@ async def check_society_route(request: Request, html: Optional[str] = None, nost
 
 @app.get("/check_revenue")
 async def check_revenue_route(request: Request, html: Optional[str] = None, year: Optional[str] = None):
-    """Check revenue history from RENTAL transactions (Chiffre d'Affaires)
+    """Check revenue history from ZENCOIN transactions (Chiffre d'Affaires)
     
     Args:
         html: If present, return HTML page instead of JSON
@@ -2187,7 +2187,7 @@ async def check_impots_route(request: Request, html: Optional[str] = None):
                 "total_provisions_zen": 0,
                 "total_transactions": 0,
                 "breakdown": {
-                    "tva": {"total_g1": 0, "total_zen": 0, "transactions": 0, "description": "TVA collectée sur locations RENTAL (20%)"},
+                    "tva": {"total_g1": 0, "total_zen": 0, "transactions": 0, "description": "TVA collectée sur locations ZENCOIN (20%)"},
                     "is": {"total_g1": 0, "total_zen": 0, "transactions": 0, "description": "Impôt sur les Sociétés provisionné (15% ou 25%)"}
                 },
                 "provisions": []

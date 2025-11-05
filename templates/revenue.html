@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>💼 Chiffre d'Affaires UPlanet - Historique RENTAL</title>
+    <title>💼 Chiffre d'Affaires UPlanet - Historique ZENCOIN</title>
     <style>
         * {
             box-sizing: border-box;
@@ -321,7 +321,7 @@
         <!-- Main Summary: ẐEN only -->
         <div class="summary">
             <h2>{{ total_revenue_zen | round(2) }} Ẑ</h2>
-            <p><strong>Chiffre d'Affaires RENTAL</strong></p>
+            <p><strong>Chiffre d'Affaires ZENCOIN</strong></p>
             <p class="summary-secondary">{{ total_transactions }} ventes de services {% if filter_year != 'all' %}(année {{ filter_year }}){% else %}(toutes années){% endif %}</p>
             
             <!-- Secondary metrics in cards -->
@@ -335,7 +335,7 @@
                 <div class="summary-card">
                     <h3>📊 Transactions</h3>
                     <div class="summary-value">{{ total_transactions }}</div>
-                    <div class="summary-label">Services RENTAL vendus</div>
+                    <div class="summary-label">Services ZENCOIN vendus</div>
                 </div>
                 
                 <div class="summary-card">
@@ -390,11 +390,11 @@
         </div>
         {% endif %}
 
-        <h3>📜 Historique des Ventes de Services (RENTAL){% if filter_year != 'all' %} - Année {{ filter_year }}{% endif %}</h3>
+        <h3>📜 Historique des Ventes de Services (ZENCOIN){% if filter_year != 'all' %} - Année {{ filter_year }}{% endif %}</h3>
         {% if transactions|length == 0 %}
         <div style="text-align: center; padding: 40px; color: #7f8c8d;">
             <div style="font-size: 3em; margin-bottom: 10px;">📭</div>
-            <div style="font-size: 1.2em;">Aucune transaction RENTAL {% if filter_year != 'all' %}pour l'année {{ filter_year }}{% endif %}</div>
+            <div style="font-size: 1.2em;">Aucune transaction ZENCOIN {% if filter_year != 'all' %}pour l'année {{ filter_year }}{% endif %}</div>
         </div>
         {% else %}
         <div class="table-wrapper">

@@ -389,7 +389,7 @@ The UPassport API provides secure, decentralized file and identity management fo
 | `/api/umap/geolinks`      | GET    | Get UMAP adjacent zones geolinks            | No            | `lat`, `lon` (query params)   |
 | `/check_zencard`          | GET    | View ZEN Card social shares history         | No            | `email`, `html` (query params) |
 | `/check_society`          | GET    | View SOCIETY wallet capital contributions   | No            | `html` (query param)          |
-| `/check_revenue`          | GET    | View RENTAL transactions revenue (CA)       | No            | `html`, `year` (query params) |
+| `/check_revenue`          | GET    | View ZENCOIN transactions revenue (CA)       | No            | `html`, `year` (query params) |
 
 ---
 
@@ -1075,7 +1075,7 @@ L'API UPassport fournit une gestion sécurisée et décentralisée des fichiers 
 | `/api/umap/geolinks`      | GET     | Obtenir les liens géographiques des UMAPs adjacentes | Non | `lat`, `lon` (query params)   |
 | `/check_zencard`          | GET     | Voir l'historique des parts sociales ZEN Card | Non    | `email`, `html` (query params) |
 | `/check_society`          | GET     | Voir les contributions capital SOCIETY     | Non          | `html` (query param)          |
-| `/check_revenue`          | GET     | Voir le chiffre d'affaires RENTAL          | Non          | `html`, `year` (query params) |
+| `/check_revenue`          | GET     | Voir le chiffre d'affaires ZENCOIN          | Non          | `html`, `year` (query params) |
 
 ---
 
