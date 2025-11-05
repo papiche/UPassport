@@ -1809,28 +1809,140 @@
         if (videoId && !window.videoData) {
             console.log('🎬 Loading video from URL parameter:', videoId);
             
-            // Wait for youtube.enhancements.js to load
-            let retryCount = 0;
-            const maxRetries = 10;
-            const checkInterval = setInterval(() => {
-                retryCount++;
-                
-                if (typeof window.openTheaterModeFromEvent === 'function') {
-                    clearInterval(checkInterval);
-                    console.log('✅ Found openTheaterModeFromEvent, loading video...');
-                    window.openTheaterModeFromEvent(videoId).catch(err => {
-                        console.error('❌ Error loading video:', err);
-                        document.getElementById('theaterTitle').textContent = 'Erreur de chargement';
-                        alert('Impossible de charger la vidéo: ' + err.message);
-                    });
-                } else if (retryCount >= maxRetries) {
-                    clearInterval(checkInterval);
-                    console.error('❌ openTheaterModeFromEvent not available after', maxRetries, 'retries');
-                    document.getElementById('theaterTitle').textContent = 'Fonction non disponible';
-                    alert('Erreur: Fonction de chargement non disponible. Assurez-vous que youtube.enhancements.js est chargé.');
-                }
-            }, 500); // Check every 500ms
+            // Load video directly (standalone mode - not in modal)
+            loadVideoFromEventIdStandalone(videoId);
         }
+        
+        /**
+         * Load video from NOSTR event ID (standalone mode for /theater page)
+         * This is different from openTheaterModeFromEvent which expects a modal
+         */
+        async function loadVideoFromEventIdStandalone(eventId) {
+            try {
+                // Ensure NOSTR connection
+                if (typeof nostrRelay === 'undefined' || !nostrRelay) {
+                    if (typeof connectToRelay === 'function') {
+                        console.log('🔌 Connecting to NOSTR relay...');
+                        await connectToRelay();
+                        // Wait a bit for connection to stabilize
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    } else {
+                        throw new Error('NOSTR connection not available');
+                    }
+                }
+                
+                if (!nostrRelay || (typeof isNostrConnected !== 'undefined' && !isNostrConnected)) {
+                    throw new Error('NOSTR relay not connected');
+                }
+                
+                console.log('📡 Fetching video event from NOSTR:', eventId);
+                
+                // Fetch video event from NOSTR
+                const event = await new Promise((resolve, reject) => {
+                    const sub = nostrRelay.sub([{
+                        kinds: [21, 22],
+                        ids: [eventId],
+                        limit: 1
+                    }]);
+                    
+                    let videoEvent = null;
+                    
+                    sub.on('event', (evt) => {
+                        console.log('✅ Video event received:', evt.id);
+                        videoEvent = evt;
+                    });
+                    
+                    sub.on('eose', () => {
+                        sub.unsub();
+                        resolve(videoEvent);
+                    });
+                    
+                    // Timeout after 5 seconds
+                    setTimeout(() => {
+                        sub.unsub();
+                        if (!videoEvent) {
+                            reject(new Error('Video not found (timeout)'));
+                        } else {
+                            resolve(videoEvent);
+                        }
+                    }, 5000);
+                });
+                
+                if (!event) {
+                    throw new Error('Video not found');
+                }
+                
+                console.log('📹 Parsing video data from event...');
+                
+                // Parse video data from event tags
+                let videoInfo = {};
+                try {
+                    // Try to find metadata tag (JSON)
+                    const metadataTag = event.tags.find(t => t[0] === 'metadata');
+                    if (metadataTag && metadataTag[1]) {
+                        videoInfo = JSON.parse(metadataTag[1]);
+                    }
+                } catch (e) {
+                    console.warn('Could not parse metadata tag:', e);
+                }
+                
+                // Extract IPFS URL from tags
+                let ipfsUrl = '';
+                const urlTag = event.tags.find(t => (t[0] === 'r' || t[0] === 'url') && t[1]?.includes('/ipfs/'));
+                if (urlTag) {
+                    ipfsUrl = urlTag[1];
+                } else {
+                    // Fallback: try to extract from content
+                    const contentMatch = event.content.match(/\/ipfs\/[A-Za-z0-9]+\/[^\s\n"']+/);
+                    if (contentMatch) {
+                        ipfsUrl = contentMatch[0];
+                    }
+                }
+                
+                // Extract thumbnail
+                const thumbnailTag = event.tags.find(t => t[0] === 'image' || t[0] === 'thumbnail');
+                const thumbnailUrl = thumbnailTag ? thumbnailTag[1] : (videoInfo.thumbnail || '');
+                
+                // Extract other metadata
+                const titleTag = event.tags.find(t => t[0] === 'title');
+                const title = titleTag ? titleTag[1] : (videoInfo.title || 'Sans titre');
+                
+                // Build video data object
+                const videoData = {
+                    title: title,
+                    ipfsUrl: ipfsUrl,
+                    thumbnailUrl: thumbnailUrl,
+                    eventId: event.id,
+                    authorId: event.pubkey,
+                    channel: videoInfo.channel || '',
+                    uploader: videoInfo.uploader || event.pubkey.substring(0, 8) + '...',
+                    duration: videoInfo.duration || 0,
+                    content: event.content || '',
+                    description: videoInfo.description || event.content || '',
+                    gifanim_ipfs: videoInfo.gifanim_ipfs || '',
+                    info_cid: videoInfo.info_cid || '',
+                    file_hash: videoInfo.file_hash || '',
+                    upload_chain: videoInfo.upload_chain || ''
+                };
+                
+                console.log('✅ Video data parsed:', videoData);
+                
+                // Initialize theater mode with this data
+                if (typeof initializeTheaterMode === 'function') {
+                    initializeTheaterMode(videoData);
+                }
+                // Also call local initialization to ensure everything is loaded
+                initializeTheaterModeLocal(videoData);
+                
+            } catch (error) {
+                console.error('❌ Error loading video:', error);
+                document.getElementById('theaterTitle').textContent = 'Erreur de chargement';
+                alert('Impossible de charger la vidéo: ' + error.message);
+            }
+        }
+        
+        // Expose function globally
+        window.loadVideoFromEventIdStandalone = loadVideoFromEventIdStandalone;
 
         /**
          * Load related videos with thumbnails (fallback if function not available)
