@@ -682,8 +682,9 @@ JSON_OUTPUT="{
 # Log JSON output to stderr before writing to temp file
 echo "DEBUG: JSON_OUTPUT: $JSON_OUTPUT" >&2
 
-# UNPIN
-ipfs pin rm "$CID" >&2 ## UNPIN
+# KEEP PINNED - Files must remain available on IPFS for playback
+# Note: Thumbnails and GIFs are unpinned to save space, but main files must stay pinned
+# ipfs pin rm "$CID" >&2 ## DISABLED - Files need to remain available
 
 # Write the JSON to the temp file
 echo "$JSON_OUTPUT" > "$OUTPUT_FILE"

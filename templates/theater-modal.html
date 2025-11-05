@@ -1617,13 +1617,26 @@
             if (videoPlayer && videoData.ipfsUrl) {
                 // Convert IPFS URL if needed
                 let videoUrl = videoData.ipfsUrl;
+                
+                // Decode URL first if it's already encoded (to avoid double-encoding)
+                // The browser will re-encode it automatically when making the request
+                let decodedUrl = videoUrl;
+                try {
+                    decodedUrl = decodeURIComponent(videoUrl);
+                } catch (e) {
+                    // If decoding fails, use original URL
+                    console.warn('Failed to decode video URL:', videoUrl, e);
+                }
+                
                 if (typeof convertIPFSUrlGlobal !== 'undefined') {
-                    videoUrl = convertIPFSUrlGlobal(videoData.ipfsUrl);
-                } else if (window.IPFS_GATEWAY && videoUrl.includes('/ipfs/')) {
-                    const match = videoUrl.match(/\/ipfs\/[^?"#]+/);
+                    videoUrl = convertIPFSUrlGlobal(decodedUrl);
+                } else if (window.IPFS_GATEWAY && decodedUrl.includes('/ipfs/')) {
+                    const match = decodedUrl.match(/\/ipfs\/[^?"#]+/);
                     if (match) {
                         videoUrl = window.IPFS_GATEWAY + match[0];
                     }
+                } else {
+                    videoUrl = decodedUrl;
                 }
                 
                 // Clear existing sources first
@@ -1883,11 +1896,22 @@
                 if (!window.IPFS_GATEWAY) {
                     window.IPFS_GATEWAY = 'https://ipfs.copylaradio.com';
                 }
-                if (url.includes('/ipfs/')) {
-                    const match = url.match(/\/ipfs\/[^?"#]+/);
+                
+                // Decode URL first if it's already encoded (to avoid double-encoding)
+                // The browser will re-encode it automatically when making the request
+                let decodedUrl = url;
+                try {
+                    decodedUrl = decodeURIComponent(url);
+                } catch (e) {
+                    // If decoding fails, use original URL
+                    console.warn('Failed to decode URL:', url, e);
+                }
+                
+                if (decodedUrl.includes('/ipfs/')) {
+                    const match = decodedUrl.match(/\/ipfs\/[^?"#]+/);
                     if (match) return window.IPFS_GATEWAY + match[0];
                 }
-                return url.startsWith('/ipfs/') ? window.IPFS_GATEWAY + url : url;
+                return decodedUrl.startsWith('/ipfs/') ? window.IPFS_GATEWAY + decodedUrl : decodedUrl;
             };
             
             container.innerHTML = videos.map(video => {

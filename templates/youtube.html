@@ -1728,7 +1728,7 @@
                                 </div>
                                 {% endif %}
                                 <video class="inline-video-player" controls style="display: none;" 
-                                       data-ipfs-url="{{ video.ipfs_url }}"
+                                       data-ipfs-url="{{ video.ipfs_url|e }}"
                                        data-event-id="{{ video.message_id if video.message_id else '' }}"
                                        data-author-id="{{ video.author_id if video.author_id else '' }}"
                                        preload="none">
@@ -2508,11 +2508,22 @@
             if (!url) return '';
             if (!window.IPFS_GATEWAY) detectIPFSGateway();
             const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
-            if (url.includes('/ipfs/')) {
-                const match = url.match(/\/ipfs\/[^?"#]+/);
+            
+            // Decode URL first if it's already encoded (to avoid double-encoding)
+            // The browser will re-encode it automatically when making the request
+            let decodedUrl = url;
+            try {
+                decodedUrl = decodeURIComponent(url);
+            } catch (e) {
+                // If decoding fails, use original URL
+                console.warn('Failed to decode URL:', url, e);
+            }
+            
+            if (decodedUrl.includes('/ipfs/')) {
+                const match = decodedUrl.match(/\/ipfs\/[^?"#]+/);
                 if (match) return `${gateway}${match[0]}`;
             }
-            return url.startsWith('/ipfs/') ? `${gateway}${url}` : url;
+            return decodedUrl.startsWith('/ipfs/') ? `${gateway}${decodedUrl}` : decodedUrl;
         };
         
         // Toggle video player
@@ -4561,13 +4572,47 @@
         document.addEventListener('DOMContentLoaded', function() {
             const iframeModal = document.getElementById('iframe-modal');
             if (iframeModal) {
+                // Track if webcam modal was opened
+                let webcamModalOpened = false;
+                
+                // Listen for modal shown event to track webcam
+                iframeModal.addEventListener('shown.bs.modal', function () {
+                    const iframe = document.getElementById('iframe-modal-iframe');
+                    const titleEl = document.getElementById('iframe-modal-title');
+                    
+                    // Check if this is the webcam modal
+                    if (iframe && iframe.src && iframe.src.includes('/webcam')) {
+                        webcamModalOpened = true;
+                        console.log('📹 Webcam modal opened');
+                    } else if (titleEl && titleEl.textContent && titleEl.textContent.includes('Video Recorder')) {
+                        webcamModalOpened = true;
+                        console.log('📹 Webcam modal opened (detected via title)');
+                    } else {
+                        webcamModalOpened = false;
+                    }
+                });
+                
                 iframeModal.addEventListener('hidden.bs.modal', function () {
                     const iframe = document.getElementById('iframe-modal-iframe');
+                    const wasCamModal = webcamModalOpened;
+                    
                     if (iframe) {
                         iframe.src = ''; // Stop loading
                     }
                     
-                    // Update NOSTR connection UI after closing modal
+                    // Reset tracking
+                    webcamModalOpened = false;
+                    
+                    // If webcam modal was closed, reload page to show new videos
+                    if (wasCamModal) {
+                        console.log('📹 Webcam modal closed - reloading page to show new videos...');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 500);
+                        return; // Don't execute rest of cleanup
+                    }
+                    
+                    // Update NOSTR connection UI after closing modal (for non-webcam modals)
                     if (typeof updateNostrConnectionUI === 'function') {
                         setTimeout(() => {
                             updateNostrConnectionUI();
