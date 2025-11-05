@@ -1282,6 +1282,7 @@ if [[ -n "$CAPTAINEMAIL" && -s "${MY_PATH}/pdf/${PUBKEY}/_index.html" ]]; then
               -e "s~_LAT_~${LAT}~g" \
               -e "s~_LON_~${LON}~g" \
               -e "s~_TOTAL_~${TOTAL}~g" \
+              -e "s~_UPASSPORT_HTML_~${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/_index.html~g" \
               -e "s~_IPFS_URL_~${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/~g" \
               -e "s~_WOT_STATUS_~Email trouvé dans 1ère TX : ${FIRST_TX_EMAIL:-"Aucun"} | Authentification WoT : ❌ Non trouvé~g" \
         > "$PASSPORT_MESSAGE"
@@ -1321,6 +1322,7 @@ if [[ -n "$WOT_AUTHENTICATED_EMAIL" && -s "${MY_PATH}/pdf/${PUBKEY}/_index.html"
               -e "s~_LAT_~${LAT}~g" \
               -e "s~_LON_~${LON}~g" \
               -e "s~_TOTAL_~${TOTAL}~g" \
+              -e "s~_UPASSPORT_HTML_~${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/_index.html~g" \
               -e "s~_IPFS_URL_~${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/~g" \
               -e "s~_EMAIL_~${WOT_AUTHENTICATED_EMAIL}~g" \
         > "$USER_PASSPORT_MESSAGE"
@@ -1351,6 +1353,7 @@ else
                       -e "s~_LAT_~${LAT}~g" \
                       -e "s~_LON_~${LON}~g" \
                       -e "s~_TOTAL_~${TOTAL}~g" \
+                      -e "s~_UPASSPORT_HTML_~${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/_index.html~g" \
                       -e "s~_IPFS_URL_~${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/~g" \
                       -e "s~_WOT_STATUS_~⚠️ Email trouvé dans 1ère TX : ${FIRST_TX_EMAIL:-"Aucun"} | Authentification WoT : ❌ Non trouvé dans ~/.zen/game/nostr/~g" \
                 > "$CAPTAIN_NOTIFICATION"
