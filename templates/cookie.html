@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🍪 Cookie Manager - UPlanet MULTIPASS</title>
     
-    <!-- UPlanet Common JS (includes NOSTR functions) -->
-    <script src="/UPlanet/earth/common.js"></script>
+    <!-- Nostr integration (same as astro_base.html) -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     
     <style>
-        @import url('./fonts.css');
 
         :root {
             --terminal-bg: #0a0a12;
@@ -517,15 +517,56 @@
     </div>
 
     <script>
-        // Global variables
+        // Global variables (same pattern as astro_base.html)
+        let USPOT_API_BASE = '';
+        let USPOT_RELAY = '';
+        let IPFS_GATEWAY = '';
+        let DEFAULT_RELAYS = [];
+        let nostrRelay = null;
+        let isNostrConnected = false;
         let userPubkey = null;
         let userNpub = null;
         let userEmail = null;
 
-        // Get API base from common.js
-        const USPOT_API_BASE = typeof detectUSPOTAPI === 'function' ? (detectUSPOTAPI(), getAPIBaseUrl()) : 'https://u.copylaradio.com';
+        // Detect uSPOT API (same as astro_base.html)
+        function detectUSPOTAPI() {
+            const currentURL = new URL(window.location.href);
+            const hostname = currentURL.hostname;
 
-        // Connect to NOSTR using common.js functions
+            let determinedRelay = '';
+            let apiBase = '';
+            let ipfsGateway = '';
+
+            if (hostname === "127.0.0.1" || hostname === "localhost") {
+                determinedRelay = `ws://127.0.0.1:7777`;
+                apiBase = `http://127.0.0.1:54321`;
+                ipfsGateway = `http://127.0.0.1:8080`;
+            } else if (hostname.startsWith("ipfs.")) {
+                const baseDomain = hostname.substring("ipfs.".length);
+                determinedRelay = `wss://relay.${baseDomain}`;
+                apiBase = `https://u.${baseDomain}`;
+                ipfsGateway = `https://ipfs.${baseDomain}`;
+            } else if (hostname.startsWith("u.")) {
+                const baseDomain = hostname.substring("u.".length);
+                determinedRelay = `wss://relay.${baseDomain}`;
+                apiBase = `https://u.${baseDomain}`;
+                ipfsGateway = `https://ipfs.${baseDomain}`;
+            } else {
+                determinedRelay = `wss://relay.copylaradio.com`;
+                apiBase = `https://u.copylaradio.com`;
+                ipfsGateway = `https://ipfs.copylaradio.com`;
+            }
+
+            DEFAULT_RELAYS = [determinedRelay];
+            USPOT_API_BASE = apiBase;
+            USPOT_RELAY = determinedRelay;
+            IPFS_GATEWAY = ipfsGateway;
+
+            console.log(`🔗 API Base: ${USPOT_API_BASE}`);
+            console.log(`🔗 Relay: ${USPOT_RELAY}`);
+        }
+
+        // Connect to NOSTR (adapted from astro_base.html)
         async function connectToNOSTR() {
             const btn = document.getElementById('connect-btn');
             const status = document.getElementById('auth-status');
@@ -534,41 +575,33 @@
             status.innerHTML = '<div class="alert alert-info">⏳ Connecting to NOSTR...</div>';
 
             try {
-                // Use common.js connectNostr() function
-                const connected = await connectNostr(false);
-                
-                if (!connected || !window.userPubkey) {
-                    throw new Error('NOSTR extension not found. Install nos2x, Alby, or compatible extension.');
+                // Check for NOSTR extension
+                if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
+                    throw new Error('NOSTR extension not found. Please install nos2x, Alby, or compatible extension.');
                 }
 
-                userPubkey = window.userPubkey;
-                
-                // Encode to npub using window.NostrTools from common.js
-                if (window.NostrTools && window.NostrTools.nip19) {
-                    userNpub = window.NostrTools.nip19.npubEncode(userPubkey);
+                // Get public key from extension
+                userPubkey = await window.nostr.getPublicKey();
+                console.log('✅ Public key:', userPubkey.substring(0, 8) + '...');
+
+                // Encode to npub
+                if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                    userNpub = NostrTools.nip19.npubEncode(userPubkey);
                 } else {
                     userNpub = userPubkey;
                 }
 
-                console.log('✅ Connected as:', userNpub);
+                // Connect to relay
+                await connectToNostrRelay();
 
-                // Try to get email from NOSTR profile using common.js function
-                try {
-                    if (typeof fetchUserEmailWithFallback === 'function') {
-                        userEmail = await fetchUserEmailWithFallback(userPubkey);
-                        if (userEmail) {
-                            console.log('📧 User email:', userEmail);
-                        }
-                    }
-                } catch (e) {
-                    console.warn('Could not fetch user email:', e);
-                }
+                // Send NIP-42 auth
+                await sendNIP42Auth();
 
                 // Update UI
                 const npubShort = userNpub.substring(0, 12) + '...' + userNpub.substring(userNpub.length - 4);
                 status.innerHTML = `
                     <div class="alert alert-success">
-                        ✅ Connected as ${userEmail || npubShort}
+                        ✅ Connected as ${npubShort}
                     </div>
                 `;
                 
@@ -582,13 +615,111 @@
                 // Update nav status
                 const navStatus = document.getElementById('nav-status');
                 if (navStatus) {
-                    navStatus.innerHTML = `<span class="status-connected">● ${userEmail || npubShort}</span>`;
+                    navStatus.innerHTML = `<span class="status-connected">● ${npubShort}</span>`;
                 }
 
             } catch (error) {
                 console.error('Connection error:', error);
                 status.innerHTML = `<div class="alert alert-warning">⚠️ ${error.message}</div>`;
                 btn.disabled = false;
+            }
+        }
+
+        // Connect to Nostr relay (from astro_base.html)
+        async function connectToNostrRelay() {
+            const relayUrl = DEFAULT_RELAYS[0];
+            
+            if (nostrRelay && isNostrConnected) {
+                console.log('✅ Reusing existing relay connection');
+                return;
+            }
+
+            console.log('🔌 Connecting to relay:', relayUrl);
+
+            try {
+                if (nostrRelay) {
+                    try {
+                        nostrRelay.close();
+                    } catch (e) {
+                        console.warn('Error closing existing relay:', e);
+                    }
+                }
+
+                nostrRelay = NostrTools.relayInit(relayUrl);
+
+                nostrRelay.on('connect', () => {
+                    console.log('✅ Connected to NOSTR relay:', relayUrl);
+                    isNostrConnected = true;
+                });
+
+                nostrRelay.on('error', (error) => {
+                    console.error('❌ Relay connection error:', error);
+                    isNostrConnected = false;
+                });
+
+                nostrRelay.on('disconnect', () => {
+                    console.log('🔌 Relay disconnected');
+                    isNostrConnected = false;
+                });
+
+                await nostrRelay.connect();
+                isNostrConnected = true;
+
+            } catch (error) {
+                console.error('Failed to connect to relay:', error);
+                isNostrConnected = false;
+                throw error;
+            }
+        }
+
+        // Send NIP-42 authentication event (from astro_base.html)
+        async function sendNIP42Auth() {
+            if (!userPubkey || !nostrRelay || !isNostrConnected) {
+                console.warn('Cannot send NIP-42 auth: missing requirements');
+                return;
+            }
+            
+            try {
+                console.log('📝 Sending NIP-42 authentication event...');
+                
+                const authEvent = {
+                    kind: 22242,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [
+                        ['relay', DEFAULT_RELAYS[0]],
+                        ['challenge', 'auth-' + Date.now()]
+                    ],
+                    content: '',
+                    pubkey: userPubkey
+                };
+                
+                // Sign with extension
+                const signedEvent = await window.nostr.signEvent(authEvent);
+                
+                if (!signedEvent || !signedEvent.id) {
+                    console.error('❌ Failed to sign NIP-42 event');
+                    return;
+                }
+                
+                console.log('✅ NIP-42 event signed:', signedEvent.id);
+                
+                await nostrRelay.publish(signedEvent);
+                console.log('✅ NIP-42 event published');
+                
+                // Also send AUTH message
+                try {
+                    let ws = nostrRelay._ws || nostrRelay.ws || nostrRelay.socket;
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        const authMessage = JSON.stringify(['AUTH', signedEvent]);
+                        ws.send(authMessage);
+                        console.log('✅ NIP-42 AUTH message sent');
+                    }
+                } catch (authError) {
+                    console.warn('⚠️ Could not send AUTH message:', authError);
+                }
+                
+            } catch (error) {
+                console.error('❌ Failed to send NIP-42 auth:', error);
             }
         }
 
@@ -687,15 +818,8 @@
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
             console.log('🍪 Cookie Manager initialized');
-            
-            // Detect API from common.js
-            if (typeof detectUSPOTAPI === 'function') {
-                detectUSPOTAPI();
-            }
-            
+            detectUSPOTAPI();
             setupDragAndDrop();
-            
-            console.log('API Base:', USPOT_API_BASE);
         });
     </script>
 </body>
