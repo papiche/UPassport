@@ -614,8 +614,8 @@ if [ -z "$INFO_CID" ]; then
 else
     INFO_CID_URL="$myIPFS/ipfs/$INFO_CID/info.json"
     echo "DEBUG: info.json CID: $INFO_CID, URL: $INFO_CID_URL" >&2
-    # Unpin info.json
-    ipfs pin rm "$INFO_CID" >&2
+    # KEEP info.json PINNED - it's needed for video metadata retrieval
+    # ipfs pin rm "$INFO_CID" >&2 ## DISABLED - info.json must remain available
 fi
 
 # Clean up temporary info.json file

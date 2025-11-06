@@ -3087,6 +3087,7 @@ async def process_webcam_video(
                 logging.info(f"📍 Location: {lat:.2f}, {lon:.2f}")
                 logging.info(f"🔐 File hash: {file_hash[:16] if file_hash else 'N/A'}...")
                 logging.info(f"🔗 Upload chain: {upload_chain[:50] if upload_chain else 'N/A'}...")
+                logging.info(f"🔧 Full command: {' '.join(publish_cmd)}")
                 
                 # Execute unified script
                 publish_result = subprocess.run(publish_cmd, capture_output=True, text=True, timeout=30)
@@ -3115,8 +3116,12 @@ async def process_webcam_video(
                         logging.info(f"✅ NOSTR video event published: {nostr_event_id}")
                 else:
                     logging.error(f"❌ Failed to publish NOSTR event (return code: {publish_result.returncode})")
-                    logging.error(f"❌ stderr: {publish_result.stderr}")
-                    logging.error(f"❌ stdout: {publish_result.stdout}")
+                    logging.error(f"❌ stderr ({len(publish_result.stderr)} chars): {publish_result.stderr if publish_result.stderr else '(empty)'}")
+                    logging.error(f"❌ stdout ({len(publish_result.stdout)} chars): {publish_result.stdout if publish_result.stdout else '(empty)'}")
+                    logging.error(f"❌ Script path: {publish_script}")
+                    logging.error(f"❌ Script exists: {os.path.exists(publish_script)}")
+                    logging.error(f"❌ Script executable: {os.access(publish_script, os.X_OK)}")
+                    print(f"❌ NOSTR publishing failed with code {publish_result.returncode}")
                     
             except subprocess.TimeoutExpired:
                 logging.error(f"❌ NOSTR publishing timeout (>30s)")
