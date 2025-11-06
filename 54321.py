@@ -2876,7 +2876,7 @@ async def process_webcam_video(
             try:
                 import httpx
                 gateway = get_myipfs_gateway()
-                info_url = f"{gateway}/ipfs/{info_cid}/info.json"
+                info_url = f"{gateway}/ipfs/{info_cid}"
                 logging.info(f"📋 Loading metadata from info.json: {info_url}")
                 
                 async with httpx.AsyncClient(timeout=10.0) as client:

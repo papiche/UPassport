@@ -612,7 +612,7 @@ if [ -z "$INFO_CID" ]; then
     echo "WARNING: Failed to add info.json to IPFS" >&2
     INFO_CID_URL=""
 else
-    INFO_CID_URL="$myIPFS/ipfs/$INFO_CID/info.json"
+    INFO_CID_URL="$myIPFS/ipfs/$INFO_CID"
     echo "DEBUG: info.json CID: $INFO_CID, URL: $INFO_CID_URL" >&2
     # KEEP info.json PINNED - it's needed for video metadata retrieval
     # ipfs pin rm "$INFO_CID" >&2 ## DISABLED - info.json must remain available
