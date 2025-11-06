@@ -2088,6 +2088,16 @@
                     document.getElementById('publish-btn').disabled = false;
                     document.getElementById('publish-btn').textContent = '📡 Publish Video';
                     
+                    // Notify parent window that video was published successfully
+                    // This allows parent to reload the page when modal closes
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'video-published-success',
+                            cid: uploadResult.new_cid
+                        }, '*');
+                        console.log('✅ Notified parent window of successful video publish');
+                    }
+                    
                     showSuccess(`Video published successfully to IPFS!\n\nCID: ${uploadResult.new_cid}\n\nYour video is now available on UPlanet.`, 'Video Published! 🎉', () => {
                         closeModal();
                         // Reset form and prepare for next recording

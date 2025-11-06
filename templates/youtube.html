@@ -4726,10 +4726,24 @@
                 // Track if webcam modal was opened
                 let webcamModalOpened = false;
                 
+                // Track if a video was successfully published
+                let videoPublishedSuccessfully = false;
+                
+                // Listen for video publish success message from webcam iframe
+                window.addEventListener('message', function(event) {
+                    if (event.data && event.data.type === 'video-published-success') {
+                        console.log('📹 Video published successfully - will reload on modal close');
+                        videoPublishedSuccessfully = true;
+                    }
+                });
+                
                 // Listen for modal shown event to track webcam
                 iframeModal.addEventListener('shown.bs.modal', function () {
                     const iframe = document.getElementById('iframe-modal-iframe');
                     const titleEl = document.getElementById('iframe-modal-title');
+                    
+                    // Reset the published flag when opening webcam modal
+                    videoPublishedSuccessfully = false;
                     
                     // Check if this is the webcam modal
                     if (iframe && iframe.src && iframe.src.includes('/webcam')) {
@@ -4754,9 +4768,10 @@
                     // Reset tracking
                     webcamModalOpened = false;
                     
-                    // If webcam modal was closed, reload page to show new videos
-                    if (wasCamModal) {
-                        console.log('📹 Webcam modal closed - reloading page to show new videos...');
+                    // If webcam modal was closed AND a video was published, reload page to show new videos
+                    if (wasCamModal && videoPublishedSuccessfully) {
+                        console.log('📹 Webcam modal closed after successful publish - reloading page to show new videos...');
+                        videoPublishedSuccessfully = false; // Reset flag
                         setTimeout(() => {
                             window.location.reload();
                         }, 500);
