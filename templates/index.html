@@ -418,12 +418,15 @@
                     <strong><i class="bi bi-person-check"></i> Connected:</strong><br>
                     <small>npub: <code id="userNpub"></code></small><br>
                     <small>hex: <code id="userHex"></code></small><br><br>
-                    <div class="d-flex gap-2 align-items-center">
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
                         <a href="#" onclick="viewProfile()" class="btn btn-sm btn-success">
                             <i class="bi bi-person-circle"></i> View My Profile
                         </a>
                         <button id="didStatusBtn" class="btn btn-sm btn-outline-secondary" onclick="checkDIDDocument()">
                             <i class="bi bi-file-earmark-text"></i> <span id="didBtnText">Check DID</span>
+                        </button>
+                        <button id="udriveBtn" class="btn btn-sm btn-outline-primary" style="display:none;" onclick="openUDrive()">
+                            <i class="bi bi-cloud"></i> <span id="udriveBtnText">Open uDRIVE</span>
                         </button>
                     </div>
                     <div id="didInfo" class="alert alert-info mt-2" style="display:none;">
@@ -1242,6 +1245,209 @@
             await checkDIDDocument();
         }
         
+        // Check NOSTR Profile (kind 0) and extract uDRIVE link
+        async function checkNostrProfile() {
+            if (!AstroportDemo.userPubkey) {
+                console.warn('[PROFILE] No pubkey available');
+                return null;
+            }
+            
+            try {
+                console.log('[PROFILE] Fetching NOSTR profile (kind 0) for:', AstroportDemo.userPubkey);
+                
+                // Check if relay is connected
+                if (typeof window.nostrRelay === 'undefined' || !window.nostrRelay) {
+                    console.log('[PROFILE] Connecting to relay...');
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                    }
+                }
+                
+                if (typeof window.nostrRelay !== 'undefined' && window.nostrRelay) {
+                    // Subscribe to kind 0 profile metadata events
+                    const sub = window.nostrRelay.sub([{
+                        kinds: [0], // Profile metadata
+                        authors: [AstroportDemo.userPubkey],
+                        limit: 1
+                    }]);
+                    
+                    return new Promise((resolve) => {
+                        let profileFound = false;
+                        
+                        sub.on('event', event => {
+                            console.log('[PROFILE] 📇 Found profile:', event);
+                            profileFound = true;
+                            
+                            try {
+                                // Parse profile metadata
+                                const metadata = JSON.parse(event.content);
+                                console.log('[PROFILE] Metadata:', metadata);
+                                
+                                // Extract tags with identity information
+                                const tags = event.tags || [];
+                                const identities = {};
+                                
+                                tags.forEach(tag => {
+                                    if (tag[0] === 'i' && tag[1]) {
+                                        // Split only on the FIRST colon to handle URLs correctly
+                                        const colonIndex = tag[1].indexOf(':');
+                                        if (colonIndex > 0) {
+                                            const key = tag[1].substring(0, colonIndex);
+                                            const value = tag[1].substring(colonIndex + 1);
+                                            identities[key] = value;
+                                        }
+                                    }
+                                });
+                                
+                                console.log('[PROFILE] Identities found:', identities);
+                                
+                                // Store profile data
+                                AstroportDemo.userProfile = {
+                                    metadata: metadata,
+                                    identities: identities,
+                                    event: event
+                                };
+                                
+                                resolve(identities);
+                            } catch (error) {
+                                console.error('[PROFILE] Error parsing profile:', error);
+                                resolve(null);
+                            }
+                            
+                            sub.unsub();
+                        });
+                        
+                        sub.on('eose', () => {
+                            if (!profileFound) {
+                                console.log('[PROFILE] ⚠️ No profile found');
+                                resolve(null);
+                            }
+                            sub.unsub();
+                        });
+                        
+                        // Timeout after 5 seconds
+                        setTimeout(() => {
+                            if (!profileFound) {
+                                sub.unsub();
+                                resolve(null);
+                            }
+                        }, 5000);
+                    });
+                } else {
+                    console.warn('[PROFILE] Relay not available');
+                    return null;
+                }
+            } catch (error) {
+                console.error('[PROFILE] ❌ Error checking profile:', error);
+                return null;
+            }
+        }
+        
+        // Open uDRIVE from profile data
+        async function openUDrive() {
+            const udriveBtn = document.getElementById('udriveBtn');
+            const udriveBtnText = document.getElementById('udriveBtnText');
+            
+            try {
+                udriveBtnText.textContent = 'Opening...';
+                udriveBtn.disabled = true;
+                
+                // Check if we already have profile data
+                let identities = AstroportDemo.userProfile?.identities;
+                
+                if (!identities) {
+                    console.log('[UDRIVE] Fetching profile data...');
+                    identities = await checkNostrProfile();
+                }
+                
+                if (!identities) {
+                    alert('Could not retrieve profile data. Please try again.');
+                    return;
+                }
+                
+                // Look for IPNS vault link
+                let ipnsVault = identities.ipns_vault;
+                let ipfsGw = identities.ipfs_gw || '{{ myIPFS }}';
+                const email = identities.email;
+                
+                console.log('[UDRIVE] Raw identities:', identities);
+                console.log('[UDRIVE] ipfs_gw from profile:', identities.ipfs_gw);
+                console.log('[UDRIVE] Template myIPFS:', '{{ myIPFS }}');
+                console.log('[UDRIVE] ipns_vault from profile:', identities.ipns_vault);
+                
+                // Clean up ipnsVault - remove leading /ipns/ if present
+                if (ipnsVault && ipnsVault.startsWith('/ipns/')) {
+                    ipnsVault = ipnsVault.substring(6); // Remove "/ipns/"
+                    console.log('[UDRIVE] Cleaned ipnsVault (removed /ipns/):', ipnsVault);
+                }
+                
+                // Clean up ipfsGw
+                // If ipfsGw is just "http" or looks incomplete, use template default
+                if (!ipfsGw || ipfsGw === 'http' || ipfsGw === 'https' || ipfsGw.length < 10) {
+                    console.log('[UDRIVE] ipfs_gw invalid, using template default');
+                    ipfsGw = '{{ myIPFS }}';
+                }
+                
+                // Remove trailing slashes
+                ipfsGw = ipfsGw.replace(/\/+$/, '');
+                
+                // Ensure ipfsGw starts with http:// or https://
+                if (!ipfsGw.startsWith('http://') && !ipfsGw.startsWith('https://')) {
+                    ipfsGw = 'http://' + ipfsGw;
+                }
+                
+                console.log('[UDRIVE] Final ipfsGw:', ipfsGw);
+                console.log('[UDRIVE] Final ipnsVault:', ipnsVault);
+                
+                if (!ipnsVault) {
+                    alert('No uDRIVE link found in your profile.\n\nMake sure your profile includes an "ipns_vault" tag.\nCreate a MULTIPASS at /g1 to get your uDRIVE.');
+                    return;
+                }
+                
+                if (!email) {
+                    alert('No email found in your profile.\n\nThe email is required to build the uDRIVE path.\nMake sure your profile includes an "email" tag.');
+                    return;
+                }
+                
+                // Build uDRIVE URL: IPFS_GW/ipns/VAULT/EMAIL/APP/uDRIVE
+                const udriveUrl = `${ipfsGw}/ipns/${ipnsVault}/${email}/APP/uDRIVE`;
+                console.log('[UDRIVE] Final URL:', udriveUrl);
+                
+                // Open in new tab
+                window.open(udriveUrl, '_blank');
+                
+                udriveBtnText.textContent = 'Open uDRIVE';
+                
+            } catch (error) {
+                console.error('[UDRIVE] Error:', error);
+                alert(`Error opening uDRIVE: ${error.message}`);
+                udriveBtnText.textContent = 'Open uDRIVE';
+            } finally {
+                udriveBtn.disabled = false;
+            }
+        }
+        
+        // Check and show uDRIVE button after connection
+        async function checkAndShowUDriveButton() {
+            const udriveBtn = document.getElementById('udriveBtn');
+            
+            try {
+                console.log('[UDRIVE] Checking for uDRIVE link...');
+                const identities = await checkNostrProfile();
+                
+                if (identities && identities.ipns_vault) {
+                    console.log('[UDRIVE] ✅ uDRIVE link found:', identities.ipns_vault);
+                    udriveBtn.style.display = 'inline-block';
+                } else {
+                    console.log('[UDRIVE] ⚠️ No uDRIVE link in profile');
+                    udriveBtn.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('[UDRIVE] Error checking uDRIVE:', error);
+                udriveBtn.style.display = 'none';
+            }
+        }
+        
         async function testMultipassLogin() {
             const resultEl = document.getElementById('authResult');
             const userInfoEl = document.getElementById('userInfo');
@@ -1310,6 +1516,14 @@
                         console.warn('[AUTH] Could not auto-check DID:', err);
                     });
                 }, 1000);
+                
+                // Auto-check and show uDRIVE button
+                setTimeout(() => {
+                    console.log('[AUTH] Checking for uDRIVE link...');
+                    checkAndShowUDriveButton().catch(err => {
+                        console.warn('[AUTH] Could not check uDRIVE:', err);
+                    });
+                }, 1500);
                 
             } catch (error) {
                 resultEl.textContent = '❌ Connection failed\n\n';
@@ -1443,34 +1657,69 @@
                 console.log('[AUTH] Authentication check result:', authResult);
                 
                 if (!authResult.auth_verified) {
-                    resultEl.textContent += '❌ Authentication failed!\n\n';
-                    resultEl.textContent += 'Your NOSTR extension needs to send an authentication event (NIP-42).\n\n';
-                    resultEl.textContent += `Details: ${authResult.message || 'No recent NIP-42 auth events found'}\n\n`;
+                    // Auto-retry authentication instead of showing error
+                    resultEl.textContent += '⚠️ No recent NIP-42 event found\n';
+                    resultEl.textContent += '🔄 Sending authentication event automatically...\n\n';
                     
-                    if (authResult.status === 'partial' && authResult.relay_connected) {
-                        resultEl.textContent += '⚠️ Relay is connected but no NIP-42 event found.\n';
-                        resultEl.textContent += '   This usually means:\n';
-                        resultEl.textContent += '   1. You need a MULTIPASS account (create one at /g1)\n';
-                        resultEl.textContent += '   2. The relay rejected your NIP-42 event (no MULTIPASS)\n';
-                        resultEl.textContent += '   3. Click "Connect" again to retry authentication\n\n';
+                    console.log('[UPLOAD] Auto-sending NIP-42 authentication...');
+                    
+                    try {
+                        // Force NIP-42 authentication
+                        if (typeof connectNostr === 'function') {
+                            await connectNostr(true); // true = force NIP-42 auth
+                            
+                            // Wait for event to be processed
+                            resultEl.textContent += '⏳ Waiting for relay to process authentication...\n';
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            
+                            // Verify again
+                            resultEl.textContent += '🔍 Verifying authentication...\n';
+                            const recheckAuth = await fetch('/api/test-nostr', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                },
+                                body: new URLSearchParams({
+                                    'npub': AstroportDemo.userPubkey || AstroportDemo.userNpub
+                                })
+                            });
+                            
+                            if (recheckAuth.ok) {
+                                const recheckResult = await recheckAuth.json();
+                                if (recheckResult.auth_verified) {
+                                    resultEl.textContent += '✅ Authentication successful!\n\n';
+                                    updateConnectionBadge(true, true); // Update badge
+                                } else {
+                                    throw new Error('Authentication still not verified after retry');
+                                }
+                            } else {
+                                throw new Error('Authentication recheck failed');
+                            }
+                        } else {
+                            throw new Error('connectNostr function not available');
+                        }
+                    } catch (authError) {
+                        console.error('[UPLOAD] Auto-authentication failed:', authError);
+                        resultEl.textContent += `❌ Authentication failed: ${authError.message}\n\n`;
+                        
+                        // Show detailed help
+                        if (authResult.status === 'partial' && authResult.relay_connected) {
+                            resultEl.textContent += '⚠️ Possible causes:\n';
+                            resultEl.textContent += '   1. You need a MULTIPASS account (create at /g1)\n';
+                            resultEl.textContent += '   2. The relay rejected your NIP-42 event\n';
+                            resultEl.textContent += '   3. Your NOSTR extension blocked the request\n\n';
+                        }
+                        
+                        resultEl.textContent += '👉 Please click "Connect with MULTIPASS" button above and try again.';
+                        
+                        // Update badge to show not authenticated
+                        updateConnectionBadge(true, false);
+                        
+                        return;
                     }
-                    
-                    resultEl.textContent += '👉 Solution: Click the "Connect" button above to re-authenticate.\n';
-                    resultEl.textContent += '   This will send a fresh NIP-42 authentication event to the relay.';
-                    
-                    // Show a user-friendly notification
-                    if (typeof showNotification !== 'undefined') {
-                        showNotification({
-                            message: 'Authentication required. Please click the Connect button to authenticate.',
-                            type: 'warning',
-                            duration: 8000
-                        });
-                    }
-                    
-                    return;
+                } else {
+                    resultEl.textContent += '✅ Authentication verified!\n\n';
                 }
-                
-                resultEl.textContent += '✅ Authentication verified!\n\n';
                 
                 // Create form data
                 const formData = new FormData();
@@ -1838,7 +2087,7 @@
                     // Video events (NIP-71) → Open in theater mode
                     icon = event.kind === 21 ? 'bi-camera-video-fill' : 'bi-film';
                     typeLabel = event.kind === 21 ? 'Short Video' : 'Long Video';
-                    clickAction = `window.location.href='/theater?video=${event.id}'`;
+                    clickAction = `window.open('/theater?video=${event.id}', '_blank')`;
                     
                     // Use gifanim if available, otherwise thumbnail, otherwise icon
                     if (gifanimUrl) {
@@ -1857,7 +2106,7 @@
                     } else if (fileType.startsWith('video/')) {
                         icon = 'bi-camera-video';
                         typeLabel = 'Video';
-                        clickAction = `window.location.href='/theater?video=${event.id}'`;
+                        clickAction = `window.open('/theater?video=${event.id}', '_blank')`;
                         if (gifanimUrl) {
                             previewHtml = `<img src="${gifanimUrl}" alt="Preview" style="width:100%;height:150px;object-fit:cover;border-radius:8px;">`;
                         } else if (thumbnailUrl) {

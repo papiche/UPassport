@@ -3765,7 +3765,16 @@ async def upload_file_to_ipfs(
                                     relays_success = result_json.get('relays_success', 0)
                                     logging.info(f"✅ Published NOSTR event (kind {kind}): {event_id} (to {relays_success} relays)")
                                 else:
-                                    logging.warning(f"⚠️ Failed to publish NOSTR event: {result.stderr}")
+                                    logging.warning(f"⚠️ Failed to publish NOSTR event (exit code: {result.returncode})")
+                                    logging.warning(f"⚠️ Command: {' '.join(publish_cmd)}")
+                                    logging.warning(f"⚠️ Stdout: {result.stdout}")
+                                    logging.warning(f"⚠️ Stderr: {result.stderr}")
+                                    # Log the JSON file content for debugging
+                                    try:
+                                        with open(temp_file_path, 'r') as f:
+                                            logging.warning(f"⚠️ JSON content: {f.read()}")
+                                    except:
+                                        pass
                             else:
                                 logging.debug(f"⚠️ publish_nostr_file.sh not found, skipping NOSTR publication")
                         else:
