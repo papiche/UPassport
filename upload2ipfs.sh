@@ -86,17 +86,24 @@ if [ -n "$USER_PUBKEY_HEX" ]; then
         echo "DEBUG: Searching for hash $FILE_HASH in NOSTR events..." >&2
         
         # Determine file type to optimize search
+        # OPTIMIZATION: Search directly by file hash using #x tag filter (NIP-01)
+        # This is MUCH more efficient than fetching 1000+ events and filtering client-side
         if [[ "$FILE_TYPE" == "video/"* ]]; then
-            # For videos: search in kind 21/22 (NIP-71 video events)
-            echo "DEBUG: Video file detected, searching in kind 21/22 (NIP-71)..." >&2
-            EXISTING_EVENTS_21=$(bash "$NOSTR_GET_EVENTS" --kind 21 --limit 1000 2>/dev/null || echo "")
-            EXISTING_EVENTS_22=$(bash "$NOSTR_GET_EVENTS" --kind 22 --limit 1000 2>/dev/null || echo "")
+            # For videos: search in kind 21/22 (NIP-71 video events) with #x tag filter
+            echo "DEBUG: Video file detected, searching by hash in kind 21/22 (NIP-71)..." >&2
+            echo "DEBUG: Hash filter: #x=$FILE_HASH" >&2
+            
+            # Search for events with this exact hash in both kind 21 and 22
+            # Using --tag-x filter for precise hash matching (avoids fetching 1000 events)
+            EXISTING_EVENTS_21=$(bash "$NOSTR_GET_EVENTS" --kind 21 --tag-x "$FILE_HASH" --limit 1 2>/dev/null || echo "")
+            EXISTING_EVENTS_22=$(bash "$NOSTR_GET_EVENTS" --kind 22 --tag-x "$FILE_HASH" --limit 1 2>/dev/null || echo "")
             # Combine both results
             EXISTING_EVENTS="$EXISTING_EVENTS_21"$'\n'"$EXISTING_EVENTS_22"
         else
-            # For other files: search in kind 1063 (NIP-94 file metadata)
-            echo "DEBUG: Non-video file detected, searching in kind 1063 (NIP-94)..." >&2
-            EXISTING_EVENTS=$(bash "$NOSTR_GET_EVENTS" --kind 1063 --limit 1000 2>/dev/null || echo "")
+            # For other files: search in kind 1063 (NIP-94 file metadata) with #x tag filter
+            echo "DEBUG: Non-video file detected, searching by hash in kind 1063 (NIP-94)..." >&2
+            echo "DEBUG: Hash filter: #x=$FILE_HASH" >&2
+            EXISTING_EVENTS=$(bash "$NOSTR_GET_EVENTS" --kind 1063 --tag-x "$FILE_HASH" --limit 1 2>/dev/null || echo "")
         fi
         
         if [ -n "$EXISTING_EVENTS" ]; then
@@ -204,10 +211,12 @@ if [ -n "$USER_PUBKEY_HEX" ]; then
                                                 # Clean up temporary directory
                                                 rm -rf "$TEMP_GET_DIR"
                                                 
-                                                # Reuse existing info.json CID
-                                                INFO_CID="$ORIGINAL_INFO_CID"
+                                                # DO NOT reuse info.json CID - create new one with updated provenance
+                                                # This allows the upload history to evolve with each re-publication
+                                                # INFO_CID will be created later with new timestamp and upload_chain
+                                                echo "DEBUG: 📝 Will create new info.json with updated provenance..." >&2
                                                 
-                                                # Skip IPFS upload and metadata extraction
+                                                # Skip IPFS upload of main file (reuse CID) but CREATE NEW info.json
                                                 SKIP_IPFS_UPLOAD=true
                                             fi
                                         fi
