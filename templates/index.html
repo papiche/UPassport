@@ -283,7 +283,13 @@
                 <div id="userInfo" style="display:none;" class="user-info mt-3">
                     <strong><i class="bi bi-person-check"></i> Connected:</strong><br>
                     <small>npub: <code id="userNpub"></code></small><br>
-                    <small>hex: <code id="userHex"></code></small>
+                    <small>hex: <code id="userHex"></code></small><br><br>
+                    <a href="#" onclick="viewProfile()" class="btn btn-sm btn-success">
+                        <i class="bi bi-person-circle"></i> View My Profile
+                    </a>
+                    <a href="/g1" class="btn btn-sm btn-outline-primary" target="_blank">
+                        <i class="bi bi-wallet2"></i> Create Ğ1 Wallet
+                    </a>
                 </div>
             </div>
             
@@ -314,14 +320,25 @@
                     <div>
                         <span class="badge-tech">IPFS</span>
                         <span class="badge-tech">NIP-94</span>
-                        <span class="badge-tech">NIP-71</span>
+                        <span class="badge-tech">NIP-71 (videos)</span>
+                        <span class="badge-tech">SHA256 tracking</span>
                     </div>
                 </div>
             </div>
             
-            <p class="lead">Upload files to IPFS and publish metadata on NOSTR. Automatic type detection and metadata extraction.</p>
+            <p class="lead">Upload files to IPFS and publish metadata on NOSTR. View recent uploads from the community.</p>
             
             <div class="test-area">
+                <h5><i class="bi bi-grid-3x2"></i> Recent Uploads</h5>
+                <div id="recentUploads" class="row g-2 mb-3">
+                    <div class="col-12 text-center text-muted">
+                        <i class="bi bi-arrow-clockwise"></i> Loading recent files and videos...
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary mb-3" onclick="loadRecentUploads()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                
                 <h5><i class="bi bi-file-earmark-arrow-up"></i> Upload File Test</h5>
                 
                 <div class="file-type-grid">
@@ -401,32 +418,35 @@
                 </div>
             </div>
             
-            <p class="lead">Add likes, reactions, comments, and shares to any content or URL.</p>
+            <p class="lead">Add likes, reactions, comments, and shares to any content or URL. Comments and shares are linked to this page.</p>
             
             <div class="test-area">
-                <h5><i class="bi bi-hand-thumbs-up"></i> Test Reactions</h5>
+                <h5><i class="bi bi-hand-thumbs-up"></i> Comments & Shares for this Page</h5>
                 
-                <div class="row mt-3">
-                    <div class="col-md-6">
-                        <div class="card p-3 h-100">
-                            <h6>Sample Content</h6>
-                            <p class="text-muted small">This is a test content block. Try the reactions!</p>
-                            <div class="d-flex gap-2 mt-auto">
-                                <button class="btn btn-sm btn-outline-danger" onclick="testLike()">
-                                    <i class="bi bi-heart"></i> <span id="likeCount">0</span>
-                                </button>
-                                <button class="btn btn-sm btn-outline-primary" onclick="testComment()">
-                                    <i class="bi bi-chat"></i> Comment
-                                </button>
-                                <button class="btn btn-sm btn-outline-success" onclick="testShare()">
-                                    <i class="bi bi-share"></i> Share
-                                </button>
-                            </div>
-                        </div>
+                <div id="pageInteractions" class="mb-3">
+                    <div class="text-center text-muted">
+                        <i class="bi bi-arrow-clockwise"></i> Loading interactions...
                     </div>
-                    <div class="col-md-6">
-                        <div class="result-box" style="min-height:150px;" id="socialResult">Test reactions above...</div>
-                    </div>
+                </div>
+                
+                <button class="btn btn-sm btn-outline-secondary mb-3" onclick="loadPageInteractions()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                
+                <h5><i class="bi bi-pencil-square"></i> Test Actions</h5>
+                <div class="d-flex gap-2 mb-3">
+                    <button class="btn btn-sm btn-outline-primary" onclick="testComment()">
+                        <i class="bi bi-chat"></i> Post Comment
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="testShare()">
+                        <i class="bi bi-share"></i> Share Page
+                    </button>
+                </div>
+                
+                <div class="result-box" style="min-height:100px;" id="socialResult">Use buttons above to post comments or share this page...</div>
+                
+                <div class="alert alert-info mt-2">
+                    <small><i class="bi bi-info-circle"></i> Note: Likes require an event ID. Comments and shares are attached to the current page URL.</small>
                 </div>
             </div>
             
@@ -572,7 +592,15 @@
                 <ul class="mb-0">
                     <li><strong>File Contract:</strong> NIP-94 (images, audio, documents) and NIP-71 (videos)</li>
                     <li><strong>Common.js API:</strong> <code>{{ myIPFS }}/ipns/copylaradio.com/common.js</code></li>
-                    <li><strong>GitHub:</strong> <a href="https://github.com/papiche/Astroport.ONE" target="_blank">Astroport.ONE Repository</a></li>
+                    <li><strong>Developer Guide:</strong> <a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/README.NostrTube.DEV.md" target="_blank">NostrTube Developer Documentation</a></li>
+                    <li><strong>Source Code Examples:</strong>
+                        <ul>
+                            <li><a href="https://github.com/papiche/UPassport/blob/main/templates/youtube.html" target="_blank">youtube.html</a> - Video platform</li>
+                            <li><a href="https://github.com/papiche/UPassport/blob/main/templates/theater-modal.html" target="_blank">theater-modal.html</a> - Theater mode</li>
+                            <li><a href="https://github.com/papiche/UPassport/blob/main/templates/playlist-manager.html" target="_blank">playlist-manager.html</a> - Playlist manager</li>
+                        </ul>
+                    </li>
+                    <li><strong>GitHub Repository:</strong> <a href="https://github.com/papiche/Astroport.ONE" target="_blank">Astroport.ONE</a></li>
                     <li><strong>NOSTR NIPs:</strong> <a href="https://github.com/nostr-protocol/nips" target="_blank">Protocol Specifications</a></li>
                 </ul>
             </div>
@@ -646,12 +674,16 @@
         
         // Check NOSTR connection on load
         window.addEventListener('load', async () => {
+            console.log('[LOAD] Page loaded, initializing...');
             await checkConnection();
             await loadChatMessages();
+            await loadRecentUploads();
+            await loadPageInteractions();
         });
         
         async function checkConnection() {
             try {
+                console.log('[CONNECTION] Checking NOSTR connection...');
                 const statusEl = document.getElementById('nostrStatus');
                 const textEl = document.getElementById('connectionStatus');
                 
@@ -659,19 +691,34 @@
                 
                 // Try to connect to relay
                 if (typeof connectToRelay === 'function') {
+                    console.log('[CONNECTION] connectToRelay function found, connecting...');
                     await connectToRelay();
                     statusEl.classList.add('connected');
                     textEl.textContent = 'NOSTR relay connected';
                     AstroportDemo.relayConnected = true;
+                    console.log('[CONNECTION] ✅ Connected to relay:', window.nostrRelay);
                 } else {
+                    console.warn('[CONNECTION] ⚠️ connectToRelay function not available yet');
                     statusEl.classList.add('disconnected');
                     textEl.textContent = 'NOSTR functions loading...';
                 }
             } catch (error) {
+                console.error('[CONNECTION] ❌ Connection check failed:', error);
                 document.getElementById('nostrStatus').classList.add('disconnected');
                 document.getElementById('connectionStatus').textContent = 'Connection error';
-                console.error('Connection check failed:', error);
             }
+        }
+        
+        // View user profile
+        async function viewProfile() {
+            if (!AstroportDemo.userPubkey) {
+                alert('Please connect first');
+                return;
+            }
+            
+            console.log('[PROFILE] Opening profile viewer for:', AstroportDemo.userPubkey);
+            const profileUrl = `/nostr_profile_viewer.html?hex=${AstroportDemo.userPubkey}`;
+            window.open(profileUrl, '_blank');
         }
         
         async function testMultipassLogin() {
@@ -792,38 +839,6 @@
             }
         }
         
-        async function testLike() {
-            const resultEl = document.getElementById('socialResult');
-            
-            if (!AstroportDemo.userPubkey) {
-                resultEl.textContent = '❌ Please connect with MULTIPASS first';
-                return;
-            }
-            
-            try {
-                AstroportDemo.likeCount++;
-                document.getElementById('likeCount').textContent = AstroportDemo.likeCount;
-                
-                resultEl.textContent = '🔄 Sending like reaction...\n\n';
-                
-                // In real app, you'd have an actual event ID
-                const demoEventId = 'demo_event_' + Date.now();
-                
-                resultEl.textContent += '✅ Like sent!\n\n';
-                resultEl.textContent += 'NOSTR Event (kind 7):\n';
-                resultEl.textContent += `{\n`;
-                resultEl.textContent += `  "kind": 7,\n`;
-                resultEl.textContent += `  "content": "+",\n`;
-                resultEl.textContent += `  "tags": [\n`;
-                resultEl.textContent += `    ["e", "${demoEventId}"],\n`;
-                resultEl.textContent += `    ["p", "${AstroportDemo.userPubkey.substring(0, 16)}..."]\n`;
-                resultEl.textContent += `  ]\n`;
-                resultEl.textContent += `}`;
-                
-            } catch (error) {
-                resultEl.textContent = `❌ Error: ${error.message}`;
-            }
-        }
         
         async function testComment() {
             const resultEl = document.getElementById('socialResult');
@@ -837,21 +852,26 @@
             if (!comment) return;
             
             try {
+                console.log('[COMMENT] Publishing comment:', comment);
                 resultEl.textContent = '🔄 Publishing comment...\n\n';
                 
                 // Publish comment using common.js
                 if (typeof publishNote === 'function') {
                     await publishNote(comment, [['r', window.location.href]]);
+                    console.log('[COMMENT] ✅ Comment published');
                     resultEl.textContent += '✅ Comment published!\n\n';
                     resultEl.textContent += `Content: "${comment}"\n`;
                     resultEl.textContent += `URL: ${window.location.href}`;
+                    
+                    // Reload interactions after a delay
+                    setTimeout(() => loadPageInteractions(), 1000);
                 } else {
-                    resultEl.textContent += '📝 Comment (demo):\n\n';
-                    resultEl.textContent += `"${comment}"\n\n`;
-                    resultEl.textContent += 'Attached to current URL';
+                    console.error('[COMMENT] ❌ publishNote not available');
+                    resultEl.textContent += '❌ publishNote function not available';
                 }
                 
             } catch (error) {
+                console.error('[COMMENT] ❌ Error:', error);
                 resultEl.textContent = `❌ Error: ${error.message}`;
             }
         }
@@ -865,20 +885,27 @@
             }
             
             try {
+                console.log('[SHARE] Sharing page...');
                 resultEl.textContent = '🔄 Sharing to your feed...\n\n';
                 
-                // Share using common.js
-                if (typeof shareCurrentPage === 'function') {
-                    await shareCurrentPage('Check out this Astroport.ONE developer platform!');
+                const shareMessage = 'Check out this Astroport.ONE developer platform! ' + window.location.href;
+                
+                // Share using common.js - post as note with URL reference
+                if (typeof publishNote === 'function') {
+                    await publishNote(shareMessage, [['r', window.location.href]]);
+                    console.log('[SHARE] ✅ Shared successfully');
                     resultEl.textContent += '✅ Shared to your NOSTR feed!\n\n';
                     resultEl.textContent += 'Your followers can now see this content.';
+                    
+                    // Reload interactions after a delay
+                    setTimeout(() => loadPageInteractions(), 1000);
                 } else {
-                    resultEl.textContent += '📢 Share (demo):\n\n';
-                    resultEl.textContent += '"Check out this Astroport.ONE developer platform!"\n\n';
-                    resultEl.textContent += window.location.href;
+                    console.error('[SHARE] ❌ publishNote not available');
+                    resultEl.textContent += '❌ publishNote function not available';
                 }
                 
             } catch (error) {
+                console.error('[SHARE] ❌ Error:', error);
                 resultEl.textContent = `❌ Error: ${error.message}`;
             }
         }
@@ -887,8 +914,22 @@
             const messagesEl = document.getElementById('chatMessages');
             
             try {
+                console.log('[CHAT] Loading chat messages...');
+                console.log('[CHAT] nostrRelay available:', typeof window.nostrRelay !== 'undefined');
+                console.log('[CHAT] isNostrConnected:', window.isNostrConnected);
+                
+                // Wait for relay connection if needed
+                if (typeof window.nostrRelay === 'undefined' || !window.nostrRelay) {
+                    console.log('[CHAT] Waiting for relay connection...');
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                        console.log('[CHAT] Relay connected');
+                    }
+                }
+                
                 // Subscribe to messages with hashtag #AstroportDemo
-                if (typeof window.nostrRelay !== 'undefined') {
+                if (typeof window.nostrRelay !== 'undefined' && window.nostrRelay) {
+                    console.log('[CHAT] Subscribing to #AstroportDemo messages...');
                     const sub = window.nostrRelay.sub([{
                         kinds: [1],
                         "#t": ["AstroportDemo"],
@@ -896,15 +937,26 @@
                     }]);
                     
                     sub.on('event', event => {
+                        console.log('[CHAT] 📨 New message received:', event);
                         displayChatMessage(event);
                     });
                     
+                    sub.on('eose', () => {
+                        console.log('[CHAT] ✅ End of stored events');
+                        if (messagesEl.innerHTML.includes('Loading messages')) {
+                            messagesEl.innerHTML = '<div class="text-center text-muted">No messages yet. Be the first to send one!</div>';
+                        }
+                    });
+                    
                     AstroportDemo.chatSubscription = sub;
+                    console.log('[CHAT] Subscription created:', sub);
                 } else {
+                    console.warn('[CHAT] ⚠️ Relay not available');
                     messagesEl.innerHTML = '<div class="text-center text-muted">Connect to NOSTR to view messages</div>';
                 }
             } catch (error) {
-                messagesEl.innerHTML = '<div class="text-center text-muted">Chat loading...</div>';
+                console.error('[CHAT] ❌ Error loading chat:', error);
+                messagesEl.innerHTML = '<div class="text-center text-muted">Error loading chat</div>';
             }
         }
         
@@ -948,16 +1000,247 @@
             }
             
             try {
+                console.log('[CHAT] Sending message:', content);
                 // Publish message with hashtag
                 if (typeof publishNote === 'function') {
                     await publishNote(content, [['t', 'AstroportDemo']]);
+                    console.log('[CHAT] ✅ Message sent successfully');
                     input.value = '';
                 } else {
+                    console.error('[CHAT] ❌ publishNote function not available');
                     alert('Chat function not loaded yet');
                 }
             } catch (error) {
+                console.error('[CHAT] ❌ Error sending message:', error);
                 alert('Error sending message: ' + error.message);
             }
+        }
+        
+        // Load recent file uploads (NIP-94 and NIP-71)
+        async function loadRecentUploads() {
+            const uploadsEl = document.getElementById('recentUploads');
+            
+            try {
+                console.log('[UPLOADS] Loading recent uploads...');
+                
+                if (typeof window.nostrRelay === 'undefined' || !window.nostrRelay) {
+                    console.log('[UPLOADS] Waiting for relay...');
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                    }
+                }
+                
+                if (typeof window.nostrRelay !== 'undefined' && window.nostrRelay) {
+                    console.log('[UPLOADS] Fetching NIP-94 (kind 1063) and NIP-71 (kinds 21, 22) events...');
+                    
+                    const sub = window.nostrRelay.sub([{
+                        kinds: [1063, 21, 22], // NIP-94 (files with info.json), NIP-71 (videos: 21=short, 22=long)
+                        limit: 50 // Get more events to have enough of each type
+                    }]);
+                    
+                    const events = [];
+                    
+                    sub.on('event', event => {
+                        console.log('[UPLOADS] 📦 Received event (kind', event.kind + '):', event);
+                        events.push(event);
+                    });
+                    
+                    sub.on('eose', () => {
+                        console.log('[UPLOADS] ✅ Loaded', events.length, 'total events');
+                        displayRecentUploads(events);
+                        sub.unsub();
+                    });
+                } else {
+                    console.warn('[UPLOADS] ⚠️ Relay not available');
+                    uploadsEl.innerHTML = '<div class="col-12 text-center text-muted">Relay not connected</div>';
+                }
+            } catch (error) {
+                console.error('[UPLOADS] ❌ Error loading uploads:', error);
+                uploadsEl.innerHTML = '<div class="col-12 text-center text-muted">Error loading files</div>';
+            }
+        }
+        
+        function displayRecentUploads(events) {
+            const uploadsEl = document.getElementById('recentUploads');
+            
+            if (events.length === 0) {
+                uploadsEl.innerHTML = '<div class="col-12 text-center text-muted">No recent uploads found</div>';
+                return;
+            }
+            
+            // Separate events by type
+            const fileEvents = []; // kind 1063 (NIP-94: all files with info.json metadata)
+            const shortVideoEvents = []; // kind 21 (NIP-71: short videos)
+            const longVideoEvents = []; // kind 22 (NIP-71: long videos)
+            
+            events.forEach(event => {
+                if (event.kind === 1063) fileEvents.push(event);
+                else if (event.kind === 21) shortVideoEvents.push(event);
+                else if (event.kind === 22) longVideoEvents.push(event);
+            });
+            
+            console.log('[UPLOADS] Categorized events:');
+            console.log('  - Files/NIP-94 (1063):', fileEvents.length, '(images, audio, documents, videos)');
+            console.log('  - Short videos/NIP-71 (21):', shortVideoEvents.length);
+            console.log('  - Long videos/NIP-71 (22):', longVideoEvents.length);
+            
+            // Take only 3 most recent of each type
+            const selectedEvents = [
+                ...fileEvents.slice(0, 3),
+                ...shortVideoEvents.slice(0, 3),
+                ...longVideoEvents.slice(0, 3)
+            ];
+            
+            console.log('[UPLOADS] Displaying', selectedEvents.length, 'events total (max 3 per type)');
+            
+            if (selectedEvents.length === 0) {
+                uploadsEl.innerHTML = '<div class="col-12 text-center text-muted">No recent uploads found</div>';
+                return;
+            }
+            
+            uploadsEl.innerHTML = '';
+            
+            selectedEvents.forEach(event => {
+                // Extract file info from tags
+                let fileUrl = '';
+                let fileName = 'Unknown';
+                let fileType = '';
+                let typeLabel = '';
+                
+                if (event.tags) {
+                    const urlTag = event.tags.find(t => t[0] === 'url');
+                    const nameTag = event.tags.find(t => t[0] === 'name' || t[0] === 'title');
+                    const typeTag = event.tags.find(t => t[0] === 'm' || t[0] === 'type');
+                    
+                    if (urlTag && urlTag[1]) fileUrl = urlTag[1];
+                    if (nameTag && nameTag[1]) fileName = nameTag[1];
+                    if (typeTag && typeTag[1]) fileType = typeTag[1];
+                }
+                
+                // Determine icon and type label based on kind and file type
+                let icon = 'bi-file-earmark';
+                if (event.kind === 21) {
+                    icon = 'bi-camera-video-fill';
+                    typeLabel = 'Short Video';
+                } else if (event.kind === 22) {
+                    icon = 'bi-film';
+                    typeLabel = 'Long Video';
+                } else if (event.kind === 1063) {
+                    // NIP-94 with info.json metadata (SHA256 hash tracking)
+                    if (fileType.startsWith('image/')) {
+                        icon = 'bi-image';
+                        typeLabel = 'Image';
+                    } else if (fileType.startsWith('video/')) {
+                        icon = 'bi-camera-video';
+                        typeLabel = 'Video';
+                    } else if (fileType.startsWith('audio/')) {
+                        icon = 'bi-music-note-beamed';
+                        typeLabel = 'Audio';
+                    } else if (fileType.startsWith('text/') || fileType === 'application/pdf') {
+                        icon = 'bi-file-earmark-text';
+                        typeLabel = 'Document';
+                    } else {
+                        icon = 'bi-file-earmark';
+                        typeLabel = 'File';
+                    }
+                }
+                
+                const authorShort = event.pubkey ? event.pubkey.substring(0, 8) + '...' : 'Unknown';
+                
+                const cardHtml = `
+                    <div class="col-md-4 col-sm-6">
+                        <div class="card p-2" style="cursor:pointer;" onclick="window.open('${fileUrl}', '_blank')">
+                            <div class="text-center mb-2">
+                                <i class="bi ${icon}" style="font-size:3rem;color:var(--primary);"></i>
+                            </div>
+                            <h6 class="text-truncate" title="${fileName}">${fileName}</h6>
+                            <small class="text-muted d-block">
+                                <span class="badge bg-secondary">${typeLabel}</span> 
+                                <span class="badge bg-info">kind ${event.kind}</span>
+                            </small>
+                            <small class="text-muted">
+                                <i class="bi bi-person"></i> <a href="#" onclick="event.stopPropagation(); window.open('/nostr_profile_viewer.html?hex=${event.pubkey}', '_blank'); return false;">${authorShort}</a>
+                            </small>
+                        </div>
+                    </div>
+                `;
+                
+                uploadsEl.innerHTML += cardHtml;
+            });
+        }
+        
+        // Load page interactions (comments and shares)
+        async function loadPageInteractions() {
+            const interactionsEl = document.getElementById('pageInteractions');
+            
+            try {
+                console.log('[INTERACTIONS] Loading page interactions...');
+                
+                if (typeof window.nostrRelay === 'undefined' || !window.nostrRelay) {
+                    console.log('[INTERACTIONS] Waiting for relay...');
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                    }
+                }
+                
+                if (typeof window.nostrRelay !== 'undefined' && window.nostrRelay) {
+                    const pageUrl = window.location.href;
+                    console.log('[INTERACTIONS] Fetching interactions for:', pageUrl);
+                    
+                    const sub = window.nostrRelay.sub([{
+                        kinds: [1], // Text notes
+                        "#r": [pageUrl], // Referenced URL
+                        limit: 20
+                    }]);
+                    
+                    const events = [];
+                    
+                    sub.on('event', event => {
+                        console.log('[INTERACTIONS] 💬 Received interaction:', event);
+                        events.push(event);
+                    });
+                    
+                    sub.on('eose', () => {
+                        console.log('[INTERACTIONS] ✅ Loaded', events.length, 'interactions');
+                        displayPageInteractions(events);
+                        sub.unsub();
+                    });
+                } else {
+                    console.warn('[INTERACTIONS] ⚠️ Relay not available');
+                    interactionsEl.innerHTML = '<div class="text-center text-muted">Relay not connected</div>';
+                }
+            } catch (error) {
+                console.error('[INTERACTIONS] ❌ Error loading interactions:', error);
+                interactionsEl.innerHTML = '<div class="text-center text-muted">Error loading interactions</div>';
+            }
+        }
+        
+        function displayPageInteractions(events) {
+            const interactionsEl = document.getElementById('pageInteractions');
+            
+            if (events.length === 0) {
+                interactionsEl.innerHTML = '<div class="text-center text-muted">No comments or shares yet. Be the first!</div>';
+                return;
+            }
+            
+            interactionsEl.innerHTML = '';
+            
+            events.forEach(event => {
+                const authorShort = event.pubkey ? event.pubkey.substring(0, 8) + '...' : 'Unknown';
+                const time = new Date(event.created_at * 1000).toLocaleString();
+                
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'chat-message';
+                messageDiv.innerHTML = `
+                    <div class="author">
+                        <a href="#" onclick="window.open('/nostr_profile_viewer.html?hex=${event.pubkey}', '_blank'); return false;">${authorShort}</a>
+                    </div>
+                    <div class="content">${escapeHtml(event.content)}</div>
+                    <div class="time">${time}</div>
+                `;
+                
+                interactionsEl.appendChild(messageDiv);
+            });
         }
         
         function escapeHtml(text) {
@@ -968,13 +1251,25 @@
         
         function showCode(template) {
             const urls = {
-                'youtube': '/youtube?html=1',
-                'theater': '/theater',
-                'playlist': '/playlist'
+                'youtube': 'https://github.com/papiche/UPassport/blob/main/templates/youtube.html',
+                'theater': 'https://github.com/papiche/UPassport/blob/main/templates/theater-modal.html',
+                'playlist': 'https://github.com/papiche/UPassport/blob/main/templates/playlist-manager.html'
             };
             
-            alert(`View source code at: ${urls[template]}\n\nRight-click → View Page Source`);
+            window.open(urls[template], '_blank');
         }
+        
+        // Expose functions to global scope for onclick attributes
+        window.testMultipassLogin = testMultipassLogin;
+        window.viewProfile = viewProfile;
+        window.selectFileType = selectFileType;
+        window.uploadFile = uploadFile;
+        window.testComment = testComment;
+        window.testShare = testShare;
+        window.sendChatMessage = sendChatMessage;
+        window.loadRecentUploads = loadRecentUploads;
+        window.loadPageInteractions = loadPageInteractions;
+        window.showCode = showCode;
     </script>
 </body>
 </html>
