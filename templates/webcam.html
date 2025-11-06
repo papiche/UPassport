@@ -715,6 +715,42 @@
                 margin: 8px auto;
             }
             
+            .camera-controls {
+                display: flex;
+                gap: 8px;
+                margin-bottom: 10px;
+                justify-content: center;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+            
+            .camera-controls button {
+                padding: 8px 16px;
+                font-size: 12px;
+            }
+            
+            .camera-selector {
+                display: none;
+                margin: 10px 0;
+                text-align: center;
+            }
+            
+            .camera-selector select {
+                padding: 6px 10px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 5px;
+                background-color: rgba(255, 255, 255, 0.05);
+                color: #e2e8f0;
+                margin-right: 8px;
+                min-width: 180px;
+                font-size: 12px;
+            }
+            
+            .camera-selector button {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+            
             #timer {
                 font-size: 2em;
                 margin: 8px 0;
@@ -1109,6 +1145,18 @@
         <div class="webcam-section" id="webcam-section">
             <h2 class="webcam-title">🎥 Record Video</h2>
             
+            <!-- Camera Controls -->
+            <div class="camera-controls">
+                <button type="button" id="select-camera-btn" class="btn-secondary">📷 Select Camera</button>
+            </div>
+            
+            <!-- Camera Selector (hidden by default) -->
+            <div class="camera-selector" id="camera-selector">
+                <select id="camera-select">
+                    <option value="">Select camera...</option>
+                </select>
+                <button type="button" id="apply-camera-btn" class="btn-primary">✓ Apply</button>
+            </div>
 
     <video id="video-preview" autoplay muted></video>
 
@@ -1457,6 +1505,8 @@
         let currentStream = null;
         let authMode = 'extension';
         let userEmail = null;
+        let availableCameras = [];
+        let selectedCameraId = null;
         // userPubkey and userPrivateKey are declared in common.js
         
         // Mobile detection
@@ -1720,46 +1770,233 @@
             }
         }
 
-        // Initialize webcam recording functionality
-        function initWebcamFeatures() {
-        const startButton = document.getElementById('start-recording');
-            const stopButton = document.getElementById('stop-recording');
-        const videoPreview = document.getElementById('video-preview');
-        const timerDisplay = document.getElementById('timer');
-        const durationSlider = document.getElementById('duration-slider');
-        const durationDisplay = document.getElementById('duration-display');
-
-            // Mobile optimization
-        if (isMobile) {
-                const defaultDuration = isIOS ? 10 : 15;
-            durationSlider.value = defaultDuration;
-            durationDisplay.textContent = `${defaultDuration} seconds`;
-                durationSlider.max = 30;
+        // Enumerate available cameras
+        async function enumerateCameras() {
+            try {
+                // Request permissions first (required on some browsers)
+                const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                tempStream.getTracks().forEach(track => track.stop());
+                
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                availableCameras = devices.filter(device => device.kind === 'videoinput');
+                
+                console.log(`📷 Found ${availableCameras.length} camera(s)`);
+                return availableCameras;
+            } catch (error) {
+                console.error('Error enumerating cameras:', error);
+                showError('Could not enumerate cameras. Please ensure camera permissions are granted.', 'Camera Error');
+                return [];
+            }
+        }
+        
+        // Populate camera selector dropdown
+        function populateCameraSelector(cameras) {
+            const select = document.getElementById('camera-select');
+            const selector = document.getElementById('camera-selector');
+            
+            // Clear existing options
+            select.innerHTML = '<option value="">Select camera...</option>';
+            
+            cameras.forEach((camera, index) => {
+                const option = document.createElement('option');
+                option.value = camera.deviceId;
+                
+                // Try to identify camera type based on label
+                let cameraLabel = camera.label || `Camera ${index + 1}`;
+                
+                // Common mobile camera labels
+                if (cameraLabel.toLowerCase().includes('back') || 
+                    cameraLabel.toLowerCase().includes('arrière') ||
+                    cameraLabel.toLowerCase().includes('rear') ||
+                    cameraLabel.toLowerCase().includes('environment')) {
+                    cameraLabel = `📱 Back Camera - ${cameraLabel}`;
+                } else if (cameraLabel.toLowerCase().includes('front') || 
+                           cameraLabel.toLowerCase().includes('avant') ||
+                           cameraLabel.toLowerCase().includes('selfie') ||
+                           cameraLabel.toLowerCase().includes('user') ||
+                           cameraLabel.toLowerCase().includes('facing')) {
+                    cameraLabel = `🤳 Front Camera - ${cameraLabel}`;
+                } else {
+                    cameraLabel = `📷 ${cameraLabel}`;
+                }
+                
+                option.textContent = cameraLabel;
+                select.appendChild(option);
+            });
+            
+            // Auto-select back camera on mobile if available
+            if (isMobile && cameras.length > 0) {
+                const backCamera = cameras.find(cam => 
+                    cam.label.toLowerCase().includes('back') ||
+                    cam.label.toLowerCase().includes('environment') ||
+                    cam.label.toLowerCase().includes('rear')
+                );
+                
+                if (backCamera) {
+                    select.value = backCamera.deviceId;
+                    selectedCameraId = backCamera.deviceId;
+                    console.log('📱 Auto-selected back camera:', backCamera.label);
+                } else {
+                    // Default to first camera
+                    select.value = cameras[0].deviceId;
+                    selectedCameraId = cameras[0].deviceId;
+                }
+            }
+        }
+        
+        // Start camera with selected device
+        async function startCameraPreview(deviceId = null) {
+            try {
+                // Stop current stream if any
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                    currentStream = null;
+                }
+                
+                const videoConstraints = {
+                    deviceId: deviceId ? { exact: deviceId } : undefined,
+                    width: isMobile ? { ideal: 640, max: 1280 } : { ideal: 1280 },
+                    height: isMobile ? { ideal: 480, max: 720 } : { ideal: 720 },
+                    frameRate: isMobile ? { ideal: 24, max: 30 } : { ideal: 30 }
+                };
+                
+                // Remove deviceId if undefined to let browser choose
+                if (!deviceId) {
+                    delete videoConstraints.deviceId;
+                }
+                
+                console.log('🎥 Starting camera with constraints:', videoConstraints);
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: videoConstraints,
+                    audio: false // No audio for preview
+                });
+                
+                currentStream = stream;
+                const videoPreview = document.getElementById('video-preview');
+                videoPreview.srcObject = stream;
+                
+                console.log('✅ Camera preview started');
+                return true;
+            } catch (error) {
+                console.error('❌ Error starting camera preview:', error);
+                showError(`Could not start camera preview: ${error.message}`, 'Camera Error');
+                return false;
+            }
         }
 
-        durationSlider.addEventListener('input', () => {
-                durationDisplay.textContent = `${durationSlider.value} seconds`;
-        });
+        // Initialize webcam recording functionality
+        function initWebcamFeatures() {
+            const startButton = document.getElementById('start-recording');
+            const stopButton = document.getElementById('stop-recording');
+            const videoPreview = document.getElementById('video-preview');
+            const timerDisplay = document.getElementById('timer');
+            const durationSlider = document.getElementById('duration-slider');
+            const durationDisplay = document.getElementById('duration-display');
+            const selectCameraBtn = document.getElementById('select-camera-btn');
+            const cameraSelector = document.getElementById('camera-selector');
+            const cameraSelect = document.getElementById('camera-select');
+            const applyCameraBtn = document.getElementById('apply-camera-btn');
 
-        startButton.addEventListener('click', async () => {
+            // Mobile optimization
+            if (isMobile) {
+                const defaultDuration = isIOS ? 10 : 15;
+                durationSlider.value = defaultDuration;
+                durationDisplay.textContent = `${defaultDuration} seconds`;
+                durationSlider.max = 30;
+            }
+
+            durationSlider.addEventListener('input', () => {
+                durationDisplay.textContent = `${durationSlider.value} seconds`;
+            });
+            
+            // Camera selection button
+            selectCameraBtn.addEventListener('click', async () => {
+                if (availableCameras.length === 0) {
+                    const cameras = await enumerateCameras();
+                    if (cameras.length > 0) {
+                        populateCameraSelector(cameras);
+                        cameraSelector.style.display = 'block';
+                        
+                        // Auto-start preview with selected camera on mobile
+                        if (isMobile && selectedCameraId) {
+                            await startCameraPreview(selectedCameraId);
+                        }
+                    } else {
+                        showError('No cameras found on this device.', 'No Cameras');
+                    }
+                } else {
+                    // Toggle selector visibility
+                    if (cameraSelector.style.display === 'none') {
+                        cameraSelector.style.display = 'block';
+                    } else {
+                        cameraSelector.style.display = 'none';
+                    }
+                }
+            });
+            
+            // Apply camera selection
+            applyCameraBtn.addEventListener('click', async () => {
+                const selectedId = cameraSelect.value;
+                if (selectedId) {
+                    selectedCameraId = selectedId;
+                    console.log('📷 Camera selected:', selectedId);
+                    
+                    // Start preview with selected camera
+                    await startCameraPreview(selectedCameraId);
+                    
+                    // Hide selector
+                    cameraSelector.style.display = 'none';
+                } else {
+                    showWarning('Please select a camera from the list.', 'No Camera Selected');
+                }
+            });
+            
+            // Camera select change event (for immediate switching)
+            cameraSelect.addEventListener('change', async (e) => {
+                if (e.target.value) {
+                    selectedCameraId = e.target.value;
+                    // Auto-apply on mobile for better UX
+                    if (isMobile) {
+                        await startCameraPreview(selectedCameraId);
+                    }
+                }
+            });
+
+            startButton.addEventListener('click', async () => {
                 try {
-                    const videoConstraints = isMobile ? {
-                        width: { ideal: 640, max: 1280 },
-                        height: { ideal: 480, max: 720 },
-                        frameRate: { ideal: 24, max: 30 }
-                    } : {
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 },
-                        frameRate: { ideal: 30 }
+                    // Stop preview stream if active
+                    if (currentStream) {
+                        currentStream.getTracks().forEach(track => track.stop());
+                        currentStream = null;
+                    }
+                    
+                    // Build video constraints
+                    const videoConstraints = {
+                        width: isMobile ? { ideal: 640, max: 1280 } : { ideal: 1280 },
+                        height: isMobile ? { ideal: 480, max: 720 } : { ideal: 720 },
+                        frameRate: isMobile ? { ideal: 24, max: 30 } : { ideal: 30 }
                     };
+                    
+                    // Use selected camera if available
+                    if (selectedCameraId) {
+                        videoConstraints.deviceId = { exact: selectedCameraId };
+                    }
+                    
+                    // On mobile without camera selection, prefer back camera
+                    if (isMobile && !selectedCameraId) {
+                        videoConstraints.facingMode = { ideal: 'environment' };
+                    }
+                    
+                    console.log('🎬 Starting recording with constraints:', videoConstraints);
                     
                     const stream = await navigator.mediaDevices.getUserMedia({ 
                         video: videoConstraints,
-                        audio: true 
+                        audio: true // Enable audio for recording
                     });
                     
                     currentStream = stream;
-            videoPreview.srcObject = stream;
+                    videoPreview.srcObject = stream;
 
                     let mimeType = 'video/webm;codecs=vp9,opus';
                     if (isIOS) {
@@ -1778,31 +2015,31 @@
                     
                     recordedChunks = [];
                     
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    recordedChunks.push(event.data);
-                }
-            };
+                    mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            recordedChunks.push(event.data);
+                        }
+                    };
 
-            mediaRecorder.onstop = () => {
-                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    mediaRecorder.onstop = () => {
+                        const blob = new Blob(recordedChunks, { type: 'video/webm' });
                         showVideoModal(blob);
                         if (currentStream) {
                             currentStream.getTracks().forEach(track => track.stop());
                             currentStream = null;
                         }
-            };
+                    };
 
-            mediaRecorder.start();
-            startTimer(parseInt(durationSlider.value));
-            startButton.disabled = true;
+                    mediaRecorder.start();
+                    startTimer(parseInt(durationSlider.value));
+                    startButton.disabled = true;
                     startButton.classList.add('hidden');
                     stopButton.classList.remove('hidden');
-            timerDisplay.classList.remove('hidden');
+                    timerDisplay.classList.remove('hidden');
                     
                 } catch (error) {
-                    console.error('Error starting recording:', error);
-                    showError('Could not access your webcam. Please ensure camera permissions are granted and your camera is not in use by another application.', 'Camera Access Error');
+                    console.error('❌ Error starting recording:', error);
+                    showError(`Could not access your camera: ${error.message}\n\nPlease ensure camera permissions are granted and your camera is not in use by another application.`, 'Camera Access Error');
                 }
             });
 
@@ -1816,6 +2053,19 @@
                 stopButton.disabled = true;
                 stopButton.textContent = 'Processing...';
             });
+            
+            // Auto-enumerate cameras on page load for mobile
+            if (isMobile) {
+                setTimeout(async () => {
+                    console.log('📱 Mobile detected - enumerating cameras...');
+                    const cameras = await enumerateCameras();
+                    if (cameras.length > 0) {
+                        populateCameraSelector(cameras);
+                        // Show camera selector automatically on mobile
+                        // cameraSelector.style.display = 'block'; // Optional: auto-show
+                    }
+                }, 1000);
+            }
         }
 
         // Timer function
