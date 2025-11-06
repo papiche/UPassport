@@ -835,7 +835,8 @@
             }
             
             console.log('[PROFILE] Opening profile viewer for:', AstroportDemo.userPubkey);
-            const profileUrl = `/nostr_profile_viewer.html?hex=${AstroportDemo.userPubkey}`;
+            const ipfsGateway = '{{ myIPFS }}';
+            const profileUrl = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${AstroportDemo.userPubkey}`;
             window.open(profileUrl, '_blank');
         }
         
@@ -1419,9 +1420,10 @@
                 
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'chat-message';
+                const ipfsGateway = '{{ myIPFS }}';
                 messageDiv.innerHTML = `
                     <div class="author">
-                        <a href="#" onclick="window.open('/nostr_profile_viewer.html?hex=${event.pubkey}', '_blank'); return false;">${authorShort}</a>
+                        <a href="#" onclick="window.open('${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${event.pubkey}', '_blank'); return false;">${authorShort}</a>
                     </div>
                     <div class="content">${escapeHtml(event.content)}</div>
                     <div class="time">${time}</div>
