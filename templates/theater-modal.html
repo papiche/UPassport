@@ -709,6 +709,88 @@
                 grid-template-columns: 1fr;
                 gap: 10px;
             }
+            
+            /* Vidéos similaires compactes sur mobile */
+            .theater-related-video-item {
+                min-height: auto;
+                padding: 8px;
+                gap: 10px;
+            }
+            
+            .theater-related-video-thumbnail {
+                width: 100px;
+                height: 56px;
+            }
+            
+            .theater-related-video-card-thumbnail {
+                padding-top: 56.25%;
+            }
+            
+            .theater-related-video-card-thumbnail img,
+            .theater-related-video-card-thumbnail .placeholder-thumbnail {
+                object-fit: cover;
+            }
+            
+            .theater-related-video-title {
+                font-size: 13px;
+                -webkit-line-clamp: 2;
+            }
+            
+            .theater-related-video-card-title {
+                font-size: 12px;
+                -webkit-line-clamp: 2;
+                min-height: auto;
+            }
+            
+            .theater-related-video-meta,
+            .theater-related-video-card-meta {
+                font-size: 11px;
+            }
+            
+            /* Limiter la hauteur de la section des vidéos similaires sur mobile */
+            .theater-related-videos-container {
+                max-height: 300px;
+                overflow-y: auto;
+                padding: 10px 12px;
+            }
+            
+            .theater-related-videos-container h6 {
+                font-size: 13px;
+                margin-bottom: 12px;
+                position: sticky;
+                top: 0;
+                background: #181818;
+                padding: 8px 0;
+                z-index: 1;
+            }
+        }
+        
+        /* Very small mobile: even more compact */
+        @media (max-width: 480px) {
+            .theater-related-video-thumbnail {
+                width: 80px;
+                height: 45px;
+            }
+            
+            .theater-related-video-title {
+                font-size: 12px;
+                -webkit-line-clamp: 1;
+            }
+            
+            .theater-related-video-card-title {
+                font-size: 11px;
+                -webkit-line-clamp: 1;
+            }
+            
+            .theater-related-videos-container {
+                max-height: 250px;
+                padding: 8px 10px;
+            }
+            
+            .theater-related-video-item {
+                padding: 6px;
+                gap: 8px;
+            }
         }
     </style>
 </head>
