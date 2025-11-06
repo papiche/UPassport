@@ -284,6 +284,11 @@ if [ -n "$ORIGINAL_EVENT_ID" ]; then
     echo "DEBUG:   - SKIP_IPFS_UPLOAD: $SKIP_IPFS_UPLOAD" >&2
 else
     echo "DEBUG: 📝 First upload of this file (no provenance found)" >&2
+    # Initialize upload chain with current user for first upload
+    if [ -n "$USER_PUBKEY_HEX" ]; then
+        UPLOAD_CHAIN="$USER_PUBKEY_HEX"
+        echo "DEBUG: 👤 Initialized upload chain with current user: ${USER_PUBKEY_HEX:0:16}..." >&2
+    fi
 fi
 
 ################################################################################
@@ -672,7 +677,7 @@ JSON_OUTPUT="{
   \"created\": \"$(date -u +"%Y%m%d%H%M%S%4N")\",
   \"cid\": \"$CID\",
   \"mimeType\": \"$FILE_TYPE\",
-  \"duration\": ${DURATION:-0},
+  \"duration\": $(echo "$DURATION" | awk '{print int($1)}'),
   \"fileSize\": ${FILE_SIZE:-0},
   \"fileName\": \"$FILE_NAME\",
   \"fileHash\": \"$FILE_HASH\",
@@ -680,7 +685,7 @@ JSON_OUTPUT="{
   \"thumbnail_ipfs\": \"$THUMBNAIL_CID\",
   \"gifanim_ipfs\": \"$GIFANIM_CID\",
   \"dimensions\": \"${VIDEO_DIMENSIONS:-${IMAGE_DIMENSIONS:-}}\",
-  \"upload_chain\": \"$UPLOAD_CHAIN\",
+  \"upload_chain\": \"${UPLOAD_CHAIN:-}\",
   \"unode\": \"$IPFSNODEID\",
   \"date\": \"$DATE\",
   \"description\": \"$DESCRIPTION\",
