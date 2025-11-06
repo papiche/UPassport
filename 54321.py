@@ -3690,9 +3690,6 @@ async def upload_file_to_ipfs(
                     json_content = await temp_file.read()
                 json_output = json.loads(json_content.strip())
                 
-                # Clean up temporary files
-                os.remove(temp_file_path)
-                
                 # Get fileName from json_output (from upload2ipfs.sh) or use original filename
                 response_fileName = json_output.get('fileName') or sanitized_filename
                 # Get info CID from json_output (info.json metadata file)
@@ -3729,6 +3726,7 @@ async def upload_file_to_ipfs(
                                     event_description = f"{description}"
                                 
                                 # Use unified script with --auto mode (reads upload2ipfs.sh JSON output)
+                                # IMPORTANT: temp_file_path must still exist for --auto mode
                                 publish_cmd = [
                                     "bash", publish_script,
                                     "--auto", temp_file_path,
@@ -3761,6 +3759,10 @@ async def upload_file_to_ipfs(
                         logging.info(f"🔗 Re-upload detected - NOSTR event already exists, skipping publication")
                     elif not user_pubkey_hex:
                         logging.info(f"👤 No user pubkey - skipping NOSTR publication")
+                
+                # Clean up temporary file AFTER NOSTR publication
+                if os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
                 
                 return UploadResponse(
                     success=True,
