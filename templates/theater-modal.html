@@ -1378,10 +1378,11 @@
                 
                 // Fetch comments from NOSTR (kind 1111 - NIP-22 comments)
                 // IMPORTANT: Keep subscription active for real-time comments!
+                // Note: We use limit for initial load, but subscription stays active for new events
                 const sub = nostrRelay.sub([{
                     kinds: [1111],
-                    '#E': [eventId],
-                    limit: MAX_COMMENTS
+                    '#E': [eventId]
+                    // No limit - we want ALL comments including real-time ones
                 }]);
                 
                 // Store subscription globally to close it when leaving theater mode
@@ -1400,11 +1401,22 @@
                 
                 sub.on('event', async (event) => {
                     try {
+                        console.log('📨 Comment event received:', {
+                            id: event.id.substring(0, 8),
+                            kind: event.kind,
+                            isAfterEOSE: initialLoadComplete,
+                            content: event.content.substring(0, 30)
+                        });
+                        
                         // Skip if this is the original event itself
-                        if (event.id === eventId) return;
+                        if (event.id === eventId) {
+                            console.log('⏭️ Skipping original video event');
+                            return;
+                        }
                         
                         // Skip duplicates (check if comment already exists)
                         if (comments.find(c => c.id === event.id)) {
+                            console.log('⏭️ Skipping duplicate comment:', event.id.substring(0, 8));
                             return;
                         }
                         
