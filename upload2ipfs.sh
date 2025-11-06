@@ -395,7 +395,7 @@ elif [[ "$FILE_TYPE" == "video/"* ]]; then
             DURATION_DESC="$DURATION"
          fi
         VIDEO_CODECS=$(ffprobe -v error -select_streams v -show_entries stream=codec_name -of csv=p=0 "$FILE_PATH" 2>/dev/null | sed -z 's/\n/, /g;s/, $//')
-        VIDEO_DIMENSIONS=$(ffprobe -v error -select_streams v -show_entries stream=width,height -of csv=s=x:p=0 "$FILE_PATH" 2>/dev/null)
+        VIDEO_DIMENSIONS=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$FILE_PATH" 2>/dev/null | head -n 1 | tr -d '\n\r')
         DESCRIPTION="Video, Duration: $DURATION_DESC seconds, Codecs: $VIDEO_CODECS"
         IDISK="video"
          if [[ -n "$VIDEO_DIMENSIONS" ]]; then
