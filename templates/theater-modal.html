@@ -1316,7 +1316,9 @@
                     return;
                 }
                 
-                const comments = [];
+                // Initialize global comments array for this video
+                window.theaterComments = [];
+                const comments = window.theaterComments;
                 const MAX_COMMENTS = 50; // Limit to avoid performance issues
                 
                 // Add original comment if available (from event 21/22 content)
@@ -1799,14 +1801,61 @@
                 if (typeof publishNote === 'function') {
                     const result = await publishNote(content, tags, 1111, { silent: false });
                     
-                    const success = result && (result.success === true || result.id);
+                    const publishedEvent = result?.event || result;
+                    const success = result && (result.success === true || result.id || publishedEvent?.id);
                     
                     if (success) {
                         input.value = '';
                         toggleReplyForm(parentCommentId);
                         
-                        // Comment will appear automatically via real-time subscription
-                        console.log('✅ Reply published, waiting for subscription update...');
+                        // Manually add reply to local list (don't wait for subscription)
+                        if (publishedEvent && publishedEvent.id && typeof userPubkey !== 'undefined') {
+                            // Get current user name
+                            let userName = userPubkey.substring(0, 8) + '...';
+                            if (typeof currentUserProfile !== 'undefined' && currentUserProfile) {
+                                userName = currentUserProfile.display_name || currentUserProfile.name || userName;
+                            }
+                            
+                            // Create reply object
+                            const newReply = {
+                                id: publishedEvent.id,
+                                authorId: userPubkey,
+                                authorName: userName,
+                                content: content,
+                                timestamp: null,
+                                isOriginal: false,
+                                created_at: publishedEvent.created_at || Math.floor(Date.now() / 1000),
+                                rawEvent: publishedEvent
+                            };
+                            
+                            // Add to global comments array
+                            if (typeof window.theaterComments !== 'undefined') {
+                                if (!window.theaterComments.find(c => c.id === newReply.id)) {
+                                    window.theaterComments.push(newReply);
+                                    
+                                    // Refresh display
+                                    const commentsList = document.getElementById('theaterCommentsList');
+                                    const commentStats = document.getElementById('theaterCommentStats');
+                                    if (typeof displayComments === 'function') {
+                                        displayComments(window.theaterComments, commentStats);
+                                        console.log('✅ Reply added locally to UI');
+                                        
+                                        // Scroll to new reply
+                                        setTimeout(() => {
+                                            if (commentsList) {
+                                                const replyElement = commentsList.querySelector(`[data-comment-id="${newReply.id}"]`);
+                                                if (replyElement) {
+                                                    replyElement.classList.add('live-comment');
+                                                    replyElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                                }
+                                            }
+                                        }, 100);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        console.log('✅ Reply published successfully');
                     } else {
                         alert('❌ Erreur lors de la publication de la réponse');
                     }
@@ -1915,10 +1964,62 @@
                     const result = await publishNote(content, tags, 1111, { silent: false });
                     
                     // Check result (nouvelle API retourne un objet, ancienne API retourne l'event)
-                    const success = result && (result.success === true || result.id);
+                    const publishedEvent = result?.event || result;
+                    const success = result && (result.success === true || result.id || publishedEvent?.id);
                     
                     if (success) {
                         input.value = '';
+                        
+                        // Manually add comment to local list (don't wait for subscription)
+                        // This is necessary because some relays don't echo back your own events
+                        if (publishedEvent && publishedEvent.id && typeof userPubkey !== 'undefined') {
+                            // Get current user name
+                            let userName = userPubkey.substring(0, 8) + '...';
+                            if (typeof currentUserProfile !== 'undefined' && currentUserProfile) {
+                                userName = currentUserProfile.display_name || currentUserProfile.name || userName;
+                            }
+                            
+                            // Create comment object matching the structure
+                            const newComment = {
+                                id: publishedEvent.id,
+                                authorId: userPubkey,
+                                authorName: userName,
+                                content: content,
+                                timestamp: timestamp > 0 ? timestamp : null,
+                                isOriginal: false,
+                                created_at: publishedEvent.created_at || Math.floor(Date.now() / 1000),
+                                rawEvent: publishedEvent
+                            };
+                            
+                            // Add to global comments array if it exists
+                            if (typeof window.theaterComments !== 'undefined') {
+                                // Check for duplicate
+                                if (!window.theaterComments.find(c => c.id === newComment.id)) {
+                                    window.theaterComments.push(newComment);
+                                    
+                                    // Refresh display
+                                    const commentsList = document.getElementById('theaterCommentsList');
+                                    const commentStats = document.getElementById('theaterCommentStats');
+                                    if (typeof displayComments === 'function') {
+                                        displayComments(window.theaterComments, commentStats);
+                                        console.log('✅ Comment added locally to UI');
+                                        
+                                        // Scroll to new comment
+                                        setTimeout(() => {
+                                            if (commentsList) {
+                                                const commentElements = commentsList.querySelectorAll('.theater-comment-item:not(.original-comment)');
+                                                const lastComment = commentElements[commentElements.length - 1];
+                                                if (lastComment) {
+                                                    lastComment.classList.add('live-comment');
+                                                    lastComment.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                                }
+                                            }
+                                        }, 100);
+                                    }
+                                }
+                            }
+                        }
+                        
                         // Show success message (non-blocking)
                         const submitBtn = document.getElementById('submitTheaterCommentBtn');
                         const originalText = submitBtn?.textContent || 'Publier';
@@ -1930,8 +2031,6 @@
                                 submitBtn.disabled = false;
                             }, 2000);
                         }
-                        // Comment will appear automatically via real-time subscription
-                        console.log('✅ Comment published, waiting for subscription update...');
                     } else {
                         alert('❌ Erreur lors de la publication du commentaire');
                     }
