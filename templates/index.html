@@ -649,16 +649,7 @@
             <p class="lead">Upload files to IPFS and publish metadata on NOSTR. View recent uploads from the community.</p>
             
             <div class="test-area">
-                <h5><i class="bi bi-grid-3x2"></i> Recent Uploads</h5>
-                <div id="recentUploads" class="row g-2 mb-3">
-                    <div class="col-12 text-center text-muted">
-                        <i class="bi bi-arrow-clockwise"></i> Loading recent files and videos...
-                    </div>
-                </div>
-                <button class="btn btn-sm btn-outline-secondary mb-3" onclick="loadRecentUploads()">
-                    <i class="bi bi-arrow-clockwise"></i> Refresh
-                </button>
-                
+
                 <h5><i class="bi bi-file-earmark-arrow-up"></i> Upload File Test</h5>
                 
                 <div class="file-type-grid">
@@ -702,6 +693,16 @@
                         <a href="#" id="infoLink" target="_blank" class="text-break"></a>
                     </div>
                 </div>
+
+                <h5><i class="bi bi-grid-3x2"></i> Recent Uploads</h5>
+                <div id="recentUploads" class="row g-2 mb-3">
+                    <div class="col-12 text-center text-muted">
+                        <i class="bi bi-arrow-clockwise"></i> Loading recent files and videos...
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary mb-3" onclick="loadRecentUploads()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
             </div>
             
             <div class="code-example mt-3">
@@ -806,10 +807,24 @@
                 </div>
             </div>
             
-            <p class="lead">Add real-time chat to any page. Messages are stored on NOSTR relays.</p>
+            <p class="lead">Add real-time chat to any page. Messages are stored on NOSTR relays using NIP-28 (Public Chat Channels).</p>
             
             <div class="test-area">
-                <h5><i class="bi bi-chat-square-text"></i> Live Chat Test</h5>
+                <h5><i class="bi bi-chat-square-text"></i> UMAP Chat Room</h5>
+                
+                <div class="mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-secondary">
+                            <i class="bi bi-geo-alt"></i> UMAP: <span id="currentUMAP">0.00, 0.00</span>
+                        </span>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="showUMAPSelector()">
+                            <i class="bi bi-pencil"></i> Change
+                        </button>
+                        <small class="text-muted ms-auto">
+                            <span id="channelUsersCount">...</span> users
+                        </small>
+                    </div>
+                </div>
                 
                 <div class="chat-messages" id="chatMessages">
                     <div class="text-center text-muted">
@@ -824,7 +839,10 @@
                     </button>
                 </div>
                 
-                <small class="text-muted">Messages are published to NOSTR with tag #AstroportDemo</small>
+                <small class="text-muted">
+                    Geographic chat room using NIP-28 (kind 42 - Public Channel)
+                    <br>Channel ID: <code id="channelId">UMAP_0.00_0.00</code>
+                </small>
             </div>
             
             <div class="code-example mt-3">
@@ -1986,32 +2004,59 @@
                         if (typeof connectNostr === 'function') {
                             await connectNostr(true); // true = force NIP-42 auth
                             
-                            // Wait for event to be processed
+                            // Wait longer for relay to process authentication
                             resultEl.textContent += '⏳ Waiting for relay to process authentication...\n';
-                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            await new Promise(resolve => setTimeout(resolve, 3000)); // Increased from 2s to 3s
                             
-                            // Verify again
+                            // Verify again with multiple retries
                             resultEl.textContent += '🔍 Verifying authentication...\n';
-                            const recheckAuth = await fetch('/api/test-nostr', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/x-www-form-urlencoded',
-                                },
-                                body: new URLSearchParams({
-                                    'npub': AstroportDemo.userPubkey || AstroportDemo.userNpub
-                                })
-                            });
                             
-                            if (recheckAuth.ok) {
-                                const recheckResult = await recheckAuth.json();
-                                if (recheckResult.auth_verified) {
-                                    resultEl.textContent += '✅ Authentication successful!\n\n';
-                                    updateConnectionBadge(true, true); // Update badge
-                                } else {
-                                    throw new Error('Authentication still not verified after retry');
+                            let authVerified = false;
+                            let lastError = null;
+                            
+                            // Try 3 times with 1s delay between each attempt
+                            for (let attempt = 1; attempt <= 3; attempt++) {
+                                try {
+                                    const recheckAuth = await fetch('/api/test-nostr', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/x-www-form-urlencoded',
+                                        },
+                                        body: new URLSearchParams({
+                                            'npub': AstroportDemo.userPubkey || AstroportDemo.userNpub
+                                        })
+                                    });
+                                    
+                                    if (recheckAuth.ok) {
+                                        const recheckResult = await recheckAuth.json();
+                                        if (recheckResult.auth_verified) {
+                                            authVerified = true;
+                                            resultEl.textContent += `✅ Authentication successful! (attempt ${attempt}/3)\n\n`;
+                                            updateConnectionBadge(true, true); // Update badge
+                                            break;
+                                        } else {
+                                            lastError = 'Authentication not yet verified on relay';
+                                            if (attempt < 3) {
+                                                resultEl.textContent += `   Attempt ${attempt}/3 - waiting...\n`;
+                                                await new Promise(resolve => setTimeout(resolve, 1000));
+                                            }
+                                        }
+                                    } else {
+                                        lastError = `HTTP ${recheckAuth.status}`;
+                                        if (attempt < 3) {
+                                            await new Promise(resolve => setTimeout(resolve, 1000));
+                                        }
+                                    }
+                                } catch (e) {
+                                    lastError = e.message;
+                                    if (attempt < 3) {
+                                        await new Promise(resolve => setTimeout(resolve, 1000));
+                                    }
                                 }
-                            } else {
-                                throw new Error('Authentication recheck failed');
+                            }
+                            
+                            if (!authVerified) {
+                                throw new Error(`Authentication verification failed after 3 attempts: ${lastError}`);
                             }
                         } else {
                             throw new Error('connectNostr function not available');
@@ -2080,16 +2125,161 @@
                 document.getElementById('ipfsLink').textContent = ipfsUrl;
                 document.getElementById('infoLink').href = infoUrl;
                 document.getElementById('infoLink').textContent = infoUrl;
-                document.getElementById('nostrEventId').textContent = result.event_id || 'Published (check relay)';
+                document.getElementById('nostrEventId').textContent = result.event_id || 'Not yet published';
                 
                 linksEl.style.display = 'block';
                 
-                // Reload uploads after a delay
-                setTimeout(() => loadRecentUploads(), 2000);
+                // If video, prompt for title/description and publish to NOSTR via /webcam
+                if (result.file_type === 'video' || file.type.startsWith('video/')) {
+                    console.log('[UPLOAD] Video detected, prompting for metadata...');
+                    resultEl.textContent += '\n📹 Video detected! Publishing to NOSTR...\n';
+                    
+                    // Show modal or prompt for title and description
+                    await publishVideoToNostr(result, file);
+                } else {
+                    // Non-video files are already published from backend
+                    resultEl.textContent += '\n✅ File published to NOSTR!\n';
+                    // Reload uploads after a delay
+                    setTimeout(() => loadRecentUploads(), 2000);
+                }
                 
             } catch (error) {
                 resultEl.textContent = `❌ Upload failed\n\n${error.message}`;
                 console.error('Upload error:', error);
+            }
+        }
+        
+        // Publish video to NOSTR via /webcam endpoint
+        async function publishVideoToNostr(uploadResult, originalFile) {
+            const resultEl = document.getElementById('uploadResult');
+            
+            try {
+                // Prompt user for title and description
+                const defaultTitle = uploadResult.fileName || originalFile.name;
+                const title = prompt('📝 Video Title:', defaultTitle) || defaultTitle;
+                const description = prompt('📝 Video Description (optional):') || '';
+                
+                if (!title) {
+                    resultEl.textContent += '⚠️ Video published to IPFS but NOT to NOSTR (no title provided)\n';
+                    setTimeout(() => loadRecentUploads(), 2000);
+                    return;
+                }
+                
+                resultEl.textContent += `\n📤 Publishing to NOSTR with title: "${title}"\n`;
+                
+                // Prepare form data for /webcam endpoint
+                const formData = new FormData();
+                formData.append('player', AstroportDemo.userNpub || AstroportDemo.userPubkey);
+                formData.append('ipfs_cid', uploadResult.new_cid || uploadResult.cid);
+                formData.append('title', title);
+                formData.append('description', description);
+                formData.append('npub', AstroportDemo.userNpub || AstroportDemo.userPubkey);
+                formData.append('publish_nostr', 'true');
+                
+                // Add optional metadata if available
+                if (uploadResult.thumbnail_ipfs) {
+                    formData.append('thumbnail_ipfs', uploadResult.thumbnail_ipfs);
+                }
+                if (uploadResult.gifanim_ipfs) {
+                    formData.append('gifanim_ipfs', uploadResult.gifanim_ipfs);
+                }
+                if (uploadResult.info) {
+                    formData.append('info_cid', uploadResult.info);
+                }
+                
+                // Get file hash and metadata from info.json (REQUIRED per UPlanet_FILE_CONTRACT.md)
+                let fileHash = '';
+                let uploadChain = '';
+                let duration = '';
+                let videoDimensions = '';
+                let mimeType = '';
+                
+                if (uploadResult.info) {
+                    try {
+                        const gateway = '{{ myIPFS }}';
+                        const infoResponse = await fetch(`${gateway}/ipfs/${uploadResult.info}`);
+                        if (infoResponse.ok) {
+                            const infoData = await infoResponse.json();
+                            
+                            // REQUIRED: file_hash
+                            if (infoData.file && infoData.file.hash) {
+                                fileHash = infoData.file.hash;
+                                formData.append('file_hash', fileHash);
+                            }
+                            
+                            // OPTIONAL: provenance and metadata
+                            if (infoData.provenance && infoData.provenance.upload_chain) {
+                                uploadChain = infoData.provenance.upload_chain;
+                                formData.append('upload_chain', uploadChain);
+                            }
+                            if (infoData.media && infoData.media.duration) {
+                                duration = infoData.media.duration;
+                                formData.append('duration', duration);
+                            }
+                            if (infoData.media && infoData.media.dimensions) {
+                                videoDimensions = infoData.media.dimensions;
+                                formData.append('video_dimensions', videoDimensions);
+                            }
+                            if (infoData.file && infoData.file.type) {
+                                mimeType = infoData.file.type;
+                                formData.append('mime_type', mimeType);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[VIDEO] Could not load info.json:', e);
+                    }
+                }
+                
+                // Validate REQUIRED parameters per UPlanet_FILE_CONTRACT.md
+                if (!uploadResult.info) {
+                    throw new Error('Missing required parameter: info_cid');
+                }
+                if (!fileHash) {
+                    throw new Error('Missing required parameter: file_hash (could not read from info.json)');
+                }
+                if (!title) {
+                    throw new Error('Missing required parameter: title');
+                }
+                
+                resultEl.textContent += `✅ All required parameters validated\n`;
+                
+                // Call /webcam endpoint
+                const webcamResponse = await fetch('/webcam', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!webcamResponse.ok) {
+                    throw new Error(`Failed to publish to NOSTR: ${webcamResponse.statusText}`);
+                }
+                
+                // Parse HTML response or check for success
+                const responseText = await webcamResponse.text();
+                
+                if (responseText.includes('success') || responseText.includes('Event ID')) {
+                    resultEl.textContent += '✅ Video published to NOSTR successfully!\n';
+                    
+                    // Try to extract event ID from response
+                    const eventIdMatch = responseText.match(/Event ID:\s*([a-f0-9]{64})/i);
+                    if (eventIdMatch) {
+                        const eventId = eventIdMatch[1];
+                        resultEl.textContent += `📝 Event ID: ${eventId.substring(0, 16)}...\n`;
+                        document.getElementById('nostrEventId').textContent = eventId;
+                    }
+                    
+                    // Reload uploads to show the new video event
+                    setTimeout(() => loadRecentUploads(), 2000);
+                } else {
+                    throw new Error('Unexpected response from /webcam endpoint');
+                }
+                
+            } catch (error) {
+                console.error('[VIDEO] Failed to publish to NOSTR:', error);
+                resultEl.textContent += `\n⚠️ Video uploaded to IPFS but NOSTR publication failed: ${error.message}\n`;
+                resultEl.textContent += '💡 You can manually publish it later.\n';
+                
+                // Still reload uploads to show the IPFS upload
+                setTimeout(() => loadRecentUploads(), 2000);
             }
         }
         
@@ -2164,11 +2354,148 @@
             }
         }
         
+        // UMAP Chat Configuration
+        const UMAPChat = {
+            currentUMAP: { lat: 0.00, lon: 0.00 },
+            channelId: '',  // Will be the DID npub from kind 30800
+            umapDID: null,  // Full DID document
+            subscription: null
+        };
+        
+        // Initialize UMAP chat
+        async function initUMAPChat() {
+            console.log('[CHAT] Initializing UMAP chat system...');
+            
+            // Try to get UMAP from user's DID/profile
+            if (AstroportDemo.userPubkey) {
+                console.log('[CHAT] TODO: Extract UMAP from user profile');
+            }
+            
+            // Use default UMAP for now (0.00, 0.00)
+            UMAPChat.currentUMAP = { lat: 0.00, lon: 0.00 };
+            
+            // Fetch the UMAP DID for this geographic cell
+            await fetchUMAPDIDForChat(UMAPChat.currentUMAP.lat, UMAPChat.currentUMAP.lon);
+            
+            // Update UI
+            updateUMAPChatUI();
+        }
+        
+        // Fetch UMAP DID (kind 30800) for a specific geographic coordinate
+        async function fetchUMAPDIDForChat(lat, lon) {
+            console.log(`[CHAT] Fetching UMAP DID for coordinates: ${lat.toFixed(2)}, ${lon.toFixed(2)}`);
+            
+            // Ensure relay connection
+            let currentRelay = window.nostrRelay;
+            if (!currentRelay) {
+                console.log('[CHAT] Connecting to relay...');
+                await connectToRelay();
+                currentRelay = window.nostrRelay;
+            }
+            
+            if (!currentRelay) {
+                console.warn('[CHAT] ⚠️ No relay available');
+                // Fallback to generic channel ID
+                UMAPChat.channelId = `UMAP_${lat.toFixed(2)}_${lon.toFixed(2)}`;
+                return;
+            }
+            
+            try {
+                // Search for UMAP DID (kind 30800) with matching geographic coordinates
+                const umapKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+                
+                const dids = await new Promise((resolve) => {
+                    const filter = {
+                        kinds: [30800],
+                        '#d': ['did'],
+                        '#g': [umapKey],  // Filter by geographic tag
+                        limit: 1
+                    };
+                    
+                    const results = [];
+                    const sub = currentRelay.sub([filter]);
+                    const timeout = setTimeout(() => {
+                        sub.unsub();
+                        resolve(results);
+                    }, 5000);
+                    
+                    sub.on('event', (event) => {
+                        try {
+                            const content = JSON.parse(event.content || '{}');
+                            if (content.type === 'UMAPGeographicCell') {
+                                results.push(event);
+                            }
+                        } catch (e) {
+                            console.warn('[CHAT] Failed to parse DID document:', e);
+                        }
+                    });
+                    
+                    sub.on('eose', () => {
+                        clearTimeout(timeout);
+                        sub.unsub();
+                        resolve(results);
+                    });
+                });
+                
+                if (dids.length > 0) {
+                    const umapDID = dids[0];
+                    UMAPChat.umapDID = umapDID;
+                    
+                    // Channel ID is the UMAP's npub
+                    if (typeof window.NostrTools !== 'undefined') {
+                        UMAPChat.channelId = window.NostrTools.nip19.npubEncode(umapDID.pubkey);
+                    } else {
+                        UMAPChat.channelId = umapDID.pubkey;
+                    }
+                    
+                    console.log(`[CHAT] ✅ Found UMAP DID: ${UMAPChat.channelId}`);
+                } else {
+                    console.log(`[CHAT] ⚠️ No UMAP DID found for ${umapKey}, using fallback`);
+                    // Fallback to generic channel ID if no DID exists yet
+                    UMAPChat.channelId = `UMAP_${lat.toFixed(2)}_${lon.toFixed(2)}`;
+                }
+            } catch (error) {
+                console.error('[CHAT] Error fetching UMAP DID:', error);
+                // Fallback to generic channel ID
+                UMAPChat.channelId = `UMAP_${lat.toFixed(2)}_${lon.toFixed(2)}`;
+            }
+        }
+        
+        // Update UMAP chat UI
+        function updateUMAPChatUI() {
+            const currentUMAPEl = document.getElementById('currentUMAP');
+            const channelIdEl = document.getElementById('channelId');
+            
+            if (currentUMAPEl) {
+                currentUMAPEl.textContent = `${UMAPChat.currentUMAP.lat.toFixed(2)}, ${UMAPChat.currentUMAP.lon.toFixed(2)}`;
+            }
+            
+            if (channelIdEl) {
+                if (UMAPChat.umapDID) {
+                    // Show DID-based channel ID
+                    channelIdEl.textContent = UMAPChat.channelId;
+                    channelIdEl.title = `UMAP DID pubkey: ${UMAPChat.umapDID.pubkey}`;
+                } else {
+                    // Show fallback generic ID
+                    channelIdEl.textContent = UMAPChat.channelId + ' (no DID yet)';
+                    channelIdEl.title = 'No UMAP DID found for this geographic cell';
+                }
+            }
+            
+            console.log('[CHAT] Initialized UMAP chat:', UMAPChat);
+        }
+        
         async function loadChatMessages() {
             const messagesEl = document.getElementById('chatMessages');
             
+            // Initialize UMAP if not done yet
+            if (!UMAPChat.channelId) {
+                await initUMAPChat();
+            }
+            
             try {
-                console.log('[CHAT] Loading chat messages...');
+                console.log('[CHAT] Loading UMAP chat messages...');
+                console.log('[CHAT] Channel ID:', UMAPChat.channelId);
                 console.log('[CHAT] nostrRelay available:', typeof window.nostrRelay !== 'undefined');
                 console.log('[CHAT] isNostrConnected:', window.isNostrConnected);
                 
@@ -2181,29 +2508,43 @@
                     }
                 }
                 
-                // Subscribe to messages with hashtag #AstroportDemo
+                // Unsubscribe from previous subscription
+                if (UMAPChat.subscription) {
+                    console.log('[CHAT] Closing previous subscription');
+                    UMAPChat.subscription.unsub();
+                }
+                
+                // Subscribe to NIP-28 channel messages (kind 42)
                 if (typeof window.nostrRelay !== 'undefined' && window.nostrRelay) {
-                    console.log('[CHAT] Subscribing to #AstroportDemo messages...');
+                    console.log('[CHAT] Subscribing to NIP-28 channel messages (kind 42)...');
+                    console.log('[CHAT] Channel filter:', UMAPChat.channelId);
+                    
+                    // NIP-28: Filter messages by channel ID reference in "e" tag
+                    // Messages reference the UMAP DID's event ID or pubkey
                     const sub = window.nostrRelay.sub([{
-                        kinds: [1],
-                        "#t": ["AstroportDemo"],
-                        limit: 20
+                        kinds: [42],  // NIP-28: Public channel message
+                        "#e": [UMAPChat.channelId],  // Reference to channel (UMAP DID npub or event ID)
+                        limit: 50
                     }]);
                     
                     sub.on('event', event => {
-                        console.log('[CHAT] 📨 New message received:', event);
+                        console.log('[CHAT] 📨 New channel message received:', event);
                         displayChatMessage(event);
                     });
                     
                     sub.on('eose', () => {
                         console.log('[CHAT] ✅ End of stored events');
                         if (messagesEl.innerHTML.includes('Loading messages')) {
-                            messagesEl.innerHTML = '<div class="text-center text-muted">No messages yet. Be the first to send one!</div>';
+                            messagesEl.innerHTML = `<div class="text-center text-muted">
+                                <i class="bi bi-chat"></i> No messages yet in this UMAP.
+                                <br>Be the first to send one!
+                            </div>`;
                         }
                     });
                     
+                    UMAPChat.subscription = sub;
                     AstroportDemo.chatSubscription = sub;
-                    console.log('[CHAT] Subscription created:', sub);
+                    console.log('[CHAT] Subscription created for channel:', UMAPChat.channelId);
                 } else {
                     console.warn('[CHAT] ⚠️ Relay not available');
                     messagesEl.innerHTML = '<div class="text-center text-muted">Connect to NOSTR to view messages</div>';
@@ -2253,13 +2594,49 @@
                 return;
             }
             
+            // Ensure UMAP is initialized
+            if (!UMAPChat.channelId) {
+                initUMAPChat();
+            }
+            
             try {
-                console.log('[CHAT] Sending message:', content);
-                // Publish message with hashtag
+                console.log('[CHAT] Sending message to channel:', UMAPChat.channelId);
+                console.log('[CHAT] Message content:', content);
+                
+                // Publish NIP-28 channel message (kind 42)
                 if (typeof publishNote === 'function') {
-                    await publishNote(content, [['t', 'AstroportDemo']]);
-                    console.log('[CHAT] ✅ Message sent successfully');
-                    input.value = '';
+                    // NIP-28 requires:
+                    // - kind: 42
+                    // - tags: [["e", <channel_id>, <relay_url>, "root"]]
+                    const tags = [
+                        ["e", UMAPChat.channelId, "", "root"],  // Channel reference
+                        ["g", `${UMAPChat.currentUMAP.lat.toFixed(2)},${UMAPChat.currentUMAP.lon.toFixed(2)}`]  // Geolocation
+                    ];
+                    
+                    // Use publishNote from common.js (will need to support kind parameter)
+                    // For now, we'll use nostr.signEvent directly
+                    if (typeof window.nostr !== 'undefined') {
+                        const event = {
+                            kind: 42,  // NIP-28: Channel message
+                            created_at: Math.floor(Date.now() / 1000),
+                            tags: tags,
+                            content: content
+                        };
+                        
+                        const signedEvent = await window.nostr.signEvent(event);
+                        console.log('[CHAT] Event signed:', signedEvent);
+                        
+                        // Publish to relay
+                        if (window.nostrRelay) {
+                            await window.nostrRelay.publish(signedEvent);
+                            console.log('[CHAT] ✅ Message sent successfully to UMAP channel');
+                            input.value = '';
+                        } else {
+                            throw new Error('Relay not connected');
+                        }
+                    } else {
+                        throw new Error('NOSTR extension not available');
+                    }
                 } else {
                     console.error('[CHAT] ❌ publishNote function not available');
                     alert('Chat function not loaded yet');
@@ -2268,6 +2645,63 @@
                 console.error('[CHAT] ❌ Error sending message:', error);
                 alert('Error sending message: ' + error.message);
             }
+        }
+        
+        // Show UMAP selector dialog
+        async function showUMAPSelector() {
+            const currentLat = UMAPChat.currentUMAP.lat.toFixed(2);
+            const currentLon = UMAPChat.currentUMAP.lon.toFixed(2);
+            
+            const message = `Current UMAP: ${currentLat}, ${currentLon}\n\n` +
+                          `Enter new coordinates (format: lat, lon)\n` +
+                          `Example: 48.86, 2.35 (Paris)\n` +
+                          `Default: 0.00, 0.00 (Global)\n\n` +
+                          `Or leave empty to use default`;
+            
+            const input = prompt(message, `${currentLat}, ${currentLon}`);
+            
+            if (input === null) return; // User cancelled
+            
+            let newLat = 0.00;
+            let newLon = 0.00;
+            
+            if (input.trim() !== '') {
+                const parts = input.split(',').map(p => p.trim());
+                if (parts.length === 2) {
+                    newLat = parseFloat(parts[0]);
+                    newLon = parseFloat(parts[1]);
+                    
+                    // Validate coordinates
+                    if (isNaN(newLat) || isNaN(newLon) || 
+                        newLat < -90 || newLat > 90 || 
+                        newLon < -180 || newLon > 180) {
+                        alert('Invalid coordinates! Please use format: lat, lon\nLat: -90 to 90, Lon: -180 to 180');
+                        return;
+                    }
+                    
+                    // Round to 2 decimals (UMAP precision)
+                    newLat = Math.round(newLat * 100) / 100;
+                    newLon = Math.round(newLon * 100) / 100;
+                }
+            }
+            
+            // Update UMAP
+            UMAPChat.currentUMAP = { lat: newLat, lon: newLon };
+            
+            console.log('[CHAT] Switching to new UMAP:', UMAPChat.currentUMAP);
+            
+            // Show loading message
+            const messagesEl = document.getElementById('chatMessages');
+            messagesEl.innerHTML = '<div class="text-center text-muted"><i class="bi bi-arrow-clockwise"></i> Searching for UMAP DID and loading messages...</div>';
+            
+            // Fetch UMAP DID for new coordinates
+            await fetchUMAPDIDForChat(newLat, newLon);
+            
+            // Update UI
+            updateUMAPChatUI();
+            
+            // Reload messages for new channel
+            await loadChatMessages();
         }
         
         // Load recent file uploads (NIP-94 and NIP-71)
