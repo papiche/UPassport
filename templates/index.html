@@ -732,6 +732,53 @@
 }
 &lt;/script&gt;
             </div>
+            
+            <h4 class="mt-4"><i class="bi bi-shield-check"></i> Secure File Upload (NIP-42 Authentication)</h4>
+            <p>Ensure proper authentication before uploading to prevent 403 errors:</p>
+            
+            <div class="code-example">
+<span class="comment">// Method 1: Automatic authentication check (recommended)</span>
+<span class="keyword">async function</span> uploadFile(file) {
+    <span class="comment">// uploadPhotoToIPFS now automatically checks authentication</span>
+    <span class="keyword">const</span> result = <span class="keyword">await</span> uploadPhotoToIPFS(file);
+    console.log(<span class="string">'Uploaded to IPFS:'</span>, result.ipfs_url);
+}
+
+<span class="comment">// Method 2: Manual authentication check</span>
+<span class="keyword">async function</span> uploadWithManualCheck(file) {
+    <span class="comment">// Verify authentication before upload</span>
+    <span class="keyword">const</span> isAuth = <span class="keyword">await</span> ensureAuthentication({
+        forceCheck: <span class="keyword">true</span>,  <span class="comment">// Force API verification</span>
+        showUI: <span class="keyword">true</span>        <span class="comment">// Show user notifications</span>
+    });
+    
+    <span class="keyword">if</span> (!isAuth) {
+        console.error(<span class="string">'Authentication failed'</span>);
+        <span class="keyword">return</span>;
+    }
+    
+    <span class="keyword">const</span> result = <span class="keyword">await</span> uploadPhotoToIPFS(file);
+    console.log(<span class="string">'Upload successful!'</span>, result);
+}
+
+<span class="comment">// Method 3: Check authentication status via API</span>
+<span class="keyword">async function</span> checkAuth() {
+    <span class="keyword">const</span> status = <span class="keyword">await</span> verifyAuthenticationWithAPI(userPubkey);
+    console.log(<span class="string">'Auth status:'</span>, status);
+    <span class="comment">// Returns: { auth_verified: true/false, message: "...", ... }</span>
+}
+            </div>
+            
+            <div class="alert alert-info mt-3">
+                <h6><i class="bi bi-info-circle"></i> Authentication Best Practices</h6>
+                <ul class="mb-0">
+                    <li><strong>NIP-42 Events:</strong> Authentication requires kind 22242 events on the relay</li>
+                    <li><strong>24-Hour Validity:</strong> Auth events are valid for 24 hours</li>
+                    <li><strong>Automatic Verification:</strong> <code>uploadPhotoToIPFS()</code> now checks auth automatically</li>
+                    <li><strong>Manual Checks:</strong> Use <code>ensureAuthentication()</code> for custom workflows</li>
+                    <li><strong>Test API:</strong> Use <code>/api/test-nostr?npub=YOUR_KEY</code> to verify auth status</li>
+                </ul>
+            </div>
         </div>
     </div>
 
@@ -961,19 +1008,50 @@
                 resultEl.textContent += `Size: ${(file.size / 1024 / 1024).toFixed(2)} MB\n`;
                 resultEl.textContent += `Type: ${file.type}\n\n`;
                 
+                // Verify authentication before upload
+                resultEl.textContent += '🔐 Verifying authentication...\n';
+                const authCheck = await fetch('/api/test-nostr', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'npub': AstroportDemo.userPubkey || AstroportDemo.userNpub
+                    })
+                });
+                
+                if (!authCheck.ok) {
+                    throw new Error('Authentication verification failed');
+                }
+                
+                const authResult = await authCheck.json();
+                console.log('[AUTH] Authentication check result:', authResult);
+                
+                if (!authResult.auth_verified) {
+                    resultEl.textContent += '❌ Authentication failed!\n\n';
+                    resultEl.textContent += 'Your NOSTR extension needs to send an authentication event (NIP-42).\n';
+                    resultEl.textContent += 'Please reconnect with MULTIPASS and try again.\n\n';
+                    resultEl.textContent += `Details: ${authResult.message || 'No recent NIP-42 auth events found'}`;
+                    return;
+                }
+                
+                resultEl.textContent += '✅ Authentication verified!\n\n';
+                
                 // Create form data
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('npub', AstroportDemo.userNpub || AstroportDemo.userPubkey);
                 
                 // Upload to API
+                resultEl.textContent += '📤 Uploading to IPFS...\n';
                 const response = await fetch('/api/fileupload', {
                     method: 'POST',
                     body: formData
                 });
                 
                 if (!response.ok) {
-                    throw new Error(`Upload failed: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`Upload failed: ${response.statusText} - ${errorText}`);
                 }
                 
                 const result = await response.json();
@@ -1003,6 +1081,9 @@
                 document.getElementById('nostrEventId').textContent = result.event_id || 'Published (check relay)';
                 
                 linksEl.style.display = 'block';
+                
+                // Reload uploads after a delay
+                setTimeout(() => loadRecentUploads(), 2000);
                 
             } catch (error) {
                 resultEl.textContent = `❌ Upload failed\n\n${error.message}`;
@@ -1280,11 +1361,15 @@
                 let fileName = 'Unknown';
                 let fileType = '';
                 let typeLabel = '';
+                let gifanimUrl = '';
+                let thumbnailUrl = '';
                 
                 if (event.tags) {
                     const urlTag = event.tags.find(t => t[0] === 'url');
                     const nameTag = event.tags.find(t => t[0] === 'name' || t[0] === 'title');
                     const typeTag = event.tags.find(t => t[0] === 'm' || t[0] === 'type');
+                    const gifanimTag = event.tags.find(t => t[0] === 'gifanim' || t[0] === 'gif');
+                    const thumbnailTag = event.tags.find(t => t[0] === 'thumbnail' || t[0] === 'thumb');
                     
                     if (urlTag && urlTag[1]) {
                         fileUrl = urlTag[1];
@@ -1295,42 +1380,79 @@
                     }
                     if (nameTag && nameTag[1]) fileName = nameTag[1];
                     if (typeTag && typeTag[1]) fileType = typeTag[1];
+                    if (gifanimTag && gifanimTag[1]) {
+                        gifanimUrl = gifanimTag[1];
+                        if (gifanimUrl.startsWith('/ipfs/')) {
+                            gifanimUrl = ipfsGateway + gifanimUrl;
+                        }
+                    }
+                    if (thumbnailTag && thumbnailTag[1]) {
+                        thumbnailUrl = thumbnailTag[1];
+                        if (thumbnailUrl.startsWith('/ipfs/')) {
+                            thumbnailUrl = ipfsGateway + thumbnailUrl;
+                        }
+                    }
                 }
                 
                 // Determine icon and type label based on kind and file type
                 let icon = 'bi-file-earmark';
                 let clickAction = '';
+                let previewHtml = '';
                 
                 if (event.kind === 21 || event.kind === 22) {
                     // Video events (NIP-71) → Open in theater mode
                     icon = event.kind === 21 ? 'bi-camera-video-fill' : 'bi-film';
                     typeLabel = event.kind === 21 ? 'Short Video' : 'Long Video';
                     clickAction = `window.location.href='/theater?video=${event.id}'`;
+                    
+                    // Use gifanim if available, otherwise thumbnail, otherwise icon
+                    if (gifanimUrl) {
+                        previewHtml = `<img src="${gifanimUrl}" alt="Preview" style="width:100%;height:150px;object-fit:cover;border-radius:8px;">`;
+                    } else if (thumbnailUrl) {
+                        previewHtml = `<img src="${thumbnailUrl}" alt="Thumbnail" style="width:100%;height:150px;object-fit:cover;border-radius:8px;">`;
+                    } else {
+                        previewHtml = `<i class="bi ${icon}" style="font-size:3rem;color:var(--primary);"></i>`;
+                    }
                 } else if (event.kind === 1063) {
                     // NIP-94 with info.json metadata (SHA256 hash tracking)
                     if (fileType.startsWith('image/')) {
                         icon = 'bi-image';
                         typeLabel = 'Image';
+                        previewHtml = `<img src="${fileUrl}" alt="Image" style="width:100%;height:150px;object-fit:cover;border-radius:8px;">`;
                     } else if (fileType.startsWith('video/')) {
                         icon = 'bi-camera-video';
                         typeLabel = 'Video';
-                        // Also open videos in theater if they have event ID
                         clickAction = `window.location.href='/theater?video=${event.id}'`;
+                        if (gifanimUrl) {
+                            previewHtml = `<img src="${gifanimUrl}" alt="Preview" style="width:100%;height:150px;object-fit:cover;border-radius:8px;">`;
+                        } else if (thumbnailUrl) {
+                            previewHtml = `<img src="${thumbnailUrl}" alt="Thumbnail" style="width:100%;height:150px;object-fit:cover;border-radius:8px;">`;
+                        } else {
+                            previewHtml = `<i class="bi ${icon}" style="font-size:3rem;color:var(--primary);"></i>`;
+                        }
                     } else if (fileType.startsWith('audio/')) {
                         icon = 'bi-music-note-beamed';
                         typeLabel = 'Audio';
+                        previewHtml = `<i class="bi ${icon}" style="font-size:3rem;color:var(--primary);"></i>`;
                     } else if (fileType.startsWith('text/') || fileType === 'application/pdf') {
                         icon = 'bi-file-earmark-text';
                         typeLabel = 'Document';
+                        previewHtml = `<i class="bi ${icon}" style="font-size:3rem;color:var(--primary);"></i>`;
                     } else {
                         icon = 'bi-file-earmark';
                         typeLabel = 'File';
+                        previewHtml = `<i class="bi ${icon}" style="font-size:3rem;color:var(--primary);"></i>`;
                     }
                     
                     // Default action: open file in new tab
                     if (!clickAction) {
                         clickAction = `window.open('${fileUrl}', '_blank')`;
                     }
+                }
+                
+                // Default preview if not set
+                if (!previewHtml) {
+                    previewHtml = `<i class="bi ${icon}" style="font-size:3rem;color:var(--primary);"></i>`;
                 }
                 
                 const authorShort = event.pubkey ? event.pubkey.substring(0, 8) + '...' : 'Unknown';
@@ -1340,7 +1462,7 @@
                     <div class="col-md-4 col-sm-6">
                         <div class="card p-2" style="cursor:pointer;" onclick="${clickAction}">
                             <div class="text-center mb-2">
-                                <i class="bi ${icon}" style="font-size:3rem;color:var(--primary);"></i>
+                                ${previewHtml}
                             </div>
                             <h6 class="text-truncate" title="${fileName}">${fileName}</h6>
                             <small class="text-muted d-block">
@@ -1460,6 +1582,10 @@
         window.loadRecentUploads = loadRecentUploads;
         window.loadPageInteractions = loadPageInteractions;
         window.showCode = showCode;
+        
+        // Expose new common.js functions globally for easy testing
+        window.verifyAuthenticationWithAPI = typeof verifyAuthenticationWithAPI !== 'undefined' ? verifyAuthenticationWithAPI : null;
+        window.ensureAuthentication = typeof ensureAuthentication !== 'undefined' ? ensureAuthentication : null;
     </script>
 </body>
 </html>

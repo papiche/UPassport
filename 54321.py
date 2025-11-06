@@ -4951,7 +4951,7 @@ def create_invitation_message(
 
 @app.post("/api/test-nostr")
 async def test_nostr_auth(npub: str = Form(...)):
-    """Tester l'authentification NOSTR pour une npub donnée"""
+    """Test NOSTR authentication for a given npub"""
     try:
         logging.info(f"Test d'authentification NOSTR pour: {npub}")
         
@@ -5043,6 +5043,11 @@ async def test_nostr_auth(npub: str = Form(...)):
     except Exception as e:
         logging.error(f"Erreur lors du test NOSTR: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors du test: {str(e)}")
+
+@app.get("/api/test-nostr")
+async def test_nostr_auth_get(npub: str):
+    """Test NOSTR authentication for a given npub (GET version for browser testing)"""
+    return await test_nostr_auth(npub)
 
 async def get_umap_geolinks(lat: float, lon: float) -> Dict[str, Any]:
     """
