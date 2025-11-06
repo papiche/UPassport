@@ -628,15 +628,21 @@
 
     <!-- Bootstrap JS -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    <!-- NostrTools Bundle (required for common.js) -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
     <!-- Common.js for NOSTR functions -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     
     <script>
-        // Global state
-        let userPubkey = null;
-        let userNpub = null;
-        let relayConnected = false;
-        let chatSubscription = null;
+        // App namespace to avoid conflicts with common.js
+        window.AstroportDemo = {
+            userPubkey: null,
+            userNpub: null,
+            relayConnected: false,
+            chatSubscription: null,
+            likeCount: 0,
+            selectedFileType: null
+        };
         
         // Check NOSTR connection on load
         window.addEventListener('load', async () => {
@@ -656,7 +662,7 @@
                     await connectToRelay();
                     statusEl.classList.add('connected');
                     textEl.textContent = 'NOSTR relay connected';
-                    relayConnected = true;
+                    AstroportDemo.relayConnected = true;
                 } else {
                     statusEl.classList.add('disconnected');
                     textEl.textContent = 'NOSTR functions loading...';
@@ -676,24 +682,24 @@
                 resultEl.textContent = '🔄 Connecting to NOSTR...\n';
                 
                 // Connect using common.js
-                userPubkey = await connectNostr();
+                AstroportDemo.userPubkey = await connectNostr();
                 
-                if (!userPubkey) {
+                if (!AstroportDemo.userPubkey) {
                     throw new Error('No public key returned');
                 }
                 
                 resultEl.textContent += '✅ Connected successfully!\n\n';
-                resultEl.textContent += `Public Key (hex):\n${userPubkey}\n\n`;
+                resultEl.textContent += `Public Key (hex):\n${AstroportDemo.userPubkey}\n\n`;
                 
                 // Convert to npub if possible
                 if (typeof window.NostrTools !== 'undefined') {
-                    userNpub = window.NostrTools.nip19.npubEncode(userPubkey);
-                    resultEl.textContent += `Public Key (npub):\n${userNpub}\n`;
+                    AstroportDemo.userNpub = window.NostrTools.nip19.npubEncode(AstroportDemo.userPubkey);
+                    resultEl.textContent += `Public Key (npub):\n${AstroportDemo.userNpub}\n`;
                 }
                 
                 // Show user info
-                document.getElementById('userNpub').textContent = userNpub || 'N/A';
-                document.getElementById('userHex').textContent = userPubkey;
+                document.getElementById('userNpub').textContent = AstroportDemo.userNpub || 'N/A';
+                document.getElementById('userHex').textContent = AstroportDemo.userPubkey;
                 userInfoEl.style.display = 'block';
                 
             } catch (error) {
@@ -704,10 +710,8 @@
             }
         }
         
-        let selectedFileType = null;
-        
         function selectFileType(type) {
-            selectedFileType = type;
+            AstroportDemo.selectedFileType = type;
             
             // Update UI
             document.querySelectorAll('.file-type-btn').forEach(btn => {
@@ -729,7 +733,7 @@
                 return;
             }
             
-            if (!userPubkey && !userNpub) {
+            if (!AstroportDemo.userPubkey && !AstroportDemo.userNpub) {
                 resultEl.textContent = '❌ Please connect with MULTIPASS first';
                 return;
             }
@@ -742,7 +746,7 @@
                 // Create form data
                 const formData = new FormData();
                 formData.append('file', file);
-                formData.append('npub', userNpub || userPubkey);
+                formData.append('npub', AstroportDemo.userNpub || AstroportDemo.userPubkey);
                 
                 // Upload to API
                 const response = await fetch('/api/fileupload', {
@@ -788,19 +792,17 @@
             }
         }
         
-        let likeCount = 0;
-        
         async function testLike() {
             const resultEl = document.getElementById('socialResult');
             
-            if (!userPubkey) {
+            if (!AstroportDemo.userPubkey) {
                 resultEl.textContent = '❌ Please connect with MULTIPASS first';
                 return;
             }
             
             try {
-                likeCount++;
-                document.getElementById('likeCount').textContent = likeCount;
+                AstroportDemo.likeCount++;
+                document.getElementById('likeCount').textContent = AstroportDemo.likeCount;
                 
                 resultEl.textContent = '🔄 Sending like reaction...\n\n';
                 
@@ -814,7 +816,7 @@
                 resultEl.textContent += `  "content": "+",\n`;
                 resultEl.textContent += `  "tags": [\n`;
                 resultEl.textContent += `    ["e", "${demoEventId}"],\n`;
-                resultEl.textContent += `    ["p", "${userPubkey.substring(0, 16)}..."]\n`;
+                resultEl.textContent += `    ["p", "${AstroportDemo.userPubkey.substring(0, 16)}..."]\n`;
                 resultEl.textContent += `  ]\n`;
                 resultEl.textContent += `}`;
                 
@@ -826,7 +828,7 @@
         async function testComment() {
             const resultEl = document.getElementById('socialResult');
             
-            if (!userPubkey) {
+            if (!AstroportDemo.userPubkey) {
                 resultEl.textContent = '❌ Please connect with MULTIPASS first';
                 return;
             }
@@ -857,7 +859,7 @@
         async function testShare() {
             const resultEl = document.getElementById('socialResult');
             
-            if (!userPubkey) {
+            if (!AstroportDemo.userPubkey) {
                 resultEl.textContent = '❌ Please connect with MULTIPASS first';
                 return;
             }
@@ -897,7 +899,7 @@
                         displayChatMessage(event);
                     });
                     
-                    chatSubscription = sub;
+                    AstroportDemo.chatSubscription = sub;
                 } else {
                     messagesEl.innerHTML = '<div class="text-center text-muted">Connect to NOSTR to view messages</div>';
                 }
@@ -940,7 +942,7 @@
             
             if (!content) return;
             
-            if (!userPubkey) {
+            if (!AstroportDemo.userPubkey) {
                 alert('Please connect with MULTIPASS first');
                 return;
             }
