@@ -3867,11 +3867,14 @@
                 openNewBtn.style.display = 'flex';
             }
             
-            // Show modal
-            iframeModal.style.display = 'flex';
-            document.body.style.overflow = 'hidden';
+            // Show modal using Bootstrap Modal API
+            const bsModal = bootstrap.Modal.getInstance(iframeModal) || new bootstrap.Modal(iframeModal, {
+                backdrop: 'static',
+                keyboard: true
+            });
+            bsModal.show();
             
-            console.log('✅ Theater modal opened');
+            console.log('✅ Theater modal opened with Bootstrap API');
         }
         
         // Expose openVideoInTheater globally for onclick handlers (must be after function definition)
