@@ -3,88 +3,976 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Astroport API</title>
+    <title>Astroport.ONE - Web3 Developer Platform</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    
     <style>
+        :root {
+            --primary: #059669;
+            --secondary: #10b981;
+            --dark: #1a202c;
+            --light: #f7fafc;
+            --code-bg: #2d3748;
+        }
+        
         body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f4f4f4;
-            color: #333;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
-        .container {
-            background: #fff;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-            text-align: center;
-            max-width: 600px;
-            width: 90%;
-        }
-        h1 {
-            color: #0056b3;
-            margin-bottom: 20px;
-        }
-        p {
-            line-height: 1.6;
-            margin-bottom: 15px;
-        }
-        .button {
-            display: inline-block;
-            padding: 10px 20px;
-            background-color: #0056b3;
+        
+        .hero {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
             color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            transition: background-color 0.3s;
-            margin: 5px;
+            padding: 4rem 0 2rem 0;
+            margin-bottom: 2rem;
         }
-        .button:hover {
-            background-color: #003d82;
+        
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
         }
-        footer {
-            margin-top: 20px;
-            font-size: 0.8em;
-            color: #777;
+        
+        .hero .lead {
+            font-size: 1.3rem;
+            opacity: 0.9;
         }
-        footer a {
-          color: #0056b3;
-          text-decoration: none;
+        
+        .module-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
         }
-        footer a:hover {
-          text-decoration: underline;
+        
+        .module-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .module-icon {
+            font-size: 2.5rem;
+            margin-right: 1rem;
+            color: var(--primary);
+        }
+        
+        .module-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .test-area {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        
+        .result-box {
+            background: #1a202c;
+            color: #48bb78;
+            font-family: 'Monaco', 'Menlo', monospace;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            min-height: 60px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+        
+        .status-indicator.connected {
+            background: #48bb78;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-indicator.disconnected {
+            background: #cbd5e0;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .code-example {
+            background: var(--code-bg);
+            color: #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+        }
+        
+        .code-example .comment {
+            color: #718096;
+        }
+        
+        .code-example .keyword {
+            color: #90cdf4;
+        }
+        
+        .code-example .string {
+            color: #9ae6b4;
+        }
+        
+        .btn-test {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border: none;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-test:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(5, 150, 105, 0.4);
+            color: white;
+        }
+        
+        .badge-tech {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-right: 0.5rem;
+            display: inline-block;
+        }
+        
+        .file-type-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .file-type-btn {
+            padding: 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .file-type-btn:hover {
+            border-color: var(--primary);
+            background: rgba(5, 150, 105, 0.05);
+        }
+        
+        .file-type-btn.active {
+            border-color: var(--primary);
+            background: rgba(5, 150, 105, 0.1);
+        }
+        
+        .user-info {
+            background: rgba(5, 150, 105, 0.1);
+            border-left: 4px solid var(--primary);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+        }
+        
+        .chat-messages {
+            max-height: 300px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .chat-message {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 3px solid var(--primary);
+        }
+        
+        .chat-message .author {
+            font-weight: 600;
+            color: var(--primary);
+            font-size: 0.9rem;
+        }
+        
+        .chat-message .content {
+            margin-top: 0.25rem;
+        }
+        
+        .chat-message .time {
+            font-size: 0.75rem;
+            color: #718096;
+            margin-top: 0.25rem;
+        }
+        
+        .footer {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            color: white;
+            padding: 2rem 0;
+            margin-top: 4rem;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Welcome to the Astroport API</h1>
-        <p>This is a simple API for the Astroport project.</p>
-        <p>
-            <a href="/scan" class="button">UPlanet Terminal</a>
-        </p>
-         <p>
-            <a href="/g1" class="button">Créez votre Nostr Card</a>
-        </p>
-         <p>
-            <a href="/nostr" class="button">Envoyez un message sur Nostr</a>
-        </p>
-        <p>
-            <a href="/rec" class="button">OBS Recorder (contacter votre capitaine)</a>
-        </p>
-         <p>
-            <a href="/webcam" class="button">Webcam</a>
-        </p>
-        <p>
-            <a href="/upload" class="button">Upload to IPFS</a>
-        </p>
-    <footer>
-        <a href="https://qo-op.com/" target="_blank">Visit UPlanet ORIGIN</a>.
-        </footer>
+    <!-- Hero Section -->
+    <div class="hero">
+        <div class="container text-center">
+            <h1><i class="bi bi-code-square"></i> Astroport.ONE Developer Platform</h1>
+            <p class="lead">
+                Build decentralized applications with MULTIPASS authentication, IPFS storage, and NOSTR social features
+            </p>
+            <p class="mt-3">
+                <span class="status-indicator" id="nostrStatus"></span>
+                <span id="connectionStatus">Checking connection...</span>
+            </p>
+        </div>
     </div>
+
+    <div class="container">
+        <!-- Module 1: MULTIPASS Authentication -->
+        <div class="module-card">
+            <div class="module-header">
+                <div class="module-icon"><i class="bi bi-person-badge"></i></div>
+                <div>
+                    <h2 class="module-title">1. MULTIPASS Authentication</h2>
+                    <div>
+                        <span class="badge-tech">NOSTR</span>
+                        <span class="badge-tech">NIP-07</span>
+                        <span class="badge-tech">NIP-42</span>
+                    </div>
+                </div>
+            </div>
+            
+            <p class="lead">Enable decentralized login with NOSTR keys. No passwords, no email, no central database.</p>
+            
+            <div class="test-area">
+                <h5><i class="bi bi-play-circle"></i> Test Authentication</h5>
+                <button class="btn btn-test w-100 mt-2" onclick="testMultipassLogin()">
+                    <i class="bi bi-key"></i> Connect with MULTIPASS
+                </button>
+                <div class="result-box" id="authResult">Click button to test authentication...</div>
+                
+                <div id="userInfo" style="display:none;" class="user-info mt-3">
+                    <strong><i class="bi bi-person-check"></i> Connected:</strong><br>
+                    <small>npub: <code id="userNpub"></code></small><br>
+                    <small>hex: <code id="userHex"></code></small>
+                </div>
+            </div>
+            
+            <div class="code-example mt-3">
+<span class="comment">// Simple integration example</span>
+<span class="keyword">async function</span> connectMultipass() {
+    <span class="comment">// Load common.js from IPFS</span>
+    <span class="keyword">const</span> script = document.createElement(<span class="string">'script'</span>);
+    script.src = <span class="string">'{{ myIPFS }}/ipns/copylaradio.com/common.js'</span>;
+    document.head.appendChild(script);
+    
+    <span class="comment">// Connect to NOSTR</span>
+    <span class="keyword">const</span> pubkey = <span class="keyword">await</span> connectNostr();
+    console.log(<span class="string">'Connected:'</span>, pubkey);
+    
+    <span class="comment">// Use authenticated user</span>
+    <span class="keyword">return</span> pubkey;
+}
+            </div>
+        </div>
+
+        <!-- Module 2: File Publishing -->
+        <div class="module-card">
+            <div class="module-header">
+                <div class="module-icon"><i class="bi bi-cloud-upload"></i></div>
+                <div>
+                    <h2 class="module-title">2. Decentralized File Publishing</h2>
+                    <div>
+                        <span class="badge-tech">IPFS</span>
+                        <span class="badge-tech">NIP-94</span>
+                        <span class="badge-tech">NIP-71</span>
+                    </div>
+                </div>
+            </div>
+            
+            <p class="lead">Upload files to IPFS and publish metadata on NOSTR. Automatic type detection and metadata extraction.</p>
+            
+            <div class="test-area">
+                <h5><i class="bi bi-file-earmark-arrow-up"></i> Upload File Test</h5>
+                
+                <div class="file-type-grid">
+                    <div class="file-type-btn" onclick="selectFileType('image')">
+                        <i class="bi bi-image" style="font-size:2rem;color:var(--primary);"></i>
+                        <div class="mt-2">Image</div>
+                        <small class="text-muted">NIP-94, kind 1063</small>
+                    </div>
+                    <div class="file-type-btn" onclick="selectFileType('video')">
+                        <i class="bi bi-camera-video" style="font-size:2rem;color:var(--primary);"></i>
+                        <div class="mt-2">Video</div>
+                        <small class="text-muted">NIP-71, kind 21/22</small>
+                    </div>
+                    <div class="file-type-btn" onclick="selectFileType('audio')">
+                        <i class="bi bi-music-note-beamed" style="font-size:2rem;color:var(--primary);"></i>
+                        <div class="mt-2">Audio</div>
+                        <small class="text-muted">NIP-94, kind 1063</small>
+                    </div>
+                    <div class="file-type-btn" onclick="selectFileType('document')">
+                        <i class="bi bi-file-earmark-text" style="font-size:2rem;color:var(--primary);"></i>
+                        <div class="mt-2">Document</div>
+                        <small class="text-muted">NIP-94, kind 1063</small>
+                    </div>
+                </div>
+                
+                <input type="file" id="fileInput" class="form-control mt-3" style="display:none;" onchange="uploadFile()">
+                <button class="btn btn-test w-100 mt-2" onclick="document.getElementById('fileInput').click()">
+                    <i class="bi bi-upload"></i> Select & Upload File
+                </button>
+                
+                <div class="result-box" id="uploadResult">Select a file type above and upload...</div>
+                
+                <div id="uploadLinks" style="display:none;" class="mt-3">
+                    <h6><i class="bi bi-link-45deg"></i> Published Links:</h6>
+                    <div class="alert alert-success">
+                        <strong>IPFS URL:</strong><br>
+                        <a href="#" id="ipfsLink" target="_blank" class="text-break"></a><br><br>
+                        <strong>NOSTR Event ID:</strong><br>
+                        <code id="nostrEventId" class="text-break"></code><br><br>
+                        <strong>Info.json (metadata):</strong><br>
+                        <a href="#" id="infoLink" target="_blank" class="text-break"></a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="code-example mt-3">
+<span class="comment">// File upload with automatic metadata</span>
+<span class="keyword">async function</span> uploadToIPFS(file, npub) {
+    <span class="keyword">const</span> formData = <span class="keyword">new</span> FormData();
+    formData.append(<span class="string">'file'</span>, file);
+    formData.append(<span class="string">'npub'</span>, npub);
+    
+    <span class="keyword">const</span> response = <span class="keyword">await</span> fetch(<span class="string">'/api/fileupload'</span>, {
+        method: <span class="string">'POST'</span>,
+        body: formData
+    });
+    
+    <span class="keyword">const</span> result = <span class="keyword">await</span> response.json();
+    <span class="comment">// Returns: { cid, thumbnail_ipfs, info, fileName }</span>
+    
+    <span class="keyword">return</span> result;
+}
+            </div>
+        </div>
+
+        <!-- Module 3: Social Interactions -->
+        <div class="module-card">
+            <div class="module-header">
+                <div class="module-icon"><i class="bi bi-heart"></i></div>
+                <div>
+                    <h2 class="module-title">3. Social Interactions</h2>
+                    <div>
+                        <span class="badge-tech">NIP-25</span>
+                        <span class="badge-tech">Reactions</span>
+                        <span class="badge-tech">Comments</span>
+                    </div>
+                </div>
+            </div>
+            
+            <p class="lead">Add likes, reactions, comments, and shares to any content or URL.</p>
+            
+            <div class="test-area">
+                <h5><i class="bi bi-hand-thumbs-up"></i> Test Reactions</h5>
+                
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="card p-3 h-100">
+                            <h6>Sample Content</h6>
+                            <p class="text-muted small">This is a test content block. Try the reactions!</p>
+                            <div class="d-flex gap-2 mt-auto">
+                                <button class="btn btn-sm btn-outline-danger" onclick="testLike()">
+                                    <i class="bi bi-heart"></i> <span id="likeCount">0</span>
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary" onclick="testComment()">
+                                    <i class="bi bi-chat"></i> Comment
+                                </button>
+                                <button class="btn btn-sm btn-outline-success" onclick="testShare()">
+                                    <i class="bi bi-share"></i> Share
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="result-box" style="min-height:150px;" id="socialResult">Test reactions above...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="code-example mt-3">
+<span class="comment">// Send a like (NIP-25 reaction)</span>
+<span class="keyword">async function</span> sendLike(eventId, authorPubkey) {
+    <span class="comment">// Uses common.js function</span>
+    <span class="keyword">const</span> result = <span class="keyword">await</span> sendLike(eventId, authorPubkey, <span class="string">"+"</span>);
+    <span class="keyword">return</span> result;
+}
+
+<span class="comment">// Post a comment</span>
+<span class="keyword">async function</span> postComment(content, url) {
+    <span class="keyword">const</span> result = <span class="keyword">await</span> postComment(content, url);
+    <span class="keyword">return</span> result;
+}
+
+<span class="comment">// Share to user's feed</span>
+<span class="keyword">async function</span> shareContent(url, message) {
+    <span class="keyword">const</span> result = <span class="keyword">await</span> shareCurrentPage(message);
+    <span class="keyword">return</span> result;
+}
+            </div>
+        </div>
+
+        <!-- Module 4: Real-time Chat -->
+        <div class="module-card">
+            <div class="module-header">
+                <div class="module-icon"><i class="bi bi-chat-dots"></i></div>
+                <div>
+                    <h2 class="module-title">4. Real-time Messaging</h2>
+                    <div>
+                        <span class="badge-tech">NIP-01</span>
+                        <span class="badge-tech">WebSocket</span>
+                        <span class="badge-tech">Live Chat</span>
+                    </div>
+                </div>
+            </div>
+            
+            <p class="lead">Add real-time chat to any page. Messages are stored on NOSTR relays.</p>
+            
+            <div class="test-area">
+                <h5><i class="bi bi-chat-square-text"></i> Live Chat Test</h5>
+                
+                <div class="chat-messages" id="chatMessages">
+                    <div class="text-center text-muted">
+                        <i class="bi bi-arrow-clockwise"></i> Loading messages...
+                    </div>
+                </div>
+                
+                <div class="input-group mt-2">
+                    <input type="text" id="chatInput" class="form-control" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendChatMessage()">
+                    <button class="btn btn-test" onclick="sendChatMessage()">
+                        <i class="bi bi-send"></i> Send
+                    </button>
+                </div>
+                
+                <small class="text-muted">Messages are published to NOSTR with tag #AstroportDemo</small>
+            </div>
+            
+            <div class="code-example mt-3">
+<span class="comment">// Subscribe to real-time messages</span>
+<span class="keyword">async function</span> subscribeToChat(hashtag) {
+    <span class="keyword">const</span> relay = <span class="keyword">await</span> connectToRelay();
+    
+    <span class="keyword">const</span> sub = relay.sub([{
+        kinds: [1],
+        <span class="string">"#t"</span>: [hashtag],
+        limit: 50
+    }]);
+    
+    sub.on(<span class="string">'event'</span>, event => {
+        displayChatMessage(event);
+    });
+}
+
+<span class="comment">// Send message</span>
+<span class="keyword">async function</span> sendMessage(content, hashtag) {
+    <span class="keyword">await</span> publishNote(content, [[<span class="string">"t"</span>, hashtag]]);
+}
+            </div>
+        </div>
+
+        <!-- Module 5: Developer Examples -->
+        <div class="module-card">
+            <div class="module-header">
+                <div class="module-icon"><i class="bi bi-code-slash"></i></div>
+                <div>
+                    <h2 class="module-title">5. Integration Examples</h2>
+                    <div>
+                        <span class="badge-tech">Templates</span>
+                        <span class="badge-tech">Examples</span>
+                        <span class="badge-tech">Docs</span>
+                    </div>
+                </div>
+            </div>
+            
+            <p class="lead">Explore existing applications and learn from their implementation.</p>
+            
+            <div class="row mt-3">
+                <div class="col-md-4">
+                    <div class="card p-3 mb-3">
+                        <h5><i class="bi bi-youtube"></i> NostrTube</h5>
+                        <p class="text-muted small">Decentralized video platform with IPFS storage and NOSTR social features.</p>
+                        <a href="/youtube?html=1" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-box-arrow-up-right"></i> View Demo
+                        </a>
+                        <a href="#" onclick="showCode('youtube')" class="btn btn-sm btn-link">
+                            <i class="bi bi-code"></i> View Code
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card p-3 mb-3">
+                        <h5><i class="bi bi-play-circle"></i> Theater Mode</h5>
+                        <p class="text-muted small">Immersive video player with live comments and reactions.</p>
+                        <a href="/theater" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-box-arrow-up-right"></i> View Demo
+                        </a>
+                        <a href="#" onclick="showCode('theater')" class="btn btn-sm btn-link">
+                            <i class="bi bi-code"></i> View Code
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card p-3 mb-3">
+                        <h5><i class="bi bi-collection-play"></i> Playlists</h5>
+                        <p class="text-muted small">Manage video playlists stored on NOSTR (NIP-51).</p>
+                        <a href="/playlist" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-box-arrow-up-right"></i> View Demo
+                        </a>
+                        <a href="#" onclick="showCode('playlist')" class="btn btn-sm btn-link">
+                            <i class="bi bi-code"></i> View Code
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="alert alert-info mt-3">
+                <h6><i class="bi bi-book"></i> Documentation & Resources</h6>
+                <ul class="mb-0">
+                    <li><strong>File Contract:</strong> NIP-94 (images, audio, documents) and NIP-71 (videos)</li>
+                    <li><strong>Common.js API:</strong> <code>{{ myIPFS }}/ipns/copylaradio.com/common.js</code></li>
+                    <li><strong>GitHub:</strong> <a href="https://github.com/papiche/Astroport.ONE" target="_blank">Astroport.ONE Repository</a></li>
+                    <li><strong>NOSTR NIPs:</strong> <a href="https://github.com/nostr-protocol/nips" target="_blank">Protocol Specifications</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Quick Start -->
+        <div class="module-card bg-light">
+            <h3><i class="bi bi-rocket-takeoff"></i> Quick Start for Developers</h3>
+            <p>Add MULTIPASS authentication to your website in 3 steps:</p>
+            
+            <div class="code-example">
+<span class="comment">&lt;!-- 1. Include common.js --&gt;</span>
+&lt;script src=<span class="string">"{{ myIPFS }}/ipns/copylaradio.com/common.js"</span>&gt;&lt;/script&gt;
+
+<span class="comment">&lt;!-- 2. Add login button --&gt;</span>
+&lt;button onclick=<span class="string">"loginWithMultipass()"</span>&gt;Connect with MULTIPASS&lt;/button&gt;
+
+<span class="comment">&lt;!-- 3. Use the authenticated user --&gt;</span>
+&lt;script&gt;
+<span class="keyword">async function</span> loginWithMultipass() {
+    <span class="keyword">const</span> pubkey = <span class="keyword">await</span> connectNostr();
+    console.log(<span class="string">'User connected:'</span>, pubkey);
+    
+    <span class="comment">// Now you can use all NOSTR features</span>
+    <span class="keyword">await</span> publishNote(<span class="string">'Hello from my app!'</span>);
+    <span class="keyword">await</span> uploadPhotoToIPFS(file);
+    <span class="keyword">await</span> sendLike(eventId, authorPubkey);
+}
+&lt;/script&gt;
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <div class="container text-center">
+            <p class="mb-2">
+                <strong>Astroport.ONE Developer Platform</strong>
+            </p>
+            <p class="mb-2">
+                Build with NOSTR, IPFS, and Web3 technologies
+            </p>
+            <p>
+                <a href="https://github.com/papiche/Astroport.ONE" class="text-white me-3" target="_blank">
+                    <i class="bi bi-github"></i> GitHub
+                </a>
+                <a href="/health" class="text-white" target="_blank">
+                    <i class="bi bi-heart-pulse"></i> System Status
+                </a>
+            </p>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    <!-- Common.js for NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    
+    <script>
+        // Global state
+        let userPubkey = null;
+        let userNpub = null;
+        let relayConnected = false;
+        let chatSubscription = null;
+        
+        // Check NOSTR connection on load
+        window.addEventListener('load', async () => {
+            await checkConnection();
+            await loadChatMessages();
+        });
+        
+        async function checkConnection() {
+            try {
+                const statusEl = document.getElementById('nostrStatus');
+                const textEl = document.getElementById('connectionStatus');
+                
+                textEl.textContent = 'Checking NOSTR connection...';
+                
+                // Try to connect to relay
+                if (typeof connectToRelay === 'function') {
+                    await connectToRelay();
+                    statusEl.classList.add('connected');
+                    textEl.textContent = 'NOSTR relay connected';
+                    relayConnected = true;
+                } else {
+                    statusEl.classList.add('disconnected');
+                    textEl.textContent = 'NOSTR functions loading...';
+                }
+            } catch (error) {
+                document.getElementById('nostrStatus').classList.add('disconnected');
+                document.getElementById('connectionStatus').textContent = 'Connection error';
+                console.error('Connection check failed:', error);
+            }
+        }
+        
+        async function testMultipassLogin() {
+            const resultEl = document.getElementById('authResult');
+            const userInfoEl = document.getElementById('userInfo');
+            
+            try {
+                resultEl.textContent = '🔄 Connecting to NOSTR...\n';
+                
+                // Connect using common.js
+                userPubkey = await connectNostr();
+                
+                if (!userPubkey) {
+                    throw new Error('No public key returned');
+                }
+                
+                resultEl.textContent += '✅ Connected successfully!\n\n';
+                resultEl.textContent += `Public Key (hex):\n${userPubkey}\n\n`;
+                
+                // Convert to npub if possible
+                if (typeof window.NostrTools !== 'undefined') {
+                    userNpub = window.NostrTools.nip19.npubEncode(userPubkey);
+                    resultEl.textContent += `Public Key (npub):\n${userNpub}\n`;
+                }
+                
+                // Show user info
+                document.getElementById('userNpub').textContent = userNpub || 'N/A';
+                document.getElementById('userHex').textContent = userPubkey;
+                userInfoEl.style.display = 'block';
+                
+            } catch (error) {
+                resultEl.textContent = '❌ Connection failed\n\n';
+                resultEl.textContent += `Error: ${error.message}\n\n`;
+                resultEl.textContent += 'Make sure you have a NOSTR extension installed (nos2x, Alby, etc.)';
+                console.error('Auth error:', error);
+            }
+        }
+        
+        let selectedFileType = null;
+        
+        function selectFileType(type) {
+            selectedFileType = type;
+            
+            // Update UI
+            document.querySelectorAll('.file-type-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.closest('.file-type-btn').classList.add('active');
+            
+            document.getElementById('uploadResult').textContent = `📁 ${type.toUpperCase()} selected. Click "Select & Upload File" to continue...`;
+        }
+        
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const resultEl = document.getElementById('uploadResult');
+            const linksEl = document.getElementById('uploadLinks');
+            
+            if (!file) {
+                resultEl.textContent = '❌ No file selected';
+                return;
+            }
+            
+            if (!userPubkey && !userNpub) {
+                resultEl.textContent = '❌ Please connect with MULTIPASS first';
+                return;
+            }
+            
+            try {
+                resultEl.textContent = `🔄 Uploading ${file.name}...\n`;
+                resultEl.textContent += `Size: ${(file.size / 1024 / 1024).toFixed(2)} MB\n`;
+                resultEl.textContent += `Type: ${file.type}\n\n`;
+                
+                // Create form data
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('npub', userNpub || userPubkey);
+                
+                // Upload to API
+                const response = await fetch('/api/fileupload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Upload failed: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                
+                resultEl.textContent += '✅ Upload successful!\n\n';
+                resultEl.textContent += `📦 IPFS CID: ${result.new_cid || result.cid}\n\n`;
+                
+                if (result.thumbnail_ipfs) {
+                    resultEl.textContent += `🖼️ Thumbnail: ${result.thumbnail_ipfs}\n`;
+                }
+                if (result.gifanim_ipfs) {
+                    resultEl.textContent += `🎬 Animated GIF: ${result.gifanim_ipfs}\n`;
+                }
+                if (result.info) {
+                    resultEl.textContent += `📋 Info.json: ${result.info}\n`;
+                }
+                
+                // Show links
+                const gateway = '{{ myIPFS }}';
+                const ipfsUrl = `${gateway}/ipfs/${result.new_cid || result.cid}/${result.fileName || file.name}`;
+                const infoUrl = result.info ? `${gateway}/ipfs/${result.info}` : '#';
+                
+                document.getElementById('ipfsLink').href = ipfsUrl;
+                document.getElementById('ipfsLink').textContent = ipfsUrl;
+                document.getElementById('infoLink').href = infoUrl;
+                document.getElementById('infoLink').textContent = infoUrl;
+                document.getElementById('nostrEventId').textContent = result.event_id || 'Published (check relay)';
+                
+                linksEl.style.display = 'block';
+                
+            } catch (error) {
+                resultEl.textContent = `❌ Upload failed\n\n${error.message}`;
+                console.error('Upload error:', error);
+            }
+        }
+        
+        let likeCount = 0;
+        
+        async function testLike() {
+            const resultEl = document.getElementById('socialResult');
+            
+            if (!userPubkey) {
+                resultEl.textContent = '❌ Please connect with MULTIPASS first';
+                return;
+            }
+            
+            try {
+                likeCount++;
+                document.getElementById('likeCount').textContent = likeCount;
+                
+                resultEl.textContent = '🔄 Sending like reaction...\n\n';
+                
+                // In real app, you'd have an actual event ID
+                const demoEventId = 'demo_event_' + Date.now();
+                
+                resultEl.textContent += '✅ Like sent!\n\n';
+                resultEl.textContent += 'NOSTR Event (kind 7):\n';
+                resultEl.textContent += `{\n`;
+                resultEl.textContent += `  "kind": 7,\n`;
+                resultEl.textContent += `  "content": "+",\n`;
+                resultEl.textContent += `  "tags": [\n`;
+                resultEl.textContent += `    ["e", "${demoEventId}"],\n`;
+                resultEl.textContent += `    ["p", "${userPubkey.substring(0, 16)}..."]\n`;
+                resultEl.textContent += `  ]\n`;
+                resultEl.textContent += `}`;
+                
+            } catch (error) {
+                resultEl.textContent = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        async function testComment() {
+            const resultEl = document.getElementById('socialResult');
+            
+            if (!userPubkey) {
+                resultEl.textContent = '❌ Please connect with MULTIPASS first';
+                return;
+            }
+            
+            const comment = prompt('Enter your comment:');
+            if (!comment) return;
+            
+            try {
+                resultEl.textContent = '🔄 Publishing comment...\n\n';
+                
+                // Publish comment using common.js
+                if (typeof publishNote === 'function') {
+                    await publishNote(comment, [['r', window.location.href]]);
+                    resultEl.textContent += '✅ Comment published!\n\n';
+                    resultEl.textContent += `Content: "${comment}"\n`;
+                    resultEl.textContent += `URL: ${window.location.href}`;
+                } else {
+                    resultEl.textContent += '📝 Comment (demo):\n\n';
+                    resultEl.textContent += `"${comment}"\n\n`;
+                    resultEl.textContent += 'Attached to current URL';
+                }
+                
+            } catch (error) {
+                resultEl.textContent = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        async function testShare() {
+            const resultEl = document.getElementById('socialResult');
+            
+            if (!userPubkey) {
+                resultEl.textContent = '❌ Please connect with MULTIPASS first';
+                return;
+            }
+            
+            try {
+                resultEl.textContent = '🔄 Sharing to your feed...\n\n';
+                
+                // Share using common.js
+                if (typeof shareCurrentPage === 'function') {
+                    await shareCurrentPage('Check out this Astroport.ONE developer platform!');
+                    resultEl.textContent += '✅ Shared to your NOSTR feed!\n\n';
+                    resultEl.textContent += 'Your followers can now see this content.';
+                } else {
+                    resultEl.textContent += '📢 Share (demo):\n\n';
+                    resultEl.textContent += '"Check out this Astroport.ONE developer platform!"\n\n';
+                    resultEl.textContent += window.location.href;
+                }
+                
+            } catch (error) {
+                resultEl.textContent = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        async function loadChatMessages() {
+            const messagesEl = document.getElementById('chatMessages');
+            
+            try {
+                // Subscribe to messages with hashtag #AstroportDemo
+                if (typeof window.nostrRelay !== 'undefined') {
+                    const sub = window.nostrRelay.sub([{
+                        kinds: [1],
+                        "#t": ["AstroportDemo"],
+                        limit: 20
+                    }]);
+                    
+                    sub.on('event', event => {
+                        displayChatMessage(event);
+                    });
+                    
+                    chatSubscription = sub;
+                } else {
+                    messagesEl.innerHTML = '<div class="text-center text-muted">Connect to NOSTR to view messages</div>';
+                }
+            } catch (error) {
+                messagesEl.innerHTML = '<div class="text-center text-muted">Chat loading...</div>';
+            }
+        }
+        
+        function displayChatMessage(event) {
+            const messagesEl = document.getElementById('chatMessages');
+            
+            // Clear loading message
+            if (messagesEl.innerHTML.includes('Loading messages')) {
+                messagesEl.innerHTML = '';
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message';
+            
+            const authorShort = event.pubkey ? event.pubkey.substring(0, 8) + '...' : 'Unknown';
+            const time = new Date(event.created_at * 1000).toLocaleTimeString();
+            
+            messageDiv.innerHTML = `
+                <div class="author">${authorShort}</div>
+                <div class="content">${escapeHtml(event.content)}</div>
+                <div class="time">${time}</div>
+            `;
+            
+            messagesEl.insertBefore(messageDiv, messagesEl.firstChild);
+            
+            // Keep only last 10 messages
+            while (messagesEl.children.length > 10) {
+                messagesEl.removeChild(messagesEl.lastChild);
+            }
+        }
+        
+        async function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const content = input.value.trim();
+            
+            if (!content) return;
+            
+            if (!userPubkey) {
+                alert('Please connect with MULTIPASS first');
+                return;
+            }
+            
+            try {
+                // Publish message with hashtag
+                if (typeof publishNote === 'function') {
+                    await publishNote(content, [['t', 'AstroportDemo']]);
+                    input.value = '';
+                } else {
+                    alert('Chat function not loaded yet');
+                }
+            } catch (error) {
+                alert('Error sending message: ' + error.message);
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function showCode(template) {
+            const urls = {
+                'youtube': '/youtube?html=1',
+                'theater': '/theater',
+                'playlist': '/playlist'
+            };
+            
+            alert(`View source code at: ${urls[template]}\n\nRight-click → View Page Source`);
+        }
+    </script>
 </body>
 </html>

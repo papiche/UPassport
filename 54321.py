@@ -3301,7 +3301,10 @@ async def rate_limit_status(request: Request):
 
 @app.get("/index", response_class=HTMLResponse)
 async def welcomeuplanet(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "myIPFS": get_myipfs_gateway()
+    })
 
 @app.post('/ping')
 async def get_webhook(request: Request):
