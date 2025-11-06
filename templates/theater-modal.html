@@ -2376,8 +2376,30 @@
             
             // Set video source
             if (videoPlayer && videoData.ipfsUrl) {
+                // Ensure IPFS_GATEWAY is defined
+                if (!window.IPFS_GATEWAY) {
+                    if (typeof detectIPFSGatewayGlobal === 'function') {
+                        detectIPFSGatewayGlobal();
+                    } else {
+                        // Fallback: detect from current URL
+                        const currentURL = new URL(window.location.href);
+                        const hostname = currentURL.hostname;
+                        if (hostname === '127.0.0.1' || hostname === 'localhost') {
+                            window.IPFS_GATEWAY = 'http://127.0.0.1:8080';
+                        } else if (hostname.startsWith('u.')) {
+                            const baseDomain = hostname.substring('u.'.length);
+                            window.IPFS_GATEWAY = `${currentURL.protocol}//ipfs.${baseDomain}`;
+                        } else {
+                            window.IPFS_GATEWAY = 'https://ipfs.copylaradio.com';
+                        }
+                    }
+                }
+                
                 // Convert IPFS URL if needed
                 let videoUrl = videoData.ipfsUrl;
+                
+                console.log('🎥 Original IPFS URL:', videoUrl);
+                console.log('🌐 IPFS Gateway:', window.IPFS_GATEWAY);
                 
                 // Decode URL first if it's already encoded (to avoid double-encoding)
                 // The browser will re-encode it automatically when making the request
@@ -2400,13 +2422,19 @@
                     videoUrl = decodedUrl;
                 }
                 
+                console.log('🎥 Final video URL:', videoUrl);
+                
                 // Clear existing sources first
                 videoPlayer.innerHTML = '';
                 
                 const source = document.createElement('source');
                 source.src = videoUrl;
-                source.type = 'video/mp4';
+                // Detect video type from URL
+                const videoType = videoUrl.toLowerCase().endsWith('.webm') ? 'video/webm' : 'video/mp4';
+                source.type = videoType;
                 videoPlayer.appendChild(source);
+                
+                console.log('🎥 Video source type:', videoType);
                 
                 // Store metadata before loading
                 if (videoData.eventId) {
