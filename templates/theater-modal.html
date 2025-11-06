@@ -639,6 +639,9 @@
         <div class="theater-header">
             <h5 class="mb-0 text-truncate flex-grow-1" id="theaterTitle" style="max-width: 60%;">Loading...</h5>
             <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-sm btn-outline-info" id="theaterFollowBtn" title="Follow" style="display: none;">
+                    <i class="bi bi-person-plus"></i> <span id="theaterFollowText">Follow</span>
+                </button>
                 <button class="btn btn-sm btn-outline-success" id="theaterLikeBtn" title="Liker">
                     <i class="bi bi-hand-thumbs-up"></i>
                 </button>
@@ -901,6 +904,11 @@
                     likeBtn.addEventListener('click', handleTheaterLike);
                 }
                 
+                const followBtn = document.getElementById('theaterFollowBtn');
+                if (followBtn && typeof handleTheaterFollow === 'function') {
+                    followBtn.addEventListener('click', handleTheaterFollow);
+                }
+                
                 const shareBtn = document.getElementById('theaterShareBtn');
                 if (shareBtn && typeof handleTheaterShare === 'function') {
                     shareBtn.addEventListener('click', handleTheaterShare);
@@ -1046,6 +1054,170 @@
         }
         
         /**
+         * Handle follow button click - Follow/Unfollow video author
+         */
+        async function handleTheaterFollow() {
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            if (!videoPlayer) {
+                alert('Vidéo non trouvée');
+                return;
+            }
+            
+            const authorId = videoPlayer.getAttribute('data-author-id');
+            
+            if (!authorId) {
+                alert('Auteur non trouvé');
+                return;
+            }
+            
+            // Check if user is connected
+            if (typeof userPubkey === 'undefined' || !userPubkey) {
+                if (typeof connectNostr === 'function') {
+                    try {
+                        const pubkey = await connectNostr();
+                        if (!pubkey) {
+                            alert('❌ Connexion requise pour suivre. Veuillez vous connecter avec NOSTR.');
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('Error connecting:', error);
+                        alert('❌ Erreur lors de la connexion. Veuillez vous connecter manuellement.');
+                        return;
+                    }
+                } else {
+                    alert('❌ Connexion requise pour suivre.');
+                    return;
+                }
+            }
+            
+            // Can't follow yourself
+            if (userPubkey === authorId) {
+                alert('❌ Vous ne pouvez pas vous suivre vous-même.');
+                return;
+            }
+            
+            // Ensure relay connection
+            if (typeof isNostrConnected !== 'undefined' && !isNostrConnected) {
+                if (typeof connectToRelay === 'function') {
+                    try {
+                        await connectToRelay();
+                    } catch (error) {
+                        console.error('Error connecting to relay:', error);
+                        alert('❌ Erreur lors de la connexion au relay.');
+                        return;
+                    }
+                }
+            }
+            
+            const followBtn = document.getElementById('theaterFollowBtn');
+            const followText = document.getElementById('theaterFollowText');
+            const originalHtml = followBtn ? followBtn.innerHTML : '';
+            
+            if (followBtn) {
+                followBtn.disabled = true;
+                followBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> ...';
+            }
+            
+            try {
+                // Check if already following
+                let isFollowing = false;
+                let currentFollowList = [];
+                
+                // Fetch current follow list (kind 3 - Contact List)
+                if (nostrRelay) {
+                    const followListPromise = new Promise((resolve) => {
+                        const sub = nostrRelay.sub([{
+                            kinds: [3],
+                            authors: [userPubkey],
+                            limit: 1
+                        }]);
+                        
+                        let followEvent = null;
+                        
+                        sub.on('event', (event) => {
+                            followEvent = event;
+                        });
+                        
+                        sub.on('eose', () => {
+                            sub.unsub();
+                            resolve(followEvent);
+                        });
+                        
+                        // Timeout after 3 seconds
+                        setTimeout(() => {
+                            sub.unsub();
+                            resolve(followEvent);
+                        }, 3000);
+                    });
+                    
+                    const followEvent = await followListPromise;
+                    
+                    if (followEvent && followEvent.tags) {
+                        // Extract current follows (p tags)
+                        currentFollowList = followEvent.tags
+                            .filter(tag => tag[0] === 'p' && tag[1])
+                            .map(tag => tag[1]);
+                        
+                        isFollowing = currentFollowList.includes(authorId);
+                    }
+                }
+                
+                // Toggle follow status
+                let newFollowList;
+                let action;
+                
+                if (isFollowing) {
+                    // Unfollow: remove from list
+                    newFollowList = currentFollowList.filter(pubkey => pubkey !== authorId);
+                    action = 'unfollow';
+                } else {
+                    // Follow: add to list
+                    newFollowList = [...currentFollowList, authorId];
+                    action = 'follow';
+                }
+                
+                // Create new contact list event (kind 3)
+                const tags = newFollowList.map(pubkey => ['p', pubkey]);
+                
+                // Publish using publishNote with kind 3
+                if (typeof publishNote === 'function') {
+                    const result = await publishNote('', tags, 3, { silent: false });
+                    
+                    if (result && (result.success === true || result.id)) {
+                        if (followBtn && followText) {
+                            if (action === 'follow') {
+                                followBtn.classList.remove('btn-outline-info');
+                                followBtn.classList.add('btn-info');
+                                followText.textContent = 'Following';
+                                followBtn.innerHTML = '<i class="bi bi-person-check-fill"></i> <span id="theaterFollowText">Following</span>';
+                            } else {
+                                followBtn.classList.remove('btn-info');
+                                followBtn.classList.add('btn-outline-info');
+                                followText.textContent = 'Follow';
+                                followBtn.innerHTML = '<i class="bi bi-person-plus"></i> <span id="theaterFollowText">Follow</span>';
+                            }
+                            
+                            setTimeout(() => {
+                                followBtn.disabled = false;
+                            }, 500);
+                        }
+                    } else {
+                        throw new Error('Failed to update follow list');
+                    }
+                } else {
+                    throw new Error('publishNote function not available');
+                }
+            } catch (error) {
+                console.error('Error following/unfollowing:', error);
+                alert('Erreur lors de la mise à jour: ' + error.message);
+                if (followBtn) {
+                    followBtn.innerHTML = originalHtml;
+                    followBtn.disabled = false;
+                }
+            }
+        }
+        
+        /**
          * Handle bookmark button click - wrapper to ensure function is available
          */
         async function handleTheaterBookmark() {
@@ -1105,6 +1277,7 @@
         // Expose handlers globally (handleCloseTheater already defined and exposed earlier)
         window.handleTheaterShare = handleTheaterShare;
         window.handleTheaterLike = handleTheaterLike;
+        window.handleTheaterFollow = handleTheaterFollow;
         window.handleTheaterBookmark = handleTheaterBookmark;
 
         /**
@@ -1248,6 +1421,9 @@
                 if (uploaderEl && uploaderEl !== uploaderContainer) {
                     uploaderEl.textContent = displayName;
                 }
+                
+                // Check follow status and show follow button
+                updateFollowButtonStatus(authorId);
                 
                 // Then try to fetch profile in background (non-blocking)
                 try {
@@ -2086,6 +2262,82 @@
         // Use global escapeHtml if available, otherwise use local fallback
         if (typeof escapeHtml === 'undefined' && typeof window.escapeHtml === 'undefined') {
             window.escapeHtml = escapeHtmlLocal;
+        }
+        
+        /**
+         * Update follow button status based on current follow list
+         */
+        async function updateFollowButtonStatus(authorId) {
+            const followBtn = document.getElementById('theaterFollowBtn');
+            const followText = document.getElementById('theaterFollowText');
+            
+            if (!followBtn || !authorId) return;
+            
+            // Don't show follow button if not connected or if it's your own video
+            if (typeof userPubkey === 'undefined' || !userPubkey || userPubkey === authorId) {
+                followBtn.style.display = 'none';
+                return;
+            }
+            
+            // Show button (initially in "follow" state)
+            followBtn.style.display = 'inline-block';
+            followBtn.classList.remove('btn-info');
+            followBtn.classList.add('btn-outline-info');
+            if (followText) {
+                followText.textContent = 'Follow';
+            }
+            
+            // Check if already following (non-blocking)
+            try {
+                if (nostrRelay) {
+                    const followListPromise = new Promise((resolve) => {
+                        const sub = nostrRelay.sub([{
+                            kinds: [3],
+                            authors: [userPubkey],
+                            limit: 1
+                        }]);
+                        
+                        let followEvent = null;
+                        
+                        sub.on('event', (event) => {
+                            followEvent = event;
+                        });
+                        
+                        sub.on('eose', () => {
+                            sub.unsub();
+                            resolve(followEvent);
+                        });
+                        
+                        // Timeout after 2 seconds
+                        setTimeout(() => {
+                            sub.unsub();
+                            resolve(followEvent);
+                        }, 2000);
+                    });
+                    
+                    const followEvent = await followListPromise;
+                    
+                    if (followEvent && followEvent.tags) {
+                        const followList = followEvent.tags
+                            .filter(tag => tag[0] === 'p' && tag[1])
+                            .map(tag => tag[1]);
+                        
+                        const isFollowing = followList.includes(authorId);
+                        
+                        if (isFollowing) {
+                            followBtn.classList.remove('btn-outline-info');
+                            followBtn.classList.add('btn-info');
+                            if (followText) {
+                                followText.textContent = 'Following';
+                            }
+                            followBtn.innerHTML = '<i class="bi bi-person-check-fill"></i> <span id="theaterFollowText">Following</span>';
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not check follow status:', error);
+                // Keep default "Follow" state
+            }
         }
         
         /**
