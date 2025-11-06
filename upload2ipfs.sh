@@ -252,12 +252,16 @@ if [ -n "$USER_PUBKEY_HEX" ]; then
                     fi
                     
                     # Build provenance tags for NIP-94 event
-                    PROVENANCE_TAGS=", [\"e\", \"$ORIGINAL_EVENT_ID\", \"\", \"mention\"]"
-                    if [ "$ORIGINAL_AUTHOR" != "$USER_PUBKEY_HEX" ]; then
-                        PROVENANCE_TAGS="$PROVENANCE_TAGS, [\"p\", \"$ORIGINAL_AUTHOR\"]"
+                    # Only add tags if we have valid event ID and author
+                    if [ -n "$ORIGINAL_EVENT_ID" ] && [ "$ORIGINAL_EVENT_ID" != "null" ]; then
+                        PROVENANCE_TAGS=", [\"e\", \"$ORIGINAL_EVENT_ID\", \"\", \"mention\"]"
+                        if [ -n "$ORIGINAL_AUTHOR" ] && [ "$ORIGINAL_AUTHOR" != "null" ] && [ "$ORIGINAL_AUTHOR" != "$USER_PUBKEY_HEX" ]; then
+                            PROVENANCE_TAGS="$PROVENANCE_TAGS, [\"p\", \"$ORIGINAL_AUTHOR\"]"
+                        fi
+                        echo "DEBUG: Provenance tags created for original event reference" >&2
+                    else
+                        echo "DEBUG: No valid original event ID, skipping provenance tags" >&2
                     fi
-                    
-                    echo "DEBUG: Provenance tags created for original event reference" >&2
                 else
                     echo "DEBUG: No matching events found with this hash" >&2
                 fi

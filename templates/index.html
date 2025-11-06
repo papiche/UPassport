@@ -344,18 +344,188 @@
             background: rgba(255, 255, 255, 0.2);
             border-color: rgba(255, 255, 255, 0.3);
         }
+        
+        /* Connection status panel (expandable) */
+        .connection-panel {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: rgba(26, 32, 44, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            z-index: 999;
+            min-width: 320px;
+            max-width: 400px;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+        
+        .connection-panel.show {
+            display: block;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .connection-step {
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 3px solid transparent;
+        }
+        
+        .connection-step.pending {
+            border-left-color: #cbd5e0;
+        }
+        
+        .connection-step.in-progress {
+            border-left-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        .connection-step.success {
+            border-left-color: #059669;
+            background: rgba(5, 150, 105, 0.1);
+        }
+        
+        .connection-step.error {
+            border-left-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+        
+        .connection-step .step-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .connection-step .step-icon {
+            font-size: 1.2rem;
+        }
+        
+        .connection-step .step-title {
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .connection-step .step-description {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.8rem;
+            margin-left: 1.7rem;
+        }
+        
+        .connection-step .step-action {
+            margin-left: 1.7rem;
+            margin-top: 0.5rem;
+        }
+        
+        .connection-step .step-action button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .connection-step .step-action button:hover {
+            background: var(--secondary);
+        }
+        
+        .connection-step .step-action button:disabled {
+            background: rgba(107, 114, 128, 0.5);
+            cursor: not-allowed;
+        }
+        
+        .connection-badge-clickable {
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <!-- Fixed Connection Indicator -->
-    <div id="connectionBadge" class="connection-badge disconnected">
+    <div id="connectionBadge" class="connection-badge disconnected connection-badge-clickable" onclick="toggleConnectionPanel()">
         <div class="status-dot"></div>
         <div class="d-flex flex-column" id="connectionBadgeContent">
             <span class="status-text">Not Connected</span>
         </div>
-        <button class="btn-connect" onclick="testMultipassLogin()" id="connectBtn">
+        <button class="btn-connect" onclick="event.stopPropagation(); testMultipassLogin()" id="connectBtn">
             <i class="bi bi-key"></i> Connect
         </button>
+    </div>
+    
+    <!-- Connection Status Panel (expandable) -->
+    <div id="connectionPanel" class="connection-panel">
+        <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1rem;">
+            <h6 style="color: white; margin: 0;">Connection Status</h6>
+            <button onclick="toggleConnectionPanel()" style="background: none; border: none; color: white; cursor: pointer; margin-left: auto;">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        
+        <!-- Step 1: WebSocket Connection -->
+        <div id="step1" class="connection-step pending">
+            <div class="step-header">
+                <span class="step-icon">🔌</span>
+                <span class="step-title">1. NOSTR Relay</span>
+            </div>
+            <div class="step-description" id="step1-desc">Connect to relay WebSocket</div>
+            <div class="step-action">
+                <button onclick="manualConnectRelay()" id="step1-btn">Connect to Relay</button>
+            </div>
+        </div>
+        
+        <!-- Step 2: Wallet Connection -->
+        <div id="step2" class="connection-step pending">
+            <div class="step-header">
+                <span class="step-icon">👛</span>
+                <span class="step-title">2. NOSTR Wallet</span>
+            </div>
+            <div class="step-description" id="step2-desc">Connect your NOSTR extension</div>
+            <div class="step-action">
+                <button onclick="manualConnectWallet()" id="step2-btn" disabled>Connect Wallet</button>
+            </div>
+        </div>
+        
+        <!-- Step 3: NIP-42 Authentication -->
+        <div id="step3" class="connection-step pending">
+            <div class="step-header">
+                <span class="step-icon">🔐</span>
+                <span class="step-title">3. NIP-42 Auth</span>
+            </div>
+            <div class="step-description" id="step3-desc">Send authentication event (kind 22242)</div>
+            <div class="step-action">
+                <button onclick="manualSendNIP42()" id="step3-btn" disabled>Authenticate</button>
+            </div>
+        </div>
+        
+        <!-- Step 4: Server Verification -->
+        <div id="step4" class="connection-step pending">
+            <div class="step-header">
+                <span class="step-icon">✅</span>
+                <span class="step-title">4. Server Check</span>
+            </div>
+            <div class="step-description" id="step4-desc">Verify authentication on server</div>
+            <div class="step-action">
+                <button onclick="manualVerifyAuth()" id="step4-btn" disabled>Verify</button>
+            </div>
+        </div>
     </div>
     
     <!-- Hero Section -->
@@ -1578,7 +1748,7 @@
                 // Replace connect button with profile button
                 if (connectBtn) {
                     connectBtn.outerHTML = `
-                        <button class="btn-profile" onclick="viewProfile()">
+                        <button class="btn-profile" onclick="event.stopPropagation(); viewProfile()">
                             <i class="bi bi-person-circle"></i> Profile
                         </button>
                     `;
@@ -1595,12 +1765,160 @@
                     const btnProfile = badge.querySelector('.btn-profile');
                     if (btnProfile) {
                         btnProfile.outerHTML = `
-                            <button class="btn-connect" onclick="testMultipassLogin()" id="connectBtn">
+                            <button class="btn-connect" onclick="event.stopPropagation(); testMultipassLogin()" id="connectBtn">
                                 <i class="bi bi-key"></i> Connect
                             </button>
                         `;
                     }
                 }
+            }
+            
+            // Update the connection panel steps based on state
+            updateConnectionPanel(authenticated, authVerified);
+        }
+        
+        // Toggle connection panel visibility
+        function toggleConnectionPanel() {
+            const panel = document.getElementById('connectionPanel');
+            panel.classList.toggle('show');
+        }
+        
+        // Update connection panel steps
+        function updateConnectionPanel(authenticated, authVerified) {
+            // Step 1: Relay connection (always assume success if we're calling this)
+            const relayConnected = typeof nostrRelay !== 'undefined' && nostrRelay !== null;
+            updateStep(1, relayConnected ? 'success' : 'pending', 
+                relayConnected ? 'Connected to ' + (typeof nostrRelayUrl !== 'undefined' ? nostrRelayUrl : 'relay') : 'Not connected');
+            
+            // Step 2: Wallet connection
+            updateStep(2, authenticated ? 'success' : 'pending',
+                authenticated ? 'Wallet connected' : 'Not connected');
+            
+            // Step 3: NIP-42 sent
+            const nip42Sent = authenticated; // If wallet is connected, we assume NIP-42 was sent
+            updateStep(3, nip42Sent ? 'success' : 'pending',
+                nip42Sent ? 'Authentication event sent (kind 22242)' : 'Waiting for authentication');
+            
+            // Step 4: Server verification
+            updateStep(4, authVerified === true ? 'success' : (authVerified === false ? 'error' : 'pending'),
+                authVerified === true ? 'Server verified authentication' : 
+                (authVerified === false ? 'Not authenticated on server' : 'Not verified yet'));
+            
+            // Enable/disable buttons based on state
+            document.getElementById('step1-btn').disabled = relayConnected;
+            document.getElementById('step2-btn').disabled = !relayConnected || authenticated;
+            document.getElementById('step3-btn').disabled = !authenticated || nip42Sent;
+            document.getElementById('step4-btn').disabled = !authenticated || authVerified === true;
+        }
+        
+        // Update individual step
+        function updateStep(stepNum, state, description) {
+            const step = document.getElementById(`step${stepNum}`);
+            const desc = document.getElementById(`step${stepNum}-desc`);
+            
+            // Remove all state classes
+            step.classList.remove('pending', 'in-progress', 'success', 'error');
+            
+            // Add new state class
+            step.classList.add(state);
+            
+            // Update description
+            if (desc) {
+                desc.textContent = description;
+            }
+        }
+        
+        // Manual actions for each step
+        async function manualConnectRelay() {
+            console.log('[PANEL] Manual relay connection requested');
+            updateStep(1, 'in-progress', 'Connecting to relay...');
+            
+            try {
+                if (typeof connectToRelay === 'function') {
+                    await connectToRelay();
+                    updateStep(1, 'success', 'Connected to relay');
+                    updateConnectionPanel(false, undefined);
+                } else {
+                    throw new Error('connectToRelay function not found');
+                }
+            } catch (error) {
+                console.error('[PANEL] Relay connection failed:', error);
+                updateStep(1, 'error', 'Connection failed: ' + error.message);
+            }
+        }
+        
+        async function manualConnectWallet() {
+            console.log('[PANEL] Manual wallet connection requested');
+            updateStep(2, 'in-progress', 'Connecting wallet...');
+            
+            try {
+                if (typeof connectNostr === 'function') {
+                    await connectNostr(false); // Don't force NIP-42 yet
+                    const authenticated = AstroportDemo.userPubkey !== null;
+                    updateStep(2, authenticated ? 'success' : 'error', 
+                        authenticated ? 'Wallet connected' : 'Connection failed');
+                    updateConnectionPanel(authenticated, undefined);
+                } else {
+                    throw new Error('connectNostr function not found');
+                }
+            } catch (error) {
+                console.error('[PANEL] Wallet connection failed:', error);
+                updateStep(2, 'error', 'Connection failed: ' + error.message);
+            }
+        }
+        
+        async function manualSendNIP42() {
+            console.log('[PANEL] Manual NIP-42 authentication requested');
+            updateStep(3, 'in-progress', 'Sending authentication event...');
+            
+            try {
+                if (typeof connectNostr === 'function') {
+                    await connectNostr(true); // Force NIP-42
+                    updateStep(3, 'success', 'Authentication event sent (kind 22242)');
+                    updateConnectionPanel(true, undefined);
+                    
+                    // Automatically trigger verification after sending NIP-42
+                    setTimeout(() => manualVerifyAuth(), 2000);
+                } else {
+                    throw new Error('connectNostr function not found');
+                }
+            } catch (error) {
+                console.error('[PANEL] NIP-42 send failed:', error);
+                updateStep(3, 'error', 'Failed to send: ' + error.message);
+            }
+        }
+        
+        async function manualVerifyAuth() {
+            console.log('[PANEL] Manual authentication verification requested');
+            updateStep(4, 'in-progress', 'Verifying authentication...');
+            
+            try {
+                const npub = AstroportDemo.userNpub || AstroportDemo.userPubkey;
+                if (!npub) {
+                    throw new Error('No user pubkey available');
+                }
+                
+                const response = await fetch('/api/test-nostr', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `npub=${encodeURIComponent(npub)}`
+                });
+                
+                const result = await response.json();
+                
+                if (result.authenticated) {
+                    updateStep(4, 'success', 'Server verified authentication ✓');
+                    updateConnectionPanel(true, true);
+                    updateConnectionBadge(true, true);
+                } else {
+                    updateStep(4, 'error', result.message || 'Authentication not found on server');
+                    updateConnectionPanel(true, false);
+                    updateConnectionBadge(true, false);
+                }
+            } catch (error) {
+                console.error('[PANEL] Verification failed:', error);
+                updateStep(4, 'error', 'Verification failed: ' + error.message);
+                updateConnectionPanel(true, false);
             }
         }
         

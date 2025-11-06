@@ -3725,10 +3725,13 @@ async def upload_file_to_ipfs(
                 provenance_info = json_output.get('provenance', {})
                 is_reupload = provenance_info.get('is_reupload', False)
                 
-                # Only publish for non-video first uploads (videos are published by /webcam endpoint)
-                # Re-uploads are skipped (provenance already established)
-                if not file_mime.startswith('video/') and not is_reupload and user_pubkey_hex:
-                    logging.info(f"📝 Publishing NOSTR event for {file_type} file: {response_fileName}")
+                # Publish for non-video files (videos are published by /webcam endpoint)
+                # Now includes RE-UPLOADS to establish provenance chain for new user
+                if not file_mime.startswith('video/') and user_pubkey_hex:
+                    if is_reupload:
+                        logging.info(f"🔗 Re-upload detected - Publishing NOSTR event with provenance for new user: {response_fileName}")
+                    else:
+                        logging.info(f"📝 Publishing NOSTR event for {file_type} file: {response_fileName}")
                     
                     try:
                         # Get user's NOSTR secret file
@@ -3744,6 +3747,11 @@ async def upload_file_to_ipfs(
                                 event_description = f"{file_type_display}: {response_fileName}"
                                 if description:
                                     event_description = f"{description}"
+                                
+                                # Add provenance info to description for re-uploads
+                                if is_reupload:
+                                    original_author = provenance_info.get('original_author', '')[:16]
+                                    event_description = f"📤 Re-upload: {event_description} (Original: {original_author}...)"
                                 
                                 # Use unified script with --auto mode (reads upload2ipfs.sh JSON output)
                                 # IMPORTANT: temp_file_path must still exist for --auto mode
@@ -3763,7 +3771,11 @@ async def upload_file_to_ipfs(
                                     event_id = result_json.get('event_id', '')
                                     kind = result_json.get('kind', 1063)
                                     relays_success = result_json.get('relays_success', 0)
-                                    logging.info(f"✅ Published NOSTR event (kind {kind}): {event_id} (to {relays_success} relays)")
+                                    if is_reupload:
+                                        logging.info(f"✅ Published re-upload NOSTR event (kind {kind}): {event_id} (to {relays_success} relays)")
+                                        logging.info(f"   └─ Upload chain updated with new user")
+                                    else:
+                                        logging.info(f"✅ Published NOSTR event (kind {kind}): {event_id} (to {relays_success} relays)")
                                 else:
                                     logging.warning(f"⚠️ Failed to publish NOSTR event (exit code: {result.returncode})")
                                     logging.warning(f"⚠️ Command: {' '.join(publish_cmd)}")
@@ -3784,8 +3796,6 @@ async def upload_file_to_ipfs(
                 else:
                     if file_mime.startswith('video/'):
                         logging.info(f"📹 Video file - kind 21/22 will be published by /webcam endpoint")
-                    elif is_reupload:
-                        logging.info(f"🔗 Re-upload detected - NOSTR event already exists, skipping publication")
                     elif not user_pubkey_hex:
                         logging.info(f"👤 No user pubkey - skipping NOSTR publication")
                 
