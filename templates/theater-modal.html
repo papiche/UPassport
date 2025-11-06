@@ -2890,21 +2890,75 @@
          * Open related video in theater mode
          */
         function openRelatedVideoInTheater(eventId, title, ipfsUrl, authorId) {
-            // Try to use openTheaterModeFromEvent if available
-            if (typeof window.openTheaterModeFromEvent === 'function') {
-                window.openTheaterModeFromEvent(eventId);
-            } else if (window.parent && typeof window.parent.openTheaterModeFromEvent === 'function') {
-                window.parent.openTheaterModeFromEvent(eventId);
-            } else {
-                // Fallback: reload page with video parameter
+            // Detect if we're in standalone mode (direct /theater access) or modal mode
+            const isStandalone = (window.parent === window) || (window.location === window.parent.location);
+            
+            if (isStandalone) {
+                // Standalone mode: change URL parameter and reload video
+                console.log('🎬 Loading new video in standalone theater:', eventId);
+                
+                // Update URL without reloading the entire page
                 const currentUrl = new URL(window.location.href);
                 currentUrl.searchParams.set('video', eventId);
-                window.location.href = currentUrl.toString();
+                window.history.pushState({ videoId: eventId }, '', currentUrl.toString());
+                
+                // Close current comment subscription if any
+                if (window.currentTheaterCommentSubscription) {
+                    try {
+                        window.currentTheaterCommentSubscription.unsub();
+                        window.currentTheaterCommentSubscription = null;
+                    } catch (e) {
+                        console.warn('⚠️ Error closing comment subscription:', e);
+                    }
+                }
+                
+                // Stop current video
+                const videoPlayer = document.getElementById('theaterVideoPlayer');
+                if (videoPlayer) {
+                    videoPlayer.pause();
+                    videoPlayer.src = '';
+                }
+                
+                // Load new video
+                loadVideoFromEventIdStandalone(eventId);
+            } else {
+                // Modal mode: try to use parent's openTheaterModeFromEvent
+                if (typeof window.openTheaterModeFromEvent === 'function') {
+                    window.openTheaterModeFromEvent(eventId);
+                } else if (window.parent && typeof window.parent.openTheaterModeFromEvent === 'function') {
+                    window.parent.openTheaterModeFromEvent(eventId);
+                } else {
+                    // Fallback: reload page with video parameter
+                    const currentUrl = new URL(window.location.href);
+                    currentUrl.searchParams.set('video', eventId);
+                    window.location.href = currentUrl.toString();
+                }
             }
         }
         
         // Expose function globally
         window.openRelatedVideoInTheater = openRelatedVideoInTheater;
+        
+        // Handle browser back/forward navigation in standalone mode
+        window.addEventListener('popstate', function(event) {
+            const isStandalone = (window.parent === window) || (window.location === window.parent.location);
+            if (isStandalone && event.state && event.state.videoId) {
+                console.log('🔙 Navigating to previous video:', event.state.videoId);
+                
+                // Close current comment subscription
+                if (window.currentTheaterCommentSubscription) {
+                    try {
+                        window.currentTheaterCommentSubscription.unsub();
+                        window.currentTheaterCommentSubscription = null;
+                    } catch (e) {
+                        console.warn('⚠️ Error closing comment subscription:', e);
+                    }
+                }
+                
+                // Load video from history state
+                loadVideoFromEventIdStandalone(event.state.videoId);
+            }
+        });
         
         // Listen for close messages from parent
         window.addEventListener('message', function(event) {
