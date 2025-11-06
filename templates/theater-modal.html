@@ -1843,47 +1843,10 @@
          */
         async function loadVideoFromEventIdStandalone(eventId) {
             try {
-                // Check if user needs to connect first
-                const needsConnection = typeof userPubkey === 'undefined' || !userPubkey;
-                
-                // Ensure NOSTR connection
+                // Connect to NOSTR relay (anonymously, no user connection required for viewing)
                 if (typeof nostrRelay === 'undefined' || !nostrRelay) {
                     if (typeof connectToRelay === 'function') {
-                        console.log('🔌 Connecting to NOSTR relay...');
-                        
-                        // If user is not connected, ask for permission first
-                        if (needsConnection) {
-                            const shouldConnect = confirm('Cette vidéo nécessite une connexion NOSTR pour être visionnée.\n\nVoulez-vous vous connecter maintenant ?');
-                            if (!shouldConnect) {
-                                document.getElementById('theaterTitle').textContent = 'Connexion requise';
-                                const videoContainer = document.querySelector('.theater-video-container');
-                                if (videoContainer) {
-                                    videoContainer.innerHTML = `
-                                        <div style="text-align: center; padding: 40px; color: #ffffff;">
-                                            <h3>🔌 Connexion NOSTR requise</h3>
-                                            <p style="color: #aaaaaa; margin: 20px 0;">Vous devez être connecté à NOSTR pour visionner cette vidéo.</p>
-                                            <button class="btn btn-primary btn-lg" onclick="attemptNostrConnection()">
-                                                <i class="bi bi-plug"></i> Se connecter avec NOSTR
-                                            </button>
-                                        </div>
-                                    `;
-                                }
-                                return;
-                            }
-                            
-                            // Try to connect with user's permission
-                            if (typeof connectNostr === 'function') {
-                                try {
-                                    const pubkey = await connectNostr();
-                                    if (!pubkey) {
-                                        throw new Error('Connexion NOSTR refusée ou échouée');
-                                    }
-                                } catch (connErr) {
-                                    throw new Error('Impossible de se connecter à NOSTR: ' + connErr.message);
-                                }
-                            }
-                        }
-                        
+                        console.log('🔌 Connecting to NOSTR relay (anonymous)...');
                         await connectToRelay();
                         // Wait a bit for connection to stabilize
                         await new Promise(resolve => setTimeout(resolve, 500));
