@@ -239,9 +239,110 @@
             padding: 2rem 0;
             margin-top: 4rem;
         }
+        
+        /* Fixed connection indicator */
+        .connection-badge {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 0.75rem 1.25rem;
+            border-radius: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.3s ease;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .connection-badge:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4);
+        }
+        
+        .connection-badge.authenticated {
+            border-color: var(--primary);
+            background: rgba(5, 150, 105, 0.2);
+        }
+        
+        .connection-badge.disconnected {
+            border-color: #cbd5e0;
+            background: rgba(107, 114, 128, 0.2);
+        }
+        
+        .connection-badge .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #cbd5e0;
+        }
+        
+        .connection-badge.authenticated .status-dot {
+            background: var(--primary);
+            animation: pulse 2s infinite;
+        }
+        
+        .connection-badge .status-text {
+            color: white;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        .connection-badge .user-npub {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.75rem;
+            font-family: monospace;
+        }
+        
+        .connection-badge .btn-connect {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .connection-badge .btn-connect:hover {
+            background: var(--secondary);
+            transform: scale(1.05);
+        }
+        
+        .connection-badge .btn-profile {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.3rem 0.8rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .connection-badge .btn-profile:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
     </style>
 </head>
 <body>
+    <!-- Fixed Connection Indicator -->
+    <div id="connectionBadge" class="connection-badge disconnected">
+        <div class="status-dot"></div>
+        <div class="d-flex flex-column" id="connectionBadgeContent">
+            <span class="status-text">Not Connected</span>
+        </div>
+        <button class="btn-connect" onclick="testMultipassLogin()" id="connectBtn">
+            <i class="bi bi-key"></i> Connect
+        </button>
+    </div>
+    
     <!-- Hero Section -->
     <div class="hero">
         <div class="container text-center">
@@ -679,6 +780,23 @@
             await loadChatMessages();
             await loadRecentUploads();
             await loadPageInteractions();
+            
+            // Check if user is already connected (from previous session)
+            if (typeof window.nostr !== 'undefined') {
+                try {
+                    const pubkey = await window.nostr.getPublicKey();
+                    if (pubkey) {
+                        AstroportDemo.userPubkey = pubkey;
+                        if (typeof window.NostrTools !== 'undefined') {
+                            AstroportDemo.userNpub = window.NostrTools.nip19.npubEncode(pubkey);
+                        }
+                        updateConnectionBadge(true);
+                        console.log('[AUTH] User already connected:', pubkey.substring(0, 16) + '...');
+                    }
+                } catch (e) {
+                    console.log('[AUTH] No previous connection found');
+                }
+            }
         });
         
         async function checkConnection() {
@@ -749,11 +867,63 @@
                 document.getElementById('userHex').textContent = AstroportDemo.userPubkey;
                 userInfoEl.style.display = 'block';
                 
+                // Update fixed connection badge
+                updateConnectionBadge(true);
+                
             } catch (error) {
                 resultEl.textContent = '❌ Connection failed\n\n';
                 resultEl.textContent += `Error: ${error.message}\n\n`;
                 resultEl.textContent += 'Make sure you have a NOSTR extension installed (nos2x, Alby, etc.)';
                 console.error('Auth error:', error);
+                
+                // Update badge to show error
+                updateConnectionBadge(false);
+            }
+        }
+        
+        // Update the fixed connection badge
+        function updateConnectionBadge(authenticated) {
+            const badge = document.getElementById('connectionBadge');
+            const content = document.getElementById('connectionBadgeContent');
+            const connectBtn = document.getElementById('connectBtn');
+            
+            if (authenticated && AstroportDemo.userPubkey) {
+                badge.classList.remove('disconnected');
+                badge.classList.add('authenticated');
+                
+                const npubShort = AstroportDemo.userNpub 
+                    ? AstroportDemo.userNpub.substring(0, 12) + '...' 
+                    : AstroportDemo.userPubkey.substring(0, 8) + '...';
+                
+                content.innerHTML = `
+                    <span class="status-text">Connected</span>
+                    <span class="user-npub">${npubShort}</span>
+                `;
+                
+                connectBtn.outerHTML = `
+                    <button class="btn-profile" onclick="viewProfile()">
+                        <i class="bi bi-person-circle"></i> Profile
+                    </button>
+                `;
+            } else {
+                badge.classList.remove('authenticated');
+                badge.classList.add('disconnected');
+                
+                content.innerHTML = `
+                    <span class="status-text">Not Connected</span>
+                `;
+                
+                // Restore connect button if it was replaced
+                if (!connectBtn) {
+                    const btnProfile = badge.querySelector('.btn-profile');
+                    if (btnProfile) {
+                        btnProfile.outerHTML = `
+                            <button class="btn-connect" onclick="testMultipassLogin()" id="connectBtn">
+                                <i class="bi bi-key"></i> Connect
+                            </button>
+                        `;
+                    }
+                }
             }
         }
         
@@ -1100,6 +1270,9 @@
             
             uploadsEl.innerHTML = '';
             
+            // Get IPFS gateway from global or use default
+            const ipfsGateway = '{{ myIPFS }}';
+            
             selectedEvents.forEach(event => {
                 // Extract file info from tags
                 let fileUrl = '';
@@ -1112,19 +1285,26 @@
                     const nameTag = event.tags.find(t => t[0] === 'name' || t[0] === 'title');
                     const typeTag = event.tags.find(t => t[0] === 'm' || t[0] === 'type');
                     
-                    if (urlTag && urlTag[1]) fileUrl = urlTag[1];
+                    if (urlTag && urlTag[1]) {
+                        fileUrl = urlTag[1];
+                        // Add IPFS gateway if URL starts with /ipfs/
+                        if (fileUrl.startsWith('/ipfs/')) {
+                            fileUrl = ipfsGateway + fileUrl;
+                        }
+                    }
                     if (nameTag && nameTag[1]) fileName = nameTag[1];
                     if (typeTag && typeTag[1]) fileType = typeTag[1];
                 }
                 
                 // Determine icon and type label based on kind and file type
                 let icon = 'bi-file-earmark';
-                if (event.kind === 21) {
-                    icon = 'bi-camera-video-fill';
-                    typeLabel = 'Short Video';
-                } else if (event.kind === 22) {
-                    icon = 'bi-film';
-                    typeLabel = 'Long Video';
+                let clickAction = '';
+                
+                if (event.kind === 21 || event.kind === 22) {
+                    // Video events (NIP-71) → Open in theater mode
+                    icon = event.kind === 21 ? 'bi-camera-video-fill' : 'bi-film';
+                    typeLabel = event.kind === 21 ? 'Short Video' : 'Long Video';
+                    clickAction = `window.location.href='/theater?video=${event.id}'`;
                 } else if (event.kind === 1063) {
                     // NIP-94 with info.json metadata (SHA256 hash tracking)
                     if (fileType.startsWith('image/')) {
@@ -1133,6 +1313,8 @@
                     } else if (fileType.startsWith('video/')) {
                         icon = 'bi-camera-video';
                         typeLabel = 'Video';
+                        // Also open videos in theater if they have event ID
+                        clickAction = `window.location.href='/theater?video=${event.id}'`;
                     } else if (fileType.startsWith('audio/')) {
                         icon = 'bi-music-note-beamed';
                         typeLabel = 'Audio';
@@ -1143,13 +1325,19 @@
                         icon = 'bi-file-earmark';
                         typeLabel = 'File';
                     }
+                    
+                    // Default action: open file in new tab
+                    if (!clickAction) {
+                        clickAction = `window.open('${fileUrl}', '_blank')`;
+                    }
                 }
                 
                 const authorShort = event.pubkey ? event.pubkey.substring(0, 8) + '...' : 'Unknown';
+                const profileUrl = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${event.pubkey}`;
                 
                 const cardHtml = `
                     <div class="col-md-4 col-sm-6">
-                        <div class="card p-2" style="cursor:pointer;" onclick="window.open('${fileUrl}', '_blank')">
+                        <div class="card p-2" style="cursor:pointer;" onclick="${clickAction}">
                             <div class="text-center mb-2">
                                 <i class="bi ${icon}" style="font-size:3rem;color:var(--primary);"></i>
                             </div>
@@ -1159,7 +1347,7 @@
                                 <span class="badge bg-info">kind ${event.kind}</span>
                             </small>
                             <small class="text-muted">
-                                <i class="bi bi-person"></i> <a href="#" onclick="event.stopPropagation(); window.open('/nostr_profile_viewer.html?hex=${event.pubkey}', '_blank'); return false;">${authorShort}</a>
+                                <i class="bi bi-person"></i> <a href="${profileUrl}" onclick="event.stopPropagation(); return true;" target="_blank">${authorShort}</a>
                             </small>
                         </div>
                     </div>
