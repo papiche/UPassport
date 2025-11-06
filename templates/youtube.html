@@ -3321,9 +3321,42 @@
                 button.textContent = '⏳ ' + t('sharing');
                 
                 try {
-                    const result = await publishNote(message, tags);
+                    // publishNote now supports multi-relay publication by default
+                    const result = await publishNote(message, tags, 1, {
+                        silent: false // Show feedback
+                    });
                     if (result) {
                         button.textContent = '✅ ' + t('shared');
+                        
+                        // Refresh stats after sharing (wait for relay propagation)
+                        setTimeout(async () => {
+                            const videoCard = button.closest('.video');
+                            const statsElement = videoCard?.querySelector('.video-engagement-overlay');
+                            const videoPlayer = videoCard?.querySelector('.inline-video-player');
+                            const eventId = videoPlayer?.getAttribute('data-event-id');
+                            const authorId = videoPlayer?.getAttribute('data-author-id');
+                            
+                            if (statsElement && eventId && ipfsUrl && typeof VideoStats !== 'undefined') {
+                                const stats = new VideoStats(eventId, authorId, ipfsUrl);
+                                const statsData = await stats.refresh();
+                                if (statsData) {
+                                    videoCard.setAttribute('data-likes', statsData.likes || 0);
+                                    videoCard.setAttribute('data-comments', statsData.comments || 0);
+                                    videoCard.setAttribute('data-shares', statsData.shares || 0);
+                                    
+                                    statsElement.innerHTML = `
+                                        <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> ${statsData.likes || 0}</span>
+                                        <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> ${statsData.comments || 0}</span>
+                                        <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> ${statsData.shares || 0}</span>
+                                    `;
+                                    
+                                    if (currentSort) {
+                                        sortVideosBy(currentSort);
+                                    }
+                                }
+                            }
+                        }, 1000); // Wait 1 second for relay propagation
+                        
                         setTimeout(() => {
                             button.textContent = '📡 ' + t('share');
                             button.disabled = false;
@@ -3738,34 +3771,38 @@
             button.textContent = '⏳ ' + t('liking');
             
             try {
+                // Use sendLike directly - it already handles multi-relay publication
+                // sendLike should be configured to use DEFAULT_RELAYS from common.js
                 const result = await sendLike(eventId, authorId, '+');
                 if (result) {
                     button.textContent = '✅ ' + t('liked');
                     
-                    // Refresh stats for this video
-                    const videoCard = button.closest('.video');
-                    const statsElement = videoCard?.querySelector('.video-engagement-overlay');
-                    if (statsElement && eventId && ipfsUrl && typeof VideoStats !== 'undefined') {
-                        const stats = new VideoStats(eventId, authorId, ipfsUrl);
-                        const statsData = await stats.refresh();
-                        if (statsData) {
-                            // Update data attributes for sorting
-                            videoCard.setAttribute('data-likes', statsData.likes);
-                            videoCard.setAttribute('data-comments', statsData.comments);
-                            videoCard.setAttribute('data-shares', statsData.shares);
-                            
-                            statsElement.innerHTML = `
-                                <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> ${statsData.likes}</span>
-                                <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> ${statsData.comments}</span>
-                                <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> ${statsData.shares}</span>
-                            `;
-                            
-                            // Re-apply current sort if active
-                            if (currentSort) {
-                                sortVideosBy(currentSort);
+                    // Refresh stats for this video after a short delay to allow relay propagation
+                    setTimeout(async () => {
+                        const videoCard = button.closest('.video');
+                        const statsElement = videoCard?.querySelector('.video-engagement-overlay');
+                        if (statsElement && eventId && ipfsUrl && typeof VideoStats !== 'undefined') {
+                            const stats = new VideoStats(eventId, authorId, ipfsUrl);
+                            const statsData = await stats.refresh();
+                            if (statsData) {
+                                // Update data attributes for sorting
+                                videoCard.setAttribute('data-likes', statsData.likes || 0);
+                                videoCard.setAttribute('data-comments', statsData.comments || 0);
+                                videoCard.setAttribute('data-shares', statsData.shares || 0);
+                                
+                                statsElement.innerHTML = `
+                                    <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> ${statsData.likes || 0}</span>
+                                    <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> ${statsData.comments || 0}</span>
+                                    <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> ${statsData.shares || 0}</span>
+                                `;
+                                
+                                // Re-apply current sort if active
+                                if (currentSort) {
+                                    sortVideosBy(currentSort);
+                                }
                             }
                         }
-                    }
+                    }, 1000); // Wait 1 second for relay propagation
                     
                     setTimeout(() => {
                         button.textContent = '👍 ' + t('liked');

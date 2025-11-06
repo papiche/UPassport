@@ -278,6 +278,7 @@
             border-radius: 8px;
             margin-bottom: 12px;
             border: 1px solid #2a2a2a;
+            position: relative;
         }
         
         .theater-comment-item.original-comment {
@@ -294,6 +295,69 @@
             font-size: 0.75em;
             color: #3ea6ff;
             font-weight: normal;
+        }
+        
+        /* Threading / Nested comments */
+        .theater-comment-replies {
+            margin-left: 24px;
+            margin-top: 12px;
+            padding-left: 12px;
+            border-left: 2px solid #3f3f3f;
+        }
+        
+        .theater-comment-item.reply {
+            background: #151515;
+            border-left: 2px solid #4a4a4a;
+        }
+        
+        .theater-comment-item.reply .theater-comment-author {
+            font-size: 12px;
+        }
+        
+        .theater-comment-item.reply .theater-comment-content {
+            font-size: 12px;
+        }
+        
+        .theater-comment-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            align-items: center;
+        }
+        
+        .theater-comment-reply-btn {
+            background: transparent;
+            border: none;
+            color: #3ea6ff;
+            cursor: pointer;
+            padding: 4px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .theater-comment-reply-btn:hover {
+            background: rgba(62, 166, 255, 0.1);
+            color: #5bb5ff;
+        }
+        
+        .theater-comment-reply-form {
+            margin-top: 12px;
+            padding: 12px;
+            background: #0f0f0f;
+            border-radius: 8px;
+            border: 1px solid #3f3f3f;
+            display: none;
+        }
+        
+        .theater-comment-reply-form.active {
+            display: block;
+        }
+        
+        .theater-reply-count {
+            font-size: 11px;
+            color: #888888;
+            margin-left: 8px;
         }
         
         .theater-comment-author {
@@ -1387,7 +1451,8 @@
                             content: event.content,
                             timestamp: timestamp,
                             isOriginal: false,
-                            created_at: event.created_at
+                            created_at: event.created_at,
+                            rawEvent: event // Store raw event for threading
                         };
                         
                         comments.push(newComment);
@@ -1432,18 +1497,11 @@
         }
         
         /**
-         * Display comments (original first, then others sorted by date)
+         * Display comments with threading (original first, then hierarchical)
          */
         function displayComments(comments, commentStats) {
             const commentsList = document.getElementById('theaterCommentsList');
             if (!commentsList) return;
-            
-            // Sort comments: original first, then by created_at (newest first)
-            comments.sort((a, b) => {
-                if (a.isOriginal) return -1;
-                if (b.isOriginal) return 1;
-                return (b.created_at || 0) - (a.created_at || 0);
-            });
             
             if (comments.length === 0) {
                 commentsList.innerHTML = '<div class="no-comments">Aucun commentaire</div>';
@@ -1457,32 +1515,140 @@
                 commentStats.textContent = `${comments.length} commentaire${comments.length > 1 ? 's' : ''}`;
             }
             
-            // Use global functions if available (from youtube.enhancements.js or common.js)
+            // Build comment tree structure
+            const commentTree = buildCommentTree(comments);
+            
+            // Render tree with threading
+            const html = renderCommentTree(commentTree, 0);
+            commentsList.innerHTML = html;
+        }
+        
+        /**
+         * Build comment tree structure based on NIP-22 tags
+         * Returns: { topLevel: [], replies: Map(parentId -> [comments]) }
+         */
+        function buildCommentTree(comments) {
+            const topLevel = [];
+            const replies = new Map(); // parentId -> [comment, comment, ...]
+            
+            comments.forEach(comment => {
+                // Original comment is always top-level
+                if (comment.isOriginal) {
+                    topLevel.push(comment);
+                    return;
+                }
+                
+                // Check if this is a reply to another comment
+                // In NIP-22: lowercase 'e' tag points to parent comment
+                const parentTag = comment.rawEvent?.tags?.find(t => t[0] === 'e');
+                const parentId = parentTag ? parentTag[1] : null;
+                
+                if (parentId) {
+                    // This is a reply to another comment
+                    if (!replies.has(parentId)) {
+                        replies.set(parentId, []);
+                    }
+                    replies.get(parentId).push(comment);
+                } else {
+                    // Top-level comment (direct reply to video)
+                    topLevel.push(comment);
+                }
+            });
+            
+            // Sort top-level comments by date (newest first, but original always first)
+            topLevel.sort((a, b) => {
+                if (a.isOriginal) return -1;
+                if (b.isOriginal) return 1;
+                return (b.created_at || 0) - (a.created_at || 0);
+            });
+            
+            // Sort replies by date (oldest first for chronological reading)
+            replies.forEach(replyList => {
+                replyList.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+            });
+            
+            return { topLevel, replies };
+        }
+        
+        /**
+         * Render comment tree recursively
+         */
+        function renderCommentTree(tree, depth = 0) {
             const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
             const formatRelativeFn = typeof formatRelativeTime !== 'undefined' ? formatRelativeTime : window.formatRelativeTime;
             
-            const html = comments.map(comment => {
-                const timeAgo = comment.created_at && formatRelativeFn ? formatRelativeFn(comment.created_at) : '';
-                const timestampDisplay = comment.timestamp ? formatVideoTimestamp(comment.timestamp) : '';
-                
-                // Use openProfileModalInTheater if available, otherwise fallback to openProfileModal
-                const openProfileFn = typeof openProfileModalInTheater !== 'undefined' ? 'openProfileModalInTheater' :
-                                     (typeof openProfileModal !== 'undefined' ? 'openProfileModal' : null);
-                const authorLink = comment.authorId && openProfileFn
-                    ? `<a href="#" onclick="event.preventDefault(); ${openProfileFn}('${comment.authorId}', '${escapeFn(comment.authorName)}'); return false;" class="theater-uploader-link">${escapeFn(comment.authorName)}</a>`
-                    : escapeFn(comment.authorName);
-                
-                return `
-                    <div class="theater-comment-item ${comment.isOriginal ? 'original-comment' : ''}">
-                        <div class="theater-comment-author">${authorLink}</div>
-                        <div class="theater-comment-content">${escapeFn(comment.content)}</div>
-                        ${timestampDisplay ? `<button class="theater-comment-timestamp-link" onclick="seekToTimestamp(${comment.timestamp})">⏱️ ${timestampDisplay}</button>` : ''}
-                        ${timeAgo ? `<div class="theater-comment-time">${timeAgo}</div>` : ''}
-                    </div>
-                `;
-            }).join('');
+            let html = '';
             
-            commentsList.innerHTML = html;
+            tree.topLevel.forEach(comment => {
+                html += renderComment(comment, tree.replies, escapeFn, formatRelativeFn, depth);
+            });
+            
+            return html;
+        }
+        
+        /**
+         * Render a single comment with its replies
+         */
+        function renderComment(comment, repliesMap, escapeFn, formatRelativeFn, depth = 0) {
+            const timeAgo = comment.created_at && formatRelativeFn ? formatRelativeFn(comment.created_at) : '';
+            const timestampDisplay = comment.timestamp ? formatVideoTimestamp(comment.timestamp) : '';
+            
+            const openProfileFn = typeof openProfileModalInTheater !== 'undefined' ? 'openProfileModalInTheater' :
+                                 (typeof openProfileModal !== 'undefined' ? 'openProfileModal' : null);
+            const authorLink = comment.authorId && openProfileFn
+                ? `<a href="#" onclick="event.preventDefault(); ${openProfileFn}('${comment.authorId}', '${escapeFn(comment.authorName)}'); return false;" class="theater-uploader-link">${escapeFn(comment.authorName)}</a>`
+                : escapeFn(comment.authorName);
+            
+            // Count replies
+            const replies = repliesMap.get(comment.id) || [];
+            const replyCount = replies.length;
+            
+            // Apply depth-based styling
+            const isReply = depth > 0;
+            const replyClass = isReply ? 'reply' : '';
+            
+            let html = `
+                <div class="theater-comment-item ${comment.isOriginal ? 'original-comment' : ''} ${replyClass}" data-comment-id="${comment.id}">
+                    <div class="theater-comment-author">${authorLink}</div>
+                    <div class="theater-comment-content">${escapeFn(comment.content)}</div>
+                    ${timestampDisplay ? `<button class="theater-comment-timestamp-link" onclick="seekToTimestamp(${comment.timestamp})">⏱️ ${timestampDisplay}</button>` : ''}
+                    <div class="theater-comment-actions">
+                        ${timeAgo ? `<span class="theater-comment-time">${timeAgo}</span>` : ''}
+                        ${replyCount > 0 ? `<span class="theater-reply-count"><i class="bi bi-chat-dots"></i> ${replyCount} réponse${replyCount > 1 ? 's' : ''}</span>` : ''}
+                        <button class="theater-comment-reply-btn" onclick="toggleReplyForm('${comment.id}')">
+                            <i class="bi bi-reply"></i> Répondre
+                        </button>
+                    </div>
+                    
+                    <!-- Reply form (hidden by default) -->
+                    <div class="theater-comment-reply-form" id="reply-form-${comment.id}">
+                        <textarea 
+                            class="form-control bg-dark text-white border-secondary mb-2"
+                            placeholder="Répondre à ${escapeFn(comment.authorName)}..."
+                            rows="2"
+                            id="reply-input-${comment.id}"></textarea>
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button class="btn btn-sm btn-secondary" onclick="toggleReplyForm('${comment.id}')">
+                                Annuler
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="submitReply('${comment.id}', '${comment.authorId || ''}')">
+                                <i class="bi bi-send"></i> Répondre
+                            </button>
+                        </div>
+                    </div>
+            `;
+            
+            // Render replies recursively
+            if (replyCount > 0) {
+                html += '<div class="theater-comment-replies">';
+                replies.forEach(reply => {
+                    html += renderComment(reply, repliesMap, escapeFn, formatRelativeFn, depth + 1);
+                });
+                html += '</div>';
+            }
+            
+            html += '</div>';
+            return html;
         }
         
         /**
@@ -1522,6 +1688,121 @@
                 videoPlayer.play();
             }
         }
+        
+        /**
+         * Toggle reply form visibility
+         */
+        function toggleReplyForm(commentId) {
+            const form = document.getElementById(`reply-form-${commentId}`);
+            if (!form) return;
+            
+            // Close all other reply forms
+            document.querySelectorAll('.theater-comment-reply-form.active').forEach(otherForm => {
+                if (otherForm.id !== `reply-form-${commentId}`) {
+                    otherForm.classList.remove('active');
+                }
+            });
+            
+            // Toggle current form
+            form.classList.toggle('active');
+            
+            // Focus input if opening
+            if (form.classList.contains('active')) {
+                const input = document.getElementById(`reply-input-${commentId}`);
+                if (input) {
+                    input.focus();
+                }
+            }
+        }
+        
+        /**
+         * Submit a reply to a comment
+         */
+        async function submitReply(parentCommentId, parentAuthorId) {
+            const input = document.getElementById(`reply-input-${parentCommentId}`);
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            
+            if (!input || !videoPlayer) return;
+            
+            // Validate and sanitize input
+            const validateFn = typeof validateInput !== 'undefined' ? validateInput : 
+                              (typeof window.validateInput !== 'undefined' ? window.validateInput : null);
+            const rawContent = input.value;
+            
+            if (!rawContent || !rawContent.trim()) {
+                alert('La réponse ne peut pas être vide');
+                return;
+            }
+            
+            // Sanitize content
+            const content = validateFn ? validateFn(rawContent, 5000, false) : rawContent.trim().substring(0, 5000);
+            
+            if (!content) {
+                alert('La réponse ne peut pas être vide');
+                return;
+            }
+            
+            const videoEventId = videoPlayer.getAttribute('data-event-id');
+            const videoAuthorId = videoPlayer.getAttribute('data-author-id');
+            
+            if (!videoEventId) {
+                alert('ID de la vidéo non trouvé');
+                return;
+            }
+            
+            if (!userPubkey) {
+                const connected = typeof connectNostr === 'function' ? await connectNostr() : false;
+                if (!connected) {
+                    alert('Vous devez être connecté pour répondre');
+                    return;
+                }
+            }
+            
+            try {
+                // Get relay URL hint
+                const relayHint = nostrRelay?.url || (typeof DEFAULT_RELAYS !== 'undefined' && DEFAULT_RELAYS[0]) || '';
+                
+                // Create reply event (kind 1111 - NIP-22)
+                // For replies: Root = video (E tag), Parent = comment being replied to (e tag)
+                const tags = [
+                    // Root scope (video)
+                    ['E', videoEventId, relayHint, videoAuthorId || ''],
+                    ['K', '21'], // Root kind (video)
+                    ['P', videoAuthorId || '', relayHint], // Root author (video creator)
+                    
+                    // Parent (comment being replied to)
+                    ['e', parentCommentId, relayHint, parentAuthorId || ''], // Parent comment
+                    ['k', '1111'], // Parent kind (comment)
+                    ['p', parentAuthorId || '', relayHint] // Parent comment author
+                ];
+                
+                // Publish reply with kind 1111
+                if (typeof publishNote === 'function') {
+                    const result = await publishNote(content, tags, 1111, { silent: false });
+                    
+                    const success = result && (result.success === true || result.id);
+                    
+                    if (success) {
+                        input.value = '';
+                        toggleReplyForm(parentCommentId);
+                        
+                        // Comment will appear automatically via real-time subscription
+                        console.log('✅ Reply published, waiting for subscription update...');
+                    } else {
+                        alert('❌ Erreur lors de la publication de la réponse');
+                    }
+                } else {
+                    alert('Fonction de publication non disponible');
+                }
+            } catch (error) {
+                console.error('Error submitting reply:', error);
+                alert('Erreur lors de la publication de la réponse: ' + error.message);
+            }
+        }
+        
+        // Expose functions globally
+        window.toggleReplyForm = toggleReplyForm;
+        window.submitReply = submitReply;
         
         /**
          * Submit a comment
@@ -1592,10 +1873,14 @@
                     tags.push(['timestamp', timestamp.toString()]);
                 }
                 
-                // Publish comment
+                // Publish comment with kind 1111 (NIP-22 video comments)
                 if (typeof publishNote === 'function') {
-                    const result = await publishNote(content, tags);
-                    if (result) {
+                    const result = await publishNote(content, tags, 1111, { silent: false });
+                    
+                    // Check result (nouvelle API retourne un objet, ancienne API retourne l'event)
+                    const success = result && (result.success === true || result.id);
+                    
+                    if (success) {
                         input.value = '';
                         // Show success message (non-blocking)
                         const submitBtn = document.querySelector('.theater-comment-submit-btn');
