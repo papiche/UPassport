@@ -3359,7 +3359,7 @@ async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
                 auth_json = base64.b64decode(auth_base64).decode('utf-8')
                 auth_event = json.loads(auth_json)
                 
-                # Extract pubkey from the NIP-98 event (kind 27235)
+                # Extract pubkey from the NIP-98 event (kind 27235 dans le auth_header)
                 if auth_event.get("kind") == 27235 and "pubkey" in auth_event:
                     user_pubkey_hex = auth_event["pubkey"]
                     logging.info(f"🔑 NIP-98 Auth: Provenance tracking enabled for user: {user_pubkey_hex[:16]}...")

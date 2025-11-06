@@ -673,7 +673,18 @@
         function handleCloseTheater() {
             console.log('🔴 handleCloseTheater called');
             
-            // First, pause and cleanup video
+            // First, close any active comment subscriptions
+            if (window.currentTheaterCommentSubscription) {
+                try {
+                    console.log('📡 Closing comment subscription...');
+                    window.currentTheaterCommentSubscription.unsub();
+                    window.currentTheaterCommentSubscription = null;
+                } catch (e) {
+                    console.warn('⚠️ Error closing comment subscription:', e);
+                }
+            }
+            
+            // Then, pause and cleanup video
             const videoPlayer = document.getElementById('theaterVideoPlayer');
             if (videoPlayer) {
                 videoPlayer.pause();
@@ -1302,16 +1313,23 @@
                 }
                 
                 // Fetch comments from NOSTR (kind 1111 - NIP-22 comments)
+                // IMPORTANT: Keep subscription active for real-time comments!
                 const sub = nostrRelay.sub([{
                     kinds: [1111],
                     '#E': [eventId],
                     limit: MAX_COMMENTS
                 }]);
                 
+                // Store subscription globally to close it when leaving theater mode
+                window.currentTheaterCommentSubscription = sub;
+                
+                let initialLoadComplete = false;
                 const timeout = setTimeout(() => {
-                    sub.unsub();
+                    // After 3 seconds, display existing comments but KEEP subscription active
+                    initialLoadComplete = true;
                     displayComments(comments, commentStats);
-                }, 3000); // Reduced timeout for better performance
+                    console.log('✅ Initial comments loaded, subscription kept active for real-time updates');
+                }, 3000);
                 
                 // Cache for author names to avoid duplicate requests
                 const authorNameCache = new Map();
@@ -1321,9 +1339,8 @@
                         // Skip if this is the original event itself
                         if (event.id === eventId) return;
                         
-                        // Stop if we reached max comments
-                        if (comments.length >= MAX_COMMENTS) {
-                            sub.unsub();
+                        // Skip duplicates (check if comment already exists)
+                        if (comments.find(c => c.id === event.id)) {
                             return;
                         }
                         
@@ -1363,7 +1380,7 @@
                             timestamp = parseInt(timestampTag[1]);
                         }
                         
-                        comments.push({
+                        const newComment = {
                             id: event.id,
                             authorId: event.pubkey,
                             authorName: authorName,
@@ -1371,7 +1388,30 @@
                             timestamp: timestamp,
                             isOriginal: false,
                             created_at: event.created_at
-                        });
+                        };
+                        
+                        comments.push(newComment);
+                        
+                        // If initial load is complete, this is a NEW comment (real-time)
+                        if (initialLoadComplete) {
+                            console.log('🔴 LIVE: New comment received!', newComment);
+                            // Re-display all comments with the new one
+                            displayComments(comments, commentStats);
+                            
+                            // Add visual feedback for new comment (scroll + animation)
+                            setTimeout(() => {
+                                const commentsList = document.getElementById('theaterCommentsList');
+                                if (commentsList) {
+                                    // Find the new comment element (last non-original one)
+                                    const commentElements = commentsList.querySelectorAll('.theater-comment-item:not(.original-comment)');
+                                    const lastComment = commentElements[commentElements.length - 1];
+                                    if (lastComment) {
+                                        lastComment.classList.add('live-comment');
+                                        lastComment.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                    }
+                                }
+                            }, 100);
+                        }
                     } catch (e) {
                         console.error('Error processing comment:', e);
                     }
@@ -1379,8 +1419,10 @@
                 
                 sub.on('eose', () => {
                     clearTimeout(timeout);
-                    sub.unsub();
+                    initialLoadComplete = true;
+                    // DO NOT unsub() - keep subscription active for real-time comments!
                     displayComments(comments, commentStats);
+                    console.log('📡 Comment subscription active - listening for real-time comments');
                 });
                 
             } catch (error) {
