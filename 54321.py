@@ -1051,19 +1051,28 @@ def validate_nip42_event(event: Dict[str, Any], expected_relay_url: str) -> bool
         logging.error(f"Erreur lors de la validation de l'événement NIP42: {e}")
         return False
 
-async def verify_nostr_auth(npub: Optional[str]) -> bool:
-    """Vérifier l'authentification NOSTR si une npub est fournie avec cache"""
+async def verify_nostr_auth(npub: Optional[str], force_check: bool = False) -> bool:
+    """Vérifier l'authentification NOSTR si une npub est fournie avec cache
+    
+    Args:
+        npub: Clé publique NOSTR (hex ou npub format)
+        force_check: Si True, ignore le cache et force la vérification sur le relay
+    """
     if not npub:
         logging.info("Aucune npub fournie, pas de vérification NOSTR")
         return False
     
-    # Vérifier le cache d'abord
+    # Vérifier le cache d'abord (sauf si force_check est activé)
     current_time = time.time()
-    if npub in nostr_auth_cache:
+    if not force_check and npub in nostr_auth_cache:
         cached_result, cached_time = nostr_auth_cache[npub]
         if current_time - cached_time < NOSTR_CACHE_TTL:
             logging.info(f"✅ Authentification NOSTR depuis le cache pour {npub}")
             return cached_result
+        else:
+            logging.info(f"⚠️ Cache expiré pour {npub}, vérification forcée")
+    elif force_check:
+        logging.info(f"🔍 Vérification forcée sans cache pour {npub}")
     
     logging.info(f"Vérification de l'authentification NOSTR pour: {npub}")
     
@@ -3445,10 +3454,21 @@ async def upload_file_to_ipfs(
     Places file in appropriate IPFS structure based on file type.
     For images, generates AI description and renames file accordingly.
     """
-    # Verify NIP-42 authentication
-    auth_verified = await verify_nostr_auth(npub)
+    # Verify NIP-42 authentication with force_check to ensure fresh validation
+    logging.info(f"🔐 Vérification NIP-42 pour upload (force_check=True)")
+    auth_verified = await verify_nostr_auth(npub, force_check=True)
     if not auth_verified:
-        raise HTTPException(status_code=403, detail="Nostr authentication failed or not provided.")
+        error_detail = {
+            "error": "Nostr authentication failed",
+            "message": "⚠️ No recent NIP-42 authentication event found on relay",
+            "solution": "Please reconnect using the 'Connect' button to send a fresh NIP-42 event",
+            "relay": get_nostr_relay_url()
+        }
+        logging.warning(f"❌ Upload denied: {error_detail}")
+        raise HTTPException(
+            status_code=403, 
+            detail=f"⚠️ No recent NIP-42 event found on relay. Click 'Connect' button to authenticate."
+        )
 
     if not file:
         raise HTTPException(status_code=400, detail="No file uploaded.")

@@ -264,8 +264,13 @@
         }
         
         .connection-badge.authenticated {
-            border-color: var(--primary);
+            border-color: #059669;
             background: rgba(5, 150, 105, 0.2);
+        }
+        
+        .connection-badge.connected-not-auth {
+            border-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.2);
         }
         
         .connection-badge.disconnected {
@@ -281,8 +286,18 @@
         }
         
         .connection-badge.authenticated .status-dot {
-            background: var(--primary);
+            background: #059669;
             animation: pulse 2s infinite;
+        }
+        
+        .connection-badge.connected-not-auth .status-dot {
+            background: #f59e0b;
+            animation: pulse-warning 2s infinite;
+        }
+        
+        @keyframes pulse-warning {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
         
         .connection-badge .status-text {
@@ -376,6 +391,24 @@
             
             <div class="test-area">
                 <h5><i class="bi bi-play-circle"></i> Test Authentication</h5>
+                
+                <div class="alert alert-info mb-3">
+                    <h6 class="mb-2"><i class="bi bi-info-circle"></i> How Authentication Works</h6>
+                    <ol class="mb-0 small">
+                        <li><strong>MULTIPASS Account:</strong> You need a MULTIPASS account registered on this relay</li>
+                        <li><strong>Connect:</strong> Click the button below to connect your NOSTR wallet</li>
+                        <li><strong>Authenticate:</strong> Your extension will automatically send a NIP-42 event (kind 22242)</li>
+                        <li><strong>Relay Acceptance:</strong> The relay accepts your NIP-42 event if you have MULTIPASS</li>
+                        <li><strong>Verify:</strong> The system checks for recent authentication (valid 24h)</li>
+                        <li><strong>Upload:</strong> Once authenticated, you can upload files securely</li>
+                    </ol>
+                    <div class="alert alert-warning mt-2 mb-0">
+                        <small><strong>⚠️ Important:</strong> If you don't have a MULTIPASS account yet, 
+                        <a href="/g1" class="alert-link">create one here</a> first. Without MULTIPASS, 
+                        the relay will reject your authentication events.</small>
+                    </div>
+                </div>
+                
                 <button class="btn btn-test w-100 mt-2" onclick="testMultipassLogin()">
                     <i class="bi bi-key"></i> Connect with MULTIPASS
                 </button>
@@ -385,12 +418,25 @@
                     <strong><i class="bi bi-person-check"></i> Connected:</strong><br>
                     <small>npub: <code id="userNpub"></code></small><br>
                     <small>hex: <code id="userHex"></code></small><br><br>
-                    <a href="#" onclick="viewProfile()" class="btn btn-sm btn-success">
-                        <i class="bi bi-person-circle"></i> View My Profile
-                    </a>
-                    <a href="/g1" class="btn btn-sm btn-outline-primary" target="_blank">
-                        <i class="bi bi-wallet2"></i> Create Ğ1 Wallet
-                    </a>
+                    <div class="d-flex gap-2 align-items-center">
+                        <a href="#" onclick="viewProfile()" class="btn btn-sm btn-success">
+                            <i class="bi bi-person-circle"></i> View My Profile
+                        </a>
+                        <button id="didStatusBtn" class="btn btn-sm btn-outline-secondary" onclick="checkDIDDocument()">
+                            <i class="bi bi-file-earmark-text"></i> <span id="didBtnText">Check DID</span>
+                        </button>
+                    </div>
+                    <div id="didInfo" class="alert alert-info mt-2" style="display:none;">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong><i class="bi bi-shield-check"></i> DID Document (kind 30800)</strong>
+                                <div id="didDetails" class="small mt-1"></div>
+                            </div>
+                            <button class="btn btn-sm btn-link" onclick="refreshDIDDocument()">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -736,6 +782,22 @@
             <h4 class="mt-4"><i class="bi bi-shield-check"></i> Secure File Upload (NIP-42 Authentication)</h4>
             <p>Ensure proper authentication before uploading to prevent 403 errors:</p>
             
+            <div class="alert alert-info mb-3">
+                <h6><i class="bi bi-diagram-3"></i> Authentication Flow</h6>
+                <pre class="mb-0" style="background: white; border: 1px solid #ddd; padding: 10px; font-size: 0.75rem; line-height: 1.3;">
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   Browser    │────>│ NOSTR Wallet │────>│    Relay     │────>│   Backend    │
+│  (Connect)   │     │  (NIP-42)    │     │ (MULTIPASS)  │     │   (Verify)   │
+└──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
+      Step 1:              Step 2:              Step 3:              Step 4:
+  Click Connect      Send kind 22242      Check MULTIPASS    Check recent event
+                     auth event           Accept/Reject       24h window
+
+✅ SUCCESS: User can upload files
+❌ FAILURE: Create MULTIPASS account first (/g1)
+                </pre>
+            </div>
+            
             <div class="code-example">
 <span class="comment">// Method 1: Automatic authentication check (recommended)</span>
 <span class="keyword">async function</span> uploadFile(file) {
@@ -772,11 +834,13 @@
             <div class="alert alert-info mt-3">
                 <h6><i class="bi bi-info-circle"></i> Authentication Best Practices</h6>
                 <ul class="mb-0">
+                    <li><strong>MULTIPASS Required:</strong> The relay only accepts NIP-42 events from registered MULTIPASS accounts</li>
                     <li><strong>NIP-42 Events:</strong> Authentication requires kind 22242 events on the relay</li>
                     <li><strong>24-Hour Validity:</strong> Auth events are valid for 24 hours</li>
                     <li><strong>Automatic Verification:</strong> <code>uploadPhotoToIPFS()</code> now checks auth automatically</li>
                     <li><strong>Manual Checks:</strong> Use <code>ensureAuthentication()</code> for custom workflows</li>
                     <li><strong>Test API:</strong> Use <code>/api/test-nostr?npub=YOUR_KEY</code> to verify auth status</li>
+                    <li><strong>Relay Policy:</strong> Users without MULTIPASS or not in amisOfAmis.txt are rejected by default</li>
                 </ul>
             </div>
         </div>
@@ -839,6 +903,43 @@
                         }
                         updateConnectionBadge(true);
                         console.log('[AUTH] User already connected:', pubkey.substring(0, 16) + '...');
+                        
+                        // Check authentication in background
+                        setTimeout(async () => {
+                            console.log('[AUTH] Checking authentication status in background...');
+                            const authCheck = await fetch('/api/test-nostr', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                },
+                                body: new URLSearchParams({
+                                    'npub': pubkey
+                                })
+                            });
+                            
+                            if (authCheck.ok) {
+                                const authResult = await authCheck.json();
+                                if (!authResult.auth_verified) {
+                                    console.warn('[AUTH] ⚠️ User connected but not authenticated. NIP-42 event required.');
+                                    // Update badge to show partial connection
+                                    updateConnectionBadge(true, false); // connected but not authenticated
+                                    // Show subtle notification
+                                    const authResultDiv = document.getElementById('authResult');
+                                    if (authResultDiv) {
+                                        authResultDiv.textContent = '⚠️ You are connected but need to authenticate.\n';
+                                        authResultDiv.textContent += 'Click "Connect with MULTIPASS" to send authentication event.\n';
+                                        authResultDiv.textContent += 'This is required for file uploads.';
+                                    }
+                                } else {
+                                    console.log('[AUTH] ✅ User authenticated and ready to upload');
+                                    updateConnectionBadge(true, true); // connected and authenticated
+                                    const authResultDiv = document.getElementById('authResult');
+                                    if (authResultDiv) {
+                                        authResultDiv.textContent = '✅ Connected and authenticated! You can upload files.';
+                                    }
+                                }
+                            }
+                        }, 1000);
                     }
                 } catch (e) {
                     console.log('[AUTH] No previous connection found');
@@ -887,6 +988,260 @@
             window.open(profileUrl, '_blank');
         }
         
+        // Check DID Document (kind 30800)
+        async function checkDIDDocument() {
+            if (!AstroportDemo.userPubkey) {
+                alert('Please connect first');
+                return;
+            }
+            
+            const didBtn = document.getElementById('didStatusBtn');
+            const didBtnText = document.getElementById('didBtnText');
+            const didInfo = document.getElementById('didInfo');
+            const didDetails = document.getElementById('didDetails');
+            
+            try {
+                didBtnText.textContent = 'Checking...';
+                didBtn.disabled = true;
+                
+                console.log('[DID] Fetching DID document (kind 30800) for:', AstroportDemo.userPubkey);
+                
+                // Check if relay is connected
+                if (typeof window.nostrRelay === 'undefined' || !window.nostrRelay) {
+                    console.log('[DID] Connecting to relay...');
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                    }
+                }
+                
+                if (typeof window.nostrRelay !== 'undefined' && window.nostrRelay) {
+                    // Subscribe to kind 30800 DID document events with d tag "did"
+                    const sub = window.nostrRelay.sub([{
+                        kinds: [30800], // NIP-101: DID Document
+                        authors: [AstroportDemo.userPubkey],
+                        "#d": ["did"], // d tag identifies the DID document
+                        limit: 1
+                    }]);
+                    
+                    let didFound = false;
+                    
+                    sub.on('event', event => {
+                        console.log('[DID] 📄 Found DID document:', event);
+                        didFound = true;
+                        displayDIDInfo(event);
+                        sub.unsub();
+                    });
+                    
+                    sub.on('eose', () => {
+                        if (!didFound) {
+                            console.log('[DID] ⚠️ No DID document found');
+                            didBtnText.textContent = 'No DID Found';
+                            didBtn.classList.remove('btn-outline-secondary');
+                            didBtn.classList.add('btn-outline-warning');
+                            didDetails.innerHTML = `
+                                <span class="text-warning">
+                                    <i class="bi bi-exclamation-triangle"></i> 
+                                    No DID document (kind 30800) found for this profile.
+                                </span><br>
+                                <small class="text-muted">
+                                    Create a MULTIPASS account at <a href="/g1" target="_blank">/g1</a> to get your DID document.
+                                </small>
+                            `;
+                            didInfo.style.display = 'block';
+                            didInfo.classList.remove('alert-info');
+                            didInfo.classList.add('alert-warning');
+                        }
+                        sub.unsub();
+                        didBtn.disabled = false;
+                    });
+                    
+                    // Timeout after 5 seconds
+                    setTimeout(() => {
+                        if (!didFound) {
+                            sub.unsub();
+                            didBtn.disabled = false;
+                            if (didBtnText.textContent === 'Checking...') {
+                                didBtnText.textContent = 'Check DID';
+                            }
+                        }
+                    }, 5000);
+                } else {
+                    throw new Error('Relay not available');
+                }
+            } catch (error) {
+                console.error('[DID] ❌ Error checking DID:', error);
+                didBtnText.textContent = 'Check Failed';
+                didBtn.classList.remove('btn-outline-secondary');
+                didBtn.classList.add('btn-outline-danger');
+                didDetails.innerHTML = `
+                    <span class="text-danger">
+                        <i class="bi bi-x-circle"></i> Error: ${error.message}
+                    </span>
+                `;
+                didInfo.style.display = 'block';
+                didInfo.classList.remove('alert-info');
+                didInfo.classList.add('alert-danger');
+                didBtn.disabled = false;
+            }
+        }
+        
+        // Display DID Document Information
+        function displayDIDInfo(event) {
+            const didBtn = document.getElementById('didStatusBtn');
+            const didBtnText = document.getElementById('didBtnText');
+            const didInfo = document.getElementById('didInfo');
+            const didDetails = document.getElementById('didDetails');
+            
+            try {
+                // Parse DID document from event content
+                const didDoc = JSON.parse(event.content);
+                
+                // Update button to show success
+                didBtnText.textContent = 'DID Found ✓';
+                didBtn.classList.remove('btn-outline-secondary', 'btn-outline-warning', 'btn-outline-danger');
+                didBtn.classList.add('btn-outline-success');
+                
+                // Extract key information
+                const didId = didDoc.id || 'N/A';
+                const created = didDoc.metadata?.created ? new Date(didDoc.metadata.created).toLocaleString() : 'Unknown';
+                const updated = didDoc.metadata?.updated ? new Date(didDoc.metadata.updated).toLocaleString() : 'Unknown';
+                const contractStatus = didDoc.metadata?.contractStatus || 'unknown';
+                const storageQuota = didDoc.metadata?.storageQuota || 'N/A';
+                const services = didDoc.service?.length || 0;
+                const verificationMethods = didDoc.verificationMethod?.length || 0;
+                
+                // Check for MULTIPASS wallet
+                const multipassWallet = didDoc.metadata?.multipassWallet?.g1pub || 'N/A';
+                
+                // Check for ZEN Card wallet
+                const zencardWallet = didDoc.metadata?.zencardWallet?.g1pub || 'N/A';
+                
+                // Check for WoT verification
+                const wotMember = didDoc.metadata?.wotDuniterMember?.g1pub || null;
+                
+                // Build display HTML
+                let html = `
+                    <div class="small">
+                        <strong>DID ID:</strong> <code class="small">${didId.substring(0, 40)}...</code><br>
+                        <strong>Status:</strong> <span class="badge bg-primary">${contractStatus}</span><br>
+                        <strong>Storage:</strong> ${storageQuota}<br>
+                        <strong>Created:</strong> ${created}<br>
+                        <strong>Updated:</strong> ${updated}<br>
+                        <strong>Services:</strong> ${services} endpoint(s)<br>
+                        <strong>Keys:</strong> ${verificationMethods} verification method(s)<br>
+                `;
+                
+                if (multipassWallet !== 'N/A') {
+                    html += `<strong>MULTIPASS:</strong> <code class="small">${multipassWallet.substring(0, 12)}...</code><br>`;
+                }
+                
+                if (zencardWallet !== 'N/A') {
+                    html += `<strong>ZEN Card:</strong> <code class="small">${zencardWallet.substring(0, 12)}...</code><br>`;
+                }
+                
+                if (wotMember) {
+                    html += `<strong>WoT Member:</strong> <span class="badge bg-success"><i class="bi bi-check-circle"></i> Verified</span><br>`;
+                }
+                
+                html += `
+                        <div class="mt-2">
+                            <a href="#" onclick="viewFullDIDDocument(); return false;" class="btn btn-xs btn-outline-primary">
+                                <i class="bi bi-file-code"></i> View Full Document
+                            </a>
+                            <a href="https://www.w3.org/TR/did-core/" target="_blank" class="btn btn-xs btn-outline-secondary">
+                                <i class="bi bi-book"></i> W3C DID Spec
+                            </a>
+                        </div>
+                    </div>
+                `;
+                
+                didDetails.innerHTML = html;
+                didInfo.style.display = 'block';
+                didInfo.classList.remove('alert-warning', 'alert-danger');
+                didInfo.classList.add('alert-info');
+                
+                // Store DID document for later use
+                AstroportDemo.userDID = didDoc;
+                AstroportDemo.userDIDEvent = event;
+                
+            } catch (error) {
+                console.error('[DID] Error parsing DID document:', error);
+                didDetails.innerHTML = `
+                    <span class="text-danger">
+                        <i class="bi bi-x-circle"></i> Error parsing DID document: ${error.message}
+                    </span>
+                `;
+                didInfo.style.display = 'block';
+                didInfo.classList.remove('alert-info');
+                didInfo.classList.add('alert-danger');
+            }
+        }
+        
+        // View Full DID Document
+        function viewFullDIDDocument() {
+            if (!AstroportDemo.userDID) {
+                alert('No DID document loaded');
+                return;
+            }
+            
+            // Create a modal or new window to display the full JSON
+            const didJson = JSON.stringify(AstroportDemo.userDID, null, 2);
+            const win = window.open('', '_blank', 'width=800,height=600');
+            win.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>DID Document - ${AstroportDemo.userDID.id}</title>
+                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+                    <style>
+                        body { padding: 20px; background: #1a1a1a; color: #e0e0e0; }
+                        pre { background: #2a2a2a; padding: 20px; border-radius: 8px; overflow-x: auto; }
+                        .header { margin-bottom: 20px; }
+                        .badge { font-size: 0.9rem; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <h2><i class="bi bi-file-earmark-text"></i> DID Document</h2>
+                            <p class="lead">Decentralized Identifier (W3C DID Core v1.1)</p>
+                            <span class="badge bg-primary">Kind 30800</span>
+                            <span class="badge bg-success">NIP-101</span>
+                            <span class="badge bg-info">Event ID: ${AstroportDemo.userDIDEvent.id.substring(0, 16)}...</span>
+                        </div>
+                        <pre><code>${escapeHtml(didJson)}</code></pre>
+                        <div class="mt-3">
+                            <button class="btn btn-primary" onclick="navigator.clipboard.writeText('${didJson.replace(/'/g, "\\'")}'); alert('Copied to clipboard!');">
+                                <i class="bi bi-clipboard"></i> Copy JSON
+                            </button>
+                            <a href="https://www.w3.org/TR/did-core/" target="_blank" class="btn btn-secondary">
+                                <i class="bi bi-book"></i> W3C DID Specification
+                            </a>
+                            <a href="https://github.com/nostr-protocol/nips/blob/master/README.md" target="_blank" class="btn btn-secondary">
+                                <i class="bi bi-file-text"></i> NOSTR NIPs
+                            </a>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `);
+            win.document.close();
+        }
+        
+        // Refresh DID Document
+        async function refreshDIDDocument() {
+            const didInfo = document.getElementById('didInfo');
+            didInfo.style.display = 'none';
+            
+            const didBtn = document.getElementById('didStatusBtn');
+            const didBtnText = document.getElementById('didBtnText');
+            didBtnText.textContent = 'Check DID';
+            didBtn.classList.remove('btn-outline-success', 'btn-outline-warning', 'btn-outline-danger');
+            didBtn.classList.add('btn-outline-secondary');
+            
+            await checkDIDDocument();
+        }
+        
         async function testMultipassLogin() {
             const resultEl = document.getElementById('authResult');
             const userInfoEl = document.getElementById('userInfo');
@@ -894,8 +1249,9 @@
             try {
                 resultEl.textContent = '🔄 Connecting to NOSTR...\n';
                 
-                // Connect using common.js
-                AstroportDemo.userPubkey = await connectNostr();
+                // Connect using common.js with forceAuth = true to send NIP-42 event
+                console.log('[AUTH] Connecting with forced NIP-42 authentication...');
+                AstroportDemo.userPubkey = await connectNostr(true); // Force NIP-42 auth
                 
                 if (!AstroportDemo.userPubkey) {
                     throw new Error('No public key returned');
@@ -910,6 +1266,35 @@
                     resultEl.textContent += `Public Key (npub):\n${AstroportDemo.userNpub}\n`;
                 }
                 
+                // Wait a bit for NIP-42 event to be sent and processed
+                resultEl.textContent += '\n⏳ Sending authentication event (NIP-42)...\n';
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // Verify authentication was successful
+                resultEl.textContent += '\n🔍 Verifying authentication...\n';
+                const authCheck = await fetch('/api/test-nostr', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'npub': AstroportDemo.userPubkey
+                    })
+                });
+                
+                if (authCheck.ok) {
+                    const authResult = await authCheck.json();
+                    if (authResult.auth_verified) {
+                        resultEl.textContent += '✅ Authentication verified! You can now upload files.\n';
+                        updateConnectionBadge(true, true); // Fully authenticated
+                    } else {
+                        resultEl.textContent += '⚠️ Authentication pending. Please try again in a moment.\n';
+                        updateConnectionBadge(true, false); // Connected but not authenticated
+                    }
+                } else {
+                    updateConnectionBadge(true, false); // Connected but verification failed
+                }
+                
                 // Show user info
                 document.getElementById('userNpub').textContent = AstroportDemo.userNpub || 'N/A';
                 document.getElementById('userHex').textContent = AstroportDemo.userPubkey;
@@ -917,6 +1302,14 @@
                 
                 // Update fixed connection badge
                 updateConnectionBadge(true);
+                
+                // Auto-check DID document in background
+                setTimeout(() => {
+                    console.log('[AUTH] Auto-checking DID document...');
+                    checkDIDDocument().catch(err => {
+                        console.warn('[AUTH] Could not auto-check DID:', err);
+                    });
+                }, 1000);
                 
             } catch (error) {
                 resultEl.textContent = '❌ Connection failed\n\n';
@@ -930,33 +1323,55 @@
         }
         
         // Update the fixed connection badge
-        function updateConnectionBadge(authenticated) {
+        // authenticated: true/false - wallet connected
+        // authVerified: true/false/undefined - NIP-42 authentication status
+        function updateConnectionBadge(authenticated, authVerified) {
             const badge = document.getElementById('connectionBadge');
             const content = document.getElementById('connectionBadgeContent');
             const connectBtn = document.getElementById('connectBtn');
             
+            // Clear all state classes
+            badge.classList.remove('authenticated', 'connected-not-auth', 'disconnected');
+            
             if (authenticated && AstroportDemo.userPubkey) {
-                badge.classList.remove('disconnected');
-                badge.classList.add('authenticated');
-                
                 const npubShort = AstroportDemo.userNpub 
                     ? AstroportDemo.userNpub.substring(0, 12) + '...' 
                     : AstroportDemo.userPubkey.substring(0, 8) + '...';
                 
-                content.innerHTML = `
-                    <span class="status-text">Connected</span>
-                    <span class="user-npub">${npubShort}</span>
-                `;
+                if (authVerified === true) {
+                    // Fully authenticated (wallet connected + NIP-42 verified)
+                    badge.classList.add('authenticated');
+                    content.innerHTML = `
+                        <span class="status-text">✅ Authenticated</span>
+                        <span class="user-npub">${npubShort}</span>
+                    `;
+                } else if (authVerified === false) {
+                    // Connected but not authenticated (wallet connected, no NIP-42)
+                    badge.classList.add('connected-not-auth');
+                    content.innerHTML = `
+                        <span class="status-text">⚠️ Not Authenticated</span>
+                        <span class="user-npub">${npubShort}</span>
+                    `;
+                } else {
+                    // Connected, auth status unknown
+                    badge.classList.add('connected-not-auth');
+                    content.innerHTML = `
+                        <span class="status-text">Connected</span>
+                        <span class="user-npub">${npubShort}</span>
+                    `;
+                }
                 
-                connectBtn.outerHTML = `
-                    <button class="btn-profile" onclick="viewProfile()">
-                        <i class="bi bi-person-circle"></i> Profile
-                    </button>
-                `;
+                // Replace connect button with profile button
+                if (connectBtn) {
+                    connectBtn.outerHTML = `
+                        <button class="btn-profile" onclick="viewProfile()">
+                            <i class="bi bi-person-circle"></i> Profile
+                        </button>
+                    `;
+                }
             } else {
-                badge.classList.remove('authenticated');
+                // Not connected at all
                 badge.classList.add('disconnected');
-                
                 content.innerHTML = `
                     <span class="status-text">Not Connected</span>
                 `;
@@ -1029,9 +1444,29 @@
                 
                 if (!authResult.auth_verified) {
                     resultEl.textContent += '❌ Authentication failed!\n\n';
-                    resultEl.textContent += 'Your NOSTR extension needs to send an authentication event (NIP-42).\n';
-                    resultEl.textContent += 'Please reconnect with MULTIPASS and try again.\n\n';
-                    resultEl.textContent += `Details: ${authResult.message || 'No recent NIP-42 auth events found'}`;
+                    resultEl.textContent += 'Your NOSTR extension needs to send an authentication event (NIP-42).\n\n';
+                    resultEl.textContent += `Details: ${authResult.message || 'No recent NIP-42 auth events found'}\n\n`;
+                    
+                    if (authResult.status === 'partial' && authResult.relay_connected) {
+                        resultEl.textContent += '⚠️ Relay is connected but no NIP-42 event found.\n';
+                        resultEl.textContent += '   This usually means:\n';
+                        resultEl.textContent += '   1. You need a MULTIPASS account (create one at /g1)\n';
+                        resultEl.textContent += '   2. The relay rejected your NIP-42 event (no MULTIPASS)\n';
+                        resultEl.textContent += '   3. Click "Connect" again to retry authentication\n\n';
+                    }
+                    
+                    resultEl.textContent += '👉 Solution: Click the "Connect" button above to re-authenticate.\n';
+                    resultEl.textContent += '   This will send a fresh NIP-42 authentication event to the relay.';
+                    
+                    // Show a user-friendly notification
+                    if (typeof showNotification !== 'undefined') {
+                        showNotification({
+                            message: 'Authentication required. Please click the Connect button to authenticate.',
+                            type: 'warning',
+                            duration: 8000
+                        });
+                    }
+                    
                     return;
                 }
                 
