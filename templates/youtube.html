@@ -3779,29 +3779,29 @@
                     
                     // Refresh stats for this video after a short delay to allow relay propagation
                     setTimeout(async () => {
-                        const videoCard = button.closest('.video');
-                        const statsElement = videoCard?.querySelector('.video-engagement-overlay');
-                        if (statsElement && eventId && ipfsUrl && typeof VideoStats !== 'undefined') {
-                            const stats = new VideoStats(eventId, authorId, ipfsUrl);
-                            const statsData = await stats.refresh();
-                            if (statsData) {
-                                // Update data attributes for sorting
+                    const videoCard = button.closest('.video');
+                    const statsElement = videoCard?.querySelector('.video-engagement-overlay');
+                    if (statsElement && eventId && ipfsUrl && typeof VideoStats !== 'undefined') {
+                        const stats = new VideoStats(eventId, authorId, ipfsUrl);
+                        const statsData = await stats.refresh();
+                        if (statsData) {
+                            // Update data attributes for sorting
                                 videoCard.setAttribute('data-likes', statsData.likes || 0);
                                 videoCard.setAttribute('data-comments', statsData.comments || 0);
                                 videoCard.setAttribute('data-shares', statsData.shares || 0);
-                                
-                                statsElement.innerHTML = `
+                            
+                            statsElement.innerHTML = `
                                     <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> ${statsData.likes || 0}</span>
                                     <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> ${statsData.comments || 0}</span>
                                     <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> ${statsData.shares || 0}</span>
-                                `;
-                                
-                                // Re-apply current sort if active
-                                if (currentSort) {
-                                    sortVideosBy(currentSort);
-                                }
+                            `;
+                            
+                            // Re-apply current sort if active
+                            if (currentSort) {
+                                sortVideosBy(currentSort);
                             }
                         }
+                    }
                     }, 1000); // Wait 1 second for relay propagation
                     
                     setTimeout(() => {

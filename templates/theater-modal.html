@@ -1963,9 +1963,16 @@
                 if (typeof publishNote === 'function') {
                     const result = await publishNote(content, tags, 1111, { silent: false });
                     
+                    console.log('📬 Publication result:', result);
+                    
                     // Check result (nouvelle API retourne un objet, ancienne API retourne l'event)
                     const publishedEvent = result?.event || result;
                     const success = result && (result.success === true || result.id || publishedEvent?.id);
+                    
+                    console.log('📬 Published event:', publishedEvent);
+                    console.log('📬 Success:', success);
+                    console.log('📬 window.theaterComments exists:', typeof window.theaterComments !== 'undefined');
+                    console.log('📬 userPubkey:', typeof userPubkey !== 'undefined' ? userPubkey.substring(0, 8) + '...' : 'undefined');
                     
                     if (success) {
                         input.value = '';
