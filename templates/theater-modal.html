@@ -1987,8 +1987,16 @@
                         if (publishedEvent && publishedEvent.id && typeof userPubkey !== 'undefined') {
                             // Get current user name
                             let userName = userPubkey.substring(0, 8) + '...';
-                            if (typeof currentUserProfile !== 'undefined' && currentUserProfile) {
-                                userName = currentUserProfile.display_name || currentUserProfile.name || userName;
+                            // Try to fetch user profile (cached)
+                            if (typeof fetchUserMetadata !== 'undefined') {
+                                try {
+                                    const profile = await fetchUserMetadata(userPubkey);
+                                    if (profile) {
+                                        userName = profile.display_name || profile.name || userName;
+                                    }
+                                } catch (e) {
+                                    // Use default truncated pubkey
+                                }
                             }
                             
                             // Create reply object
@@ -2157,8 +2165,16 @@
                         if (publishedEvent && publishedEvent.id && typeof userPubkey !== 'undefined') {
                             // Get current user name
                             let userName = userPubkey.substring(0, 8) + '...';
-                            if (typeof currentUserProfile !== 'undefined' && currentUserProfile) {
-                                userName = currentUserProfile.display_name || currentUserProfile.name || userName;
+                            // Try to fetch user profile (cached)
+                            if (typeof fetchUserMetadata !== 'undefined') {
+                                try {
+                                    const profile = await fetchUserMetadata(userPubkey);
+                                    if (profile) {
+                                        userName = profile.display_name || profile.name || userName;
+                                    }
+                                } catch (e) {
+                                    // Use default truncated pubkey
+                                }
                             }
                             
                             // Create comment object matching the structure

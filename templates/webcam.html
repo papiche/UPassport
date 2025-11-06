@@ -2203,14 +2203,7 @@
             try {
                 let fetchedEmail = null;
                 
-                // Try fetchUserEmail (local function) first
-                if (typeof fetchUserEmail === 'function') {
-                    await fetchUserEmail();
-                    // fetchUserEmail will update userEmail and playerField
-                    return;
-                }
-                
-                // Fallback: try fetchUserEmailWithFallback from common.js
+                // Try fetchUserEmailWithFallback from common.js
                 if (typeof fetchUserEmailWithFallback === 'function') {
                     fetchedEmail = await fetchUserEmailWithFallback(pubkey);
                 } else if (typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
