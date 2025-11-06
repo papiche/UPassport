@@ -1762,12 +1762,19 @@
                 // Get relay URL hint
                 const relayHint = nostrRelay?.url || (typeof DEFAULT_RELAYS !== 'undefined' && DEFAULT_RELAYS[0]) || '';
                 
+                // Detect video kind (21 for regular videos, 22 for shorts)
+                let videoKind = '21';
+                const videoKindAttr = videoPlayer.getAttribute('data-video-kind');
+                if (videoKindAttr && (videoKindAttr === '21' || videoKindAttr === '22')) {
+                    videoKind = videoKindAttr;
+                }
+                
                 // Create reply event (kind 1111 - NIP-22)
                 // For replies: Root = video (E tag), Parent = comment being replied to (e tag)
                 const tags = [
                     // Root scope (video)
                     ['E', videoEventId, relayHint, videoAuthorId || ''],
-                    ['K', '21'], // Root kind (video)
+                    ['K', videoKind], // Root kind: 21 (video) or 22 (shorts)
                     ['P', videoAuthorId || '', relayHint], // Root author (video creator)
                     
                     // Parent (comment being replied to)
@@ -1863,18 +1870,26 @@
                 // Get relay URL hint
                 const relayHint = nostrRelay?.url || (typeof DEFAULT_RELAYS !== 'undefined' && DEFAULT_RELAYS[0]) || '';
                 
+                // Detect video kind (21 for regular videos, 22 for shorts)
+                // Try to get it from data attribute or default to 21
+                let videoKind = '21';
+                const videoKindAttr = videoPlayer.getAttribute('data-video-kind');
+                if (videoKindAttr && (videoKindAttr === '21' || videoKindAttr === '22')) {
+                    videoKind = videoKindAttr;
+                }
+                
                 // Create comment event (kind 1111 - NIP-22)
                 // For top-level comments on videos:
                 // Root = video (E, K, P tags), Parent = video (e, k, p tags - same as root)
                 const tags = [
                     // Root scope (video)
                     ['E', eventId, relayHint, authorId || ''],
-                    ['K', '21'], // Root kind is 21 (or 22 for shorts)
+                    ['K', videoKind], // Root kind: 21 (video) or 22 (shorts)
                     ['P', authorId || '', relayHint], // Root author (video creator)
                     
                     // Parent (same as root for top-level comments)
                     ['e', eventId, relayHint, authorId || ''], // Parent event (video)
-                    ['k', '21'], // Parent kind (video)
+                    ['k', videoKind], // Parent kind: same as root
                     ['p', authorId || '', relayHint] // Parent author (video creator)
                 ];
                 
@@ -2017,6 +2032,13 @@
                 }
                 if (videoData.ipfsUrl) {
                     videoPlayer.setAttribute('data-ipfs-url', videoData.ipfsUrl);
+                }
+                // Store video kind (21 for regular videos, 22 for shorts)
+                if (videoData.kind) {
+                    videoPlayer.setAttribute('data-video-kind', String(videoData.kind));
+                } else {
+                    // Default to 21 if not specified
+                    videoPlayer.setAttribute('data-video-kind', '21');
                 }
                 
                 // Load video
@@ -2275,6 +2297,7 @@
                     thumbnailUrl: thumbnailUrl,
                     eventId: event.id,
                     authorId: event.pubkey,
+                    kind: event.kind, // Store the video kind (21 or 22)
                     channel: videoInfo.channel || '',
                     uploader: videoInfo.uploader || event.pubkey.substring(0, 8) + '...',
                     duration: videoInfo.duration || 0,
