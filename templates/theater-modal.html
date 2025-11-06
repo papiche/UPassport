@@ -2424,9 +2424,12 @@
                 
                 console.log('🎥 Final video URL:', videoUrl);
                 
-                // Clear existing sources first
+                // Clear existing sources first - IMPORTANT for video switching
                 videoPlayer.innerHTML = '';
+                videoPlayer.removeAttribute('src'); // Clear src attribute too
+                videoPlayer.load(); // Force reset of media element
                 
+                // Create new source element
                 const source = document.createElement('source');
                 source.src = videoUrl;
                 // Detect video type from URL
@@ -2435,6 +2438,7 @@
                 videoPlayer.appendChild(source);
                 
                 console.log('🎥 Video source type:', videoType);
+                console.log('🎥 Video player ready to load');
                 
                 // Store metadata before loading
                 if (videoData.eventId) {
@@ -2454,8 +2458,15 @@
                     videoPlayer.setAttribute('data-video-kind', '21');
                 }
                 
-                // Load video
+                // Load and play video
                 videoPlayer.load();
+                
+                // Try to play automatically (may be blocked by browser autoplay policy)
+                videoPlayer.play().then(() => {
+                    console.log('✅ Video playing automatically');
+                }).catch((error) => {
+                    console.log('⚠️ Autoplay blocked, user interaction required:', error.message);
+                });
                 
                 // Ensure video is visible and on top
                 videoPlayer.style.display = 'block';
@@ -2940,15 +2951,33 @@
                     }
                 }
                 
-                // Stop current video
+                // Stop and completely reset video player
                 const videoPlayer = document.getElementById('theaterVideoPlayer');
                 if (videoPlayer) {
                     videoPlayer.pause();
-                    videoPlayer.src = '';
+                    videoPlayer.removeAttribute('src');
+                    videoPlayer.load(); // Force complete reset
                 }
                 
-                // Load new video
-                loadVideoFromEventIdStandalone(eventId);
+                // Clear comments list
+                const commentsList = document.getElementById('theaterCommentsList');
+                if (commentsList) {
+                    commentsList.innerHTML = '<div class="text-center text-secondary py-5">Chargement des commentaires...</div>';
+                }
+                
+                // Reset global comments array
+                window.theaterComments = [];
+                
+                // Reset title temporarily
+                const titleEl = document.getElementById('theaterTitle');
+                if (titleEl) {
+                    titleEl.textContent = 'Chargement...';
+                }
+                
+                // Small delay to ensure cleanup is complete before loading new video
+                setTimeout(() => {
+                    loadVideoFromEventIdStandalone(eventId);
+                }, 100);
             } else {
                 // Modal mode: try to use parent's openTheaterModeFromEvent
                 if (typeof window.openTheaterModeFromEvent === 'function') {
