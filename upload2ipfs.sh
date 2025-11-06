@@ -600,7 +600,7 @@ INFO_JSON_CONTENT="{
   \"metadata\": {
     \"description\": \"$DESCRIPTION\",
     \"type\": \"$IDISK\",
-    \"title\": \"\\\$:/$IDISK/$CID/$FILE_NAME\"
+    \"title\": \"\$:/$IDISK/$CID/$FILE_NAME\"
   },
   \"nostr\": {
     \"nip94_tags\": [

@@ -2871,6 +2871,8 @@ async def process_webcam_video(
         # Also load thumbnail_ipfs and gifanim_ipfs from info.json if not provided via form
         thumbnail_ipfs_from_info = thumbnail_ipfs if thumbnail_ipfs else ""
         gifanim_ipfs_from_info = gifanim_ipfs if gifanim_ipfs else ""
+        file_hash = None
+        upload_chain = None
         
         if info_cid:
             try:
@@ -2883,6 +2885,17 @@ async def process_webcam_video(
                     info_response = await client.get(info_url)
                     if info_response.status_code == 200:
                         info_data = info_response.json()
+                        
+                        # Extract file hash from info.json
+                        if info_data.get("file") and info_data["file"].get("hash"):
+                            file_hash = info_data["file"]["hash"]
+                            logging.info(f"🔐 File hash from info.json: {file_hash[:16]}...")
+                        
+                        # Extract upload chain from provenance
+                        if info_data.get("provenance") and info_data["provenance"].get("upload_chain"):
+                            upload_chain = info_data["provenance"]["upload_chain"]
+                            logging.info(f"🔗 Upload chain from info.json: {upload_chain[:50]}...")
+                        
                         # Extract metadata from info.json
                         if info_data.get("media"):
                             media = info_data["media"]
@@ -2890,7 +2903,8 @@ async def process_webcam_video(
                                 video_dimensions = media["dimensions"]
                                 logging.info(f"📐 Video dimensions from info.json: {video_dimensions}")
                             if media.get("duration"):
-                                duration = int(float(media["duration"]))
+                                # Keep full precision for duration
+                                duration = float(media["duration"])
                                 logging.info(f"⏱️  Video duration from info.json: {duration}s")
                             # Load thumbnail and gifanim from info.json if not provided
                             if not thumbnail_ipfs and media.get("thumbnail_ipfs"):
