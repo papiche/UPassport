@@ -1123,6 +1123,28 @@
     </style>
 </head>
 <body>
+    <!-- Header with Connection Status -->
+    <div class="header">
+        <div class="header-left">
+            <h1>🎥 Video Recorder</h1>
+            <a href="/youtube?html=1" class="youtube-link">
+                <span>📺</span>
+                <span>View on NostrTube</span>
+            </a>
+        </div>
+        
+        <!-- NOSTR Connection Status -->
+        <div class="nostr-header" id="nostr-header">
+            <span class="auth-status" id="auth-status">⚫ Not connected</span>
+            <button id="connect-btn" class="btn-primary" onclick="handleNostrConnect()">
+                🔌 Connect
+            </button>
+            <button id="verify-auth-btn" class="btn-secondary hidden" onclick="handleVerifyAuth()" title="Required for uDRIVE upload">
+                🔐 Auth for Upload
+            </button>
+        </div>
+    </div>
+    
     <!-- Main Container - Centered -->
     <div class="main-container">
         <!-- Central Connection Button (hidden by default, shown only if needed) -->
@@ -2590,6 +2612,8 @@
         // Connect to NOSTR (supports both standalone and iframe modes)
         async function handleNostrConnect() {
             try {
+                updateAuthStatus('🔄 Connecting...', 'connecting');
+                
                 const isInIframe = window.self !== window.top;
                 
                 // Always try parent window first if in iframe
@@ -2603,20 +2627,32 @@
                         isNostrConnected = window.parent.isNostrConnected;
                     }
                 } else {
-                    // Standalone mode or no parent connection
-                    console.log('🔌 Connecting to NOSTR extension in standalone mode...');
+                    // Standalone mode - connect to NOSTR + relay
+                    console.log('🔌 Connecting to NOSTR extension...');
                     
-                    // Check if NOSTR extension is available
-                    if (typeof window.nostr === 'undefined' || !window.nostr) {
-                        showError(
-                            'NOSTR extension not detected. Please install a NOSTR extension like Alby, nos2x, or Flamingo to continue.',
-                            'Extension Required'
-                        );
-                        throw new Error("NOSTR extension not available");
-                    }
-                    
-                    // Try to get public key from extension
-                    try {
+                    // Use common.js connectNostr function
+                    if (typeof connectNostr === 'function') {
+                        console.log('📌 Using common.js connectNostr...');
+                        // Don't force NIP-42 yet - it will be checked when needed (upload)
+                        userPubkey = await connectNostr(false);
+                        
+                        if (!userPubkey) {
+                            throw new Error("No public key returned from connectNostr");
+                        }
+                        
+                        console.log('✅ Connected, pubkey:', userPubkey.substring(0, 8) + '...');
+                    } else {
+                        // Fallback to direct extension access
+                        console.log('⚠️ common.js not loaded, using direct extension access');
+                        
+                        if (typeof window.nostr === 'undefined' || !window.nostr) {
+                            showError(
+                                'NOSTR extension not detected. Please install a NOSTR extension like Alby, nos2x, or Flamingo to continue.',
+                                'Extension Required'
+                            );
+                            throw new Error("NOSTR extension not available");
+                        }
+                        
                         const pubkey = await window.nostr.getPublicKey();
                         if (pubkey) {
                             userPubkey = pubkey;
@@ -2627,25 +2663,20 @@
                         } else {
                             throw new Error("No public key returned from extension");
                         }
-                    } catch (extError) {
-                        console.error('❌ Extension error:', extError);
-                        showError(
-                            'Failed to connect to NOSTR extension. Please ensure you have authorized this site in your extension settings.',
-                            'Connection Failed'
-                        );
-                        throw extError;
-                    }
-                    
-                    // Try to connect to relay if function available
-                    if (typeof connectToRelay === 'function') {
-                        try {
-                            await connectToRelay();
-                        } catch (relayError) {
-                            console.warn('⚠️ Failed to connect to relay:', relayError);
-                            // Don't fail connection if relay connection fails
+                        
+                        // Try to connect to relay
+                        if (typeof connectToRelay === 'function') {
+                            try {
+                                await connectToRelay(false); // No force NIP-42 yet
+                            } catch (relayError) {
+                                console.warn('⚠️ Failed to connect to relay:', relayError);
+                            }
                         }
                     }
                 }
+                
+                // Update UI - show connected status
+                updateAuthStatus('✅ Connected', 'connected');
                 
                 // Fetch user email if available
                 if (typeof fetchUserEmail === 'function') {
@@ -2662,13 +2693,116 @@
                 await onConnectionSuccess();
                 
                 showSuccess(
-                    'Successfully connected to NOSTR! You can now record and publish videos.',
+                    'Connected! You can now record videos. NIP-42 authentication will be checked automatically when uploading to uDRIVE.',
                     'Connected! 🎉'
                 );
                 
             } catch (error) {
                 console.error("❌ Connection error:", error);
-                // Error notification already shown in specific catch blocks
+                updateAuthStatus('❌ Connection failed', 'error');
+                showError(
+                    error.message || 'Failed to connect to NOSTR. Please try again.',
+                    'Connection Error'
+                );
+            }
+        }
+        
+        // Update authentication status UI
+        function updateAuthStatus(text, state) {
+            const statusEl = document.getElementById('auth-status');
+            const connectBtn = document.getElementById('connect-btn');
+            const verifyBtn = document.getElementById('verify-auth-btn');
+            
+            if (!statusEl) return;
+            
+            statusEl.textContent = text;
+            
+            // Update button states
+            if (state === 'authenticated') {
+                // Full authentication with NIP-42 - can upload to uDRIVE
+                if (connectBtn) {
+                    connectBtn.textContent = '✅ Connected';
+                    connectBtn.disabled = true;
+                    connectBtn.classList.remove('btn-primary');
+                    connectBtn.classList.add('btn-secondary');
+                }
+                if (verifyBtn) {
+                    verifyBtn.classList.add('hidden');
+                }
+            } else if (state === 'connected') {
+                // Basic connection (can record, but upload will trigger NIP-42 check)
+                if (connectBtn) {
+                    connectBtn.textContent = '✅ Connected';
+                    connectBtn.disabled = true;
+                    connectBtn.classList.remove('btn-primary');
+                    connectBtn.classList.add('btn-secondary');
+                }
+                // Don't show verify button yet - only show if upload fails
+                if (verifyBtn) {
+                    verifyBtn.classList.add('hidden');
+                }
+            } else if (state === 'not-authenticated') {
+                // Connected but upload failed - show verify button
+                if (connectBtn) {
+                    connectBtn.textContent = '🟡 Connected';
+                    connectBtn.disabled = true;
+                }
+                if (verifyBtn) {
+                    verifyBtn.classList.remove('hidden');
+                }
+            } else if (state === 'error') {
+                if (connectBtn) {
+                    connectBtn.textContent = '🔌 Retry';
+                    connectBtn.disabled = false;
+                    connectBtn.classList.remove('btn-secondary');
+                    connectBtn.classList.add('btn-primary');
+                }
+            }
+        }
+        
+        // Handle verify authentication button
+        async function handleVerifyAuth() {
+            if (!userPubkey) {
+                showError('Please connect to NOSTR first.', 'Not Connected');
+                return;
+            }
+            
+            try {
+                updateAuthStatus('🔄 Authenticating for upload...', 'connecting');
+                
+                // Force NIP-42 authentication
+                console.log('🔐 Forcing NIP-42 authentication for uDRIVE upload...');
+                if (typeof sendNIP42Auth === 'function') {
+                    await sendNIP42Auth(nostrRelay?.url || 'wss://astroport.com', true);
+                } else if (typeof connectNostr === 'function') {
+                    await connectNostr(true); // Re-connect with force auth
+                }
+                
+                // Wait for processing
+                await new Promise(resolve => setTimeout(resolve, 2500));
+                
+                // Verify again
+                const isAuthenticated = typeof verifyAuthenticationWithAPI === 'function' 
+                    ? await verifyAuthenticationWithAPI(userPubkey)
+                    : false;
+                
+                if (isAuthenticated) {
+                    updateAuthStatus('✅ Authenticated for upload', 'authenticated');
+                    showSuccess(
+                        'NIP-42 authentication successful! You can now upload to uDRIVE.',
+                        'Authenticated! 🎉'
+                    );
+                } else {
+                    throw new Error('Authentication verification failed. You may not have a MULTIPASS account on this relay.');
+                }
+                
+            } catch (error) {
+                console.error('❌ Verification error:', error);
+                updateAuthStatus('✅ Connected', 'connected');
+                showError(
+                    error.message || 'Verification failed. The upload function will automatically retry authentication if needed.',
+                    'Info'
+                );
             }
         }
 
