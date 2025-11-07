@@ -10,6 +10,36 @@
 
     <!-- Common.js with enhanced UPlanet NOSTR functions -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    <!-- Define showAlert function for common.js compatibility -->
+    <script>
+        // Define showAlert function if not already defined (for common.js compatibility)
+        if (typeof showAlert === 'undefined') {
+            window.showAlert = function(message, type = 'info', title = '') {
+                // Use Bootstrap alert or native alert as fallback
+                if (typeof bootstrap !== 'undefined' && bootstrap.Alert) {
+                    // Create Bootstrap alert
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
+                    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+                    alertDiv.innerHTML = `
+                        ${title ? `<strong>${title}</strong><br>` : ''}
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    document.body.appendChild(alertDiv);
+                    // Auto-remove after 5 seconds
+                    setTimeout(() => {
+                        if (alertDiv.parentNode) {
+                            alertDiv.remove();
+                        }
+                    }, 5000);
+                } else {
+                    // Fallback to native alert
+                    alert(title ? `${title}\n\n${message}` : message);
+                }
+            };
+        }
+    </script>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/leaflet.css"/>

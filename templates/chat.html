@@ -9,6 +9,36 @@
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
     <!-- Common.js with NOSTR functions -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    <!-- Define showAlert function for common.js compatibility -->
+    <script>
+        // Define showAlert function if not already defined (for common.js compatibility)
+        if (typeof showAlert === 'undefined') {
+            window.showAlert = function(message, type = 'info', title = '') {
+                // Use Bootstrap alert or native alert as fallback
+                if (typeof bootstrap !== 'undefined' && bootstrap.Alert) {
+                    // Create Bootstrap alert
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
+                    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+                    alertDiv.innerHTML = `
+                        ${title ? `<strong>${title}</strong><br>` : ''}
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    document.body.appendChild(alertDiv);
+                    // Auto-remove after 5 seconds
+                    setTimeout(() => {
+                        if (alertDiv.parentNode) {
+                            alertDiv.remove();
+                        }
+                    }, 5000);
+                } else {
+                    // Fallback to native alert
+                    alert(title ? `${title}\n\n${message}` : message);
+                }
+            };
+        }
+    </script>
     
     <!-- Bootstrap 5 CSS -->
     <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
@@ -172,6 +202,38 @@
             text-decoration: underline;
         }
         
+        .chat-message-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            background: rgba(59, 130, 246, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #3ea6ff;
+            font-weight: bold;
+        }
+        
+        .chat-reply-avatar {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            background: rgba(59, 130, 246, 0.2);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            color: #3ea6ff;
+            font-weight: bold;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+        
         .chat-message-time {
             font-size: 0.75em;
             color: #717171;
@@ -181,6 +243,108 @@
             color: #e2e8f0;
             line-height: 1.6;
             word-wrap: break-word;
+        }
+        
+        .chat-message-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .chat-message-action-btn {
+            background: transparent;
+            border: none;
+            color: #717171;
+            font-size: 0.85em;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .chat-message-action-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #3ea6ff;
+        }
+        
+        .chat-reply-form {
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .chat-reply-form.active {
+            display: block;
+        }
+        
+        .chat-reply-input-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .chat-reply-input {
+            flex: 1;
+            padding: 8px 12px;
+            background: #0f0f0f;
+            border: 1px solid #3f3f3f;
+            border-radius: 12px;
+            color: #ffffff;
+            font-size: 0.9em;
+        }
+        
+        .chat-reply-input:focus {
+            outline: none;
+            border-color: #3ea6ff;
+        }
+        
+        .chat-reply-btn {
+            padding: 8px 16px;
+            background: #3ea6ff;
+            border: none;
+            border-radius: 12px;
+            color: #ffffff;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .chat-reply-btn:hover {
+            background: #2d8ce8;
+        }
+        
+        .chat-replies {
+            margin-top: 12px;
+            padding-left: 20px;
+            border-left: 2px solid rgba(59, 130, 246, 0.3);
+        }
+        
+        .chat-reply {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(59, 130, 246, 0.05);
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+        
+        .chat-reply-author {
+            font-weight: 600;
+            color: #3ea6ff;
+            font-size: 0.85em;
+            margin-bottom: 4px;
+        }
+        
+        .chat-reply-content {
+            color: #e2e8f0;
+            line-height: 1.4;
         }
         
         .chat-input-area {
@@ -797,7 +961,7 @@
                     const filter = {
                         kinds: [42],  // NIP-28: Public channel message
                         "#g": [umapKey],  // Filter by geolocation
-                        limit: 50
+                        limit: 100  // Increased to get more messages including replies
                     };
                     
                     // Add channel reference if available
@@ -822,9 +986,62 @@
                             updateUsersCount();
                         }
                         
+                        // Check if this is a reply
+                        const isReply = event.tags && event.tags.some(tag => tag[0] === 'e' && tag[3] === 'reply');
+                        
                         // Add to messages array (avoid duplicates)
                         if (!UMAPChat.messages.find(m => m.id === event.id)) {
                             UMAPChat.messages.push(event);
+                            
+                            if (isReply) {
+                                // Handle reply - add to parent message's replies
+                                const parentEventId = event.tags.find(tag => tag[0] === 'e' && tag[3] === 'reply')?.[1];
+                                if (parentEventId) {
+                                    const parentMessageDiv = document.querySelector(`.chat-message[data-message-id="${parentEventId}"]`);
+                                    if (parentMessageDiv) {
+                                        const repliesContainer = parentMessageDiv.querySelector(`#replies-${parentEventId}`);
+                                        if (repliesContainer) {
+                                            const replyDiv = document.createElement('div');
+                                            replyDiv.className = 'chat-reply';
+                                            replyDiv.dataset.messageId = event.id;
+                                            replyDiv.dataset.pubkey = event.pubkey || '';
+                                            
+                                            const ipfsGateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+                                            const replyProfileUrl = event.pubkey ? 
+                                                `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${event.pubkey}` : 
+                                                '#';
+                                            
+                                            let replyDisplayName = event.pubkey ? event.pubkey.substring(0, 12) + '...' : 'Unknown';
+                                            if (event.pubkey && UMAPChat.profileCache.has(event.pubkey)) {
+                                                const profileInfo = UMAPChat.profileCache.get(event.pubkey);
+                                                if (profileInfo && profileInfo.name) {
+                                                    replyDisplayName = profileInfo.name;
+                                                }
+                                            }
+                                            
+                                            replyDiv.innerHTML = `
+                                                <div class="chat-reply-author">
+                                                    <a href="${replyProfileUrl}" target="_blank" rel="noopener noreferrer" style="color: #3ea6ff; text-decoration: none;">
+                                                        ${replyDisplayName}
+                                                    </a>
+                                                </div>
+                                                <div class="chat-reply-content">${escapeHtml(event.content)}</div>
+                                            `;
+                                            
+                                            repliesContainer.appendChild(replyDiv);
+                                            
+                                            // Fetch profile in background if not cached
+                                            if (event.pubkey && !UMAPChat.profileCache.has(event.pubkey)) {
+                                                fetchUserProfile(event.pubkey);
+                                            }
+                                            
+                                            return; // Don't display as main message
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Display as main message (not a reply)
                             displayChatMessage(event);
                         }
                     });
@@ -870,7 +1087,8 @@
         }
         
         /**
-         * Fetch user profile (kind 0) and cache it
+         * Fetch user profile using common.js functions (lazy loading with cache)
+         * Uses getUserDisplayName and fetchUserMetadata from common.js for better UX
          */
         async function fetchUserProfile(pubkey) {
             if (!pubkey) return null;
@@ -889,85 +1107,87 @@
             UMAPChat.profileCache.set(pubkey + '_fetching', true);
             
             try {
-                if (!window.nostrRelay) {
-                    return null;
+                // Use common.js getUserDisplayName (uses cached profile if available)
+                let displayName = null;
+                if (typeof getUserDisplayName === 'function') {
+                    displayName = await getUserDisplayName(pubkey, true); // Use cached
+                } else {
+                    // Fallback to pubkey short
+                    displayName = pubkey.substring(0, 12) + '...';
                 }
                 
-                const filter = {
-                    kinds: [0],
-                    authors: [pubkey],
-                    limit: 1
+                // Also fetch full metadata for picture and other info
+                let profileData = null;
+                if (typeof fetchUserMetadata === 'function') {
+                    profileData = await fetchUserMetadata(pubkey, true); // Use cached
+                }
+                
+                const profileInfo = {
+                    name: displayName,
+                    pubkey: pubkey,
+                    picture: profileData?.picture || null,
+                    display_name: profileData?.display_name || null
                 };
                 
-                const profileEvent = await new Promise((resolve) => {
-                    const sub = window.nostrRelay.sub([filter]);
-                    let profile = null;
-                    const timeout = setTimeout(() => {
-                        sub.unsub();
-                        resolve(null);
-                    }, 3000);
-                    
-                    sub.on('event', (event) => {
-                        clearTimeout(timeout);
-                        profile = event;
-                        sub.unsub();
-                        resolve(profile);
-                    });
-                    
-                    sub.on('eose', () => {
-                        if (!profile) {
-                            clearTimeout(timeout);
-                            sub.unsub();
-                            resolve(null);
-                        }
-                    });
-                });
+                // Cache the profile
+                UMAPChat.profileCache.set(pubkey, profileInfo);
+                UMAPChat.profileCache.delete(pubkey + '_fetching');
                 
-                if (profileEvent) {
-                    try {
-                        const profileData = JSON.parse(profileEvent.content);
-                        const profileInfo = {
-                            name: profileData.display_name || profileData.name || null,
-                            pubkey: pubkey
-                        };
-                        
-                        // Cache the profile
-                        UMAPChat.profileCache.set(pubkey, profileInfo);
-                        UMAPChat.profileCache.delete(pubkey + '_fetching');
-                        
-                        // Update all messages from this user
-                        updateMessagesForUser(pubkey, profileInfo);
-                        
-                        return profileInfo;
-                    } catch (e) {
-                        console.warn('[CHAT] Error parsing profile:', e);
-                        UMAPChat.profileCache.delete(pubkey + '_fetching');
-                        return null;
-                    }
-                } else {
-                    UMAPChat.profileCache.delete(pubkey + '_fetching');
-                    return null;
-                }
+                // Update all messages from this user
+                updateMessagesForUser(pubkey, profileInfo);
+                
+                return profileInfo;
             } catch (error) {
                 console.warn('[CHAT] Error fetching profile for', pubkey.substring(0, 8) + '...:', error);
                 UMAPChat.profileCache.delete(pubkey + '_fetching');
-                return null;
+                
+                // Fallback: cache with pubkey short
+                const fallbackInfo = {
+                    name: pubkey.substring(0, 12) + '...',
+                    pubkey: pubkey
+                };
+                UMAPChat.profileCache.set(pubkey, fallbackInfo);
+                return fallbackInfo;
             }
         }
         
         /**
-         * Update all messages from a specific user with their profile name
+         * Update all messages from a specific user with their profile name and avatar
+         * Also updates reply messages
          */
         function updateMessagesForUser(pubkey, profileInfo) {
             const messagesEl = document.getElementById('chatMessages');
-            const messageDivs = messagesEl.querySelectorAll(`.chat-message[data-pubkey="${pubkey}"]`);
+            if (!messagesEl) return;
             
+            const displayName = profileInfo.name || pubkey.substring(0, 12) + '...';
+            
+            // Get avatar HTML
+            let avatarHtml = `<span class="chat-message-avatar">${displayName.substring(0, 2).toUpperCase()}</span>`;
+            if (profileInfo.picture) {
+                avatarHtml = `<img src="${profileInfo.picture}" alt="${displayName}" class="chat-message-avatar" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" style="display: block;"><span class="chat-message-avatar" style="display: none;">${displayName.substring(0, 2).toUpperCase()}</span>`;
+            }
+            
+            // Update main messages
+            const messageDivs = messagesEl.querySelectorAll(`.chat-message[data-pubkey="${pubkey}"]`);
             messageDivs.forEach(div => {
                 const authorLink = div.querySelector('.chat-message-author a');
                 if (authorLink) {
-                    const displayName = profileInfo.name || pubkey.substring(0, 12) + '...';
-                    const icon = authorLink.querySelector('i');
-                    authorLink.innerHTML = icon ? `${icon.outerHTML} ${displayName}` : `<i class="bi bi-person-circle"></i> ${displayName}`;
+                    authorLink.innerHTML = `${avatarHtml} ${displayName}`;
+                }
+            });
+            
+            // Get reply avatar HTML
+            let replyAvatarHtml = `<span class="chat-reply-avatar">${displayName.substring(0, 2).toUpperCase()}</span>`;
+            if (profileInfo.picture) {
+                replyAvatarHtml = `<img src="${profileInfo.picture}" alt="${displayName}" class="chat-reply-avatar" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" style="display: inline-block;"><span class="chat-reply-avatar" style="display: none;">${displayName.substring(0, 2).toUpperCase()}</span>`;
+            }
+            
+            // Update reply messages
+            const replyDivs = messagesEl.querySelectorAll(`.chat-reply[data-pubkey="${pubkey}"]`);
+            replyDivs.forEach(div => {
+                const replyAuthor = div.querySelector('.chat-reply-author a');
+                if (replyAuthor) {
+                    replyAuthor.innerHTML = `${replyAvatarHtml} ${displayName}`;
                 }
             });
         }
@@ -991,7 +1211,13 @@
                 messageDiv.dataset.pubkey = event.pubkey;
             }
             
-            const time = new Date(event.created_at * 1000).toLocaleTimeString();
+            // Use formatRelativeTime from common.js if available, otherwise use locale time
+            let time;
+            if (typeof formatRelativeTime === 'function') {
+                time = formatRelativeTime(event.created_at);
+            } else {
+                time = new Date(event.created_at * 1000).toLocaleTimeString();
+            }
             
             // Get IPFS gateway
             const ipfsGateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
@@ -999,26 +1225,136 @@
                 `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${event.pubkey}` : 
                 '#';
             
-            // Get display name from cache or use pubkey short
+            // Get display name using common.js getUserDisplayName (lazy loading)
             let displayName = event.pubkey ? event.pubkey.substring(0, 12) + '...' : 'Unknown';
+            if (event.pubkey) {
+                // Check cache first
+                if (UMAPChat.profileCache.has(event.pubkey)) {
+                    const profileInfo = UMAPChat.profileCache.get(event.pubkey);
+                    if (profileInfo && profileInfo.name) {
+                        displayName = profileInfo.name;
+                    }
+                } else if (typeof getUserDisplayName === 'function') {
+                    // Use common.js function (will use its own cache)
+                    // This is async, so we'll update it after display
+                    getUserDisplayName(event.pubkey, true).then(name => {
+                        if (name && name !== displayName) {
+                            // Update the message display
+                            const messageDiv = document.querySelector(`.chat-message[data-message-id="${event.id}"]`);
+                            if (messageDiv) {
+                                const authorLink = messageDiv.querySelector('.chat-message-author a');
+                                if (authorLink) {
+                                    const icon = authorLink.querySelector('i');
+                                    authorLink.innerHTML = icon ? `${icon.outerHTML} ${name}` : `<i class="bi bi-person-circle"></i> ${name}`;
+                                }
+                            }
+                        }
+                    }).catch(() => {
+                        // Silent fail, keep pubkey short
+                    });
+                }
+            }
+            
+            // Check if this is a reply (has "e" tag pointing to another message)
+            const isReply = event.tags && event.tags.some(tag => tag[0] === 'e' && tag[3] !== 'root');
+            const parentEventId = isReply ? event.tags.find(tag => tag[0] === 'e' && tag[3] !== 'root')?.[1] : null;
+            const parentAuthor = isReply ? event.tags.find(tag => tag[0] === 'p')?.[1] : null;
+            
+            // Get avatar if available from cache
+            let avatarHtml = `<i class="bi bi-person-circle"></i>`;
             if (event.pubkey && UMAPChat.profileCache.has(event.pubkey)) {
                 const profileInfo = UMAPChat.profileCache.get(event.pubkey);
-                if (profileInfo && profileInfo.name) {
-                    displayName = profileInfo.name;
+                if (profileInfo && profileInfo.picture) {
+                    avatarHtml = `<img src="${profileInfo.picture}" alt="${displayName}" class="chat-message-avatar" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" style="display: block;"><span class="chat-message-avatar" style="display: none;">${displayName.substring(0, 2).toUpperCase()}</span>`;
+                } else {
+                    avatarHtml = `<span class="chat-message-avatar">${displayName.substring(0, 2).toUpperCase()}</span>`;
                 }
+            } else {
+                avatarHtml = `<span class="chat-message-avatar">${displayName.substring(0, 2).toUpperCase()}</span>`;
             }
             
             messageDiv.innerHTML = `
                 <div class="chat-message-header">
                     <div class="chat-message-author">
                         <a href="${profileUrl}" target="_blank" rel="noopener noreferrer" title="View profile">
-                            <i class="bi bi-person-circle"></i> ${displayName}
+                            ${avatarHtml} ${displayName}
                         </a>
                     </div>
                     <div class="chat-message-time">${time}</div>
                 </div>
                 <div class="chat-message-content">${escapeHtml(event.content)}</div>
+                <div class="chat-message-actions">
+                    <button class="chat-message-action-btn" onclick="showReplyForm('${event.id}', '${event.pubkey || ''}')" title="Reply to this message">
+                        <i class="bi bi-reply"></i> Reply
+                    </button>
+                </div>
+                <div class="chat-reply-form" id="reply-form-${event.id}">
+                    <div class="chat-reply-input-group">
+                        <input type="text" 
+                               class="chat-reply-input" 
+                               id="reply-input-${event.id}"
+                               placeholder="Type a reply..." 
+                               onkeypress="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendReply('${event.id}', '${event.pubkey || ''}'); }">
+                        <button class="chat-reply-btn" onclick="sendReply('${event.id}', '${event.pubkey || ''}')">
+                            <i class="bi bi-send"></i> Send
+                        </button>
+                    </div>
+                </div>
+                <div class="chat-replies" id="replies-${event.id}"></div>
             `;
+            
+            // If this is a reply, add it to the parent message's replies section
+            if (isReply && parentEventId) {
+                const parentMessageDiv = messagesEl.querySelector(`.chat-message[data-message-id="${parentEventId}"]`);
+                if (parentMessageDiv) {
+                    const repliesContainer = parentMessageDiv.querySelector(`#replies-${parentEventId}`);
+                    if (repliesContainer) {
+                        const replyDiv = document.createElement('div');
+                        replyDiv.className = 'chat-reply';
+                        replyDiv.dataset.messageId = event.id;
+                        replyDiv.dataset.pubkey = event.pubkey || '';
+                        
+                        const replyProfileUrl = event.pubkey ? 
+                            `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${event.pubkey}` : 
+                            '#';
+                        
+                        let replyDisplayName = event.pubkey ? event.pubkey.substring(0, 12) + '...' : 'Unknown';
+                        if (event.pubkey && UMAPChat.profileCache.has(event.pubkey)) {
+                            const profileInfo = UMAPChat.profileCache.get(event.pubkey);
+                            if (profileInfo && profileInfo.name) {
+                                replyDisplayName = profileInfo.name;
+                            }
+                        }
+                        
+                        // Get avatar for reply if available
+                        let replyAvatarHtml = `<span class="chat-reply-avatar">${replyDisplayName.substring(0, 2).toUpperCase()}</span>`;
+                        if (event.pubkey && UMAPChat.profileCache.has(event.pubkey)) {
+                            const profileInfo = UMAPChat.profileCache.get(event.pubkey);
+                            if (profileInfo && profileInfo.picture) {
+                                replyAvatarHtml = `<img src="${profileInfo.picture}" alt="${replyDisplayName}" class="chat-reply-avatar" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" style="display: inline-block;"><span class="chat-reply-avatar" style="display: none;">${replyDisplayName.substring(0, 2).toUpperCase()}</span>`;
+                            }
+                        }
+                        
+                        replyDiv.innerHTML = `
+                            <div class="chat-reply-author">
+                                <a href="${replyProfileUrl}" target="_blank" rel="noopener noreferrer" style="color: #3ea6ff; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+                                    ${replyAvatarHtml} ${replyDisplayName}
+                                </a>
+                            </div>
+                            <div class="chat-reply-content">${escapeHtml(event.content)}</div>
+                        `;
+                        
+                        repliesContainer.appendChild(replyDiv);
+                        
+                        // Fetch profile in background if not cached
+                        if (event.pubkey && !UMAPChat.profileCache.has(event.pubkey)) {
+                            fetchUserProfile(event.pubkey);
+                        }
+                        
+                        return; // Don't add as main message if it's a reply
+                    }
+                }
+            }
             
             // Insert at the beginning (newest first, but container is reversed)
             messagesEl.appendChild(messageDiv);
@@ -1051,7 +1387,16 @@
                     try {
                         window.userPubkey = await connectNostr(false);
                         if (!window.userPubkey) {
-                            alert('❌ Please connect with NOSTR to send messages');
+                            // Use showNotification from common.js if available
+                            if (typeof showNotification === 'function') {
+                                showNotification({
+                                    message: 'Please connect with NOSTR to send messages',
+                                    type: 'warning',
+                                    duration: 5000
+                                });
+                            } else {
+                                alert('❌ Please connect with NOSTR to send messages');
+                            }
                             return;
                         }
                         // Sync with global variable if it exists
@@ -1059,11 +1404,29 @@
                             userPubkey = window.userPubkey;
                         }
                     } catch (error) {
-                        alert('❌ Connection failed: ' + error.message);
+                        // Use showNotification from common.js if available
+                        if (typeof showNotification === 'function') {
+                            showNotification({
+                                message: 'Connection failed: ' + error.message,
+                                type: 'error',
+                                duration: 5000
+                            });
+                        } else {
+                            alert('❌ Connection failed: ' + error.message);
+                        }
                         return;
                     }
                 } else {
-                    alert('❌ NOSTR extension not available');
+                    // Use showNotification from common.js if available
+                    if (typeof showNotification === 'function') {
+                        showNotification({
+                            message: 'NOSTR extension not available',
+                            type: 'error',
+                            duration: 5000
+                        });
+                    } else {
+                        alert('❌ NOSTR extension not available');
+                    }
                     return;
                 }
             }
@@ -1106,8 +1469,26 @@
                     const signedEvent = await window.nostr.signEvent(event);
                     
                     if (window.nostrRelay) {
+                        // Display message immediately (optimistic update)
+                        displayChatMessage(signedEvent);
+                        
+                        // Add to messages array
+                        if (!UMAPChat.messages.find(m => m.id === signedEvent.id)) {
+                            UMAPChat.messages.push(signedEvent);
+                        }
+                        
+                        // Publish to relay
                         await window.nostrRelay.publish(signedEvent);
-                        console.log('[CHAT] ✅ Message sent');
+                        console.log('[CHAT] ✅ Message sent and displayed');
+                        
+                        // Show success notification
+                        if (typeof showNotification === 'function') {
+                            showNotification({
+                                message: 'Message sent successfully!',
+                                type: 'success',
+                                duration: 2000
+                            });
+                        }
                         
                         // Clear input
                         input.value = '';
@@ -1126,7 +1507,16 @@
                 }
             } catch (error) {
                 console.error('[CHAT] ❌ Error sending message:', error);
-                alert('❌ Error sending message: ' + error.message);
+                // Use showNotification from common.js if available
+                if (typeof showNotification === 'function') {
+                    showNotification({
+                        message: 'Error sending message: ' + error.message,
+                        type: 'error',
+                        duration: 5000
+                    });
+                } else {
+                    alert('❌ Error sending message: ' + error.message);
+                }
             } finally {
                 sendBtn.disabled = false;
                 sendBtn.innerHTML = '<i class="bi bi-send"></i> Send';
@@ -1221,8 +1611,191 @@
             return div.innerHTML;
         }
         
+        /**
+         * Show reply form for a message
+         */
+        function showReplyForm(messageId, authorPubkey) {
+            // Hide all other reply forms
+            document.querySelectorAll('.chat-reply-form').forEach(form => {
+                form.classList.remove('active');
+            });
+            
+            // Show this reply form
+            const replyForm = document.getElementById(`reply-form-${messageId}`);
+            if (replyForm) {
+                replyForm.classList.add('active');
+                const replyInput = document.getElementById(`reply-input-${messageId}`);
+                if (replyInput) {
+                    replyInput.focus();
+                }
+            }
+        }
+        
+        /**
+         * Send a reply to a message
+         */
+        async function sendReply(parentMessageId, parentAuthorPubkey) {
+            const replyInput = document.getElementById(`reply-input-${parentMessageId}`);
+            if (!replyInput) return;
+            
+            const content = replyInput.value.trim();
+            if (!content) return;
+            
+            // Check if user is connected
+            const currentPubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
+            if (!currentPubkey) {
+                // Use showNotification from common.js if available
+                if (typeof showNotification === 'function') {
+                    showNotification({
+                        message: 'Please connect with NOSTR to send replies',
+                        type: 'warning',
+                        duration: 5000
+                    });
+                } else {
+                    alert('❌ Please connect with NOSTR to send replies');
+                }
+                return;
+            }
+            
+            // Ensure relay is connected
+            if (typeof window.nostrRelay === 'undefined' || !window.nostrRelay) {
+                if (typeof connectToRelay === 'function') {
+                    await connectToRelay();
+                }
+            }
+            
+            // Disable input
+            replyInput.disabled = true;
+            
+            try {
+                const umapKey = `${UMAPChat.currentUMAP.lat.toFixed(2)},${UMAPChat.currentUMAP.lon.toFixed(2)}`;
+                const tags = [
+                    ["g", umapKey],  // Geolocation (required)
+                    ["e", parentMessageId, "", "reply"],  // Reference to parent message
+                    ["p", parentAuthorPubkey]  // Reference to parent author
+                ];
+                
+                // Add channel reference if available
+                if (UMAPChat.channelId && UMAPChat.channelId.length === 64 && UMAPChat.umapDID) {
+                    tags.unshift(["e", UMAPChat.channelId, "", "root"]);
+                } else if (UMAPChat.umapHex && UMAPChat.umapHex.length === 64) {
+                    tags.push(["p", UMAPChat.umapHex]);
+                }
+                
+                // Create reply event
+                const event = {
+                    kind: 42,  // NIP-28: Channel message
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: tags,
+                    content: content
+                };
+                
+                // Sign and publish
+                if (typeof window.nostr !== 'undefined') {
+                    const signedEvent = await window.nostr.signEvent(event);
+                    
+                    if (window.nostrRelay) {
+                        // Find parent message and add reply immediately
+                        const parentMessageDiv = document.querySelector(`.chat-message[data-message-id="${parentMessageId}"]`);
+                        if (parentMessageDiv) {
+                            const repliesContainer = parentMessageDiv.querySelector(`#replies-${parentMessageId}`);
+                            if (repliesContainer) {
+                                const replyDiv = document.createElement('div');
+                                replyDiv.className = 'chat-reply';
+                                replyDiv.dataset.messageId = signedEvent.id;
+                                replyDiv.dataset.pubkey = signedEvent.pubkey;
+                                
+                                const ipfsGateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+                                const replyProfileUrl = signedEvent.pubkey ? 
+                                    `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${signedEvent.pubkey}` : 
+                                    '#';
+                                
+                                let replyDisplayName = signedEvent.pubkey ? signedEvent.pubkey.substring(0, 12) + '...' : 'Unknown';
+                                if (signedEvent.pubkey && UMAPChat.profileCache.has(signedEvent.pubkey)) {
+                                    const profileInfo = UMAPChat.profileCache.get(signedEvent.pubkey);
+                                    if (profileInfo && profileInfo.name) {
+                                        replyDisplayName = profileInfo.name;
+                                    }
+                                }
+                                
+                                // Get avatar for reply if available
+                                let replyAvatarHtml = `<span class="chat-reply-avatar">${replyDisplayName.substring(0, 2).toUpperCase()}</span>`;
+                                if (signedEvent.pubkey && UMAPChat.profileCache.has(signedEvent.pubkey)) {
+                                    const profileInfo = UMAPChat.profileCache.get(signedEvent.pubkey);
+                                    if (profileInfo && profileInfo.picture) {
+                                        replyAvatarHtml = `<img src="${profileInfo.picture}" alt="${replyDisplayName}" class="chat-reply-avatar" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" style="display: inline-block;"><span class="chat-reply-avatar" style="display: none;">${replyDisplayName.substring(0, 2).toUpperCase()}</span>`;
+                                    }
+                                }
+                                
+                                replyDiv.innerHTML = `
+                                    <div class="chat-reply-author">
+                                        <a href="${replyProfileUrl}" target="_blank" rel="noopener noreferrer" style="color: #3ea6ff; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+                                        ${replyAvatarHtml} ${replyDisplayName}
+                                    </a>
+                                    </div>
+                                    <div class="chat-reply-content">${escapeHtml(content)}</div>
+                                `;
+                                
+                                repliesContainer.appendChild(replyDiv);
+                                
+                                // Fetch profile in background if not cached
+                                if (signedEvent.pubkey && !UMAPChat.profileCache.has(signedEvent.pubkey)) {
+                                    fetchUserProfile(signedEvent.pubkey);
+                                }
+                            }
+                        }
+                        
+                        // Publish to relay
+                        await window.nostrRelay.publish(signedEvent);
+                        console.log('[CHAT] ✅ Reply sent');
+                        
+                        // Show success notification
+                        if (typeof showNotification === 'function') {
+                            showNotification({
+                                message: 'Reply sent successfully!',
+                                type: 'success',
+                                duration: 2000
+                            });
+                        }
+                        
+                        // Clear input and hide form
+                        replyInput.value = '';
+                        const replyForm = document.getElementById(`reply-form-${parentMessageId}`);
+                        if (replyForm) {
+                            replyForm.classList.remove('active');
+                        }
+                        
+                        // Add to messages array
+                        if (!UMAPChat.messages.find(m => m.id === signedEvent.id)) {
+                            UMAPChat.messages.push(signedEvent);
+                        }
+                    } else {
+                        throw new Error('Relay not connected');
+                    }
+                } else {
+                    throw new Error('NOSTR extension not available');
+                }
+            } catch (error) {
+                console.error('[CHAT] ❌ Error sending reply:', error);
+                // Use showNotification from common.js if available
+                if (typeof showNotification === 'function') {
+                    showNotification({
+                        message: 'Error sending reply: ' + error.message,
+                        type: 'error',
+                        duration: 5000
+                    });
+                } else {
+                    alert('❌ Error sending reply: ' + error.message);
+                }
+            } finally {
+                replyInput.disabled = false;
+            }
+        }
+        
         // Expose functions globally
         window.sendChatMessage = sendChatMessage;
+        window.showReplyForm = showReplyForm;
+        window.sendReply = sendReply;
     </script>
 </body>
 </html>
