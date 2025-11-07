@@ -222,6 +222,25 @@
             font-size: 0.9rem;
         }
         
+        .chat-message .author a {
+            color: var(--bs-info);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .chat-message .author a:hover {
+            color: var(--bs-primary);
+            text-decoration: underline;
+            transform: translateX(2px);
+        }
+        
+        .chat-message .author a i {
+            font-size: 1.1rem;
+        }
+        
         .chat-message .content {
             margin-top: 0.25rem;
         }
@@ -361,10 +380,32 @@
             max-width: 400px;
             display: none;
             animation: slideDown 0.3s ease;
+            transition: background 0.3s ease, border-color 0.3s ease;
         }
         
         .connection-panel.show {
             display: block;
+        }
+        
+        /* Connection level colors */
+        .connection-panel.level-disconnected {
+            background: rgba(107, 114, 128, 0.95);  /* Gray - Not connected */
+            border-color: rgba(156, 163, 175, 0.3);
+        }
+        
+        .connection-panel.level-public {
+            background: rgba(59, 130, 246, 0.95);  /* Blue - Public read only */
+            border-color: rgba(96, 165, 250, 0.5);
+        }
+        
+        .connection-panel.level-partial {
+            background: rgba(245, 158, 11, 0.95);  /* Orange - Connected but not authenticated */
+            border-color: rgba(251, 191, 36, 0.5);
+        }
+        
+        .connection-panel.level-full {
+            background: rgba(16, 185, 129, 0.95);  /* Green - Fully authenticated */
+            border-color: rgba(52, 211, 153, 0.5);
         }
         
         @keyframes slideDown {
@@ -456,6 +497,48 @@
         .connection-badge-clickable {
             cursor: pointer;
         }
+        
+        /* GPS badge hover effect */
+        #gpsInfo:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+        
+        #gpsInfo:active {
+            transform: scale(0.98);
+        }
+        
+        /* Collapsible modules */
+        .module-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: background-color 0.2s;
+        }
+        
+        .module-header:hover {
+            background-color: rgba(0, 0, 0, 0.02);
+            border-radius: 8px;
+        }
+        
+        .collapse-icon {
+            margin-left: auto;
+            transition: transform 0.3s ease;
+            color: var(--primary);
+            font-size: 1.2rem;
+        }
+        
+        .module-header[aria-expanded="true"] .collapse-icon i::before {
+            content: "\f285"; /* bi-chevron-up */
+        }
+        
+        .module-header[aria-expanded="false"] .collapse-icon i::before {
+            content: "\f282"; /* bi-chevron-down */
+        }
+        
+        .collapse {
+            transition: height 0.3s ease;
+        }
     </style>
 </head>
 <body>
@@ -471,59 +554,38 @@
     </div>
     
     <!-- Connection Status Panel (expandable) -->
-    <div id="connectionPanel" class="connection-panel">
+    <div id="connectionPanel" class="connection-panel level-disconnected">
         <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1rem;">
-            <h6 style="color: white; margin: 0;">Connection Status</h6>
+            <h6 id="panelTitle" style="color: white; margin: 0;">
+                <i class="bi bi-circle-fill" id="panelStatusIcon" style="font-size: 0.6rem; margin-right: 0.5rem;"></i>
+                Connection Status
+            </h6>
             <button onclick="toggleConnectionPanel()" style="background: none; border: none; color: white; cursor: pointer; margin-left: auto;">
                 <i class="bi bi-x-lg"></i>
             </button>
         </div>
         
-        <!-- Step 1: WebSocket Connection -->
+        <!-- Step 1: Public Read (NOSTR Relay) -->
         <div id="step1" class="connection-step pending">
             <div class="step-header">
-                <span class="step-icon">🔌</span>
-                <span class="step-title">1. NOSTR Relay</span>
+                <span class="step-icon">🌐</span>
+                <span class="step-title">1. Public Read</span>
             </div>
-            <div class="step-description" id="step1-desc">Connect to relay WebSocket</div>
+            <div class="step-description" id="step1-desc">NOSTR Relay - Read public events</div>
             <div class="step-action">
                 <button onclick="manualConnectRelay()" id="step1-btn">Connect to Relay</button>
             </div>
         </div>
         
-        <!-- Step 2: Wallet Connection -->
+        <!-- Step 2: Personal Read/Write (NIP-42 Authentication) -->
         <div id="step2" class="connection-step pending">
             <div class="step-header">
-                <span class="step-icon">👛</span>
-                <span class="step-title">2. NOSTR Wallet</span>
-            </div>
-            <div class="step-description" id="step2-desc">Connect your NOSTR extension</div>
-            <div class="step-action">
-                <button onclick="manualConnectWallet()" id="step2-btn" disabled>Connect Wallet</button>
-            </div>
-        </div>
-        
-        <!-- Step 3: NIP-42 Authentication -->
-        <div id="step3" class="connection-step pending">
-            <div class="step-header">
                 <span class="step-icon">🔐</span>
-                <span class="step-title">3. NIP-42 Auth</span>
+                <span class="step-title">2. Personal Read/Write</span>
             </div>
-            <div class="step-description" id="step3-desc">Send authentication event (kind 22242)</div>
+            <div class="step-description" id="step2-desc">NIP-42 Auth - API personal read + write uDRIVE</div>
             <div class="step-action">
-                <button onclick="manualSendNIP42()" id="step3-btn" disabled>Authenticate</button>
-            </div>
-        </div>
-        
-        <!-- Step 4: Server Verification -->
-        <div id="step4" class="connection-step pending">
-            <div class="step-header">
-                <span class="step-icon">✅</span>
-                <span class="step-title">4. Server Check</span>
-            </div>
-            <div class="step-description" id="step4-desc">Verify authentication on server</div>
-            <div class="step-action">
-                <button onclick="manualVerifyAuth()" id="step4-btn" disabled>Verify</button>
+                <button onclick="testMultipassLogin()" id="step2-btn" disabled>Connect with MULTIPASS</button>
             </div>
         </div>
     </div>
@@ -545,9 +607,9 @@
     <div class="container">
         <!-- Module 1: MULTIPASS Authentication -->
         <div class="module-card">
-            <div class="module-header">
+            <div class="module-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#module1Content" aria-expanded="true">
                 <div class="module-icon"><i class="bi bi-person-badge"></i></div>
-                <div>
+                <div style="flex: 1;">
                     <h2 class="module-title">1. MULTIPASS Authentication</h2>
                     <div>
                         <span class="badge-tech">NOSTR</span>
@@ -555,7 +617,12 @@
                         <span class="badge-tech">NIP-42</span>
                     </div>
                 </div>
+                <div class="collapse-icon">
+                    <i class="bi bi-chevron-up"></i>
+                </div>
             </div>
+            
+            <div id="module1Content" class="collapse show">
             
             <p class="lead">Enable decentralized login with NOSTR keys. No passwords, no email, no central database.</p>
             
@@ -598,6 +665,10 @@
                         <button id="udriveBtn" class="btn btn-sm btn-outline-primary" style="display:none;" onclick="openUDrive()">
                             <i class="bi bi-cloud"></i> <span id="udriveBtnText">Open uDRIVE</span>
                         </button>
+                        <span id="gpsInfo" class="badge bg-success ms-2" style="display:none; cursor:pointer; transition: all 0.2s;" title="Click to join UMAP chat at your location">
+                            <i class="bi bi-geo-alt-fill"></i> <span id="gpsCoords">--</span>
+                            <i class="bi bi-chat-dots ms-1" style="font-size: 0.8rem;"></i>
+                        </span>
                     </div>
                     <div id="didInfo" class="alert alert-info mt-2" style="display:none;">
                         <div class="d-flex justify-content-between align-items-start">
@@ -629,13 +700,14 @@
     <span class="keyword">return</span> pubkey;
 }
             </div>
+            </div> <!-- End module1Content collapse -->
         </div>
 
         <!-- Module 2: File Publishing -->
         <div class="module-card">
-            <div class="module-header">
+            <div class="module-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#module2Content" aria-expanded="false">
                 <div class="module-icon"><i class="bi bi-cloud-upload"></i></div>
-                <div>
+                <div style="flex: 1;">
                     <h2 class="module-title">2. Decentralized File Publishing</h2>
                     <div>
                         <span class="badge-tech">IPFS</span>
@@ -644,7 +716,12 @@
                         <span class="badge-tech">SHA256 tracking</span>
                     </div>
                 </div>
+                <div class="collapse-icon">
+                    <i class="bi bi-chevron-down"></i>
+                </div>
             </div>
+            
+            <div id="module2Content" class="collapse">
             
             <p class="lead">Upload files to IPFS and publish metadata on NOSTR. View recent uploads from the community.</p>
             
@@ -723,13 +800,14 @@
     <span class="keyword">return</span> result;
 }
             </div>
+            </div> <!-- End module2Content collapse -->
         </div>
 
         <!-- Module 3: Social Interactions -->
         <div class="module-card">
-            <div class="module-header">
+            <div class="module-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#module3Content" aria-expanded="false">
                 <div class="module-icon"><i class="bi bi-heart"></i></div>
-                <div>
+                <div style="flex: 1;">
                     <h2 class="module-title">3. Social Interactions</h2>
                     <div>
                         <span class="badge-tech">NIP-25</span>
@@ -737,7 +815,12 @@
                         <span class="badge-tech">Comments</span>
                     </div>
                 </div>
+                <div class="collapse-icon">
+                    <i class="bi bi-chevron-down"></i>
+                </div>
             </div>
+            
+            <div id="module3Content" class="collapse">
             
             <p class="lead">Add likes, reactions, comments, and shares to any content or URL. Comments and shares are linked to this page.</p>
             
@@ -791,13 +874,14 @@
     <span class="keyword">return</span> result;
 }
             </div>
+            </div> <!-- End module3Content collapse -->
         </div>
 
         <!-- Module 4: Real-time Chat -->
         <div class="module-card">
-            <div class="module-header">
+            <div class="module-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#module4Content" aria-expanded="false">
                 <div class="module-icon"><i class="bi bi-chat-dots"></i></div>
-                <div>
+                <div style="flex: 1;">
                     <h2 class="module-title">4. Real-time Messaging</h2>
                     <div>
                         <span class="badge-tech">NIP-01</span>
@@ -805,7 +889,12 @@
                         <span class="badge-tech">Live Chat</span>
                     </div>
                 </div>
+                <div class="collapse-icon">
+                    <i class="bi bi-chevron-down"></i>
+                </div>
             </div>
+            
+            <div id="module4Content" class="collapse">
             
             <p class="lead">Add real-time chat to any page. Messages are stored on NOSTR relays using NIP-28 (Public Chat Channels).</p>
             
@@ -866,13 +955,14 @@
     <span class="keyword">await</span> publishNote(content, [[<span class="string">"t"</span>, hashtag]]);
 }
             </div>
+            </div> <!-- End module4Content collapse -->
         </div>
 
         <!-- Module 5: Developer Examples -->
         <div class="module-card">
-            <div class="module-header">
+            <div class="module-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#module5Content" aria-expanded="false">
                 <div class="module-icon"><i class="bi bi-code-slash"></i></div>
-                <div>
+                <div style="flex: 1;">
                     <h2 class="module-title">5. Integration Examples</h2>
                     <div>
                         <span class="badge-tech">Templates</span>
@@ -880,7 +970,12 @@
                         <span class="badge-tech">Docs</span>
                     </div>
                 </div>
+                <div class="collapse-icon">
+                    <i class="bi bi-chevron-down"></i>
+                </div>
             </div>
+            
+            <div id="module5Content" class="collapse">
             
             <p class="lead">Explore existing applications and learn from their implementation.</p>
             
@@ -942,6 +1037,7 @@
                     <li><strong>NOSTR NIPs:</strong> <a href="https://github.com/nostr-protocol/nips" target="_blank">Protocol Specifications</a></li>
                 </ul>
             </div>
+            </div> <!-- End module5Content collapse -->
         </div>
 
         <!-- Quick Start -->
@@ -1075,9 +1171,49 @@
             selectedFileType: null
         };
         
+        // Initialize collapse handlers for module sections
+        function initCollapseHandlers() {
+            // Get all module headers
+            const moduleHeaders = document.querySelectorAll('.module-header[data-bs-toggle="collapse"]');
+            
+            moduleHeaders.forEach(header => {
+                const targetId = header.getAttribute('data-bs-target');
+                const collapseElement = document.querySelector(targetId);
+                const icon = header.querySelector('.collapse-icon i');
+                
+                if (!collapseElement) return;
+                
+                // Update icon on collapse events
+                collapseElement.addEventListener('show.bs.collapse', function() {
+                    header.setAttribute('aria-expanded', 'true');
+                    if (icon) {
+                        icon.classList.remove('bi-chevron-down');
+                        icon.classList.add('bi-chevron-up');
+                    }
+                });
+                
+                collapseElement.addEventListener('hide.bs.collapse', function() {
+                    header.setAttribute('aria-expanded', 'false');
+                    if (icon) {
+                        icon.classList.remove('bi-chevron-up');
+                        icon.classList.add('bi-chevron-down');
+                    }
+                });
+            });
+            
+            console.log('[UI] Initialized', moduleHeaders.length, 'collapsible modules');
+        }
+        
         // Check NOSTR connection on load
         window.addEventListener('load', async () => {
             console.log('[LOAD] Page loaded, initializing...');
+            
+            // Initialize collapsible module handlers
+            initCollapseHandlers();
+            
+            // Initialize connection panel with default state
+            updateConnectionPanel(false, false);
+            
             await checkConnection();
             await loadChatMessages();
             await loadRecentUploads();
@@ -1112,8 +1248,9 @@
                                 const authResult = await authCheck.json();
                                 if (!authResult.auth_verified) {
                                     console.warn('[AUTH] ⚠️ User connected but not authenticated. NIP-42 event required.');
-                                    // Update badge to show partial connection
+                                    // Update badge and panel to show partial connection
                                     updateConnectionBadge(true, false); // connected but not authenticated
+                                    updateConnectionPanel(true, false); // Enable "Verify" button
                                     // Show subtle notification
                                     const authResultDiv = document.getElementById('authResult');
                                     if (authResultDiv) {
@@ -1124,6 +1261,7 @@
                                 } else {
                                     console.log('[AUTH] ✅ User authenticated and ready to upload');
                                     updateConnectionBadge(true, true); // connected and authenticated
+                                    updateConnectionPanel(true, true); // Mark as fully authenticated
                                     const authResultDiv = document.getElementById('authResult');
                                     if (authResultDiv) {
                                         authResultDiv.textContent = '✅ Connected and authenticated! You can upload files.';
@@ -1636,6 +1774,71 @@
             }
         }
         
+        // Check and show GPS coordinates after connection
+        async function checkAndShowGPS() {
+            const gpsInfo = document.getElementById('gpsInfo');
+            const gpsCoords = document.getElementById('gpsCoords');
+            
+            if (!AstroportDemo.userPubkey) {
+                console.log('[GPS] No user pubkey, skipping GPS check');
+                return;
+            }
+            
+            try {
+                console.log('[GPS] Fetching GPS coordinates from /api/myGPS...');
+                
+                const gpsResponse = await fetch(`/api/myGPS?npub=${AstroportDemo.userPubkey}`);
+                
+                if (gpsResponse.ok) {
+                    const gpsData = await gpsResponse.json();
+                    
+                    if (gpsData.success && gpsData.coordinates) {
+                        console.log('[GPS] ✅ GPS coordinates retrieved:', gpsData.umap_key);
+                        
+                        // Display GPS coordinates
+                        gpsCoords.textContent = gpsData.umap_key;
+                        gpsInfo.style.display = 'inline-block';
+                        gpsInfo.title = `📍 Your GPS location: ${gpsData.umap_key}\n💬 Click to join UMAP chat at your location`;
+                        
+                        // Make it clickable to change UMAP chat
+                        gpsInfo.style.cursor = 'pointer';
+                        gpsInfo.onclick = () => {
+                            console.log('[GPS] Switching UMAP chat to user location:', gpsData.umap_key);
+                            // Close the badge to show we're switching
+                            const notification = document.createElement('div');
+                            notification.className = 'alert alert-success alert-dismissible fade show position-fixed';
+                            notification.style.top = '80px';
+                            notification.style.right = '20px';
+                            notification.style.zIndex = '9998';
+                            notification.innerHTML = `
+                                <i class="bi bi-check-circle"></i> Switching to your UMAP chat (${gpsData.umap_key})...
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            `;
+                            document.body.appendChild(notification);
+                            setTimeout(() => notification.remove(), 3000);
+                            
+                            selectUMAP(gpsData.coordinates.lat, gpsData.coordinates.lon, gpsData.umap_key);
+                        };
+                    } else {
+                        console.log('[GPS] No valid GPS data received');
+                        gpsInfo.style.display = 'none';
+                    }
+                } else if (gpsResponse.status === 403) {
+                    console.log('[GPS] GPS access denied (authentication required)');
+                    gpsInfo.style.display = 'none';
+                } else if (gpsResponse.status === 404) {
+                    console.log('[GPS] GPS coordinates not found for this user');
+                    gpsInfo.style.display = 'none';
+                } else {
+                    console.warn('[GPS] GPS fetch failed with status:', gpsResponse.status);
+                    gpsInfo.style.display = 'none';
+                }
+            } catch (error) {
+                console.warn('[GPS] Error fetching GPS coordinates:', error);
+                gpsInfo.style.display = 'none';
+            }
+        }
+        
         async function testMultipassLogin() {
             const resultEl = document.getElementById('authResult');
             const userInfoEl = document.getElementById('userInfo');
@@ -1710,6 +1913,12 @@
                     console.log('[AUTH] Checking for uDRIVE link...');
                     checkAndShowUDriveButton().catch(err => {
                         console.warn('[AUTH] Could not check uDRIVE:', err);
+                    });
+                    
+                    // Also check and show GPS coordinates
+                    console.log('[AUTH] Checking for GPS coordinates...');
+                    checkAndShowGPS().catch(err => {
+                        console.warn('[AUTH] Could not check GPS:', err);
                     });
                 }, 1500);
                 
@@ -1801,32 +2010,78 @@
             panel.classList.toggle('show');
         }
         
-        // Update connection panel steps
+        // Update connection panel steps (simplified: 2 steps)
         function updateConnectionPanel(authenticated, authVerified) {
-            // Step 1: Relay connection (always assume success if we're calling this)
+            const panel = document.getElementById('connectionPanel');
+            const panelTitle = document.getElementById('panelTitle');
+            const panelStatusIcon = document.getElementById('panelStatusIcon');
+            
+            // Step 1: Relay connection (Public Read)
             const relayConnected = typeof nostrRelay !== 'undefined' && nostrRelay !== null;
-            updateStep(1, relayConnected ? 'success' : 'pending', 
-                relayConnected ? 'Connected to ' + (typeof nostrRelayUrl !== 'undefined' ? nostrRelayUrl : 'relay') : 'Not connected');
+            if (relayConnected) {
+                updateStep(1, 'success', 'Connected to relay - Public events readable');
+            } else {
+                updateStep(1, 'pending', 'NOSTR Relay - Read public events');
+            }
             
-            // Step 2: Wallet connection
-            updateStep(2, authenticated ? 'success' : 'pending',
-                authenticated ? 'Wallet connected' : 'Not connected');
+            // Step 2: NIP-42 Authentication (Personal Read/Write)
+            if (authVerified === true) {
+                // Fully authenticated
+                updateStep(2, 'success', 'Authenticated - API personal read + write uDRIVE ✓');
+            } else if (authenticated && authVerified === false) {
+                // Connected but not verified
+                updateStep(2, 'error', 'Not authenticated - Click "Connect with MULTIPASS" to retry');
+            } else if (authenticated && authVerified === null) {
+                // Verifying...
+                updateStep(2, 'in-progress', 'Verifying authentication...');
+            } else {
+                // Not connected at all
+                updateStep(2, 'pending', 'NIP-42 Auth - API personal read + write uDRIVE');
+            }
             
-            // Step 3: NIP-42 sent
-            const nip42Sent = authenticated; // If wallet is connected, we assume NIP-42 was sent
-            updateStep(3, nip42Sent ? 'success' : 'pending',
-                nip42Sent ? 'Authentication event sent (kind 22242)' : 'Waiting for authentication');
-            
-            // Step 4: Server verification
-            updateStep(4, authVerified === true ? 'success' : (authVerified === false ? 'error' : 'pending'),
-                authVerified === true ? 'Server verified authentication' : 
-                (authVerified === false ? 'Not authenticated on server' : 'Not verified yet'));
-            
-            // Enable/disable buttons based on state
+            // Enable/disable buttons
             document.getElementById('step1-btn').disabled = relayConnected;
-            document.getElementById('step2-btn').disabled = !relayConnected || authenticated;
-            document.getElementById('step3-btn').disabled = !authenticated || nip42Sent;
-            document.getElementById('step4-btn').disabled = !authenticated || authVerified === true;
+            
+            // Step 2 button: 
+            // - Enabled if relay connected AND (not authenticated OR not verified)
+            // - Disabled if already fully authenticated
+            const step2Enabled = relayConnected && authVerified !== true;
+            document.getElementById('step2-btn').disabled = !step2Enabled;
+            
+            // Update panel color based on connection level
+            // Remove all level classes first
+            panel.classList.remove('level-disconnected', 'level-public', 'level-partial', 'level-full');
+            
+            // Determine level and update UI
+            let levelTitle = 'Connection Status';
+            let iconColor = '#9ca3af';  // gray
+            
+            if (!relayConnected) {
+                // Level 0: Not connected at all
+                panel.classList.add('level-disconnected');
+                levelTitle = '⚫ Disconnected';
+                iconColor = '#9ca3af';  // gray
+            } else if (authVerified === true) {
+                // Level 3: Fully authenticated (relay + NIP-42)
+                panel.classList.add('level-full');
+                levelTitle = '🟢 Full Access';
+                iconColor = '#10b981';  // green
+            } else if (authenticated && authVerified === false) {
+                // Level 2: Connected but not authenticated (relay + wallet, no NIP-42)
+                panel.classList.add('level-partial');
+                levelTitle = '🟠 Partial Access';
+                iconColor = '#f59e0b';  // orange
+            } else {
+                // Level 1: Only relay connected (public read)
+                panel.classList.add('level-public');
+                levelTitle = '🔵 Public Read';
+                iconColor = '#3b82f6';  // blue
+            }
+            
+            // Update title and icon
+            if (panelTitle) {
+                panelTitle.innerHTML = `<i class="bi bi-circle-fill" style="font-size: 0.6rem; margin-right: 0.5rem; color: ${iconColor};"></i>${levelTitle}`;
+            }
         }
         
         // Update individual step
@@ -1854,7 +2109,7 @@
             try {
                 if (typeof connectToRelay === 'function') {
                     await connectToRelay();
-                    updateStep(1, 'success', 'Connected to relay');
+                    updateStep(1, 'success', 'Connected to relay - Public events readable');
                     updateConnectionPanel(false, undefined);
                 } else {
                     throw new Error('connectToRelay function not found');
@@ -1862,81 +2117,6 @@
             } catch (error) {
                 console.error('[PANEL] Relay connection failed:', error);
                 updateStep(1, 'error', 'Connection failed: ' + error.message);
-            }
-        }
-        
-        async function manualConnectWallet() {
-            console.log('[PANEL] Manual wallet connection requested');
-            updateStep(2, 'in-progress', 'Connecting wallet...');
-            
-            try {
-                if (typeof connectNostr === 'function') {
-                    await connectNostr(false); // Don't force NIP-42 yet
-                    const authenticated = AstroportDemo.userPubkey !== null;
-                    updateStep(2, authenticated ? 'success' : 'error', 
-                        authenticated ? 'Wallet connected' : 'Connection failed');
-                    updateConnectionPanel(authenticated, undefined);
-                } else {
-                    throw new Error('connectNostr function not found');
-                }
-            } catch (error) {
-                console.error('[PANEL] Wallet connection failed:', error);
-                updateStep(2, 'error', 'Connection failed: ' + error.message);
-            }
-        }
-        
-        async function manualSendNIP42() {
-            console.log('[PANEL] Manual NIP-42 authentication requested');
-            updateStep(3, 'in-progress', 'Sending authentication event...');
-            
-            try {
-                if (typeof connectNostr === 'function') {
-                    await connectNostr(true); // Force NIP-42
-                    updateStep(3, 'success', 'Authentication event sent (kind 22242)');
-                    updateConnectionPanel(true, undefined);
-                    
-                    // Automatically trigger verification after sending NIP-42
-                    setTimeout(() => manualVerifyAuth(), 2000);
-                } else {
-                    throw new Error('connectNostr function not found');
-                }
-            } catch (error) {
-                console.error('[PANEL] NIP-42 send failed:', error);
-                updateStep(3, 'error', 'Failed to send: ' + error.message);
-            }
-        }
-        
-        async function manualVerifyAuth() {
-            console.log('[PANEL] Manual authentication verification requested');
-            updateStep(4, 'in-progress', 'Verifying authentication...');
-            
-            try {
-                const npub = AstroportDemo.userNpub || AstroportDemo.userPubkey;
-                if (!npub) {
-                    throw new Error('No user pubkey available');
-                }
-                
-                const response = await fetch('/api/test-nostr', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `npub=${encodeURIComponent(npub)}`
-                });
-                
-                const result = await response.json();
-                
-                if (result.authenticated) {
-                    updateStep(4, 'success', 'Server verified authentication ✓');
-                    updateConnectionPanel(true, true);
-                    updateConnectionBadge(true, true);
-                } else {
-                    updateStep(4, 'error', result.message || 'Authentication not found on server');
-                    updateConnectionPanel(true, false);
-                    updateConnectionBadge(true, false);
-                }
-            } catch (error) {
-                console.error('[PANEL] Verification failed:', error);
-                updateStep(4, 'error', 'Verification failed: ' + error.message);
-                updateConnectionPanel(true, false);
             }
         }
         
@@ -2424,14 +2604,22 @@
         // UMAP Chat Configuration
         const UMAPChat = {
             currentUMAP: { lat: 0.00, lon: 0.00 },
-            channelId: '',  // Will be the DID npub from kind 30800
-            umapDID: null,  // Full DID document
+            channelId: '',       // Event ID of kind 30312 (if exists) or fallback string
+            umapDID: null,       // Full ORE Meeting Space event (kind 30312)
+            umapHex: null,       // UMAP's hex pubkey from geolinks API
             subscription: null,
-            activeUsers: new Set()  // Track unique pubkeys
+            activeUsers: new Set(),  // Track unique pubkeys
+            initialized: false  // Track if already initialized
         };
         
         // Initialize UMAP chat
         async function initUMAPChat() {
+            // Prevent double initialization
+            if (UMAPChat.initialized) {
+                console.log('[CHAT] ⏭️ UMAP chat already initialized, skipping');
+                return;
+            }
+            
             console.log('[CHAT] Initializing UMAP chat system...');
             
             // Try to get UMAP from user's GPS coordinates (requires NIP-42 auth)
@@ -2484,36 +2672,64 @@
             
             // Update UI
             updateUMAPChatUI();
+            
+            // Mark as initialized
+            UMAPChat.initialized = true;
+            console.log('[CHAT] ✅ UMAP chat initialization complete');
         }
         
-        // Fetch UMAP DID (kind 30800) for a specific geographic coordinate
+        // Fetch UMAP ORE Meeting Space (kind 30312) for a specific geographic coordinate
         async function fetchUMAPDIDForChat(lat, lon) {
-            console.log(`[CHAT] Fetching UMAP DID for coordinates: ${lat.toFixed(2)}, ${lon.toFixed(2)}`);
-            
-            // Ensure relay connection
-            let currentRelay = window.nostrRelay;
-            if (!currentRelay) {
-                console.log('[CHAT] Connecting to relay...');
-                await connectToRelay();
-                currentRelay = window.nostrRelay;
-            }
-            
-            if (!currentRelay) {
-                console.warn('[CHAT] ⚠️ No relay available');
-                // Fallback to generic channel ID
-                UMAPChat.channelId = `UMAP_${lat.toFixed(2)}_${lon.toFixed(2)}`;
-                return;
-            }
+            console.log(`[CHAT] Fetching UMAP ORE Space for coordinates: ${lat.toFixed(2)}, ${lon.toFixed(2)}`);
             
             try {
-                // Search for UMAP DID (kind 30800) with matching geographic coordinates
-                const umapKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+                // Step 1: Get UMAP HEX from /api/umap/geolinks
+                console.log('[CHAT] Step 1: Fetching UMAP hex from geolinks API...');
+                const geolinksResponse = await fetch(`/api/umap/geolinks?lat=${lat}&lon=${lon}`);
                 
-                const dids = await new Promise((resolve) => {
+                if (!geolinksResponse.ok) {
+                    console.warn('[CHAT] Failed to fetch geolinks:', geolinksResponse.status);
+                    UMAPChat.channelId = `UMAP_${lat.toFixed(2)}_${lon.toFixed(2)}`;
+                    return;
+                }
+                
+                const geolinksData = await geolinksResponse.json();
+                const umapHex = geolinksData.umaps?.here;
+                
+                if (!umapHex) {
+                    console.warn('[CHAT] No UMAP hex found in geolinks response');
+                    UMAPChat.channelId = `UMAP_${lat.toFixed(2)}_${lon.toFixed(2)}`;
+                    return;
+                }
+                
+                console.log('[CHAT] ✅ Found UMAP hex:', umapHex);
+                
+                // Store UMAP hex as the primary reference
+                UMAPChat.umapHex = umapHex;
+                
+                // Step 2: Search for ORE Meeting Space (kind 30312) by author (UMAP's pubkey)
+                console.log('[CHAT] Step 2: Searching for ORE Meeting Space (kind 30312) by author...');
+                
+                // Ensure relay connection
+                let currentRelay = window.nostrRelay;
+                if (!currentRelay) {
+                    console.log('[CHAT] Connecting to relay...');
+                    await connectToRelay();
+                    currentRelay = window.nostrRelay;
+                }
+                
+                if (!currentRelay) {
+                    console.warn('[CHAT] ⚠️ No relay available');
+                    // Use UMAP hex as channelId (it's the deterministic UMAP DID pubkey)
+                    UMAPChat.channelId = umapHex;
+                    console.log('[CHAT] Using UMAP hex as channel reference:', umapHex.substring(0, 8) + '...');
+                    return;
+                }
+                
+                const oreSpaces = await new Promise((resolve) => {
                     const filter = {
-                        kinds: [30800],
-                        '#d': ['did'],
-                        '#g': [umapKey],  // Filter by geographic tag
+                        kinds: [30312],         // ORE Meeting Space
+                        authors: [umapHex],     // Filter by UMAP's pubkey
                         limit: 1
                     };
                     
@@ -2525,14 +2741,8 @@
                     }, 5000);
                     
                     sub.on('event', (event) => {
-                        try {
-                            const content = JSON.parse(event.content || '{}');
-                            if (content.type === 'UMAPGeographicCell') {
-                                results.push(event);
-                            }
-                        } catch (e) {
-                            console.warn('[CHAT] Failed to parse DID document:', e);
-                        }
+                        console.log('[CHAT] 📍 Found ORE Meeting Space event:', event.id.substring(0, 8) + '...');
+                        results.push(event);
                     });
                     
                     sub.on('eose', () => {
@@ -2542,27 +2752,30 @@
                     });
                 });
                 
-                if (dids.length > 0) {
-                    const umapDID = dids[0];
-                    UMAPChat.umapDID = umapDID;
+                if (oreSpaces.length > 0) {
+                    const oreSpace = oreSpaces[0];
+                    UMAPChat.umapDID = oreSpace;
                     
-                    // Channel ID is the UMAP's npub
-                    if (typeof window.NostrTools !== 'undefined') {
-                        UMAPChat.channelId = window.NostrTools.nip19.npubEncode(umapDID.pubkey);
-                    } else {
-                        UMAPChat.channelId = umapDID.pubkey;
-                    }
+                    // Use the event ID as channel ID (ORE Meeting Space reference)
+                    UMAPChat.channelId = oreSpace.id;
                     
-                    console.log(`[CHAT] ✅ Found UMAP DID: ${UMAPChat.channelId}`);
+                    console.log('[CHAT] ✅ Found ORE Meeting Space for UMAP');
+                    console.log('[CHAT] Using ORE Space event ID as channel:', oreSpace.id.substring(0, 8) + '...');
                 } else {
-                    console.log(`[CHAT] ⚠️ No UMAP DID found for ${umapKey}, using fallback`);
-                    // Fallback to generic channel ID if no DID exists yet
+                    console.log('[CHAT] ⚠️ No ORE Meeting Space found for UMAP hex:', umapHex);
+                    // Use UMAP hex as channelId (it's the deterministic UMAP DID pubkey)
+                    UMAPChat.channelId = umapHex;
+                    console.log('[CHAT] Using UMAP hex as channel reference:', umapHex.substring(0, 8) + '...');
+                }
+                
+            } catch (error) {
+                console.error('[CHAT] Error fetching UMAP ORE Space:', error);
+                // If we have umapHex, use it; otherwise fallback to string
+                if (UMAPChat.umapHex) {
+                    UMAPChat.channelId = UMAPChat.umapHex;
+                } else {
                     UMAPChat.channelId = `UMAP_${lat.toFixed(2)}_${lon.toFixed(2)}`;
                 }
-            } catch (error) {
-                console.error('[CHAT] Error fetching UMAP DID:', error);
-                // Fallback to generic channel ID
-                UMAPChat.channelId = `UMAP_${lat.toFixed(2)}_${lon.toFixed(2)}`;
             }
         }
         
@@ -2577,14 +2790,41 @@
             }
             
             if (channelIdEl) {
+                const ipfsGateway = window.ipfsGateway || 'http://127.0.0.1:8080';
+                
                 if (UMAPChat.umapDID) {
-                    // Show DID-based channel ID
-                    channelIdEl.textContent = UMAPChat.channelId;
-                    channelIdEl.title = `UMAP DID pubkey: ${UMAPChat.umapDID.pubkey}`;
+                    // Show ORE Meeting Space channel with event ID
+                    const shortEventId = UMAPChat.channelId.substring(0, 8) + '...';
+                    const profileUrl = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${UMAPChat.umapHex}`;
+                    
+                    channelIdEl.innerHTML = `
+                        ORE Space: ${shortEventId} | 
+                        <a href="${profileUrl}" 
+                           target="_blank" 
+                           rel="noopener noreferrer" 
+                           title="View UMAP profile: ${UMAPChat.umapHex}"
+                           style="color: var(--bs-success); text-decoration: none; font-weight: 600;">
+                            <i class="bi bi-globe"></i> UMAP Profile
+                        </a>
+                    `;
+                } else if (UMAPChat.umapHex) {
+                    // Show UMAP hex (no ORE space yet)
+                    const shortHex = UMAPChat.umapHex.substring(0, 8) + '...';
+                    const profileUrl = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${UMAPChat.umapHex}`;
+                    
+                    channelIdEl.innerHTML = `
+                        UMAP: ${shortHex} (no ORE) | 
+                        <a href="${profileUrl}" 
+                           target="_blank" 
+                           rel="noopener noreferrer" 
+                           title="View UMAP profile: ${UMAPChat.umapHex}"
+                           style="color: var(--bs-info); text-decoration: none; font-weight: 600;">
+                            <i class="bi bi-globe"></i> UMAP Profile
+                        </a>
+                    `;
                 } else {
                     // Show fallback generic ID
-                    channelIdEl.textContent = UMAPChat.channelId + ' (no DID yet)';
-                    channelIdEl.title = 'No UMAP DID found for this geographic cell';
+                    channelIdEl.textContent = UMAPChat.channelId + ' (fallback)';
                 }
             }
             
@@ -2603,7 +2843,7 @@
             const messagesEl = document.getElementById('chatMessages');
             
             // Initialize UMAP if not done yet
-            if (!UMAPChat.channelId) {
+            if (!UMAPChat.initialized) {
                 await initUMAPChat();
             }
             
@@ -2637,13 +2877,32 @@
                     console.log('[CHAT] Subscribing to NIP-28 channel messages (kind 42)...');
                     console.log('[CHAT] Channel filter:', UMAPChat.channelId);
                     
-                    // NIP-28: Filter messages by channel ID reference in "e" tag
-                    // Messages reference the UMAP DID's event ID or pubkey
-                    const sub = window.nostrRelay.sub([{
+                    // Build subscription filter based on available channel info
+                    const umapKey = `${UMAPChat.currentUMAP.lat.toFixed(2)},${UMAPChat.currentUMAP.lon.toFixed(2)}`;
+                    const filter = {
                         kinds: [42],  // NIP-28: Public channel message
-                        "#e": [UMAPChat.channelId],  // Reference to channel (UMAP DID npub or event ID)
+                        "#g": [umapKey],  // Filter by geolocation (always present)
                         limit: 50
-                    }]);
+                    };
+                    
+                    // Determine what type of channel reference we have
+                    const channelIdIsEventId = UMAPChat.channelId && UMAPChat.channelId.length === 64 && 
+                                               UMAPChat.umapDID !== null;
+                    
+                    if (channelIdIsEventId) {
+                        // We have an ORE Meeting Space - filter by 'e' tag
+                        filter["#e"] = [UMAPChat.channelId];
+                        console.log('[CHAT] Filtering by ORE Space event ID:', UMAPChat.channelId.substring(0, 8) + '...');
+                    } else if (UMAPChat.umapHex && UMAPChat.umapHex.length === 64) {
+                        // No ORE space, but we have UMAP hex - filter by 'p' tag (pubkey)
+                        filter["#p"] = [UMAPChat.umapHex];
+                        console.log('[CHAT] Filtering by UMAP hex (pubkey):', UMAPChat.umapHex.substring(0, 8) + '...');
+                    } else {
+                        console.log('[CHAT] Filtering by geolocation only (no UMAP reference)');
+                    }
+                    
+                    console.log('[CHAT] Subscription filter:', filter);
+                    const sub = window.nostrRelay.sub([filter]);
                     
                     sub.on('event', event => {
                         console.log('[CHAT] 📨 New channel message received:', event);
@@ -2699,8 +2958,24 @@
             const authorShort = event.pubkey ? event.pubkey.substring(0, 8) + '...' : 'Unknown';
             const time = new Date(event.created_at * 1000).toLocaleTimeString();
             
+            // Get IPFS gateway from window config (set in common.js)
+            const ipfsGateway = window.ipfsGateway || 'http://127.0.0.1:8080';
+            
+            // Create profile viewer URL
+            const profileViewerUrl = event.pubkey ? 
+                `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${event.pubkey}` : 
+                '#';
+            
             messageDiv.innerHTML = `
-                <div class="author">${authorShort}</div>
+                <div class="author">
+                    <a href="${profileViewerUrl}" 
+                       target="_blank" 
+                       rel="noopener noreferrer" 
+                       title="View profile for ${event.pubkey || 'Unknown'}"
+                       style="color: var(--bs-info); text-decoration: none; transition: all 0.2s;">
+                        <i class="bi bi-person-circle"></i> ${authorShort}
+                    </a>
+                </div>
                 <div class="content">${escapeHtml(event.content)}</div>
                 <div class="time">${time}</div>
             `;
@@ -2725,8 +3000,8 @@
             }
             
             // Ensure UMAP is initialized
-            if (!UMAPChat.channelId) {
-                initUMAPChat();
+            if (!UMAPChat.initialized) {
+                await initUMAPChat();
             }
             
             try {
@@ -2735,13 +3010,26 @@
                 
                 // Publish NIP-28 channel message (kind 42)
                 if (typeof publishNote === 'function') {
-                    // NIP-28 requires:
-                    // - kind: 42
-                    // - tags: [["e", <channel_id>, <relay_url>, "root"]]
+                    // Build tags based on whether we have a valid channel ID (event ID from ORE space)
                     const tags = [
-                        ["e", UMAPChat.channelId, "", "root"],  // Channel reference
-                        ["g", `${UMAPChat.currentUMAP.lat.toFixed(2)},${UMAPChat.currentUMAP.lon.toFixed(2)}`]  // Geolocation
+                        ["g", `${UMAPChat.currentUMAP.lat.toFixed(2)},${UMAPChat.currentUMAP.lon.toFixed(2)}`]  // Geolocation (required)
                     ];
+                    
+                    // Determine if channelId is an event ID (64 hex chars) or UMAP hex
+                    const channelIdIsEventId = UMAPChat.channelId && UMAPChat.channelId.length === 64 && 
+                                               UMAPChat.umapDID !== null;
+                    
+                    if (channelIdIsEventId) {
+                        // We have an ORE Meeting Space - reference it with 'e' tag
+                        tags.unshift(["e", UMAPChat.channelId, "", "root"]);  // Channel reference
+                        console.log('[CHAT] Using ORE Space event ID:', UMAPChat.channelId.substring(0, 8) + '...');
+                    } else if (UMAPChat.umapHex && UMAPChat.umapHex.length === 64) {
+                        // No ORE space yet, but we have the UMAP hex - use it as 'p' tag (pubkey reference)
+                        tags.push(["p", UMAPChat.umapHex]);  // UMAP DID pubkey
+                        console.log('[CHAT] Using UMAP hex as pubkey reference:', UMAPChat.umapHex.substring(0, 8) + '...');
+                    } else {
+                        console.log('[CHAT] No valid UMAP reference, using geolocation-only tags');
+                    }
                     
                     // Use publishNote from common.js (will need to support kind parameter)
                     // For now, we'll use nostr.signEvent directly
@@ -2802,44 +3090,117 @@
                 
                 // Show loading state
                 const listEl = modal.querySelector('#umapList');
+                const myLocationEl = modal.querySelector('#myLocationSection');
                 listEl.innerHTML = '<div class="text-center p-3"><i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Loading UMAPs...</div>';
                 
-                // Fetch UMAP DIDs (kind 30800)
+                // Step 1: Try to get user's GPS location
+                let userGPS = null;
+                if (AstroportDemo.userPubkey) {
+                    try {
+                        console.log('[CHAT] Fetching user GPS from /api/myGPS...');
+                        const gpsResponse = await fetch(`/api/myGPS?npub=${AstroportDemo.userPubkey}`);
+                        if (gpsResponse.ok) {
+                            const gpsData = await gpsResponse.json();
+                            if (gpsData.success && gpsData.coordinates) {
+                                userGPS = {
+                                    lat: gpsData.coordinates.lat,
+                                    lon: gpsData.coordinates.lon,
+                                    umap_key: gpsData.umap_key
+                                };
+                                console.log('[CHAT] ✅ User GPS found:', userGPS.umap_key);
+                                
+                                // Display user's location section
+                                myLocationEl.innerHTML = `
+                                    <div class="alert alert-info mb-3">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-geo-alt-fill text-primary me-2" style="font-size: 1.5rem;"></i>
+                                            <div class="flex-grow-1">
+                                                <strong>📍 My Location (from GPS)</strong>
+                                                <br>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-pin-map"></i> ${userGPS.umap_key}
+                                                </small>
+                                            </div>
+                                            <button class="btn btn-primary btn-sm" onclick="selectUMAP(${userGPS.lat}, ${userGPS.lon}, '${userGPS.umap_key}')">
+                                                <i class="bi bi-chat-dots"></i> Join
+                                            </button>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[CHAT] Could not fetch user GPS:', e);
+                    }
+                }
+                
+                // If no GPS found, hide the section
+                if (!userGPS) {
+                    myLocationEl.style.display = 'none';
+                }
+                
+                // Step 2: Fetch UMAP DIDs (kind 30312)
                 const umapDIDs = [];
                 
+                // Search for ORE Meeting Space events (kind 30312) which contain UMAP info
+                // These are created by ore_system.py when activating ORE mode
                 const sub = window.nostrRelay.sub([{
-                    kinds: [30800],  // DID documents
-                    "#d": ["did"],   // DID identifier
-                    limit: 50        // Get up to 50 UMAPs
+                    kinds: [30312],  // ORE Meeting Space (Persistent Geographic Space)
+                    limit: 100       // Get up to 100 to find UMAPs
                 }]);
                 
                 sub.on('event', event => {
                     try {
-                        const content = JSON.parse(event.content);
+                        // Extract geolocation from tags
+                        const gTag = event.tags.find(t => t[0] === 'g');
+                        if (!gTag || !gTag[1]) return;
                         
-                        // Filter for UMAPGeographicCell type
-                        if (content.type === 'UMAPGeographicCell' && content.geographicMetadata?.coordinates) {
-                            const coords = content.geographicMetadata.coordinates;
-                            
-                            // Get geolocation tag
-                            const gTag = event.tags.find(t => t[0] === 'g');
-                            const geoKey = gTag ? gTag[1] : `${coords.lat},${coords.lon}`;
-                            
-                            umapDIDs.push({
-                                eventId: event.id,
-                                pubkey: event.pubkey,
-                                lat: coords.lat,
-                                lon: coords.lon,
-                                geoKey: geoKey,
-                                name: content.name || `UMAP ${geoKey}`,
-                                description: content.description || '',
-                                createdAt: event.created_at
-                            });
-                            
-                            console.log('[CHAT] Found UMAP DID:', geoKey);
-                        }
+                        const coords = gTag[1].split(',');
+                        if (coords.length !== 2) return;
+                        
+                        const lat = parseFloat(coords[0]);
+                        const lon = parseFloat(coords[1]);
+                        
+                        if (isNaN(lat) || isNaN(lon)) return;
+                        
+                        // Extract additional metadata from tags
+                        const roomTag = event.tags.find(t => t[0] === 'room');
+                        const vdoUrlTag = event.tags.find(t => t[0] === 'vdo_url');
+                        const didTag = event.tags.find(t => t[0] === 'did');
+                        const plantsTag = event.tags.find(t => t[0] === 'plants');
+                        const speciesTag = event.tags.find(t => t[0] === 'species');
+                        
+                        const geoKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+                        const roomName = roomTag ? roomTag[1] : `UMAP ${geoKey}`;
+                        const plantsCount = plantsTag ? parseInt(plantsTag[1]) || 0 : 0;
+                        const speciesCount = speciesTag ? parseInt(speciesTag[1]) || 0 : 0;
+                        
+                        // Check if this is the user's current location
+                        const isMyLocation = userGPS && 
+                            Math.abs(lat - userGPS.lat) < 0.01 && 
+                            Math.abs(lon - userGPS.lon) < 0.01;
+                        
+                        umapDIDs.push({
+                            eventId: event.id,
+                            pubkey: event.pubkey,
+                            lat: lat,
+                            lon: lon,
+                            geoKey: geoKey,
+                            name: roomName,
+                            description: `ORE Space - ${plantsCount} observations, ${speciesCount} species`,
+                            createdAt: event.created_at,
+                            vdoUrl: vdoUrlTag ? vdoUrlTag[1] : null,
+                            did: didTag ? didTag[1] : null,
+                            biodiversity: {
+                                plants: plantsCount,
+                                species: speciesCount
+                            },
+                            isMyLocation: isMyLocation
+                        });
+                        
+                        console.log('[CHAT] Found ORE UMAP (kind 30312):', geoKey, 'Event ID:', event.id.substring(0, 8) + '...', `Biodiversity: ${plantsCount} plants, ${speciesCount} species`);
                     } catch (e) {
-                        console.warn('[CHAT] Error parsing DID:', e);
+                        console.warn('[CHAT] Error parsing ORE Meeting Space:', e);
                     }
                 });
                 
@@ -2847,10 +3208,14 @@
                     console.log('[CHAT] Found', umapDIDs.length, 'UMAP DIDs');
                     sub.unsub();
                     
-                    // Sort by most recent first
-                    umapDIDs.sort((a, b) => b.createdAt - a.createdAt);
+                    // Sort: user's location first, then by most recent
+                    umapDIDs.sort((a, b) => {
+                        if (a.isMyLocation && !b.isMyLocation) return -1;
+                        if (!a.isMyLocation && b.isMyLocation) return 1;
+                        return b.createdAt - a.createdAt;
+                    });
                     
-                    // Limit to 10 most recent
+                    // Limit to 10 most recent (after prioritizing user's location)
                     const displayUMAPs = umapDIDs.slice(0, 10);
                     
                     // Display UMAPs
@@ -2858,23 +3223,42 @@
                         listEl.innerHTML = `
                             <div class="text-center p-3 text-muted">
                                 <i class="bi bi-inbox"></i>
-                                <p class="mb-0">No UMAP DIDs found on this relay</p>
+                                <p class="mb-0">No ORE UMAP spaces found on this relay</p>
                                 <small>You can enter coordinates manually below</small>
                             </div>
                         `;
                     } else {
                         listEl.innerHTML = displayUMAPs.map(umap => `
-                            <div class="umap-item" onclick="selectUMAP(${umap.lat}, ${umap.lon}, '${umap.geoKey}')">
-                                <div class="d-flex align-items-center">
-                                    <i class="bi bi-geo-alt-fill text-primary me-2"></i>
+                            <div class="umap-item ${umap.isMyLocation ? 'umap-item-highlight' : ''}" onclick="selectUMAP(${umap.lat}, ${umap.lon}, '${umap.geoKey}')">
+                                <div class="d-flex align-items-start">
+                                    <i class="bi bi-${umap.isMyLocation ? 'geo-alt-fill text-primary' : 'globe text-success'} me-2 mt-1" style="font-size: 1.2rem;"></i>
                                     <div class="flex-grow-1">
-                                        <strong>${umap.name}</strong>
-                                        <br>
-                                        <small class="text-muted">
-                                            <i class="bi bi-pin-map"></i> ${umap.geoKey}
-                                        </small>
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <strong>${umap.name}${umap.isMyLocation ? ' 📍' : ''}</strong>
+                                                <br>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-pin-map"></i> ${umap.geoKey}
+                                                </small>
+                                            </div>
+                                            ${umap.vdoUrl ? `
+                                                <a href="${umap.vdoUrl}" target="_blank" class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation();" title="Join VDO.ninja room">
+                                                    <i class="bi bi-camera-video"></i>
+                                                </a>
+                                            ` : ''}
+                                        </div>
+                                        ${umap.biodiversity && (umap.biodiversity.plants > 0 || umap.biodiversity.species > 0) ? `
+                                            <div class="mt-1">
+                                                <small class="badge bg-success">
+                                                    <i class="bi bi-flower1"></i> ${umap.biodiversity.species} species
+                                                </small>
+                                                <small class="badge bg-info ms-1">
+                                                    <i class="bi bi-eye"></i> ${umap.biodiversity.plants} observations
+                                                </small>
+                                            </div>
+                                        ` : ''}
                                     </div>
-                                    <i class="bi bi-chevron-right text-muted"></i>
+                                    <i class="bi bi-chevron-right text-muted ms-2"></i>
                                 </div>
                             </div>
                         `).join('');
@@ -2905,6 +3289,15 @@
                             <button type="button" class="btn-close" onclick="closeUMAPSelector()"></button>
                         </div>
                         <div class="modal-body">
+                            <!-- My Location Section (GPS) -->
+                            <div id="myLocationSection">
+                                <!-- Will be populated if GPS available -->
+                            </div>
+                            
+                            <!-- Available ORE Meeting Spaces -->
+                            <div class="mb-3">
+                                <h6><i class="bi bi-globe"></i> Available ORE Spaces</h6>
+                            </div>
                             <div id="umapList" class="umap-list">
                                 <!-- UMAP items will be inserted here -->
                             </div>
@@ -2951,6 +3344,14 @@
                         background-color: #f8f9fa;
                         border-color: #0d6efd;
                         transform: translateX(4px);
+                    }
+                    .umap-item-highlight {
+                        background-color: #e7f3ff;
+                        border-color: #0d6efd;
+                        border-width: 2px;
+                    }
+                    .umap-item-highlight:hover {
+                        background-color: #d0e7ff;
                     }
                     .manual-input {
                         padding: 12px;
