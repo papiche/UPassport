@@ -2100,17 +2100,67 @@
                 return;
             }
             
-            if (!userPubkey) {
-                const connected = typeof connectNostr === 'function' ? await connectNostr() : false;
-                if (!connected) {
+            // Get NOSTR variables from parent or current window
+            let nostrVars = getNostrVariables();
+            let currentUserPubkey = nostrVars.userPubkey;
+            let currentNostrRelay = nostrVars.nostrRelay;
+            
+            // Connect if not already connected
+            if (!currentUserPubkey) {
+                // Try to get connectNostr from parent or current window
+                const connectFn = (window.parent && window.parent !== window && typeof window.parent.connectNostr === 'function') 
+                    ? window.parent.connectNostr 
+                    : (typeof connectNostr === 'function' ? connectNostr : null);
+                
+                if (connectFn) {
+                    try {
+                        currentUserPubkey = await connectFn();
+                        if (!currentUserPubkey) {
+                            alert('Vous devez être connecté pour répondre');
+                            return;
+                        }
+                        nostrVars.userPubkey = currentUserPubkey;
+                    } catch (error) {
+                        console.error('Error connecting:', error);
+                        alert('Erreur lors de la connexion: ' + error.message);
+                        return;
+                    }
+                } else {
                     alert('Vous devez être connecté pour répondre');
+                    return;
+                }
+            }
+            
+            // Ensure relay connection
+            if (!currentNostrRelay || !nostrVars.isNostrConnected) {
+                // Try to get connectToRelay from parent or current window
+                const connectRelayFn = (window.parent && window.parent !== window && typeof window.parent.connectToRelay === 'function')
+                    ? window.parent.connectToRelay
+                    : (typeof connectToRelay === 'function' ? connectToRelay : null);
+                
+                if (connectRelayFn) {
+                    try {
+                        currentNostrRelay = await connectRelayFn();
+                        if (!currentNostrRelay) {
+                            alert('Erreur lors de la connexion au relay');
+                            return;
+                        }
+                        nostrVars.nostrRelay = currentNostrRelay;
+                        nostrVars.isNostrConnected = true;
+                    } catch (error) {
+                        console.error('Error connecting to relay:', error);
+                        alert('Erreur lors de la connexion au relay: ' + error.message);
+                        return;
+                    }
+                } else {
+                    alert('Connexion au relay non disponible');
                     return;
                 }
             }
             
             try {
                 // Get relay URL hint
-                const relayHint = nostrRelay?.url || (typeof DEFAULT_RELAYS !== 'undefined' && DEFAULT_RELAYS[0]) || '';
+                const relayHint = currentNostrRelay?.url || (typeof DEFAULT_RELAYS !== 'undefined' && DEFAULT_RELAYS[0]) || '';
                 
                 // Detect video kind (21 for regular videos, 22 for shorts)
                 let videoKind = '21';
@@ -2133,37 +2183,51 @@
                     ['p', parentAuthorId || '', relayHint] // Parent comment author
                 ];
                 
+                // Get publishNote function from parent or current window
+                const publishFn = (window.parent && window.parent !== window && typeof window.parent.publishNote === 'function')
+                    ? window.parent.publishNote
+                    : (typeof publishNote === 'function' ? publishNote : null);
+                
+                if (!publishFn) {
+                    alert('Fonction de publication non disponible');
+                    return;
+                }
+                
                 // Publish reply with kind 1111
-                if (typeof publishNote === 'function') {
-                    const result = await publishNote(content, tags, 1111, { silent: false });
+                const result = await publishFn(content, tags, 1111, { silent: false });
+                
+                const publishedEvent = result?.event || result;
+                const success = result && (result.success === true || result.id || publishedEvent?.id);
+                
+                if (success) {
+                    input.value = '';
+                    toggleReplyForm(parentCommentId);
                     
-                    const publishedEvent = result?.event || result;
-                    const success = result && (result.success === true || result.id || publishedEvent?.id);
-                    
-                    if (success) {
-                        input.value = '';
-                        toggleReplyForm(parentCommentId);
+                    // Manually add reply to local list (don't wait for subscription)
+                    if (publishedEvent && publishedEvent.id && currentUserPubkey) {
+                        // Get current user name
+                        let userName = currentUserPubkey.substring(0, 8) + '...';
+                        // Try to fetch user profile (cached)
+                        const fetchUserMetadataFn = (window.parent && window.parent !== window && typeof window.parent.fetchUserMetadata === 'function')
+                            ? window.parent.fetchUserMetadata
+                            : (typeof fetchUserMetadata !== 'undefined' ? fetchUserMetadata : null);
                         
-                        // Manually add reply to local list (don't wait for subscription)
-                        if (publishedEvent && publishedEvent.id && typeof userPubkey !== 'undefined') {
-                            // Get current user name
-                            let userName = userPubkey.substring(0, 8) + '...';
-                            // Try to fetch user profile (cached)
-                            if (typeof fetchUserMetadata !== 'undefined') {
-                                try {
-                                    const profile = await fetchUserMetadata(userPubkey);
-                                    if (profile) {
-                                        userName = profile.display_name || profile.name || userName;
-                                    }
-                                } catch (e) {
-                                    // Use default truncated pubkey
+                        if (fetchUserMetadataFn) {
+                            try {
+                                const profile = await fetchUserMetadataFn(currentUserPubkey);
+                                if (profile) {
+                                    userName = profile.display_name || profile.name || userName;
                                 }
+                            } catch (e) {
+                                // Use default truncated pubkey
+                                console.warn('Could not fetch user metadata:', e);
                             }
+                        }
                             
                             // Create reply object
                             const newReply = {
                                 id: publishedEvent.id,
-                                authorId: userPubkey,
+                                authorId: currentUserPubkey,
                                 authorName: userName,
                                 content: content,
                                 timestamp: null,
@@ -2217,6 +2281,33 @@
         window.submitReply = submitReply;
         
         /**
+         * Get NOSTR variables from parent or current window
+         */
+        function getNostrVariables() {
+            // Try to get from parent window first (if in iframe)
+            let parentUserPubkey = null;
+            let parentNostrRelay = null;
+            let parentIsNostrConnected = false;
+            
+            if (window.parent && window.parent !== window) {
+                try {
+                    parentUserPubkey = window.parent.userPubkey || window.parent.window?.userPubkey;
+                    parentNostrRelay = window.parent.nostrRelay || window.parent.window?.nostrRelay;
+                    parentIsNostrConnected = window.parent.isNostrConnected || window.parent.window?.isNostrConnected || false;
+                } catch (e) {
+                    console.warn('⚠️ Could not access parent window variables:', e);
+                }
+            }
+            
+            // Use parent variables if available, otherwise use current window
+            return {
+                userPubkey: parentUserPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null),
+                nostrRelay: parentNostrRelay || (typeof nostrRelay !== 'undefined' ? nostrRelay : null),
+                isNostrConnected: parentIsNostrConnected || (typeof isNostrConnected !== 'undefined' ? isNostrConnected : false)
+            };
+        }
+        
+        /**
          * Submit a comment
          */
         async function submitTheaterComment() {
@@ -2259,10 +2350,68 @@
                 return;
             }
             
-            if (!userPubkey) {
-                const connected = typeof connectNostr === 'function' ? await connectNostr() : false;
-                if (!connected) {
+            // Get NOSTR variables from parent or current window
+            let nostrVars = getNostrVariables();
+            let currentUserPubkey = nostrVars.userPubkey;
+            let currentNostrRelay = nostrVars.nostrRelay;
+            
+            console.log('[THEATER] NOSTR variables:', {
+                userPubkey: currentUserPubkey ? currentUserPubkey.substring(0, 8) + '...' : 'null',
+                hasRelay: !!currentNostrRelay,
+                isConnected: nostrVars.isNostrConnected
+            });
+            
+            // Connect if not already connected
+            if (!currentUserPubkey) {
+                // Try to get connectNostr from parent or current window
+                const connectFn = (window.parent && window.parent !== window && typeof window.parent.connectNostr === 'function') 
+                    ? window.parent.connectNostr 
+                    : (typeof connectNostr === 'function' ? connectNostr : null);
+                
+                if (connectFn) {
+                    try {
+                        currentUserPubkey = await connectFn();
+                        if (!currentUserPubkey) {
+                            alert('Vous devez être connecté pour commenter');
+                            return;
+                        }
+                        // Update nostrVars
+                        nostrVars.userPubkey = currentUserPubkey;
+                    } catch (error) {
+                        console.error('Error connecting:', error);
+                        alert('Erreur lors de la connexion: ' + error.message);
+                        return;
+                    }
+                } else {
                     alert('Vous devez être connecté pour commenter');
+                    return;
+                }
+            }
+            
+            // Ensure relay connection
+            if (!currentNostrRelay || !nostrVars.isNostrConnected) {
+                // Try to get connectToRelay from parent or current window
+                const connectRelayFn = (window.parent && window.parent !== window && typeof window.parent.connectToRelay === 'function')
+                    ? window.parent.connectToRelay
+                    : (typeof connectToRelay === 'function' ? connectToRelay : null);
+                
+                if (connectRelayFn) {
+                    try {
+                        currentNostrRelay = await connectRelayFn();
+                        if (!currentNostrRelay) {
+                            alert('Erreur lors de la connexion au relay');
+                            return;
+                        }
+                        // Update nostrVars
+                        nostrVars.nostrRelay = currentNostrRelay;
+                        nostrVars.isNostrConnected = true;
+                    } catch (error) {
+                        console.error('Error connecting to relay:', error);
+                        alert('Erreur lors de la connexion au relay: ' + error.message);
+                        return;
+                    }
+                } else {
+                    alert('Connexion au relay non disponible');
                     return;
                 }
             }
@@ -2273,7 +2422,7 @@
             
             try {
                 // Get relay URL hint
-                const relayHint = nostrRelay?.url || (typeof DEFAULT_RELAYS !== 'undefined' && DEFAULT_RELAYS[0]) || '';
+                const relayHint = currentNostrRelay?.url || (typeof DEFAULT_RELAYS !== 'undefined' && DEFAULT_RELAYS[0]) || '';
                 
                 // Detect video kind (21 for regular videos, 22 for shorts)
                 // Try to get it from data attribute or default to 21
@@ -2303,52 +2452,72 @@
                     tags.push(['timestamp', timestamp.toString()]);
                 }
                 
+                // Get publishNote function from parent or current window
+                const publishFn = (window.parent && window.parent !== window && typeof window.parent.publishNote === 'function')
+                    ? window.parent.publishNote
+                    : (typeof publishNote === 'function' ? publishNote : null);
+                
+                if (!publishFn) {
+                    alert('Fonction de publication non disponible');
+                    return;
+                }
+                
                 // Publish comment with kind 1111 (NIP-22 video comments)
-                if (typeof publishNote === 'function') {
-                    const result = await publishNote(content, tags, 1111, { silent: false });
+                console.log('[THEATER] Publishing comment with:', {
+                    content: content.substring(0, 50) + '...',
+                    tags: tags,
+                    userPubkey: currentUserPubkey.substring(0, 8) + '...'
+                });
+                
+                const result = await publishFn(content, tags, 1111, { silent: false });
+                
+                console.log('📬 Publication result:', result);
+                
+                // Check result (nouvelle API retourne un objet, ancienne API retourne l'event)
+                const publishedEvent = result?.event || result;
+                const success = result && (result.success === true || result.id || publishedEvent?.id);
+                
+                console.log('📬 Published event:', publishedEvent);
+                console.log('📬 Success:', success);
+                console.log('📬 window.theaterComments exists:', typeof window.theaterComments !== 'undefined');
+                console.log('📬 userPubkey:', currentUserPubkey ? currentUserPubkey.substring(0, 8) + '...' : 'undefined');
+                
+                if (success) {
+                    input.value = '';
                     
-                    console.log('📬 Publication result:', result);
-                    
-                    // Check result (nouvelle API retourne un objet, ancienne API retourne l'event)
-                    const publishedEvent = result?.event || result;
-                    const success = result && (result.success === true || result.id || publishedEvent?.id);
-                    
-                    console.log('📬 Published event:', publishedEvent);
-                    console.log('📬 Success:', success);
-                    console.log('📬 window.theaterComments exists:', typeof window.theaterComments !== 'undefined');
-                    console.log('📬 userPubkey:', typeof userPubkey !== 'undefined' ? userPubkey.substring(0, 8) + '...' : 'undefined');
-                    
-                    if (success) {
-                        input.value = '';
+                    // Manually add comment to local list (don't wait for subscription)
+                    // This is necessary because some relays don't echo back your own events
+                    if (publishedEvent && publishedEvent.id && currentUserPubkey) {
+                        // Get current user name
+                        let userName = currentUserPubkey.substring(0, 8) + '...';
+                        // Try to fetch user profile (cached)
+                        const fetchUserMetadataFn = (window.parent && window.parent !== window && typeof window.parent.fetchUserMetadata === 'function')
+                            ? window.parent.fetchUserMetadata
+                            : (typeof fetchUserMetadata !== 'undefined' ? fetchUserMetadata : null);
                         
-                        // Manually add comment to local list (don't wait for subscription)
-                        // This is necessary because some relays don't echo back your own events
-                        if (publishedEvent && publishedEvent.id && typeof userPubkey !== 'undefined') {
-                            // Get current user name
-                            let userName = userPubkey.substring(0, 8) + '...';
-                            // Try to fetch user profile (cached)
-                            if (typeof fetchUserMetadata !== 'undefined') {
-                                try {
-                                    const profile = await fetchUserMetadata(userPubkey);
-                                    if (profile) {
-                                        userName = profile.display_name || profile.name || userName;
-                                    }
-                                } catch (e) {
-                                    // Use default truncated pubkey
+                        if (fetchUserMetadataFn) {
+                            try {
+                                const profile = await fetchUserMetadataFn(currentUserPubkey);
+                                if (profile) {
+                                    userName = profile.display_name || profile.name || userName;
                                 }
+                            } catch (e) {
+                                // Use default truncated pubkey
+                                console.warn('Could not fetch user metadata:', e);
                             }
-                            
-                            // Create comment object matching the structure
-                            const newComment = {
-                                id: publishedEvent.id,
-                                authorId: userPubkey,
-                                authorName: userName,
-                                content: content,
-                                timestamp: timestamp > 0 ? timestamp : null,
-                                isOriginal: false,
-                                created_at: publishedEvent.created_at || Math.floor(Date.now() / 1000),
-                                rawEvent: publishedEvent
-                            };
+                        }
+                        
+                        // Create comment object matching the structure
+                        const newComment = {
+                            id: publishedEvent.id,
+                            authorId: currentUserPubkey,
+                            authorName: userName,
+                            content: content,
+                            timestamp: timestamp > 0 ? timestamp : null,
+                            isOriginal: false,
+                            created_at: publishedEvent.created_at || Math.floor(Date.now() / 1000),
+                            rawEvent: publishedEvent
+                        };
                             
                             // Add to global comments array if it exists
                             if (typeof window.theaterComments !== 'undefined') {
@@ -2758,6 +2927,70 @@
         window.loadVideoAuthor = loadVideoAuthor;
         window.loadVideoComments = loadVideoComments;
         window.loadProvenanceInfo = loadProvenanceInfo;
+        
+        /**
+         * Initialize NOSTR connection for standalone mode
+         */
+        async function initNostrConnectionStandalone() {
+            const isInIframe = window.self !== window.top;
+            
+            // If in iframe, try to get from parent first
+            if (isInIframe && window.parent && window.parent !== window) {
+                try {
+                    if (window.parent.userPubkey) {
+                        userPubkey = window.parent.userPubkey;
+                        nostrRelay = window.parent.nostrRelay || null;
+                        isNostrConnected = window.parent.isNostrConnected || false;
+                        
+                        // Set in current window
+                        if (typeof window !== 'undefined') {
+                            window.userPubkey = userPubkey;
+                            window.nostrRelay = nostrRelay;
+                            window.isNostrConnected = isNostrConnected;
+                        }
+                        
+                        console.log('[THEATER] ✅ Using connection from parent window');
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('[THEATER] ⚠️ Could not access parent window variables:', e);
+                }
+            }
+            
+            // Standalone mode - connect to NOSTR + relay
+            if (!userPubkey) {
+                console.log('[THEATER] 🔌 Standalone mode - connecting to NOSTR...');
+                
+                try {
+                    // Connect to NOSTR extension
+                    if (typeof connectNostr === 'function') {
+                        userPubkey = await connectNostr(false);
+                        if (userPubkey && typeof window !== 'undefined') {
+                            window.userPubkey = userPubkey;
+                        }
+                        console.log('[THEATER] ✅ Connected to NOSTR extension');
+                    }
+                    
+                    // Connect to relay
+                    if (typeof connectToRelay === 'function') {
+                        nostrRelay = await connectToRelay();
+                        isNostrConnected = nostrRelay !== null;
+                        if (nostrRelay && typeof window !== 'undefined') {
+                            window.nostrRelay = nostrRelay;
+                            window.isNostrConnected = isNostrConnected;
+                        }
+                        console.log('[THEATER] ✅ Connected to relay');
+                    }
+                } catch (error) {
+                    console.error('[THEATER] ❌ Error connecting:', error);
+                }
+            }
+        }
+        
+        // Initialize NOSTR connection on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            await initNostrConnectionStandalone();
+        });
         
         // Initialize theater mode if videoData is passed
         if (window.videoData) {

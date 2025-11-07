@@ -2255,10 +2255,59 @@ async def chat_route(request: Request, room: Optional[str] = None):
     try:
         myipfs_gateway = get_myipfs_gateway()
         
+        # Parse room coordinates and get UMAP hex
+        umap_hex = None
+        umap_lat = 0.00
+        umap_lon = 0.00
+        
+        if room:
+            try:
+                # Parse coordinates from room parameter
+                coords = room.split(',')
+                if len(coords) == 2:
+                    umap_lat = float(coords[0].strip())
+                    umap_lon = float(coords[1].strip())
+                    
+                    # Round to 2 decimals (UMAP precision)
+                    umap_lat = round(umap_lat * 100) / 100
+                    umap_lon = round(umap_lon * 100) / 100
+                    
+                    # Get UMAP hex using get_umap_geolinks
+                    logging.info(f"🔍 Fetching UMAP hex for coordinates: {umap_lat}, {umap_lon}")
+                    geolinks_result = await get_umap_geolinks(umap_lat, umap_lon)
+                    
+                    if geolinks_result.get('success') and geolinks_result.get('umaps'):
+                        umap_hex = geolinks_result['umaps'].get('here')
+                        if umap_hex:
+                            logging.info(f"✅ Found UMAP hex: {umap_hex[:16]}...")
+                        else:
+                            logging.warning(f"⚠️ No 'here' UMAP hex found in geolinks result")
+                    else:
+                        logging.warning(f"⚠️ Failed to get UMAP geolinks: {geolinks_result.get('message', 'Unknown error')}")
+                else:
+                    logging.warning(f"⚠️ Invalid room format: {room}, expected 'lat,lon'")
+            except (ValueError, TypeError) as e:
+                logging.warning(f"⚠️ Error parsing room coordinates '{room}': {e}")
+        else:
+            # Default to 0.00,0.00 if no room provided
+            umap_lat = 0.00
+            umap_lon = 0.00
+            logging.info(f"📍 No room parameter, using default coordinates: {umap_lat}, {umap_lon}")
+            
+            # Get UMAP hex for default coordinates
+            geolinks_result = await get_umap_geolinks(umap_lat, umap_lon)
+            if geolinks_result.get('success') and geolinks_result.get('umaps'):
+                umap_hex = geolinks_result['umaps'].get('here')
+                if umap_hex:
+                    logging.info(f"✅ Found default UMAP hex: {umap_hex[:16]}...")
+        
         return templates.TemplateResponse("chat.html", {
             "request": request,
             "myIPFS": myipfs_gateway,
-            "room": room  # Pass room parameter to template
+            "room": room,  # Pass room parameter to template
+            "umap_lat": umap_lat,  # Pass parsed latitude
+            "umap_lon": umap_lon,  # Pass parsed longitude
+            "umap_hex": umap_hex  # Pass UMAP hex for direct use in template
         })
     except Exception as e:
         logging.error(f"Error serving chat page: {e}")

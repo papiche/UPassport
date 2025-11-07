@@ -322,6 +322,9 @@
                     <i class="bi bi-arrow-left"></i> Back
                 </a>
                 <div class="chat-header-title">💬 UMAP Chat</div>
+                <a href="#" id="umapProfileLink" class="umap-profile-link" target="_blank" rel="noopener noreferrer" style="display: none; margin-left: 12px; color: #3b82f6; text-decoration: none; font-size: 0.9em;" title="View UMAP profile">
+                    <i class="bi bi-person-badge"></i> Profile
+                </a>
             </div>
             <div class="chat-header-info">
                 <div class="umap-badge" id="umapBadge">
@@ -363,9 +366,21 @@
         // UMAP CHAT STATE
         // ========================================
         
-        let userPubkey = null;
-        let nostrRelay = null;
-        let isNostrConnected = false;
+        // Use existing global variables from common.js
+        // Don't redeclare - common.js already declares these as globals
+        // Just ensure they exist on window if not already set by common.js
+        if (typeof window.userPubkey === 'undefined' && typeof userPubkey === 'undefined') {
+            window.userPubkey = null;
+        }
+        if (typeof window.nostrRelay === 'undefined' && typeof nostrRelay === 'undefined') {
+            window.nostrRelay = null;
+        }
+        if (typeof window.isNostrConnected === 'undefined' && typeof isNostrConnected === 'undefined') {
+            window.isNostrConnected = false;
+        }
+        
+        // Use global variables directly - they are already declared by common.js
+        // We can reference them directly without redeclaring
         
         const UMAPChat = {
             initialized: false,
@@ -375,7 +390,8 @@
             umapHex: null,
             subscription: null,
             activeUsers: new Set(),
-            messages: []
+            messages: [],
+            profileCache: new Map() // Cache for user profiles (pubkey -> profile data)
         };
         
         // ========================================
@@ -385,64 +401,100 @@
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('[CHAT] Initializing UMAP chat...');
             
-            // Get room parameter from URL
+            // Get UMAP data from backend (passed via Jinja template)
+            // These are set by the /chat route in 54321.py
+            const backendUMAPLat = {% if umap_lat is defined and umap_lat is not none %}{{ umap_lat }}{% else %}0.00{% endif %};
+            const backendUMAPLon = {% if umap_lon is defined and umap_lon is not none %}{{ umap_lon }}{% else %}0.00{% endif %};
+            const backendUMAPHex = {% if umap_hex is defined and umap_hex is not none %}{{ umap_hex|tojson }}{% else %}null{% endif %};
+            
+            // Get room parameter from URL (fallback if backend didn't provide it)
             const urlParams = new URLSearchParams(window.location.search);
             let roomParam = urlParams.get('room');
             
-            // If no room param, try to get GPS from /api/myGPS
-            if (!roomParam) {
+            let umapLat, umapLon, umapHex;
+            
+            // Use backend values if available
+                if (backendUMAPLat !== 0.00 || backendUMAPLon !== 0.00) {
+                umapLat = backendUMAPLat;
+                umapLon = backendUMAPLon;
+                umapHex = backendUMAPHex;
+                console.log('[CHAT] ✅ Using UMAP data from backend:', umapLat, umapLon);
+                if (umapHex) {
+                    console.log('[CHAT] ✅ UMAP hex from backend:', umapHex.substring(0, 16) + '...');
+                    UMAPChat.umapHex = umapHex;
+                    // Update UMAP profile link
+                    updateUMAPProfileLink();
+                }
+            } else if (roomParam) {
+                // Parse from URL parameter
+                const coords = roomParam.split(',');
+                if (coords.length === 2) {
+                    umapLat = parseFloat(coords[0].trim());
+                    umapLon = parseFloat(coords[1].trim());
+                    if (!isNaN(umapLat) && !isNaN(umapLon)) {
+                        umapLat = Math.round(umapLat * 100) / 100;
+                        umapLon = Math.round(umapLon * 100) / 100;
+                        console.log('[CHAT] Using room param from URL:', umapLat, umapLon);
+                    } else {
+                        umapLat = 0.00;
+                        umapLon = 0.00;
+                    }
+                } else {
+                    umapLat = 0.00;
+                    umapLon = 0.00;
+                }
+            } else {
+                // Try to get GPS from /api/myGPS
                 console.log('[CHAT] No room param, trying to fetch GPS from /api/myGPS...');
                 
                 // Wait for NOSTR connection to get userPubkey
                 await initNostrConnection();
                 
-                if (userPubkey) {
+                if (window.userPubkey || (typeof userPubkey !== 'undefined' && userPubkey)) {
+                    const currentPubkey = window.userPubkey || userPubkey;
                     try {
-                        const gpsResponse = await fetch(`/api/myGPS?npub=${userPubkey}`);
+                        const gpsResponse = await fetch(`/api/myGPS?npub=${currentPubkey}`);
                         
                         if (gpsResponse.ok) {
                             const gpsData = await gpsResponse.json();
                             if (gpsData.success && gpsData.coordinates) {
-                                const umapLat = (Math.floor(gpsData.coordinates.lat / 0.01) * 0.01).toFixed(2);
-                                const umapLon = (Math.floor(gpsData.coordinates.lon / 0.01) * 0.01).toFixed(2);
-                                roomParam = `${umapLat},${umapLon}`;
-                                console.log('[CHAT] ✅ GPS fetched from /api/myGPS:', roomParam);
+                                umapLat = (Math.floor(gpsData.coordinates.lat / 0.01) * 0.01);
+                                umapLon = (Math.floor(gpsData.coordinates.lon / 0.01) * 0.01);
+                                console.log('[CHAT] ✅ GPS fetched from /api/myGPS:', umapLat, umapLon);
+                            } else {
+                                umapLat = 0.00;
+                                umapLon = 0.00;
                             }
                         } else if (gpsResponse.status === 403) {
                             console.log('[CHAT] GPS access denied (authentication required)');
+                            umapLat = 0.00;
+                            umapLon = 0.00;
                         } else if (gpsResponse.status === 404) {
                             console.log('[CHAT] GPS coordinates not found for this user');
+                            umapLat = 0.00;
+                            umapLon = 0.00;
+                        } else {
+                            umapLat = 0.00;
+                            umapLon = 0.00;
                         }
                     } catch (error) {
                         console.warn('[CHAT] Error fetching GPS:', error);
+                        umapLat = 0.00;
+                        umapLon = 0.00;
                     }
+                } else {
+                    umapLat = 0.00;
+                    umapLon = 0.00;
                 }
             }
             
-            // Fallback to 0.00,0.00 if still no room
-            if (!roomParam) {
+            // Fallback to 0.00,0.00 if still no coordinates
+            if (typeof umapLat === 'undefined' || typeof umapLon === 'undefined') {
                 console.log('[CHAT] ⚠️ No GPS available, using default 0.00,0.00');
-                roomParam = '0.00,0.00';
+                umapLat = 0.00;
+                umapLon = 0.00;
             }
             
-            // Parse UMAP coordinates
-            const coords = roomParam.split(',');
-            if (coords.length !== 2) {
-                alert('❌ Invalid room format. Use: /chat?room=48.86,2.35');
-                return;
-            }
-            
-            const lat = parseFloat(coords[0].trim());
-            const lon = parseFloat(coords[1].trim());
-            
-            if (isNaN(lat) || isNaN(lon)) {
-                alert('❌ Invalid coordinates');
-                return;
-            }
-            
-            // Round to 2 decimals (UMAP precision)
-            const umapLat = Math.round(lat * 100) / 100;
-            const umapLon = Math.round(lon * 100) / 100;
             const umapKey = `${umapLat.toFixed(2)},${umapLon.toFixed(2)}`;
             
             console.log('[CHAT] Room:', umapKey);
@@ -471,25 +523,82 @@
         });
         
         /**
-         * Initialize NOSTR connection
+         * Initialize NOSTR connection (supports both standalone and iframe modes)
          */
         async function initNostrConnection() {
             try {
                 console.log('[CHAT] Initializing NOSTR connection...');
-                if (typeof connectToRelay === 'function') {
-                    nostrRelay = await connectToRelay();
-                    isNostrConnected = nostrRelay !== null;
-                    console.log('[CHAT] Relay connected:', isNostrConnected);
-                }
                 
-                if (typeof connectNostr === 'function') {
-                    userPubkey = await connectNostr(false); // Don't force NIP-42 for chat init
-                    if (userPubkey) {
-                        console.log('[CHAT] User pubkey:', userPubkey.substring(0, 8) + '...');
+                const isInIframe = window.self !== window.top;
+                
+                // Strategy 1: Try to get from parent window first (if in iframe)
+                if (isInIframe && window.parent && window.parent !== window) {
+                    try {
+                        if (window.parent.userPubkey) {
+                            window.userPubkey = window.parent.userPubkey;
+                            window.nostrRelay = window.parent.nostrRelay || null;
+                            window.isNostrConnected = window.parent.isNostrConnected || false;
+                            
+                            // Sync with global variables (common.js uses these)
+                            if (typeof userPubkey !== 'undefined') {
+                                userPubkey = window.userPubkey;
+                            }
+                            if (typeof nostrRelay !== 'undefined') {
+                                nostrRelay = window.nostrRelay;
+                            }
+                            if (typeof isNostrConnected !== 'undefined') {
+                                isNostrConnected = window.isNostrConnected;
+                            }
+                            
+                            console.log('[CHAT] ✅ Using connection from parent window:', window.userPubkey ? window.userPubkey.substring(0, 8) + '...' : 'none');
+                            updateConnectionStatus(window.isNostrConnected);
+                            return; // Successfully got from parent
+                        }
+                    } catch (e) {
+                        console.warn('[CHAT] ⚠️ Could not access parent window variables:', e);
                     }
                 }
+                
+                // Strategy 2: Standalone mode - connect to NOSTR + relay
+                if (!window.userPubkey) {
+                    console.log('[CHAT] 🔌 Standalone mode - connecting to NOSTR extension...');
+                    
+                    // Connect to NOSTR extension
+                    if (typeof connectNostr === 'function') {
+                        window.userPubkey = await connectNostr(false); // Don't force NIP-42 for chat init
+                        if (window.userPubkey) {
+                            console.log('[CHAT] ✅ User pubkey:', window.userPubkey.substring(0, 8) + '...');
+                            // Sync with global variable if it exists
+                            if (typeof userPubkey !== 'undefined') {
+                                userPubkey = window.userPubkey;
+                            }
+                        }
+                    } else {
+                        console.warn('[CHAT] ⚠️ connectNostr function not available');
+                    }
+                    
+                    // Connect to relay
+                    if (typeof connectToRelay === 'function') {
+                        window.nostrRelay = await connectToRelay();
+                        window.isNostrConnected = window.nostrRelay !== null;
+                        console.log('[CHAT] ✅ Relay connected:', window.isNostrConnected);
+                        
+                        // Sync with global variables if they exist
+                        if (typeof nostrRelay !== 'undefined') {
+                            nostrRelay = window.nostrRelay;
+                        }
+                        if (typeof isNostrConnected !== 'undefined') {
+                            isNostrConnected = window.isNostrConnected;
+                        }
+                    } else {
+                        console.warn('[CHAT] ⚠️ connectToRelay function not available');
+                    }
+                }
+                
+                updateConnectionStatus(window.isNostrConnected);
             } catch (error) {
-                console.error('[CHAT] Error initializing NOSTR connection:', error);
+                console.error('[CHAT] ❌ Error initializing NOSTR connection:', error);
+                updateConnectionStatus(false);
             }
         }
         
@@ -536,37 +645,46 @@
         
         /**
          * Fetch UMAP ORE Meeting Space (kind 30312) for a specific geographic coordinate
-         * Uses /api/umap/geolinks to get UMAP hex, then searches for ORE Meeting Space
+         * Uses UMAP hex from backend (passed via template) or fetches from /api/umap/geolinks if not available
          */
         async function fetchUMAPDIDForChat(lat, lon) {
             console.log(`[CHAT] Fetching UMAP ORE Space for coordinates: ${lat.toFixed(2)}, ${lon.toFixed(2)}`);
             
             try {
-                // Step 1: Get UMAP HEX from /api/umap/geolinks
-                console.log('[CHAT] Step 1: Fetching UMAP hex from geolinks API...');
-                const geolinksResponse = await fetch(`/api/umap/geolinks?lat=${lat}&lon=${lon}`);
-                
-                if (!geolinksResponse.ok) {
-                    console.warn('[CHAT] Failed to fetch geolinks:', geolinksResponse.status);
-                    const umapKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
-                    UMAPChat.channelId = `UMAP_${umapKey.replace(',', '_')}`;
-                    return;
-                }
-                
-                const geolinksData = await geolinksResponse.json();
-                const umapHex = geolinksData.umaps?.here;
+                // Step 1: Use UMAP hex from backend if available, otherwise fetch from API
+                let umapHex = UMAPChat.umapHex;
                 
                 if (!umapHex) {
-                    console.warn('[CHAT] No UMAP hex found in geolinks response');
-                    const umapKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
-                    UMAPChat.channelId = `UMAP_${umapKey.replace(',', '_')}`;
-                    return;
+                    console.log('[CHAT] Step 1: UMAP hex not available from backend, fetching from geolinks API...');
+                    const geolinksResponse = await fetch(`/api/umap/geolinks?lat=${lat}&lon=${lon}`);
+                    
+                    if (!geolinksResponse.ok) {
+                        console.warn('[CHAT] Failed to fetch geolinks:', geolinksResponse.status);
+                        const umapKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+                        UMAPChat.channelId = `UMAP_${umapKey.replace(',', '_')}`;
+                        return;
+                    }
+                    
+                    const geolinksData = await geolinksResponse.json();
+                    umapHex = geolinksData.umaps?.here;
+                    
+                    if (!umapHex) {
+                        console.warn('[CHAT] No UMAP hex found in geolinks response');
+                        const umapKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+                        UMAPChat.channelId = `UMAP_${umapKey.replace(',', '_')}`;
+                        return;
+                    }
+                    
+                    console.log('[CHAT] ✅ Found UMAP hex from API:', umapHex);
+                } else {
+                    console.log('[CHAT] ✅ Using UMAP hex from backend:', umapHex.substring(0, 16) + '...');
                 }
-                
-                console.log('[CHAT] ✅ Found UMAP hex:', umapHex);
                 
                 // Store UMAP hex as the primary reference
                 UMAPChat.umapHex = umapHex;
+                
+                // Update UMAP profile link
+                updateUMAPProfileLink();
                 
                 // Step 2: Search for ORE Meeting Space (kind 30312) by author (UMAP's pubkey)
                 console.log('[CHAT] Step 2: Searching for ORE Meeting Space (kind 30312) by author...');
@@ -752,6 +870,109 @@
         }
         
         /**
+         * Fetch user profile (kind 0) and cache it
+         */
+        async function fetchUserProfile(pubkey) {
+            if (!pubkey) return null;
+            
+            // Check cache first
+            if (UMAPChat.profileCache.has(pubkey)) {
+                return UMAPChat.profileCache.get(pubkey);
+            }
+            
+            // If already fetching, return null to avoid duplicate requests
+            if (UMAPChat.profileCache.has(pubkey + '_fetching')) {
+                return null;
+            }
+            
+            // Mark as fetching
+            UMAPChat.profileCache.set(pubkey + '_fetching', true);
+            
+            try {
+                if (!window.nostrRelay) {
+                    return null;
+                }
+                
+                const filter = {
+                    kinds: [0],
+                    authors: [pubkey],
+                    limit: 1
+                };
+                
+                const profileEvent = await new Promise((resolve) => {
+                    const sub = window.nostrRelay.sub([filter]);
+                    let profile = null;
+                    const timeout = setTimeout(() => {
+                        sub.unsub();
+                        resolve(null);
+                    }, 3000);
+                    
+                    sub.on('event', (event) => {
+                        clearTimeout(timeout);
+                        profile = event;
+                        sub.unsub();
+                        resolve(profile);
+                    });
+                    
+                    sub.on('eose', () => {
+                        if (!profile) {
+                            clearTimeout(timeout);
+                            sub.unsub();
+                            resolve(null);
+                        }
+                    });
+                });
+                
+                if (profileEvent) {
+                    try {
+                        const profileData = JSON.parse(profileEvent.content);
+                        const profileInfo = {
+                            name: profileData.display_name || profileData.name || null,
+                            pubkey: pubkey
+                        };
+                        
+                        // Cache the profile
+                        UMAPChat.profileCache.set(pubkey, profileInfo);
+                        UMAPChat.profileCache.delete(pubkey + '_fetching');
+                        
+                        // Update all messages from this user
+                        updateMessagesForUser(pubkey, profileInfo);
+                        
+                        return profileInfo;
+                    } catch (e) {
+                        console.warn('[CHAT] Error parsing profile:', e);
+                        UMAPChat.profileCache.delete(pubkey + '_fetching');
+                        return null;
+                    }
+                } else {
+                    UMAPChat.profileCache.delete(pubkey + '_fetching');
+                    return null;
+                }
+            } catch (error) {
+                console.warn('[CHAT] Error fetching profile for', pubkey.substring(0, 8) + '...:', error);
+                UMAPChat.profileCache.delete(pubkey + '_fetching');
+                return null;
+            }
+        }
+        
+        /**
+         * Update all messages from a specific user with their profile name
+         */
+        function updateMessagesForUser(pubkey, profileInfo) {
+            const messagesEl = document.getElementById('chatMessages');
+            const messageDivs = messagesEl.querySelectorAll(`.chat-message[data-pubkey="${pubkey}"]`);
+            
+            messageDivs.forEach(div => {
+                const authorLink = div.querySelector('.chat-message-author a');
+                if (authorLink) {
+                    const displayName = profileInfo.name || pubkey.substring(0, 12) + '...';
+                    const icon = authorLink.querySelector('i');
+                    authorLink.innerHTML = icon ? `${icon.outerHTML} ${displayName}` : `<i class="bi bi-person-circle"></i> ${displayName}`;
+                }
+            });
+        }
+        
+        /**
          * Display a chat message
          */
         function displayChatMessage(event) {
@@ -766,8 +987,10 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = 'chat-message';
             messageDiv.dataset.messageId = event.id;
+            if (event.pubkey) {
+                messageDiv.dataset.pubkey = event.pubkey;
+            }
             
-            const authorShort = event.pubkey ? event.pubkey.substring(0, 12) + '...' : 'Unknown';
             const time = new Date(event.created_at * 1000).toLocaleTimeString();
             
             // Get IPFS gateway
@@ -776,11 +999,20 @@
                 `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${event.pubkey}` : 
                 '#';
             
+            // Get display name from cache or use pubkey short
+            let displayName = event.pubkey ? event.pubkey.substring(0, 12) + '...' : 'Unknown';
+            if (event.pubkey && UMAPChat.profileCache.has(event.pubkey)) {
+                const profileInfo = UMAPChat.profileCache.get(event.pubkey);
+                if (profileInfo && profileInfo.name) {
+                    displayName = profileInfo.name;
+                }
+            }
+            
             messageDiv.innerHTML = `
                 <div class="chat-message-header">
                     <div class="chat-message-author">
                         <a href="${profileUrl}" target="_blank" rel="noopener noreferrer" title="View profile">
-                            <i class="bi bi-person-circle"></i> ${authorShort}
+                            <i class="bi bi-person-circle"></i> ${displayName}
                         </a>
                     </div>
                     <div class="chat-message-time">${time}</div>
@@ -790,6 +1022,11 @@
             
             // Insert at the beginning (newest first, but container is reversed)
             messagesEl.appendChild(messageDiv);
+            
+            // Fetch profile in background if not cached
+            if (event.pubkey && !UMAPChat.profileCache.has(event.pubkey)) {
+                fetchUserProfile(event.pubkey);
+            }
             
             // Keep only last 100 messages
             while (messagesEl.children.length > 100) {
@@ -807,14 +1044,19 @@
             if (!content) return;
             
             // Check if user is connected
-            if (typeof userPubkey === 'undefined' || !userPubkey) {
+            const currentPubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
+            if (!currentPubkey) {
                 // Try to connect
                 if (typeof connectNostr === 'function') {
                     try {
-                        userPubkey = await connectNostr(false);
-                        if (!userPubkey) {
+                        window.userPubkey = await connectNostr(false);
+                        if (!window.userPubkey) {
                             alert('❌ Please connect with NOSTR to send messages');
                             return;
+                        }
+                        // Sync with global variable if it exists
+                        if (typeof userPubkey !== 'undefined') {
+                            userPubkey = window.userPubkey;
                         }
                     } catch (error) {
                         alert('❌ Connection failed: ' + error.message);
@@ -871,8 +1113,9 @@
                         input.value = '';
                         
                         // Add to active users
-                        if (userPubkey) {
-                            UMAPChat.activeUsers.add(userPubkey);
+                        const currentUserPubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
+                        if (currentUserPubkey) {
+                            UMAPChat.activeUsers.add(currentUserPubkey);
                             updateUsersCount();
                         }
                     } else {
@@ -925,17 +1168,40 @@
         }
         
         /**
+         * Update UMAP profile link in header
+         */
+        function updateUMAPProfileLink() {
+            const umapProfileLink = document.getElementById('umapProfileLink');
+            if (!umapProfileLink) return;
+            
+            if (UMAPChat.umapHex) {
+                const ipfsGateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+                const profileUrl = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${UMAPChat.umapHex}`;
+                umapProfileLink.href = profileUrl;
+                umapProfileLink.style.display = 'inline-block';
+                umapProfileLink.title = `View UMAP profile (${UMAPChat.umapHex.substring(0, 10)}...)`;
+            } else {
+                umapProfileLink.style.display = 'none';
+            }
+        }
+        
+        /**
          * Check if user is connected and enable send button
          */
         async function checkUserConnection() {
-            if (typeof userPubkey !== 'undefined' && userPubkey) {
+            const currentPubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
+            if (currentPubkey) {
                 document.getElementById('sendBtn').disabled = false;
             } else {
                 // Try to auto-connect
                 if (typeof connectNostr === 'function') {
                     try {
-                        userPubkey = await connectNostr(false);
-                        if (userPubkey) {
+                        window.userPubkey = await connectNostr(false);
+                        if (window.userPubkey) {
+                            // Sync with global variable if it exists
+                            if (typeof userPubkey !== 'undefined') {
+                                userPubkey = window.userPubkey;
+                            }
                             document.getElementById('sendBtn').disabled = false;
                         }
                     } catch (error) {

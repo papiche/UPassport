@@ -1877,6 +1877,12 @@
                                 </button>
                             </div>
                             
+                            <!-- GPS Chat Button (Header) -->
+                            <div id="gps-chat-header-btn" class="connection-badge" style="display: none; background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5);" onclick="openUMAPChatFromHeader()" title="Open UMAP Chat Room">
+                                <i class="bi bi-chat-dots-fill" style="color: #3b82f6;"></i>
+                                <span class="status-text" style="color: #3b82f6;">Chat</span>
+                            </div>
+                            
                             <!-- Connection Panel (Dropdown) -->
                             <div id="connectionPanel" class="connection-panel">
                                 <div class="panel-header">
@@ -5082,12 +5088,14 @@
             
             if (udriveItem && userServicesSection) {
                 udriveItem.style.display = 'flex';
+                udriveItem.style.setProperty('display', 'flex', 'important');
                 udriveItem.dataset.ipnsVault = ipnsVault;
                 if (udriveSubtitle) {
                     udriveSubtitle.textContent = `ipns/${ipnsVault.substring(0, 12)}...`;
                 }
                 // Force display block (not flex) for the section
                 userServicesSection.style.display = 'block';
+                userServicesSection.style.setProperty('display', 'block', 'important');
                 userServicesSection.style.visibility = 'visible';
                 console.log('[YOUTUBE] ✅ uDRIVE button shown in desktop sidebar');
                 console.log('[YOUTUBE] Section display style:', userServicesSection.style.display);
@@ -5134,20 +5142,34 @@
             
             if (gpsItem && userServicesSection) {
                 gpsItem.style.display = 'flex';
+                gpsItem.style.setProperty('display', 'flex', 'important');
                 gpsItem.dataset.umapKey = umapKey;
                 if (gpsSubtitle) {
                     gpsSubtitle.textContent = umapKey;
                 }
                 // Force display block (not flex) for the section
                 userServicesSection.style.display = 'block';
+                userServicesSection.style.setProperty('display', 'block', 'important');
                 userServicesSection.style.visibility = 'visible';
                 console.log('[YOUTUBE] ✅ GPS button shown in desktop sidebar');
                 console.log('[YOUTUBE] Section display style:', userServicesSection.style.display);
+                console.log('[YOUTUBE] GPS item display style:', gpsItem.style.display);
             } else {
                 console.error('[YOUTUBE] ❌ Cannot show GPS - missing elements:', {
                     gpsItem: !!gpsItem,
                     userServicesSection: !!userServicesSection
                 });
+            }
+            
+            // Show GPS button in header
+            const gpsHeaderBtn = document.getElementById('gps-chat-header-btn');
+            if (gpsHeaderBtn) {
+                gpsHeaderBtn.style.display = 'flex';
+                gpsHeaderBtn.style.setProperty('display', 'flex', 'important');
+                gpsHeaderBtn.dataset.umapKey = umapKey;
+                console.log('[YOUTUBE] ✅ GPS button shown in header');
+            } else {
+                console.warn('[YOUTUBE] ⚠️ gps-chat-header-btn not found');
             }
             
             // Mobile sidebar
@@ -5217,6 +5239,50 @@
         }
         
         /**
+         * Open UMAP Chat from header button
+         */
+        async function openUMAPChatFromHeader() {
+            const gpsHeaderBtn = document.getElementById('gps-chat-header-btn');
+            const gpsItem = document.getElementById('gps-sidebar-item');
+            const gpsMobileItem = document.getElementById('gps-mobile-item');
+            
+            let umapKey = gpsHeaderBtn?.dataset.umapKey || gpsItem?.dataset.umapKey || gpsMobileItem?.dataset.umapKey || window.userServices?.umapKey;
+            
+            // If no GPS available, try to fetch it
+            if (!umapKey && (window.userPubkey || (typeof userPubkey !== 'undefined' && userPubkey))) {
+                const currentPubkey = window.userPubkey || userPubkey;
+                try {
+                    console.log('[YOUTUBE] 📍 No GPS cached, fetching from /api/myGPS...');
+                    const gpsResponse = await fetch(`/api/myGPS?npub=${currentPubkey}`);
+                    
+                    if (gpsResponse.ok) {
+                        const gpsData = await gpsResponse.json();
+                        if (gpsData.success && gpsData.coordinates) {
+                            const umapLat = (Math.floor(gpsData.coordinates.lat / 0.01) * 0.01).toFixed(2);
+                            const umapLon = (Math.floor(gpsData.coordinates.lon / 0.01) * 0.01).toFixed(2);
+                            umapKey = `${umapLat},${umapLon}`;
+                            window.userServices.umapKey = umapKey;
+                            console.log('[YOUTUBE] ✅ GPS fetched:', umapKey);
+                        }
+                    }
+                } catch (error) {
+                    console.warn('[YOUTUBE] Could not fetch GPS:', error);
+                }
+            }
+            
+            // Fallback to 0.00,0.00 if still no GPS
+            if (!umapKey) {
+                console.log('[YOUTUBE] ⚠️ No GPS available, using default 0.00,0.00');
+                umapKey = '0.00,0.00';
+            }
+            
+            // Open chat with UMAP room
+            const chatUrl = `/chat?room=${encodeURIComponent(umapKey)}`;
+            console.log('[YOUTUBE] 💬 Opening UMAP Chat:', chatUrl);
+            window.open(chatUrl, '_blank');
+        }
+        
+        /**
          * Open UMAP Chat from sidebar
          */
         async function openUMAPChatFromSidebar() {
@@ -5226,10 +5292,11 @@
             let umapKey = gpsItem?.dataset.umapKey || gpsMobileItem?.dataset.umapKey || window.userServices?.umapKey;
             
             // If no GPS available, try to fetch it
-            if (!umapKey && userPubkey) {
+            if (!umapKey && (window.userPubkey || (typeof userPubkey !== 'undefined' && userPubkey))) {
+                const currentPubkey = window.userPubkey || userPubkey;
                 try {
                     console.log('[YOUTUBE] 📍 No GPS cached, fetching from /api/myGPS...');
-                    const gpsResponse = await fetch(`/api/myGPS?npub=${userPubkey}`);
+                    const gpsResponse = await fetch(`/api/myGPS?npub=${currentPubkey}`);
                     
                     if (gpsResponse.ok) {
                         const gpsData = await gpsResponse.json();

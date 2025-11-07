@@ -1761,32 +1761,92 @@
             }
         }
         
-        function getCurrentLocationForModal() {
-            if (navigator.geolocation) {
-                const btn = event.target;
-                btn.textContent = 'Getting...';
-                btn.disabled = true;
-                
-                navigator.geolocation.getCurrentPosition(
-                    function(position) {
-                        const lat = Math.round(position.coords.latitude * 100) / 100;
-                        const lon = Math.round(position.coords.longitude * 100) / 100;
-                        
-                        updateModalCoordinates(lat, lon);
-                        if (modalMap) {
-                            modalMap.setView([lat, lon], 13);
+        async function getCurrentLocationForModal() {
+            const btn = event.target;
+            btn.textContent = 'Getting...';
+            btn.disabled = true;
+            
+            try {
+                // Strategy 1: Try to get GPS from /api/myGPS (requires NIP-42, more accurate)
+                if (userPubkey) {
+                    try {
+                        // Check NIP-42 authentication first
+                        let isAuthenticated = false;
+                        if (typeof verifyAuthenticationWithAPI === 'function') {
+                            const authResult = await verifyAuthenticationWithAPI(userPubkey);
+                            isAuthenticated = authResult && authResult.auth_verified === true;
                         }
                         
-                        btn.textContent = '📍 My Location';
-                        btn.disabled = false;
-                    },
-                    function(error) {
-                        console.error('Geolocation error:', error);
-                        btn.textContent = '📍 My Location';
-                        btn.disabled = false;
-                        showError('Failed to get your location. Please ensure location services are enabled.', 'Location Error');
+                        if (isAuthenticated) {
+                            console.log('🔐 NIP-42 authenticated, fetching GPS from /api/myGPS...');
+                            const gpsResponse = await fetch(`/api/myGPS?npub=${userPubkey}`);
+                            
+                            if (gpsResponse.ok) {
+                                const gpsData = await gpsResponse.json();
+                                if (gpsData.success && gpsData.coordinates) {
+                                    const lat = Math.round(gpsData.coordinates.lat * 100) / 100;
+                                    const lon = Math.round(gpsData.coordinates.lon * 100) / 100;
+                                    
+                                    updateModalCoordinates(lat, lon);
+                                    if (modalMap) {
+                                        modalMap.setView([lat, lon], 13);
+                                    }
+                                    
+                                    btn.textContent = '📍 My Location';
+                                    btn.disabled = false;
+                                    showSuccess('GPS coordinates retrieved from your UPlanet profile', 'Location Retrieved');
+                                    return;
+                                }
+                            } else if (gpsResponse.status === 403) {
+                                console.log('⚠️ GPS access denied - NIP-42 authentication required');
+                                // Fall through to browser geolocation
+                            } else {
+                                console.log('⚠️ GPS not found in profile, using browser geolocation');
+                                // Fall through to browser geolocation
+                            }
+                        } else {
+                            console.log('⚠️ NIP-42 not authenticated, using browser geolocation');
+                            // Fall through to browser geolocation
+                        }
+                    } catch (gpsError) {
+                        console.warn('⚠️ Error fetching GPS from API, using browser geolocation:', gpsError);
+                        // Fall through to browser geolocation
                     }
-                );
+                }
+                
+                // Strategy 2: Fallback to browser geolocation (doesn't require NIP-42)
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            const lat = Math.round(position.coords.latitude * 100) / 100;
+                            const lon = Math.round(position.coords.longitude * 100) / 100;
+                            
+                            updateModalCoordinates(lat, lon);
+                            if (modalMap) {
+                                modalMap.setView([lat, lon], 13);
+                            }
+                            
+                            btn.textContent = '📍 My Location';
+                            btn.disabled = false;
+                            showInfo('Using browser geolocation. For more accurate GPS, authenticate with NIP-42.', 'Location Retrieved');
+                        },
+                        function(error) {
+                            console.error('Geolocation error:', error);
+                            btn.textContent = '📍 My Location';
+                            btn.disabled = false;
+                            showError('Failed to get your location. Please ensure location services are enabled or authenticate with NIP-42 for GPS from your UPlanet profile.', 'Location Error');
+                        }
+                    );
+                } else {
+                    btn.textContent = '📍 My Location';
+                    btn.disabled = false;
+                    showError('Geolocation is not supported by your browser. Please enter coordinates manually or authenticate with NIP-42.', 'Location Not Supported');
+                }
+            } catch (error) {
+                console.error('Error getting location:', error);
+                btn.textContent = '📍 My Location';
+                btn.disabled = false;
+                showError('Error getting location: ' + error.message, 'Location Error');
             }
         }
 
@@ -2159,9 +2219,63 @@
                 
                 const publishBtn = document.getElementById('publish-btn');
                 publishBtn.disabled = true;
+                publishBtn.textContent = 'Checking authentication...';
+                
+                // Step 0: Verify NIP-42 authentication (required for /api/fileupload)
+                let isAuthenticated = false;
+                if (typeof verifyAuthenticationWithAPI === 'function') {
+                    try {
+                        const authResult = await verifyAuthenticationWithAPI(currentPubkey);
+                        isAuthenticated = authResult && authResult.auth_verified === true;
+                        console.log('🔐 NIP-42 authentication check:', isAuthenticated ? '✅ Authenticated' : '❌ Not authenticated');
+                    } catch (authError) {
+                        console.warn('⚠️ Error checking authentication:', authError);
+                    }
+                }
+                
+                // If not authenticated, try to send NIP-42 auth event
+                if (!isAuthenticated) {
+                    publishBtn.textContent = 'Authenticating...';
+                    console.log('🔐 NIP-42 not authenticated, sending auth event...');
+                    
+                    try {
+                        if (typeof sendNIP42Auth === 'function') {
+                            const relayUrl = nostrRelay?.url || (typeof DEFAULT_RELAYS !== 'undefined' && DEFAULT_RELAYS[0]) || 'wss://astroport.com';
+                            await sendNIP42Auth(relayUrl, true);
+                            
+                            // Wait a bit for the event to be processed
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            
+                            // Verify again
+                            if (typeof verifyAuthenticationWithAPI === 'function') {
+                                const authResult = await verifyAuthenticationWithAPI(currentPubkey);
+                                isAuthenticated = authResult && authResult.auth_verified === true;
+                                console.log('🔐 NIP-42 authentication after sending:', isAuthenticated ? '✅ Authenticated' : '❌ Still not authenticated');
+                            }
+                        } else if (typeof connectNostr === 'function') {
+                            // Fallback: re-connect with force auth
+                            await connectNostr(true);
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            
+                            // Verify again
+                            if (typeof verifyAuthenticationWithAPI === 'function') {
+                                const authResult = await verifyAuthenticationWithAPI(currentPubkey);
+                                isAuthenticated = authResult && authResult.auth_verified === true;
+                            }
+                        }
+                    } catch (authError) {
+                        console.warn('⚠️ Error sending NIP-42 auth:', authError);
+                        // Continue anyway - backend will check and return appropriate error
+                    }
+                }
+                
+                if (!isAuthenticated) {
+                    console.warn('⚠️ NIP-42 authentication not verified, but continuing upload (backend will check)');
+                }
+                
                 publishBtn.textContent = 'Uploading to IPFS...';
                 
-                // Step 1: Upload video to IPFS via /api/fileupload
+                // Step 1: Upload video to IPFS via /api/fileupload (requires NIP-42)
                 const finalFilename = filename || document.getElementById('modal-video-preview').dataset.filename || `webcam_${Date.now()}.webm`;
                 const videoFile = new File([videoBlob], finalFilename, { type: videoBlob.type || 'video/webm' });
                 
@@ -2173,6 +2287,7 @@
                 
                 console.log('📤 Uploading video to IPFS via /api/fileupload...');
                 console.log('📤 userPubkey for upload:', currentPubkey ? currentPubkey.substring(0, 8) + '...' : 'MISSING');
+                console.log('📤 NIP-42 authenticated:', isAuthenticated);
                 
                 const uploadResponse = await fetch('/api/fileupload', {
                     method: 'POST',
