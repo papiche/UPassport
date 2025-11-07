@@ -2289,16 +2289,21 @@
                     formData.append('gifanim_ipfs', uploadResult.gifanim_ipfs);
                     console.log('✅ Using animated GIF from upload2ipfs.sh:', uploadResult.gifanim_ipfs);
                 }
-                // Pass metadata from upload2ipfs.sh (centralized extraction)
+                // Pass metadata from upload2ipfs.sh (centralized extraction) - REQUIRED
                 if (uploadResult.info) {
                     formData.append('info_cid', uploadResult.info);
+                    console.log('✅ Using info_cid from upload2ipfs.sh:', uploadResult.info);
+                } else {
+                    console.error('❌ No info_cid provided from upload2ipfs.sh - this is required!');
+                    throw new Error('Missing info_cid from upload result. Upload may have failed.');
                 }
-                // Pass file hash for provenance tracking (CRITICAL for deduplication)
+                // Pass file hash for provenance tracking (CRITICAL for deduplication) - REQUIRED
                 if (uploadResult.fileHash) {
                     formData.append('file_hash', uploadResult.fileHash);
                     console.log('✅ Using file hash from upload2ipfs.sh:', uploadResult.fileHash.substring(0, 16) + '...');
                 } else {
-                    console.warn('⚠️ No file hash provided from upload2ipfs.sh');
+                    console.error('❌ No file hash provided from upload2ipfs.sh - this is required!');
+                    throw new Error('Missing file_hash from upload result. Upload may have failed.');
                 }
                 // Pass MIME type from upload2ipfs.sh (supports multiple video formats)
                 if (uploadResult.mimeType) {
@@ -2343,8 +2348,14 @@
                     formData.append('latitude', lat.toString());
                     formData.append('longitude', lon.toString());
                 
-                if (document.getElementById('publish-nostr').checked && currentPubkey) {
+                // npub is REQUIRED by backend, even if publish_nostr is false
+                // (needed for authentication and user directory lookup)
+                if (currentPubkey) {
                     formData.append('npub', currentPubkey);
+                    console.log('✅ Adding npub (required):', currentPubkey.substring(0, 8) + '...');
+                } else {
+                    console.error('❌ No npub available - this is required!');
+                    throw new Error('No NOSTR public key available. Please connect to NOSTR first.');
                 }
                 
                 const response = await fetch('/webcam', {

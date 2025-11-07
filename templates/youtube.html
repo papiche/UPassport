@@ -5210,7 +5210,7 @@
             
             // Open uDRIVE at /uDRIVE/{email}/APP/uDRIVE path
             const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
-            const udriveUrl = `${gateway}${ipnsVault}/${userEmail}/APP/uDRIVE`;
+            const udriveUrl = `${gateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
             
             console.log('[YOUTUBE] 📁 Opening uDRIVE:', udriveUrl);
             window.open(udriveUrl, '_blank');
