@@ -2272,16 +2272,33 @@ async def chat_route(request: Request, room: Optional[str] = None):
                     umap_lat = round(umap_lat * 100) / 100
                     umap_lon = round(umap_lon * 100) / 100
                     
-                    # Get UMAP hex using get_umap_geolinks
-                    logging.info(f"🔍 Fetching UMAP hex for coordinates: {umap_lat}, {umap_lon}")
+                    # Get UMAP, SECTOR, and REGION hex keys using get_umap_geolinks
+                    logging.info(f"🔍 Fetching UMAP/SECTOR/REGION hex keys for coordinates: {umap_lat}, {umap_lon}")
                     geolinks_result = await get_umap_geolinks(umap_lat, umap_lon)
                     
-                    if geolinks_result.get('success') and geolinks_result.get('umaps'):
-                        umap_hex = geolinks_result['umaps'].get('here')
-                        if umap_hex:
-                            logging.info(f"✅ Found UMAP hex: {umap_hex[:16]}...")
-                        else:
-                            logging.warning(f"⚠️ No 'here' UMAP hex found in geolinks result")
+                    # Extract hex keys for each distance level
+                    umap_hex = None
+                    sector_hex = None
+                    region_hex = None
+                    
+                    if geolinks_result.get('success'):
+                        # UMAP level (0.01° precision)
+                        if geolinks_result.get('umaps'):
+                            umap_hex = geolinks_result['umaps'].get('here')
+                            if umap_hex:
+                                logging.info(f"✅ Found UMAP hex: {umap_hex[:16]}...")
+                        
+                        # SECTOR level (0.1° precision)
+                        if geolinks_result.get('sectors'):
+                            sector_hex = geolinks_result['sectors'].get('here')
+                            if sector_hex:
+                                logging.info(f"✅ Found SECTOR hex: {sector_hex[:16]}...")
+                        
+                        # REGION level (1.0° precision)
+                        if geolinks_result.get('regions'):
+                            region_hex = geolinks_result['regions'].get('here')
+                            if region_hex:
+                                logging.info(f"✅ Found REGION hex: {region_hex[:16]}...")
                     else:
                         logging.warning(f"⚠️ Failed to get UMAP geolinks: {geolinks_result.get('message', 'Unknown error')}")
                 else:
@@ -2294,12 +2311,32 @@ async def chat_route(request: Request, room: Optional[str] = None):
             umap_lon = 0.00
             logging.info(f"📍 No room parameter, using default coordinates: {umap_lat}, {umap_lon}")
             
-            # Get UMAP hex for default coordinates
+            # Get UMAP, SECTOR, and REGION hex keys for default coordinates
             geolinks_result = await get_umap_geolinks(umap_lat, umap_lon)
-            if geolinks_result.get('success') and geolinks_result.get('umaps'):
-                umap_hex = geolinks_result['umaps'].get('here')
-                if umap_hex:
-                    logging.info(f"✅ Found default UMAP hex: {umap_hex[:16]}...")
+            
+            # Extract hex keys for each distance level
+            umap_hex = None
+            sector_hex = None
+            region_hex = None
+            
+            if geolinks_result.get('success'):
+                # UMAP level (0.01° precision)
+                if geolinks_result.get('umaps'):
+                    umap_hex = geolinks_result['umaps'].get('here')
+                    if umap_hex:
+                        logging.info(f"✅ Found default UMAP hex: {umap_hex[:16]}...")
+                
+                # SECTOR level (0.1° precision)
+                if geolinks_result.get('sectors'):
+                    sector_hex = geolinks_result['sectors'].get('here')
+                    if sector_hex:
+                        logging.info(f"✅ Found default SECTOR hex: {sector_hex[:16]}...")
+                
+                # REGION level (1.0° precision)
+                if geolinks_result.get('regions'):
+                    region_hex = geolinks_result['regions'].get('here')
+                    if region_hex:
+                        logging.info(f"✅ Found default REGION hex: {region_hex[:16]}...")
         
         return templates.TemplateResponse("chat.html", {
             "request": request,
@@ -2307,7 +2344,9 @@ async def chat_route(request: Request, room: Optional[str] = None):
             "room": room,  # Pass room parameter to template
             "umap_lat": umap_lat,  # Pass parsed latitude
             "umap_lon": umap_lon,  # Pass parsed longitude
-            "umap_hex": umap_hex  # Pass UMAP hex for direct use in template
+            "umap_hex": umap_hex,  # Pass UMAP hex (0.01° precision)
+            "sector_hex": sector_hex,  # Pass SECTOR hex (0.1° precision)
+            "region_hex": region_hex  # Pass REGION hex (1.0° precision)
         })
     except Exception as e:
         logging.error(f"Error serving chat page: {e}")

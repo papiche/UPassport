@@ -98,6 +98,51 @@
             display: flex;
             align-items: center;
             gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .distance-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.5);
+            border-radius: 12px;
+        }
+        
+        .distance-selector label {
+            font-size: 0.85em;
+            color: #f59e0b;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        .distance-selector select {
+            background: #0f0f0f;
+            border: 1px solid rgba(245, 158, 11, 0.5);
+            border-radius: 8px;
+            color: #ffffff;
+            padding: 4px 8px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .distance-selector select:hover {
+            border-color: #f59e0b;
+            background: #181818;
+        }
+        
+        .distance-selector select:focus {
+            outline: none;
+            border-color: #f59e0b;
+            background: #181818;
+        }
+        
+        .distance-selector select option {
+            background: #212121;
+            color: #ffffff;
         }
         
         .umap-badge {
@@ -491,6 +536,14 @@
                 </a>
             </div>
             <div class="chat-header-info">
+                <div class="distance-selector">
+                    <label for="distanceLevel"><i class="bi bi-arrows-angle-expand"></i> Range:</label>
+                    <select id="distanceLevel" onchange="changeDistanceLevel()">
+                        <option value="umap">UMAP (0.01°)</option>
+                        <option value="sector">SECTOR (0.1°)</option>
+                        <option value="region">REGION (1.0°)</option>
+                    </select>
+                </div>
                 <div class="umap-badge" id="umapBadge">
                     <i class="bi bi-geo-alt"></i> <span id="umapKey">Loading...</span>
                 </div>
@@ -555,7 +608,9 @@
             subscription: null,
             activeUsers: new Set(),
             messages: [],
-            profileCache: new Map() // Cache for user profiles (pubkey -> profile data)
+            profileCache: new Map(), // Cache for user profiles (pubkey -> profile data)
+            hexKeys: {}, // Store hex keys for all distance levels (umap, sector, region)
+            currentDistanceLevel: 'umap' // Current distance level: 'umap', 'sector', or 'region'
         };
         
         // ========================================
@@ -570,6 +625,18 @@
             const backendUMAPLat = {% if umap_lat is defined and umap_lat is not none %}{{ umap_lat }}{% else %}0.00{% endif %};
             const backendUMAPLon = {% if umap_lon is defined and umap_lon is not none %}{{ umap_lon }}{% else %}0.00{% endif %};
             const backendUMAPHex = {% if umap_hex is defined and umap_hex is not none %}{{ umap_hex|tojson }}{% else %}null{% endif %};
+            const backendSectorHex = {% if sector_hex is defined and sector_hex is not none %}{{ sector_hex|tojson }}{% else %}null{% endif %};
+            const backendRegionHex = {% if region_hex is defined and region_hex is not none %}{{ region_hex|tojson }}{% else %}null{% endif %};
+            
+            // Store hex keys for all distance levels
+            UMAPChat.hexKeys = {
+                umap: backendUMAPHex,
+                sector: backendSectorHex,
+                region: backendRegionHex
+            };
+            
+            // Current distance level (default: umap)
+            UMAPChat.currentDistanceLevel = 'umap';
             
             // Get room parameter from URL (fallback if backend didn't provide it)
             const urlParams = new URLSearchParams(window.location.search);
@@ -808,50 +875,102 @@
         }
         
         /**
+         * Get current hex key based on distance level
+         */
+        function getCurrentHexKey() {
+            const level = UMAPChat.currentDistanceLevel;
+            return UMAPChat.hexKeys[level] || null;
+        }
+        
+        /**
+         * Calculate coordinates based on distance level
+         */
+        function calculateCoordinatesForLevel(lat, lon, level) {
+            let precision;
+            let decimalPlaces;
+            
+            switch(level) {
+                case 'umap':
+                    precision = 0.01;
+                    decimalPlaces = 2;
+                    break;
+                case 'sector':
+                    precision = 0.1;
+                    decimalPlaces = 1;
+                    break;
+                case 'region':
+                    precision = 1.0;
+                    decimalPlaces = 0;
+                    break;
+                default:
+                    precision = 0.01;
+                    decimalPlaces = 2;
+            }
+            
+            const calculatedLat = Math.floor(lat / precision) * precision;
+            const calculatedLon = Math.floor(lon / precision) * precision;
+            
+            return {
+                lat: calculatedLat,
+                lon: calculatedLon,
+                key: `${calculatedLat.toFixed(decimalPlaces)},${calculatedLon.toFixed(decimalPlaces)}`,
+                precision: precision,
+                decimalPlaces: decimalPlaces
+            };
+        }
+        
+        /**
          * Fetch UMAP ORE Meeting Space (kind 30312) for a specific geographic coordinate
-         * Uses UMAP hex from backend (passed via template) or fetches from /api/umap/geolinks if not available
+         * Uses hex key from backend (passed via template) based on current distance level
          */
         async function fetchUMAPDIDForChat(lat, lon) {
-            console.log(`[CHAT] Fetching UMAP ORE Space for coordinates: ${lat.toFixed(2)}, ${lon.toFixed(2)}`);
+            const level = UMAPChat.currentDistanceLevel;
+            const coords = calculateCoordinatesForLevel(lat, lon, level);
+            console.log(`[CHAT] Fetching ${level.toUpperCase()} ORE Space for coordinates: ${coords.key} (precision: ${coords.precision}°)`);
             
             try {
-                // Step 1: Use UMAP hex from backend if available, otherwise fetch from API
-                let umapHex = UMAPChat.umapHex;
+                // Step 1: Use hex key from backend based on current distance level
+                let currentHex = getCurrentHexKey();
                 
-                if (!umapHex) {
-                    console.log('[CHAT] Step 1: UMAP hex not available from backend, fetching from geolinks API...');
-                    const geolinksResponse = await fetch(`/api/umap/geolinks?lat=${lat}&lon=${lon}`);
+                if (!currentHex) {
+                    console.log(`[CHAT] Step 1: ${level.toUpperCase()} hex not available from backend, fetching from geolinks API...`);
+                    const geolinksResponse = await fetch(`/api/umap/geolinks?lat=${coords.lat}&lon=${coords.lon}`);
                     
                     if (!geolinksResponse.ok) {
                         console.warn('[CHAT] Failed to fetch geolinks:', geolinksResponse.status);
-                        const umapKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
-                        UMAPChat.channelId = `UMAP_${umapKey.replace(',', '_')}`;
+                        UMAPChat.channelId = `${level.toUpperCase()}_${coords.key.replace(',', '_')}`;
                         return;
                     }
                     
                     const geolinksData = await geolinksResponse.json();
-                    umapHex = geolinksData.umaps?.here;
+                    // Get hex key for current level
+                    if (level === 'umap') {
+                        currentHex = geolinksData.umaps?.here;
+                    } else if (level === 'sector') {
+                        currentHex = geolinksData.sectors?.here;
+                    } else if (level === 'region') {
+                        currentHex = geolinksData.regions?.here;
+                    }
                     
-                    if (!umapHex) {
-                        console.warn('[CHAT] No UMAP hex found in geolinks response');
-                        const umapKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
-                        UMAPChat.channelId = `UMAP_${umapKey.replace(',', '_')}`;
+                    if (!currentHex) {
+                        console.warn(`[CHAT] No ${level.toUpperCase()} hex found in geolinks response`);
+                        UMAPChat.channelId = `${level.toUpperCase()}_${coords.key.replace(',', '_')}`;
                         return;
                     }
                     
-                    console.log('[CHAT] ✅ Found UMAP hex from API:', umapHex);
+                    console.log(`[CHAT] ✅ Found ${level.toUpperCase()} hex from API:`, currentHex);
                 } else {
-                    console.log('[CHAT] ✅ Using UMAP hex from backend:', umapHex.substring(0, 16) + '...');
+                    console.log(`[CHAT] ✅ Using ${level.toUpperCase()} hex from backend:`, currentHex.substring(0, 16) + '...');
                 }
                 
-                // Store UMAP hex as the primary reference
-                UMAPChat.umapHex = umapHex;
+                // Store hex as the primary reference
+                UMAPChat.umapHex = currentHex;
                 
                 // Update UMAP profile link
                 updateUMAPProfileLink();
                 
-                // Step 2: Search for ORE Meeting Space (kind 30312) by author (UMAP's pubkey)
-                console.log('[CHAT] Step 2: Searching for ORE Meeting Space (kind 30312) by author...');
+                // Step 2: Search for ORE Meeting Space (kind 30312) by author (hex pubkey)
+                console.log(`[CHAT] Step 2: Searching for ORE Meeting Space (kind 30312) by author (${level.toUpperCase()})...`);
                 
                 // Ensure relay connection
                 let currentRelay = window.nostrRelay;
@@ -865,16 +984,16 @@
                 
                 if (!currentRelay) {
                     console.warn('[CHAT] ⚠️ No relay available');
-                    // Use UMAP hex as channelId (it's the deterministic UMAP DID pubkey)
-                    UMAPChat.channelId = umapHex;
-                    console.log('[CHAT] Using UMAP hex as channel reference:', umapHex.substring(0, 8) + '...');
+                    // Use hex as channelId (it's the deterministic DID pubkey)
+                    UMAPChat.channelId = currentHex;
+                    console.log(`[CHAT] Using ${level.toUpperCase()} hex as channel reference:`, currentHex.substring(0, 8) + '...');
                     return;
                 }
                 
                 const oreSpaces = await new Promise((resolve) => {
                     const filter = {
                         kinds: [30312],         // ORE Meeting Space
-                        authors: [umapHex],     // Filter by UMAP's pubkey
+                        authors: [currentHex],  // Filter by hex pubkey
                         limit: 1
                     };
                     
@@ -904,23 +1023,23 @@
                     // Use the event ID as channel ID (ORE Meeting Space reference)
                     UMAPChat.channelId = oreSpace.id;
                     
-                    console.log('[CHAT] ✅ Found ORE Meeting Space for UMAP');
+                    console.log(`[CHAT] ✅ Found ORE Meeting Space for ${level.toUpperCase()}`);
                     console.log('[CHAT] Using ORE Space event ID as channel:', oreSpace.id.substring(0, 8) + '...');
                 } else {
-                    console.log('[CHAT] ⚠️ No ORE Meeting Space found for UMAP hex:', umapHex);
-                    // Use UMAP hex as channelId (it's the deterministic UMAP DID pubkey)
-                    UMAPChat.channelId = umapHex;
-                    console.log('[CHAT] Using UMAP hex as channel reference:', umapHex.substring(0, 8) + '...');
+                    console.log(`[CHAT] ⚠️ No ORE Meeting Space found for ${level.toUpperCase()} hex:`, currentHex);
+                    // Use hex as channelId (it's the deterministic DID pubkey)
+                    UMAPChat.channelId = currentHex;
+                    console.log(`[CHAT] Using ${level.toUpperCase()} hex as channel reference:`, currentHex.substring(0, 8) + '...');
                 }
                 
             } catch (error) {
-                console.error('[CHAT] Error fetching UMAP ORE Space:', error);
-                // If we have umapHex, use it; otherwise fallback to string
-                if (UMAPChat.umapHex) {
-                    UMAPChat.channelId = UMAPChat.umapHex;
+                console.error(`[CHAT] Error fetching ${level.toUpperCase()} ORE Space:`, error);
+                // If we have hex, use it; otherwise fallback to string
+                const currentHex = getCurrentHexKey();
+                if (currentHex) {
+                    UMAPChat.channelId = currentHex;
                 } else {
-                    const umapKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
-                    UMAPChat.channelId = `UMAP_${umapKey.replace(',', '_')}`;
+                    UMAPChat.channelId = `${level.toUpperCase()}_${coords.key.replace(',', '_')}`;
                 }
             }
         }
@@ -936,8 +1055,9 @@
                 await initUMAPChat();
             }
             
-            // Reset active users
+            // Reset active users and messages array (to avoid duplicates from previous level)
             UMAPChat.activeUsers.clear();
+            UMAPChat.messages = [];
             updateUsersCount();
             
             try {
@@ -957,10 +1077,18 @@
                 
                 // Subscribe to NIP-28 channel messages (kind 42)
                 if (typeof window.nostrRelay !== 'undefined' && window.nostrRelay) {
-                    const umapKey = `${UMAPChat.currentUMAP.lat.toFixed(2)},${UMAPChat.currentUMAP.lon.toFixed(2)}`;
+                    // Calculate coordinates based on current distance level
+                    const level = UMAPChat.currentDistanceLevel;
+                    const coords = calculateCoordinatesForLevel(
+                        UMAPChat.currentUMAP.lat, 
+                        UMAPChat.currentUMAP.lon, 
+                        level
+                    );
+                    const geoKey = coords.key;
+                    
                     const filter = {
                         kinds: [42],  // NIP-28: Public channel message
-                        "#g": [umapKey],  // Filter by geolocation
+                        "#g": [geoKey],  // Filter by geolocation (with appropriate precision)
                         limit: 100  // Increased to get more messages including replies
                     };
                     
@@ -1049,19 +1177,82 @@
                     sub.on('eose', () => {
                         console.log('[CHAT] ✅ End of stored events');
                         console.log('[CHAT] 👥 Total users:', UMAPChat.activeUsers.size);
+                        console.log('[CHAT] 📨 Total messages received:', UMAPChat.messages.length);
                         
                         if (UMAPChat.messages.length === 0) {
                             messagesEl.innerHTML = `
                                 <div class="empty-messages">
                                     <div class="empty-messages-icon">💬</div>
                                     <h3>No messages yet</h3>
-                                    <p>Be the first to send a message in this UMAP!</p>
+                                    <p>Be the first to send a message in this ${UMAPChat.currentDistanceLevel.toUpperCase()}!</p>
                                 </div>
                             `;
+                        } else {
+                            // Sort messages by created_at (oldest first for display)
+                            UMAPChat.messages.sort((a, b) => a.created_at - b.created_at);
+                            
+                            // Re-display all messages in correct order
+                            console.log('[CHAT] 🔄 Re-displaying', UMAPChat.messages.length, 'messages in sorted order');
+                            messagesEl.innerHTML = ''; // Clear first
+                            UMAPChat.messages.forEach(event => {
+                                // Check if this is a reply
+                                const isReply = event.tags && event.tags.some(tag => tag[0] === 'e' && tag[3] === 'reply');
+                                if (!isReply) {
+                                    displayChatMessage(event);
+                                } else {
+                                    // Handle reply - add to parent message's replies
+                                    const parentEventId = event.tags.find(tag => tag[0] === 'e' && tag[3] === 'reply')?.[1];
+                                    if (parentEventId) {
+                                        const parentMessageDiv = document.querySelector(`.chat-message[data-message-id="${parentEventId}"]`);
+                                        if (parentMessageDiv) {
+                                            let repliesContainer = parentMessageDiv.querySelector(`#replies-${parentEventId}`);
+                                            if (!repliesContainer) {
+                                                // Create replies container if it doesn't exist
+                                                repliesContainer = document.createElement('div');
+                                                repliesContainer.id = `replies-${parentEventId}`;
+                                                repliesContainer.className = 'chat-replies';
+                                                parentMessageDiv.appendChild(repliesContainer);
+                                            }
+                                            
+                                            const replyDiv = document.createElement('div');
+                                            replyDiv.className = 'chat-reply';
+                                            replyDiv.dataset.messageId = event.id;
+                                            replyDiv.dataset.pubkey = event.pubkey || '';
+                                            
+                                            const ipfsGateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+                                            const replyProfileUrl = event.pubkey ? 
+                                                `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${event.pubkey}` : 
+                                                '#';
+                                            
+                                            let replyDisplayName = event.pubkey ? event.pubkey.substring(0, 12) + '...' : 'Unknown';
+                                            if (event.pubkey && UMAPChat.profileCache.has(event.pubkey)) {
+                                                const profileInfo = UMAPChat.profileCache.get(event.pubkey);
+                                                if (profileInfo && profileInfo.name) {
+                                                    replyDisplayName = profileInfo.name;
+                                                }
+                                            } else if (event.pubkey && typeof getUserDisplayName === 'function') {
+                                                // Use common.js function for lazy loading
+                                                replyDisplayName = getUserDisplayName(event.pubkey, false);
+                                                if (!UMAPChat.profileCache.has(event.pubkey)) {
+                                                    fetchUserProfile(event.pubkey);
+                                                }
+                                            }
+                                            
+                                            replyDiv.innerHTML = `
+                                                <div class="chat-reply-author">
+                                                    <a href="${replyProfileUrl}" target="_blank" rel="noopener noreferrer" style="color: #3ea6ff; text-decoration: none;">
+                                                        ${replyDisplayName}
+                                                    </a>
+                                                </div>
+                                                <div class="chat-reply-content">${escapeHtml(event.content)}</div>
+                                            `;
+                                            
+                                            repliesContainer.appendChild(replyDiv);
+                                        }
+                                    }
+                                }
+                            });
                         }
-                        
-                        // Sort messages by created_at (newest first, but display reversed)
-                        UMAPChat.messages.sort((a, b) => b.created_at - a.created_at);
                     });
                     
                     UMAPChat.subscription = sub;
@@ -1444,9 +1635,17 @@
             sendBtn.innerHTML = '<i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Sending...';
             
             try {
-                const umapKey = `${UMAPChat.currentUMAP.lat.toFixed(2)},${UMAPChat.currentUMAP.lon.toFixed(2)}`;
+                // Calculate coordinates based on current distance level
+                const level = UMAPChat.currentDistanceLevel;
+                const coords = calculateCoordinatesForLevel(
+                    UMAPChat.currentUMAP.lat,
+                    UMAPChat.currentUMAP.lon,
+                    level
+                );
+                const geoKey = coords.key;
+                
                 const tags = [
-                    ["g", umapKey]  // Geolocation (required)
+                    ["g", geoKey]  // Geolocation (required, with appropriate precision)
                 ];
                 
                 // Add channel reference if available
@@ -1668,9 +1867,17 @@
             replyInput.disabled = true;
             
             try {
-                const umapKey = `${UMAPChat.currentUMAP.lat.toFixed(2)},${UMAPChat.currentUMAP.lon.toFixed(2)}`;
+                // Calculate coordinates based on current distance level
+                const level = UMAPChat.currentDistanceLevel;
+                const coords = calculateCoordinatesForLevel(
+                    UMAPChat.currentUMAP.lat,
+                    UMAPChat.currentUMAP.lon,
+                    level
+                );
+                const geoKey = coords.key;
+                
                 const tags = [
-                    ["g", umapKey],  // Geolocation (required)
+                    ["g", geoKey],  // Geolocation (with appropriate precision)
                     ["e", parentMessageId, "", "reply"],  // Reference to parent message
                     ["p", parentAuthorPubkey]  // Reference to parent author
                 ];
@@ -1792,10 +1999,73 @@
             }
         }
         
+        /**
+         * Change distance level and reload messages
+         */
+        async function changeDistanceLevel() {
+            const selector = document.getElementById('distanceLevel');
+            const newLevel = selector ? selector.value : 'umap';
+            
+            if (newLevel === UMAPChat.currentDistanceLevel) {
+                return; // No change
+            }
+            
+            console.log(`[CHAT] 📏 Changing distance level to: ${newLevel.toUpperCase()}`);
+            
+            // Update current level
+            UMAPChat.currentDistanceLevel = newLevel;
+            
+            // Calculate new coordinates based on level
+            const coords = calculateCoordinatesForLevel(
+                UMAPChat.currentUMAP.lat,
+                UMAPChat.currentUMAP.lon,
+                newLevel
+            );
+            
+            // Update UI
+            document.getElementById('umapKey').textContent = coords.key;
+            
+            // Reset initialization to force re-fetch
+            UMAPChat.initialized = false;
+            UMAPChat.channelId = null;
+            UMAPChat.umapDID = null;
+            UMAPChat.umapHex = null;
+            
+            // Clear messages array and active users
+            UMAPChat.messages = [];
+            UMAPChat.activeUsers.clear();
+            
+            // Clear messages UI
+            const messagesEl = document.getElementById('chatMessages');
+            messagesEl.innerHTML = '<div class="loading-messages"><i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Loading messages...</div>';
+            
+            // Update users count
+            updateUsersCount();
+            
+            // Show notification
+            if (typeof showNotification === 'function') {
+                const levelNames = {
+                    'umap': 'UMAP (0.01° - ~1.2 km²)',
+                    'sector': 'SECTOR (0.1° - ~100 km²)',
+                    'region': 'REGION (1.0° - ~10,000 km²)'
+                };
+                showNotification({
+                    message: `Distance range changed to ${levelNames[newLevel]}`,
+                    type: 'info',
+                    duration: 2000
+                });
+            }
+            
+            // Re-initialize and reload messages
+            await initUMAPChat();
+            await loadChatMessages();
+        }
+        
         // Expose functions globally
         window.sendChatMessage = sendChatMessage;
         window.showReplyForm = showReplyForm;
         window.sendReply = sendReply;
+        window.changeDistanceLevel = changeDistanceLevel;
     </script>
 </body>
 </html>

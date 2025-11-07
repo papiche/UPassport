@@ -1877,8 +1877,8 @@
                                 </button>
                             </div>
                             
-                            <!-- GPS Chat Button (Header) -->
-                            <div id="gps-chat-header-btn" class="connection-badge" style="display: none; background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5);" onclick="openUMAPChatFromHeader()" title="Open UMAP Chat Room">
+                            <!-- GPS Chat Button (Header) - Always visible when GPS is available -->
+                            <div id="gps-chat-header-btn" class="connection-badge" style="display: none; background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5); cursor: pointer;" onclick="openUMAPChatFromHeader()" title="Open UMAP Chat Room">
                                 <i class="bi bi-chat-dots-fill" style="color: #3b82f6;"></i>
                                 <span class="status-text" style="color: #3b82f6;">Chat</span>
                             </div>
@@ -5161,15 +5161,18 @@
                 });
             }
             
-            // Show GPS button in header
+            // Show GPS button in header (next to connection badge)
             const gpsHeaderBtn = document.getElementById('gps-chat-header-btn');
             if (gpsHeaderBtn) {
                 gpsHeaderBtn.style.display = 'flex';
                 gpsHeaderBtn.style.setProperty('display', 'flex', 'important');
+                gpsHeaderBtn.style.visibility = 'visible';
+                gpsHeaderBtn.style.setProperty('visibility', 'visible', 'important');
                 gpsHeaderBtn.dataset.umapKey = umapKey;
                 console.log('[YOUTUBE] ✅ GPS button shown in header');
+                console.log('[YOUTUBE] GPS header button computed style:', window.getComputedStyle(gpsHeaderBtn).display);
             } else {
-                console.warn('[YOUTUBE] ⚠️ gps-chat-header-btn not found');
+                console.error('[YOUTUBE] ❌ gps-chat-header-btn not found in DOM');
             }
             
             // Mobile sidebar
