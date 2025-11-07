@@ -5106,6 +5106,192 @@ async def test_nostr_auth_get(npub: str):
     """Test NOSTR authentication for a given npub (GET version for browser testing)"""
     return await test_nostr_auth(npub)
 
+@app.get("/api/myGPS")
+async def get_my_gps_coordinates(npub: str):
+    """
+    Get GPS coordinates for authenticated user (requires NIP-42 authentication)
+    
+    This endpoint returns the user's GPS coordinates stored in ~/.zen/game/nostr/{email}/GPS
+    Only accessible by users who have sent a valid NIP-42 authentication event.
+    
+    Args:
+        npub: User's NOSTR public key (hex or npub format) for authentication
+    
+    Returns:
+        JSON with:
+        - success: bool
+        - coordinates: { lat: float, lon: float } (rounded to 0.01° for UMAP precision)
+        - umap_key: str (formatted as "lat,lon" for UMAP DID lookup)
+        - email: str (associated email)
+        - message: str (status message)
+    
+    Raises:
+        HTTPException 403: If user is not authenticated (no recent NIP-42 event)
+        HTTPException 404: If GPS file not found for this user
+        HTTPException 500: If error reading GPS file
+    
+    Security:
+        - Requires valid NIP-42 authentication (checked via verify_nostr_auth)
+        - Only returns coordinates for the authenticated user
+        - Does not expose coordinates of other users
+    
+    Example:
+        GET /api/myGPS?npub=npub1abc123...
+        Response: {
+            "success": true,
+            "coordinates": { "lat": 48.20, "lon": -2.48 },
+            "umap_key": "48.20,-2.48",
+            "email": "user@example.com",
+            "message": "GPS coordinates retrieved successfully"
+        }
+    """
+    try:
+        # 1. Verify NIP-42 authentication (force check to ensure fresh auth)
+        logging.info(f"🔐 GPS request from npub: {npub[:16]}...")
+        
+        is_authenticated = await verify_nostr_auth(npub, force_check=True)
+        
+        if not is_authenticated:
+            logging.warning(f"⚠️ GPS access denied - No valid NIP-42 authentication for {npub[:16]}...")
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "authentication_required",
+                    "message": "NIP-42 authentication required to access GPS coordinates",
+                    "hint": "Please connect your NOSTR wallet and send an authentication event (kind 22242)"
+                }
+            )
+        
+        # 2. Convert npub to hex if needed
+        pubkey_hex = npub
+        if npub.startswith('npub1'):
+            try:
+                from nostr_sdk import PublicKey
+                pubkey_hex = PublicKey.from_bech32(npub).to_hex()
+            except:
+                # Fallback si nostr_sdk n'est pas disponible
+                pass
+        
+        # 3. Find email associated with this pubkey
+        # Search in ~/.zen/game/nostr/ directories
+        game_nostr_path = Path.home() / ".zen" / "game" / "nostr"
+        
+        if not game_nostr_path.exists():
+            logging.error(f"❌ NOSTR game directory not found: {game_nostr_path}")
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": "directory_not_found",
+                    "message": "NOSTR game directory not found",
+                    "path": str(game_nostr_path)
+                }
+            )
+        
+        # Search for GPS file in user directories
+        gps_file_path = None
+        user_email = None
+        
+        for email_dir in game_nostr_path.iterdir():
+            if not email_dir.is_dir():
+                continue
+            
+            # Check if this directory has a _pub.key matching our pubkey
+            pub_key_file = email_dir / "HEX"
+            if pub_key_file.exists():
+                try:
+                    stored_pubkey = pub_key_file.read_text().strip()
+                    if stored_pubkey == pubkey_hex or stored_pubkey == npub:
+                        # Found the matching user
+                        gps_file = email_dir / "GPS"
+                        if gps_file.exists():
+                            gps_file_path = gps_file
+                            user_email = email_dir.name
+                            logging.info(f"✅ Found GPS file for {user_email}")
+                            break
+                except Exception as e:
+                    logging.debug(f"Error reading {pub_key_file}: {e}")
+                    continue
+        
+        if not gps_file_path:
+            logging.warning(f"❌ GPS file not found for pubkey {npub[:16]}...")
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": "gps_not_found",
+                    "message": "GPS coordinates not found for this user",
+                    "hint": "GPS coordinates are set during MULTIPASS registration"
+                }
+            )
+        
+        # 4. Read and parse GPS file
+        try:
+            gps_content = gps_file_path.read_text().strip()
+            logging.info(f"📍 GPS file content: {gps_content}")
+            
+            # Parse format: LAT=48.20; LON=-2.48;
+            lat = None
+            lon = None
+            
+            for part in gps_content.split(';'):
+                part = part.strip()
+                if part.startswith('LAT='):
+                    lat = float(part.replace('LAT=', ''))
+                elif part.startswith('LON='):
+                    lon = float(part.replace('LON=', ''))
+            
+            if lat is None or lon is None:
+                raise ValueError(f"Invalid GPS format: {gps_content}")
+            
+            # Round to UMAP precision (0.01°)
+            lat_rounded = round(lat, 2)
+            lon_rounded = round(lon, 2)
+            umap_key = f"{lat_rounded:.2f},{lon_rounded:.2f}"
+            
+            logging.info(f"✅ GPS coordinates retrieved for {user_email}: {umap_key}")
+            
+            return {
+                "success": True,
+                "coordinates": {
+                    "lat": lat_rounded,
+                    "lon": lon_rounded
+                },
+                "umap_key": umap_key,
+                "email": user_email,
+                "message": "GPS coordinates retrieved successfully",
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except ValueError as e:
+            logging.error(f"❌ Error parsing GPS file: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "gps_parse_error",
+                    "message": f"Error parsing GPS file: {str(e)}"
+                }
+            )
+        except Exception as e:
+            logging.error(f"❌ Error reading GPS file: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "gps_read_error",
+                    "message": f"Error reading GPS file: {str(e)}"
+                }
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"❌ Unexpected error in /api/myGPS: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "internal_error",
+                "message": f"Unexpected error: {str(e)}"
+            }
+        )
+
 async def get_umap_geolinks(lat: float, lon: float) -> Dict[str, Any]:
     """
     Récupérer les liens géographiques des UMAPs, SECTORs et REGIONs adjacentes

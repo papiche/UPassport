@@ -820,9 +820,9 @@
                         <button class="btn btn-sm btn-outline-secondary" onclick="showUMAPSelector()">
                             <i class="bi bi-pencil"></i> Change
                         </button>
-                        <small class="text-muted ms-auto">
-                            <span id="channelUsersCount">...</span> users
-                        </small>
+                        <span class="badge bg-info ms-auto" title="Active users in this UMAP channel">
+                            <i class="bi bi-people-fill"></i> <span id="channelUsersCount">0</span>
+                        </span>
                     </div>
                 </div>
                 
@@ -2288,35 +2288,102 @@
             const resultEl = document.getElementById('socialResult');
             
             if (!AstroportDemo.userPubkey) {
-                resultEl.textContent = '❌ Please connect with MULTIPASS first';
+                showCommentModal(false); // Show modal with auth required message
                 return;
             }
             
-            const comment = prompt('Enter your comment:');
-            if (!comment) return;
+            // Show comment modal
+            showCommentModal(true);
+        }
+        
+        // Show/hide comment modal
+        function showCommentModal(isAuthenticated) {
+            const modal = document.getElementById('commentModal');
+            const authWarning = document.getElementById('commentAuthWarning');
+            const commentForm = document.getElementById('commentForm');
+            
+            if (isAuthenticated) {
+                authWarning.style.display = 'none';
+                commentForm.style.display = 'block';
+                document.getElementById('commentInput').value = ''; // Clear input
+                document.getElementById('commentInput').focus(); // Focus on input
+            } else {
+                authWarning.style.display = 'block';
+                commentForm.style.display = 'none';
+            }
+            
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden'; // Prevent background scroll
+        }
+        
+        function closeCommentModal() {
+            const modal = document.getElementById('commentModal');
+            modal.style.display = 'none';
+            document.body.style.overflow = 'auto'; // Restore scroll
+        }
+        
+        async function submitComment() {
+            const commentInput = document.getElementById('commentInput');
+            const submitBtn = document.getElementById('submitCommentBtn');
+            const comment = commentInput.value.trim();
+            
+            if (!comment) {
+                commentInput.classList.add('is-invalid');
+                return;
+            }
+            
+            commentInput.classList.remove('is-invalid');
             
             try {
-                console.log('[COMMENT] Publishing comment:', comment);
-                resultEl.textContent = '🔄 Publishing comment...\n\n';
+                // Disable button and show loading
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Publishing...';
                 
-                // Publish comment using common.js
+                console.log('[COMMENT] Publishing comment:', comment);
+                
+                // Publish comment using NIP-22 (kind 1111) for comments on URLs
                 if (typeof publishNote === 'function') {
-                    await publishNote(comment, [['r', window.location.href]]);
-                    console.log('[COMMENT] ✅ Comment published');
-                    resultEl.textContent += '✅ Comment published!\n\n';
-                    resultEl.textContent += `Content: "${comment}"\n`;
-                    resultEl.textContent += `URL: ${window.location.href}`;
+                    await publishNote(comment, [['r', window.location.href]], 1111);
+                    console.log('[COMMENT] ✅ Comment published (kind 1111)');
                     
-                    // Reload interactions after a delay
-                    setTimeout(() => loadPageInteractions(), 1000);
+                    // Success feedback
+                    submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Published!';
+                    submitBtn.classList.remove('btn-primary');
+                    submitBtn.classList.add('btn-success');
+                    
+                    // Close modal after 1 second
+                    setTimeout(() => {
+                        closeCommentModal();
+                        // Reset button
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="bi bi-send"></i> Publish Comment';
+                        submitBtn.classList.remove('btn-success');
+                        submitBtn.classList.add('btn-primary');
+                        
+                        // Reload interactions
+                        loadPageInteractions();
+                    }, 1000);
                 } else {
-                    console.error('[COMMENT] ❌ publishNote not available');
-                    resultEl.textContent += '❌ publishNote function not available';
+                    throw new Error('publishNote function not available');
                 }
                 
             } catch (error) {
                 console.error('[COMMENT] ❌ Error:', error);
-                resultEl.textContent = `❌ Error: ${error.message}`;
+                
+                // Error feedback
+                submitBtn.innerHTML = '<i class="bi bi-x-circle"></i> Error';
+                submitBtn.classList.remove('btn-primary');
+                submitBtn.classList.add('btn-danger');
+                
+                alert('Failed to publish comment: ' + error.message);
+                
+                // Reset button after 2 seconds
+                setTimeout(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-send"></i> Publish Comment';
+                    submitBtn.classList.remove('btn-danger');
+                    submitBtn.classList.add('btn-primary');
+                }, 2000);
             }
         }
         
@@ -2359,19 +2426,57 @@
             currentUMAP: { lat: 0.00, lon: 0.00 },
             channelId: '',  // Will be the DID npub from kind 30800
             umapDID: null,  // Full DID document
-            subscription: null
+            subscription: null,
+            activeUsers: new Set()  // Track unique pubkeys
         };
         
         // Initialize UMAP chat
         async function initUMAPChat() {
             console.log('[CHAT] Initializing UMAP chat system...');
             
-            // Try to get UMAP from user's DID/profile
+            // Try to get UMAP from user's GPS coordinates (requires NIP-42 auth)
             if (AstroportDemo.userPubkey) {
-                console.log('[CHAT] TODO: Extract UMAP from user profile');
+                try {
+                    console.log('[CHAT] Fetching user GPS coordinates from /api/myGPS...');
+                    
+                    const gpsResponse = await fetch(`/api/myGPS?npub=${AstroportDemo.userPubkey}`);
+                    
+                    if (gpsResponse.ok) {
+                        const gpsData = await gpsResponse.json();
+                        
+                        if (gpsData.success && gpsData.coordinates) {
+                            console.log('[CHAT] ✅ GPS coordinates retrieved:', gpsData.coordinates);
+                            console.log('[CHAT] UMAP key:', gpsData.umap_key);
+                            
+                            // Update UMAP to user's location
+                            UMAPChat.currentUMAP = {
+                                lat: gpsData.coordinates.lat,
+                                lon: gpsData.coordinates.lon
+                            };
+                            
+                            // Fetch UMAP DID for user's location
+                            await fetchUMAPDIDForChat(UMAPChat.currentUMAP.lat, UMAPChat.currentUMAP.lon);
+                            updateUMAPChatUI();
+                            
+                            console.log('[CHAT] Initialized with user location:', gpsData.umap_key);
+                            return;
+                        } else {
+                            console.warn('[CHAT] GPS data received but invalid format:', gpsData);
+                        }
+                    } else if (gpsResponse.status === 403) {
+                        console.log('[CHAT] GPS access denied (authentication required)');
+                    } else if (gpsResponse.status === 404) {
+                        console.log('[CHAT] GPS coordinates not found for this user');
+                    } else {
+                        console.warn('[CHAT] GPS fetch failed with status:', gpsResponse.status);
+                    }
+                } catch (error) {
+                    console.warn('[CHAT] Error fetching GPS coordinates:', error);
+                }
             }
             
-            // Use default UMAP for now (0.00, 0.00)
+            // Fallback: Use default UMAP (0.00, 0.00)
+            console.log('[CHAT] Using default UMAP (0.00, 0.00)');
             UMAPChat.currentUMAP = { lat: 0.00, lon: 0.00 };
             
             // Fetch the UMAP DID for this geographic cell
@@ -2465,6 +2570,7 @@
         function updateUMAPChatUI() {
             const currentUMAPEl = document.getElementById('currentUMAP');
             const channelIdEl = document.getElementById('channelId');
+            const usersCountEl = document.getElementById('channelUsersCount');
             
             if (currentUMAPEl) {
                 currentUMAPEl.textContent = `${UMAPChat.currentUMAP.lat.toFixed(2)}, ${UMAPChat.currentUMAP.lon.toFixed(2)}`;
@@ -2482,6 +2588,14 @@
                 }
             }
             
+            // Update users count
+            if (usersCountEl) {
+                const userCount = UMAPChat.activeUsers.size;
+                usersCountEl.textContent = userCount;
+                usersCountEl.title = `${userCount} unique user${userCount !== 1 ? 's' : ''} in this UMAP`;
+                console.log('[CHAT] 👥 Active users count:', userCount);
+            }
+            
             console.log('[CHAT] Initialized UMAP chat:', UMAPChat);
         }
         
@@ -2492,6 +2606,10 @@
             if (!UMAPChat.channelId) {
                 await initUMAPChat();
             }
+            
+            // Reset active users count for new channel
+            UMAPChat.activeUsers.clear();
+            updateUMAPChatUI();
             
             try {
                 console.log('[CHAT] Loading UMAP chat messages...');
@@ -2529,17 +2647,29 @@
                     
                     sub.on('event', event => {
                         console.log('[CHAT] 📨 New channel message received:', event);
+                        
+                        // Track unique user
+                        if (event.pubkey) {
+                            UMAPChat.activeUsers.add(event.pubkey);
+                            updateUMAPChatUI();  // Update count in real-time
+                        }
+                        
                         displayChatMessage(event);
                     });
                     
                     sub.on('eose', () => {
                         console.log('[CHAT] ✅ End of stored events');
+                        console.log('[CHAT] 👥 Total unique users found:', UMAPChat.activeUsers.size);
+                        
                         if (messagesEl.innerHTML.includes('Loading messages')) {
                             messagesEl.innerHTML = `<div class="text-center text-muted">
                                 <i class="bi bi-chat"></i> No messages yet in this UMAP.
                                 <br>Be the first to send one!
                             </div>`;
                         }
+                        
+                        // Final update of user count
+                        updateUMAPChatUI();
                     });
                     
                     UMAPChat.subscription = sub;
@@ -2630,6 +2760,13 @@
                         if (window.nostrRelay) {
                             await window.nostrRelay.publish(signedEvent);
                             console.log('[CHAT] ✅ Message sent successfully to UMAP channel');
+                            
+                            // Add current user to active users
+                            if (AstroportDemo.userPubkey) {
+                                UMAPChat.activeUsers.add(AstroportDemo.userPubkey);
+                                updateUMAPChatUI();
+                            }
+                            
                             input.value = '';
                         } else {
                             throw new Error('Relay not connected');
@@ -2647,61 +2784,249 @@
             }
         }
         
-        // Show UMAP selector dialog
+        // Show UMAP selector dialog with list of existing UMAP DIDs
         async function showUMAPSelector() {
-            const currentLat = UMAPChat.currentUMAP.lat.toFixed(2);
-            const currentLon = UMAPChat.currentUMAP.lon.toFixed(2);
+            console.log('[CHAT] Opening UMAP selector...');
             
-            const message = `Current UMAP: ${currentLat}, ${currentLon}\n\n` +
-                          `Enter new coordinates (format: lat, lon)\n` +
-                          `Example: 48.86, 2.35 (Paris)\n` +
-                          `Default: 0.00, 0.00 (Global)\n\n` +
-                          `Or leave empty to use default`;
-            
-            const input = prompt(message, `${currentLat}, ${currentLon}`);
-            
-            if (input === null) return; // User cancelled
-            
-            let newLat = 0.00;
-            let newLon = 0.00;
-            
-            if (input.trim() !== '') {
-                const parts = input.split(',').map(p => p.trim());
-                if (parts.length === 2) {
-                    newLat = parseFloat(parts[0]);
-                    newLon = parseFloat(parts[1]);
-                    
-                    // Validate coordinates
-                    if (isNaN(newLat) || isNaN(newLon) || 
-                        newLat < -90 || newLat > 90 || 
-                        newLon < -180 || newLon > 180) {
-                        alert('Invalid coordinates! Please use format: lat, lon\nLat: -90 to 90, Lon: -180 to 180');
-                        return;
-                    }
-                    
-                    // Round to 2 decimals (UMAP precision)
-                    newLat = Math.round(newLat * 100) / 100;
-                    newLon = Math.round(newLon * 100) / 100;
+            try {
+                // Fetch existing UMAP DIDs (kind 30800 with type: UMAPGeographicCell)
+                if (!window.nostrRelay) {
+                    await connectToRelay();
                 }
+                
+                console.log('[CHAT] Fetching existing UMAP DIDs from relay...');
+                
+                // Create a modal/dialog for UMAP selection
+                const modal = createUMAPSelectorModal();
+                document.body.appendChild(modal);
+                
+                // Show loading state
+                const listEl = modal.querySelector('#umapList');
+                listEl.innerHTML = '<div class="text-center p-3"><i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Loading UMAPs...</div>';
+                
+                // Fetch UMAP DIDs (kind 30800)
+                const umapDIDs = [];
+                
+                const sub = window.nostrRelay.sub([{
+                    kinds: [30800],  // DID documents
+                    "#d": ["did"],   // DID identifier
+                    limit: 50        // Get up to 50 UMAPs
+                }]);
+                
+                sub.on('event', event => {
+                    try {
+                        const content = JSON.parse(event.content);
+                        
+                        // Filter for UMAPGeographicCell type
+                        if (content.type === 'UMAPGeographicCell' && content.geographicMetadata?.coordinates) {
+                            const coords = content.geographicMetadata.coordinates;
+                            
+                            // Get geolocation tag
+                            const gTag = event.tags.find(t => t[0] === 'g');
+                            const geoKey = gTag ? gTag[1] : `${coords.lat},${coords.lon}`;
+                            
+                            umapDIDs.push({
+                                eventId: event.id,
+                                pubkey: event.pubkey,
+                                lat: coords.lat,
+                                lon: coords.lon,
+                                geoKey: geoKey,
+                                name: content.name || `UMAP ${geoKey}`,
+                                description: content.description || '',
+                                createdAt: event.created_at
+                            });
+                            
+                            console.log('[CHAT] Found UMAP DID:', geoKey);
+                        }
+                    } catch (e) {
+                        console.warn('[CHAT] Error parsing DID:', e);
+                    }
+                });
+                
+                sub.on('eose', () => {
+                    console.log('[CHAT] Found', umapDIDs.length, 'UMAP DIDs');
+                    sub.unsub();
+                    
+                    // Sort by most recent first
+                    umapDIDs.sort((a, b) => b.createdAt - a.createdAt);
+                    
+                    // Limit to 10 most recent
+                    const displayUMAPs = umapDIDs.slice(0, 10);
+                    
+                    // Display UMAPs
+                    if (displayUMAPs.length === 0) {
+                        listEl.innerHTML = `
+                            <div class="text-center p-3 text-muted">
+                                <i class="bi bi-inbox"></i>
+                                <p class="mb-0">No UMAP DIDs found on this relay</p>
+                                <small>You can enter coordinates manually below</small>
+                            </div>
+                        `;
+                    } else {
+                        listEl.innerHTML = displayUMAPs.map(umap => `
+                            <div class="umap-item" onclick="selectUMAP(${umap.lat}, ${umap.lon}, '${umap.geoKey}')">
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-geo-alt-fill text-primary me-2"></i>
+                                    <div class="flex-grow-1">
+                                        <strong>${umap.name}</strong>
+                                        <br>
+                                        <small class="text-muted">
+                                            <i class="bi bi-pin-map"></i> ${umap.geoKey}
+                                        </small>
+                                    </div>
+                                    <i class="bi bi-chevron-right text-muted"></i>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                });
+                
+            } catch (error) {
+                console.error('[CHAT] Error loading UMAP selector:', error);
+                alert('Error loading UMAPs: ' + error.message);
+            }
+        }
+        
+        // Create UMAP selector modal
+        function createUMAPSelectorModal() {
+            const modal = document.createElement('div');
+            modal.id = 'umapSelectorModal';
+            modal.className = 'modal fade show';
+            modal.style.display = 'block';
+            modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+            
+            modal.innerHTML = `
+                <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="bi bi-map"></i> Select UMAP Chat Room
+                            </h5>
+                            <button type="button" class="btn-close" onclick="closeUMAPSelector()"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="umapList" class="umap-list">
+                                <!-- UMAP items will be inserted here -->
+                            </div>
+                            
+                            <hr>
+                            
+                            <div class="manual-input">
+                                <h6><i class="bi bi-pencil"></i> Manual Entry</h6>
+                                <p class="small text-muted">Enter coordinates manually (format: lat, lon)</p>
+                                <div class="input-group">
+                                    <input type="text" 
+                                           id="manualCoords" 
+                                           class="form-control" 
+                                           placeholder="48.86, 2.35 or 0.00, 0.00 for global"
+                                           value="${UMAPChat.currentUMAP.lat.toFixed(2)}, ${UMAPChat.currentUMAP.lon.toFixed(2)}">
+                                    <button class="btn btn-primary" onclick="selectManualUMAP()">
+                                        <i class="bi bi-check-lg"></i> Go
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add CSS for UMAP items
+            if (!document.getElementById('umapSelectorStyles')) {
+                const style = document.createElement('style');
+                style.id = 'umapSelectorStyles';
+                style.textContent = `
+                    .umap-list {
+                        max-height: 400px;
+                        overflow-y: auto;
+                    }
+                    .umap-item {
+                        padding: 12px;
+                        border: 1px solid #dee2e6;
+                        border-radius: 6px;
+                        margin-bottom: 8px;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    }
+                    .umap-item:hover {
+                        background-color: #f8f9fa;
+                        border-color: #0d6efd;
+                        transform: translateX(4px);
+                    }
+                    .manual-input {
+                        padding: 12px;
+                        background-color: #f8f9fa;
+                        border-radius: 6px;
+                    }
+                `;
+                document.head.appendChild(style);
             }
             
+            return modal;
+        }
+        
+        // Select a UMAP from the list
+        async function selectUMAP(lat, lon, geoKey) {
+            console.log('[CHAT] Selected UMAP:', geoKey);
+            
+            // Close modal
+            closeUMAPSelector();
+            
             // Update UMAP
-            UMAPChat.currentUMAP = { lat: newLat, lon: newLon };
+            UMAPChat.currentUMAP = { lat, lon };
+            await fetchUMAPDIDForChat(lat, lon);
             
-            console.log('[CHAT] Switching to new UMAP:', UMAPChat.currentUMAP);
-            
-            // Show loading message
-            const messagesEl = document.getElementById('chatMessages');
-            messagesEl.innerHTML = '<div class="text-center text-muted"><i class="bi bi-arrow-clockwise"></i> Searching for UMAP DID and loading messages...</div>';
-            
-            // Fetch UMAP DID for new coordinates
-            await fetchUMAPDIDForChat(newLat, newLon);
+            console.log('[CHAT] Switching to UMAP:', geoKey);
             
             // Update UI
-            updateUMAPChatUI();
+            document.getElementById('currentUMAP').textContent = geoKey;
+            document.getElementById('channelId').textContent = UMAPChat.channelId;
             
             // Reload messages for new channel
+            const messagesEl = document.getElementById('chatMessages');
+            messagesEl.innerHTML = '<div class="text-center text-muted"><i class="bi bi-arrow-clockwise"></i> Loading messages...</div>';
+            
             await loadChatMessages();
+        }
+        
+        // Select manual coordinates
+        async function selectManualUMAP() {
+            const input = document.getElementById('manualCoords').value.trim();
+            
+            if (!input) {
+                alert('Please enter coordinates');
+                return;
+            }
+            
+            const parts = input.split(',').map(p => p.trim());
+            if (parts.length !== 2) {
+                alert('Invalid format! Use: lat, lon (example: 48.86, 2.35)');
+                return;
+            }
+            
+            let newLat = parseFloat(parts[0]);
+            let newLon = parseFloat(parts[1]);
+            
+            // Validate coordinates
+            if (isNaN(newLat) || isNaN(newLon) || 
+                newLat < -90 || newLat > 90 || 
+                newLon < -180 || newLon > 180) {
+                alert('Invalid coordinates!\nLatitude: -90 to 90\nLongitude: -180 to 180');
+                return;
+            }
+            
+            // Round to 2 decimals (UMAP precision)
+            newLat = Math.round(newLat * 100) / 100;
+            newLon = Math.round(newLon * 100) / 100;
+            
+            await selectUMAP(newLat, newLon, `${newLat.toFixed(2)},${newLon.toFixed(2)}`);
+        }
+        
+        // Close UMAP selector modal
+        function closeUMAPSelector() {
+            const modal = document.getElementById('umapSelectorModal');
+            if (modal) {
+                modal.remove();
+            }
         }
         
         // Load recent file uploads (NIP-94 and NIP-71)
@@ -2935,7 +3260,7 @@
                     console.log('[INTERACTIONS] Fetching interactions for:', pageUrl);
                     
                     const sub = window.nostrRelay.sub([{
-                        kinds: [1], // Text notes
+                        kinds: [1111], // NIP-22: Comments on URLs
                         "#r": [pageUrl], // Referenced URL
                         limit: 20
                     }]);
@@ -3013,6 +3338,9 @@
         window.selectFileType = selectFileType;
         window.uploadFile = uploadFile;
         window.testComment = testComment;
+        window.showCommentModal = showCommentModal;
+        window.closeCommentModal = closeCommentModal;
+        window.submitComment = submitComment;
         window.testShare = testShare;
         window.sendChatMessage = sendChatMessage;
         window.loadRecentUploads = loadRecentUploads;
@@ -3023,5 +3351,222 @@
         window.verifyAuthenticationWithAPI = typeof verifyAuthenticationWithAPI !== 'undefined' ? verifyAuthenticationWithAPI : null;
         window.ensureAuthentication = typeof ensureAuthentication !== 'undefined' ? ensureAuthentication : null;
     </script>
+    
+    <!-- Comment Modal -->
+    <div id="commentModal" class="comment-modal" style="display: none;">
+        <div class="comment-modal-overlay" onclick="closeCommentModal()"></div>
+        <div class="comment-modal-content">
+            <div class="comment-modal-header">
+                <h5><i class="bi bi-chat-square-text"></i> Post a Comment</h5>
+                <button class="btn-close-modal" onclick="closeCommentModal()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            
+            <!-- Auth Warning (shown when not authenticated) -->
+            <div id="commentAuthWarning" class="alert alert-warning" style="display: none;">
+                <i class="bi bi-shield-lock"></i>
+                <strong>Authentication Required</strong>
+                <p class="mb-2">You need to connect with MULTIPASS to post comments.</p>
+                <button class="btn btn-sm btn-warning" onclick="closeCommentModal(); document.getElementById('connectBtn').click();">
+                    <i class="bi bi-plug"></i> Connect Now
+                </button>
+            </div>
+            
+            <!-- Comment Form (shown when authenticated) -->
+            <div id="commentForm" style="display: none;">
+                <div class="comment-modal-body">
+                    <div class="mb-3">
+                        <label for="commentInput" class="form-label">Your comment</label>
+                        <textarea 
+                            id="commentInput" 
+                            class="form-control" 
+                            rows="4" 
+                            placeholder="Share your thoughts..."
+                            onkeydown="if(event.key==='Enter' && event.ctrlKey) submitComment()"></textarea>
+                        <div class="invalid-feedback">
+                            Please enter a comment
+                        </div>
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i> Press Ctrl+Enter to submit
+                        </small>
+                    </div>
+                    
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-broadcast"></i>
+                        <small>This comment will be published to NOSTR (kind 1111 - NIP-22) and linked to this page URL.</small>
+                    </div>
+                </div>
+                
+                <div class="comment-modal-footer">
+                    <button class="btn btn-secondary" onclick="closeCommentModal()">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </button>
+                    <button id="submitCommentBtn" class="btn btn-primary" onclick="submitComment()">
+                        <i class="bi bi-send"></i> Publish Comment
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+        /* Comment Modal Styles */
+        .comment-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .comment-modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s ease;
+        }
+        
+        .comment-modal-content {
+            position: relative;
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+        
+        .comment-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid #dee2e6;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .comment-modal-header h5 {
+            margin: 0;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .btn-close-modal {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .btn-close-modal:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+        
+        .comment-modal-body {
+            padding: 24px;
+        }
+        
+        .comment-modal-body textarea {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 15px;
+            transition: border-color 0.2s;
+        }
+        
+        .comment-modal-body textarea:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .comment-modal-body textarea.is-invalid {
+            border-color: #dc3545;
+        }
+        
+        .comment-modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            padding: 16px 24px;
+            border-top: 1px solid #dee2e6;
+            background: #f8f9fa;
+        }
+        
+        .comment-modal-footer .btn {
+            padding: 10px 20px;
+            font-weight: 500;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        
+        .comment-modal-footer .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        
+        .comment-modal-footer .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            .comment-modal-content {
+                background: #1a1a1a;
+                color: #e0e0e0;
+            }
+            
+            .comment-modal-header {
+                border-bottom-color: #333;
+            }
+            
+            .comment-modal-body textarea {
+                background: #2a2a2a;
+                border-color: #444;
+                color: #e0e0e0;
+            }
+            
+            .comment-modal-footer {
+                background: #222;
+                border-top-color: #333;
+            }
+        }
+    </style>
 </body>
 </html>
