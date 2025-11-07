@@ -222,6 +222,12 @@
             color: #aaaaaa;
         }
         
+        .sidebar-item-subtitle {
+            font-size: 0.7em;
+            color: #717171;
+            margin-top: 2px;
+        }
+        
         .sidebar-toggle {
             display: none;
             position: fixed;
@@ -1062,6 +1068,261 @@
             }
         }
         
+        /* ========================================
+           CONNECTION BADGE & PANEL STYLES
+           ======================================== */
+        
+        /* Connection Badge (Fixed in Header) */
+        .connection-badge {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .connection-badge:hover {
+            background: rgba(0, 0, 0, 0.7);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+        
+        .connection-badge.authenticated {
+            background: rgba(16, 185, 129, 0.2);
+            border-color: rgba(16, 185, 129, 0.5);
+        }
+        
+        .connection-badge.connected-not-auth {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: rgba(245, 158, 11, 0.5);
+        }
+        
+        .connection-badge.disconnected {
+            background: rgba(156, 163, 175, 0.2);
+            border-color: rgba(156, 163, 175, 0.5);
+        }
+        
+        .connection-badge.connecting {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: rgba(59, 130, 246, 0.5);
+        }
+        
+        #connection-badge-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .status-text {
+            font-size: 0.75em;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        
+        .user-npub {
+            font-size: 0.65em;
+            color: #94a3b8;
+        }
+        
+        .btn-connect,
+        .btn-profile {
+            padding: 4px 10px;
+            font-size: 0.75em;
+            border: none;
+            border-radius: 12px;
+            background: #3b82f6;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .btn-connect:hover,
+        .btn-profile:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+        
+        .btn-connect:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Connection Panel (Dropdown) */
+        .connection-panel {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            width: 400px;
+            max-width: 90vw;
+            background: rgba(24, 24, 24, 0.98);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+        }
+        
+        .connection-panel.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .panel-header h6 {
+            margin: 0;
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        
+        .panel-status-icon {
+            font-size: 1.2em;
+        }
+        
+        /* Connection Steps */
+        .connection-step {
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .connection-step.pending {
+            border-left-color: #94a3b8;
+        }
+        
+        .connection-step.in-progress {
+            border-left-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        .connection-step.success {
+            border-left-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+        }
+        
+        .connection-step.error {
+            border-left-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+        
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        
+        .step-icon {
+            font-size: 1.2em;
+        }
+        
+        .step-title {
+            font-size: 0.9em;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        
+        .step-description {
+            font-size: 0.8em;
+            color: #94a3b8;
+            margin-left: 32px;
+            margin-bottom: 8px;
+        }
+        
+        .step-action {
+            margin-left: 32px;
+        }
+        
+        .step-action button {
+            padding: 6px 14px;
+            font-size: 0.75em;
+            border: none;
+            border-radius: 6px;
+            background: #3b82f6;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .step-action button:hover:not(:disabled) {
+            background: #2563eb;
+        }
+        
+        .step-action button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .step-action .btn-outline-warning {
+            background: transparent;
+            border: 1px solid #f59e0b;
+            color: #f59e0b;
+            padding: 6px 12px;
+            font-size: 0.75em;
+        }
+        
+        .step-action .btn-outline-warning:hover {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: #f59e0b;
+            color: #fbbf24;
+        }
+        
+        /* User Info Panel */
+        .user-info-panel {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .info-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            margin: 4px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            font-size: 0.85em;
+            color: #e2e8f0;
+        }
+        
+        .info-row i {
+            color: #3b82f6;
+        }
+        
+        .info-row a {
+            color: #3ea6ff;
+            text-decoration: none;
+        }
+        
+        .info-row a:hover {
+            text-decoration: underline;
+        }
+        
         /* Mobile responsive */
         @media (max-width: 768px) {
             .sidebar {
@@ -1461,6 +1722,31 @@
                 </div>
             </div>
             
+            <!-- User Services (Mobile) -->
+            <div class="p-3 border-bottom border-secondary" id="user-services-mobile" style="display: none;">
+                <h6 class="text-uppercase text-secondary small mb-2">My Services</h6>
+                <div class="list-group list-group-flush bg-transparent">
+                    <a href="#" class="list-group-item list-group-item-action bg-dark text-white border-0 d-flex align-items-center gap-2" 
+                       id="udrive-mobile-item" style="display: none;"
+                       onclick="openUserDriveFromSidebar(); return false;">
+                        <i class="bi bi-folder-fill"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-semibold small">uDRIVE</div>
+                            <div class="text-secondary" style="font-size: 0.7rem;" id="udrive-mobile-subtitle">Personal vault</div>
+                        </div>
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action bg-dark text-white border-0 d-flex align-items-center gap-2" 
+                       id="gps-mobile-item" style="display: none;"
+                       onclick="openUMAPChatFromSidebar(); return false;">
+                        <i class="bi bi-chat-dots-fill"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-semibold small">UMAP Chat</div>
+                            <div class="text-secondary" style="font-size: 0.7rem;" id="gps-mobile-subtitle">Local messaging</div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+            
             <div class="p-3">
                 <h6 class="text-uppercase text-secondary small mb-2">
                     <span data-i18n="channels">Chaînes</span> 
@@ -1518,6 +1804,25 @@
             </a>
         </div>
         
+        <!-- User Services (uDRIVE & GPS Chat) - Only visible when authenticated -->
+        <div class="sidebar-section" id="user-services-section" style="display: none;">
+            <div class="sidebar-section-title">My Services</div>
+            <div class="sidebar-item" id="udrive-sidebar-item" style="display: none;" onclick="openUserDriveFromSidebar()">
+                <div class="sidebar-icon">📁</div>
+                <div class="sidebar-item-text">
+                    <div class="sidebar-item-name">uDRIVE</div>
+                    <div class="sidebar-item-subtitle" id="udrive-subtitle">Personal vault</div>
+                </div>
+            </div>
+            <div class="sidebar-item" id="gps-sidebar-item" style="display: none;" onclick="openUMAPChatFromSidebar()">
+                <div class="sidebar-icon">💬</div>
+                <div class="sidebar-item-text">
+                    <div class="sidebar-item-name">UMAP Chat</div>
+                    <div class="sidebar-item-subtitle" id="gps-subtitle">Local messaging</div>
+                </div>
+            </div>
+        </div>
+        
         <div class="sidebar-section">
             <div class="sidebar-section-title"><span data-i18n="channels">Chaînes</span> ({{ youtube_data.total_channels }})</div>
             {% if youtube_data.channels %}
@@ -1562,17 +1867,65 @@
                                 </span>
                             </div>
                             
-                            <!-- NOSTR Status compact -->
-                            <div id="nostr-header-status" class="d-flex align-items-center gap-2">
-                                <span id="nostr-status-text" class="badge bg-secondary">
-                                    <i class="bi bi-broadcast"></i> Not connected
-                                </span>
-                                <button id="nostr-connect-btn-header" onclick="handleNostrConnectYoutube()" class="btn btn-sm btn-primary">
-                                    <i class="bi bi-plug"></i>
+                            <!-- Connection Badge with Auto-Login -->
+                            <div id="connection-badge" class="connection-badge disconnected" onclick="toggleConnectionPanel()">
+                                <div id="connection-badge-content">
+                                    <span class="status-text">⚫ Not Connected</span>
+                                </div>
+                                <button class="btn-connect" onclick="event.stopPropagation(); authenticateNIP42()" id="connectBtn">
+                                    <i class="bi bi-key"></i> Connect
                                 </button>
-                                <button id="nostr-profile-btn-header" onclick="openNostrProfileYoutube()" class="btn btn-sm btn-success d-none">
+                            </div>
+                            
+                            <!-- Connection Panel (Dropdown) -->
+                            <div id="connectionPanel" class="connection-panel">
+                                <div class="panel-header">
+                                    <h6 id="panelTitle">Connection Status</h6>
+                                    <span class="panel-status-icon" id="panelStatusIcon">⚫</span>
+                                </div>
+                                
+                                <!-- Step 1: Relay Connection -->
+                                <div id="step1" class="connection-step pending">
+                                    <div class="step-header">
+                                        <span class="step-icon">🌐</span>
+                                        <span class="step-title">1. Relay Connection</span>
+                                    </div>
+                                    <div class="step-description" id="step1-desc">NOSTR Relay - Read public videos</div>
+                                    <div class="step-action">
+                                        <button onclick="manualConnectRelay()" id="step1-btn">Connect to Relay</button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Step 2: NIP-42 Authentication -->
+                                <div id="step2" class="connection-step pending">
+                                    <div class="step-header">
+                                        <span class="step-icon">🔐</span>
+                                        <span class="step-title">2. Personal Authentication</span>
+                                    </div>
+                                    <div class="step-description" id="step2-desc">NIP-42 Auth - Access uDRIVE & GPS</div>
+                                    <div class="step-action">
+                                        <button onclick="authenticateNIP42()" id="step2-btn" disabled>Authenticate with MULTIPASS</button>
+                                        <button onclick="authenticateNIP42()" id="step2-reauth-btn" style="display: none; margin-left: 8px;" class="btn btn-sm btn-outline-warning">
+                                            <i class="bi bi-arrow-clockwise"></i> Re-authenticate
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- User Info (After Connection) -->
+                                <div id="user-info-panel" class="user-info-panel" style="display: none;">
+                                    <div class="info-row">
                                     <i class="bi bi-person-circle"></i>
-                                </button>
+                                        <span id="user-pubkey-display" title="Click badge to copy">...</span>
+                                    </div>
+                                    <div class="info-row" id="udrive-row" style="display: none;">
+                                        <i class="bi bi-folder-fill"></i>
+                                        <a href="#" onclick="openUserDrive(); return false;">Open uDRIVE</a>
+                                    </div>
+                                    <div class="info-row" id="gps-row" style="display: none;">
+                                        <i class="bi bi-geo-alt-fill"></i>
+                                        <span id="gps-coords" title="UMAP coordinates">...</span>
+                                    </div>
+                                </div>
                             </div>
                             
                             <!-- Action buttons compacts -->
@@ -2993,8 +3346,6 @@
             // Apply dynamic theme
             applyDynamicTheme();
             
-            // Sidebar state restore removed - using Bootstrap offcanvas
-            
             // Initialize thumbnail type preference
             updateThumbnailTypeUI();
             
@@ -3004,11 +3355,11 @@
                 return new bootstrap.Tooltip(tooltipTriggerEl);
             });
             
-            // Check NOSTR connection status
-            checkNostrConnectionStatus();
-            
-            // Start monitoring connection state (keeps UI in sync)
-            startNostrConnectionMonitoring();
+            // ⚡ Initialize auto-connection system
+            console.log('[YOUTUBE] 🚀 Starting auto-connection initialization...');
+            initAutoConnection().catch(err => {
+                console.error('[YOUTUBE] ❌ Auto-connection failed:', err);
+            });
             
             // Check if video parameter is in URL and auto-open theater modal
             const urlParams = new URLSearchParams(window.location.search);
@@ -4337,141 +4688,783 @@
         });
         
         // ========================================
-        // NOSTR CONNECTION FUNCTIONS FOR YOUTUBE
+        // AUTO-CONNECTION SYSTEM FOR YOUTUBE
+        // Inspired by index.html MULTIPASS login system
         // ========================================
         
         /**
-         * Update NOSTR connection UI based on current state
-         * Called whenever connection state might have changed
+         * Wait for NOSTR functions to be available from common.js
          */
-        function updateNostrConnectionUI() {
-            const statusText = document.getElementById('nostr-status-text');
-            const connectBtn = document.getElementById('nostr-connect-btn-header');
-            const profileBtn = document.getElementById('nostr-profile-btn-header');
-            const webcamBtn = document.getElementById('webcam-upload-btn');
-            const playlistManagerBtn = document.getElementById('playlist-manager-btn');
-            
-            if (!statusText || !connectBtn) return;
-            
-            // Check current connection state
-            const isConnected = typeof userPubkey !== 'undefined' && userPubkey && 
-                               typeof isNostrConnected !== 'undefined' && isNostrConnected &&
-                               typeof nostrRelay !== 'undefined' && nostrRelay;
-            
-            if (isConnected) {
-                // Connected - show connected state (compact)
-                const shortPubkey = userPubkey.substring(0, 6) + '...';
-                statusText.innerHTML = `<i class="bi bi-broadcast"></i> ${shortPubkey}`;
-                statusText.classList.remove('bg-secondary');
-                statusText.classList.add('bg-success');
+        async function waitForNostrFunctions() {
+            return new Promise((resolve) => {
+                const checkInterval = setInterval(() => {
+                    if (typeof connectToRelay === 'function' && typeof connectNostr === 'function') {
+                        clearInterval(checkInterval);
+                        console.log('[YOUTUBE] ✅ NOSTR functions loaded from common.js');
+                        resolve();
+                    }
+                }, 100);
                 
-                // Hide connect button, show profile button
-                connectBtn.classList.add('d-none');
-                if (profileBtn) {
-                    profileBtn.classList.remove('d-none');
-                }
+                // Timeout after 10 seconds
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                    console.warn('[YOUTUBE] ⚠️ Timeout waiting for NOSTR functions');
+                    resolve();
+                }, 10000);
+            });
+        }
+        
+        /**
+         * Step 1: Auto-connect to relay (public read access)
+         */
+        async function autoConnectRelay() {
+            try {
+                console.log('[YOUTUBE] 🌐 Step 1: Connecting to NOSTR relay...');
+                updateStep(1, 'in-progress', 'Connecting to relay...');
                 
-                // Show action buttons
-                if (webcamBtn) {
-                    webcamBtn.classList.remove('d-none');
+                if (typeof connectToRelay === 'function') {
+                    await connectToRelay();
+                    console.log('[YOUTUBE] ✅ Connected to relay');
+                    updateStep(1, 'success', 'Connected to relay - Can read public videos ✓');
+                    
+                    // Enable step 2
+                    const step2Btn = document.getElementById('step2-btn');
+                    if (step2Btn) {
+                        step2Btn.disabled = false;
+                    }
+                    
+                    return true;
                 }
-                if (playlistManagerBtn) {
-                    playlistManagerBtn.classList.remove('d-none');
-                }
-            } else {
-                // Not connected - show not connected state
-                statusText.innerHTML = '<i class="bi bi-broadcast"></i> Not connected';
-                statusText.classList.remove('bg-success');
-                statusText.classList.add('bg-secondary');
-                
-                // Show connect button, hide profile button
-                connectBtn.classList.remove('d-none');
-                connectBtn.disabled = false;
-                if (profileBtn) {
-                    profileBtn.classList.add('d-none');
-                }
-                
-                // Hide action buttons
-                if (webcamBtn) {
-                    webcamBtn.classList.add('d-none');
-                }
-                if (playlistManagerBtn) {
-                    playlistManagerBtn.classList.add('d-none');
-                }
+            } catch (error) {
+                console.error('[YOUTUBE] ❌ Relay connection failed:', error);
+                updateStep(1, 'error', 'Failed to connect to relay - Click to retry');
+                return false;
             }
         }
         
         /**
-         * Handle NOSTR connection from youtube.html header
+         * Step 2: Auto-connect user (if previously connected)
          */
-        async function handleNostrConnectYoutube() {
-            const statusText = document.getElementById('nostr-status-text');
-            const connectBtn = document.getElementById('nostr-connect-btn-header');
+        async function autoConnectUser() {
+            try {
+                console.log('[YOUTUBE] 🔐 Step 2: Auto-connecting user...');
+                updateConnectionBadgeYoutube(null, 'connecting');
+                
+                // Try to get pubkey from extension (no forced NIP-42 yet)
+                if (typeof connectNostr === 'function') {
+                    const pubkey = await connectNostr(false); // No force NIP-42
+                    
+                    if (pubkey) {
+                        userPubkey = pubkey;
+                        localStorage.setItem('nostr_pubkey', pubkey);
+                        console.log('[YOUTUBE] ✅ User pubkey retrieved:', pubkey.substring(0, 12) + '...');
+                        
+                        // Update UI
+                        updateConnectionBadgeYoutube(pubkey, 'connected');
+                        updateStep(2, 'in-progress', 'Checking NIP-42 authentication...');
+                        
+                        // Check NIP-42 authentication
+                        await checkNIP42Authentication();
+                        
+                        // Show action buttons (webcam, playlists)
+                        showActionButtons();
+                    }
+                }
+            } catch (error) {
+                console.error('[YOUTUBE] ❌ Auto-connection failed:', error);
+                updateConnectionBadgeYoutube(null, 'disconnected');
+                updateStep(2, 'pending', 'Click to authenticate with MULTIPASS');
+            }
+        }
+        
+        /**
+         * Check NIP-42 authentication status
+         */
+        async function checkNIP42Authentication() {
+            try {
+                console.log('[YOUTUBE] 🔍 Checking NIP-42 authentication...');
+                
+                // Wait a bit for NIP-42 event to be processed (if recently sent)
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Check with API
+                const isAuthenticated = typeof verifyAuthenticationWithAPI === 'function'
+                    ? await verifyAuthenticationWithAPI(userPubkey)
+                    : false;
+                
+                if (isAuthenticated) {
+                    console.log('[YOUTUBE] ✅ NIP-42 authenticated!');
+                    updateStep(2, 'success', 'Authenticated - uDRIVE & GPS access ✓');
+                    updateConnectionBadgeYoutube(userPubkey, 'authenticated');
+                    
+                    // Fetch user info in background (uDRIVE, GPS, email)
+                    console.log('[YOUTUBE] 📡 Starting background fetch of user info...');
+                    await fetchUserInfoBackground();
+                    console.log('[YOUTUBE] ✅ Background fetch completed');
+            } else {
+                    console.log('[YOUTUBE] ⚠️ Not authenticated with NIP-42');
+                    updateStep(2, 'pending', 'Click to authenticate with MULTIPASS');
+                    updateConnectionBadgeYoutube(userPubkey, 'not-authenticated');
+                }
+            } catch (error) {
+                console.error('[YOUTUBE] ❌ Authentication check failed:', error);
+                updateStep(2, 'pending', 'Click to authenticate with MULTIPASS');
+                updateConnectionBadgeYoutube(userPubkey, 'not-authenticated');
+            }
+        }
+        
+        /**
+         * Manually authenticate with NIP-42 (Step 2)
+         */
+        async function authenticateNIP42() {
+            try {
+                console.log('[YOUTUBE] 🔐 Authenticating with NIP-42...');
+                updateStep(2, 'in-progress', 'Sending authentication event...');
+                updateConnectionBadgeYoutube(userPubkey || null, 'authenticating');
+                
+                // Force NIP-42 authentication
+                if (typeof connectNostr === 'function') {
+                    userPubkey = await connectNostr(true); // Force NIP-42
+                    
+                    if (!userPubkey) {
+                        throw new Error('No public key returned from extension');
+                    }
+                    
+                    // Save pubkey
+                    localStorage.setItem('nostr_pubkey', userPubkey);
+                    
+                    // Wait for processing
+                    console.log('[YOUTUBE] ⏳ Waiting for NIP-42 processing...');
+                    await new Promise(resolve => setTimeout(resolve, 2500));
+                    
+                    // Verify authentication
+                    await checkNIP42Authentication();
+                    
+                    // Show action buttons
+                    showActionButtons();
+                }
+            } catch (error) {
+                console.error('[YOUTUBE] ❌ Authentication failed:', error);
+                updateStep(2, 'error', 'Authentication failed - Try again');
+                updateConnectionBadgeYoutube(userPubkey || null, 'disconnected');
+                alert(`❌ Authentication failed: ${error.message}\n\nPlease ensure you have a NOSTR extension installed (Alby, nos2x, etc.)`);
+            }
+        }
+        
+        /**
+         * Manually connect to relay (Step 1)
+         */
+        async function manualConnectRelay() {
+            await autoConnectRelay();
+        }
+        
+        /**
+         * Fetch user info in background (uDRIVE, GPS)
+         */
+        async function fetchUserInfoBackground() {
+            console.log('[YOUTUBE] 📡 Fetching user info in background...');
             
-            // Check if common.js is available
-            if (typeof connectNostr === 'undefined') {
-                alert('❌ NOSTR connection not available. Please ensure common.js is loaded.');
+            // Show user info panel
+            const userInfoPanel = document.getElementById('user-info-panel');
+            if (userInfoPanel) {
+                userInfoPanel.style.display = 'block';
+                
+                // Display pubkey
+                const pubkeyDisplay = document.getElementById('user-pubkey-display');
+                if (pubkeyDisplay && userPubkey) {
+                    const shortPubkey = userPubkey.substring(0, 16) + '...';
+                    pubkeyDisplay.textContent = shortPubkey;
+                    pubkeyDisplay.title = `Full pubkey: ${userPubkey}\nClick to copy`;
+                    pubkeyDisplay.style.cursor = 'pointer';
+                    pubkeyDisplay.onclick = () => {
+                        navigator.clipboard.writeText(userPubkey);
+                        const original = pubkeyDisplay.textContent;
+                        pubkeyDisplay.textContent = '✅ Copied!';
+                        setTimeout(() => {
+                            pubkeyDisplay.textContent = original;
+                        }, 2000);
+                    };
+                }
+            }
+            
+            // Store uDRIVE and GPS data globally for sidebar access
+            window.userServices = {
+                udrive: null,
+                email: null,
+                gps: null,
+                umapKey: null
+            };
+            
+            // Fetch user email first (needed for uDRIVE path)
+            try {
+                console.log('[YOUTUBE] 📧 Fetching user email...');
+                if (typeof fetchUserEmailWithFallback === 'function') {
+                    const userEmail = await fetchUserEmailWithFallback(userPubkey);
+                    if (userEmail && userEmail.includes('@')) {
+                        window.userServices.email = userEmail;
+                        console.log('[YOUTUBE] ✅ Found user email:', userEmail);
+                    } else {
+                        console.warn('[YOUTUBE] ⚠️ No valid email found, will use fallback');
+                    }
+                }
+            } catch (error) {
+                console.warn('[YOUTUBE] Could not fetch email:', error);
+            }
+            
+            // Fetch uDRIVE link from profile tags (i tags)
+            try {
+                console.log('[YOUTUBE] 📁 Checking for uDRIVE in profile tags...');
+                
+                // Try to fetch user metadata from relay
+                if (typeof nostrRelay !== 'undefined' && nostrRelay) {
+                    const sub = nostrRelay.sub([{
+                        kinds: [0],
+                        authors: [userPubkey],
+                        limit: 1
+                    }]);
+                    
+                    sub.on('event', event => {
+                        try {
+                            const profile = JSON.parse(event.content);
+                            console.log('[YOUTUBE] 📇 Profile event received:', event);
+                            
+                            // Extract tags with identity information (like index.html)
+                            const tags = event.tags || [];
+                            const identities = {};
+                            
+                            tags.forEach(tag => {
+                                if (tag[0] === 'i' && tag[1]) {
+                                    // Split only on the FIRST colon to handle URLs correctly
+                                    const colonIndex = tag[1].indexOf(':');
+                                    if (colonIndex > 0) {
+                                        const key = tag[1].substring(0, colonIndex);
+                                        const value = tag[1].substring(colonIndex + 1);
+                                        identities[key] = value;
+                                    }
+                                }
+                            });
+                            
+                            console.log('[YOUTUBE] Identities found in tags:', identities);
+                            
+                            // Look for IPNS vault in identities (from i tags)
+                            let ipnsVault = identities.ipns_vault;
+                            
+                            // Also check nip05 field as fallback
+                            if (!ipnsVault && profile.nip05) {
+                                const vaultMatch = profile.nip05.match(/ipns\/([A-Za-z0-9]+)/);
+                                if (vaultMatch) {
+                                    ipnsVault = vaultMatch[1];
+                                }
+                            }
+                            
+                            if (ipnsVault) {
+                                // Clean up ipnsVault - remove leading /ipns/ if present
+                                if (ipnsVault.startsWith('/ipns/')) {
+                                    ipnsVault = ipnsVault.substring(6);
+                                }
+                                
+                                console.log('[YOUTUBE] ✅ Found uDRIVE:', ipnsVault);
+                                
+                                // Store globally
+                                window.userServices.udrive = ipnsVault;
+                                
+                                // Also store email if found in identities
+                                if (identities.email && !window.userServices.email) {
+                                    window.userServices.email = identities.email;
+                                    console.log('[YOUTUBE] ✅ Found email in profile tags:', identities.email);
+                                }
+                                
+                                // Show uDRIVE in connection panel
+                                const udriveRow = document.getElementById('udrive-row');
+                                if (udriveRow) {
+                                    udriveRow.style.display = 'flex';
+                                    udriveRow.dataset.ipnsVault = ipnsVault;
+                                }
+                                
+                                // Show uDRIVE in sidebar
+                                showUDriveInSidebar(ipnsVault);
+                            } else {
+                                console.log('[YOUTUBE] ⚠️ No uDRIVE found in profile');
+                            }
+                        } catch (e) {
+                            console.warn('[YOUTUBE] Could not parse profile:', e);
+                        }
+                        sub.unsub();
+                    });
+                    
+                    sub.on('eose', () => {
+                        sub.unsub();
+                    });
+                    
+                    // Timeout after 5 seconds
+                    setTimeout(() => {
+                        sub.unsub();
+                    }, 5000);
+                } else {
+                    console.warn('[YOUTUBE] ⚠️ Relay not available for profile fetch');
+                }
+            } catch (error) {
+                console.warn('[YOUTUBE] Could not fetch uDRIVE:', error);
+            }
+            
+            // Fetch GPS coordinates (UMAP)
+            try {
+                console.log('[YOUTUBE] 📍 Fetching GPS coordinates...');
+                
+                const response = await fetch(`/api/myGPS?npub=${userPubkey}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.latitude && data.longitude) {
+                        console.log('[YOUTUBE] ✅ Found GPS:', data.latitude, data.longitude);
+                        
+                        // Calculate UMAP (0.01 degree precision)
+                        const umapLat = (Math.floor(data.latitude / 0.01) * 0.01).toFixed(2);
+                        const umapLon = (Math.floor(data.longitude / 0.01) * 0.01).toFixed(2);
+                        const umapKey = `${umapLat},${umapLon}`;
+                        
+                        // Store globally
+                        window.userServices.gps = {
+                            lat: data.latitude,
+                            lon: data.longitude,
+                            umapKey: umapKey
+                        };
+                        window.userServices.umapKey = umapKey;
+                        
+                        // Show GPS in connection panel
+                        const gpsRow = document.getElementById('gps-row');
+                        const gpsCoords = document.getElementById('gps-coords');
+                        if (gpsRow && gpsCoords) {
+                            gpsRow.style.display = 'flex';
+                            gpsCoords.textContent = `UMAP: ${umapKey}`;
+                            gpsCoords.title = `Exact GPS: ${data.latitude}, ${data.longitude}\nClick to view on map`;
+                            gpsCoords.style.cursor = 'pointer';
+                            gpsCoords.onclick = () => {
+                                // Open map view centered on user location
+                                if (typeof toggleMapView === 'function') {
+                                    toggleMapView();
+                                    // Wait for map to initialize
+                                    setTimeout(() => {
+                                        if (map) {
+                                            map.setView([data.latitude, data.longitude], 13);
+                                        }
+                                    }, 500);
+                                }
+                            };
+                        }
+                        
+                        // Show GPS in sidebar
+                        showGPSInSidebar(umapKey);
+                    }
+                }
+            } catch (error) {
+                console.warn('[YOUTUBE] Could not fetch GPS:', error);
+            }
+        }
+        
+        /**
+         * Show uDRIVE button in sidebar
+         */
+        function showUDriveInSidebar(ipnsVault) {
+            console.log('[YOUTUBE] 📁 showUDriveInSidebar called with:', ipnsVault);
+            
+            // Desktop sidebar
+            const udriveItem = document.getElementById('udrive-sidebar-item');
+            const udriveSubtitle = document.getElementById('udrive-subtitle');
+            const userServicesSection = document.getElementById('user-services-section');
+            
+            if (!udriveItem) {
+                console.warn('[YOUTUBE] ⚠️ udrive-sidebar-item not found');
+            }
+            if (!userServicesSection) {
+                console.warn('[YOUTUBE] ⚠️ user-services-section not found');
+            }
+            
+            if (udriveItem && userServicesSection) {
+                udriveItem.style.display = 'flex';
+                udriveItem.dataset.ipnsVault = ipnsVault;
+                if (udriveSubtitle) {
+                    udriveSubtitle.textContent = `ipns/${ipnsVault.substring(0, 12)}...`;
+                }
+                // Force display block (not flex) for the section
+                userServicesSection.style.display = 'block';
+                userServicesSection.style.visibility = 'visible';
+                console.log('[YOUTUBE] ✅ uDRIVE button shown in desktop sidebar');
+                console.log('[YOUTUBE] Section display style:', userServicesSection.style.display);
+            } else {
+                console.error('[YOUTUBE] ❌ Cannot show uDRIVE - missing elements:', {
+                    udriveItem: !!udriveItem,
+                    userServicesSection: !!userServicesSection
+                });
+            }
+            
+            // Mobile sidebar
+            const udriveMobileItem = document.getElementById('udrive-mobile-item');
+            const udriveMobileSubtitle = document.getElementById('udrive-mobile-subtitle');
+            const userServicesMobile = document.getElementById('user-services-mobile');
+            
+            if (udriveMobileItem && userServicesMobile) {
+                udriveMobileItem.style.display = 'flex';
+                udriveMobileItem.dataset.ipnsVault = ipnsVault;
+                if (udriveMobileSubtitle) {
+                    udriveMobileSubtitle.textContent = `ipns/${ipnsVault.substring(0, 12)}...`;
+                }
+                userServicesMobile.style.display = 'block';
+                console.log('[YOUTUBE] ✅ uDRIVE button shown in mobile sidebar');
+            }
+        }
+        
+        /**
+         * Show GPS button in sidebar
+         */
+        function showGPSInSidebar(umapKey) {
+            console.log('[YOUTUBE] 📍 showGPSInSidebar called with:', umapKey);
+            
+            // Desktop sidebar
+            const gpsItem = document.getElementById('gps-sidebar-item');
+            const gpsSubtitle = document.getElementById('gps-subtitle');
+            const userServicesSection = document.getElementById('user-services-section');
+            
+            if (!gpsItem) {
+                console.warn('[YOUTUBE] ⚠️ gps-sidebar-item not found');
+            }
+            if (!userServicesSection) {
+                console.warn('[YOUTUBE] ⚠️ user-services-section not found');
+            }
+            
+            if (gpsItem && userServicesSection) {
+                gpsItem.style.display = 'flex';
+                gpsItem.dataset.umapKey = umapKey;
+                if (gpsSubtitle) {
+                    gpsSubtitle.textContent = umapKey;
+                }
+                // Force display block (not flex) for the section
+                userServicesSection.style.display = 'block';
+                userServicesSection.style.visibility = 'visible';
+                console.log('[YOUTUBE] ✅ GPS button shown in desktop sidebar');
+                console.log('[YOUTUBE] Section display style:', userServicesSection.style.display);
+            } else {
+                console.error('[YOUTUBE] ❌ Cannot show GPS - missing elements:', {
+                    gpsItem: !!gpsItem,
+                    userServicesSection: !!userServicesSection
+                });
+            }
+            
+            // Mobile sidebar
+            const gpsMobileItem = document.getElementById('gps-mobile-item');
+            const gpsMobileSubtitle = document.getElementById('gps-mobile-subtitle');
+            const userServicesMobile = document.getElementById('user-services-mobile');
+            
+            if (gpsMobileItem && userServicesMobile) {
+                gpsMobileItem.style.display = 'flex';
+                gpsMobileItem.dataset.umapKey = umapKey;
+                if (gpsMobileSubtitle) {
+                    gpsMobileSubtitle.textContent = umapKey;
+                }
+                userServicesMobile.style.display = 'block';
+                console.log('[YOUTUBE] ✅ GPS button shown in mobile sidebar');
+            }
+        }
+        
+        /**
+         * Open uDRIVE from sidebar
+         */
+        async function openUserDriveFromSidebar() {
+            const udriveItem = document.getElementById('udrive-sidebar-item');
+            const udriveMobileItem = document.getElementById('udrive-mobile-item');
+            
+            const ipnsVault = udriveItem?.dataset.ipnsVault || udriveMobileItem?.dataset.ipnsVault || window.userServices?.udrive;
+            
+            if (!ipnsVault) {
+                alert('❌ uDRIVE not available');
                 return;
             }
             
-            connectBtn.disabled = true;
-            if (statusText) {
-                statusText.textContent = 'Connecting...';
-                statusText.classList.remove('text-secondary', 'text-success', 'text-danger');
-                statusText.classList.add('text-info');
+            // Get user email (from cache or fetch if needed)
+            let userEmail = window.userServices?.email;
+            
+            if (!userEmail || !userEmail.includes('@')) {
+                // Try to fetch email if not cached
+                console.log('[YOUTUBE] 📧 Email not cached, fetching...');
+                if (typeof fetchUserEmailWithFallback === 'function' && userPubkey) {
+                    try {
+                        userEmail = await fetchUserEmailWithFallback(userPubkey);
+                        if (userEmail && userEmail.includes('@')) {
+                            window.userServices.email = userEmail;
+                            console.log('[YOUTUBE] ✅ Email fetched:', userEmail);
+                        } else {
+                            console.warn('[YOUTUBE] ⚠️ No valid email found');
+                            alert('❌ User email not found. Cannot open uDRIVE.');
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('[YOUTUBE] ❌ Error fetching email:', error);
+                        alert('❌ Error fetching user email. Cannot open uDRIVE.');
+                        return;
+                    }
+                } else {
+                    alert('❌ User email not available. Cannot open uDRIVE.');
+                    return;
+                }
             }
             
-            try {
-                // Force auth when user manually connects
-                const pubkey = await connectNostr(true); // forceAuth = true
-                if (pubkey) {
-                    // Wait a bit for relay connection to stabilize
-                    await new Promise(resolve => setTimeout(resolve, 800));
+            // Open uDRIVE at /uDRIVE/{email}/APP/uDRIVE path
+            const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+            const udriveUrl = `${gateway}${ipnsVault}/${userEmail}/APP/uDRIVE`;
+            
+            console.log('[YOUTUBE] 📁 Opening uDRIVE:', udriveUrl);
+            window.open(udriveUrl, '_blank');
+        }
+        
+        /**
+         * Open UMAP Chat from sidebar
+         */
+        async function openUMAPChatFromSidebar() {
+            const gpsItem = document.getElementById('gps-sidebar-item');
+            const gpsMobileItem = document.getElementById('gps-mobile-item');
+            
+            let umapKey = gpsItem?.dataset.umapKey || gpsMobileItem?.dataset.umapKey || window.userServices?.umapKey;
+            
+            // If no GPS available, try to fetch it
+            if (!umapKey && userPubkey) {
+                try {
+                    console.log('[YOUTUBE] 📍 No GPS cached, fetching from /api/myGPS...');
+                    const gpsResponse = await fetch(`/api/myGPS?npub=${userPubkey}`);
                     
-                    // Also force send NIP-42 auth event explicitly (backup)
-                    if (typeof sendNIP42Auth === 'function' && typeof DEFAULT_RELAYS !== 'undefined' && DEFAULT_RELAYS.length > 0) {
-                        const relayUrl = DEFAULT_RELAYS[0];
-                        console.log('📤 Force sending NIP-42 auth event for manual connection (explicit)...');
-                        await sendNIP42Auth(relayUrl, true).catch(err => {
-                            console.warn('⚠️ NIP-42 auth error (non-critical):', err);
-                        });
+                    if (gpsResponse.ok) {
+                        const gpsData = await gpsResponse.json();
+                        if (gpsData.success && gpsData.coordinates) {
+                            const umapLat = (Math.floor(gpsData.coordinates.lat / 0.01) * 0.01).toFixed(2);
+                            const umapLon = (Math.floor(gpsData.coordinates.lon / 0.01) * 0.01).toFixed(2);
+                            umapKey = `${umapLat},${umapLon}`;
+                            window.userServices.umapKey = umapKey;
+                            console.log('[YOUTUBE] ✅ GPS fetched:', umapKey);
+                        }
                     }
-                    
-                    // Update UI immediately
-                    updateNostrConnectionUI();
-                    
-                    // Automatically open webcam modal after successful connection
-                    // Wait a bit more for everything to be ready
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    openWebcamModal();
+                } catch (error) {
+                    console.warn('[YOUTUBE] Could not fetch GPS:', error);
+                }
+            }
+            
+            // Fallback to 0.00,0.00 if still no GPS
+            if (!umapKey) {
+                console.log('[YOUTUBE] ⚠️ No GPS available, using default 0.00,0.00');
+                umapKey = '0.00,0.00';
+            }
+            
+            // Open chat with UMAP room
+            const chatUrl = `/chat?room=${encodeURIComponent(umapKey)}`;
+            console.log('[YOUTUBE] 💬 Opening UMAP Chat:', chatUrl);
+            window.open(chatUrl, '_blank');
+        }
+        
+        /**
+         * Open user's uDRIVE
+         */
+        async function openUserDrive() {
+            const udriveRow = document.getElementById('udrive-row');
+            if (!udriveRow || !udriveRow.dataset.ipnsVault) {
+                alert('❌ uDRIVE not available');
+                return;
+            }
+            
+            const ipnsVault = udriveRow.dataset.ipnsVault;
+            
+            // Get user email (from cache or fetch if needed)
+            let userEmail = window.userServices?.email;
+            
+            if (!userEmail || !userEmail.includes('@')) {
+                // Try to fetch email if not cached
+                console.log('[YOUTUBE] 📧 Email not cached, fetching...');
+                if (typeof fetchUserEmailWithFallback === 'function' && userPubkey) {
+                    try {
+                        userEmail = await fetchUserEmailWithFallback(userPubkey);
+                        if (userEmail && userEmail.includes('@')) {
+                            window.userServices.email = userEmail;
+                            console.log('[YOUTUBE] ✅ Email fetched:', userEmail);
+                        } else {
+                            console.warn('[YOUTUBE] ⚠️ No valid email found');
+                            alert('❌ User email not found. Cannot open uDRIVE.');
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('[YOUTUBE] ❌ Error fetching email:', error);
+                        alert('❌ Error fetching user email. Cannot open uDRIVE.');
+                        return;
+                    }
                 } else {
-                    // Failed - update UI
-                    updateNostrConnectionUI();
-                    if (statusText) {
-                        statusText.textContent = 'Connection failed';
-                        statusText.classList.remove('text-secondary', 'text-success', 'text-info');
-                        statusText.classList.add('text-danger');
+                    alert('❌ User email not available. Cannot open uDRIVE.');
+                    return;
+                }
+            }
+            
+            const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+            // Open uDRIVE at /uDRIVE/{email}/APP/uDRIVE path
+            const udriveUrl = `${gateway}/ipns/${ipnsVault}/uDRIVE/${userEmail}/APP/uDRIVE`;
+            
+            console.log('[YOUTUBE] 📁 Opening uDRIVE:', udriveUrl);
+            window.open(udriveUrl, '_blank');
+        }
+        
+        /**
+         * Update connection badge UI
+         */
+        function updateConnectionBadgeYoutube(pubkey, state) {
+            const badge = document.getElementById('connection-badge');
+            const content = document.getElementById('connection-badge-content');
+            const connectBtn = document.getElementById('connectBtn');
+            const panelStatusIcon = document.getElementById('panelStatusIcon');
+            
+            if (!badge || !content) return;
+            
+            // Remove all state classes
+            badge.className = 'connection-badge';
+            
+            switch (state) {
+                case 'authenticated':
+                    badge.classList.add('authenticated');
+                    content.innerHTML = `
+                        <span class="status-text">✅ Authenticated</span>
+                        <span class="user-npub">${pubkey.substring(0, 12)}...</span>
+                    `;
+                    // Replace connect button with profile button
+                    if (connectBtn) {
+                        connectBtn.outerHTML = `
+                            <button class="btn-profile" onclick="event.stopPropagation(); openUserProfile()">
+                                <i class="bi bi-person-circle"></i>
+                            </button>
+                        `;
                     }
-                    connectBtn.disabled = false;
-                }
-            } catch (error) {
-                console.error('NOSTR connection error:', error);
-                updateNostrConnectionUI();
-                if (statusText) {
-                    statusText.textContent = 'Connection error';
-                    statusText.classList.remove('text-secondary', 'text-success', 'text-info');
-                    statusText.classList.add('text-danger');
-                }
+                    if (panelStatusIcon) {
+                        panelStatusIcon.textContent = '✅';
+                    }
+                    break;
+                    
+                case 'connected':
+                case 'not-authenticated':
+                    badge.classList.add('connected-not-auth');
+                    content.innerHTML = `
+                        <span class="status-text">⚠️ Connected</span>
+                        <span class="user-npub">${pubkey.substring(0, 12)}...</span>
+                    `;
+                    if (panelStatusIcon) {
+                        panelStatusIcon.textContent = '⚠️';
+                    }
+                    break;
+                    
+                case 'connecting':
+                case 'authenticating':
+                    badge.classList.add('connecting');
+                    content.innerHTML = `
+                        <span class="status-text">🔄 Connecting...</span>
+                    `;
+                    if (connectBtn) {
+                        connectBtn.disabled = true;
+                    }
+                    if (panelStatusIcon) {
+                        panelStatusIcon.textContent = '🔄';
+                    }
+                    break;
+                    
+                case 'disconnected':
+                default:
+                    badge.classList.add('disconnected');
+                    content.innerHTML = `
+                        <span class="status-text">⚫ Not Connected</span>
+                    `;
+                    // Restore connect button if it was replaced
+                    const profileBtn = badge.querySelector('.btn-profile');
+                    if (profileBtn) {
+                        profileBtn.outerHTML = `
+                            <button class="btn-connect" onclick="event.stopPropagation(); authenticateNIP42()" id="connectBtn">
+                                <i class="bi bi-key"></i> Connect
+                            </button>
+                        `;
+                    } else if (connectBtn) {
                 connectBtn.disabled = false;
+                    }
+                    if (panelStatusIcon) {
+                        panelStatusIcon.textContent = '⚫';
+                    }
+                    break;
             }
         }
         
         /**
-         * Open NOSTR profile from youtube.html header
+         * Update step status
          */
-        function openNostrProfileYoutube() {
-            if (typeof userPubkey === 'undefined' || !userPubkey) {
-                alert('❌ Not connected to NOSTR');
+        function updateStep(stepNum, status, description) {
+            const step = document.getElementById(`step${stepNum}`);
+            const desc = document.getElementById(`step${stepNum}-desc`);
+            const btn = document.getElementById(`step${stepNum}-btn`);
+            const reauthBtn = document.getElementById(`step${stepNum}-reauth-btn`);
+            
+            if (!step || !desc) return;
+            
+            // Remove all status classes
+            step.className = 'connection-step';
+            
+            // Add new status
+            step.classList.add(status);
+            
+            // Update description
+            desc.textContent = description;
+            
+            // Update button state
+            if (btn) {
+                if (status === 'success') {
+                    // For step 2, show "Done" but keep re-auth button visible
+                    if (stepNum === 2) {
+                        btn.disabled = true;
+                        btn.textContent = '✓ Done';
+                        // Show re-authenticate button
+                        if (reauthBtn) {
+                            reauthBtn.style.display = 'inline-block';
+                        }
+                    } else {
+                        // For step 1, just disable
+                        btn.disabled = true;
+                        btn.textContent = '✓ Done';
+                    }
+                } else if (status === 'in-progress') {
+                    btn.disabled = true;
+                    btn.textContent = '⏳ Processing...';
+                    if (reauthBtn) {
+                        reauthBtn.style.display = 'none';
+                    }
+                } else if (status === 'error') {
+                    btn.disabled = false;
+                    btn.textContent = 'Retry';
+                    if (reauthBtn) {
+                        reauthBtn.style.display = 'none';
+                    }
+                } else {
+                    // pending
+                    btn.disabled = stepNum === 2; // Step 2 disabled until step 1 is done
+                    btn.textContent = stepNum === 1 ? 'Connect to Relay' : 'Authenticate with MULTIPASS';
+                    if (reauthBtn) {
+                        reauthBtn.style.display = 'none';
+                    }
+                }
+            }
+        }
+        
+        /**
+         * Toggle connection panel
+         */
+        function toggleConnectionPanel() {
+            const panel = document.getElementById('connectionPanel');
+            if (panel) {
+                panel.classList.toggle('show');
+            }
+        }
+        
+        /**
+         * Open user profile viewer
+         */
+        function openUserProfile() {
+            if (!userPubkey) {
+                alert('❌ Not connected');
                 return;
             }
             
@@ -4479,65 +5472,42 @@
         }
         
         /**
-         * Check and update NOSTR connection status on page load and periodically
+         * Show action buttons (webcam, playlists) after connection
          */
-        async function checkNostrConnectionStatus() {
-            // Wait for common.js to initialize
-            await new Promise(resolve => setTimeout(resolve, 500));
+        function showActionButtons() {
+            const webcamBtn = document.getElementById('webcam-upload-btn');
+            const playlistBtn = document.getElementById('playlist-manager-btn');
             
-            // Check if already connected via common.js
-            if (typeof userPubkey !== 'undefined' && userPubkey) {
-                // Check if relay is connected
-                if (typeof nostrRelay !== 'undefined' && nostrRelay && typeof isNostrConnected !== 'undefined' && isNostrConnected) {
-                    // Already connected - update UI
-                    updateNostrConnectionUI();
-                    console.log('✅ NOSTR connection detected from common.js');
-                } else {
-                    // Has pubkey but relay not connected - try to connect
-                    if (typeof connectToRelay === 'function') {
-                        try {
-                            await connectToRelay();
-                            // Wait a bit for connection to stabilize
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                            updateNostrConnectionUI();
-                        } catch (error) {
-                            console.error('Error connecting to relay:', error);
-                            updateNostrConnectionUI();
-                        }
-                    } else {
-                        // No relay connection function available
-                        updateNostrConnectionUI();
-                    }
-                }
-            } else {
-                // Not connected
-                updateNostrConnectionUI();
+            if (webcamBtn) {
+                webcamBtn.classList.remove('d-none');
+            }
+            if (playlistBtn) {
+                playlistBtn.classList.remove('d-none');
             }
         }
         
         /**
-         * Start monitoring NOSTR connection state periodically
-         * This ensures UI stays in sync even after page interactions (e.g., closing modals)
+         * Initialize auto-connection on page load
          */
-        function startNostrConnectionMonitoring() {
-            // Check connection status every 2 seconds
-            setInterval(() => {
-                // Only update if state might have changed (don't spam updates)
-                const isCurrentlyConnected = typeof userPubkey !== 'undefined' && userPubkey && 
-                                           typeof isNostrConnected !== 'undefined' && isNostrConnected &&
-                                           typeof nostrRelay !== 'undefined' && nostrRelay;
-                
-                const connectBtn = document.getElementById('nostr-connect-btn-header');
-                const readyIndicator = document.getElementById('nostr-ready-indicator');
-                
-                // Check if UI state matches actual state
-                const uiShowsConnected = connectBtn && connectBtn.style.display === 'none';
-                
-                if (isCurrentlyConnected !== uiShowsConnected) {
-                    console.log('🔄 NOSTR connection state changed, updating UI...');
-                    updateNostrConnectionUI();
+        async function initAutoConnection() {
+            console.log('[YOUTUBE] 🚀 Initializing NOSTR auto-connection system...');
+            
+            // Wait for NOSTR functions to load
+            await waitForNostrFunctions();
+            
+            // Step 1: Auto-connect to relay (public read access)
+            const relayConnected = await autoConnectRelay();
+            
+            if (relayConnected) {
+                // Step 2: Check for saved user and try auto-connect
+                const savedPubkey = localStorage.getItem('nostr_pubkey');
+                if (savedPubkey && typeof window.nostr !== 'undefined') {
+                    console.log('[YOUTUBE] 🔐 Found saved pubkey, attempting auto-connect...');
+                    await autoConnectUser();
+                } else {
+                    console.log('[YOUTUBE] ℹ️ No saved pubkey found. User can connect manually.');
                 }
-            }, 2000); // Check every 2 seconds
+            }
         }
         
         // ========================================

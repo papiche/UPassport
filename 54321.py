@@ -2239,6 +2239,26 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
         "video_id": video  # Pass video ID to template
     })
 
+@app.get("/chat", response_class=HTMLResponse)
+async def chat_route(request: Request, room: Optional[str] = None):
+    """UMAP Chat Room - Real-time messaging for geographic locations
+    
+    Args:
+        room: UMAP coordinates in format "lat,lon" (e.g., "48.86,2.35")
+              If not provided, will try to fetch from user's GPS or default to "0.00,0.00"
+    """
+    try:
+        myipfs_gateway = get_myipfs_gateway()
+        
+        return templates.TemplateResponse("chat.html", {
+            "request": request,
+            "myIPFS": myipfs_gateway,
+            "room": room  # Pass room parameter to template
+        })
+    except Exception as e:
+        logging.error(f"Error serving chat page: {e}")
+        raise HTTPException(status_code=500, detail=f"Error loading chat page: {str(e)}")
+
 @app.get("/playlist", response_class=HTMLResponse)
 async def playlist_manager_route(request: Request, id: Optional[str] = None):
     """Playlist manager for creating and managing video playlists

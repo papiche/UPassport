@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💬 UMAP Chat - Real-time Messaging</title>
+    
+    <!-- Nostr integration -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    <!-- Common.js with NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Roboto', 'Arial', sans-serif;
+            background: #0f0f0f;
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #181818;
+        }
+        
+        .chat-header {
+            background: #212121;
+            padding: 16px 24px;
+            border-bottom: 1px solid #3f3f3f;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        .chat-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .chat-header-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        
+        .chat-header-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .umap-badge {
+            padding: 6px 12px;
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            border-radius: 12px;
+            font-size: 0.85em;
+            color: #3b82f6;
+        }
+        
+        .users-badge {
+            padding: 6px 12px;
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.5);
+            border-radius: 12px;
+            font-size: 0.85em;
+            color: #10b981;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #0f0f0f;
+            display: flex;
+            flex-direction: column-reverse; /* Newest messages at bottom */
+        }
+        
+        .chat-messages::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .chat-messages::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+        
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #3f3f3f;
+            border-radius: 4px;
+        }
+        
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #606060;
+        }
+        
+        .chat-message {
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            background: #181818;
+            border-radius: 12px;
+            border-left: 3px solid #3b82f6;
+            transition: all 0.2s ease;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .chat-message:hover {
+            background: #212121;
+            border-left-color: #3ea6ff;
+        }
+        
+        .chat-message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .chat-message-author {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: #3ea6ff;
+        }
+        
+        .chat-message-author a {
+            color: #3ea6ff;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .chat-message-author a:hover {
+            color: #5bb5ff;
+            text-decoration: underline;
+        }
+        
+        .chat-message-time {
+            font-size: 0.75em;
+            color: #717171;
+        }
+        
+        .chat-message-content {
+            color: #e2e8f0;
+            line-height: 1.6;
+            word-wrap: break-word;
+        }
+        
+        .chat-input-area {
+            background: #212121;
+            padding: 16px 24px;
+            border-top: 1px solid #3f3f3f;
+            flex-shrink: 0;
+        }
+        
+        .chat-input-group {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            background: #0f0f0f;
+            border: 1px solid #3f3f3f;
+            border-radius: 20px;
+            color: #ffffff;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+        
+        .chat-input:focus {
+            outline: none;
+            border-color: #3ea6ff;
+            background: #181818;
+        }
+        
+        .chat-input::placeholder {
+            color: #717171;
+        }
+        
+        .chat-send-btn {
+            padding: 12px 24px;
+            background: #3ea6ff;
+            border: none;
+            border-radius: 20px;
+            color: #ffffff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .chat-send-btn:hover:not(:disabled) {
+            background: #2d8ce8;
+            transform: translateY(-1px);
+        }
+        
+        .chat-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .connection-status {
+            padding: 8px 16px;
+            background: rgba(156, 163, 175, 0.2);
+            border: 1px solid rgba(156, 163, 175, 0.5);
+            border-radius: 12px;
+            font-size: 0.85em;
+            color: #9ca3af;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .connection-status.connected {
+            background: rgba(16, 185, 129, 0.2);
+            border-color: rgba(16, 185, 129, 0.5);
+            color: #10b981;
+        }
+        
+        .loading-messages {
+            text-align: center;
+            padding: 40px;
+            color: #717171;
+        }
+        
+        .empty-messages {
+            text-align: center;
+            padding: 60px 20px;
+            color: #717171;
+        }
+        
+        .empty-messages-icon {
+            font-size: 3em;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        .back-link {
+            color: #3ea6ff;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        
+        .back-link:hover {
+            color: #5bb5ff;
+            text-decoration: underline;
+        }
+        
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .chat-header {
+                padding: 12px 16px;
+                flex-wrap: wrap;
+            }
+            
+            .chat-header-info {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            
+            .chat-messages {
+                padding: 12px;
+            }
+            
+            .chat-input-area {
+                padding: 12px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Chat Header -->
+        <div class="chat-header">
+            <div class="chat-header-left">
+                <a href="/youtube?html=1" class="back-link">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+                <div class="chat-header-title">💬 UMAP Chat</div>
+            </div>
+            <div class="chat-header-info">
+                <div class="umap-badge" id="umapBadge">
+                    <i class="bi bi-geo-alt"></i> <span id="umapKey">Loading...</span>
+                </div>
+                <div class="users-badge" id="usersBadge" style="display: none;">
+                    <i class="bi bi-people-fill"></i> <span id="usersCount">0</span>
+                </div>
+                <div class="connection-status" id="connectionStatus">
+                    <i class="bi bi-broadcast"></i> <span>Connecting...</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Chat Messages -->
+        <div class="chat-messages" id="chatMessages">
+            <div class="loading-messages">
+                <i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Loading messages...
+            </div>
+        </div>
+        
+        <!-- Chat Input -->
+        <div class="chat-input-area">
+            <div class="chat-input-group">
+                <input type="text" 
+                       id="chatInput" 
+                       class="chat-input" 
+                       placeholder="Type a message..." 
+                       onkeypress="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendChatMessage(); }">
+                <button class="chat-send-btn" id="sendBtn" onclick="sendChatMessage()" disabled>
+                    <i class="bi bi-send"></i> Send
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ========================================
+        // UMAP CHAT STATE
+        // ========================================
+        
+        let userPubkey = null;
+        let nostrRelay = null;
+        let isNostrConnected = false;
+        
+        const UMAPChat = {
+            initialized: false,
+            currentUMAP: { lat: 0, lon: 0 },
+            channelId: null,
+            umapDID: null,
+            umapHex: null,
+            subscription: null,
+            activeUsers: new Set(),
+            messages: []
+        };
+        
+        // ========================================
+        // INITIALIZATION
+        // ========================================
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('[CHAT] Initializing UMAP chat...');
+            
+            // Get room parameter from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            let roomParam = urlParams.get('room');
+            
+            // If no room param, try to get GPS from /api/myGPS
+            if (!roomParam) {
+                console.log('[CHAT] No room param, trying to fetch GPS from /api/myGPS...');
+                
+                // Wait for NOSTR connection to get userPubkey
+                await initNostrConnection();
+                
+                if (userPubkey) {
+                    try {
+                        const gpsResponse = await fetch(`/api/myGPS?npub=${userPubkey}`);
+                        
+                        if (gpsResponse.ok) {
+                            const gpsData = await gpsResponse.json();
+                            if (gpsData.success && gpsData.coordinates) {
+                                const umapLat = (Math.floor(gpsData.coordinates.lat / 0.01) * 0.01).toFixed(2);
+                                const umapLon = (Math.floor(gpsData.coordinates.lon / 0.01) * 0.01).toFixed(2);
+                                roomParam = `${umapLat},${umapLon}`;
+                                console.log('[CHAT] ✅ GPS fetched from /api/myGPS:', roomParam);
+                            }
+                        } else if (gpsResponse.status === 403) {
+                            console.log('[CHAT] GPS access denied (authentication required)');
+                        } else if (gpsResponse.status === 404) {
+                            console.log('[CHAT] GPS coordinates not found for this user');
+                        }
+                    } catch (error) {
+                        console.warn('[CHAT] Error fetching GPS:', error);
+                    }
+                }
+            }
+            
+            // Fallback to 0.00,0.00 if still no room
+            if (!roomParam) {
+                console.log('[CHAT] ⚠️ No GPS available, using default 0.00,0.00');
+                roomParam = '0.00,0.00';
+            }
+            
+            // Parse UMAP coordinates
+            const coords = roomParam.split(',');
+            if (coords.length !== 2) {
+                alert('❌ Invalid room format. Use: /chat?room=48.86,2.35');
+                return;
+            }
+            
+            const lat = parseFloat(coords[0].trim());
+            const lon = parseFloat(coords[1].trim());
+            
+            if (isNaN(lat) || isNaN(lon)) {
+                alert('❌ Invalid coordinates');
+                return;
+            }
+            
+            // Round to 2 decimals (UMAP precision)
+            const umapLat = Math.round(lat * 100) / 100;
+            const umapLon = Math.round(lon * 100) / 100;
+            const umapKey = `${umapLat.toFixed(2)},${umapLon.toFixed(2)}`;
+            
+            console.log('[CHAT] Room:', umapKey);
+            
+            // Update UI
+            document.getElementById('umapKey').textContent = umapKey;
+            
+            // Initialize UMAP chat
+            UMAPChat.currentUMAP = { lat: umapLat, lon: umapLon };
+            await initUMAPChat();
+            
+            // Wait for NOSTR functions
+            await waitForNostrFunctions();
+            
+            // Connect to relay
+            await connectToRelay();
+            
+            // Update connection status
+            updateConnectionStatus(true);
+            
+            // Load messages
+            await loadChatMessages();
+            
+            // Enable send button if user is connected
+            checkUserConnection();
+        });
+        
+        /**
+         * Initialize NOSTR connection
+         */
+        async function initNostrConnection() {
+            try {
+                console.log('[CHAT] Initializing NOSTR connection...');
+                if (typeof connectToRelay === 'function') {
+                    nostrRelay = await connectToRelay();
+                    isNostrConnected = nostrRelay !== null;
+                    console.log('[CHAT] Relay connected:', isNostrConnected);
+                }
+                
+                if (typeof connectNostr === 'function') {
+                    userPubkey = await connectNostr(false); // Don't force NIP-42 for chat init
+                    if (userPubkey) {
+                        console.log('[CHAT] User pubkey:', userPubkey.substring(0, 8) + '...');
+                    }
+                }
+            } catch (error) {
+                console.error('[CHAT] Error initializing NOSTR connection:', error);
+            }
+        }
+        
+        /**
+         * Wait for NOSTR functions to be available
+         */
+        async function waitForNostrFunctions() {
+            return new Promise((resolve) => {
+                const checkInterval = setInterval(() => {
+                    if (typeof connectToRelay === 'function' && typeof connectNostr === 'function') {
+                        clearInterval(checkInterval);
+                        console.log('[CHAT] ✅ NOSTR functions loaded');
+                        resolve();
+                    }
+                }, 100);
+                
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                    resolve();
+                }, 10000);
+            });
+        }
+        
+        /**
+         * Initialize UMAP chat
+         */
+        async function initUMAPChat() {
+            if (UMAPChat.initialized) {
+                return;
+            }
+            
+            console.log('[CHAT] Initializing UMAP chat for:', UMAPChat.currentUMAP);
+            
+            // Set fallback channel ID
+            const umapKey = `${UMAPChat.currentUMAP.lat.toFixed(2)},${UMAPChat.currentUMAP.lon.toFixed(2)}`;
+            UMAPChat.channelId = `UMAP_${umapKey.replace(',', '_')}`;
+            
+            // Try to fetch UMAP DID (kind 30800)
+            await fetchUMAPDIDForChat(UMAPChat.currentUMAP.lat, UMAPChat.currentUMAP.lon);
+            
+            UMAPChat.initialized = true;
+            console.log('[CHAT] ✅ UMAP chat initialized');
+        }
+        
+        /**
+         * Fetch UMAP ORE Meeting Space (kind 30312) for a specific geographic coordinate
+         * Uses /api/umap/geolinks to get UMAP hex, then searches for ORE Meeting Space
+         */
+        async function fetchUMAPDIDForChat(lat, lon) {
+            console.log(`[CHAT] Fetching UMAP ORE Space for coordinates: ${lat.toFixed(2)}, ${lon.toFixed(2)}`);
+            
+            try {
+                // Step 1: Get UMAP HEX from /api/umap/geolinks
+                console.log('[CHAT] Step 1: Fetching UMAP hex from geolinks API...');
+                const geolinksResponse = await fetch(`/api/umap/geolinks?lat=${lat}&lon=${lon}`);
+                
+                if (!geolinksResponse.ok) {
+                    console.warn('[CHAT] Failed to fetch geolinks:', geolinksResponse.status);
+                    const umapKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+                    UMAPChat.channelId = `UMAP_${umapKey.replace(',', '_')}`;
+                    return;
+                }
+                
+                const geolinksData = await geolinksResponse.json();
+                const umapHex = geolinksData.umaps?.here;
+                
+                if (!umapHex) {
+                    console.warn('[CHAT] No UMAP hex found in geolinks response');
+                    const umapKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+                    UMAPChat.channelId = `UMAP_${umapKey.replace(',', '_')}`;
+                    return;
+                }
+                
+                console.log('[CHAT] ✅ Found UMAP hex:', umapHex);
+                
+                // Store UMAP hex as the primary reference
+                UMAPChat.umapHex = umapHex;
+                
+                // Step 2: Search for ORE Meeting Space (kind 30312) by author (UMAP's pubkey)
+                console.log('[CHAT] Step 2: Searching for ORE Meeting Space (kind 30312) by author...');
+                
+                // Ensure relay connection
+                let currentRelay = window.nostrRelay;
+                if (!currentRelay) {
+                    console.log('[CHAT] Connecting to relay...');
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                    }
+                    currentRelay = window.nostrRelay;
+                }
+                
+                if (!currentRelay) {
+                    console.warn('[CHAT] ⚠️ No relay available');
+                    // Use UMAP hex as channelId (it's the deterministic UMAP DID pubkey)
+                    UMAPChat.channelId = umapHex;
+                    console.log('[CHAT] Using UMAP hex as channel reference:', umapHex.substring(0, 8) + '...');
+                    return;
+                }
+                
+                const oreSpaces = await new Promise((resolve) => {
+                    const filter = {
+                        kinds: [30312],         // ORE Meeting Space
+                        authors: [umapHex],     // Filter by UMAP's pubkey
+                        limit: 1
+                    };
+                    
+                    const results = [];
+                    const sub = currentRelay.sub([filter]);
+                    const timeout = setTimeout(() => {
+                        sub.unsub();
+                        resolve(results);
+                    }, 5000);
+                    
+                    sub.on('event', (event) => {
+                        console.log('[CHAT] 📍 Found ORE Meeting Space event:', event.id.substring(0, 8) + '...');
+                        results.push(event);
+                    });
+                    
+                    sub.on('eose', () => {
+                        clearTimeout(timeout);
+                        sub.unsub();
+                        resolve(results);
+                    });
+                });
+                
+                if (oreSpaces.length > 0) {
+                    const oreSpace = oreSpaces[0];
+                    UMAPChat.umapDID = oreSpace;
+                    
+                    // Use the event ID as channel ID (ORE Meeting Space reference)
+                    UMAPChat.channelId = oreSpace.id;
+                    
+                    console.log('[CHAT] ✅ Found ORE Meeting Space for UMAP');
+                    console.log('[CHAT] Using ORE Space event ID as channel:', oreSpace.id.substring(0, 8) + '...');
+                } else {
+                    console.log('[CHAT] ⚠️ No ORE Meeting Space found for UMAP hex:', umapHex);
+                    // Use UMAP hex as channelId (it's the deterministic UMAP DID pubkey)
+                    UMAPChat.channelId = umapHex;
+                    console.log('[CHAT] Using UMAP hex as channel reference:', umapHex.substring(0, 8) + '...');
+                }
+                
+            } catch (error) {
+                console.error('[CHAT] Error fetching UMAP ORE Space:', error);
+                // If we have umapHex, use it; otherwise fallback to string
+                if (UMAPChat.umapHex) {
+                    UMAPChat.channelId = UMAPChat.umapHex;
+                } else {
+                    const umapKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+                    UMAPChat.channelId = `UMAP_${umapKey.replace(',', '_')}`;
+                }
+            }
+        }
+        
+        /**
+         * Load chat messages
+         */
+        async function loadChatMessages() {
+            const messagesEl = document.getElementById('chatMessages');
+            
+            // Initialize UMAP if not done yet
+            if (!UMAPChat.initialized) {
+                await initUMAPChat();
+            }
+            
+            // Reset active users
+            UMAPChat.activeUsers.clear();
+            updateUsersCount();
+            
+            try {
+                console.log('[CHAT] Loading messages for UMAP:', UMAPChat.currentUMAP);
+                
+                // Wait for relay connection
+                if (typeof window.nostrRelay === 'undefined' || !window.nostrRelay) {
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                    }
+                }
+                
+                // Unsubscribe from previous subscription
+                if (UMAPChat.subscription) {
+                    UMAPChat.subscription.unsub();
+                }
+                
+                // Subscribe to NIP-28 channel messages (kind 42)
+                if (typeof window.nostrRelay !== 'undefined' && window.nostrRelay) {
+                    const umapKey = `${UMAPChat.currentUMAP.lat.toFixed(2)},${UMAPChat.currentUMAP.lon.toFixed(2)}`;
+                    const filter = {
+                        kinds: [42],  // NIP-28: Public channel message
+                        "#g": [umapKey],  // Filter by geolocation
+                        limit: 50
+                    };
+                    
+                    // Add channel reference if available
+                    if (UMAPChat.channelId && UMAPChat.channelId.length === 64 && UMAPChat.umapDID) {
+                        filter["#e"] = [UMAPChat.channelId];
+                    } else if (UMAPChat.umapHex && UMAPChat.umapHex.length === 64) {
+                        filter["#p"] = [UMAPChat.umapHex];
+                    }
+                    
+                    console.log('[CHAT] Subscribing with filter:', filter);
+                    const sub = window.nostrRelay.sub([filter]);
+                    
+                    // Clear loading message
+                    messagesEl.innerHTML = '';
+                    
+                    sub.on('event', event => {
+                        console.log('[CHAT] 📨 New message:', event.id.substring(0, 8) + '...');
+                        
+                        // Track unique user
+                        if (event.pubkey) {
+                            UMAPChat.activeUsers.add(event.pubkey);
+                            updateUsersCount();
+                        }
+                        
+                        // Add to messages array (avoid duplicates)
+                        if (!UMAPChat.messages.find(m => m.id === event.id)) {
+                            UMAPChat.messages.push(event);
+                            displayChatMessage(event);
+                        }
+                    });
+                    
+                    sub.on('eose', () => {
+                        console.log('[CHAT] ✅ End of stored events');
+                        console.log('[CHAT] 👥 Total users:', UMAPChat.activeUsers.size);
+                        
+                        if (UMAPChat.messages.length === 0) {
+                            messagesEl.innerHTML = `
+                                <div class="empty-messages">
+                                    <div class="empty-messages-icon">💬</div>
+                                    <h3>No messages yet</h3>
+                                    <p>Be the first to send a message in this UMAP!</p>
+                                </div>
+                            `;
+                        }
+                        
+                        // Sort messages by created_at (newest first, but display reversed)
+                        UMAPChat.messages.sort((a, b) => b.created_at - a.created_at);
+                    });
+                    
+                    UMAPChat.subscription = sub;
+                } else {
+                    messagesEl.innerHTML = `
+                        <div class="empty-messages">
+                            <div class="empty-messages-icon">⚠️</div>
+                            <h3>Relay not connected</h3>
+                            <p>Please wait for connection...</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('[CHAT] ❌ Error loading messages:', error);
+                messagesEl.innerHTML = `
+                    <div class="empty-messages">
+                        <div class="empty-messages-icon">❌</div>
+                        <h3>Error loading messages</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        /**
+         * Display a chat message
+         */
+        function displayChatMessage(event) {
+            const messagesEl = document.getElementById('chatMessages');
+            
+            // Remove empty state if present
+            const emptyState = messagesEl.querySelector('.empty-messages');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message';
+            messageDiv.dataset.messageId = event.id;
+            
+            const authorShort = event.pubkey ? event.pubkey.substring(0, 12) + '...' : 'Unknown';
+            const time = new Date(event.created_at * 1000).toLocaleTimeString();
+            
+            // Get IPFS gateway
+            const ipfsGateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+            const profileUrl = event.pubkey ? 
+                `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${event.pubkey}` : 
+                '#';
+            
+            messageDiv.innerHTML = `
+                <div class="chat-message-header">
+                    <div class="chat-message-author">
+                        <a href="${profileUrl}" target="_blank" rel="noopener noreferrer" title="View profile">
+                            <i class="bi bi-person-circle"></i> ${authorShort}
+                        </a>
+                    </div>
+                    <div class="chat-message-time">${time}</div>
+                </div>
+                <div class="chat-message-content">${escapeHtml(event.content)}</div>
+            `;
+            
+            // Insert at the beginning (newest first, but container is reversed)
+            messagesEl.appendChild(messageDiv);
+            
+            // Keep only last 100 messages
+            while (messagesEl.children.length > 100) {
+                messagesEl.removeChild(messagesEl.firstChild);
+            }
+        }
+        
+        /**
+         * Send a chat message
+         */
+        async function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const content = input.value.trim();
+            
+            if (!content) return;
+            
+            // Check if user is connected
+            if (typeof userPubkey === 'undefined' || !userPubkey) {
+                // Try to connect
+                if (typeof connectNostr === 'function') {
+                    try {
+                        userPubkey = await connectNostr(false);
+                        if (!userPubkey) {
+                            alert('❌ Please connect with NOSTR to send messages');
+                            return;
+                        }
+                    } catch (error) {
+                        alert('❌ Connection failed: ' + error.message);
+                        return;
+                    }
+                } else {
+                    alert('❌ NOSTR extension not available');
+                    return;
+                }
+            }
+            
+            // Ensure relay is connected
+            if (typeof window.nostrRelay === 'undefined' || !window.nostrRelay) {
+                if (typeof connectToRelay === 'function') {
+                    await connectToRelay();
+                }
+            }
+            
+            // Disable send button
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Sending...';
+            
+            try {
+                const umapKey = `${UMAPChat.currentUMAP.lat.toFixed(2)},${UMAPChat.currentUMAP.lon.toFixed(2)}`;
+                const tags = [
+                    ["g", umapKey]  // Geolocation (required)
+                ];
+                
+                // Add channel reference if available
+                if (UMAPChat.channelId && UMAPChat.channelId.length === 64 && UMAPChat.umapDID) {
+                    tags.unshift(["e", UMAPChat.channelId, "", "root"]);
+                } else if (UMAPChat.umapHex && UMAPChat.umapHex.length === 64) {
+                    tags.push(["p", UMAPChat.umapHex]);
+                }
+                
+                // Create event
+                const event = {
+                    kind: 42,  // NIP-28: Channel message
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: tags,
+                    content: content
+                };
+                
+                // Sign and publish
+                if (typeof window.nostr !== 'undefined') {
+                    const signedEvent = await window.nostr.signEvent(event);
+                    
+                    if (window.nostrRelay) {
+                        await window.nostrRelay.publish(signedEvent);
+                        console.log('[CHAT] ✅ Message sent');
+                        
+                        // Clear input
+                        input.value = '';
+                        
+                        // Add to active users
+                        if (userPubkey) {
+                            UMAPChat.activeUsers.add(userPubkey);
+                            updateUsersCount();
+                        }
+                    } else {
+                        throw new Error('Relay not connected');
+                    }
+                } else {
+                    throw new Error('NOSTR extension not available');
+                }
+            } catch (error) {
+                console.error('[CHAT] ❌ Error sending message:', error);
+                alert('❌ Error sending message: ' + error.message);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<i class="bi bi-send"></i> Send';
+            }
+        }
+        
+        /**
+         * Update connection status
+         */
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (statusEl) {
+                if (connected) {
+                    statusEl.className = 'connection-status connected';
+                    statusEl.innerHTML = '<i class="bi bi-broadcast"></i> <span>Connected</span>';
+                } else {
+                    statusEl.className = 'connection-status';
+                    statusEl.innerHTML = '<i class="bi bi-broadcast"></i> <span>Connecting...</span>';
+                }
+            }
+        }
+        
+        /**
+         * Update users count
+         */
+        function updateUsersCount() {
+            const count = UMAPChat.activeUsers.size;
+            const usersBadge = document.getElementById('usersBadge');
+            const usersCount = document.getElementById('usersCount');
+            
+            if (usersBadge && usersCount) {
+                if (count > 0) {
+                    usersBadge.style.display = 'flex';
+                    usersCount.textContent = count;
+                } else {
+                    usersBadge.style.display = 'none';
+                }
+            }
+        }
+        
+        /**
+         * Check if user is connected and enable send button
+         */
+        async function checkUserConnection() {
+            if (typeof userPubkey !== 'undefined' && userPubkey) {
+                document.getElementById('sendBtn').disabled = false;
+            } else {
+                // Try to auto-connect
+                if (typeof connectNostr === 'function') {
+                    try {
+                        userPubkey = await connectNostr(false);
+                        if (userPubkey) {
+                            document.getElementById('sendBtn').disabled = false;
+                        }
+                    } catch (error) {
+                        console.warn('[CHAT] Auto-connect failed:', error);
+                    }
+                }
+            }
+        }
+        
+        /**
+         * Escape HTML to prevent XSS
+         */
+        function escapeHtml(text) {
+            if (typeof text !== 'string') return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Expose functions globally
+        window.sendChatMessage = sendChatMessage;
+    </script>
+</body>
+</html>
+
