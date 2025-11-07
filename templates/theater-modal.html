@@ -2981,32 +2981,30 @@
                 }
             }
             
-            // Standalone mode - connect to NOSTR + relay
-            if (!userPubkey) {
-                console.log('[THEATER] 🔌 Standalone mode - connecting to NOSTR...');
+            // Standalone mode - connect to relay only (no NOSTR extension required for viewing)
+            // NOSTR extension is only needed for actions like like, comment, follow
+            // Video viewing and comment reading work without extension (anonymous relay connection)
+            if (!nostrRelay || !isNostrConnected) {
+                console.log('[THEATER] 🔌 Standalone mode - connecting to relay (anonymous, no extension required)...');
                 
                 try {
-                    // Connect to NOSTR extension
-                    if (typeof connectNostr === 'function') {
-                        userPubkey = await connectNostr(false);
-                        if (userPubkey && typeof window !== 'undefined') {
-                            window.userPubkey = userPubkey;
-                        }
-                        console.log('[THEATER] ✅ Connected to NOSTR extension');
-                    }
-                    
-                    // Connect to relay
+                    // Connect to relay (works without NOSTR extension for viewing)
                     if (typeof connectToRelay === 'function') {
-                        nostrRelay = await connectToRelay();
+                        nostrRelay = await connectToRelay(false); // false = no force auth
                         isNostrConnected = nostrRelay !== null;
                         if (nostrRelay && typeof window !== 'undefined') {
                             window.nostrRelay = nostrRelay;
                             window.isNostrConnected = isNostrConnected;
                         }
-                        console.log('[THEATER] ✅ Connected to relay');
+                        console.log('[THEATER] ✅ Connected to relay (anonymous mode - can view videos and comments)');
                     }
+                    
+                    // Note: We don't call connectNostr() here automatically
+                    // connectNostr() will be called only when user tries to like/comment/follow
+                    // This allows video viewing without NOSTR extension
                 } catch (error) {
-                    console.error('[THEATER] ❌ Error connecting:', error);
+                    console.error('[THEATER] ❌ Error connecting to relay:', error);
+                    // Continue without relay - video can still be loaded from IPFS directly
                 }
             }
         }
