@@ -2205,6 +2205,8 @@
                 }
                 
                 console.log('✅ Video uploaded to IPFS:', uploadResult.new_cid);
+                console.log('📋 Upload result keys:', Object.keys(uploadResult));
+                console.log('📋 Upload result:', JSON.stringify(uploadResult, null, 2));
                 
                 // Step 2: Publish to NOSTR with IPFS CID
                 publishBtn.textContent = 'Retrieving email from profile...';
