@@ -38,6 +38,33 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
 from enum import Enum
 
+def canonicalize_json(data: Any) -> str:
+    """
+    Canonicalize JSON according to RFC 8785 (JCS - JSON Canonicalization Scheme).
+    
+    This ensures that the same JSON data always produces the same string representation,
+    which is critical for cryptographic signatures. The output is:
+    - Keys sorted lexicographically
+    - No whitespace between tokens
+    - No trailing commas
+    - Consistent number formatting
+    
+    Args:
+        data: Python object to serialize (dict, list, etc.)
+    
+    Returns:
+        Canonical JSON string ready for signing
+    
+    Reference: https://datatracker.ietf.org/doc/html/rfc8785
+    """
+    return json.dumps(
+        data,
+        sort_keys=True,           # Lexicographic key ordering
+        separators=(',', ':'),   # No whitespace (compact)
+        ensure_ascii=False,      # Preserve Unicode
+        allow_nan=False          # Reject NaN/Infinity (not in JSON spec)
+    )
+
 # Configuration
 NOSTR_RELAYS = os.getenv("NOSTR_RELAYS", "ws://127.0.0.1:7777 wss://relay.copylaradio.com").split()
 TOOLS_PATH = Path(os.path.expandvars(os.path.expanduser("$HOME"))) / "Astroport.ONE" / "tools"
@@ -368,7 +395,8 @@ class OracleSystem:
         }
         
         # Sign with UPlanet authority
-        data_str = json.dumps(credential_data, sort_keys=True)
+        # CRITICAL: Use canonical JSON (RFC 8785) for signature consistency
+        data_str = canonicalize_json(credential_data)
         signature = hashlib.sha256(f"{data_str}:{uplanet_g1_key}".encode()).hexdigest()
         
         proof["proofValue"] = signature
@@ -438,9 +466,10 @@ class OracleSystem:
     def publish_permit_definition(self, definition: PermitDefinition):
         """Publish permit definition to NOSTR"""
         # Prepare NOSTR event (kind 30500)
+        # CRITICAL: Content must be canonicalized JSON (RFC 8785) for signature consistency
         event_data = {
             "kind": PermitEventKind.PERMIT_DEFINITION.value,
-            "content": json.dumps(asdict(definition)),
+            "content": canonicalize_json(asdict(definition)),
             "tags": [
                 ["d", definition.id],
                 ["t", "permit"],
@@ -454,9 +483,10 @@ class OracleSystem:
     def publish_permit_request(self, request: PermitRequest):
         """Publish permit request to NOSTR"""
         # Prepare NOSTR event (kind 30501)
+        # CRITICAL: Content must be canonicalized JSON (RFC 8785) for signature consistency
         event_data = {
             "kind": PermitEventKind.PERMIT_REQUEST.value,
-            "content": json.dumps({
+            "content": canonicalize_json({
                 "request_id": request.request_id,
                 "permit_definition_id": request.permit_definition_id,
                 "applicant_did": request.applicant_did,
@@ -478,9 +508,10 @@ class OracleSystem:
     def publish_permit_attestation(self, attestation: PermitAttestation):
         """Publish permit attestation to NOSTR"""
         # Prepare NOSTR event (kind 30502)
+        # CRITICAL: Content must be canonicalized JSON (RFC 8785) for signature consistency
         event_data = {
             "kind": PermitEventKind.PERMIT_ATTESTATION.value,
-            "content": json.dumps({
+            "content": canonicalize_json({
                 "attestation_id": attestation.attestation_id,
                 "request_id": attestation.request_id,
                 "attester_did": attestation.attester_did,
@@ -501,9 +532,11 @@ class OracleSystem:
     def publish_permit_credential(self, credential: PermitCredential):
         """Publish permit credential to NOSTR"""
         # Prepare NOSTR event (kind 30503)
+        # CRITICAL: Content must be canonicalized JSON (RFC 8785) for signature consistency
+        # This is especially important for Verifiable Credentials (W3C VC standard)
         event_data = {
             "kind": PermitEventKind.PERMIT_CREDENTIAL.value,
-            "content": json.dumps({
+            "content": canonicalize_json({
                 "credential_id": credential.credential_id,
                 "permit_definition_id": credential.permit_definition_id,
                 "holder_did": credential.holder_did,

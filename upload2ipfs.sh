@@ -594,7 +594,19 @@ if [ -n "$ORIGINAL_EVENT_ID" ]; then
 fi
 
 # Construct info.json content
+# CRITICAL: Add protocol version for compatibility tracking
+# Protocol version follows semantic versioning: MAJOR.MINOR.PATCH
+# - MAJOR: Breaking changes to structure
+# - MINOR: New fields added (backward compatible)
+# - PATCH: Bug fixes
+PROTOCOL_VERSION="1.0.0"
+
 INFO_JSON_CONTENT="{
+  \"protocol\": {
+    \"name\": \"UPlanet File Management Contract\",
+    \"version\": \"$PROTOCOL_VERSION\",
+    \"specification\": \"https://github.com/papiche/Astroport.ONE/blob/main/Astroport.ONE/docs/UPlanet_FILE_CONTRACT.md\"
+  },
   \"file\": {
     \"name\": \"$FILE_NAME\",
     \"size\": $FILE_SIZE,
@@ -618,8 +630,28 @@ INFO_JSON_CONTENT="{
   }
 }"
 
-# Write info.json to temporary location
+# Write info.json to temporary location (non-canonical first)
 echo "$INFO_JSON_CONTENT" > "$INFO_JSON_FILE"
+
+# CRITICAL: Canonicalize JSON according to RFC 8785 (JCS) before IPFS upload
+# This ensures signature consistency and deterministic CID generation
+CANONICALIZE_SCRIPT="${HOME}/.zen/Astroport.ONE/tools/canonicalize_json.py"
+if [ -f "$CANONICALIZE_SCRIPT" ]; then
+    echo "DEBUG: Canonicalizing info.json according to RFC 8785 (JCS)..." >&2
+    # Create temporary file for canonical JSON
+    CANONICAL_TEMP="${INFO_JSON_FILE}.canonical"
+    python3 "$CANONICALIZE_SCRIPT" "$INFO_JSON_FILE" "$CANONICAL_TEMP" 2>/dev/null
+    if [ -f "$CANONICAL_TEMP" ]; then
+        # Replace original with canonical version
+        mv "$CANONICAL_TEMP" "$INFO_JSON_FILE"
+        echo "DEBUG: ✅ info.json canonicalized (RFC 8785)" >&2
+    else
+        echo "WARNING: Failed to canonicalize info.json, using original" >&2
+    fi
+else
+    echo "WARNING: canonicalize_json.py not found at $CANONICALIZE_SCRIPT" >&2
+    echo "WARNING: info.json will not be canonicalized (RFC 8785 compliance not guaranteed)" >&2
+fi
 
 # Add info.json to IPFS
 INFO_CID_OUTPUT=$(ipfs add -q "$INFO_JSON_FILE" 2>&1)
