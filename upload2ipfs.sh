@@ -66,6 +66,58 @@ echo "DEBUG: File hash (SHA256): $FILE_HASH" >&2
 SKIP_IPFS_UPLOAD=false
 
 ################################################################################
+# Helper: Build upload_chain array with timestamps
+# Converts string chain (old format) or array (new format) to array with timestamps
+################################################################################
+build_upload_chain_array() {
+    local existing_chain="$1"  # Can be string (old) or JSON array (new)
+    local current_user="$2"
+    local current_timestamp="$3"  # ISO 8601 format
+    
+    if [ -z "$current_user" ]; then
+        echo "[]"
+        return
+    fi
+    
+    # Check if existing_chain is a JSON array (new format)
+    if echo "$existing_chain" | jq -e '. | type == "array"' >/dev/null 2>&1; then
+        # It's already an array, extract it and add current user
+        local chain_array="$existing_chain"
+    elif [ -n "$existing_chain" ] && [ "$existing_chain" != "null" ]; then
+        # It's a string (old format), convert to array
+        local chain_array="["
+        IFS=',' read -ra PUBKEYS <<< "$existing_chain"
+        local first=true
+        for pubkey in "${PUBKEYS[@]}"; do
+            pubkey=$(echo "$pubkey" | xargs)  # Trim whitespace
+            if [ -n "$pubkey" ]; then
+                if [ "$first" = true ]; then
+                    chain_array="$chain_array{\"pubkey\":\"$pubkey\",\"timestamp\":null}"
+                    first=false
+                else
+                    chain_array="$chain_array,{\"pubkey\":\"$pubkey\",\"timestamp\":null}"
+                fi
+            fi
+        done
+        chain_array="$chain_array]"
+    else
+        # No existing chain, start new
+        chain_array="[]"
+    fi
+    
+    # Check if current user is already in chain
+    local user_exists=$(echo "$chain_array" | jq -r --arg user "$current_user" '[.[] | select(.pubkey == $user)] | length' 2>/dev/null || echo "0")
+    
+    if [ "$user_exists" = "0" ]; then
+        # Add current user with timestamp
+        echo "$chain_array" | jq --arg user "$current_user" --arg ts "$current_timestamp" '. + [{"pubkey":$user,"timestamp":$ts}]' 2>/dev/null || echo "[{\"pubkey\":\"$current_user\",\"timestamp\":\"$current_timestamp\"}]"
+    else
+        # User already in chain, return as-is
+        echo "$chain_array"
+    fi
+}
+
+################################################################################
 # PROVENANCE TRACKING: Check if this file (hash) already exists in NOSTR
 # THIS HAPPENS **BEFORE** IPFS UPLOAD TO AVOID REDUNDANT UPLOADS
 ################################################################################
@@ -73,6 +125,8 @@ ORIGINAL_EVENT_ID=""
 ORIGINAL_AUTHOR=""
 ORIGINAL_EVENT_JSON=""
 UPLOAD_CHAIN=""
+UPLOAD_CHAIN_ARRAY=""
+EXISTING_UPLOAD_CHAIN_JSON=""
 PROVENANCE_TAGS=""
 
 if [ -n "$USER_PUBKEY_HEX" ]; then
@@ -211,6 +265,13 @@ if [ -n "$USER_PUBKEY_HEX" ]; then
                                                 # Clean up temporary directory
                                                 rm -rf "$TEMP_GET_DIR"
                                                 
+                                                # Extract upload_chain from original info.json (if available)
+                                                # It can be either a string (old format) or an array (new format)
+                                                EXISTING_UPLOAD_CHAIN_JSON=$(echo "$ORIGINAL_METADATA" | jq -c '.provenance.upload_chain // empty' 2>/dev/null || echo "")
+                                                if [ -n "$EXISTING_UPLOAD_CHAIN_JSON" ] && [ "$EXISTING_UPLOAD_CHAIN_JSON" != "null" ]; then
+                                                    echo "DEBUG: 📋 Found existing upload_chain in info.json: ${EXISTING_UPLOAD_CHAIN_JSON:0:100}..." >&2
+                                                fi
+                                                
                                                 # DO NOT reuse info.json CID - create new one with updated provenance
                                                 # This allows the upload history to evolve with each re-publication
                                                 # INFO_CID will be created later with new timestamp and upload_chain
@@ -228,28 +289,46 @@ if [ -n "$USER_PUBKEY_HEX" ]; then
                         fi
                     fi
                     
-                    # Check if there's already an upload chain in the original event
-                    EXISTING_CHAIN=$(echo "$MATCHING_EVENT" | jq -r '.tags[]? | select(.[0] == "upload_chain") | .[1]' 2>/dev/null || echo "")
+                    # Check if there's already an upload chain in the original event or info.json
+                    # Priority: info.json (new format) > Nostr tag (old format)
+                    EXISTING_CHAIN_STRING=$(echo "$MATCHING_EVENT" | jq -r '.tags[]? | select(.[0] == "upload_chain") | .[1]' 2>/dev/null || echo "")
                     
-                    if [ -n "$EXISTING_CHAIN" ] && [ "$EXISTING_CHAIN" != "null" ]; then
-                        # Append current user to existing chain
-                        if [[ "$EXISTING_CHAIN" != *"$USER_PUBKEY_HEX"* ]]; then
-                            UPLOAD_CHAIN="$EXISTING_CHAIN,$USER_PUBKEY_HEX"
-                            echo "DEBUG: Extended upload chain: ${UPLOAD_CHAIN:0:80}..." >&2
-                        else
-                            UPLOAD_CHAIN="$EXISTING_CHAIN"
-                            echo "DEBUG: User already in chain, keeping existing chain" >&2
-                        fi
+                    # Use upload_chain from info.json if available (new format with timestamps)
+                    if [ -n "$EXISTING_UPLOAD_CHAIN_JSON" ] && [ "$EXISTING_UPLOAD_CHAIN_JSON" != "null" ]; then
+                        EXISTING_CHAIN_FOR_BUILD="$EXISTING_UPLOAD_CHAIN_JSON"
+                        echo "DEBUG: Using upload_chain from info.json (new format)" >&2
+                    elif [ -n "$EXISTING_CHAIN_STRING" ] && [ "$EXISTING_CHAIN_STRING" != "null" ]; then
+                        EXISTING_CHAIN_FOR_BUILD="$EXISTING_CHAIN_STRING"
+                        echo "DEBUG: Using upload_chain from Nostr tag (old format, will convert)" >&2
                     else
-                        # Create new chain with original author and current user
-                        if [ "$ORIGINAL_AUTHOR" != "$USER_PUBKEY_HEX" ]; then
-                            UPLOAD_CHAIN="$ORIGINAL_AUTHOR,$USER_PUBKEY_HEX"
-                            echo "DEBUG: Created new upload chain: ${UPLOAD_CHAIN:0:50}..." >&2
+                        # No existing chain, start with original author if different from current user
+                        if [ -n "$ORIGINAL_AUTHOR" ] && [ "$ORIGINAL_AUTHOR" != "$USER_PUBKEY_HEX" ]; then
+                            EXISTING_CHAIN_FOR_BUILD="$ORIGINAL_AUTHOR"
+                            echo "DEBUG: Starting new chain with original author" >&2
                         else
-                            UPLOAD_CHAIN="$ORIGINAL_AUTHOR"
-                            echo "DEBUG: Same user re-uploading, single entry in chain" >&2
+                            EXISTING_CHAIN_FOR_BUILD=""
+                            echo "DEBUG: Starting new chain with current user only" >&2
                         fi
                     fi
+                    
+                    # Build upload_chain array with timestamps using helper function
+                    CURRENT_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+                    UPLOAD_CHAIN_ARRAY=$(build_upload_chain_array "$EXISTING_CHAIN_FOR_BUILD" "$USER_PUBKEY_HEX" "$CURRENT_TIMESTAMP")
+                    echo "DEBUG: Built upload_chain array with timestamps: ${UPLOAD_CHAIN_ARRAY:0:150}..." >&2
+                    
+                    # Keep old string format for Nostr tags (backward compatibility)
+                    # Extract pubkeys from array for Nostr tag
+                    if [ -n "$EXISTING_CHAIN_STRING" ] && [ "$EXISTING_CHAIN_STRING" != "null" ]; then
+                        if [[ "$EXISTING_CHAIN_STRING" != *"$USER_PUBKEY_HEX"* ]]; then
+                            UPLOAD_CHAIN="$EXISTING_CHAIN_STRING,$USER_PUBKEY_HEX"
+                        else
+                            UPLOAD_CHAIN="$EXISTING_CHAIN_STRING"
+                        fi
+                    else
+                        # Build string from array for Nostr tag
+                        UPLOAD_CHAIN=$(echo "$UPLOAD_CHAIN_ARRAY" | jq -r '[.[].pubkey] | join(",")' 2>/dev/null || echo "$USER_PUBKEY_HEX")
+                    fi
+                    echo "DEBUG: Upload chain (string for Nostr): ${UPLOAD_CHAIN:0:80}..." >&2
                     
                     # Build provenance tags for NIP-94 event
                     # Only add tags if we have valid event ID and author
@@ -290,8 +369,13 @@ else
     echo "DEBUG: 📝 First upload of this file (no provenance found)" >&2
     # Initialize upload chain with current user for first upload
     if [ -n "$USER_PUBKEY_HEX" ]; then
+        CURRENT_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        UPLOAD_CHAIN_ARRAY=$(build_upload_chain_array "" "$USER_PUBKEY_HEX" "$CURRENT_TIMESTAMP")
         UPLOAD_CHAIN="$USER_PUBKEY_HEX"
         echo "DEBUG: 👤 Initialized upload chain with current user: ${USER_PUBKEY_HEX:0:16}..." >&2
+        echo "DEBUG: Upload chain array: $UPLOAD_CHAIN_ARRAY" >&2
+    else
+        UPLOAD_CHAIN_ARRAY="[]"
     fi
 fi
 
@@ -581,16 +665,37 @@ if [[ "$FILE_TYPE" == "video/"* ]] || [[ "$FILE_TYPE" == "audio/"* ]]; then
   }"
 fi
 
-# Build provenance section if available
+# Initialize UPLOAD_CHAIN_ARRAY if not set (should be set by provenance tracking)
+if [ -z "$UPLOAD_CHAIN_ARRAY" ]; then
+    if [ -n "$USER_PUBKEY_HEX" ]; then
+        CURRENT_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        UPLOAD_CHAIN_ARRAY=$(build_upload_chain_array "" "$USER_PUBKEY_HEX" "$CURRENT_TIMESTAMP")
+    else
+        UPLOAD_CHAIN_ARRAY="[]"
+    fi
+fi
+
+# Build provenance section
+# Always include provenance if we have upload_chain_array (even for first upload)
 PROVENANCE_SECTION=""
-if [ -n "$ORIGINAL_EVENT_ID" ]; then
-    PROVENANCE_SECTION=",
+if [ -n "$UPLOAD_CHAIN_ARRAY" ] && [ "$UPLOAD_CHAIN_ARRAY" != "[]" ]; then
+    if [ -n "$ORIGINAL_EVENT_ID" ]; then
+        # Re-upload: include original event info
+        PROVENANCE_SECTION=",
   \"provenance\": {
     \"original_event_id\": \"$ORIGINAL_EVENT_ID\",
     \"original_author\": \"$ORIGINAL_AUTHOR\",
-    \"upload_chain\": \"$UPLOAD_CHAIN\",
+    \"upload_chain\": $UPLOAD_CHAIN_ARRAY,
     \"is_reupload\": true
   }"
+    else
+        # First upload: just include upload_chain
+        PROVENANCE_SECTION=",
+  \"provenance\": {
+    \"upload_chain\": $UPLOAD_CHAIN_ARRAY,
+    \"is_reupload\": false
+  }"
+    fi
 fi
 
 # Construct info.json content
@@ -616,7 +721,8 @@ INFO_JSON_CONTENT="{
   \"ipfs\": {
     \"cid\": \"$CID\",
     \"url\": \"/ipfs/$CID/$FILE_NAME\",
-    \"date\": \"$DATE\"
+    \"date\": \"$DATE\"$(if [ -n "$IPFSNODEID" ]; then echo ",
+    \"node_id\": \"$IPFSNODEID\""; fi)
   }$IMAGE_SECTION$MEDIA_SECTION$PROVENANCE_SECTION,
   \"metadata\": {
     \"description\": \"$DESCRIPTION\",
