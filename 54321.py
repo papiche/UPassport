@@ -2410,6 +2410,7 @@ async def youtube_route(
                 fetch_and_process_nostr_events("ws://127.0.0.1:7777", 200),
                 timeout=15.0  # 15 second timeout
             )
+            logging.info(f"✅ Fetched {len(video_messages)} video events from NOSTR")
         except asyncio.TimeoutError:
             logging.warning("⚠️ Timeout fetching NOSTR events, using empty list")
             video_messages = []
@@ -2419,9 +2420,12 @@ async def youtube_route(
         
         # Validate and normalize video data
         validated_videos = []
+        skipped_count = 0
         for video in video_messages:
             # Ensure required fields exist
             if not video.get('title') or not video.get('ipfs_url'):
+                skipped_count += 1
+                logging.debug(f"⚠️ Skipping video (missing title or IPFS URL): {video.get('title', 'N/A')[:30]}...")
                 continue
             
             # Normalize field names for consistency
@@ -2449,6 +2453,10 @@ async def youtube_route(
                 'longitude': video.get('longitude')  # GPS coordinates
             }
             validated_videos.append(normalized_video)
+        
+        if skipped_count > 0:
+            logging.info(f"⚠️ Skipped {skipped_count} invalid video(s)")
+        logging.info(f"✅ Validated {len(validated_videos)} video(s)")
         
         video_messages = validated_videos
         
@@ -2536,6 +2544,10 @@ async def youtube_route(
                     continue
             
             filtered_videos.append(video)
+        
+        logging.info(f"✅ After filtering: {len(filtered_videos)} video(s) (from {len(video_messages)} total)")
+        if len(filtered_videos) == 0 and len(video_messages) > 0:
+            logging.warning(f"⚠️ All {len(video_messages)} videos were filtered out. Available channels: {set(v.get('channel_name', 'unknown') for v in video_messages)}")
         
         video_messages = filtered_videos
         
@@ -3294,9 +3306,23 @@ async def process_webcam_video(
                     except json.JSONDecodeError as json_err:
                         logging.warning(f"⚠️ Failed to parse JSON output: {json_err}")
                         logging.info(f"📤 Script output: {publish_result.stdout}")
-                        # Try to extract event ID from output
+                        # Try to extract event ID from output using regex (more robust)
+                        import re
+                        event_id_match = re.search(r'"event_id"\s*:\s*"([a-f0-9]{64})"', publish_result.stdout)
+                        if event_id_match:
+                            nostr_event_id = event_id_match.group(1)
+                            logging.info(f"✅ NOSTR video event published (extracted from invalid JSON): {nostr_event_id}")
+                        else:
+                            # Fallback: try to extract from last line
                         nostr_event_id = publish_result.stdout.strip().split('\n')[-1] if publish_result.stdout else ""
-                        logging.info(f"✅ NOSTR video event published: {nostr_event_id}")
+                            # Validate it's a hex string
+                            if not re.match(r'^[a-f0-9]{64}$', nostr_event_id):
+                                nostr_event_id = ""
+                            if nostr_event_id:
+                                logging.info(f"✅ NOSTR video event published (extracted from output): {nostr_event_id}")
+                            else:
+                                logging.warning(f"⚠️ Could not extract event ID from output")
+                                nostr_event_id = ""
                 else:
                     logging.error(f"❌ Failed to publish NOSTR event (return code: {publish_result.returncode})")
                     logging.error(f"❌ stderr ({len(publish_result.stderr)} chars): {publish_result.stderr if publish_result.stderr else '(empty)'}")

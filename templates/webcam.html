@@ -2199,8 +2199,17 @@
         }
         
         // Publish video
+        let isPublishing = false; // Prevent double submission
         async function publishVideo(videoBlob, filename = null) {
+            // Prevent double submission
+            if (isPublishing) {
+                console.warn('⚠️ Publication already in progress, ignoring duplicate call');
+                return;
+            }
+            
             try {
+                isPublishing = true;
+                
                 // Get userPubkey from current window or parent window (assume connection exists)
                 const isInIframe = window.self !== window.top;
                 let currentPubkey = null;
@@ -2527,6 +2536,7 @@
                     }
                     
                     showSuccess(`Video published successfully to IPFS!\n\nCID: ${uploadResult.new_cid}\n\nYour video is now available on UPlanet.`, 'Video Published! 🎉', () => {
+                        isPublishing = false; // Reset flag
                         closeModal();
                         // Reset form and prepare for next recording
                         document.getElementById('publish-form').reset();
@@ -2539,6 +2549,7 @@
                         document.getElementById('timer').textContent = document.getElementById('duration-slider').value;
                     });
                 } else {
+                    isPublishing = false; // Reset flag on error
                     let errorMessage = `Publication failed: ${response.statusText}`;
                     try {
                         const errorData = await response.json();
@@ -2568,6 +2579,7 @@
                 console.error('❌ Error publishing video:', error);
                 const errorMsg = error.message || 'Une erreur est survenue lors de la publication';
                 showError(errorMsg, 'Échec de la publication');
+                isPublishing = false; // Reset flag on error
                 document.getElementById('publish-btn').disabled = false;
                 document.getElementById('publish-btn').textContent = '📡 Publish Video';
             }
