@@ -316,6 +316,16 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="/wotx2">
+                            <i class="bi bi-water"></i> WoTx2 Permits
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/g1">
+                            <i class="bi bi-wallet2"></i> G1 Registration
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{{ myIPFS }}/ipns/copylaradio.com/plantnet.html">
                             <i class="bi bi-flower1"></i> Flora Quest (ORE)
                         </a>
@@ -377,8 +387,86 @@
                 </div>
             </div>
 
-            <!-- Authentication Section -->
-            <div class="card mb-4" id="auth-section">
+            <!-- Public View - No Authentication Required -->
+            <div id="public-content">
+                <!-- Call to Action for MULTIPASS -->
+                <div class="card mb-4" style="background: linear-gradient(135deg, rgba(74, 222, 128, 0.2), rgba(34, 197, 94, 0.1)); border: 2px solid rgba(74, 222, 128, 0.5);">
+                    <div class="card-body text-center p-4">
+                        <h3 class="mb-3" style="color: #4ade80;">
+                            <i class="bi bi-shield-check"></i> Créez votre MULTIPASS pour participer
+                        </h3>
+                        <p class="text-muted mb-4">
+                            Le système Oracle utilise la Web of Trust pour certifier les compétences. 
+                            Pour créer une demande de permis ou attester quelqu'un, vous devez avoir un MULTIPASS.
+                        </p>
+                        <div class="d-flex justify-content-center gap-3 flex-wrap">
+                            <a href="/wotx2" class="btn btn-primary btn-lg">
+                                <i class="bi bi-plus-circle"></i> Créer un Permis WoTx2
+                            </a>
+                            <button class="btn btn-outline-primary btn-lg" onclick="connectToNOSTR()">
+                                <i class="bi bi-plug-fill"></i> Connecter MULTIPASS (Optionnel)
+                            </button>
+                        </div>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i> 
+                                Vous pouvez consulter tous les permis ci-dessous sans connexion. 
+                                La connexion NOSTR est nécessaire uniquement pour créer des demandes ou attester.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Public Permits List -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4 class="mb-0">
+                            <i class="bi bi-list-ul"></i> Tous les Permis Disponibles
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div id="public-permits-list" class="row g-4">
+                            <div class="col-12 text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Chargement...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Chargement des permis...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Public Charts -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <i class="bi bi-pie-chart-fill"></i> Répartition des Titulaires
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="public-permit-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <i class="bi bi-bar-chart-fill"></i> Niveaux de Permis
+                            </div>
+                            <div class="card-body">
+                                <div id="levels-breakdown" class="text-center p-4">
+                                    <p class="text-muted">Chargement...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Authentication Section (Hidden by default) -->
+            <div class="card mb-4" id="auth-section" style="display: none;">
                 <div class="card-body text-center p-5">
                     <button class="btn btn-primary btn-lg" id="connect-btn" onclick="connectToNOSTR()">
                         <i class="bi bi-plug-fill"></i> Connect with NOSTR
@@ -387,7 +475,7 @@
                 </div>
             </div>
 
-            <!-- Main Content -->
+            <!-- Main Content (Authenticated Features) -->
             <div id="main-content" style="display: none;">
                 <!-- Charts Row -->
                 <div class="row g-4 mb-4">
@@ -557,58 +645,122 @@
             console.log('API Base:', USPOT_API_BASE);
         }
 
-        // Connect to NOSTR
+        // Connect to NOSTR (optional - for advanced features)
         async function connectToNOSTR() {
             const btn = document.getElementById('connect-btn');
             const status = document.getElementById('auth-status');
             
-            btn.disabled = true;
-            status.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Connecting...</div>';
+            if (btn) btn.disabled = true;
+            if (status) status.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Connexion...</div>';
 
             try {
                 if (!window.nostr) {
-                    throw new Error('NOSTR extension not found');
+                    throw new Error('Extension NOSTR non trouvée. Installez une extension NOSTR (Alby, nos2x, etc.) pour vous connecter.');
                 }
 
                 userPubkey = await window.nostr.getPublicKey();
-                userNpub = NostrTools.nip19.npubEncode(userPubkey);
+                if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                    userNpub = NostrTools.nip19.npubEncode(userPubkey);
+                } else {
+                    userNpub = userPubkey; // Fallback
+                }
 
-                status.innerHTML = `
-                    <div class="alert alert-success">
-                        <i class="bi bi-check-circle-fill"></i> Connected as ${userNpub.substring(0, 12)}...
-                    </div>
-                `;
-                btn.textContent = '✅ Connected';
+                isNostrConnected = true;
 
-                document.getElementById('main-content').style.display = 'block';
-                document.getElementById('auth-section').style.display = 'none';
+                if (status) {
+                    status.innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle-fill"></i> Connecté en tant que ${userNpub.substring(0, 12)}...
+                        </div>
+                    `;
+                }
+                if (btn) btn.textContent = '✅ Connecté';
 
+                // Show authenticated features
+                if (document.getElementById('main-content')) {
+                    document.getElementById('main-content').style.display = 'block';
+                }
+                if (document.getElementById('authenticated-tabs')) {
+                    document.getElementById('authenticated-tabs').style.display = 'flex';
+                }
+                if (document.getElementById('auth-section')) {
+                    document.getElementById('auth-section').style.display = 'none';
+                }
+                // Hide public content when authenticated
+                if (document.getElementById('public-content')) {
+                    document.getElementById('public-content').style.display = 'none';
+                }
+
+                // Reload data with authentication
                 await loadData();
-                initCharts();
+                if (typeof Chart !== 'undefined') {
+                    initCharts();
+                }
 
             } catch (error) {
-                status.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle-fill"></i> ${error.message}</div>`;
-                btn.disabled = false;
+                if (status) {
+                    status.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle-fill"></i> ${error.message}</div>`;
+                }
+                if (btn) btn.disabled = false;
+                alert('Erreur de connexion: ' + error.message);
             }
         }
 
-        // Load data
+        // Load public data (no authentication required)
+        async function loadPublicData() {
+            try {
+                const response = await fetch(`${USPOT_API_BASE}/api/permit/stats`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update global stats
+                    const stats = data.global_stats;
+                    document.getElementById('stat-definitions').textContent = stats.total_permits || 0;
+                    document.getElementById('stat-requests').textContent = stats.total_pending_requests || 0;
+                    document.getElementById('stat-credentials').textContent = stats.total_holders || 0;
+                    document.getElementById('stat-ore').textContent = '0'; // ORE contracts not in stats yet
+                    
+                    // Store permits data
+                    allPermits = data.permits || [];
+                    
+                    // Render permits in public view
+                    renderPublicPermits();
+                    
+                    // Initialize charts if Chart.js is available
+                    if (typeof Chart !== 'undefined') {
+                        initPublicCharts();
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading public data:', error);
+                document.getElementById('permits-list').innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            Impossible de charger les données. Vérifiez que l'API est accessible.
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        // Load authenticated data (requires NOSTR)
         async function loadData() {
-            // Simulate loading data
-            allPermits = [
-                { id: 'WOT_DRAGON', name: 'WoT Dragon', count: 5 },
-                { id: 'RELAY_CAPTAIN', name: 'Relay Captain', count: 12 },
-                { id: 'ORE_VERIFIER', name: 'ORE Verifier', count: 8 }
-            ];
+            if (!isNostrConnected) {
+                return;
+            }
             
-            allRequests = [
-                { status: 'pending', count: 7 },
-                { status: 'validated', count: 15 },
-                { status: 'rejected', count: 2 }
-            ];
-
-            updateStats();
-            renderPermits();
+            try {
+                // Load user-specific data
+                const response = await fetch(`${USPOT_API_BASE}/api/permit/list?type=credentials&npub=${userNpub}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    myCredentials = data.results || [];
+                }
+            } catch (error) {
+                console.error('Error loading authenticated data:', error);
+            }
         }
 
         // Update statistics
@@ -694,30 +846,238 @@
             }
         }
 
-        // Render permits
-        function renderPermits() {
-            const container = document.getElementById('permits-list');
-            container.innerHTML = allPermits.map(permit => `
-                <div class="col-md-4">
-                    <div class="permit-card">
-                        <h4 class="mb-3" style="color: #4ade80;">
-                            <i class="bi bi-award"></i> ${permit.name}
-                        </h4>
-                        <p class="text-muted mb-3">${permit.id}</p>
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="badge badge-success">${permit.count} holders</span>
+        // Render permits in public view
+        function renderPublicPermits() {
+            const container = document.getElementById('public-permits-list');
+            if (!container) return;
+            
+            if (allPermits.length === 0) {
+                container.innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-info text-center">
+                            <i class="bi bi-info-circle"></i> Aucun permis disponible pour le moment.
                         </div>
-                        <button class="btn btn-primary w-100">
-                            <i class="bi bi-plus-circle"></i> Request Permit
-                        </button>
                     </div>
-                </div>
-            `).join('');
+                `;
+                return;
+            }
+            
+            // Update levels breakdown
+            const levelsBreakdown = document.getElementById('levels-breakdown');
+            if (levelsBreakdown) {
+                const levels = {
+                    'Beginner': allPermits.filter(p => p.level === 'Beginner').length,
+                    'Intermediate': allPermits.filter(p => p.level === 'Intermediate').length,
+                    'Advanced': allPermits.filter(p => p.level === 'Advanced').length,
+                    'Expert': allPermits.filter(p => p.level === 'Expert').length
+                };
+                
+                levelsBreakdown.innerHTML = `
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <div class="stat-card" style="padding: 15px;">
+                                <div class="stat-number" style="font-size: 2rem;">${levels.Beginner}</div>
+                                <div class="stat-label">Débutant</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-card" style="padding: 15px;">
+                                <div class="stat-number" style="font-size: 2rem;">${levels.Intermediate}</div>
+                                <div class="stat-label">Intermédiaire</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-card" style="padding: 15px;">
+                                <div class="stat-number" style="font-size: 2rem;">${levels.Advanced}</div>
+                                <div class="stat-label">Avancé</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-card" style="padding: 15px;">
+                                <div class="stat-number" style="font-size: 2rem;">${levels.Expert}</div>
+                                <div class="stat-label">Expert</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = allPermits.map(permit => {
+                const levelBadge = getLevelBadge(permit.level);
+                const categoryBadge = getCategoryBadge(permit.category);
+                const validityText = permit.valid_duration_days === 0 ? 'Illimité' : 
+                    `${Math.floor(permit.valid_duration_days / 365)} an(s)`;
+                
+                return `
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="permit-card">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <h4 style="color: #4ade80; margin: 0;">
+                                    <i class="bi bi-award"></i> ${permit.name}
+                                </h4>
+                                ${levelBadge}
+                            </div>
+                            
+                            <p class="text-muted small mb-2">
+                                <code>${permit.id}</code>
+                            </p>
+                            
+                            <p class="mb-3" style="min-height: 60px;">
+                                ${permit.description || 'Aucune description disponible.'}
+                            </p>
+                            
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-muted small">
+                                        <i class="bi bi-people"></i> Titulaires
+                                    </span>
+                                    <span class="badge badge-success">${permit.holders_count}</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-muted small">
+                                        <i class="bi bi-hourglass-split"></i> Demandes en attente
+                                    </span>
+                                    <span class="badge badge-warning">${permit.pending_requests_count}</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-muted small">
+                                        <i class="bi bi-pen"></i> Signatures requises
+                                    </span>
+                                    <span class="badge badge-info">${permit.min_attestations}</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-muted small">
+                                        <i class="bi bi-calendar"></i> Validité
+                                    </span>
+                                    <span class="text-muted small">${validityText}</span>
+                                </div>
+                                ${permit.competencies_count > 0 ? `
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="text-muted small">
+                                        <i class="bi bi-list-check"></i> Compétences
+                                    </span>
+                                    <span class="badge badge-info">${permit.competencies_count}</span>
+                                </div>
+                                ` : ''}
+                            </div>
+                            
+                            ${permit.competencies && permit.competencies.length > 0 ? `
+                            <div class="mb-3">
+                                <small class="text-muted d-block mb-1">Compétences :</small>
+                                <div class="d-flex flex-wrap gap-1">
+                                    ${permit.competencies.slice(0, 3).map(c => `
+                                        <span class="badge" style="background: rgba(74, 222, 128, 0.2); color: #4ade80; font-size: 0.75rem;">
+                                            ${c}
+                                        </span>
+                                    `).join('')}
+                                    ${permit.competencies.length > 3 ? `
+                                        <span class="badge" style="background: rgba(74, 222, 128, 0.2); color: #4ade80; font-size: 0.75rem;">
+                                            +${permit.competencies.length - 3}
+                                        </span>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            ` : ''}
+                            
+                            <div class="mb-2">
+                                ${categoryBadge}
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <a href="/wotx2?permit_id=${permit.id}" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-eye"></i> Voir les détails
+                                </a>
+                                ${!isNostrConnected ? `
+                                <button class="btn btn-outline-primary btn-sm" onclick="connectToNOSTR()">
+                                    <i class="bi bi-key"></i> Connecter pour demander
+                                </button>
+                                ` : `
+                                <a href="/wotx2?permit_id=${permit.id}" class="btn btn-outline-success btn-sm">
+                                    <i class="bi bi-plus-circle"></i> Créer une demande
+                                </a>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Get level badge
+        function getLevelBadge(level) {
+            const badges = {
+                'Beginner': '<span class="badge badge-info">Débutant</span>',
+                'Intermediate': '<span class="badge badge-warning">Intermédiaire</span>',
+                'Advanced': '<span class="badge badge-success">Avancé</span>',
+                'Expert': '<span class="badge" style="background: linear-gradient(135deg, #ef4444, #dc2626);">Expert</span>'
+            };
+            return badges[level] || badges['Beginner'];
+        }
+        
+        // Get category badge
+        function getCategoryBadge(category) {
+            const categories = {
+                'sports_education': 'Sports & Éducation',
+                'health': 'Santé',
+                'construction': 'Construction',
+                'governance': 'Gouvernance',
+                'agriculture': 'Agriculture',
+                'environmental': 'Environnement',
+                'transportation': 'Transport',
+                'general': 'Général'
+            };
+            const label = categories[category] || category;
+            return `<span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6; font-size: 0.75rem;">
+                <i class="bi bi-tag"></i> ${label}
+            </span>`;
+        }
+        
+        // Initialize public charts
+        function initPublicCharts() {
+            // Permit Distribution Chart
+            const permitCtx = document.getElementById('public-permit-chart');
+            if (permitCtx && allPermits.length > 0) {
+                new Chart(permitCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: allPermits.map(p => p.name),
+                        datasets: [{
+                            data: allPermits.map(p => p.holders_count),
+                            backgroundColor: [
+                                'rgba(74, 222, 128, 0.8)',
+                                'rgba(251, 191, 36, 0.8)',
+                                'rgba(59, 130, 246, 0.8)',
+                                'rgba(239, 68, 68, 0.8)',
+                                'rgba(168, 85, 247, 0.8)'
+                            ],
+                            borderColor: '#0f172a',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: '#e8e8e8', font: { size: 12 } }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Répartition des Titulaires',
+                                color: '#e8e8e8'
+                            }
+                        }
+                    }
+                });
+            }
         }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             detectUSPOTAPI();
+            // Load public data immediately (no authentication required)
+            loadPublicData();
         });
     </script>
 </body>

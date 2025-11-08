@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Permit De Nager - WoTx2 | UPlanet</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    
+    <style>
+        :root {
+            --primary: #059669;
+            --secondary: #10b981;
+            --accent: #06b6d4;
+            --dark: #1a202c;
+            --light: #f7fafc;
+            --water-blue: #0ea5e9;
+            --water-dark: #0284c7;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #0369a1 100%);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            padding-top: 80px;
+        }
+        
+        .hero {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 3rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        .hero h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--water-dark);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .hero h1 i {
+            font-size: 3rem;
+            color: var(--water-blue);
+        }
+        
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, var(--water-blue), var(--water-dark));
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            padding: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .instructor-card {
+            border-left: 4px solid var(--water-blue);
+        }
+        
+        .instructor-card .card-body {
+            padding: 1.5rem;
+        }
+        
+        .badge-competency {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            margin: 0.25rem;
+            display: inline-block;
+        }
+        
+        .badge-new {
+            background: linear-gradient(135deg, #f59e0b, #f97316);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--water-blue), var(--water-dark));
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(14, 165, 233, 0.4);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border: none;
+        }
+        
+        .progress {
+            height: 25px;
+            border-radius: 15px;
+            background: #e2e8f0;
+        }
+        
+        .progress-bar {
+            background: linear-gradient(90deg, var(--water-blue), var(--water-dark));
+            border-radius: 15px;
+        }
+        
+        .virtuous-circle {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 2rem;
+            margin: 2rem 0;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .circle-step {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            background: rgba(14, 165, 233, 0.1);
+            border-radius: 15px;
+            border-left: 4px solid var(--water-blue);
+        }
+        
+        .circle-step i {
+            font-size: 2rem;
+            color: var(--water-blue);
+        }
+        
+        .connection-badge {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 0.75rem 1.25rem;
+            border-radius: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.3s ease;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .connection-badge.authenticated {
+            border-color: var(--primary);
+            background: rgba(5, 150, 105, 0.2);
+        }
+        
+        .connection-badge .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #cbd5e0;
+        }
+        
+        .connection-badge.authenticated .status-dot {
+            background: var(--primary);
+            animation: pulse 2s infinite;
+        }
+        
+        .stats-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stats-card .number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--water-blue);
+        }
+        
+        .stats-card .label {
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+        
+        .modal-content {
+            border-radius: 15px;
+            border: none;
+        }
+        
+        .modal-header {
+            background: linear-gradient(135deg, var(--water-blue), var(--water-dark));
+            color: white;
+            border-radius: 15px 15px 0 0;
+        }
+        
+        .form-control, .form-select {
+            border-radius: 10px;
+            border: 2px solid #e2e8f0;
+            padding: 0.75rem;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: var(--water-blue);
+            box-shadow: 0 0 0 0.2rem rgba(14, 165, 233, 0.25);
+        }
+        
+        .alert {
+            border-radius: 15px;
+            border: none;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #64748b;
+        }
+        
+        .empty-state i {
+            font-size: 4rem;
+            color: #cbd5e0;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Connection Badge (MULTIPASS) -->
+    <div id="connectionBadge" class="connection-badge">
+        <span class="status-dot"></span>
+        <span class="status-text">Connexion...</span>
+        <button class="btn-connect" onclick="connectMULTIPASS()" style="display: none;">
+            <i class="bi bi-wallet2"></i> Connecter
+        </button>
+    </div>
+
+    <div class="container">
+        <!-- Permit Selector & New Button -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <label class="form-label"><strong>Sélectionner une profession WoTx2 :</strong></label>
+                        <select class="form-select" id="permitSelector" onchange="switchPermit()">
+                            <option value="">Chargement...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button class="btn btn-success btn-lg w-100" onclick="showNewPermitModal()">
+                            <i class="bi bi-plus-circle"></i> NEW - Créer une Profession
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hero Section -->
+        <div class="hero" id="permitHero">
+            <h1>
+                <i class="bi bi-water"></i>
+                <span id="permitTitle">Permit De Nager - WoTx2</span>
+            </h1>
+            <p class="lead" id="permitDescription">
+                Toile de confiance évolutive pour maîtres nageurs. Rencontrez des instructeurs, 
+                devenez instructeur vous-même, et découvrez de nouvelles compétences à travers les attestations.
+            </p>
+            
+            <!-- Stats -->
+            <div class="row mt-4">
+                <div class="col-md-4">
+                    <div class="stats-card">
+                        <div class="number" id="totalHolders">0</div>
+                        <div class="label">Maîtres Nageurs</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stats-card">
+                        <div class="number" id="totalRequests">0</div>
+                        <div class="label">Demandes en cours</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stats-card">
+                        <div class="number" id="minAttestations">6</div>
+                        <div class="label">Attestations requises</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bootstrap Instructions -->
+        <div class="card mb-4" id="bootstrapInstructions" style="display: none;">
+            <div class="card-header bg-warning text-dark">
+                <i class="bi bi-info-circle"></i> Mode Bootstrap - Initialisation à 2 attestations
+            </div>
+            <div class="card-body">
+                <h5>Comment initialiser le Permit De Nager :</h5>
+                <ol>
+                    <li><strong>2 MULTIPASS</strong> doivent se connecter sur <strong>2 navigateurs différents</strong></li>
+                    <li>Chacun crée sa <strong>demande 30501</strong> (référençant PERMIT_DE_NAGER)</li>
+                    <li>Chacun <strong>atteste l'autre</strong> en envoyant un <strong>30502</strong> sur la demande de l'autre</li>
+                    <li>Les demandes apparaissent chez les 2</li>
+                    <li>Par l'<strong>attestation réciproque</strong>, <code>ORACLE.refresh.sh</code> valide les compétences</li>
+                    <li>Les <strong>credentials 30503</strong> sont émis automatiquement</li>
+                </ol>
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-lightbulb"></i> <strong>Astuce :</strong> Ouvrez cette page dans 2 onglets/navigateurs différents avec 2 MULTIPASS différents pour tester le bootstrap !
+                </div>
+            </div>
+        </div>
+
+        <!-- Virtuous Circle Explanation -->
+        <div class="virtuous-circle">
+            <h3 class="mb-4">
+                <i class="bi bi-arrow-repeat"></i> Cercle Vertueux WoTx2
+            </h3>
+            <div class="circle-step">
+                <i class="bi bi-person-check"></i>
+                <div>
+                    <strong>Élève</strong>
+                    <p class="mb-0">Reçoit une instruction et peut devenir instructeur</p>
+                </div>
+            </div>
+            <div class="circle-step">
+                <i class="bi bi-person-badge"></i>
+                <div>
+                    <strong>Instructeur</strong>
+                    <p class="mb-0">Enseigne et découvre de nouveaux talents</p>
+                </div>
+            </div>
+            <div class="circle-step">
+                <i class="bi bi-stars"></i>
+                <div>
+                    <strong>Talents Révélés</strong>
+                    <p class="mb-0">Nouvelles compétences découvertes lors des attestations qui élargissent le permis</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <button class="btn btn-primary btn-lg w-100" onclick="showRequestModal()">
+                    <i class="bi bi-file-earmark-plus"></i> Créer ma Demande (30501)
+                </button>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-success btn-lg w-100" onclick="loadInstructors()">
+                    <i class="bi bi-search"></i> Voir les Maîtres Nageurs
+                </button>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-warning btn-lg w-100" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Actualiser
+                </button>
+            </div>
+        </div>
+
+        <!-- Instructors List -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-people"></i> Maîtres Nageurs Certifiés
+            </div>
+            <div class="card-body" id="instructorsList">
+                <div class="empty-state">
+                    <i class="bi bi-hourglass-split"></i>
+                    <p>Chargement des maîtres nageurs...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Requests -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clock-history"></i> Demandes en Attente
+            </div>
+            <div class="card-body" id="pendingRequestsList">
+                <div class="empty-state">
+                    <i class="bi bi-hourglass-split"></i>
+                    <p>Chargement des demandes...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Request Permit Modal -->
+    <div class="modal fade" id="requestModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-file-earmark-plus"></i> Demander le Permit De Nager
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="requestForm">
+                        <div class="mb-3">
+                            <label class="form-label">Votre déclaration</label>
+                            <textarea class="form-control" id="statement" rows="4" 
+                                placeholder="Décrivez votre expérience en natation, votre capacité à enseigner, et vos compétences en sécurité aquatique..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Preuves (liens IPFS, photos, certificats)</label>
+                            <input type="text" class="form-control" id="evidence" 
+                                placeholder="ipfs://Qm... (optionnel)">
+                            <small class="text-muted">Vous pouvez ajouter plusieurs liens séparés par des virgules</small>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> 
+                            Vous devez obtenir <strong id="requiredAttestations">6</strong> attestations de maîtres nageurs certifiés 
+                            pour obtenir votre permis.
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" onclick="submitRequest()">
+                        <i class="bi bi-send"></i> Soumettre la demande
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Permit Modal -->
+    <div class="modal fade" id="newPermitModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-plus-circle"></i> Créer une Nouvelle Profession WoTx2
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="newPermitForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">ID du Permit <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="newPermitId" 
+                                    placeholder="PERMIT_EXAMPLE" required
+                                    pattern="^PERMIT_[A-Z0-9_]+$"
+                                    title="Format: PERMIT_MAJUSCULES_UNDERSCORES">
+                                <small class="text-muted">Format: PERMIT_MAJUSCULES_UNDERSCORES (ex: PERMIT_DE_NAGER)</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nom de la Profession <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="newPermitName" 
+                                    placeholder="Ex: Maître Nageur" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Description <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="newPermitDescription" rows="3" 
+                                placeholder="Décrivez cette profession et ses responsabilités..." required></textarea>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Validité (jours)</label>
+                                <input type="number" class="form-control" id="newPermitValidDays" 
+                                    value="1095" min="0" placeholder="0 = illimité">
+                                <small class="text-muted">0 = illimité</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Catégorie</label>
+                                <select class="form-select" id="newPermitCategory">
+                                    <option value="sports_education">Sports & Éducation</option>
+                                    <option value="health">Santé</option>
+                                    <option value="construction">Construction</option>
+                                    <option value="governance">Gouvernance</option>
+                                    <option value="agriculture">Agriculture</option>
+                                    <option value="environmental">Environnement</option>
+                                    <option value="transportation">Transport</option>
+                                    <option value="general">Général</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Permis requis</label>
+                                <input type="text" class="form-control" id="newPermitRequiredLicense" 
+                                    placeholder="Optionnel (ex: PERMIT_DRIVER)">
+                                <small class="text-muted">Laissez vide si aucun requis</small>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        <h6><i class="bi bi-list-check"></i> Compétences <span class="text-muted">(ajoutables dynamiquement)</span></h6>
+                        <div id="competenciesList" class="mb-3">
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control competency-input" 
+                                    placeholder="Ex: Swimming instruction">
+                                <button type="button" class="btn btn-outline-danger" onclick="removeCompetency(this)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addCompetency()">
+                            <i class="bi bi-plus"></i> Ajouter une compétence
+                        </button>
+                        <small class="text-muted d-block mt-2">
+                            💡 Plus il y a de compétences, plus il faut d'attestations. 
+                            Minimum calculé: 2 + nombre de compétences
+                        </small>
+                        
+                        <hr>
+                        <h6><i class="bi bi-briefcase"></i> Responsabilités <span class="text-muted">(ajoutables dynamiquement)</span></h6>
+                        <div id="responsibleForList" class="mb-3">
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control responsible-input" 
+                                    placeholder="Ex: Swimming lessons">
+                                <button type="button" class="btn btn-outline-danger" onclick="removeResponsible(this)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addResponsible()">
+                            <i class="bi bi-plus"></i> Ajouter une responsabilité
+                        </button>
+                        
+                        <hr>
+                        <h6><i class="bi bi-people"></i> Bootstrap Initial (Optionnel)</h6>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> 
+                            Pour initialiser la WoT, fournissez 2 emails MULTIPASS qui créeront les premières demandes et s'attesteront mutuellement.
+                        </div>
+                        <div id="bootstrapEmailsList" class="mb-3">
+                            <div class="input-group mb-2">
+                                <input type="email" class="form-control bootstrap-email-input" 
+                                    placeholder="email1@example.com">
+                                <button type="button" class="btn btn-outline-danger" onclick="removeBootstrapEmail(this)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                            <div class="input-group mb-2">
+                                <input type="email" class="form-control bootstrap-email-input" 
+                                    placeholder="email2@example.com">
+                                <button type="button" class="btn btn-outline-danger" onclick="removeBootstrapEmail(this)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addBootstrapEmail()">
+                            <i class="bi bi-plus"></i> Ajouter un email bootstrap
+                        </button>
+                        
+                        <div class="alert alert-warning mt-3">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            <strong>Calcul automatique :</strong> Le nombre minimum d'attestations sera calculé automatiquement 
+                            basé sur le nombre de compétences (2 + nombre de compétences).
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-success" onclick="submitNewPermit()">
+                        <i class="bi bi-check-circle"></i> Créer le Permit (30500)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attestation Modal -->
+    <div class="modal fade" id="attestModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-check-circle"></i> Attester une Demande - Transférer vos Compétences
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="attestForm">
+                        <div class="mb-3">
+                            <label class="form-label">Votre déclaration d'attestation</label>
+                            <textarea class="form-control" id="attestStatement" rows="4" 
+                                placeholder="Je certifie que cette personne possède les compétences nécessaires..."></textarea>
+                        </div>
+                        
+                        <!-- Competencies Selection (if holder has 30503) -->
+                        <div class="mb-3" id="competenciesTransferSection" style="display: none;">
+                            <label class="form-label">
+                                <i class="bi bi-list-check"></i> Compétences à transférer
+                            </label>
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> 
+                                Sélectionnez les compétences que vous souhaitez transférer à cet apprenti. 
+                                Ces compétences seront ajoutées à son credential 30503.
+                            </div>
+                            <div id="competenciesCheckboxes" class="mb-3">
+                                <!-- Will be populated dynamically -->
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Nouvelles compétences révélées (optionnel)</label>
+                            <input type="text" class="form-control" id="revealedCompetencies" 
+                                placeholder="Ex: Natation synchronisée, Sauvetage en eau vive, Aqua-fitness...">
+                            <small class="text-muted">Décrivez les compétences supplémentaires que vous avez observées (seront ajoutées au système)</small>
+                        </div>
+                        
+                        <!-- Geolocation -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="bi bi-geo-alt"></i> Géolocalisation (optionnel)
+                            </label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <input type="number" class="form-control" id="attestLatitude" 
+                                        step="0.000001" placeholder="Latitude">
+                                </div>
+                                <div class="col-md-6">
+                                    <input type="number" class="form-control" id="attestLongitude" 
+                                        step="0.000001" placeholder="Longitude">
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="getCurrentLocation()">
+                                <i class="bi bi-crosshair"></i> Utiliser ma position actuelle
+                            </button>
+                            <small class="text-muted d-block mt-1">
+                                Permet de décentraliser écoles et syndicats - trouver des maîtres près de vous
+                            </small>
+                        </div>
+                        
+                        <input type="hidden" id="attestRequestId">
+                        <input type="hidden" id="attestApplicantNpub">
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-success" onclick="submitAttestation()">
+                        <i class="bi bi-check-circle"></i> Attester & Transférer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    
+    <!-- NostrTools Bundle (required for common.js) -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    
+    <!-- Common.js - UPlanet NOSTR utilities -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    
+    <script>
+        const uSPOT = "{{ uSPOT }}";
+        const myIPFS = "{{ myIPFS }}";
+        const nostrRelay = "{{ nostr_relay }}" || "ws://127.0.0.1:7777";
+        let userNpub = null;
+        let relay = null;
+        // Permit data from server (only 30500 definitions)
+        const permitDataRaw = {{ permit_data | tojson }};
+        let permitData = permitDataRaw || {};
+        // All permits list (from 30500 events)
+        const allPermitsRaw = {{ all_permits | tojson }};
+        const allPermits = allPermitsRaw || [];
+        let selectedPermitId = "{{ selected_permit_id }}" || "PERMIT_DE_NAGER";
+        
+        // Data loaded from Nostr (30501 requests, 30502 attestations, 30503 credentials)
+        let permitRequests = [];  // kind 30501
+        let permitCredentials = [];  // kind 30503
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            checkMULTIPASSConnection();
+            loadPermitSelector();
+            initNostrRelay();
+            loadData();
+        });
+        
+        // Initialize Nostr relay connection
+        async function initNostrRelay() {
+            if (typeof Relay !== 'undefined') {
+                try {
+                    relay = new Relay(nostrRelay);
+                    await relay.connect();
+                    console.log('Connected to Nostr relay:', nostrRelay);
+                    // Load data from Nostr
+                    loadNostrData();
+                } catch (e) {
+                    console.error('Failed to connect to Nostr relay:', e);
+                }
+            } else {
+                console.warn('NostrTools Relay not available, using window.nostr directly');
+            }
+        }
+        
+        // Load data from Nostr (30501 requests, 30502 attestations, 30503 credentials)
+        async function loadNostrData() {
+            if (!permitData || !permitData.id) return;
+            
+            try {
+                // Load permit requests (kind 30501) for selected permit
+                const requests = await fetchNostrEvents(30501, {
+                    '#l': [permitData.id, 'permit_type']
+                });
+                permitRequests = requests.map(parsePermitRequest);
+                
+                // Load permit credentials (kind 30503) for selected permit
+                const credentials = await fetchNostrEvents(30503, {
+                    '#l': [permitData.id, 'permit_type']
+                });
+                permitCredentials = credentials.map(parsePermitCredential);
+                
+                // Update UI
+                loadInstructors();
+                loadPendingRequests();
+            } catch (e) {
+                console.error('Error loading Nostr data:', e);
+            }
+        }
+        
+        // Fetch events from Nostr relay
+        async function fetchNostrEvents(kind, filters = {}) {
+            if (window.nostr && typeof window.nostr.getRelays === 'function') {
+                // Use user's configured relays
+                const relays = await window.nostr.getRelays();
+                const relayUrls = Object.keys(relays);
+                
+                if (relayUrls.length === 0) {
+                    // Fallback to default relay
+                    relayUrls.push(nostrRelay);
+                }
+                
+                const events = [];
+                for (const relayUrl of relayUrls) {
+                    try {
+                        const relay = new Relay(relayUrl);
+                        await relay.connect();
+                        const sub = relay.subscribe([{ kind, ...filters }], {
+                            onevent: (event) => events.push(event),
+                            oneose: () => relay.close()
+                        });
+                        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s for events
+                        relay.close();
+                    } catch (e) {
+                        console.warn(`Failed to fetch from ${relayUrl}:`, e);
+                    }
+                }
+                return events;
+            } else if (relay) {
+                // Use single relay connection
+                return new Promise((resolve) => {
+                    const events = [];
+                    const sub = relay.subscribe([{ kind, ...filters }], {
+                        onevent: (event) => events.push(event),
+                        oneose: () => resolve(events)
+                    });
+                    setTimeout(() => {
+                        sub.close();
+                        resolve(events);
+                    }, 2000);
+                });
+            }
+            return [];
+        }
+        
+        // Parse permit request event (kind 30501)
+        function parsePermitRequest(event) {
+            try {
+                const content = JSON.parse(event.content);
+                return {
+                    id: content.request_id || event.id,
+                    applicant_npub: event.pubkey,
+                    permit_definition_id: content.permit_definition_id,
+                    statement: content.statement,
+                    evidence: content.evidence || [],
+                    status: content.status || 'pending',
+                    created_at: new Date(event.created_at * 1000).toISOString(),
+                    event_id: event.id,
+                    attestations_count: 0  // Will be calculated from 30502 events
+                };
+            } catch (e) {
+                console.error('Error parsing permit request:', e);
+                return null;
+            }
+        }
+        
+        // Parse permit credential event (kind 30503)
+        function parsePermitCredential(event) {
+            try {
+                const content = JSON.parse(event.content);
+                return {
+                    id: content.credential_id || event.id,
+                    holder_npub: content.holder_npub || event.pubkey,
+                    permit_definition_id: content.permit_definition_id,
+                    issued_at: content.issued_at,
+                    expires_at: content.expires_at,
+                    attestations_count: content.attestations || 0,
+                    event_id: event.id
+                };
+            } catch (e) {
+                console.error('Error parsing permit credential:', e);
+                return null;
+            }
+        }
+        
+        // Count attestations for a request (kind 30502)
+        async function countAttestations(requestId) {
+            const attestations = await fetchNostrEvents(30502, {
+                '#e': [requestId]
+            });
+            return attestations.length;
+        }
+
+        // MULTIPASS Connection using common.js
+        async function checkMULTIPASSConnection() {
+            try {
+                // Use common.js ensureNostrConnection if available
+                if (typeof ensureNostrConnection === 'function') {
+                    try {
+                        const connected = await ensureNostrConnection({ showNotification: false });
+                        if (connected && window.nostr) {
+                            userNpub = await window.nostr.getPublicKey();
+                            if (userNpub) {
+                                updateConnectionBadge(true, userNpub);
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        console.log('common.js connection attempt failed:', e);
+                    }
+                }
+                
+                // Fallback: Check if window.nostr is available
+                if (window.nostr) {
+                    try {
+                        userNpub = await window.nostr.getPublicKey();
+                        if (userNpub) {
+                            updateConnectionBadge(true, userNpub);
+                            return;
+                        }
+                    } catch (e) {
+                        console.log('NOSTR extension not connected');
+                    }
+                }
+                
+                // Check URL parameter
+                const urlParams = new URLSearchParams(window.location.search);
+                const npubParam = urlParams.get('npub');
+                if (npubParam) {
+                    userNpub = npubParam;
+                    updateConnectionBadge(true, npubParam);
+                    return;
+                }
+                
+                updateConnectionBadge(false, null);
+            } catch (e) {
+                console.error('Error checking MULTIPASS:', e);
+                updateConnectionBadge(false, null);
+            }
+        }
+
+        function updateConnectionBadge(authenticated, npub) {
+            const badge = document.getElementById('connectionBadge');
+            const statusText = badge.querySelector('.status-text');
+            const connectBtn = badge.querySelector('.btn-connect');
+            
+            if (authenticated && npub) {
+                badge.classList.add('authenticated');
+                badge.classList.remove('disconnected');
+                statusText.textContent = 'MULTIPASS Connecté';
+                if (connectBtn) connectBtn.style.display = 'none';
+            } else {
+                badge.classList.remove('authenticated');
+                badge.classList.add('disconnected');
+                statusText.textContent = 'Non connecté';
+                if (connectBtn) connectBtn.style.display = 'block';
+            }
+        }
+
+        async function connectMULTIPASS() {
+            // Use common.js connectNostr if available
+            if (typeof connectNostr === 'function') {
+                try {
+                    const connected = await connectNostr(true); // forceAuth = true
+                    if (connected && window.nostr) {
+                        userNpub = await window.nostr.getPublicKey();
+                        if (userNpub) {
+                            updateConnectionBadge(true, userNpub);
+                            // Update URL with npub
+                            const url = new URL(window.location);
+                            url.searchParams.set('npub', userNpub);
+                            window.history.pushState({}, '', url);
+                            // Reload data after connection
+                            setTimeout(() => location.reload(), 1000);
+                        }
+                    }
+                } catch (e) {
+                    console.error('common.js connection error:', e);
+                    alert('Erreur de connexion MULTIPASS: ' + e.message);
+                }
+            } else if (window.nostr) {
+                // Fallback to direct nostr extension
+                try {
+                    userNpub = await window.nostr.getPublicKey();
+                    if (userNpub) {
+                        updateConnectionBadge(true, userNpub);
+                        // Update URL with npub
+                        const url = new URL(window.location);
+                        url.searchParams.set('npub', userNpub);
+                        window.history.pushState({}, '', url);
+                    }
+                } catch (e) {
+                    alert('Erreur de connexion MULTIPASS: ' + e.message);
+                }
+            } else {
+                alert('Extension NOSTR non trouvée. Installez une extension NOSTR pour vous connecter.');
+            }
+        }
+
+        // Load permit data
+        function loadData() {
+            if (permitData && permitData.id) {
+                // Check if bootstrap mode (no holders yet)
+                const totalHolders = permitData.total_holders || 0;
+                const isBootstrap = totalHolders === 0;
+                
+                // Determine required attestations
+                let requiredAttestations = permitData.min_attestations || 6;
+                if (isBootstrap) {
+                    const bootstrapConfig = permitData.metadata?.evolving_system?.bootstrap;
+                    if (bootstrapConfig && bootstrapConfig.min_attestations) {
+                        requiredAttestations = bootstrapConfig.min_attestations;
+                    } else {
+                        requiredAttestations = 2; // Default bootstrap for any new permit
+                    }
+                }
+                
+                // Update stats (use data from Nostr)
+                document.getElementById('totalHolders').textContent = permitCredentials.length || 0;
+                document.getElementById('totalRequests').textContent = permitRequests.length || 0;
+                document.getElementById('minAttestations').textContent = requiredAttestations;
+                document.getElementById('requiredAttestations').textContent = requiredAttestations;
+                
+                // Show bootstrap indicator if applicable
+                if (isBootstrap) {
+                    const statsCard = document.querySelector('.stats-card:last-child');
+                    if (statsCard) {
+                        statsCard.innerHTML = `
+                            <div class="number" id="minAttestations">${requiredAttestations}</div>
+                            <div class="label">Attestations requises <span class="badge bg-warning">Bootstrap</span></div>
+                        `;
+                    }
+                    // Show bootstrap instructions
+                    const bootstrapInstructions = document.getElementById('bootstrapInstructions');
+                    if (bootstrapInstructions) {
+                        bootstrapInstructions.style.display = 'block';
+                    }
+                }
+                
+                // Load instructors (from Nostr 30503)
+                loadInstructors();
+                
+                // Load pending requests (from Nostr 30501)
+                loadPendingRequests(requiredAttestations);
+            }
+        }
+
+        function loadInstructors() {
+            const listEl = document.getElementById('instructorsList');
+            
+            // Use credentials from Nostr (30503)
+            if (!permitCredentials || permitCredentials.length === 0) {
+                listEl.innerHTML = `
+                    <div class="empty-state">
+                        <i class="bi bi-people"></i>
+                        <p>Aucun professionnel certifié pour le moment.</p>
+                        <p class="text-muted">Soyez le premier à obtenir le permis !</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            permitCredentials.forEach(holder => {
+                html += `
+                    <div class="instructor-card card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h5 class="mb-2">
+                                        <i class="bi bi-person-badge text-primary"></i>
+                                        Professionnel Certifié
+                                    </h5>
+                                    <p class="text-muted mb-1">
+                                        <code>${holder.holder_npub.substring(0, 16)}...</code>
+                                    </p>
+                                    <small class="text-muted">
+                                        <i class="bi bi-check-circle"></i> 
+                                        ${holder.attestations_count} attestations
+                                    </small>
+                                </div>
+                                <div class="text-end">
+                                    ${userNpub && userNpub !== holder.holder_npub ? `
+                                        <button class="btn btn-sm btn-success" onclick="showAttestModal('${holder.holder_npub}')">
+                                            <i class="bi bi-chat-dots"></i> Contacter
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            listEl.innerHTML = html;
+        }
+
+        async function loadPendingRequests(requiredAttestations) {
+            const listEl = document.getElementById('pendingRequestsList');
+            
+            // Use requests from Nostr (30501)
+            if (!permitRequests || permitRequests.length === 0) {
+                listEl.innerHTML = `
+                    <div class="empty-state">
+                        <i class="bi bi-inbox"></i>
+                        <p>Aucune demande en attente.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Use provided requiredAttestations or fallback to min_attestations
+            const reqAttest = requiredAttestations || permitData.min_attestations || 6;
+            
+            let html = '';
+            for (const request of permitRequests) {
+                // Count attestations for this request
+                const attestCount = await countAttestations(request.id);
+                request.attestations_count = attestCount;
+                const progress = (request.attestations_count / reqAttest) * 100;
+                const isMyRequest = userNpub && userNpub === request.applicant_npub;
+                const canAttest = userNpub && userNpub !== request.applicant_npub;
+                
+                html += `
+                    <div class="card mb-3 ${isMyRequest ? 'border-primary' : ''}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="mb-1">
+                                        ${isMyRequest ? '<i class="bi bi-person-check text-primary"></i> ' : ''}
+                                        Demande #${request.id.substring(0, 8)}
+                                        ${isMyRequest ? '<span class="badge bg-primary ms-2">Ma demande</span>' : ''}
+                                    </h6>
+                                    <p class="text-muted mb-1">
+                                        <code>${request.applicant_npub.substring(0, 16)}...</code>
+                                    </p>
+                                    <p class="mb-0">${request.statement}</p>
+                                    ${request.created_at ? `
+                                        <small class="text-muted">
+                                            <i class="bi bi-clock"></i> Créée le ${new Date(request.created_at).toLocaleString('fr-FR')}
+                                        </small>
+                                    ` : ''}
+                                </div>
+                                <span class="badge bg-${request.status === 'attesting' ? 'warning' : request.status === 'validated' ? 'success' : 'secondary'}">
+                                    ${request.status}
+                                </span>
+                            </div>
+                            <div class="mt-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <small>Attestations: ${request.attestations_count} / ${reqAttest}</small>
+                                    <small>${Math.round(progress)}%</small>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar ${progress >= 100 ? 'bg-success' : ''}" style="width: ${Math.min(progress, 100)}%"></div>
+                                </div>
+                            </div>
+                            ${isMyRequest ? `
+                                <div class="alert alert-info mt-3 mb-0">
+                                    <i class="bi bi-info-circle"></i> 
+                                    <strong>Votre demande</strong> - Vous êtes apprenti, cherchez un maître !
+                                    ${request.attestations_count >= reqAttest ? 
+                                        ' <strong>Seuil atteint !</strong> Le credential 30503 sera émis par ORACLE.refresh.sh' : 
+                                        ' Il vous faut encore ' + (reqAttest - request.attestations_count) + ' maître(s) pour vous attester (30502).'
+                                    }
+                                </div>
+                            ` : ''}
+                            ${canAttest ? `
+                                <div class="mt-3">
+                                    <button class="btn btn-sm btn-success" onclick="showAttestModal('${request.applicant_npub}', '${request.id}')">
+                                        <i class="bi bi-check-circle"></i> 
+                                        ${request.attestations_count < reqAttest ? 
+                                            '👨‍🏫 Devenir Maître (Attester)' : 
+                                            'Attester cette demande (30502)'}
+                                    </button>
+                                    <small class="text-muted d-block mt-1">
+                                        ${request.attestations_count < reqAttest ? 
+                                            '💡 <strong>Apprenti cherche maître</strong> - Transférez vos compétences en l\'attestant' : 
+                                            'En attestant, vous créez un kind 30502 qui permettra à ORACLE.refresh.sh de valider cette demande'}
+                                    </small>
+                                </div>
+                            ` : ''}
+                            ${!userNpub ? `
+                                <div class="mt-3">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="connectMULTIPASS()">
+                                        <i class="bi bi-wallet2"></i> Connecter MULTIPASS pour attester
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            listEl.innerHTML = html;
+        }
+
+        function showRequestModal() {
+            if (!userNpub) {
+                alert('Veuillez vous connecter avec votre MULTIPASS pour faire une demande.');
+                connectMULTIPASS();
+                return;
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('requestModal'));
+            modal.show();
+        }
+
+        async function submitRequest() {
+            if (!userNpub || !window.nostr) {
+                alert('Veuillez vous connecter avec votre MULTIPASS.');
+                return;
+            }
+            
+            const statement = document.getElementById('statement').value;
+            const evidenceInput = document.getElementById('evidence').value;
+            const evidence = evidenceInput ? evidenceInput.split(',').map(e => e.trim()).filter(e => e) : [];
+            
+            if (!statement || statement.length < 20) {
+                alert('Veuillez fournir une déclaration d\'au moins 20 caractères.');
+                return;
+            }
+            
+            try {
+                // Generate request ID
+                const requestId = await window.nostr.getPublicKey().then(pubkey => {
+                    return btoa(pubkey + ':' + permitData.id + ':' + Date.now()).substring(0, 16);
+                });
+                
+                // Get geolocation if available
+                let location = null;
+                if (navigator.geolocation) {
+                    try {
+                        const position = await new Promise((resolve, reject) => {
+                            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+                        });
+                        location = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            timestamp: new Date().toISOString()
+                        };
+                    } catch (e) {
+                        console.log('Geolocation not available:', e);
+                    }
+                }
+                
+                // Create permit request event (kind 30501)
+                const requestContent = {
+                    request_id: requestId,
+                    permit_definition_id: permitData.id || 'PERMIT_DE_NAGER',
+                    applicant_did: `did:nostr:${userNpub}`,
+                    statement: statement,
+                    evidence: evidence,
+                    status: 'pending',
+                    location: location
+                };
+                
+                const eventTags = [
+                    ['d', requestId],
+                    ['l', permitData.id, 'permit_type'],
+                    ['p', userNpub],
+                    ['t', 'permit'],
+                    ['t', 'request']
+                ];
+                
+                // Add geolocation tags if available
+                if (location) {
+                    eventTags.push(['g', location.latitude.toString(), location.longitude.toString()]);
+                }
+                
+                const event = {
+                    kind: 30501,
+                    content: JSON.stringify(requestContent),
+                    tags: eventTags,
+                    created_at: Math.floor(Date.now() / 1000)
+                };
+                
+                // Sign and publish event
+                const signedEvent = await window.nostr.signEvent(event);
+                
+                // Publish to relays
+                if (window.nostr.getRelays) {
+                    const relays = await window.nostr.getRelays();
+                    const relayUrls = Object.keys(relays);
+                    
+                    for (const relayUrl of relayUrls) {
+                        try {
+                            const relay = new Relay(relayUrl);
+                            await relay.connect();
+                            await relay.publish(signedEvent);
+                            relay.close();
+                        } catch (e) {
+                            console.warn(`Failed to publish to ${relayUrl}:`, e);
+                        }
+                    }
+                } else {
+                    // Fallback: use default relay
+                    const relay = new Relay(nostrRelay);
+                    await relay.connect();
+                    await relay.publish(signedEvent);
+                    relay.close();
+                }
+                
+                // Determine required attestations (bootstrap or normal)
+                const totalHolders = permitCredentials.length || 0;
+                const isBootstrap = totalHolders === 0;
+                let reqAttest = permitData.min_attestations || 6;
+                if (isBootstrap) {
+                    const bootstrapConfig = permitData.metadata?.evolving_system?.bootstrap;
+                    reqAttest = bootstrapConfig?.min_attestations || 2;
+                }
+                
+                const bootstrapMsg = isBootstrap ? ' (mode bootstrap)' : '';
+                const message = `✅ Demande 30501 créée avec succès !\n\n` +
+                    `ID de demande: ${requestId}\n` +
+                    `Event ID: ${signedEvent.id}\n\n` +
+                    `📋 Prochaines étapes :\n` +
+                    `1. Votre demande apparaît maintenant dans la liste\n` +
+                    `2. Une autre personne doit vous attester (kind 30502)\n` +
+                    `3. Vous devez obtenir ${reqAttest} attestation(s)${bootstrapMsg}\n` +
+                    `4. ORACLE.refresh.sh validera et émettra le credential 30503\n\n` +
+                    `💡 Astuce : Ouvrez cette page dans un autre navigateur avec un autre MULTIPASS pour tester l'attestation réciproque !`;
+                
+                alert(message);
+                bootstrap.Modal.getInstance(document.getElementById('requestModal')).hide();
+                
+                // Reload data from Nostr
+                await loadNostrData();
+            } catch (e) {
+                console.error('Error submitting request:', e);
+                alert('Erreur lors de la soumission: ' + e.message);
+            }
+        }
+
+        async function showAttestModal(applicantNpub, requestId) {
+            if (!userNpub) {
+                alert('Veuillez vous connecter avec votre MULTIPASS pour attester.');
+                connectMULTIPASS();
+                return;
+            }
+            
+            document.getElementById('attestRequestId').value = requestId || '';
+            document.getElementById('attestApplicantNpub').value = applicantNpub || '';
+            
+            // Check if user has a 30503 credential for this permit
+            const userCredentials = permitCredentials.filter(c => c.holder_npub === userNpub && c.permit_definition_id === permitData.id);
+            
+            if (userCredentials.length > 0) {
+                // User has credential - show competencies transfer section
+                const section = document.getElementById('competenciesTransferSection');
+                const checkboxes = document.getElementById('competenciesCheckboxes');
+                
+                // Get competencies from permit definition
+                const permitCompetencies = permitData.metadata?.competencies || [];
+                
+                if (permitCompetencies.length > 0) {
+                    section.style.display = 'block';
+                    checkboxes.innerHTML = '';
+                    
+                    permitCompetencies.forEach(comp => {
+                        const div = document.createElement('div');
+                        div.className = 'form-check mb-2';
+                        div.innerHTML = `
+                            <input class="form-check-input competency-checkbox" type="checkbox" 
+                                value="${comp}" id="comp_${comp.replace(/\s+/g, '_')}">
+                            <label class="form-check-label" for="comp_${comp.replace(/\s+/g, '_')}">
+                                ${comp}
+                            </label>
+                        `;
+                        checkboxes.appendChild(div);
+                    });
+                }
+            } else {
+                // User doesn't have credential - hide competencies section
+                document.getElementById('competenciesTransferSection').style.display = 'none';
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('attestModal'));
+            modal.show();
+        }
+        
+        // Get current geolocation
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        document.getElementById('attestLatitude').value = position.coords.latitude.toFixed(6);
+                        document.getElementById('attestLongitude').value = position.coords.longitude.toFixed(6);
+                    },
+                    (error) => {
+                        console.error('Geolocation error:', error);
+                        alert('Impossible d\'obtenir votre position. Vous pouvez la saisir manuellement.');
+                    }
+                );
+            } else {
+                alert('La géolocalisation n\'est pas supportée par votre navigateur.');
+            }
+        }
+
+        async function submitAttestation() {
+            if (!userNpub || !window.nostr) {
+                alert('Veuillez vous connecter avec votre MULTIPASS.');
+                return;
+            }
+            
+            const requestId = document.getElementById('attestRequestId').value;
+            const statement = document.getElementById('attestStatement').value;
+            const revealedCompetencies = document.getElementById('revealedCompetencies').value;
+            const latitude = document.getElementById('attestLatitude').value;
+            const longitude = document.getElementById('attestLongitude').value;
+            
+            if (!requestId) {
+                alert('ID de demande manquant.');
+                return;
+            }
+            
+            if (!statement || statement.length < 10) {
+                alert('Veuillez fournir une déclaration d\'attestation.');
+                return;
+            }
+            
+            // Collect competencies to transfer (if user has 30503)
+            const competenciesToTransfer = [];
+            document.querySelectorAll('.competency-checkbox:checked').forEach(checkbox => {
+                competenciesToTransfer.push(checkbox.value);
+            });
+            
+            // Add revealed competencies to statement if provided
+            let fullStatement = statement;
+            if (revealedCompetencies) {
+                fullStatement += '\n\nCompétences supplémentaires révélées: ' + revealedCompetencies;
+            }
+            if (competenciesToTransfer.length > 0) {
+                fullStatement += '\n\nCompétences transférées: ' + competenciesToTransfer.join(', ');
+            }
+            
+            try {
+                // Generate attestation ID
+                const attestationId = await window.nostr.getPublicKey().then(pubkey => {
+                    return btoa(pubkey + ':' + requestId + ':' + Date.now()).substring(0, 16);
+                });
+                
+                // Create permit attestation event (kind 30502)
+                const attestationContent = {
+                    attestation_id: attestationId,
+                    request_id: requestId,
+                    attester_did: `did:nostr:${userNpub}`,
+                    statement: fullStatement,
+                    competencies_transferred: competenciesToTransfer,
+                    revealed_competencies: revealedCompetencies ? revealedCompetencies.split(',').map(c => c.trim()) : [],
+                    location: (latitude && longitude) ? {
+                        latitude: parseFloat(latitude),
+                        longitude: parseFloat(longitude),
+                        timestamp: new Date().toISOString()
+                    } : null,
+                    signature: await window.nostr.getPublicKey().then(pubkey => {
+                        return btoa(pubkey + ':' + fullStatement + ':' + Date.now()).substring(0, 32);
+                    })
+                };
+                
+                const eventTags = [
+                    ['d', attestationId],
+                    ['e', requestId],
+                    ['p', userNpub],
+                    ['t', 'permit'],
+                    ['t', 'attestation']
+                ];
+                
+                // Add geolocation tags if provided
+                if (latitude && longitude) {
+                    eventTags.push(['g', latitude, longitude]);
+                }
+                
+                // Add competencies tags
+                competenciesToTransfer.forEach(comp => {
+                    eventTags.push(['competency', comp]);
+                });
+                
+                const event = {
+                    kind: 30502,
+                    content: JSON.stringify(attestationContent),
+                    tags: eventTags,
+                    created_at: Math.floor(Date.now() / 1000)
+                };
+                
+                // Sign and publish event
+                const signedEvent = await window.nostr.signEvent(event);
+                
+                // Publish to relays
+                if (window.nostr.getRelays) {
+                    const relays = await window.nostr.getRelays();
+                    const relayUrls = Object.keys(relays);
+                    
+                    for (const relayUrl of relayUrls) {
+                        try {
+                            const relay = new Relay(relayUrl);
+                            await relay.connect();
+                            await relay.publish(signedEvent);
+                            relay.close();
+                        } catch (e) {
+                            console.warn(`Failed to publish to ${relayUrl}:`, e);
+                        }
+                    }
+                } else {
+                    // Fallback: use default relay
+                    const relay = new Relay(nostrRelay);
+                    await relay.connect();
+                    await relay.publish(signedEvent);
+                    relay.close();
+                }
+                
+                // Count attestations
+                const attestationsCount = await countAttestations(requestId);
+                
+                let message = `✅ Attestation 30502 soumise avec succès !\n\n` +
+                    `ID d'attestation: ${attestationId}\n` +
+                    `Event ID: ${signedEvent.id}\n` +
+                    `Attestations totales: ${attestationsCount}\n\n`;
+                
+                if (competenciesToTransfer.length > 0) {
+                    message += `📚 Compétences transférées : ${competenciesToTransfer.join(', ')}\n` +
+                        `Ces compétences seront ajoutées au credential 30503 de l'apprenti.\n\n`;
+                }
+                
+                if (revealedCompetencies) {
+                    message += `🌟 Nouvelles compétences révélées : ${revealedCompetencies}\n` +
+                        `Ces compétences seront ajoutées au système WoTx2.\n\n`;
+                }
+                
+                if (latitude && longitude) {
+                    message += `📍 Géolocalisation : ${latitude}, ${longitude}\n` +
+                        `Permet de trouver des maîtres près de vous.\n\n`;
+                }
+                
+                message += `📋 Prochaines étapes :\n` +
+                    `1. L'attestation est maintenant visible sur la demande\n` +
+                    `2. ORACLE.refresh.sh vérifiera le seuil d'attestations\n` +
+                    `3. Si le seuil est atteint, le credential 30503 sera émis automatiquement\n` +
+                    `4. Actualisez la page pour voir les mises à jour`;
+                
+                alert(message);
+                bootstrap.Modal.getInstance(document.getElementById('attestModal')).hide();
+                
+                // Reload data from Nostr
+                await loadNostrData();
+            } catch (e) {
+                console.error('Error submitting attestation:', e);
+                alert('Erreur lors de l\'attestation: ' + e.message);
+            }
+        }
+
+        // Load permit selector dropdown
+        function loadPermitSelector() {
+            const selector = document.getElementById('permitSelector');
+            if (!selector) return;
+            
+            selector.innerHTML = '';
+            
+            if (allPermits.length === 0) {
+                selector.innerHTML = '<option value="">Aucun permit disponible</option>';
+                return;
+            }
+            
+            allPermits.forEach(permit => {
+                const option = document.createElement('option');
+                option.value = permit.id;
+                option.textContent = `${permit.name} (${permit.holders_count} titulaires, ${permit.pending_count} en attente)`;
+                if (permit.id === selectedPermitId) {
+                    option.selected = true;
+                }
+                selector.appendChild(option);
+            });
+            
+            // Update UI with selected permit
+            updatePermitUI();
+        }
+
+        // Switch to different permit
+        function switchPermit() {
+            const selector = document.getElementById('permitSelector');
+            if (!selector) return;
+            
+            const newPermitId = selector.value;
+            if (newPermitId && newPermitId !== selectedPermitId) {
+                window.location.href = `/wotx2?permit_id=${encodeURIComponent(newPermitId)}`;
+            }
+        }
+
+        // Update UI with current permit info
+        function updatePermitUI() {
+            const selectedPermit = allPermits.find(p => p.id === selectedPermitId);
+            if (selectedPermit) {
+                const titleEl = document.getElementById('permitTitle');
+                if (titleEl) titleEl.textContent = selectedPermit.name + ' - WoTx2';
+            }
+        }
+
+        // Show new permit modal
+        function showNewPermitModal() {
+            if (!userNpub) {
+                alert('Vous devez être connecté avec MULTIPASS pour créer un nouveau permit.');
+                connectMULTIPASS();
+                return;
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('newPermitModal'));
+            modal.show();
+        }
+
+        // Add competency field
+        function addCompetency() {
+            const list = document.getElementById('competenciesList');
+            const div = document.createElement('div');
+            div.className = 'input-group mb-2';
+            div.innerHTML = `
+                <input type="text" class="form-control competency-input" 
+                    placeholder="Ex: Swimming instruction">
+                <button type="button" class="btn btn-outline-danger" onclick="removeCompetency(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+            list.appendChild(div);
+        }
+
+        // Remove competency field
+        function removeCompetency(btn) {
+            const list = document.getElementById('competenciesList');
+            if (list.children.length > 1) {
+                btn.closest('.input-group').remove();
+            } else {
+                alert('Au moins une compétence est requise.');
+            }
+        }
+
+        // Add responsible field
+        function addResponsible() {
+            const list = document.getElementById('responsibleForList');
+            const div = document.createElement('div');
+            div.className = 'input-group mb-2';
+            div.innerHTML = `
+                <input type="text" class="form-control responsible-input" 
+                    placeholder="Ex: Swimming lessons">
+                <button type="button" class="btn btn-outline-danger" onclick="removeResponsible(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+            list.appendChild(div);
+        }
+
+        // Remove responsible field
+        function removeResponsible(btn) {
+            const list = document.getElementById('responsibleForList');
+            if (list.children.length > 1) {
+                btn.closest('.input-group').remove();
+            } else {
+                alert('Au moins une responsabilité est requise.');
+            }
+        }
+
+        // Add bootstrap email field
+        function addBootstrapEmail() {
+            const list = document.getElementById('bootstrapEmailsList');
+            const div = document.createElement('div');
+            div.className = 'input-group mb-2';
+            div.innerHTML = `
+                <input type="email" class="form-control bootstrap-email-input" 
+                    placeholder="email@example.com">
+                <button type="button" class="btn btn-outline-danger" onclick="removeBootstrapEmail(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+            list.appendChild(div);
+        }
+
+        // Remove bootstrap email field
+        function removeBootstrapEmail(btn) {
+            const list = document.getElementById('bootstrapEmailsList');
+            if (list.children.length > 2) {
+                btn.closest('.input-group').remove();
+            } else {
+                alert('Au moins 2 emails sont requis pour le bootstrap.');
+            }
+        }
+
+        // Submit new permit
+        async function submitNewPermit() {
+            if (!userNpub) {
+                alert('Vous devez être connecté avec MULTIPASS.');
+                return;
+            }
+
+            // Collect form data
+            const permitId = document.getElementById('newPermitId').value.trim();
+            const permitName = document.getElementById('newPermitName').value.trim();
+            const permitDescription = document.getElementById('newPermitDescription').value.trim();
+            const validDays = parseInt(document.getElementById('newPermitValidDays').value) || 0;
+            const category = document.getElementById('newPermitCategory').value;
+            const requiredLicense = document.getElementById('newPermitRequiredLicense').value.trim() || null;
+
+            // Validate required fields
+            if (!permitId || !permitName || !permitDescription) {
+                alert('Veuillez remplir tous les champs obligatoires.');
+                return;
+            }
+
+            // Validate permit ID format
+            if (!/^PERMIT_[A-Z0-9_]+$/.test(permitId)) {
+                alert('L\'ID du permit doit être au format PERMIT_MAJUSCULES_UNDERSCORES');
+                return;
+            }
+
+            // Collect competencies
+            const competencies = [];
+            document.querySelectorAll('.competency-input').forEach(input => {
+                const val = input.value.trim();
+                if (val) competencies.push(val);
+            });
+            if (competencies.length === 0) {
+                alert('Au moins une compétence est requise.');
+                return;
+            }
+
+            // Collect responsibilities
+            const responsibleFor = [];
+            document.querySelectorAll('.responsible-input').forEach(input => {
+                const val = input.value.trim();
+                if (val) responsibleFor.push(val);
+            });
+            if (responsibleFor.length === 0) {
+                alert('Au moins une responsabilité est requise.');
+                return;
+            }
+
+            // Collect bootstrap emails
+            const bootstrapEmails = [];
+            document.querySelectorAll('.bootstrap-email-input').forEach(input => {
+                const val = input.value.trim();
+                if (val && val.includes('@')) bootstrapEmails.push(val);
+            });
+
+            // Calculate min_attestations (2 + number of competencies)
+            const minAttestations = Math.max(2, 2 + competencies.length);
+
+            // Build metadata
+            const metadata = {
+                category: category,
+                competencies: competencies,
+                responsible_for: responsibleFor,
+                evolving_system: {
+                    type: "WoTx2",
+                    description: "New competencies can be revealed during attestations, expanding the permit's scope",
+                    discovery_mechanism: "attestation_revealed_competencies",
+                    virtuous_circle: {
+                        student: "Receives instruction and can become instructor",
+                        instructor: "Teaches and discovers new talents",
+                        revealed_talents: "New competencies discovered through attestations expand the permit"
+                    },
+                    bootstrap: {
+                        min_attestations: 2,
+                        description: "For initial bootstrap (Block 0), only 2 attestations required for first kind 30501/30502 cycle"
+                    }
+                }
+            };
+
+            // Build request
+            const requestData = {
+                permit: {
+                    id: permitId,
+                    name: permitName,
+                    description: permitDescription,
+                    min_attestations: minAttestations,
+                    required_license: requiredLicense,
+                    valid_duration_days: validDays,
+                    revocable: true,
+                    verification_method: "peer_attestation",
+                    metadata: metadata
+                },
+                npub: userNpub,
+                bootstrap_emails: bootstrapEmails.length >= 2 ? bootstrapEmails : null
+            };
+
+            try {
+                const response = await fetch(`${uSPOT}/api/permit/define`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    let message = `Permit ${permitId} créé avec succès !\n`;
+                    message += `Attestations requises: ${result.min_attestations}\n`;
+                    if (result.bootstrap_initiated) {
+                        message += `\nBootstrap initié avec ${result.bootstrap_emails.length} emails.`;
+                    }
+                    alert(message);
+                    
+                    bootstrap.Modal.getInstance(document.getElementById('newPermitModal')).hide();
+                    
+                    // Reload page to show new permit
+                    setTimeout(() => {
+                        window.location.href = `/wotx2?permit_id=${encodeURIComponent(permitId)}`;
+                    }, 1000);
+                } else {
+                    alert('Erreur: ' + (result.detail || result.message || 'Échec de la création'));
+                }
+            } catch (e) {
+                console.error('Error creating permit:', e);
+                alert('Erreur lors de la création: ' + e.message);
+            }
+        }
+    </script>
+</body>
+</html>
+

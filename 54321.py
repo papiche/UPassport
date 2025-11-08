@@ -1547,6 +1547,82 @@ async def get_root(request: Request):
     return templates.TemplateResponse("g1nostr.html", {"request": request})
 
 # UPlanet Oracle - Permit Management Interface
+@app.get("/wotx2", response_class=HTMLResponse)
+async def get_wotx2(request: Request, npub: Optional[str] = None, permit_id: Optional[str] = None):
+    """WoTx2 Permit Interface - Evolving Web of Trust for Professional Permits
+    
+    This interface reads all data from Nostr relays. The API only serves to initialize the page.
+    All permit requests (30501) and attestations (30502) are managed directly via Nostr by each MULTIPASS.
+    Only permit definitions (30500) and credentials (30503) are managed by UPLANETNAME_G1 via the API.
+    
+    Args:
+        npub: Optional NOSTR public key for authenticated users
+        permit_id: Optional permit ID to display (default: PERMIT_DE_NAGER or first available)
+    """
+    try:
+        myipfs_gateway = get_myipfs_gateway()
+        
+        # Initialize empty data - will be loaded from Nostr by the frontend
+        all_permits = []
+        selected_permit_data = {}
+        selected_permit_id = permit_id or "PERMIT_DE_NAGER"
+        
+        # Only fetch permit definitions from Nostr (kind 30500) to populate the selector
+        if ORACLE_ENABLED and oracle_system is not None:
+            try:
+                # Fetch permit definitions from Nostr
+                nostr_definitions = oracle_system.fetch_permit_definitions_from_nostr()
+                
+                for permit_def in nostr_definitions:
+                    all_permits.append({
+                        "id": permit_def.id,
+                        "name": permit_def.name,
+                        "description": permit_def.description,
+                        "min_attestations": permit_def.min_attestations,
+                        "holders_count": 0,  # Will be calculated from Nostr by frontend
+                        "pending_count": 0,  # Will be calculated from Nostr by frontend
+                        "category": permit_def.metadata.get("category", "general") if permit_def.metadata else "general"
+                    })
+                
+                # Find selected permit
+                selected_permit = next((p for p in nostr_definitions if p.id == selected_permit_id), None)
+                if not selected_permit and nostr_definitions:
+                    selected_permit = nostr_definitions[0]
+                    selected_permit_id = selected_permit.id if selected_permit else None
+                
+                if selected_permit:
+                    selected_permit_data = {
+                        "id": selected_permit.id,
+                        "name": selected_permit.name,
+                        "description": selected_permit.description,
+                        "min_attestations": selected_permit.min_attestations,
+                        "valid_duration_days": selected_permit.valid_duration_days,
+                        "required_license": selected_permit.required_license,
+                        "revocable": selected_permit.revocable,
+                        "verification_method": selected_permit.verification_method,
+                        "metadata": selected_permit.metadata
+                    }
+            except Exception as e:
+                logging.warning(f"Error fetching permits from Nostr: {e}")
+        
+        return templates.TemplateResponse("wotx2.html", {
+            "request": request,
+            "myIPFS": myipfs_gateway,
+            "permit_data": selected_permit_data,
+            "all_permits": all_permits,
+            "selected_permit_id": permit_id or "PERMIT_DE_NAGER",
+            "npub": npub,
+            "uSPOT": os.getenv("uSPOT", "http://127.0.0.1:54321"),
+            "nostr_relay": os.getenv("NOSTR_RELAYS", "ws://127.0.0.1:7777").split()[0] if os.getenv("NOSTR_RELAYS") else "ws://127.0.0.1:7777"
+        })
+        
+    except Exception as e:
+        logging.error(f"Error in get_wotx2: {e}", exc_info=True)
+        return HTMLResponse(
+            content=f"<html><body><h1>Error</h1><p>{str(e)}</p></body></html>", 
+            status_code=500
+        )
+
 @app.get("/oracle")
 async def get_oracle(
     request: Request, 
@@ -1593,32 +1669,29 @@ async def get_oracle(
                 "metadata": definition.metadata
             })
         
-        # Get permit requests
+        # Get permit requests (from Nostr)
+        # Note: Since v2.1, requests are stored in Nostr, not oracle_system.requests
         requests_list = []
-        for req_id, req in oracle_system.requests.items():
-            # Filter by npub if specified
-            if npub and req.applicant_npub != npub:
-                continue
-            
-            requests_list.append({
-                "id": req_id,
-                "permit_definition_id": req.permit_definition_id,
-                "applicant_npub": req.applicant_npub,
-                "statement": req.statement,
-                "evidence": req.evidence,
-                "status": req.status,
-                "attestations": [
-                    {
-                        "attester_npub": att.attester_npub,
-                        "statement": att.statement,
-                        "timestamp": att.timestamp.isoformat() if att.timestamp else None,
-                        "attester_license_id": att.attester_license_id
-                    }
-                    for att in req.attestations
-                ],
-                "created_at": req.created_at.isoformat() if req.created_at else None,
-                "issued_credential_id": req.issued_credential_id
-            })
+        try:
+            nostr_requests = oracle_system.fetch_permit_requests_from_nostr()
+            for req in nostr_requests:
+                # Filter by npub if specified
+                if npub and req.applicant_npub != npub:
+                    continue
+                
+                requests_list.append({
+                    "id": req.request_id,
+                    "permit_definition_id": req.permit_definition_id,
+                    "applicant_npub": req.applicant_npub,
+                    "statement": req.statement,
+                    "evidence": req.evidence if hasattr(req, 'evidence') else [],
+                    "status": req.status.value if hasattr(req.status, 'value') else str(req.status),
+                    "attestations": req.attestations if hasattr(req, 'attestations') else [],
+                    "created_at": req.created_at.isoformat() if req.created_at else None,
+                    "issued_credential_id": None  # Will be set when credential is issued
+                })
+        except Exception as e:
+            logging.warning(f"Could not fetch requests from Nostr: {e}")
         
         # Get credentials
         credentials_list = []
@@ -6066,197 +6139,115 @@ class PermitAttestationRequest(BaseModel):
     statement: str
     attester_license_id: Optional[str] = None
 
+class PermitDefinitionCreateRequest(BaseModel):
+    permit: PermitDefinitionRequest
+    npub: str  # NOSTR public key for authentication
+    bootstrap_emails: Optional[List[str]] = None  # Optional: emails for bootstrap initialization
+
 @app.post("/api/permit/define")
-async def create_permit_definition(request: PermitDefinitionRequest):
-    """Create a new permit definition (admin/UPlanet authority only)"""
+async def create_permit_definition(request: PermitDefinitionCreateRequest):
+    """Create a new permit definition (requires NIP-42 authentication)
+    
+    Any authenticated user can create a new permit definition.
+    The permit will be signed by UPLANETNAME_G1 authority.
+    Optionally, can trigger bootstrap initialization with provided emails.
+    """
     if not ORACLE_ENABLED or oracle_system is None:
         raise HTTPException(status_code=503, detail="Oracle system not available")
     
     try:
+        # Verify NIP-42 authentication
+        if not request.npub:
+            raise HTTPException(status_code=401, detail="NOSTR authentication required (npub parameter)")
+        
+        if not await verify_nostr_auth(request.npub, force_check=True):
+            raise HTTPException(status_code=401, detail="NOSTR authentication failed (NIP-42)")
+        
+        permit_req = request.permit
+        
+        # Check if permit ID already exists
+        if permit_req.id in oracle_system.definitions:
+            raise HTTPException(status_code=400, detail=f"Permit definition {permit_req.id} already exists")
+        
         uplanet_g1_key = os.getenv("UPLANETNAME_G1", "")
         issuer_did = f"did:nostr:{uplanet_g1_key[:16]}"
         
+        # Calculate min_attestations based on number of competencies if not provided
+        min_attestations = permit_req.min_attestations
+        if min_attestations == 5:  # Default value, recalculate if competencies provided
+            competencies = permit_req.metadata.get("competencies", [])
+            if competencies and len(competencies) > 0:
+                # Base: 2 + 1 per competency (minimum 2 for bootstrap)
+                min_attestations = max(2, 2 + len(competencies))
+        
         definition = PermitDefinition(
-            id=request.id,
-            name=request.name,
-            description=request.description,
+            id=permit_req.id,
+            name=permit_req.name,
+            description=permit_req.description,
             issuer_did=issuer_did,
-            min_attestations=request.min_attestations,
-            required_license=request.required_license,
-            valid_duration_days=request.valid_duration_days,
-            revocable=request.revocable,
-            verification_method=request.verification_method,
-            metadata=request.metadata
+            min_attestations=min_attestations,
+            required_license=permit_req.required_license,
+            valid_duration_days=permit_req.valid_duration_days,
+            revocable=permit_req.revocable,
+            verification_method=permit_req.verification_method,
+            metadata=permit_req.metadata
         )
         
         success = oracle_system.create_permit_definition(definition)
         
         if success:
-            return JSONResponse({
+            response_data = {
                 "success": True,
-                "message": f"Permit definition {request.id} created",
-                "definition_id": request.id
-            })
+                "message": f"Permit definition {permit_req.id} created",
+                "definition_id": permit_req.id,
+                "min_attestations": min_attestations
+            }
+            
+            # Optionally trigger bootstrap if emails provided
+            if request.bootstrap_emails and len(request.bootstrap_emails) >= 2:
+                try:
+                    # Launch bootstrap script in background
+                    script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/oracle.WoT_PERMIT.init.sh")
+                    if os.path.exists(script_path):
+                        bootstrap_emails_str = " ".join(request.bootstrap_emails)
+                        # Run bootstrap script asynchronously
+                        asyncio.create_task(run_script(
+                            script_path,
+                            permit_req.id,
+                            *request.bootstrap_emails,
+                            log_file_path=os.path.expanduser(f"~/.zen/tmp/bootstrap_{permit_req.id}.log")
+                        ))
+                        response_data["bootstrap_initiated"] = True
+                        response_data["bootstrap_emails"] = request.bootstrap_emails
+                        logging.info(f"Bootstrap initiated for {permit_req.id} with {len(request.bootstrap_emails)} emails")
+                except Exception as e:
+                    logging.error(f"Failed to initiate bootstrap: {e}")
+                    response_data["bootstrap_error"] = str(e)
+            
+            return JSONResponse(response_data)
         else:
             raise HTTPException(status_code=400, detail="Failed to create permit definition")
     
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error creating permit definition: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/permit/request")
-async def request_permit(request: PermitApplicationRequest):
-    """Submit a permit request"""
-    if not ORACLE_ENABLED or oracle_system is None:
-        raise HTTPException(status_code=503, detail="Oracle system not available")
-    
-    try:
-        # Verify NOSTR authentication
-        if not await verify_nostr_auth(request.applicant_npub):
-            raise HTTPException(status_code=401, detail="NOSTR authentication failed")
-        
-        # Generate request ID
-        request_id = hashlib.sha256(
-            f"{request.applicant_npub}:{request.permit_definition_id}:{time.time()}".encode()
-        ).hexdigest()[:16]
-        
-        # Create permit request
-        permit_request = PermitRequest(
-            request_id=request_id,
-            permit_definition_id=request.permit_definition_id,
-            applicant_did=f"did:nostr:{request.applicant_npub}",
-            applicant_npub=request.applicant_npub,
-            statement=request.statement,
-            evidence=request.evidence,
-            status=PermitStatus.PENDING,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-            attestations=[],
-            nostr_event_id=None
-        )
-        
-        success = oracle_system.request_permit(permit_request)
-        
-        if success:
-            return JSONResponse({
-                "success": True,
-                "message": "Permit request submitted",
-                "request_id": request_id,
-                "status": "pending",
-                "permit_type": request.permit_definition_id
-            })
-        else:
-            raise HTTPException(status_code=400, detail="Failed to submit permit request")
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"Error requesting permit: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# NOTE: /api/permit/request is REMOVED - Permit requests (30501) must be created directly by MULTIPASS
+# via Nostr events in wotx2.html. The API only handles:
+# - 30500: Permit definitions (created by UPLANETNAME_G1 via /api/permit/define)
+# - 30503: Permit credentials (issued by UPLANETNAME_G1 via /api/permit/issue)
 
-@app.post("/api/permit/attest")
-async def attest_permit(request: PermitAttestationRequest):
-    """Add an attestation to a permit request"""
-    if not ORACLE_ENABLED or oracle_system is None:
-        raise HTTPException(status_code=503, detail="Oracle system not available")
-    
-    try:
-        # Verify NOSTR authentication
-        if not await verify_nostr_auth(request.attester_npub):
-            raise HTTPException(status_code=401, detail="NOSTR authentication failed")
-        
-        # Generate attestation ID
-        attestation_id = hashlib.sha256(
-            f"{request.attester_npub}:{request.request_id}:{time.time()}".encode()
-        ).hexdigest()[:16]
-        
-        # Create attestation signature
-        signature = hashlib.sha256(
-            f"{request.statement}:{request.attester_npub}:{time.time()}".encode()
-        ).hexdigest()
-        
-        # Create permit attestation
-        attestation = PermitAttestation(
-            attestation_id=attestation_id,
-            request_id=request.request_id,
-            attester_did=f"did:nostr:{request.attester_npub}",
-            attester_npub=request.attester_npub,
-            attester_license_id=request.attester_license_id,
-            statement=request.statement,
-            signature=signature,
-            created_at=datetime.now(),
-            nostr_event_id=None
-        )
-        
-        success = oracle_system.attest_permit(attestation)
-        
-        if success:
-            # Check if permit was validated and credential issued
-            permit_request = oracle_system.requests.get(request.request_id)
-            
-            return JSONResponse({
-                "success": True,
-                "message": "Attestation added",
-                "attestation_id": attestation_id,
-                "request_id": request.request_id,
-                "status": permit_request.status.value if permit_request else "unknown",
-                "attestations_count": len(permit_request.attestations) if permit_request else 0
-            })
-        else:
-            raise HTTPException(status_code=400, detail="Failed to add attestation")
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"Error attesting permit: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# NOTE: /api/permit/attest is REMOVED - Permit attestations (30502) must be created directly by MULTIPASS
+# via Nostr events in wotx2.html. The API only handles:
+# - 30500: Permit definitions (created by UPLANETNAME_G1 via /api/permit/define)
+# - 30503: Permit credentials (issued by UPLANETNAME_G1 via /api/permit/issue)
 
-@app.get("/api/permit/status/{request_id}")
-async def get_permit_status(request_id: str):
-    """Get the status of a permit request"""
-    if not ORACLE_ENABLED or oracle_system is None:
-        raise HTTPException(status_code=503, detail="Oracle system not available")
-    
-    try:
-        status = oracle_system.get_request_status(request_id)
-        
-        if status:
-            return JSONResponse(status)
-        else:
-            raise HTTPException(status_code=404, detail="Permit request not found")
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"Error getting permit status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/permit/list")
-async def list_permits(type: str = "requests", npub: Optional[str] = None):
-    """List permit requests or credentials"""
-    if not ORACLE_ENABLED or oracle_system is None:
-        raise HTTPException(status_code=503, detail="Oracle system not available")
-    
-    try:
-        if type == "requests":
-            results = oracle_system.list_requests(applicant_npub=npub)
-        elif type == "credentials":
-            results = oracle_system.list_credentials(holder_npub=npub)
-        else:
-            raise HTTPException(status_code=400, detail="Invalid type (must be 'requests' or 'credentials')")
-        
-        return JSONResponse({
-            "success": True,
-            "type": type,
-            "count": len(results),
-            "results": results
-        })
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"Error listing permits: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# NOTE: /api/permit/status and /api/permit/list are REMOVED (v2.1)
+# Permit requests (30501) are now stored in Nostr, not in oracle_system.requests
+# Use /api/permit/nostr/fetch?kind=30501 to fetch requests from Nostr
+# Use /api/permit/nostr/fetch?kind=30503 to fetch credentials from Nostr
 
 @app.get("/api/permit/credential/{credential_id}")
 async def get_permit_credential(credential_id: str):
@@ -6344,6 +6335,96 @@ async def list_permit_definitions():
     
     except Exception as e:
         logging.error(f"Error listing definitions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/permit/stats")
+async def get_permit_statistics():
+    """Get public statistics for all permits (no authentication required)
+    
+    Returns counts of holders, pending requests, and permit details for public viewing.
+    """
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        # Fetch definitions from Nostr if needed
+        if len(oracle_system.definitions) == 0:
+            try:
+                definitions_nostr = oracle_system.fetch_permit_definitions_from_nostr()
+                for definition in definitions_nostr:
+                    oracle_system.definitions[definition.id] = definition
+                if definitions_nostr:
+                    oracle_system.save_data()
+            except Exception as e:
+                logging.warning(f"Could not fetch definitions from NOSTR: {e}")
+        
+        # Build statistics for each permit
+        permit_stats = []
+        for def_id, permit_def in oracle_system.definitions.items():
+            # Count holders (credentials)
+            holders_count = sum(1 for cred in oracle_system.credentials.values() 
+                              if cred.permit_definition_id == def_id and not cred.revoked)
+            
+            # Count pending requests (from Nostr - approximate)
+            # Note: Since v2.1, requests are in Nostr, not oracle_system.requests
+            pending_count = 0  # Will be calculated from Nostr by frontend
+            
+            # Count total attestations (from Nostr - approximate)
+            total_attestations = 0  # Will be calculated from Nostr by frontend
+            
+            # Get metadata
+            metadata = permit_def.metadata or {}
+            competencies = metadata.get("competencies", [])
+            category = metadata.get("category", "general")
+            
+            # Determine level based on min_attestations
+            level = "Beginner"
+            if permit_def.min_attestations >= 10:
+                level = "Expert"
+            elif permit_def.min_attestations >= 6:
+                level = "Advanced"
+            elif permit_def.min_attestations >= 3:
+                level = "Intermediate"
+            
+            permit_stats.append({
+                "id": def_id,
+                "name": permit_def.name,
+                "description": permit_def.description,
+                "min_attestations": permit_def.min_attestations,
+                "required_license": permit_def.required_license,
+                "valid_duration_days": permit_def.valid_duration_days,
+                "revocable": permit_def.revocable,
+                "verification_method": permit_def.verification_method,
+                "category": category,
+                "competencies": competencies,
+                "competencies_count": len(competencies),
+                "level": level,
+                "holders_count": holders_count,
+                "pending_requests_count": pending_count,
+                "total_attestations": total_attestations,
+                "metadata": metadata
+            })
+        
+        # Global statistics
+        total_permits = len(permit_stats)
+        total_holders = sum(s["holders_count"] for s in permit_stats)
+        total_pending = sum(s["pending_requests_count"] for s in permit_stats)
+        total_attestations = sum(s["total_attestations"] for s in permit_stats)
+        
+        return JSONResponse({
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "global_stats": {
+                "total_permits": total_permits,
+                "total_holders": total_holders,
+                "total_pending_requests": total_pending,
+                "total_attestations": total_attestations
+            },
+            "permits": permit_stats
+        })
+    
+    except Exception as e:
+        logging.error(f"Error getting permit statistics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/permit/nostr/fetch")
@@ -6491,33 +6572,9 @@ async def issue_permit_credential(request_id: str):
         logging.error(f"Error issuing credential: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/permit/expire/{request_id}")
-async def expire_permit_request(request_id: str):
-    """Mark a permit request as expired (for old requests)"""
-    if not ORACLE_ENABLED or oracle_system is None:
-        raise HTTPException(status_code=503, detail="Oracle system not available")
-    
-    try:
-        if request_id not in oracle_system.requests:
-            raise HTTPException(status_code=404, detail="Request not found")
-        
-        request = oracle_system.requests[request_id]
-        request.status = PermitStatus.REJECTED
-        request.updated_at = datetime.now()
-        
-        oracle_system.save_data()
-        
-        return JSONResponse({
-            "success": True,
-            "message": "Request marked as expired",
-            "request_id": request_id
-        })
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"Error expiring request: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# NOTE: /api/permit/expire is REMOVED (v2.1)
+# Permit requests (30501) are now stored in Nostr, not in oracle_system.requests
+# Expiration is handled by ORACLE.refresh.sh which reads from Nostr
 
 @app.post("/api/permit/revoke/{credential_id}")
 async def revoke_permit_credential(credential_id: str, reason: Optional[str] = None):

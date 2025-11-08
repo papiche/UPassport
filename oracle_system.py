@@ -297,16 +297,36 @@ class OracleSystem:
         request.attestations.append(attestation.attestation_id)
         request.updated_at = datetime.now()
         
+        # Check if this is bootstrap mode (no existing holders for this permit)
+        # For PERMIT_DE_NAGER, bootstrap requires only 2 attestations
+        required_attestations = definition.min_attestations
+        is_bootstrap = False
+        
+        if request.permit_definition_id == "PERMIT_DE_NAGER":
+            # Check if there are any existing holders for this permit
+            existing_holders = [
+                cred for cred in self.credentials.values()
+                if cred.permit_definition_id == "PERMIT_DE_NAGER" and not cred.revoked
+            ]
+            
+            if len(existing_holders) == 0:
+                # Bootstrap mode: only 2 attestations required for first cycle
+                bootstrap_min = definition.metadata.get('evolving_system', {}).get('bootstrap', {}).get('min_attestations', 2)
+                required_attestations = bootstrap_min
+                is_bootstrap = True
+                print(f"🌱 Bootstrap mode: {required_attestations} attestations required (normal: {definition.min_attestations})")
+        
         # Check if enough attestations
-        if len(request.attestations) >= definition.min_attestations:
+        if len(request.attestations) >= required_attestations:
             request.status = PermitStatus.VALIDATED
-            print(f"✅ Permit request {request.request_id} validated with {len(request.attestations)} attestations")
+            bootstrap_msg = " (bootstrap)" if is_bootstrap else ""
+            print(f"✅ Permit request {request.request_id} validated with {len(request.attestations)} attestations{bootstrap_msg}")
             
             # Auto-issue credential
             self.issue_credential(request.request_id)
         else:
             request.status = PermitStatus.ATTESTING
-            print(f"✅ Attestation added ({len(request.attestations)}/{definition.min_attestations})")
+            print(f"✅ Attestation added ({len(request.attestations)}/{required_attestations})")
         
         self.save_data()
         
