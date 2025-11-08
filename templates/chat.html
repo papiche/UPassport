@@ -500,6 +500,244 @@
             text-decoration: underline;
         }
         
+        /* Tab Navigation */
+        .chat-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 12px 24px;
+            background: #181818;
+            border-bottom: 1px solid #3f3f3f;
+            flex-shrink: 0;
+        }
+        
+        .chat-tab-btn {
+            padding: 10px 20px;
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            border-radius: 8px;
+            color: #717171;
+            font-size: 0.95em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .chat-tab-btn:hover {
+            background: #212121;
+            border-color: #3ea6ff;
+            color: #3ea6ff;
+        }
+        
+        .chat-tab-btn.active {
+            background: #3ea6ff;
+            border-color: #3ea6ff;
+            color: #ffffff;
+        }
+        
+        /* Journals Section */
+        .chat-journals {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #0f0f0f;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .chat-journals::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .chat-journals::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+        
+        .chat-journals::-webkit-scrollbar-thumb {
+            background: #3f3f3f;
+            border-radius: 4px;
+        }
+        
+        .journal-card {
+            background: #181818;
+            border: 1px solid #3f3f3f;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.2s ease;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .journal-card:hover {
+            background: #212121;
+            border-color: #3ea6ff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(62, 166, 255, 0.2);
+        }
+        
+        .journal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #3f3f3f;
+        }
+        
+        .journal-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #ffffff;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .journal-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: flex-end;
+        }
+        
+        .journal-type-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .journal-type-badge.umap {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.5);
+        }
+        
+        .journal-type-badge.sector {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.5);
+        }
+        
+        .journal-type-badge.region {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.5);
+        }
+        
+        .journal-date {
+            font-size: 0.8em;
+            color: #717171;
+        }
+        
+        .journal-content {
+            color: #e2e8f0;
+            line-height: 1.7;
+            word-wrap: break-word;
+        }
+        
+        .journal-content h1,
+        .journal-content h2,
+        .journal-content h3 {
+            color: #ffffff;
+            margin-top: 16px;
+            margin-bottom: 8px;
+        }
+        
+        .journal-content h1 {
+            font-size: 1.5em;
+        }
+        
+        .journal-content h2 {
+            font-size: 1.3em;
+        }
+        
+        .journal-content h3 {
+            font-size: 1.1em;
+        }
+        
+        .journal-content p {
+            margin-bottom: 12px;
+        }
+        
+        .journal-content ul,
+        .journal-content ol {
+            margin-left: 20px;
+            margin-bottom: 12px;
+        }
+        
+        .journal-content strong {
+            color: #3ea6ff;
+            font-weight: 600;
+        }
+        
+        .journal-content a {
+            color: #3ea6ff;
+            text-decoration: none;
+        }
+        
+        .journal-content a:hover {
+            text-decoration: underline;
+        }
+        
+        .journal-content img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 12px 0;
+        }
+        
+        .journal-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #3f3f3f;
+        }
+        
+        .journal-author {
+            font-size: 0.85em;
+            color: #717171;
+        }
+        
+        .journal-author a {
+            color: #3ea6ff;
+            text-decoration: none;
+        }
+        
+        .journal-author a:hover {
+            text-decoration: underline;
+        }
+        
+        .journal-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .journal-action-btn {
+            padding: 6px 12px;
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            border-radius: 6px;
+            color: #717171;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .journal-action-btn:hover {
+            background: #212121;
+            border-color: #3ea6ff;
+            color: #3ea6ff;
+        }
+        
         /* Mobile responsive */
         @media (max-width: 768px) {
             .chat-header {
@@ -512,8 +750,32 @@
                 gap: 8px;
             }
             
-            .chat-messages {
+            .chat-tabs {
+                padding: 8px 16px;
+            }
+            
+            .chat-tab-btn {
+                padding: 8px 16px;
+                font-size: 0.85em;
+            }
+            
+            .chat-messages,
+            .chat-journals {
                 padding: 12px;
+            }
+            
+            .journal-card {
+                padding: 16px;
+            }
+            
+            .journal-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            
+            .journal-meta {
+                align-items: flex-start;
             }
             
             .chat-input-area {
@@ -556,10 +818,37 @@
             </div>
         </div>
         
-        <!-- Chat Messages -->
+        <!-- Tab Navigation -->
+        <div class="chat-tabs">
+            <button class="chat-tab-btn active" id="chatTab" onclick="switchTab('chat')">
+                <i class="bi bi-chat-dots"></i> Chat
+            </button>
+            <button class="chat-tab-btn" id="mapMessagesTab" onclick="switchTab('mapMessages')">
+                <i class="bi bi-robot"></i> MAP Messages
+            </button>
+            <button class="chat-tab-btn" id="journalsTab" onclick="switchTab('journals')">
+                <i class="bi bi-journal-text"></i> Journals
+            </button>
+        </div>
+        
+        <!-- Chat Messages (User messages only) -->
         <div class="chat-messages" id="chatMessages">
             <div class="loading-messages">
-                <i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Loading messages...
+                <i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Loading chat messages...
+            </div>
+        </div>
+        
+        <!-- MAP Messages Section (kind 1 notes from MAP) -->
+        <div class="chat-messages" id="mapMessages" style="display: none;">
+            <div class="loading-messages">
+                <i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Loading MAP messages...
+            </div>
+        </div>
+        
+        <!-- Journals Section -->
+        <div class="chat-journals" id="chatJournals" style="display: none;">
+            <div class="loading-messages">
+                <i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Loading journals...
             </div>
         </div>
         
@@ -606,6 +895,7 @@
             umapDID: null,
             umapHex: null,
             subscription: null,
+            kind1Subscription: null, // Subscription for kind 1 (text notes)
             activeUsers: new Set(),
             messages: [],
             profileCache: new Map(), // Cache for user profiles (pubkey -> profile data)
@@ -963,8 +1253,17 @@
                     console.log(`[CHAT] ✅ Using ${level.toUpperCase()} hex from backend:`, currentHex.substring(0, 16) + '...');
                 }
                 
-                // Store hex as the primary reference
-                UMAPChat.umapHex = currentHex;
+                // Store hex as the primary reference based on level
+                if (level === 'umap') {
+                    UMAPChat.umapHex = currentHex;
+                } else if (level === 'sector') {
+                    UMAPChat.sectorHex = currentHex;
+                } else if (level === 'region') {
+                    UMAPChat.regionHex = currentHex;
+                }
+                
+                // Also store in hexKeys for getCurrentHexKey() function
+                UMAPChat.hexKeys[level] = currentHex;
                 
                 // Update UMAP profile link
                 updateUMAPProfileLink();
@@ -1070,12 +1369,15 @@
                     }
                 }
                 
-                // Unsubscribe from previous subscription
+                // Unsubscribe from previous subscriptions
                 if (UMAPChat.subscription) {
                     UMAPChat.subscription.unsub();
                 }
+                if (UMAPChat.kind1Subscription) {
+                    UMAPChat.kind1Subscription.unsub();
+                }
                 
-                // Subscribe to NIP-28 channel messages (kind 42)
+                // Subscribe to NIP-28 channel messages (kind 42) and kind 1 (text notes)
                 if (typeof window.nostrRelay !== 'undefined' && window.nostrRelay) {
                     // Calculate coordinates based on current distance level
                     const level = UMAPChat.currentDistanceLevel;
@@ -1086,27 +1388,70 @@
                     );
                     const geoKey = coords.key;
                     
-                    const filter = {
+                    // Get the appropriate hex based on current distance level (for filtering MAP messages)
+                    let mapHex = UMAPChat.umapHex;  // Default to UMAP hex
+                    if (level === 'sector' && UMAPChat.sectorHex) {
+                        mapHex = UMAPChat.sectorHex;
+                    } else if (level === 'region' && UMAPChat.regionHex) {
+                        mapHex = UMAPChat.regionHex;
+                    }
+                    
+                    // Filter for kind 42 (NIP-28 channel messages) - USER CHAT ONLY
+                    // EXCLUDE messages from the MAP itself (author = mapHex)
+                    const filter42 = {
                         kinds: [42],  // NIP-28: Public channel message
                         "#g": [geoKey],  // Filter by geolocation (with appropriate precision)
                         limit: 100  // Increased to get more messages including replies
                     };
                     
-                    // Add channel reference if available
-                    if (UMAPChat.channelId && UMAPChat.channelId.length === 64 && UMAPChat.umapDID) {
-                        filter["#e"] = [UMAPChat.channelId];
-                    } else if (UMAPChat.umapHex && UMAPChat.umapHex.length === 64) {
-                        filter["#p"] = [UMAPChat.umapHex];
+                    // Exclude MAP messages: if we have mapHex, exclude it from authors
+                    if (mapHex && mapHex.length === 64) {
+                        // We'll filter out MAP messages in the event handler
+                        console.log(`[CHAT] Filtering kind 42: excluding MAP messages (author: ${mapHex.substring(0, 8)}...)`);
                     }
                     
-                    console.log('[CHAT] Subscribing with filter:', filter);
-                    const sub = window.nostrRelay.sub([filter]);
+                    // Add channel reference if available
+                    if (UMAPChat.channelId && UMAPChat.channelId.length === 64 && UMAPChat.umapDID) {
+                        filter42["#e"] = [UMAPChat.channelId];
+                    } else if (UMAPChat.umapHex && UMAPChat.umapHex.length === 64) {
+                        filter42["#p"] = [UMAPChat.umapHex];
+                    }
+                    
+                    console.log('[CHAT] Subscribing to kind 42 (USER CHAT) with filter:', filter42);
+                    const sub = window.nostrRelay.sub([filter42]);
+                    
+                    // Filter for kind 1 (text notes) published by the MAP itself
+                    // Use the MAP's hex pubkey as author (primary method)
+                    const filter1 = {
+                        kinds: [1],  // Text notes
+                        limit: 50  // Get recent text notes
+                    };
+                    
+                    // PRIMARY METHOD: Filter by author (hex pubkey of the MAP)
+                    // This ensures we get messages published by the MAP identity itself
+                    if (mapHex && mapHex.length === 64) {
+                        filter1.authors = [mapHex];
+                        console.log(`[CHAT] Filtering kind 1 (MAP MESSAGES) by ${level.toUpperCase()} author (hex):`, mapHex.substring(0, 8) + '...');
+                    } else {
+                        // FALLBACK: Filter by geolocation if hex not available
+                        filter1["#g"] = [geoKey];
+                        console.warn(`[CHAT] No ${level.toUpperCase()} hex available, falling back to geographic filter`);
+                    }
+                    
+                    console.log('[CHAT] Subscribing to kind 1 (MAP MESSAGES) with filter:', filter1);
+                    const subKind1 = window.nostrRelay.sub([filter1]);
                     
                     // Clear loading message
                     messagesEl.innerHTML = '';
                     
                     sub.on('event', event => {
                         console.log('[CHAT] 📨 New message:', event.id.substring(0, 8) + '...');
+                        
+                        // EXCLUDE messages from the MAP itself (user chat only)
+                        if (mapHex && mapHex.length === 64 && event.pubkey === mapHex) {
+                            console.log('[CHAT] ⏭️ Skipping MAP message in user chat:', event.id.substring(0, 8) + '...');
+                            return; // Skip MAP messages in user chat
+                        }
                         
                         // Track unique user
                         if (event.pubkey) {
@@ -1174,10 +1519,21 @@
                         }
                     });
                     
-                    sub.on('eose', () => {
-                        console.log('[CHAT] ✅ End of stored events');
+                    // Track when subscriptions are done
+                    let kind42Done = false;
+                    let kind1Done = false;
+                    let kind42Count = 0;
+                    let kind1Count = 0;
+                    
+                    const renderAllChatMessages = () => {
+                        if (!kind42Done) {
+                            return; // Wait for kind 42 subscription to complete
+                        }
+                        
+                        console.log('[CHAT] ✅ User chat subscription complete');
                         console.log('[CHAT] 👥 Total users:', UMAPChat.activeUsers.size);
-                        console.log('[CHAT] 📨 Total messages received:', UMAPChat.messages.length);
+                        console.log('[CHAT] 📨 Total chat messages received:', UMAPChat.messages.length);
+                        console.log('[CHAT] 📊 Kind 42 count:', kind42Count);
                         
                         if (UMAPChat.messages.length === 0) {
                             messagesEl.innerHTML = `
@@ -1191,17 +1547,17 @@
                             // Sort messages by created_at (oldest first for display)
                             UMAPChat.messages.sort((a, b) => a.created_at - b.created_at);
                             
-                            // Re-display all messages in correct order
-                            console.log('[CHAT] 🔄 Re-displaying', UMAPChat.messages.length, 'messages in sorted order');
+                            // Re-display all chat messages in correct order
+                            console.log('[CHAT] 🔄 Re-displaying', UMAPChat.messages.length, 'chat messages in sorted order');
                             messagesEl.innerHTML = ''; // Clear first
                             UMAPChat.messages.forEach(event => {
-                                // Check if this is a reply
-                                const isReply = event.tags && event.tags.some(tag => tag[0] === 'e' && tag[3] === 'reply');
+                                // Check if this is a reply (only kind 42 can have replies)
+                                const isReply = event.kind === 42 && event.tags && event.tags.some(tag => tag[0] === 'e' && tag[3] !== 'root');
                                 if (!isReply) {
                                     displayChatMessage(event);
                                 } else {
                                     // Handle reply - add to parent message's replies
-                                    const parentEventId = event.tags.find(tag => tag[0] === 'e' && tag[3] === 'reply')?.[1];
+                                    const parentEventId = event.tags.find(tag => tag[0] === 'e' && tag[3] !== 'root')?.[1];
                                     if (parentEventId) {
                                         const parentMessageDiv = document.querySelector(`.chat-message[data-message-id="${parentEventId}"]`);
                                         if (parentMessageDiv) {
@@ -1253,9 +1609,54 @@
                                 }
                             });
                         }
+                    };
+                    
+                    const renderAllMapMessages = () => {
+                        if (!kind1Done) {
+                            return; // Wait for kind 1 subscription to complete
+                        }
+                        
+                        console.log('[CHAT] ✅ MAP messages subscription complete');
+                        console.log('[CHAT] 🤖 Total MAP messages received:', mapMessages.length);
+                        console.log('[CHAT] 📊 Kind 1 count:', kind1Count);
+                    };
+                    
+                    sub.on('eose', () => {
+                        console.log('[CHAT] ✅ End of stored kind 42 events');
+                        kind42Done = true;
+                        renderAllChatMessages();
+                    });
+                    
+                    // Handle kind 1 events (MAP messages only - filtered by author)
+                    // Store MAP messages separately
+                    const mapMessages = [];
+                    subKind1.on('event', event => {
+                        console.log('[CHAT] 🤖 New MAP message (kind 1):', event.id.substring(0, 8) + '...');
+                        kind1Count++;
+                        
+                        // Verify this is from the MAP (double-check)
+                        if (mapHex && mapHex.length === 64 && event.pubkey !== mapHex) {
+                            console.log('[CHAT] ⚠️ Kind 1 message not from MAP, skipping:', event.pubkey.substring(0, 8) + '...');
+                            return;
+                        }
+                        
+                        // Add to MAP messages array (avoid duplicates)
+                        if (!mapMessages.find(m => m.id === event.id)) {
+                            mapMessages.push(event);
+                            
+                            // Display in MAP messages section
+                            displayMapMessage(event);
+                        }
+                    });
+                    
+                    subKind1.on('eose', () => {
+                        console.log('[CHAT] ✅ End of stored kind 1 events');
+                        kind1Done = true;
+                        renderAllMapMessages();
                     });
                     
                     UMAPChat.subscription = sub;
+                    UMAPChat.kind1Subscription = subKind1;
                 } else {
                     messagesEl.innerHTML = `
                         <div class="empty-messages">
@@ -2039,6 +2440,18 @@
             const messagesEl = document.getElementById('chatMessages');
             messagesEl.innerHTML = '<div class="loading-messages"><i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Loading messages...</div>';
             
+            // Clear MAP messages UI if visible
+            const mapMessagesEl = document.getElementById('mapMessages');
+            if (mapMessagesEl && mapMessagesEl.style.display !== 'none') {
+                mapMessagesEl.innerHTML = '<div class="loading-messages"><i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Loading MAP messages...</div>';
+            }
+            
+            // Clear journals UI if visible
+            const journalsEl = document.getElementById('chatJournals');
+            if (journalsEl && journalsEl.style.display !== 'none') {
+                journalsEl.innerHTML = '<div class="loading-messages"><i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Loading journals...</div>';
+            }
+            
             // Update users count
             updateUsersCount();
             
@@ -2059,6 +2472,358 @@
             // Re-initialize and reload messages
             await initUMAPChat();
             await loadChatMessages();
+            
+            // Reload MAP messages if MAP messages tab is active
+            if (mapMessagesEl && mapMessagesEl.style.display !== 'none') {
+                await loadMapMessages();
+            }
+            
+            // Reload journals if journals tab is active
+            if (journalsEl && journalsEl.style.display !== 'none') {
+                await loadJournals();
+            }
+        }
+        
+        /**
+         * Display a MAP message (kind 1) in the MAP messages section
+         */
+        function displayMapMessage(event) {
+            const mapMessagesEl = document.getElementById('mapMessages');
+            if (!mapMessagesEl) return;
+            
+            // Remove empty state if present
+            const emptyState = mapMessagesEl.querySelector('.empty-messages');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message';
+            messageDiv.style.borderLeftColor = '#f59e0b'; // Orange border for MAP messages
+            messageDiv.dataset.messageId = event.id;
+            if (event.pubkey) {
+                messageDiv.dataset.pubkey = event.pubkey;
+            }
+            
+            // Use formatRelativeTime from common.js if available
+            let time;
+            if (typeof formatRelativeTime === 'function') {
+                time = formatRelativeTime(event.created_at);
+            } else {
+                time = new Date(event.created_at * 1000).toLocaleTimeString();
+            }
+            
+            // Get IPFS gateway
+            const ipfsGateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+            const profileUrl = event.pubkey ? 
+                `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${event.pubkey}` : 
+                '#';
+            
+            // MAP display name
+            const level = UMAPChat.currentDistanceLevel;
+            const levelName = level.toUpperCase();
+            const displayName = `${levelName} MAP`;
+            
+            messageDiv.innerHTML = `
+                <div class="chat-message-header">
+                    <div class="chat-message-author">
+                        <a href="${profileUrl}" target="_blank" rel="noopener noreferrer" title="View MAP profile">
+                            <i class="bi bi-robot"></i> ${displayName}
+                        </a>
+                    </div>
+                    <div class="chat-message-time">${time}</div>
+                </div>
+                <div class="chat-message-content">${escapeHtml(event.content)}</div>
+            `;
+            
+            // Insert at the beginning (newest first, but container is reversed)
+            mapMessagesEl.appendChild(messageDiv);
+            
+            // Keep only last 100 messages
+            while (mapMessagesEl.children.length > 100) {
+                mapMessagesEl.removeChild(mapMessagesEl.firstChild);
+            }
+        }
+        
+        /**
+         * Switch between Chat, MAP Messages, and Journals tabs
+         */
+        function switchTab(tab) {
+            const chatTab = document.getElementById('chatTab');
+            const mapMessagesTab = document.getElementById('mapMessagesTab');
+            const journalsTab = document.getElementById('journalsTab');
+            const chatSection = document.getElementById('chatMessages');
+            const mapMessagesSection = document.getElementById('mapMessages');
+            const journalsSection = document.getElementById('chatJournals');
+            
+            // Remove active class from all tabs
+            chatTab.classList.remove('active');
+            mapMessagesTab.classList.remove('active');
+            journalsTab.classList.remove('active');
+            
+            // Hide all sections
+            chatSection.style.display = 'none';
+            mapMessagesSection.style.display = 'none';
+            journalsSection.style.display = 'none';
+            
+            if (tab === 'chat') {
+                chatTab.classList.add('active');
+                chatSection.style.display = 'flex';
+            } else if (tab === 'mapMessages') {
+                mapMessagesTab.classList.add('active');
+                mapMessagesSection.style.display = 'flex';
+                
+                // Load MAP messages if not already loaded
+                if (mapMessagesSection.querySelector('.loading-messages')) {
+                    loadMapMessages();
+                }
+            } else if (tab === 'journals') {
+                journalsTab.classList.add('active');
+                journalsSection.style.display = 'flex';
+                
+                // Load journals if not already loaded
+                if (journalsSection.querySelector('.loading-messages')) {
+                    loadJournals();
+                }
+            }
+        }
+        
+        /**
+         * Load MAP messages (kind 1) separately
+         */
+        async function loadMapMessages() {
+            const mapMessagesEl = document.getElementById('mapMessages');
+            
+            if (!UMAPChat.initialized) {
+                await initUMAPChat();
+            }
+            
+            try {
+                console.log('[CHAT] Loading MAP messages for:', UMAPChat.currentUMAP);
+                
+                // Wait for relay connection
+                if (typeof window.nostrRelay === 'undefined' || !window.nostrRelay) {
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                    }
+                }
+                
+                if (typeof window.nostrRelay !== 'undefined' && window.nostrRelay) {
+                    const level = UMAPChat.currentDistanceLevel;
+                    
+                    // Get the appropriate hex based on current distance level
+                    let mapHex = UMAPChat.umapHex;
+                    if (level === 'sector' && UMAPChat.sectorHex) {
+                        mapHex = UMAPChat.sectorHex;
+                    } else if (level === 'region' && UMAPChat.regionHex) {
+                        mapHex = UMAPChat.regionHex;
+                    }
+                    
+                    if (!mapHex || mapHex.length !== 64) {
+                        mapMessagesEl.innerHTML = `
+                            <div class="empty-messages">
+                                <div class="empty-messages-icon">⚠️</div>
+                                <h3>MAP hex not available</h3>
+                                <p>Cannot load MAP messages without hex key.</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    // Filter for kind 1 (text notes) published by the MAP itself
+                    const filter1 = {
+                        kinds: [1],
+                        authors: [mapHex],
+                        limit: 50
+                    };
+                    
+                    console.log('[CHAT] Subscribing to MAP messages (kind 1) with filter:', filter1);
+                    const sub = window.nostrRelay.sub([filter1]);
+                    
+                    const mapMessages = [];
+                    
+                    sub.on('event', event => {
+                        console.log('[CHAT] 🤖 MAP message received:', event.id.substring(0, 8) + '...');
+                        
+                        // Verify this is from the MAP
+                        if (event.pubkey !== mapHex) {
+                            console.log('[CHAT] ⚠️ Message not from MAP, skipping');
+                            return;
+                        }
+                        
+                        if (!mapMessages.find(m => m.id === event.id)) {
+                            mapMessages.push(event);
+                            displayMapMessage(event);
+                        }
+                    });
+                    
+                    sub.on('eose', () => {
+                        console.log('[CHAT] ✅ End of stored MAP messages');
+                        sub.unsub();
+                        
+                        if (mapMessages.length === 0) {
+                            mapMessagesEl.innerHTML = `
+                                <div class="empty-messages">
+                                    <div class="empty-messages-icon">🤖</div>
+                                    <h3>No MAP messages yet</h3>
+                                    <p>The ${level.toUpperCase()} MAP has not published any messages yet.</p>
+                                </div>
+                            `;
+                        }
+                    });
+                } else {
+                    mapMessagesEl.innerHTML = `
+                        <div class="empty-messages">
+                            <div class="empty-messages-icon">⚠️</div>
+                            <h3>Relay not connected</h3>
+                            <p>Please wait for connection...</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('[CHAT] ❌ Error loading MAP messages:', error);
+                mapMessagesEl.innerHTML = `
+                    <div class="empty-messages">
+                        <div class="empty-messages-icon">❌</div>
+                        <h3>Error loading MAP messages</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        /**
+         * Load UMAP/SECTOR/REGION journals (kind 30023)
+         * Uses fetchUMAPJournals from common.js
+         */
+        async function loadJournals() {
+            const journalsEl = document.getElementById('chatJournals');
+            
+            if (!UMAPChat.initialized) {
+                await initUMAPChat();
+            }
+            
+            try {
+                console.log('[CHAT] Loading journals for:', UMAPChat.currentUMAP);
+                
+                // Use fetchUMAPJournals from common.js
+                // PRIMARY METHOD: Filter by author (hex pubkey of the MAP)
+                if (typeof window.fetchUMAPJournals === 'function') {
+                    const level = UMAPChat.currentDistanceLevel;
+                    
+                    // Get the appropriate hex based on level
+                    let mapHex = UMAPChat.umapHex;  // Default to UMAP hex
+                    if (level === 'sector' && UMAPChat.sectorHex) {
+                        mapHex = UMAPChat.sectorHex;
+                    } else if (level === 'region' && UMAPChat.regionHex) {
+                        mapHex = UMAPChat.regionHex;
+                    }
+                    
+                    const journals = await window.fetchUMAPJournals(
+                        UMAPChat.currentUMAP.lat,
+                        UMAPChat.currentUMAP.lon,
+                        level,
+                        { 
+                            limit: 20,
+                            authorHex: mapHex  // Pass MAP hex as author filter
+                        }
+                    );
+                    
+                    // Determine journal type tag for display
+                    let journalTypeTag = 'UMAP';
+                    if (level === 'sector') {
+                        journalTypeTag = 'SECTOR';
+                    } else if (level === 'region') {
+                        journalTypeTag = 'REGION';
+                    }
+                    
+                    // Use displayJournals from common.js
+                    if (typeof window.displayJournals === 'function') {
+                        window.displayJournals(journals, journalsEl, journalTypeTag, {
+                            formatRelativeTime: formatRelativeTime,
+                            getUserDisplayName: (pubkey, cached) => {
+                                // Use local profile cache if available
+                                if (UMAPChat.profileCache.has(pubkey)) {
+                                    const profileInfo = UMAPChat.profileCache.get(pubkey);
+                                    return profileInfo.name || profileInfo.display_name || pubkey.substring(0, 12) + '...';
+                                }
+                                // Fallback to common.js function
+                                if (typeof getUserDisplayName === 'function') {
+                                    return getUserDisplayName(pubkey, cached);
+                                }
+                                return pubkey.substring(0, 12) + '...';
+                            }
+                        });
+                    } else {
+                        // Fallback if displayJournals not available
+                        displayJournalsLocal(journals, journalsEl, journalTypeTag);
+                    }
+                } else {
+                    throw new Error('fetchUMAPJournals function not available from common.js');
+                }
+                
+            } catch (error) {
+                console.error('[CHAT] ❌ Error loading journals:', error);
+                journalsEl.innerHTML = `
+                    <div class="empty-messages">
+                        <div class="empty-messages-icon">❌</div>
+                        <h3>Error loading journals</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        /**
+         * Local fallback for displaying journals (if common.js functions not available)
+         */
+        function displayJournalsLocal(journals, journalsEl, journalTypeTag) {
+            if (journals.length === 0) {
+                journalsEl.innerHTML = `
+                    <div class="empty-messages">
+                        <div class="empty-messages-icon">📚</div>
+                        <h3>No journals yet</h3>
+                        <p>No ${journalTypeTag} journals found for this location.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Use formatJournalCard from common.js if available
+            if (typeof window.formatJournalCard === 'function') {
+                journalsEl.innerHTML = journals.map(journal => 
+                    window.formatJournalCard(journal, {
+                        formatRelativeTime: formatRelativeTime,
+                        getUserDisplayName: (pubkey) => {
+                            if (UMAPChat.profileCache.has(pubkey)) {
+                                const profileInfo = UMAPChat.profileCache.get(pubkey);
+                                return profileInfo.name || profileInfo.display_name || pubkey.substring(0, 12) + '...';
+                            }
+                            return pubkey.substring(0, 12) + '...';
+                        }
+                    })
+                ).join('');
+            } else {
+                // Basic fallback display
+                journalsEl.innerHTML = journals.map(journal => {
+                    const dateStr = formatRelativeTime ? formatRelativeTime(journal.published_at || journal.created_at) : 
+                        new Date((journal.published_at || journal.created_at) * 1000).toLocaleDateString();
+                    return `
+                        <div class="journal-card">
+                            <h3>${escapeHtmlLocal(journal.title)}</h3>
+                            <p>${dateStr}</p>
+                            <div>${markdownToHTML ? markdownToHTML(journal.content) : escapeHtmlLocal(journal.content)}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            // Fetch profiles for journal authors in background
+            journals.forEach(journal => {
+                if (!UMAPChat.profileCache.has(journal.author)) {
+                    fetchUserProfile(journal.author);
+                }
+            });
         }
         
         // Expose functions globally
@@ -2066,6 +2831,7 @@
         window.showReplyForm = showReplyForm;
         window.sendReply = sendReply;
         window.changeDistanceLevel = changeDistanceLevel;
+        window.switchTab = switchTab;
     </script>
 </body>
 </html>
