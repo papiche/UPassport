@@ -3343,7 +3343,7 @@ async def process_webcam_video(
                             logging.info(f"✅ NOSTR video event published (extracted from invalid JSON): {nostr_event_id}")
                         else:
                             # Fallback: try to extract from last line
-                        nostr_event_id = publish_result.stdout.strip().split('\n')[-1] if publish_result.stdout else ""
+                            nostr_event_id = publish_result.stdout.strip().split('\n')[-1] if publish_result.stdout else ""
                             # Validate it's a hex string
                             if not re.match(r'^[a-f0-9]{64}$', nostr_event_id):
                                 nostr_event_id = ""
