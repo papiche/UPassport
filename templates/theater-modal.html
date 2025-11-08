@@ -1590,10 +1590,26 @@
             commentsList.innerHTML = '<div class="loading-comments">Chargement des commentaires...</div>';
             
             try {
-                // Check if we have NOSTR functions
-                if (typeof nostrRelay === 'undefined' || !nostrRelay) {
-                    commentsList.innerHTML = '<div class="error-comments">NOSTR non connecté</div>';
-                    return;
+                // Get relay from window (consistent source)
+                let currentRelay = window.nostrRelay || nostrRelay;
+                
+                // Ensure we have a valid relay with .sub() method
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    // Try to connect if not connected
+                    if (typeof connectToRelay === 'function') {
+                        console.log('🔌 Connecting to relay for comments...');
+                        const relay = await connectToRelay();
+                        // connectToRelay may return the relay or set window.nostrRelay
+                        currentRelay = relay || window.nostrRelay || nostrRelay;
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    
+                    // Final check
+                    currentRelay = window.nostrRelay || nostrRelay || currentRelay;
+                    if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                        commentsList.innerHTML = '<div class="error-comments">NOSTR non connecté</div>';
+                        return;
+                    }
                 }
                 
                 // Initialize global comments array for this video
@@ -1661,7 +1677,7 @@
                 // Fetch comments from NOSTR (kind 1111 - NIP-22 comments)
                 // IMPORTANT: Keep subscription active for real-time comments!
                 // Note: We use limit for initial load, but subscription stays active for new events
-                const sub = nostrRelay.sub([{
+                const sub = currentRelay.sub([{
                     kinds: [1111],
                     '#E': [eventId]
                     // No limit - we want ALL comments including real-time ones
@@ -2573,9 +2589,10 @@
             
             // Check if already following (non-blocking)
             try {
-                if (nostrRelay) {
+                const currentRelay = window.nostrRelay || nostrRelay;
+                if (currentRelay && typeof currentRelay.sub === 'function') {
                     const followListPromise = new Promise((resolve) => {
-                        const sub = nostrRelay.sub([{
+                        const sub = currentRelay.sub([{
                             kinds: [3],
                             authors: [userPubkey],
                             limit: 1
@@ -2762,9 +2779,12 @@
             // Load provenance info
             loadProvenanceInfo(videoData);
             
-            // Load comments
+            // Load comments (ensure relay is connected first)
             if (videoData.eventId) {
-                loadVideoComments(videoData.eventId, videoData.authorId, videoData.content || videoData.description);
+                // Wait a bit to ensure relay is ready
+                setTimeout(() => {
+                    loadVideoComments(videoData.eventId, videoData.authorId, videoData.content || videoData.description);
+                }, 500);
             }
             
             // Load related videos (if function exists in parent or current window)
@@ -2968,15 +2988,31 @@
                     }
                 }
                 
-                if (!nostrRelay || (typeof isNostrConnected !== 'undefined' && !isNostrConnected)) {
-                    throw new Error('NOSTR relay not connected');
+                // Get relay from window (consistent source)
+                let currentRelay = window.nostrRelay || nostrRelay;
+                
+                // Ensure we have a valid relay with .sub() method
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    // Try to connect if not connected
+                    if (typeof connectToRelay === 'function') {
+                        console.log('🔌 Connecting to relay for video fetch...');
+                        const relay = await connectToRelay();
+                        currentRelay = relay || window.nostrRelay || nostrRelay;
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    
+                    // Final check
+                    currentRelay = window.nostrRelay || nostrRelay || currentRelay;
+                    if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                        throw new Error('NOSTR relay not connected or invalid');
+                    }
                 }
                 
                 console.log('📡 Fetching video event from NOSTR:', eventId);
                 
                 // Fetch video event from NOSTR
                 const event = await new Promise((resolve, reject) => {
-                    const sub = nostrRelay.sub([{
+                    const sub = currentRelay.sub([{
                         kinds: [21, 22],
                         ids: [eventId],
                         limit: 1
@@ -3133,15 +3169,18 @@
             container.innerHTML = '<div class="text-center text-secondary py-3">Chargement des vidéos similaires...</div>';
             
             try {
+                // Get relay from window (consistent source)
+                const currentRelay = window.nostrRelay || nostrRelay;
+                
                 // Try to fetch related videos from NOSTR
-                if (typeof nostrRelay === 'undefined' || !nostrRelay) {
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
                     container.innerHTML = '<div class="text-center text-secondary py-3">Non connecté au relay</div>';
                     return;
                 }
                 
                 // Fetch videos from same author or with similar tags
                 const relatedVideos = [];
-                const sub = nostrRelay.sub([{
+                const sub = currentRelay.sub([{
                     kinds: [21, 22],
                     authors: videoData.authorId ? [videoData.authorId] : undefined,
                     limit: 10

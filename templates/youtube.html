@@ -2109,16 +2109,67 @@
                                     <span class="engagement-loading" style="font-size: 10px;">...</span>
                                 </div>
                                 {% endif %}
+                                <!-- Source badge -->
+                                <div class="video-source-badge">
+                                    {% if video.youtube_url or (video.source_type and video.source_type == 'youtube') %}
+                                    <span class="source-badge source-youtube" title="Vidéo YouTube">
+                                        <i class="bi bi-youtube"></i> YouTube
+                                    </span>
+                                    {% elif video.source_type and video.source_type == 'tmdb' %}
+                                    <span class="source-badge source-tmdb" title="Film/Série (TMDB)">
+                                        <i class="bi bi-film"></i> TMDB
+                                    </span>
+                                    {% else %}
+                                    <span class="source-badge source-video" title="Vidéo personnelle">
+                                        <i class="bi bi-camera-video"></i> Video
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <!-- Metadata badges -->
+                                {% if video.info_cid %}
+                                <div class="video-metadata-badges">
+                                    {% if video.image_metadata and (video.image_metadata.get('gps_latitude') or video.image_metadata.get('gps_longitude')) %}
+                                    <span class="metadata-badge metadata-gps" title="Coordonnées GPS disponibles">
+                                        <i class="bi bi-geo-alt"></i>
+                                    </span>
+                                    {% elif video.latitude and video.longitude %}
+                                    <span class="metadata-badge metadata-gps" title="Coordonnées GPS disponibles">
+                                        <i class="bi bi-geo-alt"></i>
+                                    </span>
+                                    {% endif %}
+                                    {% if video.image_metadata and video.image_metadata.get('comment') %}
+                                    <span class="metadata-badge metadata-comment" title="Commentaire EXIF disponible">
+                                        <i class="bi bi-chat-text"></i>
+                                    </span>
+                                    {% endif %}
+                                    {% if video.youtube_metadata and video.youtube_metadata.get('video_id') %}
+                                    <span class="metadata-badge metadata-youtube" title="Métadonnées YouTube enrichies">
+                                        <i class="bi bi-info-circle"></i>
+                                    </span>
+                                    {% endif %}
+                                    {% if video.tmdb_metadata and video.tmdb_metadata.get('tmdb_id') %}
+                                    <span class="metadata-badge metadata-tmdb" title="Métadonnées TMDB enrichies">
+                                        <i class="bi bi-info-circle"></i>
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
                                 <video class="inline-video-player" controls style="display: none;" 
                                        data-ipfs-url="{{ video.ipfs_url|e }}"
                                        data-event-id="{{ video.message_id if video.message_id else '' }}"
                                        data-author-id="{{ video.author_id if video.author_id else '' }}"
+                                       data-info-cid="{{ video.info_cid if video.info_cid else '' }}"
                                        preload="none">
                                     Votre navigateur ne supporte pas la lecture vidéo.
                                 </video>
                             </div>
                             <div class="video-info">
-                                <div class="video-title">{{ video.title or 'Titre inconnu' }}</div>
+                                <div class="video-title">
+                                    {{ video.title or 'Titre inconnu' }}
+                                    {% if video.tmdb_metadata and video.tmdb_metadata.get('year') %}
+                                    <span class="video-year">({{ video.tmdb_metadata.year }})</span>
+                                    {% endif %}
+                                </div>
                                 <div class="video-meta">
                                     {% if video.author_id %}
                                     <a href="#" 

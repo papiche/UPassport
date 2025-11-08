@@ -15,9 +15,30 @@ ME="${0##*/}"
 [[ -s "${HOME}/.zen/Astroport.ONE/tools/my.sh" ]] \
     && source "${HOME}/.zen/Astroport.ONE/tools/my.sh"
 
+# Parse arguments
+YOUTUBE_METADATA_FILE=""
+FILE_PATH=""
+OUTPUT_FILE=""
+USER_PUBKEY_HEX=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --metadata)
+            YOUTUBE_METADATA_FILE="$2"
+            shift 2
+            ;;
+        *)
+            if [ -z "$FILE_PATH" ]; then
 FILE_PATH="$1"
-OUTPUT_FILE="$2"
-USER_PUBKEY_HEX="$3"  # Optional: user's hex public key for provenance tracking
+            elif [ -z "$OUTPUT_FILE" ]; then
+                OUTPUT_FILE="$1"
+            elif [ -z "$USER_PUBKEY_HEX" ]; then
+                USER_PUBKEY_HEX="$1"
+            fi
+            shift
+            ;;
+    esac
+done
 
 if [ -z "$FILE_PATH" ]; then
   echo '{"status": "error", "message": "No file path provided.", "debug": "FILE_PATH is empty"}' > "$OUTPUT_FILE"
@@ -36,6 +57,25 @@ else
   echo "DEBUG: No user pubkey provided (provenance tracking disabled)" >&2
 fi
 
+# Load YouTube metadata if provided
+YOUTUBE_METADATA_JSON=""
+if [ -n "$YOUTUBE_METADATA_FILE" ] && [ -f "$YOUTUBE_METADATA_FILE" ]; then
+    echo "DEBUG: Loading YouTube metadata from: $YOUTUBE_METADATA_FILE" >&2
+    if command -v jq &> /dev/null; then
+        # Validate JSON and extract relevant fields
+        if jq . "$YOUTUBE_METADATA_FILE" >/dev/null 2>&1; then
+            YOUTUBE_METADATA_JSON=$(cat "$YOUTUBE_METADATA_FILE")
+            echo "DEBUG: ✅ YouTube metadata loaded successfully" >&2
+        else
+            echo "WARNING: Invalid JSON in YouTube metadata file: $YOUTUBE_METADATA_FILE" >&2
+        fi
+    else
+        echo "WARNING: jq not available, cannot parse YouTube metadata" >&2
+    fi
+elif [ -n "$YOUTUBE_METADATA_FILE" ]; then
+    echo "WARNING: YouTube metadata file not found: $YOUTUBE_METADATA_FILE" >&2
+fi
+
 
 if [ ! -f "$FILE_PATH" ]; then
   echo '{"status": "error", "message": "File not found.", "debug": "File does not exist"}' > "$OUTPUT_FILE"
@@ -50,10 +90,10 @@ FILE_NAME=$(basename "$FILE_PATH")
 # Log file information
 echo "DEBUG: FILE_SIZE: $FILE_SIZE, FILE_TYPE: $FILE_TYPE, FILE_NAME: $FILE_NAME" >&2
 
-# Check if file size exceeds 100MB
-MAX_FILE_SIZE=$((100 * 1024 * 1024)) # 100MB in bytes
+# Check if file size exceeds 520MB (according to standard limits per format)
+MAX_FILE_SIZE=$((520 * 1024 * 1024)) # 520MB in bytes
 if [ "$FILE_SIZE" -gt "$MAX_FILE_SIZE" ]; then
-    echo '{"status": "error", "message": "File size exceeds 100MB limit.", "debug": "File too large", "fileSize": "'"$FILE_SIZE"'"}' > "$OUTPUT_FILE"
+    echo '{"status": "error", "message": "File size exceeds 520MB limit.", "debug": "File too large", "fileSize": "'"$FILE_SIZE"'"}' > "$OUTPUT_FILE"
     
     exit 1
 fi
@@ -438,6 +478,127 @@ elif [[ "$FILE_TYPE" == "image/"* ]]; then
   IDISK="image"
     NIP94_TAGS="$NIP94_TAGS, [\"dim\", \"$IMAGE_DIMENSIONS\"]"
     
+    # Extract EXIF metadata (GPS, comments, camera info, etc.)
+    IMAGE_EXIF_JSON=""
+    GPS_LATITUDE=""
+    GPS_LONGITUDE=""
+    IMAGE_COMMENT=""
+    IMAGE_DESCRIPTION=""
+    DATETIME_ORIGINAL=""
+    CAMERA_MAKE=""
+    CAMERA_MODEL=""
+    
+    # Try exiftool first (most comprehensive)
+    if command -v exiftool &> /dev/null; then
+        echo "DEBUG: Extracting EXIF metadata using exiftool..." >&2
+        # Extract GPS coordinates
+        GPS_LATITUDE=$(exiftool -s3 -GPSLatitude "$FILE_PATH" 2>/dev/null | head -n 1)
+        GPS_LONGITUDE=$(exiftool -s3 -GPSLongitude "$FILE_PATH" 2>/dev/null | head -n 1)
+        
+        # Convert GPS coordinates from DMS (Degrees Minutes Seconds) to decimal if needed
+        if [[ -n "$GPS_LATITUDE" ]] && [[ "$GPS_LATITUDE" =~ ^[0-9]+[°\ ] ]]; then
+            # Convert DMS to decimal (e.g., "43° 36' 0.00\" N" -> "43.6")
+            GPS_LAT_DECIMAL=$(exiftool -s3 -n -GPSLatitude "$FILE_PATH" 2>/dev/null | head -n 1)
+            if [[ -n "$GPS_LAT_DECIMAL" ]]; then
+                GPS_LATITUDE="$GPS_LAT_DECIMAL"
+            fi
+        fi
+        if [[ -n "$GPS_LONGITUDE" ]] && [[ "$GPS_LONGITUDE" =~ ^[0-9]+[°\ ] ]]; then
+            GPS_LON_DECIMAL=$(exiftool -s3 -n -GPSLongitude "$FILE_PATH" 2>/dev/null | head -n 1)
+            if [[ -n "$GPS_LON_DECIMAL" ]]; then
+                GPS_LONGITUDE="$GPS_LON_DECIMAL"
+            fi
+        fi
+        
+        # Extract comments and descriptions
+        IMAGE_COMMENT=$(exiftool -s3 -UserComment "$FILE_PATH" 2>/dev/null | head -n 1)
+        if [[ -z "$IMAGE_COMMENT" ]]; then
+            IMAGE_COMMENT=$(exiftool -s3 -Comment "$FILE_PATH" 2>/dev/null | head -n 1)
+        fi
+        IMAGE_DESCRIPTION=$(exiftool -s3 -ImageDescription "$FILE_PATH" 2>/dev/null | head -n 1)
+        
+        # Extract date/time
+        DATETIME_ORIGINAL=$(exiftool -s3 -DateTimeOriginal "$FILE_PATH" 2>/dev/null | head -n 1)
+        if [[ -z "$DATETIME_ORIGINAL" ]]; then
+            DATETIME_ORIGINAL=$(exiftool -s3 -CreateDate "$FILE_PATH" 2>/dev/null | head -n 1)
+        fi
+        
+        # Extract camera info
+        CAMERA_MAKE=$(exiftool -s3 -Make "$FILE_PATH" 2>/dev/null | head -n 1)
+        CAMERA_MODEL=$(exiftool -s3 -Model "$FILE_PATH" 2>/dev/null | head -n 1)
+        
+        # Build EXIF JSON section using jq for proper JSON escaping
+        EXIF_JSON_OBJ="{}"
+        HAS_EXIF=false
+        
+        # Add GPS coordinates
+        if [[ -n "$GPS_LATITUDE" ]] && [[ -n "$GPS_LONGITUDE" ]]; then
+            # Validate GPS coordinates are numeric
+            if [[ "$GPS_LATITUDE" =~ ^-?[0-9]+\.?[0-9]*$ ]] && [[ "$GPS_LONGITUDE" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                EXIF_JSON_OBJ=$(echo "$EXIF_JSON_OBJ" | jq --arg lat "$GPS_LATITUDE" --arg lon "$GPS_LONGITUDE" '. + {gps: {latitude: ($lat | tonumber), longitude: ($lon | tonumber)}}' 2>/dev/null || echo "$EXIF_JSON_OBJ")
+                HAS_EXIF=true
+                # Add GPS to NIP-94 tags for geolocation
+                NIP94_TAGS="$NIP94_TAGS, [\"g\", \"$GPS_LATITUDE,$GPS_LONGITUDE\"]"
+            fi
+        fi
+        
+        # Add comment
+        if [[ -n "$IMAGE_COMMENT" ]]; then
+            EXIF_JSON_OBJ=$(echo "$EXIF_JSON_OBJ" | jq --arg comment "$IMAGE_COMMENT" '. + {comment: $comment}' 2>/dev/null || echo "$EXIF_JSON_OBJ")
+            HAS_EXIF=true
+        fi
+        
+        # Add description
+        if [[ -n "$IMAGE_DESCRIPTION" ]]; then
+            EXIF_JSON_OBJ=$(echo "$EXIF_JSON_OBJ" | jq --arg desc "$IMAGE_DESCRIPTION" '. + {description: $desc}' 2>/dev/null || echo "$EXIF_JSON_OBJ")
+            HAS_EXIF=true
+        fi
+        
+        # Add datetime
+        if [[ -n "$DATETIME_ORIGINAL" ]]; then
+            EXIF_JSON_OBJ=$(echo "$EXIF_JSON_OBJ" | jq --arg dt "$DATETIME_ORIGINAL" '. + {datetime_original: $dt}' 2>/dev/null || echo "$EXIF_JSON_OBJ")
+            HAS_EXIF=true
+        fi
+        
+        # Add camera info
+        if [[ -n "$CAMERA_MAKE" ]] || [[ -n "$CAMERA_MODEL" ]]; then
+            CAMERA_OBJ="{}"
+            if [[ -n "$CAMERA_MAKE" ]]; then
+                CAMERA_OBJ=$(echo "$CAMERA_OBJ" | jq --arg make "$CAMERA_MAKE" '. + {make: $make}' 2>/dev/null || echo "$CAMERA_OBJ")
+            fi
+            if [[ -n "$CAMERA_MODEL" ]]; then
+                CAMERA_OBJ=$(echo "$CAMERA_OBJ" | jq --arg model "$CAMERA_MODEL" '. + {model: $model}' 2>/dev/null || echo "$CAMERA_OBJ")
+            fi
+            EXIF_JSON_OBJ=$(echo "$EXIF_JSON_OBJ" | jq --argjson camera "$CAMERA_OBJ" '. + {camera: $camera}' 2>/dev/null || echo "$EXIF_JSON_OBJ")
+            HAS_EXIF=true
+        fi
+        
+        # Format for insertion into image section
+        if [[ "$HAS_EXIF" == "true" ]]; then
+            # Get JSON content without outer braces, add comma prefix
+            IMAGE_EXIF_JSON_STR=$(echo "$EXIF_JSON_OBJ" | jq -c '.' 2>/dev/null | sed 's/^{//' | sed 's/}$//')
+            if [[ -n "$IMAGE_EXIF_JSON_STR" ]]; then
+                IMAGE_EXIF_JSON=", $IMAGE_EXIF_JSON_STR"
+            fi
+            echo "DEBUG: ✅ Extracted EXIF metadata: GPS=$GPS_LATITUDE,$GPS_LONGITUDE, Comment=$IMAGE_COMMENT" >&2
+        fi
+    # Fallback to ImageMagick identify -verbose if exiftool not available
+    elif command -v identify &> /dev/null; then
+        echo "DEBUG: Extracting EXIF metadata using ImageMagick identify..." >&2
+        # ImageMagick can extract some EXIF but less comprehensive
+        IDENTIFY_OUTPUT=$(identify -verbose "$FILE_PATH" 2>/dev/null)
+        
+        # Extract GPS from ImageMagick output (format: "exif:GPSLatitude: 43.6")
+        GPS_LATITUDE=$(echo "$IDENTIFY_OUTPUT" | grep -i "exif:GPSLatitude" | head -n 1 | sed 's/.*exif:GPSLatitude: *//' | sed 's/ .*//')
+        GPS_LONGITUDE=$(echo "$IDENTIFY_OUTPUT" | grep -i "exif:GPSLongitude" | head -n 1 | sed 's/.*exif:GPSLongitude: *//' | sed 's/ .*//')
+        
+        if [[ -n "$GPS_LATITUDE" ]] && [[ -n "$GPS_LONGITUDE" ]]; then
+            IMAGE_EXIF_JSON=", \"gps\": {\"latitude\": $GPS_LATITUDE, \"longitude\": $GPS_LONGITUDE}"
+            NIP94_TAGS="$NIP94_TAGS, [\"g\", \"$GPS_LATITUDE,$GPS_LONGITUDE\"]"
+            echo "DEBUG: ✅ Extracted GPS from ImageMagick: $GPS_LATITUDE,$GPS_LONGITUDE" >&2
+        fi
+    fi
+    
     # Generate JPG thumbnail for non-JPG images (skip if already have from provenance)
     if [ -z "$THUMBNAIL_CID" ] && command -v convert &> /dev/null; then
         # Check if image is not already JPG/JPEG
@@ -647,7 +808,12 @@ IMAGE_SECTION=""
 if [[ -n "$IMAGE_DIMENSIONS" ]]; then
     IMAGE_SECTION=",
   \"image\": {
-    \"dimensions\": \"$IMAGE_DIMENSIONS\"
+    \"dimensions\": \"$IMAGE_DIMENSIONS\"${IMAGE_EXIF_JSON}
+  }"
+elif [[ -n "$IMAGE_EXIF_JSON" ]]; then
+    # EXIF metadata without dimensions (shouldn't happen, but handle it)
+    IMAGE_SECTION=",
+  \"image\": {${IMAGE_EXIF_JSON:2}
   }"
 fi
 
@@ -698,6 +864,121 @@ if [ -n "$UPLOAD_CHAIN_ARRAY" ] && [ "$UPLOAD_CHAIN_ARRAY" != "[]" ]; then
     fi
 fi
 
+# Build YouTube or TMDB metadata section if available
+YOUTUBE_SECTION=""
+TMDB_SECTION=""
+
+if [ -n "$YOUTUBE_METADATA_JSON" ] && command -v jq &> /dev/null; then
+    # Check if it's TMDB metadata (has tmdb_id) or YouTube metadata
+    TMDB_ID=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.tmdb_id // empty' 2>/dev/null)
+    
+    if [[ -n "$TMDB_ID" ]]; then
+        # This is TMDB metadata
+        echo "DEBUG: Extracting TMDB metadata for info.json..." >&2
+        TMDB_MEDIA_TYPE=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.media_type // empty' 2>/dev/null)
+        TMDB_TITLE=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.title // empty' 2>/dev/null)
+        TMDB_YEAR=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.year // empty' 2>/dev/null)
+        TMDB_URL=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.tmdb_url // empty' 2>/dev/null)
+        
+        # Build TMDB section JSON using jq for proper escaping
+        TMDB_OBJ="{}"
+        if [[ -n "$TMDB_ID" ]]; then
+            TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --argjson id "$TMDB_ID" '. + {tmdb_id: $id}' 2>/dev/null || echo "$TMDB_OBJ")
+        fi
+        if [[ -n "$TMDB_MEDIA_TYPE" ]]; then
+            TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg type "$TMDB_MEDIA_TYPE" '. + {media_type: $type}' 2>/dev/null || echo "$TMDB_OBJ")
+        fi
+        if [[ -n "$TMDB_TITLE" ]]; then
+            TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg title "$TMDB_TITLE" '. + {title: $title}' 2>/dev/null || echo "$TMDB_OBJ")
+        fi
+        if [[ -n "$TMDB_YEAR" ]]; then
+            TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg year "$TMDB_YEAR" '. + {year: $year}' 2>/dev/null || echo "$TMDB_OBJ")
+        fi
+        if [[ -n "$TMDB_URL" ]]; then
+            TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg url "$TMDB_URL" '. + {tmdb_url: $url}' 2>/dev/null || echo "$TMDB_OBJ")
+        fi
+        
+        # Convert to string and format for insertion
+        if [[ "$TMDB_OBJ" != "{}" ]]; then
+            TMDB_JSON_STR=$(echo "$TMDB_OBJ" | jq -c '.' 2>/dev/null | sed 's/^{//' | sed 's/}$//')
+            if [[ -n "$TMDB_JSON_STR" ]]; then
+                TMDB_SECTION=",
+  \"tmdb\": {
+    $TMDB_JSON_STR
+  }"
+                echo "DEBUG: ✅ TMDB metadata section created" >&2
+            fi
+        fi
+    else
+        # This is YouTube metadata
+        echo "DEBUG: Extracting YouTube metadata for info.json..." >&2
+        # Extract relevant fields from YouTube metadata
+        YT_TITLE=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.title // empty' 2>/dev/null)
+        YT_DESCRIPTION=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.description // empty' 2>/dev/null)
+        YT_UPLOADER=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.uploader // .channel // empty' 2>/dev/null)
+        YT_UPLOADER_ID=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.uploader_id // .channel_id // empty' 2>/dev/null)
+        YT_VIDEO_ID=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.id // .video_id // empty' 2>/dev/null)
+        YT_WEBPAGE_URL=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.webpage_url // .url // empty' 2>/dev/null)
+        YT_VIEW_COUNT=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.view_count // empty' 2>/dev/null)
+        YT_LIKE_COUNT=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.like_count // empty' 2>/dev/null)
+        YT_UPLOAD_DATE=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.upload_date // empty' 2>/dev/null)
+        YT_TAGS=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.tags // [] | if type == "array" then join(", ") else . end' 2>/dev/null)
+        YT_CATEGORY=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.category // empty' 2>/dev/null)
+        YT_THUMBNAIL=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.thumbnail // empty' 2>/dev/null)
+        
+        # Build YouTube section JSON using jq for proper escaping
+        YT_OBJ="{}"
+        if [[ -n "$YT_TITLE" ]]; then
+            YT_OBJ=$(echo "$YT_OBJ" | jq --arg title "$YT_TITLE" '. + {title: $title}' 2>/dev/null || echo "$YT_OBJ")
+        fi
+        if [[ -n "$YT_DESCRIPTION" ]]; then
+            YT_OBJ=$(echo "$YT_OBJ" | jq --arg desc "$YT_DESCRIPTION" '. + {description: $desc}' 2>/dev/null || echo "$YT_OBJ")
+        fi
+        if [[ -n "$YT_UPLOADER" ]]; then
+            YT_OBJ=$(echo "$YT_OBJ" | jq --arg uploader "$YT_UPLOADER" '. + {uploader: $uploader}' 2>/dev/null || echo "$YT_OBJ")
+        fi
+        if [[ -n "$YT_UPLOADER_ID" ]]; then
+            YT_OBJ=$(echo "$YT_OBJ" | jq --arg uploader_id "$YT_UPLOADER_ID" '. + {uploader_id: $uploader_id}' 2>/dev/null || echo "$YT_OBJ")
+        fi
+        if [[ -n "$YT_VIDEO_ID" ]]; then
+            YT_OBJ=$(echo "$YT_OBJ" | jq --arg video_id "$YT_VIDEO_ID" '. + {video_id: $video_id}' 2>/dev/null || echo "$YT_OBJ")
+        fi
+        if [[ -n "$YT_WEBPAGE_URL" ]]; then
+            YT_OBJ=$(echo "$YT_OBJ" | jq --arg url "$YT_WEBPAGE_URL" '. + {webpage_url: $url}' 2>/dev/null || echo "$YT_OBJ")
+        fi
+        if [[ -n "$YT_VIEW_COUNT" ]] && [[ "$YT_VIEW_COUNT" != "null" ]]; then
+            YT_OBJ=$(echo "$YT_OBJ" | jq --argjson views "$YT_VIEW_COUNT" '. + {view_count: $views}' 2>/dev/null || echo "$YT_OBJ")
+        fi
+        if [[ -n "$YT_LIKE_COUNT" ]] && [[ "$YT_LIKE_COUNT" != "null" ]]; then
+            YT_OBJ=$(echo "$YT_OBJ" | jq --argjson likes "$YT_LIKE_COUNT" '. + {like_count: $likes}' 2>/dev/null || echo "$YT_OBJ")
+        fi
+        if [[ -n "$YT_UPLOAD_DATE" ]]; then
+            YT_OBJ=$(echo "$YT_OBJ" | jq --arg date "$YT_UPLOAD_DATE" '. + {upload_date: $date}' 2>/dev/null || echo "$YT_OBJ")
+        fi
+        if [[ -n "$YT_TAGS" ]] && [[ "$YT_TAGS" != "null" ]] && [[ "$YT_TAGS" != "" ]]; then
+            YT_OBJ=$(echo "$YT_OBJ" | jq --arg tags "$YT_TAGS" '. + {tags: $tags}' 2>/dev/null || echo "$YT_OBJ")
+        fi
+        if [[ -n "$YT_CATEGORY" ]]; then
+            YT_OBJ=$(echo "$YT_OBJ" | jq --arg category "$YT_CATEGORY" '. + {category: $category}' 2>/dev/null || echo "$YT_OBJ")
+        fi
+        if [[ -n "$YT_THUMBNAIL" ]]; then
+            YT_OBJ=$(echo "$YT_OBJ" | jq --arg thumbnail "$YT_THUMBNAIL" '. + {thumbnail_url: $thumbnail}' 2>/dev/null || echo "$YT_OBJ")
+        fi
+        
+        # Convert to string and format for insertion
+        if [[ "$YT_OBJ" != "{}" ]]; then
+            YT_JSON_STR=$(echo "$YT_OBJ" | jq -c '.' 2>/dev/null | sed 's/^{//' | sed 's/}$//')
+            if [[ -n "$YT_JSON_STR" ]]; then
+                YOUTUBE_SECTION=",
+  \"youtube\": {
+    $YT_JSON_STR
+  }"
+                echo "DEBUG: ✅ YouTube metadata section created" >&2
+            fi
+        fi
+    fi
+fi
+
 # Construct info.json content
 # CRITICAL: Add protocol version for compatibility tracking
 # Protocol version follows semantic versioning: MAJOR.MINOR.PATCH
@@ -723,7 +1004,7 @@ INFO_JSON_CONTENT="{
     \"url\": \"/ipfs/$CID/$FILE_NAME\",
     \"date\": \"$DATE\"$(if [ -n "$IPFSNODEID" ]; then echo ",
     \"node_id\": \"$IPFSNODEID\""; fi)
-  }$IMAGE_SECTION$MEDIA_SECTION$PROVENANCE_SECTION,
+  }$IMAGE_SECTION$MEDIA_SECTION$PROVENANCE_SECTION$YOUTUBE_SECTION$TMDB_SECTION,
   \"metadata\": {
     \"description\": \"$DESCRIPTION\",
     \"type\": \"$IDISK\",

@@ -2404,8 +2404,18 @@ async def youtube_route(
         sys.path.append(os.path.expanduser("~/.zen/Astroport.ONE/IA"))
         from create_video_channel import fetch_and_process_nostr_events, create_channel_playlist
         
-        # Fetch NOSTR events
-        video_messages = await fetch_and_process_nostr_events("ws://127.0.0.1:7777", 200)
+        # Fetch NOSTR events with timeout to prevent hanging
+        try:
+            video_messages = await asyncio.wait_for(
+                fetch_and_process_nostr_events("ws://127.0.0.1:7777", 200),
+                timeout=15.0  # 15 second timeout
+            )
+        except asyncio.TimeoutError:
+            logging.warning("⚠️ Timeout fetching NOSTR events, using empty list")
+            video_messages = []
+        except Exception as fetch_error:
+            logging.error(f"❌ Error fetching NOSTR events: {fetch_error}")
+            video_messages = []
         
         # Validate and normalize video data
         validated_videos = []
@@ -3225,7 +3235,12 @@ async def process_webcam_video(
                 if mime_type:
                     publish_cmd.extend(["--mime-type", mime_type])
                 if upload_chain:
-                    publish_cmd.extend(["--upload-chain", upload_chain])
+                    # Convert upload_chain to JSON string if it's a list/dict
+                    if isinstance(upload_chain, (list, dict)):
+                        upload_chain_str = json.dumps(upload_chain)
+                    else:
+                        upload_chain_str = str(upload_chain)
+                    publish_cmd.extend(["--upload-chain", upload_chain_str])
                 
                 publish_cmd.extend([
                     "--duration", str(duration),
@@ -3240,8 +3255,22 @@ async def process_webcam_video(
                 logging.info(f"⏱️  Duration: {duration}s")
                 logging.info(f"📍 Location: {lat:.2f}, {lon:.2f}")
                 logging.info(f"🔐 File hash: {file_hash[:16] if file_hash else 'N/A'}...")
-                logging.info(f"🔗 Upload chain: {upload_chain[:50] if upload_chain else 'N/A'}...")
-                logging.info(f"🔧 Full command: {' '.join(publish_cmd)}")
+                # Log upload_chain safely (handle both string and list/dict)
+                if upload_chain:
+                    if isinstance(upload_chain, (list, dict)):
+                        upload_chain_log = json.dumps(upload_chain)[:50]
+                    else:
+                        upload_chain_log = str(upload_chain)[:50]
+                    logging.info(f"🔗 Upload chain: {upload_chain_log}...")
+                else:
+                    logging.info(f"🔗 Upload chain: N/A")
+                # Log command safely (convert all items to strings)
+                try:
+                    cmd_str = ' '.join(str(arg) for arg in publish_cmd)
+                    logging.info(f"🔧 Full command: {cmd_str}")
+                except Exception as cmd_err:
+                    logging.warning(f"⚠️ Could not log full command: {cmd_err}")
+                    logging.info(f"🔧 Command has {len(publish_cmd)} arguments")
                 
                 # Execute unified script
                 publish_result = subprocess.run(publish_cmd, capture_output=True, text=True, timeout=30)
