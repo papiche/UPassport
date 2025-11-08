@@ -106,41 +106,50 @@
             max-width: 60%;
         }
         
-        /* Main content area - CSS Grid with 3 zones */
+        /* Main content area - CSS Grid: Video left, Comments right */
         .theater-content-grid {
             grid-row: 2 !important;
             grid-column: 1 !important;
             display: grid !important;
-            grid-template-columns: 66.66% 33.33% !important;
-            grid-template-rows: 66.66% 33.33% !important;
+            grid-template-columns: 1fr 400px !important; /* Fixed width for comments on desktop */
             height: calc(100vh - 60px) !important;
             gap: 0 !important;
             overflow: hidden !important;
         }
         
-        /* Zone 1: Video player (top-left, 2/3 width x 2/3 height) */
+        /* Video player (left side, full height) */
         .theater-video-container {
-            grid-column: 1 / 2 !important;
-            grid-row: 1 / 2 !important;
+            grid-column: 1 !important;
+            grid-row: 1 !important;
             background: #000000 !important;
             display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
+            flex-direction: column !important;
             overflow: hidden !important;
             position: relative !important;
+        }
+        
+        /* Video player element */
+        .theater-video-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 0;
         }
 
         .theater-video-player {
             width: 100%;
             height: 100%;
+            max-width: 100%;
+            max-height: 100%;
             object-fit: contain;
             background: #000000;
         }
         
-        /* Zone 2: Comments section (right side, full height, 1/3 width) */
+        /* Comments section (right side, full height) */
         .theater-comments-section {
-            grid-column: 2 / 3 !important;
-            grid-row: 1 / 3 !important;
+            grid-column: 2 !important;
+            grid-row: 1 !important;
             display: flex !important;
             flex-direction: column !important;
             overflow: hidden !important;
@@ -189,35 +198,27 @@
             border-radius: 4px;
         }
         
-        /* Zone 3: Video info + similar videos (bottom-left, 2/3 width x 1/3 height) */
-        .theater-bottom-section {
-            grid-column: 1 / 2 !important;
-            grid-row: 2 / 3 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-            background: #181818 !important;
-            border-top: 1px solid #3f3f3f !important;
+        /* Video info section (below video player) */
+        .theater-video-info {
+            flex-shrink: 0;
+            padding: 16px 20px;
+            background: #181818;
+            border-top: 1px solid #3f3f3f;
+            overflow-y: auto;
+            max-height: 35%; /* Reduced to give more space to video */
         }
         
-        .theater-bottom-section::-webkit-scrollbar {
-            width: 8px;
+        .theater-video-info::-webkit-scrollbar {
+            width: 6px;
         }
         
-        .theater-bottom-section::-webkit-scrollbar-track {
+        .theater-video-info::-webkit-scrollbar-track {
             background: #0f0f0f;
         }
         
-        .theater-bottom-section::-webkit-scrollbar-thumb {
+        .theater-video-info::-webkit-scrollbar-thumb {
             background: #3f3f3f;
-            border-radius: 4px;
-        }
-        
-        .theater-video-info {
-            padding: 16px 20px;
-            border-bottom: 1px solid #3f3f3f;
-            background: #181818;
+            border-radius: 3px;
         }
         
         .theater-video-info h6 {
@@ -225,22 +226,20 @@
             font-size: 14px;
         }
         
-        .theater-related-videos-container {
-            padding: 16px 20px;
-            background: #181818;
-        }
-        
-        .theater-related-videos-container h6 {
-            margin: 0 0 16px 0;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        
         /* Tablet: adjust proportions */
         @media (max-width: 1200px) and (min-width: 769px) {
             .theater-content-grid {
-                grid-template-columns: 60% 40% !important;
-                grid-template-rows: 60% 40% !important;
+                grid-template-columns: 1fr 350px !important; /* Smaller fixed width for comments */
+            }
+            
+            .theater-video-info {
+                padding: 14px 16px;
+                font-size: 0.9em;
+            }
+            
+            .theater-comments-header,
+            .theater-comments-form {
+                padding: 14px;
             }
         }
         
@@ -256,39 +255,45 @@
             .theater-video-container {
                 width: 100% !important;
                 height: auto !important;
-                min-height: 40vh !important;
-                max-height: 50vh !important;
+                min-height: 45vh !important;
+                max-height: 55vh !important;
                 order: 1;
             }
             
-            .theater-video-player {
-                height: 100% !important;
+            .theater-video-wrapper {
+                min-height: 45vh;
             }
             
-            .theater-bottom-section {
+            .theater-video-player {
+                width: 100%;
+                height: 100%;
+            }
+            
+            .theater-video-info {
                 width: 100% !important;
-                height: auto !important;
                 max-height: none !important;
                 order: 2;
                 border-top: 1px solid #3f3f3f;
                 border-left: none;
-                overflow-y: visible !important;
+                padding: 12px 16px;
+                max-height: 30vh; /* Limit height on mobile */
             }
             
             .theater-comments-section {
                 width: 100% !important;
                 height: auto !important;
-                min-height: 50vh !important;
+                min-height: 45vh !important;
+                max-height: 45vh !important;
                 order: 3;
                 border-left: none;
                 border-top: 1px solid #3f3f3f;
             }
             
             .theater-comments-list {
-                max-height: 40vh !important;
+                max-height: 35vh !important;
             }
             
-            /* Améliorer la lisibilité sur petit écran */
+            /* Improve readability on small screens */
             .theater-header h5 {
                 font-size: 14px;
                 max-width: 50%;
@@ -296,10 +301,7 @@
             
             .theater-video-info {
                 padding: 12px 16px;
-            }
-            
-            .theater-related-videos-container {
-                padding: 12px 16px;
+                font-size: 0.9em;
             }
             
             .theater-comment-item {
@@ -311,7 +313,7 @@
                 font-size: 14px;
             }
             
-            /* Boutons plus gros sur mobile */
+            /* Larger buttons on mobile */
             .theater-header .btn {
                 padding: 6px 10px;
                 font-size: 12px;
@@ -326,6 +328,7 @@
         @media (max-width: 480px) {
             .theater-header {
                 padding: 8px 12px;
+                height: 50px;
             }
             
             .theater-header h5 {
@@ -338,13 +341,41 @@
                 font-size: 11px;
             }
             
+            .theater-header .btn span {
+                display: none; /* Hide text, show only icons */
+            }
+            
             .theater-video-container {
                 min-height: 35vh !important;
                 max-height: 45vh !important;
             }
             
-            .theater-comments-list {
+            .theater-video-wrapper {
+                min-height: 35vh;
+            }
+            
+            .theater-video-info {
+                padding: 10px 12px;
+                font-size: 0.85em;
+                max-height: 25vh;
+            }
+            
+            .theater-comments-section {
+                min-height: 35vh !important;
                 max-height: 35vh !important;
+            }
+            
+            .theater-comments-list {
+                max-height: 25vh !important;
+                padding: 10px;
+            }
+            
+            .theater-comments-form {
+                padding: 10px;
+            }
+            
+            .theater-comments-header {
+                padding: 10px;
             }
         }
 
@@ -527,301 +558,6 @@
             animation: slideIn 0.3s ease-out;
         }
         
-        /* Related videos styling */
-        .theater-related-video-item {
-            display: flex;
-            gap: 12px;
-            padding: 12px;
-            background: #181818;
-            border: 1px solid #3f3f3f;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            min-height: 100px;
-        }
-        
-        .theater-related-video-item:hover {
-            background: #282828;
-            border-color: #3ea6ff;
-            transform: translateX(4px);
-        }
-        
-        .theater-related-video-thumbnail {
-            flex-shrink: 0;
-            width: 140px;
-            height: 78px;
-            border-radius: 6px;
-            overflow: hidden;
-            background: #2a2a2a;
-            position: relative;
-        }
-        
-        .theater-related-video-thumbnail img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
-        
-        .theater-related-video-thumbnail .duration-badge {
-            position: absolute;
-            bottom: 4px;
-            right: 4px;
-            background: rgba(0, 0, 0, 0.9);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        
-        .theater-related-video-thumbnail .placeholder-thumbnail {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #1a1a1a;
-            color: #666;
-        }
-        
-        .theater-related-video-info {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-        
-        .theater-related-video-title {
-            font-size: 14px;
-            font-weight: 500;
-            color: #ffffff;
-            margin-bottom: 6px;
-            line-height: 1.4;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-        
-        .theater-related-video-meta {
-            font-size: 12px;
-            color: #cccccc;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            line-height: 1.3;
-        }
-        
-        .theater-related-video-meta .author-name {
-            flex: 1;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .theater-related-video-meta .duration-text {
-            color: #999999;
-            flex-shrink: 0;
-        }
-        
-        /* Horizontal row of 3 video cards (like map cards) */
-        .related-videos-row {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-        }
-        
-        .theater-related-video-card {
-            display: flex;
-            flex-direction: column;
-            background: #181818;
-            border: 1px solid #3f3f3f;
-            border-radius: 8px;
-            overflow: hidden;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .theater-related-video-card:hover {
-            background: #212121;
-            border-color: #3ea6ff;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(62, 166, 255, 0.2);
-        }
-        
-        .theater-related-video-card-thumbnail {
-            position: relative;
-            width: 100%;
-            padding-top: 56.25%; /* 16:9 aspect ratio */
-            background: #2a2a2a;
-            overflow: hidden;
-        }
-        
-        .theater-related-video-card-thumbnail img,
-        .theater-related-video-card-thumbnail .placeholder-thumbnail {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .theater-related-video-card-thumbnail .placeholder-thumbnail {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #1a1a1a;
-        }
-        
-        .theater-related-video-card-thumbnail .duration-badge {
-            position: absolute;
-            bottom: 4px;
-            right: 4px;
-            background: rgba(0, 0, 0, 0.9);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        
-        .theater-related-video-card-info {
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            flex: 1;
-        }
-        
-        .theater-related-video-card-title {
-            font-size: 13px;
-            font-weight: 500;
-            color: #f1f1f1;
-            line-height: 1.3;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            min-height: 33px;
-        }
-        
-        .theater-related-video-card-meta {
-            font-size: 11px;
-            color: #aaaaaa;
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-        }
-        
-        .theater-related-video-card-meta .author-name {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .theater-related-video-card-meta .duration-text {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            color: #888888;
-        }
-        
-        /* Responsive: stack on small screens */
-        @media (max-width: 768px) {
-            .related-videos-row {
-                grid-template-columns: 1fr;
-                gap: 10px;
-            }
-            
-            /* Vidéos similaires compactes sur mobile */
-            .theater-related-video-item {
-                min-height: auto;
-                padding: 8px;
-                gap: 10px;
-            }
-            
-            .theater-related-video-thumbnail {
-                width: 100px;
-                height: 56px;
-            }
-            
-            .theater-related-video-card-thumbnail {
-                padding-top: 56.25%;
-            }
-            
-            .theater-related-video-card-thumbnail img,
-            .theater-related-video-card-thumbnail .placeholder-thumbnail {
-                object-fit: cover;
-            }
-            
-            .theater-related-video-title {
-                font-size: 13px;
-                -webkit-line-clamp: 2;
-            }
-            
-            .theater-related-video-card-title {
-                font-size: 12px;
-                -webkit-line-clamp: 2;
-                min-height: auto;
-            }
-            
-            .theater-related-video-meta,
-            .theater-related-video-card-meta {
-                font-size: 11px;
-            }
-            
-            /* Limiter la hauteur de la section des vidéos similaires sur mobile */
-            .theater-related-videos-container {
-                max-height: 300px;
-                overflow-y: auto;
-                padding: 10px 12px;
-            }
-            
-            .theater-related-videos-container h6 {
-                font-size: 13px;
-                margin-bottom: 12px;
-                position: sticky;
-                top: 0;
-                background: #181818;
-                padding: 8px 0;
-                z-index: 1;
-            }
-        }
-        
-        /* Very small mobile: even more compact */
-        @media (max-width: 480px) {
-            .theater-related-video-thumbnail {
-                width: 80px;
-                height: 45px;
-            }
-            
-            .theater-related-video-title {
-                font-size: 12px;
-                -webkit-line-clamp: 1;
-            }
-            
-            .theater-related-video-card-title {
-                font-size: 11px;
-                -webkit-line-clamp: 1;
-            }
-            
-            .theater-related-videos-container {
-                max-height: 250px;
-                padding: 8px 10px;
-            }
-            
-            .theater-related-video-item {
-                padding: 6px;
-                gap: 8px;
-            }
-        }
     </style>
 </head>
 <body class="bg-dark text-white">
@@ -847,22 +583,21 @@
         
         <!-- Main content grid -->
         <div class="theater-content-grid">
-            <!-- Video player: top-left (2/3 x 2/3) -->
+            <!-- Video player (left side) -->
             <div class="theater-video-container">
-                <video 
-                    id="theaterVideoPlayer" 
-                    class="theater-video-player"
-                    controls 
-                    autoplay>
-                    Votre navigateur ne supporte pas la lecture vidéo.
-                </video>
-            </div>
-            
-            <!-- Bottom section: video info + related videos -->
-            <div class="theater-bottom-section">
-                <!-- Video info -->
+                <div class="theater-video-wrapper">
+                    <video 
+                        id="theaterVideoPlayer" 
+                        class="theater-video-player"
+                        controls 
+                        autoplay>
+                        Votre navigateur ne supporte pas la lecture vidéo.
+                    </video>
+                </div>
+                
+                <!-- Video info (below video) -->
                 <div class="theater-video-info">
-                    <div class="d-flex gap-3 mb-2" id="theaterVideoStats">
+                    <div class="d-flex gap-3 mb-2 flex-wrap" id="theaterVideoStats">
                         <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> <span id="likeCount">0</span></span>
                         <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> <span id="shareCount">0</span></span>
                         <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> <span id="commentCount">0</span></span>
@@ -883,12 +618,6 @@
                             <div class="d-flex gap-2 flex-wrap" id="theaterProvenanceLinks"></div>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Related videos -->
-                <div class="theater-related-videos-container" id="theaterRelatedVideos">
-                    <h6 class="mb-3 text-white"><i class="bi bi-film"></i> Vidéos similaires</h6>
-                    <!-- Related videos will be loaded here by youtube.enhancements.js -->
                 </div>
             </div>
             
@@ -2787,15 +2516,6 @@
                 }, 500);
             }
             
-            // Load related videos (if function exists in parent or current window)
-            if (typeof loadRelatedVideosInTheater === 'function') {
-                loadRelatedVideosInTheater(videoData);
-            } else if (typeof window.parent !== 'undefined' && typeof window.parent.loadRelatedVideosInTheater === 'function') {
-                window.parent.loadRelatedVideosInTheater(videoData);
-            } else {
-                // Fallback: load related videos with thumbnails
-                loadRelatedVideosFallback(videoData);
-            }
         }
         
         /**
@@ -3047,56 +2767,243 @@
                 
                 console.log('📹 Parsing video data from event...');
                 
-                // Parse video data from event tags
-                let videoInfo = {};
-                try {
-                    // Try to find metadata tag (JSON)
-                    const metadataTag = event.tags.find(t => t[0] === 'metadata');
-                    if (metadataTag && metadataTag[1]) {
-                        videoInfo = JSON.parse(metadataTag[1]);
+                // Parse video data from event tags (NIP-71 format)
+                // Initialize all fields
+                let ipfsUrl = '';
+                let thumbnailIpfs = '';
+                let gifanimIpfs = '';
+                let infoCid = '';
+                let fileHash = '';
+                let uploadChain = '';
+                let title = '';
+                let duration = 0;
+                let dimensions = '';
+                let channel = '';
+                let uploader = '';
+                
+                // Parse all tags according to NIP-71
+                for (const tag of event.tags) {
+                    if (!tag || tag.length < 2) continue;
+                    
+                    const tagType = tag[0];
+                    const tagValue = tag[1];
+                    
+                    switch (tagType) {
+                        case 'url':
+                            // IPFS URL
+                            if (tagValue.includes('/ipfs/') || tagValue.includes('ipfs://')) {
+                                ipfsUrl = tagValue.replace('ipfs://', '/ipfs/');
+                            }
+                            break;
+                        case 'title':
+                            title = tagValue;
+                            break;
+                        case 'duration':
+                            duration = parseInt(tagValue) || 0;
+                            break;
+                        case 'dim':
+                            dimensions = tagValue;
+                            break;
+                        case 'image':
+                            if (!thumbnailIpfs) {
+                                thumbnailIpfs = tagValue;
                     }
-                } catch (e) {
-                    console.warn('Could not parse metadata tag:', e);
+                            break;
+                        case 'thumbnail_ipfs':
+                            if (!thumbnailIpfs) {
+                                // Extract CID (remove /ipfs/ prefix if present)
+                                thumbnailIpfs = tagValue.startsWith('/ipfs/') 
+                                    ? tagValue.split('/ipfs/')[1] 
+                                    : tagValue;
+                }
+                            break;
+                        case 'gifanim_ipfs':
+                            // Extract CID (remove /ipfs/ prefix if present)
+                            gifanimIpfs = tagValue.startsWith('/ipfs/') 
+                                ? tagValue.split('/ipfs/')[1] 
+                                : tagValue;
+                            break;
+                        case 'info':
+                            infoCid = tagValue;
+                            break;
+                        case 'x':
+                            fileHash = tagValue;
+                            break;
+                        case 'upload_chain':
+                            uploadChain = tagValue;
+                            break;
+                        case 'r':
+                            // Reference tag - check if it's a thumbnail
+                            if (tag.length >= 3 && tag[2] === 'Thumbnail' && !thumbnailIpfs) {
+                                thumbnailIpfs = tagValue;
+                            }
+                            break;
+                        case 't':
+                            // Topic tag - check for Channel- prefix
+                            if (tagValue.startsWith('Channel-')) {
+                                channel = tagValue.replace('Channel-', '');
+                                // Convert channel name to email format if possible
+                                if (!uploader) {
+                                    const parts = channel.split('_', 1);
+                                    if (parts.length === 2) {
+                                        uploader = `${parts[0]}@${parts[1].replace(/_/g, '.')}`;
+                } else {
+                                        uploader = channel.replace(/_/g, '@').replace(/_/g, '.');
+                                    }
+                                }
+                            }
+                            break;
+                    }
                 }
                 
-                // Extract IPFS URL from tags
-                let ipfsUrl = '';
-                const urlTag = event.tags.find(t => (t[0] === 'r' || t[0] === 'url') && t[1]?.includes('/ipfs/'));
-                if (urlTag) {
-                    ipfsUrl = urlTag[1];
-                } else {
-                    // Fallback: try to extract from content
+                // Parse imeta tags (NIP-71 format) as fallback
+                for (const tag of event.tags) {
+                    if (!tag || tag.length < 2 || tag[0] !== 'imeta') continue;
+                    
+                    for (let i = 1; i < tag.length; i++) {
+                        const prop = tag[i];
+                        if (prop.startsWith('url ') && !ipfsUrl) {
+                            ipfsUrl = prop.substring(4);
+                        } else if (prop.startsWith('x ') && !fileHash) {
+                            fileHash = prop.substring(2);
+                        } else if (prop.startsWith('image ') && !thumbnailIpfs) {
+                            thumbnailIpfs = prop.substring(6);
+                        } else if (prop.startsWith('gifanim ') && !gifanimIpfs) {
+                            gifanimIpfs = prop.substring(8);
+                        } else if (prop.startsWith('dim ') && !dimensions) {
+                            dimensions = prop.substring(4);
+                        }
+                    }
+                }
+                
+                // Fallback: Extract from content if tags are empty
+                if (!ipfsUrl) {
                     const contentMatch = event.content.match(/\/ipfs\/[A-Za-z0-9]+\/[^\s\n"']+/);
                     if (contentMatch) {
                         ipfsUrl = contentMatch[0];
                     }
                 }
                 
-                // Extract thumbnail
-                const thumbnailTag = event.tags.find(t => t[0] === 'image' || t[0] === 'thumbnail');
-                const thumbnailUrl = thumbnailTag ? thumbnailTag[1] : (videoInfo.thumbnail || '');
+                if (!title) {
+                    // Try to extract from content
+                    const titleMatch = event.content.match(/🎬\s*([^\n]+)/);
+                    if (titleMatch) {
+                        title = titleMatch[1].trim();
+                    } else {
+                        title = 'Sans titre';
+                    }
+                }
                 
-                // Extract other metadata
-                const titleTag = event.tags.find(t => t[0] === 'title');
-                const title = titleTag ? titleTag[1] : (videoInfo.title || 'Sans titre');
+                // Extract description from content (remove title line if present)
+                let description = event.content || '';
+                if (description.startsWith('🎬')) {
+                    const lines = description.split('\n');
+                    if (lines.length > 1) {
+                        description = lines.slice(1).join('\n').trim();
+                    }
+                }
+                
+                // Try to fetch uploader from NOSTR profile if not found
+                if (!uploader && event.pubkey) {
+                    uploader = event.pubkey.substring(0, 8) + '...';
+                    // Try to fetch email from profile (async, non-blocking)
+                    if (typeof fetchUserMetadata === 'function') {
+                        fetchUserMetadata(event.pubkey).then(profile => {
+                            if (profile) {
+                                // Try to get email from profile content or tags
+                                let email = profile.email || profile.nip05 || profile.youser;
+                                
+                                // Also check if profile has tags with 'i' tag containing 'email:'
+                                // fetchUserMetadata should return the full profile event, but if not,
+                                // we can try to fetch it directly
+                                if (!email || !email.includes('@')) {
+                                    // Try to fetch profile event directly to check tags
+                                    const currentRelay = window.nostrRelay || nostrRelay;
+                                    if (currentRelay && typeof currentRelay.sub === 'function') {
+                                        const profileSub = currentRelay.sub([{
+                                            kinds: [0],
+                                            authors: [event.pubkey],
+                                            limit: 1
+                                        }]);
+                                        
+                                        profileSub.on('event', (profileEvent) => {
+                                            // Check tags for 'i' tag with 'email:' prefix
+                                            for (const tag of profileEvent.tags || []) {
+                                                if (tag[0] === 'i' && tag[1] && tag[1].startsWith('email:')) {
+                                                    email = tag[1].substring(6); // Remove 'email:' prefix
+                                                    break;
+                                                }
+                                            }
+                                            
+                                            if (email && email.includes('@')) {
+                                                uploader = email;
+                                                // Update UI if already rendered
+                                                const uploaderEl = document.getElementById('theaterUploader');
+                                                if (uploaderEl) {
+                                                    uploaderEl.textContent = email;
+                                                }
+                                                // Also update the link if it exists
+                                                const uploaderContainer = document.getElementById('theaterUploaderContainer');
+                                                if (uploaderContainer) {
+                                                    const link = uploaderContainer.querySelector('a');
+                                                    if (link) {
+                                                        link.textContent = email;
+                                                    }
+                                                }
+                                            }
+                                            profileSub.unsub();
+                                        });
+                                        
+                                        profileSub.on('eose', () => {
+                                            profileSub.unsub();
+                                        });
+                                        
+                                        // Timeout after 2 seconds
+                                        setTimeout(() => {
+                                            profileSub.unsub();
+                                        }, 2000);
+                                    }
+                                } else if (email && email.includes('@')) {
+                                    uploader = email;
+                                    // Update UI if already rendered
+                                    const uploaderEl = document.getElementById('theaterUploader');
+                                    if (uploaderEl) {
+                                        uploaderEl.textContent = email;
+                                    }
+                                    // Also update the link if it exists
+                                    const uploaderContainer = document.getElementById('theaterUploaderContainer');
+                                    if (uploaderContainer) {
+                                        const link = uploaderContainer.querySelector('a');
+                                        if (link) {
+                                            link.textContent = email;
+                                        }
+                                    }
+                                }
+                            }
+                        }).catch(e => {
+                            console.warn('Could not fetch uploader profile:', e);
+                        });
+                    }
+                }
                 
                 // Build video data object
                 const videoData = {
                     title: title,
                     ipfsUrl: ipfsUrl,
-                    thumbnailUrl: thumbnailUrl,
+                    thumbnailUrl: thumbnailIpfs ? (thumbnailIpfs.startsWith('/ipfs/') ? thumbnailIpfs : `/ipfs/${thumbnailIpfs}`) : '',
                     eventId: event.id,
                     authorId: event.pubkey,
                     kind: event.kind, // Store the video kind (21 or 22)
-                    channel: videoInfo.channel || '',
-                    uploader: videoInfo.uploader || event.pubkey.substring(0, 8) + '...',
-                    duration: videoInfo.duration || 0,
+                    channel: channel,
+                    uploader: uploader,
+                    duration: duration,
                     content: event.content || '',
-                    description: videoInfo.description || event.content || '',
-                    gifanim_ipfs: videoInfo.gifanim_ipfs || '',
-                    info_cid: videoInfo.info_cid || '',
-                    file_hash: videoInfo.file_hash || '',
-                    upload_chain: videoInfo.upload_chain || ''
+                    description: description,
+                    gifanim_ipfs: gifanimIpfs,
+                    info_cid: infoCid,
+                    file_hash: fileHash,
+                    upload_chain: uploadChain,
+                    dimensions: dimensions
                 };
                 
                 console.log('✅ Video data parsed:', videoData);
@@ -3157,213 +3064,6 @@
         window.loadVideoFromEventIdStandalone = loadVideoFromEventIdStandalone;
         window.attemptNostrConnection = attemptNostrConnection;
 
-        /**
-         * Load related videos with thumbnails (fallback if function not available)
-         */
-        async function loadRelatedVideosFallback(videoData) {
-            const container = document.getElementById('theaterRelatedVideos');
-            if (!container || !videoData || !videoData.eventId) {
-                return;
-            }
-            
-            container.innerHTML = '<div class="text-center text-secondary py-3">Chargement des vidéos similaires...</div>';
-            
-            try {
-                // Get relay from window (consistent source)
-                const currentRelay = window.nostrRelay || nostrRelay;
-                
-                // Try to fetch related videos from NOSTR
-                if (!currentRelay || typeof currentRelay.sub !== 'function') {
-                    container.innerHTML = '<div class="text-center text-secondary py-3">Non connecté au relay</div>';
-                    return;
-                }
-                
-                // Fetch videos from same author or with similar tags
-                const relatedVideos = [];
-                const sub = currentRelay.sub([{
-                    kinds: [21, 22],
-                    authors: videoData.authorId ? [videoData.authorId] : undefined,
-                    limit: 10
-                }]);
-                
-                const timeout = setTimeout(() => {
-                    sub.unsub();
-                    displayRelatedVideos(relatedVideos, container);
-                }, 3000);
-                
-                sub.on('event', (event) => {
-                    // Skip current video
-                    if (event.id === videoData.eventId) return;
-                    
-                    try {
-                        let videoInfo = {};
-                        if (event.content) {
-                            try {
-                                videoInfo = JSON.parse(event.content);
-                            } catch (e) {
-                                // Content might be plain text
-                                videoInfo.description = event.content;
-                            }
-                        }
-                        
-                        // Extract IPFS URL from tags
-                        const ipfsTag = event.tags.find(t => t[0] === 'r' && t[1]?.includes('/ipfs/'));
-                        const ipfsUrl = ipfsTag ? ipfsTag[1] : null;
-                        
-                        // Extract thumbnail
-                        const thumbnailTag = event.tags.find(t => t[0] === 'image' || t[0] === 'thumbnail');
-                        const thumbnailUrl = thumbnailTag ? thumbnailTag[1] : null;
-                        
-                        relatedVideos.push({
-                            id: event.id,
-                            title: videoInfo.title || 'Sans titre',
-                            description: videoInfo.description || '',
-                            ipfsUrl: ipfsUrl,
-                            thumbnailUrl: thumbnailUrl,
-                            authorId: event.pubkey,
-                            event: event
-                        });
-                    } catch (e) {
-                        console.warn('Error parsing related video:', e);
-                    }
-                });
-                
-                sub.on('eose', () => {
-                    clearTimeout(timeout);
-                    sub.unsub();
-                    displayRelatedVideos(relatedVideos, container);
-                });
-            } catch (error) {
-                console.error('Error loading related videos:', error);
-                container.innerHTML = '<div class="text-center text-secondary py-3">Erreur lors du chargement</div>';
-            }
-        }
-        
-        /**
-         * Display related videos with thumbnails
-         */
-        function displayRelatedVideos(videos, container) {
-            if (!videos || videos.length === 0) {
-                container.innerHTML = '<div class="text-center text-secondary py-3">Aucune vidéo similaire</div>';
-                return;
-            }
-            
-            const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
-            const convertFn = typeof convertIPFSUrlGlobal !== 'undefined' ? convertIPFSUrlGlobal : function(url) {
-                if (!url) return '';
-                if (!window.IPFS_GATEWAY) {
-                    window.IPFS_GATEWAY = 'https://ipfs.copylaradio.com';
-                }
-                
-                // Decode URL first if it's already encoded (to avoid double-encoding)
-                // The browser will re-encode it automatically when making the request
-                let decodedUrl = url;
-                try {
-                    decodedUrl = decodeURIComponent(url);
-                } catch (e) {
-                    // If decoding fails, use original URL
-                    console.warn('Failed to decode URL:', url, e);
-                }
-                
-                if (decodedUrl.includes('/ipfs/')) {
-                    const match = decodedUrl.match(/\/ipfs\/[^?"#]+/);
-                    if (match) return window.IPFS_GATEWAY + match[0];
-                }
-                return decodedUrl.startsWith('/ipfs/') ? window.IPFS_GATEWAY + decodedUrl : decodedUrl;
-            };
-            
-            container.innerHTML = videos.map(video => {
-                const thumbnailUrl = video.thumbnailUrl ? convertFn(video.thumbnailUrl) : null;
-                const videoUrl = video.ipfsUrl ? convertFn(video.ipfsUrl) : null;
-                
-                return `
-                    <div class="theater-related-video-item" onclick="openRelatedVideoInTheater('${video.id}', '${escapeFn(video.title)}', '${videoUrl || ''}', '${video.authorId || ''}')">
-                        <div class="theater-related-video-thumbnail">
-                            ${thumbnailUrl ? `<img src="${escapeFn(thumbnailUrl)}" alt="${escapeFn(video.title)}" loading="lazy">` : `
-                                <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #666;">
-                                    <i class="bi bi-film" style="font-size: 32px;"></i>
-                                </div>
-                            `}
-                        </div>
-                        <div class="theater-related-video-info">
-                            <div class="theater-related-video-title">${escapeFn(video.title)}</div>
-                            ${video.description ? `<div class="theater-related-video-meta">${escapeFn(video.description.substring(0, 100))}${video.description.length > 100 ? '...' : ''}</div>` : ''}
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-        
-        /**
-         * Open related video in theater mode
-         */
-        function openRelatedVideoInTheater(eventId, title, ipfsUrl, authorId) {
-            // Detect if we're in standalone mode (direct /theater access) or modal mode
-            const isStandalone = (window.parent === window) || (window.location === window.parent.location);
-            
-            if (isStandalone) {
-                // Standalone mode: change URL parameter and reload video
-                console.log('🎬 Loading new video in standalone theater:', eventId);
-                
-                // Update URL without reloading the entire page
-                const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.set('video', eventId);
-                window.history.pushState({ videoId: eventId }, '', currentUrl.toString());
-                
-                // Close current comment subscription if any
-                if (window.currentTheaterCommentSubscription) {
-                    try {
-                        window.currentTheaterCommentSubscription.unsub();
-                        window.currentTheaterCommentSubscription = null;
-                    } catch (e) {
-                        console.warn('⚠️ Error closing comment subscription:', e);
-                    }
-                }
-                
-                // Stop and completely reset video player
-                const videoPlayer = document.getElementById('theaterVideoPlayer');
-                if (videoPlayer) {
-                    videoPlayer.pause();
-                    videoPlayer.removeAttribute('src');
-                    videoPlayer.load(); // Force complete reset
-                }
-                
-                // Clear comments list
-                const commentsList = document.getElementById('theaterCommentsList');
-                if (commentsList) {
-                    commentsList.innerHTML = '<div class="text-center text-secondary py-5">Chargement des commentaires...</div>';
-                }
-                
-                // Reset global comments array
-                window.theaterComments = [];
-                
-                // Reset title temporarily
-                const titleEl = document.getElementById('theaterTitle');
-                if (titleEl) {
-                    titleEl.textContent = 'Chargement...';
-                }
-                
-                // Small delay to ensure cleanup is complete before loading new video
-                setTimeout(() => {
-                    loadVideoFromEventIdStandalone(eventId);
-                }, 100);
-            } else {
-                // Modal mode: try to use parent's openTheaterModeFromEvent
-                if (typeof window.openTheaterModeFromEvent === 'function') {
-                    window.openTheaterModeFromEvent(eventId);
-                } else if (window.parent && typeof window.parent.openTheaterModeFromEvent === 'function') {
-                    window.parent.openTheaterModeFromEvent(eventId);
-                } else {
-                    // Fallback: reload page with video parameter
-                    const currentUrl = new URL(window.location.href);
-                    currentUrl.searchParams.set('video', eventId);
-                    window.location.href = currentUrl.toString();
-                }
-            }
-        }
-        
-        // Expose function globally
-        window.openRelatedVideoInTheater = openRelatedVideoInTheater;
         
         // Handle browser back/forward navigation in standalone mode
         window.addEventListener('popstate', function(event) {

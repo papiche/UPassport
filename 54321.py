@@ -824,7 +824,6 @@ def npub_to_hex(npub: str) -> Optional[str]:
         if len(npub) == 64:
             try:
                 int(npub, 16)  # Vérifier que c'est du hex valide
-                logging.info(f"Clé publique déjà en format hex: {npub}")
                 return npub.lower()  # Normaliser en minuscules
             except ValueError:
                 logging.error(f"Clé de 64 caractères mais pas en hexadécimal valide: {npub}")
@@ -2570,10 +2569,40 @@ async def youtube_route(
                 channels[channel_name] = []
             channels[channel_name].append(video)
         
+        # Log channel grouping for debugging
+        for channel_name, videos in channels.items():
+            logging.info(f"📺 Channel '{channel_name}': {len(videos)} video(s) before playlist creation")
+            if channel_name == 'frenault_linkeo_com':
+                for v in videos:
+                    logging.info(f"  - {v.get('title', 'N/A')} (id: {v.get('message_id', 'N/A')[:16]}...)")
+        
         # Create channel playlists
         channel_playlists = {}
         for channel_name, videos in channels.items():
-            channel_playlists[channel_name] = create_channel_playlist(videos, channel_name)
+            playlist = create_channel_playlist(videos, channel_name)
+            channel_playlists[channel_name] = playlist
+            # Log playlist creation for debugging
+            playlist_videos = playlist.get('videos', [])
+            logging.info(f"📺 Channel '{channel_name}': {len(playlist_videos)} video(s) after playlist creation")
+            if channel_name == 'frenault_linkeo_com':
+                for v in playlist_videos:
+                    logging.info(f"  - {v.get('title', 'N/A')} (id: {v.get('message_id', 'N/A')[:16]}...)")
+        
+        # Debug: Check if target video is in playlists
+        target_video_id = "6bc3180a0dd41d532c523b6b07055ead5a97f5485ceacd7fcabcc079ab268658"
+        found_in_playlists = False
+        for channel_name, playlist in channel_playlists.items():
+            for video in playlist.get('videos', []):
+                if video.get('message_id') == target_video_id:
+                    found_in_playlists = True
+                    logging.info(f"✅ DEBUG: Target video '{video.get('title', 'N/A')}' found in channel '{channel_name}' with {len(playlist.get('videos', []))} videos")
+                    break
+            if found_in_playlists:
+                break
+        if not found_in_playlists:
+            logging.warning(f"⚠️ DEBUG: Target video {target_video_id[:16]}... NOT found in any channel playlist")
+            logging.warning(f"⚠️ DEBUG: Available channels: {list(channel_playlists.keys())}")
+            logging.warning(f"⚠️ DEBUG: Total videos in all channels: {sum(len(p.get('videos', [])) for p in channel_playlists.values())}")
         
         # Prepare response data
         response_data = {

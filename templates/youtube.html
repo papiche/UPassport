@@ -2111,17 +2111,21 @@
                                 {% endif %}
                                 <!-- Source badge -->
                                 <div class="video-source-badge">
-                                    {% if video.youtube_url or (video.source_type and video.source_type == 'youtube') %}
+                                    {% if video.source_type == 'film' %}
+                                    <span class="source-badge source-film" title="Film (TMDB)">
+                                        <i class="bi bi-film"></i> Film
+                                    </span>
+                                    {% elif video.source_type == 'serie' %}
+                                    <span class="source-badge source-serie" title="Série (TMDB)">
+                                        <i class="bi bi-tv"></i> Série
+                                    </span>
+                                    {% elif video.source_type == 'youtube' or video.youtube_url %}
                                     <span class="source-badge source-youtube" title="Vidéo YouTube">
                                         <i class="bi bi-youtube"></i> YouTube
                                     </span>
-                                    {% elif video.source_type and video.source_type == 'tmdb' %}
-                                    <span class="source-badge source-tmdb" title="Film/Série (TMDB)">
-                                        <i class="bi bi-film"></i> TMDB
-                                    </span>
                                     {% else %}
-                                    <span class="source-badge source-video" title="Vidéo personnelle">
-                                        <i class="bi bi-camera-video"></i> Video
+                                    <span class="source-badge source-webcam" title="Vidéo personnelle (Webcam)">
+                                        <i class="bi bi-camera-video"></i> Webcam
                                     </span>
                                     {% endif %}
                                 </div>
@@ -2190,6 +2194,16 @@
                                     {{ video.download_date[:10] }} {{ video.download_date[11:19] if video.download_date|length > 10 else '' }}
                                     {% elif video.created_at %}
                                     {{ video.created_at[:10] }} {{ video.created_at[11:19] if video.created_at|length > 10 else '' }}
+                                    {% endif %}
+                                    {% if video.upload_chain_list and video.upload_chain_list|length > 1 %}
+                                    <br>
+                                    <small class="text-muted" title="Liste des copieurs (upload chain)">
+                                        <i class="bi bi-people"></i> Copieurs: 
+                                        {% for uploader in video.upload_chain_list %}
+                                            {% if not loop.first %}, {% endif %}
+                                            {{ uploader.email }}
+                                        {% endfor %}
+                                    </small>
                                     {% endif %}
                                 </div>
                                 {% if video.content and (video.kind == 21 or video.kind == 22) %}
