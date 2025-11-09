@@ -4095,7 +4095,8 @@ async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
 @app.post("/api/fileupload", response_model=UploadResponse)
 async def upload_file_to_ipfs(
     file: UploadFile = File(...),
-    npub: str = Form(...)  # Seule npub ou hex est acceptée
+    npub: str = Form(...),  # Seule npub ou hex est acceptée
+    youtube_metadata: Optional[UploadFile] = File(None)  # Optional YouTube metadata JSON file
 ):
     """
     Upload file to IPFS with NIP-42 authentication.
@@ -4339,8 +4340,30 @@ async def upload_file_to_ipfs(
             await out_file.write(file_content)
         
         # Generate IPFS CID using the upload2ipfs.sh script
-        temp_file_path = f"tmp/temp_{uuid.uuid4()}.json"
-        script_path = "./upload2ipfs.sh"
+        # Use absolute path for temp file
+        tmp_dir = os.path.expanduser("~/.zen/tmp")
+        os.makedirs(tmp_dir, exist_ok=True)
+        temp_file_path = os.path.join(tmp_dir, f"temp_{uuid.uuid4()}.json")
+        
+        # Find upload2ipfs.sh script (try multiple locations)
+        script_path = None
+        possible_paths = [
+            "./upload2ipfs.sh",
+            os.path.expanduser("~/.zen/Astroport.ONE/UPassport/upload2ipfs.sh"),
+            os.path.expanduser("~/workspace/AAA/UPassport/upload2ipfs.sh"),
+            os.path.join(os.path.dirname(__file__), "upload2ipfs.sh")
+        ]
+        for path in possible_paths:
+            expanded_path = os.path.expanduser(path)
+            if os.path.exists(expanded_path) and os.path.isfile(expanded_path):
+                script_path = os.path.abspath(expanded_path)
+                break
+        
+        if not script_path:
+            logging.error("❌ upload2ipfs.sh not found in any expected location")
+            raise HTTPException(status_code=500, detail="upload2ipfs.sh script not found")
+        
+        logging.info(f"📜 Using upload2ipfs.sh: {script_path}")
         
         # Get user pubkey for provenance tracking (if authenticated)
         user_pubkey_hex = ""
@@ -4351,8 +4374,47 @@ async def upload_file_to_ipfs(
         except Exception as e:
             logging.warning(f"⚠️ Could not convert npub to hex for provenance: {e}")
         
-        # Pass user pubkey as 3rd parameter to upload2ipfs.sh
-        return_code, last_line = await run_script(script_path, str(file_path), temp_file_path, user_pubkey_hex)
+        # Handle YouTube metadata if provided
+        youtube_metadata_file = None
+        if youtube_metadata:
+            try:
+                # Read YouTube metadata JSON
+                youtube_metadata_content = await youtube_metadata.read()
+                youtube_metadata_json = json.loads(youtube_metadata_content.decode('utf-8'))
+                
+                # Create temporary metadata file for upload2ipfs.sh
+                # Use absolute path in tmp directory
+                tmp_dir = os.path.expanduser("~/.zen/tmp")
+                os.makedirs(tmp_dir, exist_ok=True)
+                youtube_metadata_file = os.path.join(tmp_dir, f"youtube_metadata_{uuid.uuid4()}.json")
+                
+                async with aiofiles.open(youtube_metadata_file, 'w') as metadata_file:
+                    await metadata_file.write(json.dumps(youtube_metadata_json, indent=2))
+                
+                logging.info(f"📋 YouTube metadata file created: {youtube_metadata_file}")
+                logging.info(f"   - Video ID: {youtube_metadata_json.get('youtube_id', 'N/A')}")
+                logging.info(f"   - Channel: {youtube_metadata_json.get('channel', youtube_metadata_json.get('uploader', 'N/A'))}")
+                logging.info(f"   - Views: {youtube_metadata_json.get('view_count', 'N/A')}")
+            except Exception as e:
+                logging.warning(f"⚠️ Failed to process YouTube metadata: {e}")
+                youtube_metadata_file = None
+        
+        # Call upload2ipfs.sh with metadata if available
+        if youtube_metadata_file:
+            # Pass metadata file via --metadata option
+            return_code, last_line = await run_script(
+                script_path, 
+                "--metadata", youtube_metadata_file,
+                str(file_path), 
+                temp_file_path, 
+                user_pubkey_hex
+            )
+            # Clean up metadata file after upload
+            if os.path.exists(youtube_metadata_file):
+                os.remove(youtube_metadata_file)
+        else:
+            # Pass user pubkey as 3rd parameter to upload2ipfs.sh (no metadata)
+            return_code, last_line = await run_script(script_path, str(file_path), temp_file_path, user_pubkey_hex)
         
         if return_code == 0:
             try:
