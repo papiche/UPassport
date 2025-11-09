@@ -631,7 +631,11 @@ class OracleSystem:
                 events_dir = Path.home() / ".zen" / "game" / "nostr" / email
                 events_dir.mkdir(parents=True, exist_ok=True)
                 print(f"📁 Saving event to MULTIPASS directory: {email}")
-
+            else:
+                # Fallback to default location if email not found
+                events_dir = Path.home() / ".zen" / "tmp" / "nostr_events"
+                events_dir.mkdir(exist_ok=True)
+                print(f"⚠️  Could not find email for {signer_npub}, using default location")
         else:
             # Default location for events without signer
             events_dir = self.data_dir / "nostr_events"
