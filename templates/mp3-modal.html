@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nostrify Modal - NOSTR Music Player</title>
+    <title>Nostrify Modal - NOSTR Music Mixxxer</title>
     
     <!-- Bootstrap 5 CSS -->
     <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
@@ -1464,6 +1464,13 @@
             // Setup related tracks search
             setupRelatedTracksSearch();
             
+            // Load linked tracks
+            if (trackData.eventId) {
+                setTimeout(() => {
+                    loadLinkedTracks(trackData.eventId);
+                }, 1000);
+            }
+            
             // Publish presence for Mixxx mode (if user is connected)
             if (trackData.eventId && typeof userPubkey !== 'undefined' && userPubkey) {
                 setTimeout(() => {
@@ -1544,7 +1551,13 @@
                     return div.innerHTML;
                 };
                 
-                listEl.innerHTML = tracks.map(track => `
+                // Get linked track IDs to avoid showing them in search results
+                const linkedIds = (window.currentLinkedTracks || []).map(lt => lt.eventId);
+                
+                // Filter out already linked tracks
+                const unlinkedTracks = tracks.filter(track => !linkedIds.includes(track.eventId));
+                
+                const searchResultsHtml = unlinkedTracks.map(track => `
                     <div class="mp3-related-item" onclick="openRelatedTrack('${track.eventId}')">
                         <img src="${track.thumbnail || ''}" class="mp3-related-item-image" alt="${escapeFn(track.title || '')}" onerror="this.style.display='none'">
                         <div class="mp3-related-item-info">
@@ -1558,6 +1571,26 @@
                         </div>
                     </div>
                 `).join('');
+                
+                // Combine linked tracks and search results
+                if (window.currentLinkedTracks && window.currentLinkedTracks.length > 0) {
+                    renderLinkedTracks(window.currentLinkedTracks);
+                    // Append search results
+                    const linkedSection = listEl.querySelector('.mb-3');
+                    if (linkedSection && searchResultsHtml) {
+                        const separator = document.createElement('div');
+                        separator.className = 'mt-3 pt-3 border-top border-secondary';
+                        separator.innerHTML = `
+                            <div class="small text-secondary mb-2">Search Results</div>
+                            ${searchResultsHtml}
+                        `;
+                        listEl.appendChild(separator);
+                    } else if (searchResultsHtml) {
+                        listEl.innerHTML = searchResultsHtml;
+                    }
+                } else {
+                    listEl.innerHTML = searchResultsHtml;
+                }
                 
             } catch (error) {
                 console.error('Error searching tracks:', error);
@@ -1575,6 +1608,16 @@
             try {
                 const track = await loadTrackFromEventId(eventId);
                 if (track) {
+                    // Clear search input when switching tracks
+                    const searchInput = document.getElementById('mp3RelatedSearchInput');
+                    if (searchInput) {
+                        searchInput.value = '';
+                    }
+                    const relatedList = document.getElementById('mp3RelatedList');
+                    if (relatedList) {
+                        relatedList.innerHTML = '<div class="text-center text-secondary py-5">Loading linked tracks...</div>';
+                    }
+                    
                     initializeMP3Modal(track);
                 }
             } catch (error) {
@@ -1583,6 +1626,194 @@
             }
         }
 
+        /**
+         * Load linked tracks (kind 1 events with track-link tag)
+         */
+        async function loadLinkedTracks(currentEventId) {
+            const relatedList = document.getElementById('mp3RelatedList');
+            if (!relatedList || !currentEventId) return;
+            
+            try {
+                let currentRelay = window.nostrRelay || nostrRelay;
+                
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    currentRelay = window.nostrRelay || nostrRelay;
+                }
+                
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    return;
+                }
+                
+                // Subscribe to kind 1 events with track-link tag that reference this track
+                const linkedTracks = [];
+                const trackMetadataCache = new Map();
+                
+                const sub = currentRelay.sub([{
+                    kinds: [1],
+                    '#t': ['track-link'],
+                    '#e': [currentEventId],
+                    limit: 50
+                }]);
+                
+                sub.on('event', async (event) => {
+                    try {
+                        // Extract linked track eventId from tags
+                        // Look for 'e' tag with 'reply' marker (the linked track)
+                        const replyTag = event.tags.find(t => t[0] === 'e' && t[3] === 'reply');
+                        const linkedEventId = replyTag ? replyTag[1] : null;
+                        
+                        if (!linkedEventId) return;
+                        
+                        // Check if already in list
+                        if (linkedTracks.find(t => t.eventId === linkedEventId)) return;
+                        
+                        // Load track metadata
+                        let trackData = trackMetadataCache.get(linkedEventId);
+                        if (!trackData) {
+                            try {
+                                trackData = await loadTrackFromEventId(linkedEventId);
+                                trackMetadataCache.set(linkedEventId, trackData);
+                            } catch (e) {
+                                console.warn('Could not load linked track:', e);
+                                // Still add it with minimal info
+                                trackData = {
+                                    eventId: linkedEventId,
+                                    title: 'Loading...',
+                                    artist: 'Unknown Artist',
+                                    thumbnail: null
+                                };
+                            }
+                        }
+                        
+                        linkedTracks.push({
+                            eventId: linkedEventId,
+                            trackData: trackData,
+                            linkEventId: event.id,
+                            linkAuthorId: event.pubkey,
+                            linkCreatedAt: event.created_at
+                        });
+                        
+                        renderLinkedTracks(linkedTracks);
+                    } catch (e) {
+                        console.error('Error processing linked track:', e);
+                    }
+                });
+                
+                sub.on('eose', () => {
+                    console.log('✅ Linked tracks subscription active');
+                    if (linkedTracks.length === 0) {
+                        relatedList.innerHTML = '<div class="text-center text-secondary py-5">No linked tracks yet. Search and link tracks above.</div>';
+                    }
+                });
+                
+                setTimeout(() => {
+                    sub.unsub();
+                    if (linkedTracks.length === 0) {
+                        relatedList.innerHTML = '<div class="text-center text-secondary py-5">No linked tracks yet. Search and link tracks above.</div>';
+                    }
+                }, 5000);
+                
+            } catch (error) {
+                console.error('Error loading linked tracks:', error);
+            }
+        }
+        
+        // Store linked tracks globally
+        window.currentLinkedTracks = [];
+        
+        /**
+         * Render linked tracks
+         */
+        function renderLinkedTracks(linkedTracks) {
+            const relatedList = document.getElementById('mp3RelatedList');
+            if (!relatedList) return;
+            
+            // Store globally
+            window.currentLinkedTracks = linkedTracks;
+            
+            if (linkedTracks.length === 0) {
+                // Only show message if there are no search results
+                const searchInput = document.getElementById('mp3RelatedSearchInput');
+                if (!searchInput || !searchInput.value.trim()) {
+                    relatedList.innerHTML = '<div class="text-center text-secondary py-5">No linked tracks yet. Search and link tracks above.</div>';
+                }
+                return;
+            }
+            
+            const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : (text) => {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
+            
+            // Show linked tracks at the top
+            const linkedTracksHtml = linkedTracks.map(linked => {
+                const track = linked.trackData;
+                return `
+                    <div class="mp3-related-item" onclick="openRelatedTrack('${track.eventId}')">
+                        <img src="${track.thumbnail || ''}" class="mp3-related-item-image" alt="${escapeFn(track.title || '')}" onerror="this.style.display='none'">
+                        <div class="mp3-related-item-info">
+                            <div class="mp3-related-item-title">${escapeFn(track.title || 'Unknown Title')}</div>
+                            <div class="mp3-related-item-artist">${escapeFn(track.artist || 'Unknown Artist')}</div>
+                        </div>
+                        <div class="mp3-related-item-actions">
+                            <button class="mp3-related-item-btn" onclick="event.stopPropagation(); openRelatedTrack('${track.eventId}')" title="Open this track">
+                                <i class="bi bi-play-fill"></i> Play
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Check if there are search results
+            const searchInput = document.getElementById('mp3RelatedSearchInput');
+            const hasSearchQuery = searchInput && searchInput.value.trim().length >= 2;
+            
+            if (!hasSearchQuery) {
+                // No search query, show only linked tracks
+                relatedList.innerHTML = `
+                    <div class="mb-3">
+                        <div class="small text-secondary mb-2"><i class="bi bi-link-45deg"></i> Linked Tracks (${linkedTracks.length})</div>
+                        ${linkedTracksHtml}
+                    </div>
+                    <div class="mt-3 pt-3 border-top border-secondary">
+                        <div class="small text-secondary mb-2">Search for more tracks to link...</div>
+                    </div>
+                `;
+            } else {
+                // There's a search query, prepend linked tracks to existing search results
+                const existingContent = relatedList.innerHTML;
+                if (existingContent && existingContent.includes('mp3-related-item')) {
+                    // Extract search results (items that are not in linked tracks)
+                    const linkedIds = linkedTracks.map(lt => lt.eventId);
+                    const searchResultsHtml = existingContent;
+                    
+                    relatedList.innerHTML = `
+                        <div class="mb-3">
+                            <div class="small text-secondary mb-2"><i class="bi bi-link-45deg"></i> Linked Tracks (${linkedTracks.length})</div>
+                            ${linkedTracksHtml}
+                        </div>
+                        <div class="mt-3 pt-3 border-top border-secondary">
+                            <div class="small text-secondary mb-2">Search Results</div>
+                            ${searchResultsHtml}
+                        </div>
+                    `;
+                } else {
+                    // No search results yet, show linked tracks
+                    relatedList.innerHTML = `
+                        <div class="mb-3">
+                            <div class="small text-secondary mb-2"><i class="bi bi-link-45deg"></i> Linked Tracks (${linkedTracks.length})</div>
+                            ${linkedTracksHtml}
+                        </div>
+                    `;
+                }
+            }
+        }
+        
         /**
          * Link a related track (create a reference/link)
          */
@@ -1635,6 +1866,15 @@
                     const result = await publishNote(content, tags, 1, { silent: false });
                     if (result && result.success) {
                         alert(`Track linked successfully!`);
+                        
+                        // Reload linked tracks to show the new link
+                        const audioPlayer = document.getElementById('mp3AudioPlayer');
+                        const currentEventId = audioPlayer?.getAttribute('data-event-id');
+                        if (currentEventId) {
+                            setTimeout(() => {
+                                loadLinkedTracks(currentEventId);
+                            }, 500);
+                        }
                     } else {
                         alert('Error linking track');
                     }
@@ -1655,54 +1895,46 @@
                 // Wait for relay connection with retries
                 let currentRelay = window.nostrRelay || nostrRelay;
                 let retries = 0;
-                const maxRetries = 5;
+                const maxRetries = 3;
                 
                 // Check if relay is already connected and functional
                 if (currentRelay && typeof currentRelay.sub === 'function') {
-                    // Test if WebSocket is actually connected
-                    try {
-                        if (currentRelay._ws && currentRelay._ws.readyState === 1) {
-                            // WebSocket is open, proceed
-                        } else {
-                            // WebSocket not ready, need to reconnect
-                            currentRelay = null;
-                        }
-                    } catch (e) {
-                        // Relay object exists but may not be fully initialized
+                    // Check if connection is actually working by verifying isNostrConnected flag
+                    if (window.isNostrConnected === true || (typeof isNostrConnected !== 'undefined' && isNostrConnected === true)) {
+                        // Connection appears to be valid, proceed
+                        console.log('✅ Using existing relay connection');
+                    } else {
+                        // Connection flag says not connected, need to reconnect
                         currentRelay = null;
                     }
                 }
                 
-                while ((!currentRelay || typeof currentRelay.sub !== 'function') && retries < maxRetries) {
+                // Connect if needed
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
                     if (typeof connectToRelay === 'function') {
-                        try {
-                            currentRelay = await connectToRelay(false);
-                            if (currentRelay && typeof window !== 'undefined') {
-                                window.nostrRelay = currentRelay;
-                                nostrRelay = currentRelay;
-                                
-                                // Wait a bit for connection to stabilize
-                                await new Promise(resolve => setTimeout(resolve, 300));
-                                
-                                // Verify connection is working
-                                if (currentRelay && typeof currentRelay.sub === 'function') {
-                                    break; // Connection successful
-                                }
-                            }
-                        } catch (e) {
-                            console.warn('Connection attempt failed:', e);
+                        console.log('🔌 Connecting to relay...');
+                        const connected = await connectToRelay(false);
+                        if (connected) {
+                            // Wait a bit for connection to stabilize
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                            // Get the relay object from window
+                            currentRelay = window.nostrRelay || nostrRelay;
+                        } else {
+                            throw new Error('Failed to connect to relay');
                         }
-                    }
-                    
-                    if (!currentRelay || typeof currentRelay.sub !== 'function') {
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                        retries++;
-                        currentRelay = window.nostrRelay || nostrRelay;
+                    } else {
+                        throw new Error('connectToRelay function not available');
                     }
                 }
                 
+                // Final verification
                 if (!currentRelay || typeof currentRelay.sub !== 'function') {
-                    throw new Error('NOSTR relay not connected after retries');
+                    throw new Error('NOSTR relay not connected - sub method not available');
+                }
+                
+                // Verify connection flag
+                if (window.isNostrConnected !== true && (typeof isNostrConnected === 'undefined' || isNostrConnected !== true)) {
+                    throw new Error('NOSTR relay connection flag indicates not connected');
                 }
                 
                 // Fetch track event (kind 1063)
@@ -1765,8 +1997,11 @@
                 // Convert IPFS URL if needed
                 if (thumbnail && typeof convertIPFSUrlGlobal === 'function') {
                     thumbnail = convertIPFSUrlGlobal(thumbnail);
-                } else if (thumbnail && (thumbnail.startsWith('ipfs://') || thumbnail.startsWith('/ipfs/') || (!thumbnail.startsWith('http') && thumbnail.match(/^(Qm|bafy)/))) {
-                    if (window.IPFS_GATEWAY) {
+                } else if (thumbnail) {
+                    const isIPFS = thumbnail.startsWith('ipfs://') || 
+                                  thumbnail.startsWith('/ipfs/') || 
+                                  (!thumbnail.startsWith('http') && thumbnail.match(/^(Qm|bafy)/));
+                    if (isIPFS && window.IPFS_GATEWAY) {
                         if (thumbnail.startsWith('ipfs://')) {
                             thumbnail = window.IPFS_GATEWAY + thumbnail.replace('ipfs://', '/ipfs/');
                         } else if (thumbnail.startsWith('/ipfs/')) {
@@ -4052,6 +4287,8 @@
         window.searchMixxxVideos = searchMixxxVideos;
         window.suggestMixxxVJ = suggestMixxxVJ;
         window.openMixxxSuggestedVJ = openMixxxSuggestedVJ;
+        window.loadLinkedTracks = loadLinkedTracks;
+        window.renderLinkedTracks = renderLinkedTracks;
         
         /**
          * Open thumbnail search modal
