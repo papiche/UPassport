@@ -268,6 +268,325 @@
             border-radius: 4px;
         }
 
+        /* Mixxx Mode section */
+        .mp3-mixxx-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            display: none;
+        }
+
+        .mp3-mixxx-section.active {
+            display: flex;
+        }
+
+        .mp3-mixxx-header {
+            flex-shrink: 0;
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+            background: #181818;
+        }
+
+        .mp3-mixxx-users {
+            flex-shrink: 0;
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+            background: #0f0f0f;
+        }
+
+        .mp3-mixxx-users-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .mp3-mixxx-users-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .mp3-mixxx-user-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(29, 185, 84, 0.1);
+            border: 1px solid rgba(29, 185, 84, 0.3);
+            border-radius: 16px;
+            font-size: 12px;
+            color: #1db954;
+        }
+
+        .mp3-mixxx-suggest {
+            flex-shrink: 0;
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+            background: #0f0f0f;
+        }
+
+        .mp3-mixxx-suggest-header {
+            margin-bottom: 12px;
+        }
+
+        .mp3-mixxx-suggest-results {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 8px;
+        }
+
+        .mp3-mixxx-suggestions {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .mp3-mixxx-suggestions-header {
+            flex-shrink: 0;
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+            background: #181818;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .mp3-mixxx-suggestions-list {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 16px;
+            min-height: 0;
+        }
+
+        .mp3-mixxx-suggestions-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .mp3-mixxx-suggestions-list::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+
+        .mp3-mixxx-suggestions-list::-webkit-scrollbar-thumb {
+            background: #3f3f3f;
+            border-radius: 4px;
+        }
+
+        .mp3-mixxx-suggestion-item {
+            background: #1a1a1a;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #2a2a2a;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .mp3-mixxx-suggestion-item:hover {
+            background: #252525;
+            border-color: #1db954;
+        }
+
+        .mp3-mixxx-suggestion-item-image {
+            width: 50px;
+            height: 50px;
+            border-radius: 4px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .mp3-mixxx-suggestion-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .mp3-mixxx-suggestion-item-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #ffffff;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .mp3-mixxx-suggestion-item-artist {
+            font-size: 11px;
+            color: #b3b3b3;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .mp3-mixxx-suggestion-item-author {
+            font-size: 10px;
+            color: #888888;
+            margin-top: 4px;
+        }
+
+        .mp3-mixxx-suggestion-item-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .mp3-mixxx-suggestion-item-btn {
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #b3b3b3;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+
+        .mp3-mixxx-suggestion-item-btn:hover {
+            border-color: #1db954;
+            color: #1db954;
+        }
+
+        .mp3-mixxx-suggestion-item-btn.primary {
+            background: rgba(29, 185, 84, 0.1);
+            border-color: #1db954;
+            color: #1db954;
+        }
+
+        /* VJ Mixxx section */
+        .mp3-mixxx-vj {
+            flex-shrink: 0;
+            padding: 16px;
+            border-top: 1px solid #3f3f3f;
+            border-bottom: 1px solid #3f3f3f;
+            background: #0f0f0f;
+        }
+
+        .mp3-mixxx-vj-header {
+            margin-bottom: 12px;
+        }
+
+        .mp3-mixxx-vj-results {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 8px;
+        }
+
+        .mp3-mixxx-vj-suggestions {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .mp3-mixxx-vj-suggestions-header {
+            flex-shrink: 0;
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+            background: #181818;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .mp3-mixxx-vj-suggestions-list {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 16px;
+            min-height: 0;
+        }
+
+        .mp3-mixxx-vj-suggestion-item {
+            background: #1a1a1a;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #2a2a2a;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .mp3-mixxx-vj-suggestion-item:hover {
+            background: #252525;
+            border-color: #ff0000;
+        }
+
+        .mp3-mixxx-vj-suggestion-item-image {
+            width: 80px;
+            height: 60px;
+            border-radius: 4px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .mp3-mixxx-vj-suggestion-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .mp3-mixxx-vj-suggestion-item-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #ffffff;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .mp3-mixxx-vj-suggestion-item-channel {
+            font-size: 11px;
+            color: #b3b3b3;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .mp3-mixxx-vj-suggestion-item-author {
+            font-size: 10px;
+            color: #888888;
+            margin-top: 4px;
+        }
+
+        .mp3-mixxx-vj-suggestion-item-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .mp3-mixxx-vj-suggestion-item-btn {
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #b3b3b3;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+
+        .mp3-mixxx-vj-suggestion-item-btn:hover {
+            border-color: #ff0000;
+            color: #ff0000;
+        }
+
+        .mp3-mixxx-vj-suggestion-item-btn.primary {
+            background: rgba(255, 0, 0, 0.1);
+            border-color: #ff0000;
+            color: #ff0000;
+        }
+
         /* Related Tracks section */
         .mp3-related-section {
             flex: 1;
@@ -622,9 +941,12 @@
         <div class="mp3-content-grid">
             <!-- Audio player (left side) -->
             <div class="mp3-audio-container">
-                <div class="mp3-audio-wrapper">
+                <div class="mp3-audio-wrapper" style="position: relative;">
                     <img id="mp3AlbumArt" class="mp3-album-art" style="display: none;" alt="Album Art">
                     <div id="mp3AlbumArtPlaceholder" class="mp3-album-art-placeholder">🎵</div>
+                    <button id="mp3ChangeThumbnailBtn" class="btn btn-sm btn-secondary" style="position: absolute; top: 8px; right: 8px; z-index: 10; display: none; opacity: 0.8;" title="Change thumbnail">
+                        <i class="bi bi-image"></i>
+                    </button>
                 </div>
                 
                 <!-- Audio player controls -->
@@ -671,6 +993,9 @@
                     <button class="mp3-tab active" onclick="switchMP3Tab('comments')">
                         <i class="bi bi-chat-dots"></i> Comments
                     </button>
+                    <button class="mp3-tab" onclick="switchMP3Tab('mixxx')">
+                        <i class="bi bi-people"></i> Mixxx Mode
+                    </button>
                     <button class="mp3-tab" onclick="switchMP3Tab('related')">
                         <i class="bi bi-music-note-list"></i> Related Tracks
                     </button>
@@ -696,6 +1021,83 @@
                     </div>
                     <div class="mp3-comments-list" id="mp3CommentsList">
                         <div class="text-center text-secondary py-5">Loading comments...</div>
+                    </div>
+                </div>
+
+                <!-- Mixxx Mode section -->
+                <div class="mp3-mixxx-section" id="mp3MixxxSection">
+                    <div class="mp3-mixxx-header">
+                        <h6 class="mb-1 text-white"><i class="bi bi-people"></i> Mixxx Mode</h6>
+                        <div class="small text-secondary">Collaborative playlist building</div>
+                    </div>
+                    
+                    <!-- Connected users -->
+                    <div class="mp3-mixxx-users">
+                        <div class="mp3-mixxx-users-header">
+                            <span class="small text-secondary"><i class="bi bi-person-circle"></i> Connected DJs</span>
+                            <span class="badge bg-success rounded-pill" id="mixxxUsersCount">0</span>
+                        </div>
+                        <div class="mp3-mixxx-users-list" id="mixxxUsersList">
+                            <div class="text-center text-secondary py-3 small">Loading connected users...</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Suggest next track -->
+                    <div class="mp3-mixxx-suggest">
+                        <div class="mp3-mixxx-suggest-header">
+                            <span class="small text-white"><i class="bi bi-arrow-right-circle"></i> Suggest Next Track</span>
+                        </div>
+                        <div class="mp3-mixxx-suggest-search">
+                            <input 
+                                type="text" 
+                                id="mp3MixxxSearchInput" 
+                                class="form-control bg-dark text-white border-secondary mb-2"
+                                placeholder="Search track to suggest..."
+                                autocomplete="off">
+                        </div>
+                        <div class="mp3-mixxx-suggest-results" id="mp3MixxxSuggestResults" style="display: none;">
+                            <!-- Search results will appear here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Suggestions list -->
+                    <div class="mp3-mixxx-suggestions">
+                        <div class="mp3-mixxx-suggestions-header">
+                            <span class="small text-white"><i class="bi bi-list-ul"></i> Track Suggestions</span>
+                            <span class="badge bg-primary rounded-pill" id="mixxxSuggestionsCount">0</span>
+                        </div>
+                        <div class="mp3-mixxx-suggestions-list" id="mp3MixxxSuggestionsList">
+                            <div class="text-center text-secondary py-5 small">No suggestions yet. Be the first to suggest a track!</div>
+                        </div>
+                    </div>
+                    
+                    <!-- VJ Mixxx section -->
+                    <div class="mp3-mixxx-vj">
+                        <div class="mp3-mixxx-vj-header">
+                            <span class="small text-white"><i class="bi bi-camera-video"></i> VJ Mixxx - Suggest Video</span>
+                        </div>
+                        <div class="mp3-mixxx-vj-search">
+                            <input 
+                                type="text" 
+                                id="mp3MixxxVJSearchInput" 
+                                class="form-control bg-dark text-white border-secondary mb-2"
+                                placeholder="Search video to suggest as VJ mix..."
+                                autocomplete="off">
+                        </div>
+                        <div class="mp3-mixxx-vj-results" id="mp3MixxxVJResults" style="display: none;">
+                            <!-- Search results will appear here -->
+                        </div>
+                    </div>
+                    
+                    <!-- VJ Suggestions list -->
+                    <div class="mp3-mixxx-vj-suggestions">
+                        <div class="mp3-mixxx-vj-suggestions-header">
+                            <span class="small text-white"><i class="bi bi-film"></i> VJ Suggestions</span>
+                            <span class="badge bg-danger rounded-pill" id="mixxxVJSuggestionsCount">0</span>
+                        </div>
+                        <div class="mp3-mixxx-vj-suggestions-list" id="mp3MixxxVJSuggestionsList">
+                            <div class="text-center text-secondary py-5 small">No VJ suggestions yet. Be the first to suggest a video!</div>
+                        </div>
                     </div>
                 </div>
 
@@ -737,6 +1139,34 @@
                     window.currentMP3CommentSubscription = null;
                 } catch (e) {
                     console.warn('⚠️ Error closing comment subscription:', e);
+                }
+            }
+            
+            // Close Mixxx mode subscriptions
+            if (window.currentMixxxPresenceSubscription) {
+                try {
+                    window.currentMixxxPresenceSubscription.unsub();
+                    window.currentMixxxPresenceSubscription = null;
+                } catch (e) {
+                    console.warn('⚠️ Error closing Mixxx presence subscription:', e);
+                }
+            }
+            
+            if (window.currentMixxxSuggestionsSubscription) {
+                try {
+                    window.currentMixxxSuggestionsSubscription.unsub();
+                    window.currentMixxxSuggestionsSubscription = null;
+                } catch (e) {
+                    console.warn('⚠️ Error closing Mixxx suggestions subscription:', e);
+                }
+            }
+            
+            if (window.currentMixxxVJSuggestionsSubscription) {
+                try {
+                    window.currentMixxxVJSuggestionsSubscription.unsub();
+                    window.currentMixxxVJSuggestionsSubscription = null;
+                } catch (e) {
+                    console.warn('⚠️ Error closing Mixxx VJ suggestions subscription:', e);
                 }
             }
             
@@ -857,7 +1287,7 @@
         window.handleCloseMP3Modal = handleCloseMP3Modal;
 
         /**
-         * Switch between Comments and Related Tracks tabs
+         * Switch between Comments, Mixxx Mode, and Related Tracks tabs
          */
         function switchMP3Tab(tabName) {
             // Update tab buttons
@@ -868,13 +1298,23 @@
             
             // Show/hide sections
             const commentsSection = document.getElementById('mp3CommentsSection');
+            const mixxxSection = document.getElementById('mp3MixxxSection');
             const relatedSection = document.getElementById('mp3RelatedSection');
             
             if (tabName === 'comments') {
                 if (commentsSection) commentsSection.classList.add('active');
+                if (mixxxSection) mixxxSection.classList.remove('active');
                 if (relatedSection) relatedSection.classList.remove('active');
+            } else if (tabName === 'mixxx') {
+                if (commentsSection) commentsSection.classList.remove('active');
+                if (mixxxSection) mixxxSection.classList.add('active');
+                if (relatedSection) relatedSection.classList.remove('active');
+                
+                // Initialize Mixxx mode
+                initializeMixxxMode();
             } else if (tabName === 'related') {
                 if (commentsSection) commentsSection.classList.remove('active');
+                if (mixxxSection) mixxxSection.classList.remove('active');
                 if (relatedSection) relatedSection.classList.add('active');
                 
                 // Focus search input when switching to related tab
@@ -977,6 +1417,24 @@
                 if (albumArtPlaceholder) albumArtPlaceholder.style.display = 'flex';
             }
             
+            // Setup thumbnail change button
+            const changeThumbnailBtn = document.getElementById('mp3ChangeThumbnailBtn');
+            if (changeThumbnailBtn) {
+                changeThumbnailBtn.style.display = 'block';
+                changeThumbnailBtn.onclick = () => openThumbnailSearch();
+                
+                // Show button on hover
+                const audioWrapper = document.querySelector('.mp3-audio-wrapper');
+                if (audioWrapper) {
+                    audioWrapper.addEventListener('mouseenter', () => {
+                        if (changeThumbnailBtn) changeThumbnailBtn.style.opacity = '1';
+                    });
+                    audioWrapper.addEventListener('mouseleave', () => {
+                        if (changeThumbnailBtn) changeThumbnailBtn.style.opacity = '0.8';
+                    });
+                }
+            }
+            
             // Set duration
             if (durationEl && trackData.duration) {
                 const minutes = Math.floor(trackData.duration / 60);
@@ -1005,6 +1463,13 @@
             
             // Setup related tracks search
             setupRelatedTracksSearch();
+            
+            // Publish presence for Mixxx mode (if user is connected)
+            if (trackData.eventId && typeof userPubkey !== 'undefined' && userPubkey) {
+                setTimeout(() => {
+                    publishMixxxPresence(trackData.eventId);
+                }, 1000);
+            }
         }
 
         /**
@@ -1187,17 +1652,57 @@
          */
         async function loadTrackFromEventId(eventId) {
             try {
-                // Connect to relay if needed
-                if (typeof nostrRelay === 'undefined' || !nostrRelay) {
-                    if (typeof connectToRelay === 'function') {
-                        await connectToRelay();
-                        await new Promise(resolve => setTimeout(resolve, 500));
+                // Wait for relay connection with retries
+                let currentRelay = window.nostrRelay || nostrRelay;
+                let retries = 0;
+                const maxRetries = 5;
+                
+                // Check if relay is already connected and functional
+                if (currentRelay && typeof currentRelay.sub === 'function') {
+                    // Test if WebSocket is actually connected
+                    try {
+                        if (currentRelay._ws && currentRelay._ws.readyState === 1) {
+                            // WebSocket is open, proceed
+                        } else {
+                            // WebSocket not ready, need to reconnect
+                            currentRelay = null;
+                        }
+                    } catch (e) {
+                        // Relay object exists but may not be fully initialized
+                        currentRelay = null;
                     }
                 }
                 
-                const currentRelay = window.nostrRelay || nostrRelay;
+                while ((!currentRelay || typeof currentRelay.sub !== 'function') && retries < maxRetries) {
+                    if (typeof connectToRelay === 'function') {
+                        try {
+                            currentRelay = await connectToRelay(false);
+                            if (currentRelay && typeof window !== 'undefined') {
+                                window.nostrRelay = currentRelay;
+                                nostrRelay = currentRelay;
+                                
+                                // Wait a bit for connection to stabilize
+                                await new Promise(resolve => setTimeout(resolve, 300));
+                                
+                                // Verify connection is working
+                                if (currentRelay && typeof currentRelay.sub === 'function') {
+                                    break; // Connection successful
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Connection attempt failed:', e);
+                        }
+                    }
+                    
+                    if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        retries++;
+                        currentRelay = window.nostrRelay || nostrRelay;
+                    }
+                }
+                
                 if (!currentRelay || typeof currentRelay.sub !== 'function') {
-                    throw new Error('NOSTR relay not connected');
+                    throw new Error('NOSTR relay not connected after retries');
                 }
                 
                 // Fetch track event (kind 1063)
@@ -1251,7 +1756,27 @@
                 const title = titleTag ? titleTag[1] : (event.content || 'Unknown Title');
                 const artist = artistTag ? artistTag[1] : 'Unknown Artist';
                 const album = albumTag ? albumTag[1] : '—';
-                const thumbnail = thumbTag ? thumbTag[1] : null;
+                
+                // Get thumbnail (check thumb, image, and r tags)
+                const imageTag = event.tags.find(tag => tag[0] === 'image');
+                const rTag = event.tags.find(tag => tag[0] === 'r' && tag[2] === 'Thumbnail');
+                let thumbnail = thumbTag ? thumbTag[1] : (imageTag ? imageTag[1] : (rTag ? rTag[1] : null));
+                
+                // Convert IPFS URL if needed
+                if (thumbnail && typeof convertIPFSUrlGlobal === 'function') {
+                    thumbnail = convertIPFSUrlGlobal(thumbnail);
+                } else if (thumbnail && (thumbnail.startsWith('ipfs://') || thumbnail.startsWith('/ipfs/') || (!thumbnail.startsWith('http') && thumbnail.match(/^(Qm|bafy)/))) {
+                    if (window.IPFS_GATEWAY) {
+                        if (thumbnail.startsWith('ipfs://')) {
+                            thumbnail = window.IPFS_GATEWAY + thumbnail.replace('ipfs://', '/ipfs/');
+                        } else if (thumbnail.startsWith('/ipfs/')) {
+                            thumbnail = window.IPFS_GATEWAY + thumbnail;
+                        } else {
+                            thumbnail = window.IPFS_GATEWAY + '/ipfs/' + thumbnail;
+                        }
+                    }
+                }
+                
                 const description = summaryTag ? summaryTag[1] : event.content;
                 const duration = durationTag ? parseFloat(durationTag[1]) : null;
                 
@@ -2462,28 +2987,35 @@
         // Initialize NOSTR connection on page load
         document.addEventListener('DOMContentLoaded', async function() {
             await initNostrConnectionStandalone();
-        });
-        
-        // Initialize modal if trackData is passed
-        if (window.trackData) {
-            initializeMP3Modal(window.trackData);
-        }
-        
-        // Check if track parameter is in URL and load it automatically
-        const urlParams = new URLSearchParams(window.location.search);
-        const trackId = urlParams.get('track') || '{{ track_id if track_id else "" }}';
-        
-        if (trackId && !window.trackData) {
-            console.log('🎵 Loading track from URL parameter:', trackId);
-            loadTrackFromEventId(trackId).then(track => {
-                if (track) {
-                    initializeMP3Modal(track);
+            
+            // Initialize modal if trackData is passed
+            if (window.trackData) {
+                initializeMP3Modal(window.trackData);
+                return;
+            }
+            
+            // Check if track parameter is in URL and load it automatically
+            const urlParams = new URLSearchParams(window.location.search);
+            const trackIdParam = urlParams.get('track');
+            const trackIdTemplate = '{{ track_id if track_id else "" }}';
+            const trackId = trackIdParam || trackIdTemplate;
+            
+            if (trackId && trackId.trim() && !window.trackData) {
+                console.log('🎵 Loading track from URL parameter:', trackId);
+                try {
+                    const track = await loadTrackFromEventId(trackId);
+                    if (track) {
+                        initializeMP3Modal(track);
+                    }
+                } catch (error) {
+                    console.error('Error loading track:', error);
+                    const titleElement = document.getElementById('mp3Title');
+                    if (titleElement) {
+                        titleElement.textContent = 'Error loading track';
+                    }
                 }
-            }).catch(error => {
-                console.error('Error loading track:', error);
-                document.getElementById('mp3Title').textContent = 'Error loading track';
-            });
-        }
+            }
+        });
         
         // Listen for close messages from parent
         window.addEventListener('message', function(event) {
@@ -2498,6 +3030,1000 @@
                 handleCloseMP3Modal();
             }
         });
+
+        /**
+         * Initialize Mixxx Mode - collaborative playlist building
+         */
+        async function initializeMixxxMode() {
+            const audioPlayer = document.getElementById('mp3AudioPlayer');
+            const currentEventId = audioPlayer?.getAttribute('data-event-id');
+            
+            if (!currentEventId) {
+                console.warn('No track event ID available for Mixxx mode');
+                return;
+            }
+            
+            // Load connected users and suggestions
+            await loadMixxxConnectedUsers(currentEventId);
+            await loadMixxxSuggestions(currentEventId);
+            await loadMixxxVJSuggestions(currentEventId);
+            
+            // Setup search for suggesting tracks
+            setupMixxxTrackSearch();
+            
+            // Setup search for suggesting VJ videos
+            setupMixxxVJSearch();
+        }
+        
+        /**
+         * Load connected users (MULTIPASS) viewing this track
+         */
+        async function loadMixxxConnectedUsers(eventId) {
+            const usersList = document.getElementById('mixxxUsersList');
+            const usersCount = document.getElementById('mixxxUsersCount');
+            
+            if (!usersList) return;
+            
+            try {
+                let currentRelay = window.nostrRelay || nostrRelay;
+                
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    currentRelay = window.nostrRelay || nostrRelay;
+                }
+                
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    usersList.innerHTML = '<div class="text-center text-secondary py-3 small">NOSTR not connected</div>';
+                    return;
+                }
+                
+                // Subscribe to presence events (kind 1 with special tag)
+                // Users can publish a presence event when viewing a track
+                const presenceSub = currentRelay.sub([{
+                    kinds: [1],
+                    '#t': ['mixxx:presence'],
+                    '#e': [eventId],
+                    limit: 50
+                }]);
+                
+                const connectedUsers = new Map();
+                const userMetadataCache = new Map();
+                
+                presenceSub.on('event', async (event) => {
+                    try {
+                        if (connectedUsers.has(event.pubkey)) return;
+                        
+                        let userName = userMetadataCache.get(event.pubkey) || event.pubkey.substring(0, 8) + '...';
+                        
+                        if (!userMetadataCache.has(event.pubkey) && typeof fetchUserMetadata !== 'undefined') {
+                            try {
+                                const profile = await Promise.race([
+                                    fetchUserMetadata(event.pubkey),
+                                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
+                                ]);
+                                if (profile) {
+                                    userName = profile.display_name || profile.name || userName;
+                                    userMetadataCache.set(event.pubkey, userName);
+                                }
+                            } catch (e) {
+                                userMetadataCache.set(event.pubkey, userName);
+                            }
+                        }
+                        
+                        connectedUsers.set(event.pubkey, {
+                            pubkey: event.pubkey,
+                            name: userName,
+                            timestamp: event.created_at
+                        });
+                        
+                        renderMixxxUsers(Array.from(connectedUsers.values()));
+                    } catch (e) {
+                        console.error('Error processing presence event:', e);
+                    }
+                });
+                
+                presenceSub.on('eose', () => {
+                    console.log('✅ Mixxx presence subscription active');
+                });
+                
+                // Publish our own presence
+                if (typeof userPubkey !== 'undefined' && userPubkey) {
+                    publishMixxxPresence(eventId);
+                }
+                
+                // Store subscription for cleanup
+                window.currentMixxxPresenceSubscription = presenceSub;
+                
+            } catch (error) {
+                console.error('Error loading connected users:', error);
+                usersList.innerHTML = '<div class="text-center text-secondary py-3 small">Error loading users</div>';
+            }
+        }
+        
+        /**
+         * Publish presence event to show we're viewing this track
+         */
+        async function publishMixxxPresence(eventId) {
+            try {
+                const nostrVars = getNostrVariables();
+                let currentUserPubkey = nostrVars.userPubkey;
+                let currentNostrRelay = nostrVars.nostrRelay;
+                
+                if (!currentUserPubkey) {
+                    if (typeof connectNostr === 'function') {
+                        currentUserPubkey = await connectNostr();
+                    }
+                }
+                
+                if (!currentUserPubkey) return;
+                
+                if (!currentNostrRelay || !nostrVars.isNostrConnected) {
+                    if (typeof connectToRelay === 'function') {
+                        currentNostrRelay = await connectToRelay();
+                    }
+                }
+                
+                if (!currentNostrRelay) return;
+                
+                const relayHint = currentNostrRelay?.url || '';
+                const tags = [
+                    ['t', 'mixxx:presence'],
+                    ['e', eventId, relayHint],
+                    ['k', '1063']
+                ];
+                
+                const publishFn = (window.parent && window.parent !== window && typeof window.parent.publishNote === 'function')
+                    ? window.parent.publishNote
+                    : (typeof publishNote === 'function' ? publishNote : null);
+                
+                if (publishFn) {
+                    await publishFn('🎧 Listening in Mixxx mode', tags, 1, { silent: true });
+                }
+            } catch (error) {
+                console.warn('Could not publish presence:', error);
+            }
+        }
+        
+        /**
+         * Render connected users list
+         */
+        function renderMixxxUsers(users) {
+            const usersList = document.getElementById('mixxxUsersList');
+            const usersCount = document.getElementById('mixxxUsersCount');
+            
+            if (!usersList) return;
+            
+            if (users.length === 0) {
+                usersList.innerHTML = '<div class="text-center text-secondary py-3 small">No other DJs connected</div>';
+                if (usersCount) usersCount.textContent = '0';
+                return;
+            }
+            
+            if (usersCount) usersCount.textContent = users.length.toString();
+            
+            const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : (text) => {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
+            
+            usersList.innerHTML = users.map(user => `
+                <div class="mp3-mixxx-user-badge" title="${escapeFn(user.name)}">
+                    <i class="bi bi-person-circle"></i>
+                    <span>${escapeFn(user.name)}</span>
+                </div>
+            `).join('');
+        }
+        
+        /**
+         * Load Mixxx suggestions (kind 1111 comments with mixxx:suggest tag)
+         */
+        async function loadMixxxSuggestions(eventId) {
+            const suggestionsList = document.getElementById('mp3MixxxSuggestionsList');
+            const suggestionsCount = document.getElementById('mixxxSuggestionsCount');
+            
+            if (!suggestionsList) return;
+            
+            try {
+                let currentRelay = window.nostrRelay || nostrRelay;
+                
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    currentRelay = window.nostrRelay || nostrRelay;
+                }
+                
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    suggestionsList.innerHTML = '<div class="text-center text-secondary py-5 small">NOSTR not connected</div>';
+                    return;
+                }
+                
+                // Subscribe to mixxx suggestions (kind 1111 with mixxx:suggest tag)
+                const suggestionsSub = currentRelay.sub([{
+                    kinds: [1111],
+                    '#E': [eventId],
+                    '#t': ['mixxx:suggest']
+                }]);
+                
+                const suggestions = [];
+                const userMetadataCache = new Map();
+                
+                suggestionsSub.on('event', async (event) => {
+                    try {
+                        // Extract suggested track eventId from tags
+                        const nextTag = event.tags.find(t => t[0] === 'next' || t[0] === 'suggest');
+                        const suggestedEventId = nextTag ? nextTag[1] : null;
+                        
+                        if (!suggestedEventId) return;
+                        
+                        // Check if already in list
+                        if (suggestions.find(s => s.id === event.id)) return;
+                        
+                        let userName = userMetadataCache.get(event.pubkey) || event.pubkey.substring(0, 8) + '...';
+                        
+                        if (!userMetadataCache.has(event.pubkey) && typeof fetchUserMetadata !== 'undefined') {
+                            try {
+                                const profile = await Promise.race([
+                                    fetchUserMetadata(event.pubkey),
+                                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
+                                ]);
+                                if (profile) {
+                                    userName = profile.display_name || profile.name || userName;
+                                    userMetadataCache.set(event.pubkey, userName);
+                                }
+                            } catch (e) {
+                                userMetadataCache.set(event.pubkey, userName);
+                            }
+                        }
+                        
+                        // Load suggested track metadata
+                        let trackData = null;
+                        try {
+                            trackData = await loadTrackFromEventId(suggestedEventId);
+                        } catch (e) {
+                            console.warn('Could not load suggested track:', e);
+                        }
+                        
+                        suggestions.push({
+                            id: event.id,
+                            authorId: event.pubkey,
+                            authorName: userName,
+                            suggestedEventId: suggestedEventId,
+                            trackData: trackData,
+                            content: event.content || '',
+                            created_at: event.created_at,
+                            rawEvent: event
+                        });
+                        
+                        // Sort by timestamp (newest first)
+                        suggestions.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+                        
+                        renderMixxxSuggestions(suggestions, suggestionsCount);
+                    } catch (e) {
+                        console.error('Error processing suggestion:', e);
+                    }
+                });
+                
+                suggestionsSub.on('eose', () => {
+                    console.log('✅ Mixxx suggestions subscription active');
+                });
+                
+                // Store subscription for cleanup
+                window.currentMixxxSuggestionsSubscription = suggestionsSub;
+                
+            } catch (error) {
+                console.error('Error loading suggestions:', error);
+                suggestionsList.innerHTML = '<div class="text-center text-secondary py-5 small">Error loading suggestions</div>';
+            }
+        }
+        
+        /**
+         * Render Mixxx suggestions
+         */
+        function renderMixxxSuggestions(suggestions, suggestionsCount) {
+            const suggestionsList = document.getElementById('mp3MixxxSuggestionsList');
+            
+            if (!suggestionsList) return;
+            
+            if (suggestions.length === 0) {
+                suggestionsList.innerHTML = '<div class="text-center text-secondary py-5 small">No suggestions yet. Be the first to suggest a track!</div>';
+                if (suggestionsCount) suggestionsCount.textContent = '0';
+                return;
+            }
+            
+            if (suggestionsCount) suggestionsCount.textContent = suggestions.length.toString();
+            
+            const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : (text) => {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
+            
+            const formatRelativeFn = typeof formatRelativeTime !== 'undefined' ? formatRelativeTime : (timestamp) => {
+                const seconds = Math.floor((Date.now() / 1000) - timestamp);
+                if (seconds < 60) return `${seconds}s ago`;
+                if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+                if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+                return `${Math.floor(seconds / 86400)}d ago`;
+            };
+            
+            suggestionsList.innerHTML = suggestions.map(suggestion => {
+                const track = suggestion.trackData;
+                const thumbnail = track?.thumbnail || '';
+                const title = track?.title || 'Loading...';
+                const artist = track?.artist || 'Unknown Artist';
+                const timeAgo = suggestion.created_at ? formatRelativeFn(suggestion.created_at) : '';
+                
+                return `
+                    <div class="mp3-mixxx-suggestion-item" onclick="openMixxxSuggestedTrack('${suggestion.suggestedEventId}')">
+                        ${thumbnail ? `<img src="${thumbnail}" class="mp3-mixxx-suggestion-item-image" alt="${escapeFn(title)}" onerror="this.style.display='none'">` : '<div class="mp3-mixxx-suggestion-item-image" style="background: linear-gradient(135deg, #450af5, #c4efd9); display: flex; align-items: center; justify-content: center; font-size: 20px;">🎵</div>'}
+                        <div class="mp3-mixxx-suggestion-item-info">
+                            <div class="mp3-mixxx-suggestion-item-title">${escapeFn(title)}</div>
+                            <div class="mp3-mixxx-suggestion-item-artist">${escapeFn(artist)}</div>
+                            <div class="mp3-mixxx-suggestion-item-author">
+                                Suggested by ${escapeFn(suggestion.authorName)} ${timeAgo ? `• ${timeAgo}` : ''}
+                            </div>
+                        </div>
+                        <div class="mp3-mixxx-suggestion-item-actions">
+                            <button class="mp3-mixxx-suggestion-item-btn primary" onclick="event.stopPropagation(); continueMixxxPlaylist('${suggestion.suggestedEventId}')" title="Continue playlist">
+                                <i class="bi bi-play-fill"></i>
+                            </button>
+                            <button class="mp3-mixxx-suggestion-item-btn" onclick="event.stopPropagation(); forkMixxxPlaylist('${suggestion.suggestedEventId}')" title="Fork playlist">
+                                <i class="bi bi-diagram-3"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        /**
+         * Setup track search for Mixxx suggestions
+         */
+        function setupMixxxTrackSearch() {
+            const searchInput = document.getElementById('mp3MixxxSearchInput');
+            const resultsDiv = document.getElementById('mp3MixxxSuggestResults');
+            
+            if (!searchInput || !resultsDiv) return;
+            
+            let searchTimeout = null;
+            
+            searchInput.addEventListener('input', function(e) {
+                const query = e.target.value.trim();
+                
+                if (searchTimeout) {
+                    clearTimeout(searchTimeout);
+                }
+                
+                searchTimeout = setTimeout(async () => {
+                    if (query.length >= 2) {
+                        await searchMixxxTracks(query, resultsDiv);
+                    } else {
+                        resultsDiv.style.display = 'none';
+                    }
+                }, 500);
+            });
+        }
+        
+        /**
+         * Search tracks for Mixxx suggestion
+         */
+        async function searchMixxxTracks(query, resultsDiv) {
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = '<div class="text-center text-secondary py-3 small">Searching...</div>';
+            
+            try {
+                let tracks = [];
+                if (typeof searchNostrTracks === 'function') {
+                    tracks = await searchNostrTracks(query, 10);
+                } else if (typeof fetchNostrMP3Tracks === 'function') {
+                    const allTracks = await fetchNostrMP3Tracks(50);
+                    const searchTerm = query.toLowerCase();
+                    tracks = allTracks.filter(track => {
+                        const title = (track.title || '').toLowerCase();
+                        const artist = (track.artist || '').toLowerCase();
+                        const album = (track.album || '').toLowerCase();
+                        return title.includes(searchTerm) || artist.includes(searchTerm) || album.includes(searchTerm);
+                    }).slice(0, 10);
+                }
+                
+                if (tracks.length === 0) {
+                    // No tracks found - offer to upload via /webcam
+                    const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : (text) => {
+                        const div = document.createElement('div');
+                        div.textContent = text;
+                        return div.innerHTML;
+                    };
+                    
+                    resultsDiv.innerHTML = `
+                        <div class="text-center text-secondary py-3 small" style="margin-bottom: 12px;">
+                            No tracks found for "${escapeFn(query)}"
+                        </div>
+                        <div class="mp3-mixxx-upload-prompt" style="background: rgba(29, 185, 84, 0.1); border: 1px solid rgba(29, 185, 84, 0.3); border-radius: 8px; padding: 16px; text-align: center;">
+                            <div style="font-size: 24px; margin-bottom: 8px;">🎵</div>
+                            <div style="color: #1db954; font-weight: 600; margin-bottom: 8px; font-size: 13px;">
+                                Upload your MP3 track
+                            </div>
+                            <div style="color: #b3b3b3; font-size: 11px; margin-bottom: 12px;">
+                                Can't find the track? Upload it to UPlanet and suggest it!
+                            </div>
+                            <button 
+                                class="mp3-mixxx-suggestion-item-btn primary" 
+                                onclick="openWebcamUpload()" 
+                                style="width: 100%; padding: 10px; font-size: 12px; font-weight: 600;"
+                                title="Open multimedia upload interface">
+                                <i class="bi bi-upload"></i> Upload MP3 via Webcam
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : (text) => {
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                };
+                
+                resultsDiv.innerHTML = tracks.map(track => `
+                    <div class="mp3-mixxx-suggestion-item" onclick="suggestMixxxTrack('${track.eventId}')" style="margin-bottom: 8px;">
+                        ${track.thumbnail ? `<img src="${track.thumbnail}" class="mp3-mixxx-suggestion-item-image" alt="${escapeFn(track.title || '')}" onerror="this.style.display='none'">` : '<div class="mp3-mixxx-suggestion-item-image" style="background: linear-gradient(135deg, #450af5, #c4efd9); display: flex; align-items: center; justify-content: center; font-size: 20px;">🎵</div>'}
+                        <div class="mp3-mixxx-suggestion-item-info">
+                            <div class="mp3-mixxx-suggestion-item-title">${escapeFn(track.title || 'Unknown Title')}</div>
+                            <div class="mp3-mixxx-suggestion-item-artist">${escapeFn(track.artist || 'Unknown Artist')}</div>
+                        </div>
+                        <div class="mp3-mixxx-suggestion-item-actions">
+                            <button class="mp3-mixxx-suggestion-item-btn primary" onclick="event.stopPropagation(); suggestMixxxTrack('${track.eventId}')" title="Suggest this track">
+                                <i class="bi bi-plus-circle"></i> Suggest
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error searching tracks:', error);
+                resultsDiv.innerHTML = '<div class="text-center text-secondary py-3 small">Error searching tracks</div>';
+            }
+        }
+        
+        /**
+         * Suggest a track as next in Mixxx mode
+         */
+        async function suggestMixxxTrack(suggestedEventId) {
+            const audioPlayer = document.getElementById('mp3AudioPlayer');
+            const currentEventId = audioPlayer?.getAttribute('data-event-id');
+            const authorId = audioPlayer?.getAttribute('data-author-id');
+            
+            if (!currentEventId) {
+                alert('Current track ID not found');
+                return;
+            }
+            
+            let nostrVars = getNostrVariables();
+            let currentUserPubkey = nostrVars.userPubkey;
+            let currentNostrRelay = nostrVars.nostrRelay;
+            
+            if (!currentUserPubkey) {
+                if (typeof connectNostr === 'function') {
+                    currentUserPubkey = await connectNostr();
+                    if (!currentUserPubkey) {
+                        alert('You must be connected to suggest tracks');
+                        return;
+                    }
+                } else {
+                    alert('You must be connected to suggest tracks');
+                    return;
+                }
+            }
+            
+            if (!currentNostrRelay || !nostrVars.isNostrConnected) {
+                if (typeof connectToRelay === 'function') {
+                    currentNostrRelay = await connectToRelay();
+                    if (!currentNostrRelay) {
+                        alert('Error connecting to relay');
+                        return;
+                    }
+                } else {
+                    alert('Relay connection not available');
+                    return;
+                }
+            }
+            
+            try {
+                const relayHint = currentNostrRelay?.url || '';
+                
+                // Create kind 1111 comment with mixxx:suggest protocol
+                const tags = [
+                    ['E', currentEventId, relayHint, authorId || ''],
+                    ['K', '1063'],
+                    ['P', authorId || '', relayHint],
+                    ['e', currentEventId, relayHint, authorId || ''],
+                    ['k', '1063'],
+                    ['p', authorId || '', relayHint],
+                    ['t', 'mixxx:suggest'],  // Protocol identifier
+                    ['next', suggestedEventId, relayHint],  // Suggested track eventId
+                    ['k', '1063']  // Suggested track kind
+                ];
+                
+                const content = `🎵 Suggested next track`;
+                
+                const publishFn = (window.parent && window.parent !== window && typeof window.parent.publishNote === 'function')
+                    ? window.parent.publishNote
+                    : (typeof publishNote === 'function' ? publishNote : null);
+                
+                if (!publishFn) {
+                    alert('Publish function not available');
+                    return;
+                }
+                
+                const result = await publishFn(content, tags, 1111, { silent: false });
+                
+                const publishedEvent = result?.event || result;
+                const success = result && (result.success === true || result.id || publishedEvent?.id);
+                
+                if (success) {
+                    // Clear search
+                    const searchInput = document.getElementById('mp3MixxxSearchInput');
+                    const resultsDiv = document.getElementById('mp3MixxxSuggestResults');
+                    if (searchInput) searchInput.value = '';
+                    if (resultsDiv) resultsDiv.style.display = 'none';
+                    
+                    alert('✅ Track suggestion published!');
+                } else {
+                    alert('❌ Error publishing suggestion');
+                }
+            } catch (error) {
+                console.error('Error suggesting track:', error);
+                alert('Error suggesting track: ' + error.message);
+            }
+        }
+        
+        /**
+         * Open a suggested track in modal
+         */
+        async function openMixxxSuggestedTrack(eventId) {
+            try {
+                const track = await loadTrackFromEventId(eventId);
+                if (track) {
+                    initializeMP3Modal(track);
+                }
+            } catch (error) {
+                console.error('Error loading suggested track:', error);
+                alert('Error loading track: ' + error.message);
+            }
+        }
+        
+        /**
+         * Continue playlist with suggested track
+         */
+        async function continueMixxxPlaylist(suggestedEventId) {
+            // Open the suggested track in modal to continue listening
+            await openMixxxSuggestedTrack(suggestedEventId);
+        }
+        
+        /**
+         * Fork playlist (create a new playlist starting from suggested track)
+         */
+        async function forkMixxxPlaylist(suggestedEventId) {
+            // TODO: Implement playlist forking
+            // For now, just open the track
+            await openMixxxSuggestedTrack(suggestedEventId);
+            alert('Playlist forking feature coming soon!');
+        }
+        
+        /**
+         * Open webcam upload interface for MP3 upload
+         */
+        function openWebcamUpload() {
+            // Determine the base URL
+            const currentPath = window.location.pathname;
+            const basePath = currentPath.includes('/mp3') ? '/webcam' : '/webcam';
+            
+            // Open in new tab/window
+            const webcamUrl = `${basePath}?html=1&audio=1`;
+            window.open(webcamUrl, '_blank', 'noopener,noreferrer');
+            
+            // Show info message
+            if (typeof showInfo === 'function') {
+                showInfo(
+                    'The upload interface will open in a new tab. After uploading your MP3, you can return here to suggest it.',
+                    'Upload Interface'
+                );
+            } else {
+                alert('Upload interface opening in new tab. After uploading your MP3, return here to suggest it.');
+            }
+        }
+        
+        /**
+         * Setup VJ video search for Mixxx mode
+         */
+        function setupMixxxVJSearch() {
+            const searchInput = document.getElementById('mp3MixxxVJSearchInput');
+            const resultsDiv = document.getElementById('mp3MixxxVJResults');
+            
+            if (!searchInput || !resultsDiv) return;
+            
+            let searchTimeout = null;
+            
+            searchInput.addEventListener('input', function(e) {
+                const query = e.target.value.trim();
+                
+                if (searchTimeout) {
+                    clearTimeout(searchTimeout);
+                }
+                
+                searchTimeout = setTimeout(async () => {
+                    if (query.length >= 2) {
+                        await searchMixxxVideos(query, resultsDiv);
+                    } else {
+                        resultsDiv.style.display = 'none';
+                    }
+                }, 500);
+            });
+        }
+        
+        /**
+         * Search videos for VJ Mixxx suggestion
+         */
+        async function searchMixxxVideos(query, resultsDiv) {
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = '<div class="text-center text-secondary py-3 small">Searching videos...</div>';
+            
+            try {
+                // Fetch videos from /youtube endpoint
+                const apiBase = typeof getAPIBaseUrl === 'function' ? getAPIBaseUrl() : window.location.origin;
+                const response = await fetch(`${apiBase}/youtube?search=${encodeURIComponent(query)}&json=1&limit=10`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch videos');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success || !data.channels) {
+                    resultsDiv.innerHTML = '<div class="text-center text-secondary py-3 small">No videos found</div>';
+                    return;
+                }
+                
+                // Extract all videos from all channels
+                let videos = [];
+                for (const channelName in data.channels) {
+                    const channel = data.channels[channelName];
+                    if (channel.videos && Array.isArray(channel.videos)) {
+                        videos.push(...channel.videos);
+                    }
+                }
+                
+                if (videos.length === 0) {
+                    resultsDiv.innerHTML = '<div class="text-center text-secondary py-3 small">No videos found</div>';
+                    return;
+                }
+                
+                const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : (text) => {
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                };
+                
+                const getIPFSGatewayFn = typeof getIPFSGateway === 'function' ? getIPFSGateway : () => 'https://ipfs.copylaradio.com';
+                
+                resultsDiv.innerHTML = videos.slice(0, 10).map(video => {
+                    const thumbnail = video.thumbnail_ipfs ? 
+                        getIPFSGatewayFn() + '/ipfs/' + video.thumbnail_ipfs :
+                        '';
+                    const title = video.title || 'Unknown Title';
+                    const channel = video.channel_name || 'Unknown Channel';
+                    
+                    return `
+                        <div class="mp3-mixxx-vj-suggestion-item" onclick="suggestMixxxVJ('${video.message_id}')" style="margin-bottom: 8px;">
+                            ${thumbnail ? `<img src="${thumbnail}" class="mp3-mixxx-vj-suggestion-item-image" alt="${escapeFn(title)}" onerror="this.style.display='none'">` : '<div class="mp3-mixxx-vj-suggestion-item-image" style="background: linear-gradient(135deg, #ff0000, #cc0000); display: flex; align-items: center; justify-content: center; font-size: 20px;">🎬</div>'}
+                            <div class="mp3-mixxx-vj-suggestion-item-info">
+                                <div class="mp3-mixxx-vj-suggestion-item-title">${escapeFn(title)}</div>
+                                <div class="mp3-mixxx-vj-suggestion-item-channel">${escapeFn(channel)}</div>
+                            </div>
+                            <div class="mp3-mixxx-vj-suggestion-item-actions">
+                                <button class="mp3-mixxx-vj-suggestion-item-btn primary" onclick="event.stopPropagation(); suggestMixxxVJ('${video.message_id}')" title="Suggest this video as VJ mix">
+                                    <i class="bi bi-camera-video"></i> Suggest VJ
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('Error searching videos:', error);
+                resultsDiv.innerHTML = '<div class="text-center text-secondary py-3 small">Error searching videos</div>';
+            }
+        }
+        
+        /**
+         * Load Mixxx VJ suggestions (kind 1111 comments with mixxx:vj tag)
+         */
+        async function loadMixxxVJSuggestions(eventId) {
+            const suggestionsList = document.getElementById('mp3MixxxVJSuggestionsList');
+            const suggestionsCount = document.getElementById('mixxxVJSuggestionsCount');
+            
+            if (!suggestionsList) return;
+            
+            try {
+                let currentRelay = window.nostrRelay || nostrRelay;
+                
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    currentRelay = window.nostrRelay || nostrRelay;
+                }
+                
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    suggestionsList.innerHTML = '<div class="text-center text-secondary py-5 small">NOSTR not connected</div>';
+                    return;
+                }
+                
+                // Subscribe to mixxx VJ suggestions (kind 1111 with mixxx:vj tag)
+                const suggestionsSub = currentRelay.sub([{
+                    kinds: [1111],
+                    '#E': [eventId],
+                    '#t': ['mixxx:vj']
+                }]);
+                
+                const suggestions = [];
+                const userMetadataCache = new Map();
+                
+                suggestionsSub.on('event', async (event) => {
+                    try {
+                        // Extract suggested video eventId from tags
+                        const vjTag = event.tags.find(t => t[0] === 'vj' || t[0] === 'video');
+                        const suggestedVideoEventId = vjTag ? vjTag[1] : null;
+                        
+                        if (!suggestedVideoEventId) return;
+                        
+                        // Check if already in list
+                        if (suggestions.find(s => s.id === event.id)) return;
+                        
+                        let userName = userMetadataCache.get(event.pubkey) || event.pubkey.substring(0, 8) + '...';
+                        
+                        if (!userMetadataCache.has(event.pubkey) && typeof fetchUserMetadata !== 'undefined') {
+                            try {
+                                const profile = await Promise.race([
+                                    fetchUserMetadata(event.pubkey),
+                                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
+                                ]);
+                                if (profile) {
+                                    userName = profile.display_name || profile.name || userName;
+                                    userMetadataCache.set(event.pubkey, userName);
+                                }
+                            } catch (e) {
+                                userMetadataCache.set(event.pubkey, userName);
+                            }
+                        }
+                        
+                        // Load suggested video metadata from /youtube endpoint
+                        let videoData = null;
+                        try {
+                            const apiBase = typeof getAPIBaseUrl === 'function' ? getAPIBaseUrl() : window.location.origin;
+                            const videoResponse = await fetch(`${apiBase}/youtube?json=1&limit=100`);
+                            if (videoResponse.ok) {
+                                const videoDataResponse = await videoResponse.json();
+                                if (videoDataResponse.success && videoDataResponse.channels) {
+                                    // Find video by message_id
+                                    for (const channelName in videoDataResponse.channels) {
+                                        const channel = videoDataResponse.channels[channelName];
+                                        if (channel.videos) {
+                                            const foundVideo = channel.videos.find(v => v.message_id === suggestedVideoEventId);
+                                            if (foundVideo) {
+                                                videoData = foundVideo;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Could not load suggested video:', e);
+                        }
+                        
+                        suggestions.push({
+                            id: event.id,
+                            authorId: event.pubkey,
+                            authorName: userName,
+                            suggestedVideoEventId: suggestedVideoEventId,
+                            videoData: videoData,
+                            content: event.content || '',
+                            created_at: event.created_at,
+                            rawEvent: event
+                        });
+                        
+                        // Sort by timestamp (newest first)
+                        suggestions.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+                        
+                        renderMixxxVJSuggestions(suggestions, suggestionsCount);
+                    } catch (e) {
+                        console.error('Error processing VJ suggestion:', e);
+                    }
+                });
+                
+                suggestionsSub.on('eose', () => {
+                    console.log('✅ Mixxx VJ suggestions subscription active');
+                });
+                
+                // Store subscription for cleanup
+                window.currentMixxxVJSuggestionsSubscription = suggestionsSub;
+                
+            } catch (error) {
+                console.error('Error loading VJ suggestions:', error);
+                suggestionsList.innerHTML = '<div class="text-center text-secondary py-5 small">Error loading VJ suggestions</div>';
+            }
+        }
+        
+        /**
+         * Render Mixxx VJ suggestions
+         */
+        function renderMixxxVJSuggestions(suggestions, suggestionsCount) {
+            const suggestionsList = document.getElementById('mp3MixxxVJSuggestionsList');
+            
+            if (!suggestionsList) return;
+            
+            if (suggestions.length === 0) {
+                suggestionsList.innerHTML = '<div class="text-center text-secondary py-5 small">No VJ suggestions yet. Be the first to suggest a video!</div>';
+                if (suggestionsCount) suggestionsCount.textContent = '0';
+                return;
+            }
+            
+            if (suggestionsCount) suggestionsCount.textContent = suggestions.length.toString();
+            
+            const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : (text) => {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
+            
+            const formatRelativeFn = typeof formatRelativeTime !== 'undefined' ? formatRelativeTime : (timestamp) => {
+                const seconds = Math.floor((Date.now() / 1000) - timestamp);
+                if (seconds < 60) return `${seconds}s ago`;
+                if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+                if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+                return `${Math.floor(seconds / 86400)}d ago`;
+            };
+            
+            const getIPFSGatewayFn = typeof getIPFSGateway === 'function' ? getIPFSGateway : () => 'https://ipfs.copylaradio.com';
+            
+            suggestionsList.innerHTML = suggestions.map(suggestion => {
+                const video = suggestion.videoData;
+                const thumbnail = video?.thumbnail_ipfs ? 
+                    getIPFSGatewayFn() + '/ipfs/' + video.thumbnail_ipfs :
+                    '';
+                const title = video?.title || 'Loading...';
+                const channel = video?.channel_name || 'Unknown Channel';
+                const timeAgo = suggestion.created_at ? formatRelativeFn(suggestion.created_at) : '';
+                
+                return `
+                    <div class="mp3-mixxx-vj-suggestion-item" onclick="openMixxxSuggestedVJ('${suggestion.suggestedVideoEventId}')">
+                        ${thumbnail ? `<img src="${thumbnail}" class="mp3-mixxx-vj-suggestion-item-image" alt="${escapeFn(title)}" onerror="this.style.display='none'">` : '<div class="mp3-mixxx-vj-suggestion-item-image" style="background: linear-gradient(135deg, #ff0000, #cc0000); display: flex; align-items: center; justify-content: center; font-size: 20px;">🎬</div>'}
+                        <div class="mp3-mixxx-vj-suggestion-item-info">
+                            <div class="mp3-mixxx-vj-suggestion-item-title">${escapeFn(title)}</div>
+                            <div class="mp3-mixxx-vj-suggestion-item-channel">${escapeFn(channel)}</div>
+                            <div class="mp3-mixxx-vj-suggestion-item-author">
+                                Suggested by ${escapeFn(suggestion.authorName)} ${timeAgo ? `• ${timeAgo}` : ''}
+                            </div>
+                        </div>
+                        <div class="mp3-mixxx-vj-suggestion-item-actions">
+                            <button class="mp3-mixxx-vj-suggestion-item-btn primary" onclick="event.stopPropagation(); openMixxxSuggestedVJ('${suggestion.suggestedVideoEventId}')" title="Open video">
+                                <i class="bi bi-play-fill"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        /**
+         * Suggest a video as VJ mix for this audio track
+         */
+        async function suggestMixxxVJ(suggestedVideoEventId) {
+            const audioPlayer = document.getElementById('mp3AudioPlayer');
+            const currentEventId = audioPlayer?.getAttribute('data-event-id');
+            const authorId = audioPlayer?.getAttribute('data-author-id');
+            
+            if (!currentEventId) {
+                alert('Current track ID not found');
+                return;
+            }
+            
+            let nostrVars = getNostrVariables();
+            let currentUserPubkey = nostrVars.userPubkey;
+            let currentNostrRelay = nostrVars.nostrRelay;
+            
+            if (!currentUserPubkey) {
+                if (typeof connectNostr === 'function') {
+                    currentUserPubkey = await connectNostr();
+                    if (!currentUserPubkey) {
+                        alert('You must be connected to suggest videos');
+                        return;
+                    }
+                } else {
+                    alert('You must be connected to suggest videos');
+                    return;
+                }
+            }
+            
+            if (!currentNostrRelay || !nostrVars.isNostrConnected) {
+                if (typeof connectToRelay === 'function') {
+                    currentNostrRelay = await connectToRelay();
+                    if (!currentNostrRelay) {
+                        alert('Error connecting to relay');
+                        return;
+                    }
+                } else {
+                    alert('Relay connection not available');
+                    return;
+                }
+            }
+            
+            try {
+                const relayHint = currentNostrRelay?.url || '';
+                
+                // Create kind 1111 comment with mixxx:vj protocol
+                const tags = [
+                    ['E', currentEventId, relayHint, authorId || ''],
+                    ['K', '1063'],
+                    ['P', authorId || '', relayHint],
+                    ['e', currentEventId, relayHint, authorId || ''],
+                    ['k', '1063'],
+                    ['p', authorId || '', relayHint],
+                    ['t', 'mixxx:vj'],  // Protocol identifier for VJ suggestions
+                    ['vj', suggestedVideoEventId, relayHint],  // Suggested video eventId
+                    ['k', '21']  // Suggested video kind (kind 21 for videos)
+                ];
+                
+                const content = `🎬 Suggested VJ mix video`;
+                
+                const publishFn = (window.parent && window.parent !== window && typeof window.parent.publishNote === 'function')
+                    ? window.parent.publishNote
+                    : (typeof publishNote === 'function' ? publishNote : null);
+                
+                if (!publishFn) {
+                    alert('Publish function not available');
+                    return;
+                }
+                
+                const result = await publishFn(content, tags, 1111, { silent: false });
+                
+                const publishedEvent = result?.event || result;
+                const success = result && (result.success === true || result.id || publishedEvent?.id);
+                
+                if (success) {
+                    // Clear search
+                    const searchInput = document.getElementById('mp3MixxxVJSearchInput');
+                    const resultsDiv = document.getElementById('mp3MixxxVJResults');
+                    if (searchInput) searchInput.value = '';
+                    if (resultsDiv) resultsDiv.style.display = 'none';
+                    
+                    alert('✅ VJ video suggestion published!');
+                } else {
+                    alert('❌ Error publishing VJ suggestion');
+                }
+            } catch (error) {
+                console.error('Error suggesting VJ video:', error);
+                alert('Error suggesting VJ video: ' + error.message);
+            }
+        }
+        
+        /**
+         * Open a suggested VJ video
+         */
+        async function openMixxxSuggestedVJ(videoEventId) {
+            // Open video in new tab or redirect to /youtube
+            const apiBase = typeof getAPIBaseUrl === 'function' ? getAPIBaseUrl() : window.location.origin;
+            const youtubeUrl = `${apiBase}/youtube?html=1&video=${videoEventId}`;
+            window.open(youtubeUrl, '_blank', 'noopener,noreferrer');
+        }
 
         // Expose functions globally
         window.handleCloseMP3Modal = handleCloseMP3Modal;
@@ -2516,7 +4042,224 @@
         window.linkRelatedTrack = linkRelatedTrack;
         window.loadTrackFromEventId = loadTrackFromEventId;
         window.openProfileModalInMP3 = openProfileModalInMP3;
+        window.initializeMixxxMode = initializeMixxxMode;
+        window.suggestMixxxTrack = suggestMixxxTrack;
+        window.openMixxxSuggestedTrack = openMixxxSuggestedTrack;
+        window.continueMixxxPlaylist = continueMixxxPlaylist;
+        window.forkMixxxPlaylist = forkMixxxPlaylist;
+        window.openWebcamUpload = openWebcamUpload;
+        window.setupMixxxVJSearch = setupMixxxVJSearch;
+        window.searchMixxxVideos = searchMixxxVideos;
+        window.suggestMixxxVJ = suggestMixxxVJ;
+        window.openMixxxSuggestedVJ = openMixxxSuggestedVJ;
+        
+        /**
+         * Open thumbnail search modal
+         */
+        function openThumbnailSearch() {
+            const modal = new bootstrap.Modal(document.getElementById('thumbnailSearchModal'));
+            modal.show();
+            
+            // Setup search input
+            const searchInput = document.getElementById('thumbnailSearchInput');
+            if (searchInput) {
+                searchInput.value = '';
+                searchInput.oninput = debounce((e) => {
+                    const query = e.target.value.trim();
+                    if (query.length >= 2) {
+                        searchThumbnailImages(query);
+                    } else {
+                        const results = document.getElementById('thumbnailSearchResults');
+                        if (results) {
+                            results.innerHTML = '<div class="col-12 text-center text-secondary py-4"><i class="bi bi-search"></i> Enter a search term to find images</div>';
+                        }
+                    }
+                }, 500);
+            }
+        }
+        
+        /**
+         * Search for images (kind 1063 with mime-type image/*)
+         */
+        async function searchThumbnailImages(query) {
+            const results = document.getElementById('thumbnailSearchResults');
+            if (!results) return;
+            
+            results.innerHTML = '<div class="col-12 text-center text-secondary py-4"><i class="bi bi-hourglass-split"></i> Searching images...</div>';
+            
+            try {
+                const currentRelay = window.nostrRelay || nostrRelay;
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    results.innerHTML = '<div class="col-12 text-center text-danger py-4">⚠️ Relay not connected</div>';
+                    return;
+                }
+                
+                const images = await new Promise((resolve) => {
+                    const imageEvents = [];
+                    const sub = currentRelay.sub([{
+                        kinds: [1063],
+                        limit: 50
+                    }]);
+                    
+                    sub.on('event', (event) => {
+                        // Check if it's an image (mime-type starts with image/)
+                        const mimeTag = event.tags.find(tag => tag[0] === 'm');
+                        if (mimeTag && mimeTag[1] && mimeTag[1].startsWith('image/')) {
+                            // Check if query matches title, description, or content
+                            const titleTag = event.tags.find(tag => tag[0] === 'title');
+                            const descTag = event.tags.find(tag => tag[0] === 'description');
+                            const searchText = (titleTag ? titleTag[1] : '') + ' ' + (descTag ? descTag[1] : '') + ' ' + (event.content || '');
+                            
+                            if (query === '' || searchText.toLowerCase().includes(query.toLowerCase())) {
+                                imageEvents.push(event);
+                            }
+                        }
+                    });
+                    
+                    sub.on('eose', () => {
+                        sub.unsub();
+                        resolve(imageEvents);
+                    });
+                    
+                    setTimeout(() => {
+                        sub.unsub();
+                        resolve(imageEvents);
+                    }, 5000);
+                });
+                
+                if (images.length === 0) {
+                    results.innerHTML = '<div class="col-12 text-center text-secondary py-4"><i class="bi bi-image"></i> No images found</div>';
+                    return;
+                }
+                
+                // Render images
+                results.innerHTML = images.map(event => {
+                    const urlTag = event.tags.find(tag => tag[0] === 'url');
+                    const titleTag = event.tags.find(tag => tag[0] === 'title');
+                    const imageTag = event.tags.find(tag => tag[0] === 'image');
+                    const rTag = event.tags.find(tag => tag[0] === 'r' && tag[2] === 'Thumbnail');
+                    
+                    let imageUrl = imageTag ? imageTag[1] : (rTag ? rTag[1] : (urlTag ? urlTag[1] : null));
+                    if (imageUrl && typeof convertIPFSUrlGlobal === 'function') {
+                        imageUrl = convertIPFSUrlGlobal(imageUrl);
+                    } else if (imageUrl && window.IPFS_GATEWAY && (imageUrl.startsWith('/ipfs/') || imageUrl.startsWith('ipfs://'))) {
+                        if (imageUrl.startsWith('ipfs://')) {
+                            imageUrl = window.IPFS_GATEWAY + imageUrl.replace('ipfs://', '/ipfs/');
+                        } else {
+                            imageUrl = window.IPFS_GATEWAY + imageUrl;
+                        }
+                    }
+                    
+                    const title = titleTag ? titleTag[1] : 'Untitled Image';
+                    const eventId = event.id;
+                    
+                    return `
+                        <div class="col-6 col-md-4 col-lg-3">
+                            <div class="card bg-secondary border-secondary" style="cursor: pointer;" onclick="selectThumbnailImage('${eventId}', '${imageUrl || ''}')">
+                                ${imageUrl ? `<img src="${imageUrl}" class="card-img-top" style="height: 120px; object-fit: cover;" onerror="this.style.display='none'">` : '<div class="card-img-top bg-dark d-flex align-items-center justify-content-center" style="height: 120px;"><i class="bi bi-image text-secondary"></i></div>'}
+                                <div class="card-body p-2">
+                                    <div class="small text-white text-truncate" title="${escapeHtml(title)}">${escapeHtml(title)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('Error searching images:', error);
+                results.innerHTML = '<div class="col-12 text-center text-danger py-4">⚠️ Error searching images</div>';
+            }
+        }
+        
+        /**
+         * Select thumbnail image
+         */
+        async function selectThumbnailImage(eventId, imageUrl) {
+            const audioPlayer = document.getElementById('mp3AudioPlayer');
+            const currentEventId = audioPlayer?.getAttribute('data-event-id');
+            
+            if (!currentEventId) {
+                alert('No track selected');
+                return;
+            }
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('thumbnailSearchModal'));
+            if (modal) modal.hide();
+            
+            // Update thumbnail display immediately
+            const albumArtEl = document.getElementById('mp3AlbumArt');
+            const albumArtPlaceholder = document.getElementById('mp3AlbumArtPlaceholder');
+            
+            if (albumArtEl && imageUrl) {
+                albumArtEl.src = imageUrl;
+                albumArtEl.style.display = 'block';
+                if (albumArtPlaceholder) {
+                    albumArtPlaceholder.style.display = 'none';
+                }
+            }
+            
+            // TODO: Publish a kind 1111 comment or update the track event with the new thumbnail
+            // For now, we just update the display
+            console.log('Selected thumbnail:', eventId, imageUrl);
+            alert('Thumbnail updated! (Note: This is a visual update only. Full implementation would require publishing an update event.)');
+        }
+        
+        /**
+         * Debounce helper
+         */
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+        
+        /**
+         * Escape HTML helper
+         */
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Expose functions globally
+        window.openThumbnailSearch = openThumbnailSearch;
+        window.searchThumbnailImages = searchThumbnailImages;
+        window.selectThumbnailImage = selectThumbnailImage;
     </script>
+    <!-- Thumbnail Search Modal -->
+    <div class="modal fade" id="thumbnailSearchModal" tabindex="-1" aria-labelledby="thumbnailSearchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark text-white">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="thumbnailSearchModalLabel">
+                        <i class="bi bi-image"></i> Search Image for Thumbnail
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="thumbnailSearchInput" placeholder="Search images...">
+                    </div>
+                    <div id="thumbnailSearchResults" class="row g-2" style="max-height: 400px; overflow-y: auto;">
+                        <div class="col-12 text-center text-secondary py-4">
+                            <i class="bi bi-search"></i> Enter a search term to find images
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
 

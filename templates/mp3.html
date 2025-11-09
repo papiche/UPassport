@@ -481,6 +481,18 @@
             white-space: nowrap;
         }
         
+        .music-card-info {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .music-card-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            justify-content: center;
+        }
+        
         /* Music list view */
         .music-list {
             display: flex;
@@ -1433,15 +1445,25 @@
             }
             
             grid.innerHTML = NostrifyMP3.filteredTracks.map((track, index) => `
-                <div class="music-card" onclick="NostrifyMP3.playTrack(${index})">
-                    <div class="music-card-image">
+                <div class="music-card">
+                    <div class="music-card-image" onclick="NostrifyMP3.playTrack(${index})">
                         ${track.thumbnail ? `<img src="${track.thumbnail}" alt="${track.title}">` : '🎵'}
-                        <button class="music-card-play-button" onclick="event.stopPropagation(); NostrifyMP3.playTrack(${index})">
+                        <button class="music-card-play-button" onclick="event.stopPropagation(); NostrifyMP3.playTrack(${index})" title="Play">
                             <i class="bi bi-play-fill"></i>
                         </button>
                     </div>
-                    <div class="music-card-title">${NostrifyMP3.escapeHtml(track.title || 'Unknown Title')}</div>
-                    <div class="music-card-artist">${NostrifyMP3.escapeHtml(track.artist || 'Unknown Artist')}</div>
+                    <div class="music-card-info">
+                        <div class="music-card-title" onclick="NostrifyMP3.playTrack(${index})" style="cursor: pointer;">${NostrifyMP3.escapeHtml(track.title || 'Unknown Title')}</div>
+                        <div class="music-card-artist" onclick="NostrifyMP3.playTrack(${index})" style="cursor: pointer;">${NostrifyMP3.escapeHtml(track.artist || 'Unknown Artist')}</div>
+                        <div class="music-card-actions" style="display: flex; gap: 8px; margin-top: 8px; justify-content: center;">
+                            <button class="action-btn" onclick="event.stopPropagation(); NostrifyMP3.openModal(${index})" title="Open in modal (comments & discussion)">
+                                <i class="bi bi-chat-dots"></i>
+                            </button>
+                            <button class="action-btn" onclick="event.stopPropagation(); NostrifyMP3.toggleLikeTrack(${index})" title="Like">
+                                <i class="bi ${track.liked ? 'bi-heart-fill' : 'bi-heart'}"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             `).join('');
         }
@@ -1478,6 +1500,9 @@
                     <div class="music-list-date">${NostrifyMP3.formatDate(track.date)}</div>
                     <div class="music-list-duration">${NostrifyMP3.formatDuration(track.duration)}</div>
                     <div class="music-list-actions">
+                        <button class="action-btn" onclick="event.stopPropagation(); NostrifyMP3.openModal(${index})" title="Open in modal (comments & discussion)">
+                            <i class="bi bi-chat-dots"></i>
+                        </button>
                         <button class="action-btn" onclick="event.stopPropagation(); NostrifyMP3.toggleLikeTrack(${index})" title="Like">
                             <i class="bi ${track.liked ? 'bi-heart-fill' : 'bi-heart'}"></i>
                         </button>
@@ -1549,7 +1574,40 @@
         }
         
         /**
-         * Play track
+         * Open track in modal (for comments and discussion)
+         */
+        NostrifyMP3.openModal = function(index) {
+            if (index < 0 || index >= NostrifyMP3.filteredTracks.length) return;
+            
+            const track = NostrifyMP3.filteredTracks[index];
+            
+            // Open MP3 modal
+            if (typeof openMP3Modal === 'function') {
+                openMP3Modal({
+                    title: track.title || 'Unknown Title',
+                    url: track.url || '',
+                    thumbnail: track.thumbnail || null,
+                    eventId: track.eventId || '',
+                    authorId: track.authorId || '',
+                    artist: track.artist || 'Unknown Artist',
+                    album: track.album || '—',
+                    duration: track.duration || null,
+                    description: track.description || '',
+                    content: track.description || ''
+                });
+            } else {
+                console.warn('openMP3Modal function not available');
+                // Fallback: open in new window
+                if (track.eventId) {
+                    window.open(`/mp3-modal?track=${track.eventId}`, '_blank');
+                } else {
+                    alert('Track ID not available');
+                }
+            }
+        }
+        
+        /**
+         * Play track (opens modal by default, or uses bottom player as fallback)
          */
         NostrifyMP3.playTrack = function(index) {
             if (index < 0 || index >= NostrifyMP3.filteredTracks.length) return;
