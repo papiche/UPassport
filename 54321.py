@@ -1458,6 +1458,16 @@ async def get_cookie_guide(request: Request):
         "myIPFS": myipfs_gateway
     })
 
+@app.get("/n8n", response_class=HTMLResponse)
+async def get_n8n_workflow_builder(request: Request):
+    """N8N-style workflow builder for cookie-based automation"""
+    myipfs_gateway = get_myipfs_gateway()
+    logging.info(f"Serving n8n workflow builder template with IPFS gateway: {myipfs_gateway}")
+    return templates.TemplateResponse("n8n.html", {
+        "request": request,
+        "myIPFS": myipfs_gateway
+    })
+
 # Proxy route for 12345
 @app.get("/12345")
 async def proxy_12345(request: Request):

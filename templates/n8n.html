@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 UPlanet Workflow Builder - Cookie Automation</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    
+    <!-- NOSTR integration -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+        
+    <style>
+        :root {
+            --primary-color: #4ade80;
+            --secondary-color: #22c55e;
+            --bg-dark: #1a1a2e;
+            --bg-card: rgba(255, 255, 255, 0.05);
+            --border-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #e8e8e8;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+        
+        .workflow-container {
+            display: flex;
+            height: calc(100vh - 120px);
+            gap: 15px;
+            padding: 15px;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .workflow-canvas {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        
+        .node {
+            position: absolute;
+            min-width: 200px;
+            background: rgba(30, 41, 59, 0.95);
+            border: 2px solid var(--primary-color);
+            border-radius: 10px;
+            padding: 15px;
+            cursor: move;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .node:hover {
+            border-color: var(--secondary-color);
+            box-shadow: 0 6px 20px rgba(74, 222, 128, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .node.selected {
+            border-color: #fbbf24;
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+        }
+        
+        .node-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .node-title {
+            font-weight: 600;
+            color: var(--primary-color);
+            font-size: 0.95rem;
+        }
+        
+        .node-type {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            background: rgba(74, 222, 128, 0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        
+        .node-body {
+            font-size: 0.85rem;
+            color: #cbd5e1;
+        }
+        
+        .node-connector {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            border: 2px solid var(--bg-dark);
+            position: absolute;
+            cursor: pointer;
+        }
+        
+        .node-connector.input {
+            left: -6px;
+            top: 50%;
+        }
+        
+        .node-connector.output {
+            right: -6px;
+            top: 50%;
+        }
+        
+        .node-connector:hover {
+            background: var(--secondary-color);
+            transform: scale(1.3);
+        }
+        
+        .connection-line {
+            position: absolute;
+            pointer-events: none;
+            stroke: var(--primary-color);
+            stroke-width: 2;
+            fill: none;
+        }
+        
+        .module-item {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: grab;
+            transition: all 0.2s ease;
+        }
+        
+        .module-item:hover {
+            background: rgba(30, 41, 59, 0.9);
+            border-color: var(--primary-color);
+            transform: translateX(5px);
+        }
+        
+        .module-item:active {
+            cursor: grabbing;
+        }
+        
+        .module-icon {
+            font-size: 1.2rem;
+            margin-right: 10px;
+            color: var(--primary-color);
+        }
+        
+        .module-category {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border: none;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, var(--secondary-color), #16a34a);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3);
+        }
+        
+        .modal-content {
+            background: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            color: #e8e8e8;
+        }
+        
+        .form-control, .form-select {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid var(--border-color);
+            color: #e8e8e8;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            background: rgba(30, 41, 59, 0.9);
+            border-color: var(--primary-color);
+            color: #e8e8e8;
+            box-shadow: 0 0 0 0.2rem rgba(74, 222, 128, 0.25);
+        }
+        
+        .workflow-list-item {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .workflow-list-item:hover {
+            background: rgba(30, 41, 59, 0.9);
+            border-color: var(--primary-color);
+        }
+        
+        .workflow-list-item.active {
+            border-color: var(--primary-color);
+            background: rgba(74, 222, 128, 0.1);
+        }
+        
+        .status-badge {
+            font-size: 0.7rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        
+        .status-success {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+        }
+        
+        .status-pending {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+        
+        .status-failed {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-dark" style="background: rgba(26, 26, 46, 0.9); backdrop-filter: blur(10px);">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-diagram-3"></i> UPlanet Workflow Builder
+            </span>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-light btn-sm" id="connect-btn" onclick="connectToNOSTR()">
+                    <i class="bi bi-key"></i> Connect NOSTR
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="saveWorkflow()">
+                    <i class="bi bi-save"></i> Save Workflow
+                </button>
+                <button class="btn btn-success btn-sm" onclick="executeWorkflow()">
+                    <i class="bi bi-play-fill"></i> Execute
+                </button>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="workflow-container">
+        <!-- Sidebar: Modules & Workflows -->
+        <div class="sidebar">
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="modules-tab" data-bs-toggle="tab" data-bs-target="#modules" type="button">
+                        <i class="bi bi-puzzle"></i> Modules
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="workflows-tab" data-bs-toggle="tab" data-bs-target="#workflows" type="button">
+                        <i class="bi bi-list-task"></i> Workflows
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="tab-content">
+                <!-- Modules Tab -->
+                <div class="tab-pane fade show active" id="modules" role="tabpanel">
+                    <!-- Data Sources -->
+                    <div class="module-category">📊 Data Sources</div>
+                    <div class="module-item" draggable="true" data-type="cookie_scraper" data-icon="🍪">
+                        <i class="bi bi-cloud-download module-icon"></i>
+                        <strong>Cookie Scraper</strong>
+                        <div class="small text-muted">Scrape data using cookies</div>
+                    </div>
+                    <div class="module-item" draggable="true" data-type="nostr_query" data-icon="📡">
+                        <i class="bi bi-broadcast module-icon"></i>
+                        <strong>NOSTR Query</strong>
+                        <div class="small text-muted">Query NOSTR relay</div>
+                    </div>
+                    
+                    <!-- Processing -->
+                    <div class="module-category mt-4">⚙️ Processing</div>
+                    <div class="module-item" draggable="true" data-type="ai_question" data-icon="🤖">
+                        <i class="bi bi-robot module-icon"></i>
+                        <strong>AI Question</strong>
+                        <div class="small text-muted">Ask AI with Ollama</div>
+                    </div>
+                    <div class="module-item" draggable="true" data-type="image_recognition" data-icon="🌿">
+                        <i class="bi bi-image module-icon"></i>
+                        <strong>Image Recognition</strong>
+                        <div class="small text-muted">PlantNet recognition</div>
+                    </div>
+                    <div class="module-item" draggable="true" data-type="image_generation" data-icon="🎨">
+                        <i class="bi bi-palette module-icon"></i>
+                        <strong>Image Generation</strong>
+                        <div class="small text-muted">Generate with ComfyUI</div>
+                    </div>
+                    <div class="module-item" draggable="true" data-type="filter" data-icon="🔍">
+                        <i class="bi bi-funnel module-icon"></i>
+                        <strong>Filter</strong>
+                        <div class="small text-muted">Filter data</div>
+                    </div>
+                    <div class="module-item" draggable="true" data-type="transform" data-icon="🔄">
+                        <i class="bi bi-arrow-repeat module-icon"></i>
+                        <strong>Transform</strong>
+                        <div class="small text-muted">Transform data structure</div>
+                    </div>
+                    
+                    <!-- Outputs -->
+                    <div class="module-category mt-4">📤 Outputs</div>
+                    <div class="module-item" draggable="true" data-type="nostr_publish" data-icon="📝">
+                        <i class="bi bi-send module-icon"></i>
+                        <strong>Publish NOSTR</strong>
+                        <div class="small text-muted">Publish NOSTR event</div>
+                    </div>
+                    <div class="module-item" draggable="true" data-type="udrive_save" data-icon="💾">
+                        <i class="bi bi-folder module-icon"></i>
+                        <strong>Save to uDRIVE</strong>
+                        <div class="small text-muted">Save to uDRIVE</div>
+                    </div>
+                    <div class="module-item" draggable="true" data-type="email_send" data-icon="📧">
+                        <i class="bi bi-envelope module-icon"></i>
+                        <strong>Send Email</strong>
+                        <div class="small text-muted">Send email notification</div>
+                    </div>
+                </div>
+                
+                <!-- Workflows Tab -->
+                <div class="tab-pane fade" id="workflows" role="tabpanel">
+                    <button class="btn btn-primary btn-sm w-100 mb-3" onclick="createNewWorkflow()">
+                        <i class="bi bi-plus-circle"></i> New Workflow
+                    </button>
+                    <div id="workflows-list">
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-hourglass-split"></i> Loading workflows...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Canvas: Workflow Editor -->
+        <div class="canvas-container">
+            <div class="workflow-canvas" id="workflow-canvas">
+                <svg id="connections-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1;"></svg>
+                <div id="nodes-container" style="position: relative; z-index: 2;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Node Configuration Modal -->
+    <div class="modal fade" id="nodeConfigModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="nodeConfigTitle">Configure Node</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="nodeConfigBody">
+                    <!-- Dynamic form will be inserted here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveNodeConfig()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Workflow Settings Modal -->
+    <div class="modal fade" id="workflowSettingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Workflow Settings</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Workflow Name</label>
+                        <input type="text" class="form-control" id="workflowName" placeholder="My Workflow">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="workflowDescription" rows="3" placeholder="Workflow description..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Trigger Type</label>
+                        <select class="form-select" id="workflowTrigger">
+                            <option value="manual">Manual (#cookie tag)</option>
+                            <option value="schedule">Scheduled (Cron)</option>
+                            <option value="event">Event Trigger</option>
+                        </select>
+                    </div>
+                    <div class="mb-3" id="cronScheduleGroup" style="display: none;">
+                        <label class="form-label">Cron Schedule</label>
+                        <input type="text" class="form-control" id="workflowCron" placeholder="0 2 * * * (Daily at 2 AM)">
+                        <small class="text-muted">Format: minute hour day month weekday</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveWorkflowSettings()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ========================================
+        // GLOBAL VARIABLES
+        // ========================================
+        let USPOT_API_BASE = '';
+        let USPOT_RELAY = '';
+        let IPFS_GATEWAY = '';
+        let DEFAULT_RELAYS = [];
+        let nostrRelay = null;
+        let isNostrConnected = false;
+        let userPubkey = null;
+        let userNpub = null;
+        let userEmail = null;
+        
+        let currentWorkflow = {
+            id: null,
+            name: 'New Workflow',
+            description: '',
+            version: '1.0.0',
+            nodes: [],
+            connections: [],
+            triggers: [{ type: 'manual', tag: '#cookie' }]
+        };
+        
+        let selectedNode = null;
+        let nodeCounter = 0;
+        let isDragging = false;
+        let dragOffset = { x: 0, y: 0 };
+        let connectingFrom = null;
+        
+        // ========================================
+        // NOSTR INTEGRATION
+        // ========================================
+        function detectUSPOTAPI() {
+            const currentURL = new URL(window.location.href);
+            const hostname = currentURL.hostname;
+            
+            let determinedRelay = '';
+            let apiBase = '';
+            let ipfsGateway = '';
+            
+            if (hostname === "127.0.0.1" || hostname === "localhost") {
+                determinedRelay = `ws://127.0.0.1:7777`;
+                apiBase = `http://127.0.0.1:54321`;
+                ipfsGateway = `http://127.0.0.1:8080`;
+            } else if (hostname.startsWith("ipfs.")) {
+                const baseDomain = hostname.substring("ipfs.".length);
+                determinedRelay = `wss://relay.${baseDomain}`;
+                apiBase = `https://u.${baseDomain}`;
+                ipfsGateway = `https://ipfs.${baseDomain}`;
+            } else if (hostname.startsWith("u.")) {
+                const baseDomain = hostname.substring("u.".length);
+                determinedRelay = `wss://relay.${baseDomain}`;
+                apiBase = `https://u.${baseDomain}`;
+                ipfsGateway = `https://ipfs.${baseDomain}`;
+            } else {
+                determinedRelay = `wss://relay.copylaradio.com`;
+                apiBase = `https://u.copylaradio.com`;
+                ipfsGateway = `https://ipfs.copylaradio.com`;
+            }
+            
+            DEFAULT_RELAYS = [determinedRelay];
+            USPOT_API_BASE = apiBase;
+            USPOT_RELAY = determinedRelay;
+            IPFS_GATEWAY = ipfsGateway;
+            
+            console.log(`🔗 API Base: ${USPOT_API_BASE}`);
+            console.log(`🔗 Relay: ${USPOT_RELAY}`);
+        }
+        
+        async function connectToNOSTR() {
+            const btn = document.getElementById('connect-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Connecting...';
+            
+            try {
+                if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
+                    throw new Error('NOSTR extension not found. Please install a NOSTR extension.');
+                }
+                
+                userPubkey = await window.nostr.getPublicKey();
+                console.log('✅ Public key:', userPubkey.substring(0, 8) + '...');
+                
+                if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                    userNpub = NostrTools.nip19.npubEncode(userPubkey);
+                } else {
+                    userNpub = userPubkey;
+                }
+                
+                await connectToNostrRelay();
+                await sendNIP42Auth();
+                
+                btn.innerHTML = '<i class="bi bi-check-circle"></i> Connected';
+                btn.classList.remove('btn-outline-light');
+                btn.classList.add('btn-success');
+                
+                // Load user workflows
+                await loadWorkflows();
+                
+            } catch (error) {
+                console.error('Connection error:', error);
+                alert('Connection failed: ' + error.message);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-key"></i> Connect NOSTR';
+            }
+        }
+        
+        async function connectToNostrRelay() {
+            const relayUrl = DEFAULT_RELAYS[0];
+            
+            if (nostrRelay && isNostrConnected) {
+                console.log('✅ Reusing existing relay connection');
+                return;
+            }
+            
+            console.log('🔌 Connecting to relay:', relayUrl);
+            
+            try {
+                if (nostrRelay) {
+                    try {
+                        nostrRelay.close();
+                    } catch (e) {
+                        console.warn('Error closing existing relay:', e);
+                    }
+                }
+                
+                nostrRelay = NostrTools.relayInit(relayUrl);
+                
+                nostrRelay.on('connect', () => {
+                    console.log('✅ Connected to NOSTR relay:', relayUrl);
+                    isNostrConnected = true;
+                });
+                
+                nostrRelay.on('error', (error) => {
+                    console.error('❌ Relay connection error:', error);
+                    isNostrConnected = false;
+                });
+                
+                await nostrRelay.connect();
+                isNostrConnected = true;
+                
+            } catch (error) {
+                console.error('Failed to connect to relay:', error);
+                isNostrConnected = false;
+                throw error;
+            }
+        }
+        
+        async function sendNIP42Auth() {
+            if (!userPubkey || !nostrRelay || !isNostrConnected) {
+                console.warn('Cannot send NIP-42 auth: missing requirements');
+                return;
+            }
+            
+            try {
+                console.log('📝 Sending NIP-42 authentication event...');
+                
+                const authEvent = {
+                    kind: 22242,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [
+                        ['relay', DEFAULT_RELAYS[0]],
+                        ['challenge', 'auth-' + Date.now()]
+                    ],
+                    content: '',
+                    pubkey: userPubkey
+                };
+                
+                const signedEvent = await window.nostr.signEvent(authEvent);
+                
+                if (!signedEvent || !signedEvent.id) {
+                    console.error('❌ Failed to sign NIP-42 event');
+                    return;
+                }
+                
+                console.log('✅ NIP-42 event signed:', signedEvent.id);
+                await nostrRelay.publish(signedEvent);
+                console.log('✅ NIP-42 event published');
+                
+            } catch (error) {
+                console.error('❌ Failed to send NIP-42 auth:', error);
+            }
+        }
+        
+        // ========================================
+        // WORKFLOW MANAGEMENT
+        // ========================================
+        async function loadWorkflows() {
+            if (!userPubkey || !nostrRelay) {
+                console.warn('Cannot load workflows: not connected');
+                return;
+            }
+            
+            try {
+                console.log('📋 Loading workflows from NOSTR...');
+                
+                const workflows = [];
+                const sub = nostrRelay.sub([
+                    {
+                        kinds: [31900],
+                        authors: [userPubkey],
+                        '#t': ['cookie-workflow']
+                    }
+                ]);
+                
+                sub.on('event', (event) => {
+                    try {
+                        const workflow = JSON.parse(event.content);
+                        workflow.event_id = event.id;
+                        workflow.created_at = event.created_at;
+                        workflows.push(workflow);
+                    } catch (e) {
+                        console.error('Error parsing workflow:', e);
+                    }
+                });
+                
+                // Wait for events
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                sub.unsub();
+                
+                displayWorkflows(workflows);
+                
+            } catch (error) {
+                console.error('Error loading workflows:', error);
+            }
+        }
+        
+        function displayWorkflows(workflows) {
+            const listEl = document.getElementById('workflows-list');
+            
+            if (workflows.length === 0) {
+                listEl.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-inbox"></i><br>
+                        No workflows found.<br>
+                        <small>Create a new workflow to get started.</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            listEl.innerHTML = workflows.map(wf => `
+                <div class="workflow-list-item" onclick="loadWorkflow('${wf.event_id}')">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <strong>${wf.name || 'Unnamed Workflow'}</strong>
+                            <div class="small text-muted">${wf.description || 'No description'}</div>
+                            <div class="small text-muted mt-1">
+                                <i class="bi bi-calendar"></i> ${new Date(wf.created_at * 1000).toLocaleDateString()}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function loadWorkflow(eventId) {
+            if (!nostrRelay) return;
+            
+            try {
+                const events = [];
+                const sub = nostrRelay.sub([
+                    {
+                        kinds: [31900],
+                        ids: [eventId]
+                    }
+                ]);
+                
+                sub.on('event', (event) => {
+                    events.push(event);
+                });
+                
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                sub.unsub();
+                
+                if (events.length > 0) {
+                    const event = events[0];
+                    currentWorkflow = JSON.parse(event.content);
+                    currentWorkflow.id = event.id;
+                    renderWorkflow();
+                }
+            } catch (error) {
+                console.error('Error loading workflow:', error);
+            }
+        }
+        
+        async function saveWorkflow() {
+            if (!userPubkey || !nostrRelay) {
+                alert('Please connect to NOSTR first');
+                return;
+            }
+            
+            // Show settings modal if workflow name not set
+            if (!currentWorkflow.name || currentWorkflow.name === 'New Workflow') {
+                const modal = new bootstrap.Modal(document.getElementById('workflowSettingsModal'));
+                modal.show();
+                return;
+            }
+            
+            try {
+                const workflowJson = JSON.stringify(currentWorkflow, null, 2);
+                
+                // Build tags
+                const tags = [
+                    ['d', currentWorkflow.id || `workflow_${Date.now()}`],
+                    ['t', 'cookie-workflow'],
+                    ['t', 'uplanet']
+                ];
+                
+                // Add cookie domains from nodes
+                const cookieDomains = new Set();
+                currentWorkflow.nodes.forEach(node => {
+                    if (node.type === 'cookie_scraper' && node.parameters?.domain) {
+                        cookieDomains.add(node.parameters.domain);
+                    }
+                });
+                cookieDomains.forEach(domain => {
+                    tags.push(['cookie', domain]);
+                });
+                
+                // Create replaceable event (kind 31900)
+                const event = {
+                    kind: 31900,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: tags,
+                    content: workflowJson,
+                    pubkey: userPubkey
+                };
+                
+                const signedEvent = await window.nostr.signEvent(event);
+                await nostrRelay.publish(signedEvent);
+                
+                console.log('✅ Workflow saved:', signedEvent.id);
+                alert('Workflow saved successfully!');
+                
+                // Reload workflows list
+                await loadWorkflows();
+                
+            } catch (error) {
+                console.error('Error saving workflow:', error);
+                alert('Error saving workflow: ' + error.message);
+            }
+        }
+        
+        async function executeWorkflow() {
+            if (!currentWorkflow.id) {
+                alert('Please save the workflow first');
+                return;
+            }
+            
+            if (!userPubkey || !nostrRelay) {
+                alert('Please connect to NOSTR first');
+                return;
+            }
+            
+            try {
+                // Create execution request (kind 31901)
+                const execParams = {
+                    workflow_id: currentWorkflow.id,
+                    trigger: 'manual',
+                    parameters: {}
+                };
+                
+                const event = {
+                    kind: 31901,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [
+                        ['e', currentWorkflow.id],
+                        ['t', 'cookie-workflow-exec']
+                    ],
+                    content: JSON.stringify(execParams),
+                    pubkey: userPubkey
+                };
+                
+                const signedEvent = await window.nostr.signEvent(event);
+                await nostrRelay.publish(signedEvent);
+                
+                console.log('✅ Workflow execution requested:', signedEvent.id);
+                alert('Workflow execution requested! Check your messages for results.');
+                
+            } catch (error) {
+                console.error('Error executing workflow:', error);
+                alert('Error executing workflow: ' + error.message);
+            }
+        }
+        
+        function createNewWorkflow() {
+            currentWorkflow = {
+                id: null,
+                name: 'New Workflow',
+                description: '',
+                version: '1.0.0',
+                nodes: [],
+                connections: [],
+                triggers: [{ type: 'manual', tag: '#cookie' }]
+            };
+            renderWorkflow();
+            
+            // Show settings modal
+            document.getElementById('workflowName').value = '';
+            document.getElementById('workflowDescription').value = '';
+            document.getElementById('workflowTrigger').value = 'manual';
+            const modal = new bootstrap.Modal(document.getElementById('workflowSettingsModal'));
+            modal.show();
+        }
+        
+        function saveWorkflowSettings() {
+            currentWorkflow.name = document.getElementById('workflowName').value || 'New Workflow';
+            currentWorkflow.description = document.getElementById('workflowDescription').value;
+            
+            const triggerType = document.getElementById('workflowTrigger').value;
+            if (triggerType === 'schedule') {
+                currentWorkflow.triggers = [{
+                    type: 'schedule',
+                    cron: document.getElementById('workflowCron').value
+                }];
+            } else {
+                currentWorkflow.triggers = [{ type: triggerType, tag: '#cookie' }];
+            }
+            
+            const modal = bootstrap.Modal.getInstance(document.getElementById('workflowSettingsModal'));
+            modal.hide();
+        }
+        
+        // ========================================
+        // NODE MANAGEMENT
+        // ========================================
+        function renderWorkflow() {
+            const container = document.getElementById('nodes-container');
+            container.innerHTML = '';
+            
+            currentWorkflow.nodes.forEach(node => {
+                createNodeElement(node);
+            });
+            
+            renderConnections();
+        }
+        
+        function createNodeElement(node) {
+            const container = document.getElementById('nodes-container');
+            const nodeEl = document.createElement('div');
+            nodeEl.className = 'node';
+            nodeEl.id = `node-${node.id}`;
+            nodeEl.style.left = node.position.x + 'px';
+            nodeEl.style.top = node.position.y + 'px';
+            
+            const nodeTypes = {
+                cookie_scraper: { icon: '🍪', color: '#4ade80' },
+                nostr_query: { icon: '📡', color: '#3b82f6' },
+                ai_question: { icon: '🤖', color: '#8b5cf6' },
+                image_recognition: { icon: '🌿', color: '#10b981' },
+                image_generation: { icon: '🎨', color: '#f59e0b' },
+                filter: { icon: '🔍', color: '#ef4444' },
+                transform: { icon: '🔄', color: '#06b6d4' },
+                nostr_publish: { icon: '📝', color: '#ec4899' },
+                udrive_save: { icon: '💾', color: '#6366f1' },
+                email_send: { icon: '📧', color: '#14b8a6' }
+            };
+            
+            const nodeInfo = nodeTypes[node.type] || { icon: '⚙️', color: '#94a3b8' };
+            
+            nodeEl.innerHTML = `
+                <div class="node-header">
+                    <div>
+                        <div class="node-title">${nodeInfo.icon} ${node.name || node.type}</div>
+                        <div class="node-type">${node.type}</div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteNode('${node.id}')" style="padding: 2px 6px;">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </div>
+                <div class="node-body">
+                    ${formatNodePreview(node)}
+                </div>
+                <div class="node-connector input" data-node="${node.id}" data-type="input"></div>
+                <div class="node-connector output" data-node="${node.id}" data-type="output"></div>
+            `;
+            
+            container.appendChild(nodeEl);
+            
+            // Make node draggable
+            makeNodeDraggable(nodeEl, node);
+            
+            // Make connectors clickable
+            nodeEl.querySelectorAll('.node-connector').forEach(connector => {
+                connector.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    handleConnectorClick(connector, node);
+                });
+            });
+            
+            // Double-click to configure
+            nodeEl.addEventListener('dblclick', () => {
+                configureNode(node);
+            });
+        }
+        
+        function formatNodePreview(node) {
+            switch (node.type) {
+                case 'cookie_scraper':
+                    return `<small>Domain: ${node.parameters?.domain || 'N/A'}</small>`;
+                case 'ai_question':
+                    return `<small>Model: ${node.parameters?.model || 'default'}</small>`;
+                case 'filter':
+                    return `<small>${node.parameters?.field || 'field'} ${node.parameters?.operator || '=='} ${node.parameters?.value || 'value'}</small>`;
+                default:
+                    return `<small>Click to configure</small>`;
+            }
+        }
+        
+        function makeNodeDraggable(nodeEl, node) {
+            nodeEl.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('node-connector')) return;
+                
+                isDragging = true;
+                const rect = nodeEl.getBoundingClientRect();
+                const canvasRect = document.getElementById('workflow-canvas').getBoundingClientRect();
+                
+                dragOffset.x = e.clientX - rect.left;
+                dragOffset.y = e.clientY - rect.top;
+                
+                nodeEl.style.zIndex = '1000';
+                
+                const onMouseMove = (e) => {
+                    if (!isDragging) return;
+                    
+                    const x = e.clientX - canvasRect.left - dragOffset.x;
+                    const y = e.clientY - canvasRect.top - dragOffset.y;
+                    
+                    nodeEl.style.left = Math.max(0, x) + 'px';
+                    nodeEl.style.top = Math.max(0, y) + 'px';
+                    
+                    // Update node position
+                    node.position.x = Math.max(0, x);
+                    node.position.y = Math.max(0, y);
+                    
+                    renderConnections();
+                };
+                
+                const onMouseUp = () => {
+                    isDragging = false;
+                    nodeEl.style.zIndex = '2';
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                };
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+        }
+        
+        // ========================================
+        // CANVAS DRAG & DROP
+        // ========================================
+        const canvas = document.getElementById('workflow-canvas');
+        
+        canvas.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+        
+        canvas.addEventListener('drop', (e) => {
+            e.preventDefault();
+            
+            const moduleType = e.dataTransfer.getData('text/plain');
+            if (!moduleType) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            addNode(moduleType, x, y);
+        });
+        
+        // Make module items draggable
+        document.querySelectorAll('.module-item').forEach(item => {
+            item.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', item.dataset.type);
+            });
+        });
+        
+        function addNode(type, x, y) {
+            const nodeId = `node_${++nodeCounter}`;
+            const node = {
+                id: nodeId,
+                type: type,
+                name: type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                position: { x: x - 100, y: y - 50 },
+                parameters: getDefaultParameters(type),
+                connections: { input: [], output: [] }
+            };
+            
+            currentWorkflow.nodes.push(node);
+            createNodeElement(node);
+        }
+        
+        function getDefaultParameters(type) {
+            const defaults = {
+                cookie_scraper: { domain: 'youtube.com', scraper: '', output: 'data' },
+                nostr_query: { kind: 1, author: '', tags: [], limit: 10 },
+                ai_question: { prompt: '', model: 'gemma3:12b', slot: 0 },
+                image_recognition: { image_url: '', latitude: 0, longitude: 0 },
+                image_generation: { prompt: '', output_path: 'Images/' },
+                filter: { field: '', operator: '==', value: '' },
+                transform: { mapping: '{}', format: 'json' },
+                nostr_publish: { kind: 1, tags: '[]', content_template: '' },
+                udrive_save: { path: 'Documents/', format: 'json' },
+                email_send: { to: '', subject: '', template: '' }
+            };
+            
+            return defaults[type] || {};
+        }
+        
+        function deleteNode(nodeId) {
+            currentWorkflow.nodes = currentWorkflow.nodes.filter(n => n.id !== nodeId);
+            currentWorkflow.connections = currentWorkflow.connections.filter(c => 
+                c.from !== nodeId && c.to !== nodeId
+            );
+            renderWorkflow();
+        }
+        
+        // ========================================
+        // NODE CONFIGURATION
+        // ========================================
+        function configureNode(node) {
+            selectedNode = node;
+            const modal = new bootstrap.Modal(document.getElementById('nodeConfigModal'));
+            document.getElementById('nodeConfigTitle').textContent = `Configure: ${node.name}`;
+            
+            const body = document.getElementById('nodeConfigBody');
+            body.innerHTML = generateNodeConfigForm(node);
+            
+            modal.show();
+        }
+        
+        function generateNodeConfigForm(node) {
+            let html = `<div class="mb-3">
+                <label class="form-label">Node Name</label>
+                <input type="text" class="form-control" id="nodeName" value="${node.name || ''}">
+            </div>`;
+            
+            switch (node.type) {
+                case 'cookie_scraper':
+                    html += `
+                        <div class="mb-3">
+                            <label class="form-label">Domain</label>
+                            <select class="form-select" id="nodeDomain">
+                                <option value="youtube.com" ${node.parameters?.domain === 'youtube.com' ? 'selected' : ''}>YouTube</option>
+                                <option value="leboncoin.fr" ${node.parameters?.domain === 'leboncoin.fr' ? 'selected' : ''}>Leboncoin</option>
+                                <option value="forum.monnaie-libre.fr" ${node.parameters?.domain === 'forum.monnaie-libre.fr' ? 'selected' : ''}>Forum Monnaie Libre</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Output Variable</label>
+                            <input type="text" class="form-control" id="nodeOutput" value="${node.parameters?.output || 'data'}">
+                        </div>
+                    `;
+                    break;
+                    
+                case 'ai_question':
+                    html += `
+                        <div class="mb-3">
+                            <label class="form-label">Prompt</label>
+                            <textarea class="form-control" id="nodePrompt" rows="4" placeholder="Enter your prompt (use {variable} for substitutions)">${node.parameters?.prompt || ''}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Model</label>
+                            <select class="form-select" id="nodeModel">
+                                <option value="gemma3:12b" ${node.parameters?.model === 'gemma3:12b' ? 'selected' : ''}>Gemma 3 12B</option>
+                                <option value="llama3.2" ${node.parameters?.model === 'llama3.2' ? 'selected' : ''}>Llama 3.2</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Memory Slot</label>
+                            <input type="number" class="form-control" id="nodeSlot" min="0" max="12" value="${node.parameters?.slot || 0}">
+                        </div>
+                    `;
+                    break;
+                    
+                case 'filter':
+                    html += `
+                        <div class="mb-3">
+                            <label class="form-label">Field</label>
+                            <input type="text" class="form-control" id="nodeField" value="${node.parameters?.field || ''}" placeholder="field_name">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Operator</label>
+                            <select class="form-select" id="nodeOperator">
+                                <option value="==" ${node.parameters?.operator === '==' ? 'selected' : ''}>Equals (==)</option>
+                                <option value="!=" ${node.parameters?.operator === '!=' ? 'selected' : ''}>Not Equals (!=)</option>
+                                <option value=">" ${node.parameters?.operator === '>' ? 'selected' : ''}>Greater Than (>)</option>
+                                <option value="<" ${node.parameters?.operator === '<' ? 'selected' : ''}>Less Than (<)</option>
+                                <option value="contains" ${node.parameters?.operator === 'contains' ? 'selected' : ''}>Contains</option>
+                                <option value="regex" ${node.parameters?.operator === 'regex' ? 'selected' : ''}>Regex Match</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Value</label>
+                            <input type="text" class="form-control" id="nodeValue" value="${node.parameters?.value || ''}">
+                        </div>
+                    `;
+                    break;
+                    
+                case 'nostr_publish':
+                    html += `
+                        <div class="mb-3">
+                            <label class="form-label">Event Kind</label>
+                            <select class="form-select" id="nodeKind">
+                                <option value="1" ${node.parameters?.kind == 1 ? 'selected' : ''}>Kind 1 (Text Note)</option>
+                                <option value="30023" ${node.parameters?.kind == 30023 ? 'selected' : ''}>Kind 30023 (Article)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Content Template</label>
+                            <textarea class="form-control" id="nodeContent" rows="4" placeholder="Use {variable} for substitutions">${node.parameters?.content_template || ''}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tags (JSON array)</label>
+                            <input type="text" class="form-control" id="nodeTags" value='${node.parameters?.tags || '[]'}' placeholder='[["t", "tag1"], ["t", "tag2"]]'>
+                        </div>
+                    `;
+                    break;
+                    
+                default:
+                    html += `<div class="alert alert-info">Configuration for ${node.type} coming soon</div>`;
+            }
+            
+            return html;
+        }
+        
+        function saveNodeConfig() {
+            if (!selectedNode) return;
+            
+            selectedNode.name = document.getElementById('nodeName').value || selectedNode.type;
+            
+            // Update parameters based on node type
+            switch (selectedNode.type) {
+                case 'cookie_scraper':
+                    selectedNode.parameters.domain = document.getElementById('nodeDomain').value;
+                    selectedNode.parameters.output = document.getElementById('nodeOutput').value;
+                    break;
+                case 'ai_question':
+                    selectedNode.parameters.prompt = document.getElementById('nodePrompt').value;
+                    selectedNode.parameters.model = document.getElementById('nodeModel').value;
+                    selectedNode.parameters.slot = parseInt(document.getElementById('nodeSlot').value);
+                    break;
+                case 'filter':
+                    selectedNode.parameters.field = document.getElementById('nodeField').value;
+                    selectedNode.parameters.operator = document.getElementById('nodeOperator').value;
+                    selectedNode.parameters.value = document.getElementById('nodeValue').value;
+                    break;
+                case 'nostr_publish':
+                    selectedNode.parameters.kind = parseInt(document.getElementById('nodeKind').value);
+                    selectedNode.parameters.content_template = document.getElementById('nodeContent').value;
+                    try {
+                        selectedNode.parameters.tags = JSON.parse(document.getElementById('nodeTags').value);
+                    } catch (e) {
+                        alert('Invalid tags JSON');
+                        return;
+                    }
+                    break;
+            }
+            
+            renderWorkflow();
+            
+            const modal = bootstrap.Modal.getInstance(document.getElementById('nodeConfigModal'));
+            modal.hide();
+        }
+        
+        // ========================================
+        // CONNECTIONS
+        // ========================================
+        function handleConnectorClick(connector, node) {
+            if (!connectingFrom) {
+                connectingFrom = { node: node, type: connector.dataset.type };
+                connector.style.background = '#fbbf24';
+            } else {
+                if (connectingFrom.node.id === node.id) {
+                    // Cancel connection
+                    connectingFrom = null;
+                    connector.style.background = '';
+                    return;
+                }
+                
+                // Create connection
+                if (connectingFrom.type === 'output' && connector.dataset.type === 'input') {
+                    // Output to Input connection
+                    const connection = {
+                        from: connectingFrom.node.id,
+                        to: node.id,
+                        fromType: 'output',
+                        toType: 'input'
+                    };
+                    
+                    // Check if connection already exists
+                    const exists = currentWorkflow.connections.some(c => 
+                        c.from === connection.from && c.to === connection.to
+                    );
+                    
+                    if (!exists) {
+                        currentWorkflow.connections.push(connection);
+                        renderConnections();
+                    }
+                }
+                
+                connectingFrom = null;
+                document.querySelectorAll('.node-connector').forEach(c => {
+                    c.style.background = '';
+                });
+            }
+        }
+        
+        function renderConnections() {
+            const svg = document.getElementById('connections-svg');
+            svg.innerHTML = '';
+            
+            currentWorkflow.connections.forEach(conn => {
+                const fromNode = document.getElementById(`node-${conn.from}`);
+                const toNode = document.getElementById(`node-${conn.to}`);
+                
+                if (!fromNode || !toNode) return;
+                
+                const fromRect = fromNode.getBoundingClientRect();
+                const toRect = toNode.getBoundingClientRect();
+                const canvasRect = canvas.getBoundingClientRect();
+                
+                const x1 = fromRect.right - canvasRect.left;
+                const y1 = fromRect.top + fromRect.height / 2 - canvasRect.top;
+                const x2 = toRect.left - canvasRect.left;
+                const y2 = toRect.top + toRect.height / 2 - canvasRect.top;
+                
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', `M ${x1} ${y1} L ${x2} ${y2}`);
+                path.setAttribute('class', 'connection-line');
+                path.setAttribute('stroke', '#4ade80');
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('fill', 'none');
+                path.setAttribute('marker-end', 'url(#arrowhead)');
+                
+                svg.appendChild(path);
+            });
+            
+            // Add arrow marker if not exists
+            if (!document.getElementById('arrowhead')) {
+                const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+                marker.setAttribute('id', 'arrowhead');
+                marker.setAttribute('markerWidth', '10');
+                marker.setAttribute('markerHeight', '10');
+                marker.setAttribute('refX', '9');
+                marker.setAttribute('refY', '3');
+                marker.setAttribute('orient', 'auto');
+                
+                const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                polygon.setAttribute('points', '0 0, 10 3, 0 6');
+                polygon.setAttribute('fill', '#4ade80');
+                
+                marker.appendChild(polygon);
+                defs.appendChild(marker);
+                svg.appendChild(defs);
+            }
+        }
+        
+        // ========================================
+        // INITIALIZATION
+        // ========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            detectUSPOTAPI();
+            
+            // Show cron schedule field when schedule trigger is selected
+            document.getElementById('workflowTrigger').addEventListener('change', (e) => {
+                const cronGroup = document.getElementById('cronScheduleGroup');
+                cronGroup.style.display = e.target.value === 'schedule' ? 'block' : 'none';
+            });
+            
+            console.log('🔧 UPlanet Workflow Builder initialized');
+        });
+    </script>
+</body>
+</html>
+
