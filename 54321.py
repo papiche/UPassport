@@ -1567,13 +1567,19 @@ async def get_wotx2(request: Request, npub: Optional[str] = None, permit_id: Opt
         selected_permit_data = {}
         selected_permit_id = permit_id or "PERMIT_DE_NAGER"
         
-        # Only fetch permit definitions from Nostr (kind 30500) to populate the selector
+        # Fetch permit definitions from Nostr (kind 30500) and local definitions
         if ORACLE_ENABLED and oracle_system is not None:
             try:
-                # Fetch permit definitions from Nostr
+                # Fetch permit definitions from Nostr (includes MULTIPASS directories)
                 nostr_definitions = oracle_system.fetch_permit_definitions_from_nostr()
                 
+                # Also include local definitions (from oracle_system.definitions)
+                # This ensures permits created locally but not yet in Nostr are visible
+                seen_permit_ids = set()
+                
+                # First, add Nostr definitions
                 for permit_def in nostr_definitions:
+                    seen_permit_ids.add(permit_def.id)
                     all_permits.append({
                         "id": permit_def.id,
                         "name": permit_def.name,
@@ -1584,7 +1590,22 @@ async def get_wotx2(request: Request, npub: Optional[str] = None, permit_id: Opt
                         "category": permit_def.metadata.get("category", "general") if permit_def.metadata else "general"
                     })
                 
-                # Find selected permit
+                # Then, add local definitions not found in Nostr
+                for def_id, local_def in oracle_system.definitions.items():
+                    if def_id not in seen_permit_ids:
+                        all_permits.append({
+                            "id": local_def.id,
+                            "name": local_def.name,
+                            "description": local_def.description,
+                            "min_attestations": local_def.min_attestations,
+                            "holders_count": 0,
+                            "pending_count": 0,
+                            "category": local_def.metadata.get("category", "general") if local_def.metadata else "general"
+                        })
+                        # Also add to nostr_definitions list for selection logic
+                        nostr_definitions.append(local_def)
+                
+                # Find selected permit (from Nostr or local)
                 selected_permit = next((p for p in nostr_definitions if p.id == selected_permit_id), None)
                 if not selected_permit and nostr_definitions:
                     selected_permit = nostr_definitions[0]
@@ -3860,7 +3881,9 @@ async def upload_file_to_ipfs(
                     async with aiofiles.open(cookie_path, 'wb') as cookie_file:
                         await cookie_file.write(file_content)
                     
-                    logging.info(f"✅ Cookie file saved to: {cookie_path}")
+                    # Set restrictive permissions (600 = owner read/write only)
+                    os.chmod(cookie_path, 0o600)
+                    logging.info(f"✅ Cookie file saved to: {cookie_path} (permissions: 600)")
                     
                     # Build user-friendly message
                     domain_message = f"{detected_domain}"
@@ -6167,7 +6190,11 @@ async def create_permit_definition(request: PermitDefinitionCreateRequest):
         
         # Check if permit ID already exists
         if permit_req.id in oracle_system.definitions:
-            raise HTTPException(status_code=400, detail=f"Permit definition {permit_req.id} already exists")
+            existing_def = oracle_system.definitions[permit_req.id]
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Permit definition {permit_req.id} already exists. Please select it from the permit list instead of creating a new one."
+            )
         
         uplanet_g1_key = os.getenv("UPLANETNAME_G1", "")
         issuer_did = f"did:nostr:{uplanet_g1_key[:16]}"
@@ -6193,7 +6220,8 @@ async def create_permit_definition(request: PermitDefinitionCreateRequest):
             metadata=permit_req.metadata
         )
         
-        success = oracle_system.create_permit_definition(definition)
+        # Pass creator npub to save event in their MULTIPASS directory
+        success = oracle_system.create_permit_definition(definition, creator_npub=request.npub)
         
         if success:
             response_data = {

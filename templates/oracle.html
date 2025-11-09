@@ -393,25 +393,91 @@
                 <div class="card mb-4" style="background: linear-gradient(135deg, rgba(74, 222, 128, 0.2), rgba(34, 197, 94, 0.1)); border: 2px solid rgba(74, 222, 128, 0.5);">
                     <div class="card-body text-center p-4">
                         <h3 class="mb-3" style="color: #4ade80;">
-                            <i class="bi bi-shield-check"></i> Créez votre MULTIPASS pour participer
+                            <i class="bi bi-shield-check"></i> Système Oracle - Web of Trust
                         </h3>
                         <p class="text-muted mb-4">
-                            Le système Oracle utilise la Web of Trust pour certifier les compétences. 
-                            Pour créer une demande de permis ou attester quelqu'un, vous devez avoir un MULTIPASS.
+                            Le système Oracle utilise la <strong>Web of Trust (WoT)</strong> pour certifier les compétences de manière décentralisée.
+                            Deux types de permis sont disponibles :
                         </p>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <div class="card" style="background: rgba(15, 23, 42, 0.8); border: 2px solid rgba(251, 191, 36, 0.5);">
+                                    <div class="card-body">
+                                        <h5 class="text-warning">
+                                            <i class="bi bi-award"></i> Permis Officiels
+                                        </h5>
+                                        <p class="small text-muted mb-2">
+                                            Permis créés par UPLANETNAME_G1 (ex: PERMIT_ORE_V1, PERMIT_DRIVER).
+                                            Nécessitent un bootstrap initial (N+1 membres).
+                                        </p>
+                                        <a href="/oracle" class="btn btn-warning btn-sm">
+                                            <i class="bi bi-list-ul"></i> Voir les Permis Officiels
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card" style="background: rgba(15, 23, 42, 0.8); border: 2px solid rgba(74, 222, 128, 0.5);">
+                                    <div class="card-body">
+                                        <h5 class="text-success">
+                                            <i class="bi bi-stars"></i> WoTx2 - Professions Auto-Proclamées
+                                        </h5>
+                                        <p class="small text-muted mb-2">
+                                            Créez votre propre profession ! Progression automatique X1→X2→X3→X4.
+                                            Aucun bootstrap requis, démarrage avec 1 signature.
+                                        </p>
+                                        <a href="/wotx2" class="btn btn-success btn-sm">
+                                            <i class="bi bi-plus-circle"></i> Créer une Profession
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info mb-3" style="text-align: left;">
+                            <h6><i class="bi bi-diagram-3"></i> Workflow WoTx2 - Progression Automatique :</h6>
+                            <div class="row mt-2">
+                                <div class="col-md-3 text-center">
+                                    <div class="badge bg-warning" style="font-size: 1rem;">X1</div>
+                                    <p class="small mt-1 mb-0">1 signature</p>
+                                </div>
+                                <div class="col-md-1 text-center">
+                                    <i class="bi bi-arrow-right"></i>
+                                </div>
+                                <div class="col-md-3 text-center">
+                                    <div class="badge bg-info" style="font-size: 1rem;">X2</div>
+                                    <p class="small mt-1 mb-0">2 compétences<br>2 signatures</p>
+                                </div>
+                                <div class="col-md-1 text-center">
+                                    <i class="bi bi-arrow-right"></i>
+                                </div>
+                                <div class="col-md-3 text-center">
+                                    <div class="badge bg-success" style="font-size: 1rem;">X3+</div>
+                                    <p class="small mt-1 mb-0">Progression continue</p>
+                                </div>
+                            </div>
+                            <p class="small mt-3 mb-0">
+                                <i class="bi bi-info-circle"></i> 
+                                <strong>Comment ça marche ?</strong> Créez une profession X1, obtenez 1 attestation, 
+                                le système crée automatiquement le niveau X2, puis X3, puis X4 (Maître).
+                                <a href="/wotx2" class="text-decoration-none">En savoir plus →</a>
+                            </p>
+                        </div>
+                        
                         <div class="d-flex justify-content-center gap-3 flex-wrap">
                             <a href="/wotx2" class="btn btn-primary btn-lg">
-                                <i class="bi bi-plus-circle"></i> Créer un Permis WoTx2
+                                <i class="bi bi-stars"></i> Découvrir WoTx2
                             </a>
                             <button class="btn btn-outline-primary btn-lg" onclick="connectToNOSTR()">
-                                <i class="bi bi-plug-fill"></i> Connecter MULTIPASS (Optionnel)
+                                <i class="bi bi-plug-fill"></i> Connecter MULTIPASS
                             </button>
                         </div>
                         <div class="mt-3">
                             <small class="text-muted">
                                 <i class="bi bi-info-circle"></i> 
                                 Vous pouvez consulter tous les permis ci-dessous sans connexion. 
-                                La connexion NOSTR est nécessaire uniquement pour créer des demandes ou attester.
+                                La connexion NOSTR est nécessaire pour créer des demandes ou attester.
                             </small>
                         </div>
                     </div>
@@ -983,6 +1049,12 @@
                                 ${categoryBadge}
                             </div>
                             
+                            ${permit.id.match(/^PERMIT_PROFESSION_/) ? `
+                            <div class="alert alert-info mb-2" style="font-size: 0.85rem; padding: 8px;">
+                                <i class="bi bi-stars"></i> <strong>Profession Auto-Proclamée</strong> - 
+                                Progression automatique X1→X2→X3→X4
+                            </div>
+                            ` : ''}
                             <div class="d-grid gap-2">
                                 <a href="/wotx2?permit_id=${permit.id}" class="btn btn-primary btn-sm">
                                     <i class="bi bi-eye"></i> Voir les détails
@@ -1072,6 +1144,16 @@
                 });
             }
         }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            detectUSPOTAPI();
+            // Load public data immediately (no authentication required)
+            loadPublicData();
+        });
+    </script>
+</body>
+</html>
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {

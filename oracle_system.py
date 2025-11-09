@@ -229,8 +229,13 @@ class OracleSystem:
                 data[k] = d
             json.dump(data, f, indent=2)
     
-    def create_permit_definition(self, definition: PermitDefinition) -> bool:
-        """Create a new permit definition"""
+    def create_permit_definition(self, definition: PermitDefinition, creator_npub: Optional[str] = None) -> bool:
+        """Create a new permit definition
+        
+        Args:
+            definition: The permit definition to create
+            creator_npub: Optional NOSTR pubkey of the creator (for saving event in their directory)
+        """
         if definition.id in self.definitions:
             print(f"❌ Permit definition {definition.id} already exists")
             return False
@@ -238,8 +243,8 @@ class OracleSystem:
         self.definitions[definition.id] = definition
         self.save_data()
         
-        # Publish to NOSTR
-        self.publish_permit_definition(definition)
+        # Publish to NOSTR (signed by UPLANETNAME_G1, but saved in creator's directory if provided)
+        self.publish_permit_definition(definition, creator_npub=creator_npub)
         
         print(f"✅ Permit definition {definition.id} created")
         return True
@@ -297,36 +302,21 @@ class OracleSystem:
         request.attestations.append(attestation.attestation_id)
         request.updated_at = datetime.now()
         
-        # Check if this is bootstrap mode (no existing holders for this permit)
-        # For PERMIT_DE_NAGER, bootstrap requires only 2 attestations
+        # WoTx2 system: starts with 1 signature, then 2, 3, 4...
+        # The system progresses as more attestations are collected
+        # ORACLE.refresh.sh will check and issue 30503 when threshold is reached
         required_attestations = definition.min_attestations
-        is_bootstrap = False
-        
-        if request.permit_definition_id == "PERMIT_DE_NAGER":
-            # Check if there are any existing holders for this permit
-            existing_holders = [
-                cred for cred in self.credentials.values()
-                if cred.permit_definition_id == "PERMIT_DE_NAGER" and not cred.revoked
-            ]
-            
-            if len(existing_holders) == 0:
-                # Bootstrap mode: only 2 attestations required for first cycle
-                bootstrap_min = definition.metadata.get('evolving_system', {}).get('bootstrap', {}).get('min_attestations', 2)
-                required_attestations = bootstrap_min
-                is_bootstrap = True
-                print(f"🌱 Bootstrap mode: {required_attestations} attestations required (normal: {definition.min_attestations})")
         
         # Check if enough attestations
         if len(request.attestations) >= required_attestations:
             request.status = PermitStatus.VALIDATED
-            bootstrap_msg = " (bootstrap)" if is_bootstrap else ""
-            print(f"✅ Permit request {request.request_id} validated with {len(request.attestations)} attestations{bootstrap_msg}")
+            print(f"✅ Permit request {request.request_id} validated with {len(request.attestations)} attestations (required: {required_attestations})")
             
-            # Auto-issue credential
+            # Auto-issue credential (ORACLE.refresh.sh will also check and issue)
             self.issue_credential(request.request_id)
         else:
             request.status = PermitStatus.ATTESTING
-            print(f"✅ Attestation added ({len(request.attestations)}/{required_attestations})")
+            print(f"✅ Attestation added ({len(request.attestations)}/{required_attestations}) - WoTx2 progressing")
         
         self.save_data()
         
@@ -336,18 +326,54 @@ class OracleSystem:
         return True
     
     def issue_credential(self, request_id: str) -> Optional[PermitCredential]:
-        """Issue a Verifiable Credential for a validated permit request"""
+        """Issue a Verifiable Credential for a validated permit request
+        
+        Reads request from local storage or from Nostr if not found locally.
+        """
+        # Try to get request from local storage first
+        request = self.requests.get(request_id)
+        
+        # If not found locally, try to fetch from Nostr (WoTx2 system)
+        if not request:
+            print(f"📡 Request {request_id} not found locally, fetching from Nostr...")
+            nostr_requests = self.fetch_permit_requests_from_nostr()
+            for nr in nostr_requests:
+                if nr.request_id == request_id:
+                    request = nr
+                    # Store in local cache for future use
+                    self.requests[request_id] = request
+                    print(f"✅ Request {request_id} loaded from Nostr")
+                    break
+        
+        if not request:
+            print(f"❌ Request {request_id} not found in local storage or Nostr")
+            return None
+        
+        # For requests from Nostr, check attestations count
         if request_id not in self.requests:
-            print(f"❌ Request {request_id} not found")
+            # Count attestations from Nostr
+            attestations = self.fetch_nostr_events(kind=30502)
+            request_attestations = [
+                att for att in attestations
+                if any(tag[0] == 'e' and tag[1] == request_id for tag in att.get('tags', []))
+            ]
+            request.attestations = [att.get('id', '') for att in request_attestations]
+            print(f"📊 Found {len(request.attestations)} attestations for request {request_id} from Nostr")
+        
+        # Check if request has enough attestations
+        definition = self.definitions.get(request.permit_definition_id)
+        if not definition:
+            print(f"❌ Permit definition {request.permit_definition_id} not found")
             return None
         
-        request = self.requests[request_id]
+        required_attestations = definition.min_attestations
+        if len(request.attestations) < required_attestations:
+            print(f"❌ Request {request_id} has {len(request.attestations)} attestations, needs {required_attestations}")
+            return None
         
+        # Mark as validated if not already
         if request.status != PermitStatus.VALIDATED:
-            print(f"❌ Request {request_id} is not validated")
-            return None
-        
-        definition = self.definitions[request.permit_definition_id]
+            request.status = PermitStatus.VALIDATED
         
         # Generate credential
         credential_id = hashlib.sha256(f"{request_id}:{datetime.now().isoformat()}".encode()).hexdigest()[:16]
@@ -483,8 +509,13 @@ class OracleSystem:
         
         return None
     
-    def publish_permit_definition(self, definition: PermitDefinition):
-        """Publish permit definition to NOSTR"""
+    def publish_permit_definition(self, definition: PermitDefinition, creator_npub: Optional[str] = None):
+        """Publish permit definition to NOSTR
+        
+        Args:
+            definition: The permit definition to publish
+            creator_npub: Optional NOSTR pubkey of the creator (for saving event in their directory)
+        """
         # Prepare NOSTR event (kind 30500)
         # CRITICAL: Content must be canonicalized JSON (RFC 8785) for signature consistency
         event_data = {
@@ -498,7 +529,8 @@ class OracleSystem:
             ]
         }
         
-        self._publish_to_nostr(event_data)
+        # Event is signed by UPLANETNAME_G1, but saved in creator's directory if provided
+        self._publish_to_nostr(event_data, signer_npub=creator_npub, use_uplanet_key=True)
     
     def publish_permit_request(self, request: PermitRequest):
         """Publish permit request to NOSTR"""
@@ -581,13 +613,29 @@ class OracleSystem:
         self._publish_to_nostr(event_data, None, use_uplanet_key=True)
     
     def _publish_to_nostr(self, event_data: Dict[str, Any], signer_npub: Optional[str] = None, use_uplanet_key: bool = False):
-        """Publish an event to NOSTR relays using nostr_send_note.py"""
+        """Publish an event to NOSTR relays using nostr_send_note.py
+        
+        Args:
+            event_data: The event data to publish
+            signer_npub: Optional NOSTR pubkey of the signer (for saving event in their directory)
+            use_uplanet_key: If True, use UPLANETNAME_G1 key for signing
+        """
         import subprocess
         import tempfile
         
-        # Save event for manual publishing (backup)
-        events_dir = self.data_dir / "nostr_events"
-        events_dir.mkdir(exist_ok=True)
+        # Determine where to save the event
+        # If signer_npub is provided, save in their MULTIPASS directory
+        if signer_npub:
+            email = self.get_email_from_npub(signer_npub)
+            if email:
+                events_dir = Path.home() / ".zen" / "game" / "nostr" / email
+                events_dir.mkdir(parents=True, exist_ok=True)
+                print(f"📁 Saving event to MULTIPASS directory: {email}")
+
+        else:
+            # Default location for events without signer
+            events_dir = self.data_dir / "nostr_events"
+            events_dir.mkdir(exist_ok=True)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         event_file = events_dir / f"{event_data['kind']}_{timestamp}.json"
@@ -778,10 +826,30 @@ class OracleSystem:
             return []
     
     def fetch_permit_definitions_from_nostr(self) -> List[PermitDefinition]:
-        """Fetch permit definitions (kind 30500) from NOSTR"""
+        """Fetch permit definitions (kind 30500) from NOSTR relay and MULTIPASS directories"""
+        # First, fetch from NOSTR relay
         events = self.fetch_nostr_events(kind=30500)
         
+        # Also scan MULTIPASS directories for local events
+        nostr_dir = Path.home() / ".zen" / "game" / "nostr"
+        if nostr_dir.exists():
+            for email_dir in nostr_dir.iterdir():
+                if not email_dir.is_dir():
+                    continue
+                
+                # Look for 30500 events in this MULTIPASS directory
+                for event_file in email_dir.glob("30500_*.json"):
+                    try:
+                        with open(event_file, 'r') as f:
+                            event = json.load(f)
+                            if event.get('kind') == 30500:
+                                events.append(event)
+                    except Exception as e:
+                        print(f"⚠️  Error reading event from {event_file}: {e}")
+        
         definitions = []
+        seen_ids = set()  # Avoid duplicates
+        
         for event in events:
             try:
                 # Parse tags to extract permit information
@@ -791,7 +859,8 @@ class OracleSystem:
                         permit_id = tag[1]
                         break
                 
-                if permit_id:
+                if permit_id and permit_id not in seen_ids:
+                    seen_ids.add(permit_id)
                     content = json.loads(event.get('content', '{}'))
                     
                     definition = PermitDefinition(
@@ -827,7 +896,8 @@ class OracleSystem:
                 for tag in event.get('tags', []):
                     if tag[0] == 'd':
                         request_id = tag[1]
-                    elif tag[0] == 'permit_id':
+                    elif tag[0] == 'l' and len(tag) > 1:
+                        # Tag format: ['l', permit_id, 'permit_type']
                         permit_definition_id = tag[1]
                 
                 if permit_id and permit_definition_id != permit_id:
