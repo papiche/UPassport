@@ -2119,13 +2119,35 @@
                                     <span class="source-badge source-serie" title="Série (TMDB)">
                                         <i class="bi bi-tv"></i> Série
                                     </span>
-                                    {% elif video.source_type == 'youtube' or video.youtube_url %}
-                                    <span class="source-badge source-youtube" title="Vidéo YouTube">
+                                    {% elif video.source_type == 'youtube' or (video.youtube_url and video.youtube_url.strip()) %}
+                                    <span class="source-badge source-youtube" title="Vidéo YouTube{% if video.youtube_url and video.youtube_url.strip() %} - Cliquez pour ouvrir{% endif %}">
+                                        {% if video.youtube_url and video.youtube_url.strip() %}
+                                        <a href="{{ video.youtube_url }}" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                                            <i class="bi bi-youtube"></i> YouTube
+                                        </a>
+                                        {% else %}
                                         <i class="bi bi-youtube"></i> YouTube
+                                        {% endif %}
                                     </span>
                                     {% else %}
                                     <span class="source-badge source-webcam" title="Vidéo personnelle (Webcam)">
                                         <i class="bi bi-camera-video"></i> Webcam
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <!-- Compliance badge -->
+                                <div class="video-compliance-badge">
+                                    {% if video.compliance_level == 'compliant' %}
+                                    <span class="compliance-badge compliance-compliant" title="Conforme ({{ video.compliance_percent }}%)">
+                                        <i class="bi bi-check-circle"></i> Conforme
+                                    </span>
+                                    {% elif video.compliance_level == 'partial' %}
+                                    <span class="compliance-badge compliance-partial" title="Partiellement conforme ({{ video.compliance_percent }}%)">
+                                        <i class="bi bi-exclamation-circle"></i> Partiel
+                                    </span>
+                                    {% else %}
+                                    <span class="compliance-badge compliance-non-compliant" title="Non conforme ({{ video.compliance_percent }}%)">
+                                        <i class="bi bi-x-circle"></i> Non conforme
                                     </span>
                                     {% endif %}
                                 </div>

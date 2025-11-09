@@ -114,7 +114,29 @@
             border-color: #ff0000;
             color: #ffffff;
         }
+
+        .nostrify-link {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #f1f1f1;
+            border-radius: 18px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+        }
         
+        .nostrify-link:hover {
+            background: #3f3f3f;
+            border-color: #ff0000;
+            color: #ffffff;
+        }
+
         /* Compact NOSTR Auth in Header */
         .nostr-header {
             display: flex;
@@ -1156,10 +1178,14 @@
     <!-- Header with Connection Status -->
     <div class="header">
         <div class="header-left">
-            <h1>🎥 Video Recorder</h1>
+            <h1>▶️ Multimedia Recorder</h1>
             <a href="/youtube?html=1" class="youtube-link">
                 <span>📺</span>
                 <span>View on NostrTube</span>
+            </a>
+            <a href="/mp3?html=1" class="nostrify-link">
+                <span>📺</span>
+                <span>Listen on Nostrify</span>
             </a>
         </div>
         
@@ -1179,15 +1205,15 @@
     <div class="main-container">
         <!-- Central Connection Button (hidden by default, shown only if needed) -->
         <div class="central-connection hidden" id="central-connection">
-            <h2 class="central-connection-title">🎥 Video Recorder</h2>
+            <h2 class="central-connection-title">▶️ Multimedia Recorder</h2>
             <p class="central-connection-subtitle">
-                Connect to NOSTR to start recording and publishing your videos on UPlanet
+                Connect to NOSTR to start recording and publishing your audios/videos on UPlanet
             </p>
             <button class="central-connect-btn" onclick="handleNostrConnect()">
                 🔌 Connect with NOSTR Extension
             </button>
             <p style="color: #94a3b8; margin-top: 20px; font-size: 0.9em;">
-                You'll need a NOSTR browser extension filled with a UPlanet <a href="/g1" style="color: #4ade80; text-decoration: underline;">MULTIPASS key</a>
+                You'll need a NOSTR browser extension filled with your UPlanet <a href="/g1" style="color: #4ade80; text-decoration: underline;">MULTIPASS nsec key</a>
             </p>
         </div>
         
@@ -2863,7 +2889,7 @@
                 await onConnectionSuccess();
                 
                 showSuccess(
-                    'Connected! You can now record videos. NIP-42 authentication will be checked automatically when uploading to uDRIVE.',
+                    'Connected! You can now record audios/videos. NIP-42 authentication will be checked automatically when uploading to uDRIVE.',
                     'Connected! 🎉'
                 );
                 

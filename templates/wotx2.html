@@ -170,11 +170,32 @@
             gap: 0.75rem;
             transition: all 0.3s ease;
             border: 2px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+        }
+        
+        .connection-badge:hover {
+            background: rgba(0, 0, 0, 0.9);
+            border-color: rgba(255, 255, 255, 0.3);
         }
         
         .connection-badge.authenticated {
             border-color: var(--primary);
             background: rgba(5, 150, 105, 0.2);
+        }
+        
+        .connection-badge.connected-not-auth {
+            border-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.2);
+        }
+        
+        .connection-badge.connecting {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.2);
+        }
+        
+        .connection-badge.disconnected {
+            border-color: #94a3b8;
+            background: rgba(156, 163, 175, 0.2);
         }
         
         .connection-badge .status-dot {
@@ -187,6 +208,212 @@
         .connection-badge.authenticated .status-dot {
             background: var(--primary);
             animation: pulse 2s infinite;
+        }
+        
+        #connection-badge-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .status-text {
+            font-size: 0.75em;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        
+        .user-npub {
+            font-size: 0.65em;
+            color: #94a3b8;
+        }
+        
+        .btn-connect,
+        .btn-profile {
+            padding: 4px 10px;
+            font-size: 0.75em;
+            border: none;
+            border-radius: 12px;
+            background: #3b82f6;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .btn-connect:hover,
+        .btn-profile:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+        
+        .btn-connect:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Connection Panel (Dropdown) */
+        .connection-panel {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            width: 400px;
+            max-width: 90vw;
+            background: rgba(24, 24, 24, 0.98);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+        }
+        
+        .connection-panel.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .panel-header h6 {
+            margin: 0;
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        
+        .panel-status-icon {
+            font-size: 1.2em;
+        }
+        
+        /* Connection Steps */
+        .connection-step {
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .connection-step.pending {
+            border-left-color: #94a3b8;
+        }
+        
+        .connection-step.in-progress {
+            border-left-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        .connection-step.success {
+            border-left-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+        }
+        
+        .connection-step.error {
+            border-left-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+        
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        
+        .step-icon {
+            font-size: 1.2em;
+        }
+        
+        .step-title {
+            font-size: 0.9em;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        
+        .step-description {
+            font-size: 0.8em;
+            color: #94a3b8;
+            margin-left: 32px;
+            margin-bottom: 8px;
+        }
+        
+        .step-action {
+            margin-left: 32px;
+        }
+        
+        .step-action button {
+            padding: 6px 14px;
+            font-size: 0.75em;
+            border: none;
+            border-radius: 6px;
+            background: #3b82f6;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .step-action button:hover:not(:disabled) {
+            background: #2563eb;
+        }
+        
+        .step-action button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* User Info Panel */
+        .user-info-panel {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .info-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            margin: 4px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            font-size: 0.85em;
+            color: #e2e8f0;
+        }
+        
+        .info-row i {
+            color: #3b82f6;
+        }
+        
+        .info-row a {
+            color: #3ea6ff;
+            text-decoration: none;
+        }
+        
+        .info-row a:hover {
+            text-decoration: underline;
+        }
+        
+        .info-row span {
+            cursor: pointer;
+        }
+        
+        .info-row span:hover {
+            color: #3ea6ff;
         }
         
         .stats-card {
@@ -261,12 +488,64 @@
 </head>
 <body>
     <!-- Connection Badge (MULTIPASS) -->
-    <div id="connectionBadge" class="connection-badge">
-        <span class="status-dot"></span>
-        <span class="status-text">Connexion...</span>
-        <button class="btn-connect" onclick="connectMULTIPASS()" style="display: none;">
-            <i class="bi bi-wallet2"></i> Connecter
+    <div id="connectionBadge" class="connection-badge disconnected" onclick="toggleConnectionPanel()" style="position: relative;">
+        <div id="connection-badge-content">
+            <span class="status-text">⚫ Non connecté</span>
+        </div>
+        <button class="btn-connect" onclick="event.stopPropagation(); connectMULTIPASS()" id="connectBtn">
+            <i class="bi bi-key"></i> Connecter
         </button>
+        
+        <!-- Connection Panel (Dropdown) -->
+        <div id="connectionPanel" class="connection-panel">
+            <div class="panel-header">
+                <h6 id="panelTitle">État de Connexion</h6>
+                <span class="panel-status-icon" id="panelStatusIcon">⚫</span>
+            </div>
+            
+            <!-- Step 1: Relay Connection -->
+            <div id="step1" class="connection-step pending">
+                <div class="step-header">
+                    <span class="step-icon">🌐</span>
+                    <span class="step-title">1. Connexion au Relay</span>
+                </div>
+                <div class="step-description" id="step1-desc">Relay NOSTR - Lecture publique</div>
+                <div class="step-action">
+                    <button onclick="manualConnectRelay()" id="step1-btn">Connecter au Relay</button>
+                </div>
+            </div>
+            
+            <!-- Step 2: NIP-42 Authentication -->
+            <div id="step2" class="connection-step pending">
+                <div class="step-header">
+                    <span class="step-icon">🔐</span>
+                    <span class="step-title">2. Authentification Personnelle</span>
+                </div>
+                <div class="step-description" id="step2-desc">NIP-42 Auth - Accès uDRIVE & GPS</div>
+                <div class="step-action">
+                    <button onclick="connectMULTIPASS()" id="step2-btn" disabled>Authentifier avec MULTIPASS</button>
+                    <button onclick="connectMULTIPASS()" id="step2-reauth-btn" style="display: none; margin-left: 8px;" class="btn btn-sm btn-outline-warning">
+                        <i class="bi bi-arrow-clockwise"></i> Ré-authentifier
+                    </button>
+                </div>
+            </div>
+            
+            <!-- User Info (After Connection) -->
+            <div id="user-info-panel" class="user-info-panel" style="display: none;">
+                <div class="info-row">
+                    <i class="bi bi-person-circle"></i>
+                    <span id="user-pubkey-display" title="Cliquer pour copier">...</span>
+                </div>
+                <div class="info-row" id="udrive-row" style="display: none;">
+                    <i class="bi bi-folder-fill"></i>
+                    <a href="#" onclick="openUserDrive(); return false;">Ouvrir uDRIVE</a>
+                </div>
+                <div class="info-row" id="gps-row" style="display: none;">
+                    <i class="bi bi-geo-alt-fill"></i>
+                    <span id="gps-coords" title="Coordonnées UMAP">...</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="container">
@@ -742,6 +1021,7 @@
         async function autoConnectRelay() {
             try {
                 console.log('[WoTx2] 🌐 Connecting to NOSTR relay...');
+                updateStep(1, 'in-progress', 'Connexion au relay en cours...');
                 
                 if (typeof connectToRelay === 'function') {
                     await connectToRelay();
@@ -750,13 +1030,21 @@
                         relay = nostrRelay;
                     }
                     console.log('[WoTx2] ✅ Connected to relay');
+                    updateStep(1, 'success', 'Connecté au relay NOSTR');
+                    // Enable step 2
+                    const step2Btn = document.getElementById('step2-btn');
+                    if (step2Btn) {
+                        step2Btn.disabled = false;
+                    }
                     return true;
                 } else {
                     console.warn('[WoTx2] ⚠️ connectToRelay function not available');
+                    updateStep(1, 'error', 'Fonction connectToRelay non disponible');
                     return false;
                 }
             } catch (error) {
                 console.error('[WoTx2] ❌ Relay connection failed:', error);
+                updateStep(1, 'error', 'Erreur de connexion au relay');
                 return false;
             }
         }
@@ -765,6 +1053,7 @@
         async function autoConnectUser() {
             try {
                 console.log('[WoTx2] 🔐 Auto-connecting user...');
+                updateStep(2, 'in-progress', 'Authentification en cours...');
                 
                 // Try to get pubkey from extension (no forced NIP-42 initially)
                 if (typeof connectNostr === 'function') {
@@ -777,13 +1066,17 @@
                             userNpub = userPubkey;
                         }
                         console.log('[WoTx2] ✅ User pubkey retrieved:', userNpub.substring(0, 12) + '...');
+                        updateStep(2, 'success', 'Authentifié avec MULTIPASS');
                         updateConnectionBadge(true, userNpub);
                         return true;
+                    } else {
+                        updateStep(2, 'pending', 'NIP-42 Auth - Accès uDRIVE & GPS');
                     }
                 }
                 return false;
             } catch (error) {
                 console.error('[WoTx2] ❌ User auto-connect failed:', error);
+                updateStep(2, 'error', 'Erreur d\'authentification');
                 return false;
             }
         }
@@ -792,6 +1085,15 @@
         document.addEventListener('DOMContentLoaded', async function() {
             // Wait for common.js to load
             await waitForNostrFunctions();
+            
+            // Close connection panel when clicking outside
+            document.addEventListener('click', function(event) {
+                const badge = document.getElementById('connectionBadge');
+                const panel = document.getElementById('connectionPanel');
+                if (panel && badge && !badge.contains(event.target) && !panel.contains(event.target)) {
+                    panel.classList.remove('show');
+                }
+            });
             
             // Step 1: Auto-connect to relay (public read access)
             const relayConnected = await autoConnectRelay();
@@ -1081,25 +1383,276 @@
 
         function updateConnectionBadge(authenticated, npub) {
             const badge = document.getElementById('connectionBadge');
-            const statusText = badge.querySelector('.status-text');
-            const connectBtn = badge.querySelector('.btn-connect');
+            const content = document.getElementById('connection-badge-content');
+            const connectBtn = document.getElementById('connectBtn');
+            const panelStatusIcon = document.getElementById('panelStatusIcon');
+            
+            if (!badge || !content) return;
+            
+            // Remove all state classes
+            badge.className = 'connection-badge';
             
             if (authenticated && npub) {
                 badge.classList.add('authenticated');
-                badge.classList.remove('disconnected');
-                statusText.textContent = 'MULTIPASS Connecté';
-                if (connectBtn) connectBtn.style.display = 'none';
+                content.innerHTML = `
+                    <span class="status-text">✅ Authentifié</span>
+                    <span class="user-npub">${npub.substring(0, 12)}...</span>
+                `;
+                // Replace connect button with profile button
+                if (connectBtn) {
+                    connectBtn.outerHTML = `
+                        <button class="btn-profile" onclick="event.stopPropagation(); openUserProfile()">
+                            <i class="bi bi-person-circle"></i>
+                        </button>
+                    `;
+                }
+                if (panelStatusIcon) {
+                    panelStatusIcon.textContent = '✅';
+                }
+                // Update user info panel
+                updateUserInfoPanel(npub);
             } else {
-                badge.classList.remove('authenticated');
                 badge.classList.add('disconnected');
-                statusText.textContent = 'Non connecté';
-                if (connectBtn) connectBtn.style.display = 'block';
+                content.innerHTML = `
+                    <span class="status-text">⚫ Non connecté</span>
+                `;
+                // Restore connect button if it was replaced
+                const profileBtn = badge.querySelector('.btn-profile');
+                if (profileBtn) {
+                    profileBtn.outerHTML = `
+                        <button class="btn-connect" onclick="event.stopPropagation(); connectMULTIPASS()" id="connectBtn">
+                            <i class="bi bi-key"></i> Connecter
+                        </button>
+                    `;
+                } else if (connectBtn) {
+                    connectBtn.style.display = 'block';
+                    connectBtn.disabled = false;
+                }
+                if (panelStatusIcon) {
+                    panelStatusIcon.textContent = '⚫';
+                }
+                // Hide user info panel
+                const userInfoPanel = document.getElementById('user-info-panel');
+                if (userInfoPanel) {
+                    userInfoPanel.style.display = 'none';
+                }
+            }
+        }
+        
+        // Toggle connection panel
+        function toggleConnectionPanel() {
+            const panel = document.getElementById('connectionPanel');
+            if (panel) {
+                panel.classList.toggle('show');
+            }
+        }
+        
+        // Update step status
+        function updateStep(stepNum, status, description) {
+            const step = document.getElementById(`step${stepNum}`);
+            const desc = document.getElementById(`step${stepNum}-desc`);
+            const btn = document.getElementById(`step${stepNum}-btn`);
+            const reauthBtn = document.getElementById(`step${stepNum}-reauth-btn`);
+            
+            if (!step || !desc) return;
+            
+            // Remove all status classes
+            step.className = 'connection-step';
+            
+            // Add new status
+            step.classList.add(status);
+            
+            // Update description
+            desc.textContent = description;
+            
+            // Update button state
+            if (btn) {
+                if (status === 'success') {
+                    if (stepNum === 2) {
+                        btn.disabled = true;
+                        btn.textContent = '✓ Terminé';
+                        if (reauthBtn) {
+                            reauthBtn.style.display = 'inline-block';
+                        }
+                    } else {
+                        btn.disabled = true;
+                        btn.textContent = '✓ Terminé';
+                    }
+                } else if (status === 'in-progress') {
+                    btn.disabled = true;
+                    btn.textContent = '⏳ En cours...';
+                    if (reauthBtn) {
+                        reauthBtn.style.display = 'none';
+                    }
+                } else if (status === 'error') {
+                    btn.disabled = false;
+                    btn.textContent = 'Réessayer';
+                    if (reauthBtn) {
+                        reauthBtn.style.display = 'none';
+                    }
+                } else {
+                    // pending
+                    btn.disabled = stepNum === 2;
+                    btn.textContent = stepNum === 1 ? 'Connecter au Relay' : 'Authentifier avec MULTIPASS';
+                    if (reauthBtn) {
+                        reauthBtn.style.display = 'none';
+                    }
+                }
+            }
+        }
+        
+        // Update user info panel
+        async function updateUserInfoPanel(npub) {
+            const userInfoPanel = document.getElementById('user-info-panel');
+            const pubkeyDisplay = document.getElementById('user-pubkey-display');
+            const udriveRow = document.getElementById('udrive-row');
+            const gpsRow = document.getElementById('gps-row');
+            const gpsCoords = document.getElementById('gps-coords');
+            
+            if (!userInfoPanel || !pubkeyDisplay) return;
+            
+            // Show panel
+            userInfoPanel.style.display = 'block';
+            
+            // Update pubkey display
+            pubkeyDisplay.textContent = npub;
+            pubkeyDisplay.onclick = () => {
+                navigator.clipboard.writeText(npub).then(() => {
+                    alert('✅ Clé publique copiée !');
+                });
+            };
+            
+            // Try to get email from npub
+            const email = await getEmailFromNpub(npub);
+            if (email) {
+                // Show uDRIVE link
+                if (udriveRow) {
+                    udriveRow.style.display = 'flex';
+                }
+                
+                // Try to get GPS/UMAP info
+                try {
+                    const gpsInfo = await getGPSInfo(email);
+                    if (gpsInfo && gpsRow && gpsCoords) {
+                        gpsRow.style.display = 'flex';
+                        gpsCoords.textContent = `UMAP: ${gpsInfo.latitude}, ${gpsInfo.longitude}`;
+                    }
+                } catch (e) {
+                    console.log('GPS info not available:', e);
+                }
+            }
+        }
+        
+        // Get email from npub (helper function)
+        async function getEmailFromNpub(npub) {
+            // Try to use common.js function if available
+            if (typeof getEmailFromPubkey === 'function') {
+                try {
+                    return await getEmailFromPubkey(npub);
+                } catch (e) {
+                    console.log('getEmailFromPubkey error:', e);
+                }
+            }
+            
+            // Fallback: try to get from localStorage or URL
+            const savedEmail = localStorage.getItem('user_email');
+            if (savedEmail) {
+                return savedEmail;
+            }
+            
+            return null;
+        }
+        
+        // Get GPS info (helper function)
+        async function getGPSInfo(email) {
+            if (!email) return null;
+            
+            // Try to get GPS from common.js if available
+            if (typeof getUserGPS === 'function') {
+                try {
+                    return await getUserGPS(email);
+                } catch (e) {
+                    console.log('getUserGPS error:', e);
+                }
+            }
+            
+            // Try to get from localStorage
+            const savedGPS = localStorage.getItem(`gps_${email}`);
+            if (savedGPS) {
+                try {
+                    return JSON.parse(savedGPS);
+                } catch (e) {
+                    console.log('Error parsing saved GPS:', e);
+                }
+            }
+            
+            return null;
+        }
+        
+        // Open user drive
+        function openUserDrive() {
+            if (!userNpub) {
+                alert('❌ Non connecté');
+                return;
+            }
+            
+            // Try to get email from npub
+            getEmailFromNpub(userNpub).then(email => {
+                if (email) {
+                    const udriveUrl = `${myIPFS}/ipns/${email}/APP/uDRIVE`;
+                    console.log('[WoTx2] 📁 Opening uDRIVE:', udriveUrl);
+                    window.open(udriveUrl, '_blank');
+                } else {
+                    alert('❌ Impossible de trouver votre uDRIVE');
+                }
+            });
+        }
+        
+        // Open user profile
+        function openUserProfile() {
+            if (!userNpub) {
+                alert('❌ Non connecté');
+                return;
+            }
+            
+            // Open profile in new window using common.js if available
+            if (typeof openProfileModal === 'function') {
+                openProfileModal(userNpub, 'Mon Profil');
+            } else {
+                // Fallback: open in new tab
+                const profileUrl = `${myIPFS}/ipns/copylaradio.com/profile.html?npub=${userNpub}`;
+                window.open(profileUrl, '_blank');
+            }
+        }
+        
+        // Manual connect relay
+        async function manualConnectRelay() {
+            updateStep(1, 'in-progress', 'Connexion au relay en cours...');
+            try {
+                if (typeof connectToRelay === 'function') {
+                    await connectToRelay();
+                    if (typeof nostrRelay !== 'undefined') {
+                        relay = nostrRelay;
+                    }
+                    updateStep(1, 'success', 'Connecté au relay NOSTR');
+                    // Enable step 2
+                    const step2Btn = document.getElementById('step2-btn');
+                    if (step2Btn) {
+                        step2Btn.disabled = false;
+                    }
+                } else {
+                    throw new Error('connectToRelay function not available');
+                }
+            } catch (error) {
+                console.error('Error connecting to relay:', error);
+                updateStep(1, 'error', 'Erreur de connexion au relay');
             }
         }
 
         async function connectMULTIPASS() {
             // Ensure relay connection first
             if (!isNostrConnected || !nostrRelay) {
+                updateStep(1, 'in-progress', 'Connexion au relay en cours...');
                 if (typeof connectToRelay === 'function') {
                     try {
                         await connectToRelay();
@@ -1107,13 +1660,18 @@
                         if (typeof nostrRelay !== 'undefined') {
                             relay = nostrRelay;
                         }
+                        updateStep(1, 'success', 'Connecté au relay NOSTR');
                     } catch (error) {
                         console.error('Error connecting to relay:', error);
+                        updateStep(1, 'error', 'Erreur de connexion au relay');
                         alert('❌ Erreur lors de la connexion au relay.');
                         return;
                     }
                 }
             }
+            
+            // Update step 2 to in-progress
+            updateStep(2, 'in-progress', 'Authentification NIP-42 en cours...');
             
             // Use common.js connectNostr if available
             if (typeof connectNostr === 'function') {
@@ -1126,6 +1684,7 @@
                             userNpub = userPubkey;
                         }
                         localStorage.setItem('nostr_pubkey', userNpub);
+                        updateStep(2, 'success', 'Authentifié avec MULTIPASS');
                         updateConnectionBadge(true, userNpub);
                         
                         // Update URL with npub
@@ -1139,10 +1698,12 @@
                             loadData();
                         }, 500);
                     } else {
+                        updateStep(2, 'error', 'Connexion requise');
                         alert('❌ Connexion requise. Veuillez vous connecter avec NOSTR.');
                     }
                 } catch (e) {
                     console.error('common.js connection error:', e);
+                    updateStep(2, 'error', 'Erreur d\'authentification');
                     alert('Erreur de connexion MULTIPASS: ' + e.message);
                 }
             } else if (window.nostr) {
@@ -1151,6 +1712,7 @@
                     userNpub = await window.nostr.getPublicKey();
                     if (userNpub) {
                         localStorage.setItem('nostr_pubkey', userNpub);
+                        updateStep(2, 'success', 'Connecté avec extension NOSTR');
                         updateConnectionBadge(true, userNpub);
                         // Update URL with npub
                         const url = new URL(window.location);
@@ -1158,9 +1720,11 @@
                         window.history.pushState({}, '', url);
                     }
                 } catch (e) {
+                    updateStep(2, 'error', 'Erreur de connexion');
                     alert('Erreur de connexion MULTIPASS: ' + e.message);
                 }
             } else {
+                updateStep(2, 'error', 'Extension NOSTR non trouvée');
                 alert('Extension NOSTR non trouvée. Installez une extension NOSTR pour vous connecter.');
             }
         }

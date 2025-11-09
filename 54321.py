@@ -2347,6 +2347,19 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
         "video_id": video  # Pass video ID to template
     })
 
+@app.get("/mp3-modal", response_class=HTMLResponse)
+async def mp3_modal_route(request: Request, track: Optional[str] = None):
+    """MP3 modal for immersive music listening with comments and related tracks
+    
+    Args:
+        track: Optional NOSTR event ID to load a specific track directly
+    """
+    return templates.TemplateResponse("mp3-modal.html", {
+        "request": request,
+        "myIPFS": get_myipfs_gateway(),
+        "track_id": track  # Pass track ID to template
+    })
+
 @app.get("/chat", response_class=HTMLResponse)
 async def chat_route(request: Request, room: Optional[str] = None):
     """UMAP Chat Room - Real-time messaging for geographic locations
@@ -2468,6 +2481,16 @@ async def playlist_manager_route(request: Request, id: Optional[str] = None):
         "playlist_id": id
     })
 
+@app.get("/video")
+async def video_route(request: Request):
+    """Redirect to /youtube?html=1"""
+    return RedirectResponse(url="/youtube?html=1", status_code=302)
+
+@app.get("/audio")
+async def audio_route(request: Request):
+    """Redirect to /mp3?html=1"""
+    return RedirectResponse(url="/mp3?html=1", status_code=302)
+
 @app.get("/youtube")
 async def youtube_route(
     request: Request, 
@@ -2560,6 +2583,7 @@ async def youtube_route(
                 'compliance': video.get('compliance', {}),  # Compliance check with UPlanet_FILE_CONTRACT.md
                 'compliance_score': video.get('compliance_score', 0),  # Number of compliant fields
                 'compliance_percent': video.get('compliance_percent', 0),  # Percentage of compliance
+                'compliance_level': video.get('compliance_level', 'non-compliant'),  # Compliance level: compliant, partial, non-compliant
                 'is_compliant': video.get('is_compliant', False),  # Boolean indicating if video is compliant (>=80%)
                 'file_hash': video.get('file_hash', ''),  # File hash for provenance tracking
                 'info_cid': video.get('info_cid', ''),  # Info.json CID
@@ -2809,6 +2833,291 @@ async def youtube_route(
         logging.error(f"Error in youtube_route: {e}", exc_info=True)
         if html is not None:
             return HTMLResponse(content=f"<html><body><h1>Error</h1><p>{str(e)}</p></body></html>", status_code=500)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/mp3")
+async def mp3_route(
+    request: Request,
+    html: Optional[str] = None,
+    search: Optional[str] = None,
+    artist: Optional[str] = None,
+    album: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    limit: Optional[int] = 100
+):
+    """MP3 music library from NOSTR events (kind 1063 - NIP-94)
+    
+    Args:
+        html: If present, return HTML page instead of JSON
+        search: Search in track titles, artists, and albums
+        artist: Filter by artist name
+        album: Filter by album name
+        sort_by: Sort by 'date', 'title', 'artist', 'album'
+        limit: Limit number of results (default: 100)
+    """
+    try:
+        import json
+        from pathlib import Path
+        
+        # Get IPFS gateway
+        ipfs_gateway = get_myipfs_gateway()
+        
+        # Path to nostr_get_events.sh
+        nostr_script_path = Path.home() / ".zen" / "Astroport.ONE" / "tools" / "nostr_get_events.sh"
+        
+        if not nostr_script_path.exists():
+            logging.error(f"nostr_get_events.sh not found at {nostr_script_path}")
+            if html is not None:
+                return HTMLResponse(
+                    content=f"<html><body><h1>Error</h1><p>nostr_get_events.sh not found</p></body></html>",
+                    status_code=500
+                )
+            raise HTTPException(status_code=500, detail="nostr_get_events.sh not found")
+        
+        # Build command to fetch MP3 events (kind 1063)
+        cmd = [
+            str(nostr_script_path),
+            "--kind", "1063",
+            "--limit", str(limit or 100),
+            "--output", "json"
+        ]
+        
+        logging.info(f"Fetching MP3 events with command: {' '.join(cmd)}")
+        
+        # Execute script with timeout
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(nostr_script_path.parent)
+            )
+            
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=15.0
+            )
+            
+            if process.returncode != 0:
+                error_msg = stderr.decode('utf-8', errors='ignore') if stderr else "Unknown error"
+                logging.warning(f"nostr_get_events.sh returned non-zero exit code: {error_msg}")
+                mp3_events_raw = ""
+            else:
+                mp3_events_raw = stdout.decode('utf-8', errors='ignore')
+                
+        except asyncio.TimeoutError:
+            logging.warning("Timeout fetching MP3 events from NOSTR")
+            mp3_events_raw = ""
+        except Exception as fetch_error:
+            logging.error(f"Error executing nostr_get_events.sh: {fetch_error}")
+            mp3_events_raw = ""
+        
+        # Parse MP3 events
+        mp3_tracks = []
+        
+        if mp3_events_raw:
+            # Parse JSON events (one per line)
+            for line in mp3_events_raw.strip().split('\n'):
+                if not line.strip():
+                    continue
+                    
+                try:
+                    event = json.loads(line)
+                    
+                    # Extract MP3 metadata from NIP-94 event (kind 1063)
+                    # Tags are arrays, get first value for each tag type
+                    tags = {}
+                    for tag in event.get('tags', []):
+                        if len(tag) > 0:
+                            tag_name = tag[0]
+                            # For tags with multiple values, take the first one
+                            tag_value = tag[1] if len(tag) > 1 else None
+                            # Some tags might have multiple entries, keep the first one
+                            if tag_name not in tags:
+                                tags[tag_name] = tag_value
+                    
+                    # Get MIME type - only process audio files
+                    mime_type = tags.get('m', '').lower()
+                    if not mime_type or 'audio' not in mime_type:
+                        continue
+                    
+                    # Extract URL
+                    url = tags.get('url', '')
+                    if not url:
+                        continue
+                    
+                    # Convert IPFS URL if needed
+                    if url.startswith('ipfs://'):
+                        url = url.replace('ipfs://', f'{ipfs_gateway}/ipfs/')
+                    elif url.startswith('/ipfs/'):
+                        url = f'{ipfs_gateway}{url}'
+                    elif not url.startswith('http'):
+                        # Assume it's a CID
+                        url = f'{ipfs_gateway}/ipfs/{url}'
+                    
+                    # Extract metadata
+                    title_tag = tags.get('title')
+                    title = title_tag if title_tag else event.get('content', '').strip() or 'Unknown Title'
+                    
+                    # Try to get artist from 'artist' tag, 'p' tag, or author pubkey
+                    artist_name = tags.get('artist')
+                    if not artist_name:
+                        # Try to get from 'p' tag (mentioned pubkey)
+                        p_tag = tags.get('p')
+                        if p_tag:
+                            artist_name = f"Artist ({p_tag[:8]}...)"
+                        else:
+                            # Use author pubkey
+                            author_hex = event.get('pubkey', '')
+                            artist_name = f"Artist ({author_hex[:8]}...)" if author_hex else "Unknown Artist"
+                    
+                    album_name = tags.get('album', '—')
+                    
+                    # Get thumbnail/image
+                    thumbnail = tags.get('thumb') or tags.get('image')
+                    if thumbnail:
+                        if thumbnail.startswith('ipfs://'):
+                            thumbnail = thumbnail.replace('ipfs://', f'{ipfs_gateway}/ipfs/')
+                        elif thumbnail.startswith('/ipfs/'):
+                            thumbnail = f'{ipfs_gateway}{thumbnail}'
+                        elif not thumbnail.startswith('http'):
+                            thumbnail = f'{ipfs_gateway}/ipfs/{thumbnail}'
+                    
+                    # Get duration (if available in tags or metadata)
+                    duration = None
+                    duration_tag = tags.get('duration')
+                    if duration_tag:
+                        try:
+                            duration = float(duration_tag)
+                        except:
+                            pass
+                    
+                    # Get size
+                    size = None
+                    size_tag = tags.get('size')
+                    if size_tag:
+                        try:
+                            size = int(size_tag)
+                        except:
+                            pass
+                    
+                    # Get hash for provenance
+                    file_hash = tags.get('x', '')
+                    
+                    # Get source type from 'i' tag
+                    source_type = None
+                    for tag in event.get('tags', []):
+                        if tag[0] == 'i' and len(tag) > 1 and tag[1].startswith('source:'):
+                            source_type = tag[1].replace('source:', '')
+                            break
+                    
+                    # Get summary/description
+                    summary = tags.get('summary', '')
+                    description = summary if summary else event.get('content', '').strip()
+                    
+                    # Create track object
+                    track = {
+                        'event_id': event.get('id', ''),
+                        'author_id': event.get('pubkey', ''),
+                        'title': title,
+                        'artist': artist_name,
+                        'album': album_name,
+                        'url': url,
+                        'thumbnail': thumbnail,
+                        'description': description,
+                        'duration': duration,
+                        'size': size,
+                        'hash': file_hash,
+                        'mime_type': mime_type,
+                        'source_type': source_type,
+                        'created_at': event.get('created_at', 0),
+                        'date': datetime.fromtimestamp(event.get('created_at', 0)).isoformat() if event.get('created_at') else None
+                    }
+                    
+                    mp3_tracks.append(track)
+                    
+                except json.JSONDecodeError as e:
+                    logging.warning(f"Error parsing JSON event: {e}")
+                    continue
+                except Exception as e:
+                    logging.warning(f"Error processing MP3 event: {e}")
+                    continue
+        
+        logging.info(f"✅ Parsed {len(mp3_tracks)} MP3 tracks from NOSTR")
+        
+        # Apply filters
+        filtered_tracks = []
+        
+        for track in mp3_tracks:
+            # Filter by search term
+            if search:
+                search_lower = search.lower()
+                if not (search_lower in track.get('title', '').lower() or
+                      search_lower in track.get('artist', '').lower() or
+                      search_lower in track.get('album', '').lower() or
+                      search_lower in track.get('description', '').lower()):
+                    continue
+            
+            # Filter by artist
+            if artist:
+                if artist.lower() not in track.get('artist', '').lower():
+                    continue
+            
+            # Filter by album
+            if album:
+                if album.lower() not in track.get('album', '').lower():
+                    continue
+            
+            filtered_tracks.append(track)
+        
+        logging.info(f"✅ After filtering: {len(filtered_tracks)} track(s) (from {len(mp3_tracks)} total)")
+        
+        # Sort tracks if specified
+        if sort_by:
+            if sort_by == 'date':
+                filtered_tracks.sort(key=lambda x: x.get('created_at', 0), reverse=True)
+            elif sort_by == 'title':
+                filtered_tracks.sort(key=lambda x: x.get('title', '').lower())
+            elif sort_by == 'artist':
+                filtered_tracks.sort(key=lambda x: x.get('artist', '').lower())
+            elif sort_by == 'album':
+                filtered_tracks.sort(key=lambda x: x.get('album', '').lower())
+        else:
+            # Default: sort by date (newest first)
+            filtered_tracks.sort(key=lambda x: x.get('created_at', 0), reverse=True)
+        
+        # Prepare response data
+        response_data = {
+            'tracks': filtered_tracks,
+            'total_tracks': len(filtered_tracks),
+            'total_all': len(mp3_tracks),
+            'filters': {
+                'search': search,
+                'artist': artist,
+                'album': album,
+                'sort_by': sort_by,
+                'limit': limit
+            }
+        }
+        
+        # Return HTML template if requested
+        if html is not None:
+            return templates.TemplateResponse("mp3.html", {
+                "request": request,
+                "mp3_data": response_data,
+                "myIPFS": ipfs_gateway
+            })
+        
+        # Return JSON response
+        return JSONResponse(content=response_data)
+        
+    except Exception as e:
+        logging.error(f"Error in mp3_route: {e}", exc_info=True)
+        if html is not None:
+            return HTMLResponse(
+                content=f"<html><body><h1>Error</h1><p>{str(e)}</p></body></html>",
+                status_code=500
+            )
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/upassport")
@@ -3407,10 +3716,13 @@ async def process_webcam_video(
                     "--channel", player
                 ])
                 
-                # Add YouTube URL if provided (for source:youtube tag)
+                # Add source type tag (default: webcam, or youtube if youtube_url provided)
                 if youtube_url:
-                    publish_cmd.extend(["--youtube-url", youtube_url])
-                    logging.info(f"📺 YouTube URL: {youtube_url}")
+                    publish_cmd.extend(["--source-type", "youtube"])
+                    logging.info(f"📺 YouTube URL: {youtube_url} → source:youtube")
+                else:
+                    publish_cmd.extend(["--source-type", "webcam"])
+                    logging.info(f"📹 Source type: webcam")
                 
                 logging.info(f"🚀 Executing unified NOSTR publish script...")
                 logging.info(f"📝 Title: {title}")
@@ -5390,6 +5702,47 @@ async def test_nostr_auth(npub: str = Form(...)):
         # Vérifier l'authentification NIP42
         auth_result = await verify_nostr_auth(hex_pubkey)  # Utiliser la clé hex validée
         
+        # Vérifier la présence du fichier HEX dans le répertoire MULTIPASS
+        # SÉCURITÉ: Ne divulguer ces informations QUE si NIP-42 est valide
+        multipass_registered = False
+        multipass_email = None
+        multipass_dir = None
+        hex_file_path = None
+        
+        # Seulement si NIP-42 est valide, on vérifie et divulgue les infos MULTIPASS
+        if auth_result:
+            try:
+                # Chercher le répertoire MULTIPASS correspondant à cette clé hex
+                nostr_base_path = Path.home() / ".zen" / "game" / "nostr"
+                
+                if nostr_base_path.exists():
+                    # Parcourir tous les dossiers email dans nostr/
+                    for email_dir in nostr_base_path.iterdir():
+                        if email_dir.is_dir() and '@' in email_dir.name:
+                            hex_file = email_dir / "HEX"
+                            
+                            if hex_file.exists():
+                                try:
+                                    with open(hex_file, 'r') as f:
+                                        stored_hex = f.read().strip().lower()
+                                    
+                                    if stored_hex == hex_pubkey.lower():
+                                        multipass_registered = True
+                                        multipass_email = email_dir.name
+                                        multipass_dir = str(email_dir)
+                                        hex_file_path = str(hex_file)
+                                        logging.info(f"✅ MULTIPASS trouvé pour {hex_pubkey}: {email_dir}")
+                                        break
+                                except Exception as e:
+                                    logging.warning(f"Erreur lors de la lecture de {hex_file}: {e}")
+                                    continue
+            except Exception as e:
+                logging.warning(f"Erreur lors de la recherche du MULTIPASS: {e}")
+        else:
+            # Si NIP-42 n'est pas valide, on ne révèle PAS si le MULTIPASS existe
+            # Pour éviter l'énumération (sniffing)
+            logging.info(f"⚠️ NIP-42 non valide pour {hex_pubkey}, informations MULTIPASS non divulguées (sécurité)")
+        
         # Préparer la réponse détaillée
         response_data = {
             "input_key": npub,
@@ -5407,17 +5760,46 @@ async def test_nostr_auth(npub: str = Form(...)):
             }
         }
         
+        # Ajouter les informations MULTIPASS SEULEMENT si NIP-42 est valide
         if auth_result:
-            response_data["message"] = "✅ Authentification NOSTR réussie - Événements NIP42 récents trouvés"
-            response_data["status"] = "success"
+            response_data["multipass_registered"] = multipass_registered
+            response_data["checks"]["multipass_hex_file_exists"] = multipass_registered
+            
+            # Ajouter les détails MULTIPASS si trouvés
+            if multipass_registered:
+                response_data["multipass_email"] = multipass_email
+                response_data["multipass_directory"] = multipass_dir
+                response_data["hex_file_path"] = hex_file_path
+        else:
+            # Si NIP-42 n'est pas valide, on ne révèle PAS l'état du MULTIPASS
+            # Pour éviter l'énumération
+            response_data["multipass_registered"] = None
+            response_data["checks"]["multipass_hex_file_exists"] = None
+        
+        # Déterminer le statut global
+        # SÉCURITÉ: Les informations MULTIPASS ne sont divulguées que si NIP-42 est valide
+        if auth_result and multipass_registered:
+            response_data["message"] = "✅ Connexion complète - NIP42 vérifié et MULTIPASS inscrit sur le relai"
+            response_data["status"] = "complete"
+        elif auth_result:
+            # NIP-42 valide mais MULTIPASS non trouvé (on peut le dire car NIP-42 est valide)
+            response_data["message"] = "⚠️ Authentification NIP42 OK mais MULTIPASS non trouvé sur le relai"
+            response_data["status"] = "partial"
+            response_data["recommendations"] = [
+                f"Le fichier HEX n'a pas été trouvé dans ~/.zen/game/nostr/*@*/HEX pour la clé {hex_pubkey}",
+                "Vérifiez que votre MULTIPASS est bien inscrit sur le relai",
+                "Le répertoire MULTIPASS doit contenir un fichier HEX avec votre clé publique"
+            ]
         elif relay_connected:
+            # NIP-42 non valide - on ne révèle PAS si MULTIPASS existe (sécurité)
             response_data["message"] = "⚠️ Connexion au relai OK mais aucun événement NIP42 récent trouvé"
             response_data["status"] = "partial"
             response_data["recommendations"] = [
                 "Vérifiez que votre client NOSTR a bien envoyé un événement d'authentification",
                 "L'événement doit être de kind 22242 (NIP42)",
                 "L'événement doit dater de moins de 24 heures",
-                f"Vérifiez que la clé publique {hex_pubkey} correspond bien à votre identité NOSTR"
+                f"Vérifiez que la clé publique {hex_pubkey} correspond bien à votre identité NOSTR",
+                "Une fois NIP-42 validé, les informations MULTIPASS seront vérifiées"
             ]
         else:
             response_data["message"] = "❌ Impossible de se connecter au relai NOSTR"

@@ -1,0 +1,2522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nostrify Modal - NOSTR Music Player</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+        
+    <!-- Nostr integration -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    <!-- Common.js with NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    <!-- Nostrify enhancements -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostrify.enhancements.js"></script>
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/nostrify.enhancements.css" />
+    
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Roboto', 'Arial', sans-serif;
+            background: #000000;
+            color: #ffffff;
+        }
+
+        /* MP3 Modal - full screen with CSS Grid */
+        .mp3-modal {
+            width: 100vw !important;
+            height: 100vh !important;
+            display: grid !important;
+            grid-template-rows: 60px calc(100vh - 60px) !important;
+            grid-template-columns: 1fr !important;
+            background: #000000 !important;
+            overflow: hidden !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            z-index: 10000 !important;
+        }
+        
+        /* Header bar - fixed height */
+        .mp3-header {
+            grid-row: 1;
+            grid-column: 1;
+            background: #181818;
+            border-bottom: 1px solid #3f3f3f;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            height: 60px;
+        }
+        
+        .mp3-header h5 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+            max-width: 60%;
+        }
+        
+        /* Main content area - CSS Grid: Audio player left, Comments & Links right */
+        .mp3-content-grid {
+            grid-row: 2 !important;
+            grid-column: 1 !important;
+            display: grid !important;
+            grid-template-columns: 1fr 400px !important; /* Fixed width for right panel on desktop */
+            height: calc(100vh - 60px) !important;
+            gap: 0 !important;
+            overflow: hidden !important;
+        }
+        
+        /* Audio player container (left side, full height) */
+        .mp3-audio-container {
+            grid-column: 1 !important;
+            grid-row: 1 !important;
+            background: #000000 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            position: relative !important;
+        }
+        
+        /* Audio player wrapper with album art */
+        .mp3-audio-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 0;
+            background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
+            position: relative;
+        }
+
+        .mp3-album-art {
+            width: 100%;
+            max-width: 500px;
+            max-height: 500px;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            margin: 20px;
+        }
+
+        .mp3-album-art-placeholder {
+            width: 100%;
+            max-width: 500px;
+            max-height: 500px;
+            aspect-ratio: 1;
+            background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 120px;
+            color: rgba(255, 255, 255, 0.3);
+            margin: 20px;
+        }
+
+        /* Audio player element */
+        .mp3-audio-player {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Track info section (below audio player) */
+        .mp3-track-info {
+            flex-shrink: 0;
+            padding: 16px 20px;
+            background: #181818;
+            border-top: 1px solid #3f3f3f;
+            overflow-y: auto;
+            max-height: 35%;
+        }
+        
+        .mp3-track-info::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .mp3-track-info::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+        
+        .mp3-track-info::-webkit-scrollbar-thumb {
+            background: #3f3f3f;
+            border-radius: 3px;
+        }
+        
+        .mp3-track-info h6 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+        }
+        
+        /* Right panel: Comments & Related Tracks */
+        .mp3-right-panel {
+            grid-column: 2 !important;
+            grid-row: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            background: #0f0f0f !important;
+            border-left: 1px solid #3f3f3f !important;
+        }
+
+        /* Tabs for Comments and Related Tracks */
+        .mp3-tabs {
+            flex-shrink: 0;
+            display: flex;
+            background: #181818;
+            border-bottom: 1px solid #3f3f3f;
+        }
+
+        .mp3-tab {
+            flex: 1;
+            padding: 12px 16px;
+            background: transparent;
+            border: none;
+            color: #b3b3b3;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+
+        .mp3-tab.active {
+            color: #ffffff;
+            border-bottom-color: #1db954;
+            background: #0f0f0f;
+        }
+
+        .mp3-tab:hover {
+            color: #ffffff;
+            background: #1a1a1a;
+        }
+
+        /* Comments section */
+        .mp3-comments-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            display: none;
+        }
+
+        .mp3-comments-section.active {
+            display: flex;
+        }
+
+        .mp3-comments-header {
+            flex-shrink: 0;
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+            background: #181818;
+        }
+        
+        .mp3-comments-header h6 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .mp3-comments-form {
+            flex-shrink: 0;
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+            background: #0f0f0f;
+        }
+        
+        .mp3-comments-list {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 16px;
+            min-height: 0;
+        }
+        
+        .mp3-comments-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .mp3-comments-list::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+        
+        .mp3-comments-list::-webkit-scrollbar-thumb {
+            background: #3f3f3f;
+            border-radius: 4px;
+        }
+
+        /* Related Tracks section */
+        .mp3-related-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            display: none;
+        }
+
+        .mp3-related-section.active {
+            display: flex;
+        }
+
+        .mp3-related-header {
+            flex-shrink: 0;
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+            background: #181818;
+        }
+
+        .mp3-related-header h6 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .mp3-related-search {
+            flex-shrink: 0;
+            padding: 16px;
+            border-bottom: 1px solid #3f3f3f;
+            background: #0f0f0f;
+        }
+
+        .mp3-related-list {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 16px;
+            min-height: 0;
+        }
+
+        .mp3-related-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .mp3-related-list::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+
+        .mp3-related-list::-webkit-scrollbar-thumb {
+            background: #3f3f3f;
+            border-radius: 4px;
+        }
+
+        /* Related track item */
+        .mp3-related-item {
+            background: #1a1a1a;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #2a2a2a;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .mp3-related-item:hover {
+            background: #252525;
+            border-color: #1db954;
+        }
+
+        .mp3-related-item-image {
+            width: 60px;
+            height: 60px;
+            border-radius: 4px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .mp3-related-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .mp3-related-item-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #ffffff;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .mp3-related-item-artist {
+            font-size: 12px;
+            color: #b3b3b3;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .mp3-related-item-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .mp3-related-item-btn {
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #b3b3b3;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .mp3-related-item-btn:hover {
+            border-color: #1db954;
+            color: #1db954;
+        }
+        
+        .mp3-uploader-link {
+            color: #1db954;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .mp3-uploader-link:hover {
+            color: #1ed760;
+            text-decoration: underline;
+        }
+        
+        .mp3-comment-item {
+            background: #1a1a1a;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #2a2a2a;
+            position: relative;
+        }
+        
+        .mp3-comment-item.original-comment {
+            background: rgba(29, 185, 84, 0.08);
+            border-left: 3px solid #1db954;
+            border: 1px solid rgba(29, 185, 84, 0.3);
+        }
+        
+        .mp3-comment-item.original-comment .mp3-comment-author::after {
+            content: " (Original)";
+            font-size: 0.75em;
+            color: #1db954;
+            font-weight: normal;
+        }
+        
+        .mp3-comment-replies {
+            margin-left: 24px;
+            margin-top: 12px;
+            padding-left: 12px;
+            border-left: 2px solid #3f3f3f;
+        }
+        
+        .mp3-comment-item.reply {
+            background: #151515;
+            border-left: 2px solid #4a4a4a;
+        }
+        
+        .mp3-comment-item.reply .mp3-comment-author {
+            font-size: 12px;
+        }
+        
+        .mp3-comment-item.reply .mp3-comment-content {
+            font-size: 12px;
+        }
+        
+        .mp3-comment-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            align-items: center;
+        }
+        
+        .mp3-comment-reply-btn {
+            background: transparent;
+            border: none;
+            color: #1db954;
+            cursor: pointer;
+            padding: 4px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .mp3-comment-reply-btn:hover {
+            background: rgba(29, 185, 84, 0.1);
+            color: #1ed760;
+        }
+        
+        .mp3-comment-reply-form {
+            margin-top: 12px;
+            padding: 12px;
+            background: #0f0f0f;
+            border-radius: 8px;
+            border: 1px solid #3f3f3f;
+            display: none;
+        }
+        
+        .mp3-comment-reply-form.active {
+            display: block;
+        }
+        
+        .mp3-reply-count {
+            font-size: 11px;
+            color: #888888;
+            margin-left: 8px;
+        }
+        
+        .mp3-comment-author {
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+        
+        .mp3-comment-content {
+            color: #e0e0e0;
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 6px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .mp3-comment-time {
+            color: #999999;
+            font-size: 11px;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .live-comment {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        /* Tablet: adjust proportions */
+        @media (max-width: 1200px) and (min-width: 769px) {
+            .mp3-content-grid {
+                grid-template-columns: 1fr 350px !important;
+            }
+        }
+        
+        /* Mobile: stack everything vertically */
+        @media (max-width: 768px) {
+            .mp3-content-grid {
+                display: flex !important;
+                flex-direction: column !important;
+                height: auto !important;
+                min-height: calc(100vh - 60px) !important;
+            }
+            
+            .mp3-audio-container {
+                width: 100% !important;
+                height: auto !important;
+                min-height: 50vh !important;
+                order: 1;
+            }
+            
+            .mp3-track-info {
+                width: 100% !important;
+                max-height: none !important;
+                order: 2;
+                border-top: 1px solid #3f3f3f;
+                padding: 12px 16px;
+                max-height: 30vh;
+            }
+            
+            .mp3-right-panel {
+                width: 100% !important;
+                height: auto !important;
+                min-height: 50vh !important;
+                max-height: 50vh !important;
+                order: 3;
+                border-left: none;
+                border-top: 1px solid #3f3f3f;
+            }
+            
+            .mp3-header h5 {
+                font-size: 14px;
+                max-width: 50%;
+            }
+        }
+        
+        /* Very small mobile devices */
+        @media (max-width: 480px) {
+            .mp3-header {
+                padding: 8px 12px;
+                height: 50px;
+            }
+            
+            .mp3-header h5 {
+                font-size: 13px;
+                max-width: 40%;
+            }
+            
+            .mp3-header .btn {
+                padding: 4px 8px;
+                font-size: 11px;
+            }
+            
+            .mp3-header .btn span {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-dark text-white">
+    <div class="mp3-modal" id="mp3Modal">
+        <!-- Header -->
+        <div class="mp3-header">
+            <h5 class="mb-0 text-truncate flex-grow-1" id="mp3Title" style="max-width: 60%;">Loading...</h5>
+            <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-sm btn-outline-secondary" id="mp3CloseBtn" title="Close" onclick="handleCloseMP3Modal()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-info" id="mp3FollowBtn" title="Follow" style="display: none;">
+                    <i class="bi bi-person-plus"></i> <span id="mp3FollowText">Follow</span>
+                </button>
+                <button class="btn btn-sm btn-outline-success" id="mp3LikeBtn" title="Like">
+                    <i class="bi bi-hand-thumbs-up"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-primary" id="mp3ShareBtn" title="Share">
+                    <i class="bi bi-share"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Main content grid -->
+        <div class="mp3-content-grid">
+            <!-- Audio player (left side) -->
+            <div class="mp3-audio-container">
+                <div class="mp3-audio-wrapper">
+                    <img id="mp3AlbumArt" class="mp3-album-art" style="display: none;" alt="Album Art">
+                    <div id="mp3AlbumArtPlaceholder" class="mp3-album-art-placeholder">🎵</div>
+                </div>
+                
+                <!-- Audio player controls -->
+                <div class="mp3-audio-player">
+                    <audio 
+                        id="mp3AudioPlayer" 
+                        controls 
+                        style="width: 100%;"
+                        preload="metadata">
+                        Your browser does not support audio playback.
+                    </audio>
+                </div>
+                
+                <!-- Track info (below audio player) -->
+                <div class="mp3-track-info">
+                    <div class="d-flex gap-3 mb-2 flex-wrap" id="mp3TrackStats">
+                        <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> <span id="likeCount">0</span></span>
+                        <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> <span id="shareCount">0</span></span>
+                        <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> <span id="commentCount">0</span></span>
+                    </div>
+                    <div class="small text-secondary mb-2" id="mp3TrackMeta">
+                        <span id="mp3ArtistContainer">
+                            <span id="mp3Artist">Loading...</span>
+                        </span>
+                        <span id="mp3Duration"></span>
+                    </div>
+                    <div class="small text-white-50 lh-base" id="mp3Description"></div>
+                    
+                    <!-- Provenance section -->
+                    <div class="mt-3 pt-3 border-top border-secondary" id="mp3ProvenanceSection" style="display: none;">
+                        <div class="small">
+                            <div class="text-secondary mb-2"><i class="bi bi-diagram-3"></i> <strong>Provenance</strong></div>
+                            <div id="mp3UploadChain" class="mb-2"></div>
+                            <div class="d-flex gap-2 flex-wrap" id="mp3ProvenanceLinks"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right panel: Comments & Related Tracks -->
+            <div class="mp3-right-panel">
+                <!-- Tabs -->
+                <div class="mp3-tabs">
+                    <button class="mp3-tab active" onclick="switchMP3Tab('comments')">
+                        <i class="bi bi-chat-dots"></i> Comments
+                    </button>
+                    <button class="mp3-tab" onclick="switchMP3Tab('related')">
+                        <i class="bi bi-music-note-list"></i> Related Tracks
+                    </button>
+                </div>
+
+                <!-- Comments section -->
+                <div class="mp3-comments-section active" id="mp3CommentsSection">
+                    <div class="mp3-comments-header">
+                        <h6 class="mb-1 text-white"><i class="bi bi-chat-dots"></i> Comments</h6>
+                        <div class="small text-secondary" id="mp3CommentStats">0 comment(s)</div>
+                    </div>
+                    <div class="mp3-comments-form">
+                        <textarea 
+                            id="mp3CommentInput" 
+                            class="form-control bg-dark text-white border-secondary mb-2"
+                            placeholder="Add a comment..."
+                            rows="3"></textarea>
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button class="btn btn-sm btn-primary" id="submitMP3CommentBtn">
+                                <i class="bi bi-send"></i> Publish
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mp3-comments-list" id="mp3CommentsList">
+                        <div class="text-center text-secondary py-5">Loading comments...</div>
+                    </div>
+                </div>
+
+                <!-- Related Tracks section -->
+                <div class="mp3-related-section" id="mp3RelatedSection">
+                    <div class="mp3-related-header">
+                        <h6 class="mb-1 text-white"><i class="bi bi-music-note-list"></i> Related Tracks</h6>
+                        <div class="small text-secondary">Search and link to other tracks</div>
+                    </div>
+                    <div class="mp3-related-search">
+                        <input 
+                            type="text" 
+                            id="mp3RelatedSearchInput" 
+                            class="form-control bg-dark text-white border-secondary mb-2"
+                            placeholder="Search tracks by title, artist, or album..."
+                            autocomplete="off">
+                        <div class="small text-secondary">Search results will appear below</div>
+                    </div>
+                    <div class="mp3-related-list" id="mp3RelatedList">
+                        <div class="text-center text-secondary py-5">Search for tracks to link...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Handle close button click - wrapper to ensure function is available
+         */
+        function handleCloseMP3Modal() {
+            console.log('🔴 handleCloseMP3Modal called');
+            
+            // Close any active comment subscriptions
+            if (window.currentMP3CommentSubscription) {
+                try {
+                    console.log('📡 Closing comment subscription...');
+                    window.currentMP3CommentSubscription.unsub();
+                    window.currentMP3CommentSubscription = null;
+                } catch (e) {
+                    console.warn('⚠️ Error closing comment subscription:', e);
+                }
+            }
+            
+            // Pause and cleanup audio
+            const audioPlayer = document.getElementById('mp3AudioPlayer');
+            if (audioPlayer) {
+                audioPlayer.pause();
+                audioPlayer.src = '';
+                audioPlayer.load();
+            }
+            
+            // Detect context: are we in a standalone window/tab or an iframe?
+            const isStandalone = (window.parent === window) || (window.location === window.parent.location);
+            
+            if (isStandalone) {
+                // Standalone mode (opened in new tab from mp3.html)
+                console.log('📤 Closing standalone MP3 modal window/tab');
+                
+                try {
+                    window.close();
+                } catch (e) {
+                    console.warn('⚠️ Could not close window:', e);
+                }
+                
+                if (!window.closed) {
+                    console.log('📤 Attempting to go back in history');
+                    if (window.history.length > 1) {
+                        window.history.back();
+                    } else {
+                        window.location.href = '/mp3?html=1';
+                    }
+                }
+                return;
+            }
+            
+            // If we're in an iframe or modal context
+            let closed = false;
+            
+            // Strategy 1: Try to use closeMP3Modal from parent or global context
+            if (typeof window.closeMP3Modal === 'function') {
+                try {
+                    console.log('📤 Attempting to close via window.closeMP3Modal');
+                    window.closeMP3Modal();
+                    closed = true;
+                    return;
+                } catch (e) {
+                    console.warn('⚠️ closeMP3Modal failed:', e);
+                }
+            }
+            
+            // Strategy 2: Try parent window if we're in an iframe
+            if (!closed && window.parent && window.parent !== window) {
+                if (typeof window.parent.closeMP3Modal === 'function') {
+                    try {
+                        console.log('📤 Attempting to close via parent.closeMP3Modal');
+                        window.parent.closeMP3Modal();
+                        closed = true;
+                        return;
+                    } catch (e) {
+                        console.warn('⚠️ Parent closeMP3Modal failed:', e);
+                    }
+                }
+                
+                // Try to close via postMessage as backup
+                if (!closed) {
+                    try {
+                        console.log('📤 Attempting to close via postMessage');
+                        window.parent.postMessage({ type: 'close-mp3-modal' }, '*');
+                        closed = true;
+                        return;
+                    } catch (e) {
+                        console.warn('⚠️ PostMessage close failed:', e);
+                    }
+                }
+            }
+            
+            // Strategy 3: Try to close Bootstrap modal directly
+            if (!closed) {
+                const modalEl = document.getElementById('mp3Modal') || 
+                               document.querySelector('.mp3-modal');
+                
+                if (modalEl) {
+                    try {
+                        console.log('📤 Attempting to close Bootstrap modal directly');
+                        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                            const bsModal = bootstrap.Modal.getInstance(modalEl);
+                            if (bsModal) {
+                                bsModal.hide();
+                                closed = true;
+                                return;
+                            }
+                        }
+                        
+                        // Fallback: remove modal directly
+                        modalEl.style.display = 'none';
+                        modalEl.classList.remove('show');
+                        document.body.classList.remove('modal-open');
+                        
+                        const backdrop = document.querySelector('.modal-backdrop');
+                        if (backdrop) {
+                            backdrop.remove();
+                        }
+                        
+                        closed = true;
+                        return;
+                    } catch (e) {
+                        console.warn('⚠️ Direct modal close failed:', e);
+                    }
+                }
+            }
+            
+            if (!closed) {
+                console.error('❌ All close strategies failed');
+            }
+        }
+        
+        // Expose function globally early
+        window.handleCloseMP3Modal = handleCloseMP3Modal;
+
+        /**
+         * Switch between Comments and Related Tracks tabs
+         */
+        function switchMP3Tab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.mp3-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event?.target?.classList.add('active');
+            
+            // Show/hide sections
+            const commentsSection = document.getElementById('mp3CommentsSection');
+            const relatedSection = document.getElementById('mp3RelatedSection');
+            
+            if (tabName === 'comments') {
+                if (commentsSection) commentsSection.classList.add('active');
+                if (relatedSection) relatedSection.classList.remove('active');
+            } else if (tabName === 'related') {
+                if (commentsSection) commentsSection.classList.remove('active');
+                if (relatedSection) relatedSection.classList.add('active');
+                
+                // Focus search input when switching to related tab
+                const searchInput = document.getElementById('mp3RelatedSearchInput');
+                if (searchInput) {
+                    setTimeout(() => searchInput.focus(), 100);
+                }
+            }
+        }
+
+        /**
+         * Initialize MP3 modal with track data
+         */
+        function initializeMP3Modal(trackData) {
+            if (!trackData) return;
+            
+            const audioPlayer = document.getElementById('mp3AudioPlayer');
+            const titleEl = document.getElementById('mp3Title');
+            const durationEl = document.getElementById('mp3Duration');
+            const descriptionEl = document.getElementById('mp3Description');
+            const artistEl = document.getElementById('mp3Artist');
+            const albumArtEl = document.getElementById('mp3AlbumArt');
+            const albumArtPlaceholder = document.getElementById('mp3AlbumArtPlaceholder');
+            
+            // Set title
+            if (titleEl && trackData.title) {
+                titleEl.textContent = trackData.title;
+                document.title = `${trackData.title} - Nostrify`;
+            }
+            
+            // Set audio source
+            if (audioPlayer && trackData.url) {
+                // Ensure IPFS_GATEWAY is defined
+                if (!window.IPFS_GATEWAY) {
+                    if (typeof detectIPFSGatewayGlobal === 'function') {
+                        detectIPFSGatewayGlobal();
+                    } else {
+                        const currentURL = new URL(window.location.href);
+                        const hostname = currentURL.hostname;
+                        if (hostname === '127.0.0.1' || hostname === 'localhost') {
+                            window.IPFS_GATEWAY = 'http://127.0.0.1:8080';
+                        } else if (hostname.startsWith('u.')) {
+                            const baseDomain = hostname.substring('u.'.length);
+                            window.IPFS_GATEWAY = `${currentURL.protocol}//ipfs.${baseDomain}`;
+                        } else {
+                            window.IPFS_GATEWAY = 'https://ipfs.copylaradio.com';
+                        }
+                    }
+                }
+                
+                // Convert IPFS URL if needed
+                let audioUrl = trackData.url;
+                if (typeof convertIPFSUrlGlobal === 'function') {
+                    audioUrl = convertIPFSUrlGlobal(audioUrl);
+                } else if (window.IPFS_GATEWAY && audioUrl.includes('/ipfs/')) {
+                    const match = audioUrl.match(/\/ipfs\/[^?"#]+/);
+                    if (match) {
+                        audioUrl = window.IPFS_GATEWAY + match[0];
+                    }
+                }
+                
+                console.log('🎵 Loading audio:', audioUrl);
+                
+                audioPlayer.src = audioUrl;
+                audioPlayer.load();
+                
+                // Store metadata
+                if (trackData.eventId) {
+                    audioPlayer.setAttribute('data-event-id', trackData.eventId);
+                }
+                if (trackData.authorId) {
+                    audioPlayer.setAttribute('data-author-id', trackData.authorId);
+                }
+                if (trackData.url) {
+                    audioPlayer.setAttribute('data-ipfs-url', trackData.url);
+                }
+            }
+            
+            // Set album art
+            if (trackData.thumbnail) {
+                let thumbnailUrl = trackData.thumbnail;
+                if (typeof convertIPFSUrlGlobal === 'function') {
+                    thumbnailUrl = convertIPFSUrlGlobal(thumbnailUrl);
+                } else if (window.IPFS_GATEWAY && thumbnailUrl.includes('/ipfs/')) {
+                    const match = thumbnailUrl.match(/\/ipfs\/[^?"#]+/);
+                    if (match) {
+                        thumbnailUrl = window.IPFS_GATEWAY + match[0];
+                    }
+                }
+                
+                if (albumArtEl) {
+                    albumArtEl.src = thumbnailUrl;
+                    albumArtEl.style.display = 'block';
+                    if (albumArtPlaceholder) {
+                        albumArtPlaceholder.style.display = 'none';
+                    }
+                }
+            } else {
+                if (albumArtEl) albumArtEl.style.display = 'none';
+                if (albumArtPlaceholder) albumArtPlaceholder.style.display = 'flex';
+            }
+            
+            // Set duration
+            if (durationEl && trackData.duration) {
+                const minutes = Math.floor(trackData.duration / 60);
+                const seconds = Math.floor(trackData.duration % 60);
+                durationEl.textContent = ` • ${minutes}:${String(seconds).padStart(2, '0')}`;
+            }
+            
+            // Set description
+            if (descriptionEl && trackData.description) {
+                descriptionEl.textContent = trackData.description;
+            }
+            
+            // Load artist
+            if (trackData.artist) {
+                if (artistEl) {
+                    artistEl.textContent = trackData.artist;
+                }
+            }
+            
+            // Load comments
+            if (trackData.eventId) {
+                setTimeout(() => {
+                    loadMP3Comments(trackData.eventId, trackData.authorId, trackData.description || trackData.content);
+                }, 500);
+            }
+            
+            // Setup related tracks search
+            setupRelatedTracksSearch();
+        }
+
+        /**
+         * Setup related tracks search functionality
+         */
+        function setupRelatedTracksSearch() {
+            const searchInput = document.getElementById('mp3RelatedSearchInput');
+            if (!searchInput) return;
+            
+            let searchTimeout = null;
+            
+            searchInput.addEventListener('input', function(e) {
+                const query = e.target.value.trim();
+                
+                // Clear previous timeout
+                if (searchTimeout) {
+                    clearTimeout(searchTimeout);
+                }
+                
+                // Debounce search
+                searchTimeout = setTimeout(async () => {
+                    if (query.length >= 2) {
+                        await searchRelatedTracks(query);
+                    } else {
+                        const relatedList = document.getElementById('mp3RelatedList');
+                        if (relatedList) {
+                            relatedList.innerHTML = '<div class="text-center text-secondary py-5">Type at least 2 characters to search...</div>';
+                        }
+                    }
+                }, 500);
+            });
+        }
+
+        /**
+         * Search and display related tracks
+         */
+        async function searchRelatedTracks(query) {
+            const relatedList = document.getElementById('mp3RelatedSearchInput');
+            if (!relatedList) return;
+            
+            const listEl = document.getElementById('mp3RelatedList');
+            if (!listEl) return;
+            
+            listEl.innerHTML = '<div class="text-center text-secondary py-5">Searching...</div>';
+            
+            try {
+                // Use searchNostrTracks from nostrify.enhancements.js
+                let tracks = [];
+                if (typeof searchNostrTracks === 'function') {
+                    tracks = await searchNostrTracks(query, 20);
+                } else if (typeof fetchNostrMP3Tracks === 'function') {
+                    // Fallback: fetch all and filter
+                    const allTracks = await fetchNostrMP3Tracks(100);
+                    const searchTerm = query.toLowerCase();
+                    tracks = allTracks.filter(track => {
+                        const title = (track.title || '').toLowerCase();
+                        const artist = (track.artist || '').toLowerCase();
+                        const album = (track.album || '').toLowerCase();
+                        return title.includes(searchTerm) || artist.includes(searchTerm) || album.includes(searchTerm);
+                    }).slice(0, 20);
+                }
+                
+                if (tracks.length === 0) {
+                    listEl.innerHTML = '<div class="text-center text-secondary py-5">No tracks found</div>';
+                    return;
+                }
+                
+                // Render tracks
+                const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : (text) => {
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                };
+                
+                listEl.innerHTML = tracks.map(track => `
+                    <div class="mp3-related-item" onclick="openRelatedTrack('${track.eventId}')">
+                        <img src="${track.thumbnail || ''}" class="mp3-related-item-image" alt="${escapeFn(track.title || '')}" onerror="this.style.display='none'">
+                        <div class="mp3-related-item-info">
+                            <div class="mp3-related-item-title">${escapeFn(track.title || 'Unknown Title')}</div>
+                            <div class="mp3-related-item-artist">${escapeFn(track.artist || 'Unknown Artist')}</div>
+                        </div>
+                        <div class="mp3-related-item-actions">
+                            <button class="mp3-related-item-btn" onclick="event.stopPropagation(); linkRelatedTrack('${track.eventId}', '${escapeFn(track.title || '')}')" title="Link this track">
+                                <i class="bi bi-link-45deg"></i> Link
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error searching tracks:', error);
+                listEl.innerHTML = '<div class="text-center text-secondary py-5">Error searching tracks</div>';
+            }
+        }
+
+        /**
+         * Open a related track in the modal
+         */
+        async function openRelatedTrack(eventId) {
+            console.log('Opening related track:', eventId);
+            
+            // Load track data and reinitialize modal
+            try {
+                const track = await loadTrackFromEventId(eventId);
+                if (track) {
+                    initializeMP3Modal(track);
+                }
+            } catch (error) {
+                console.error('Error loading related track:', error);
+                alert('Error loading track: ' + error.message);
+            }
+        }
+
+        /**
+         * Link a related track (create a reference/link)
+         */
+        async function linkRelatedTrack(eventId, trackTitle) {
+            console.log('Linking track:', eventId, trackTitle);
+            
+            // Get current track
+            const audioPlayer = document.getElementById('mp3AudioPlayer');
+            const currentEventId = audioPlayer?.getAttribute('data-event-id');
+            
+            if (!currentEventId) {
+                alert('Current track not found');
+                return;
+            }
+            
+            // Check if user is connected
+            if (typeof userPubkey === 'undefined' || !userPubkey) {
+                if (typeof connectNostr === 'function') {
+                    try {
+                        const pubkey = await connectNostr();
+                        if (!pubkey) {
+                            alert('Connection required to link tracks');
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('Error connecting:', error);
+                        alert('Error connecting');
+                        return;
+                    }
+                } else {
+                    alert('Connection required to link tracks');
+                    return;
+                }
+            }
+            
+            // Create a link/reference event (kind 1 with tags)
+            // This creates a reference between tracks
+            try {
+                const tags = [
+                    ['e', currentEventId, '', 'root'], // Current track
+                    ['e', eventId, '', 'reply'], // Linked track
+                    ['k', '1063'], // Kind 1063 (MP3 file)
+                    ['t', 'track-link'], // Topic tag
+                    ['i', `source:linked`] // Source tag
+                ];
+                
+                const content = `🔗 Linked to: ${trackTitle}`;
+                
+                if (typeof publishNote === 'function') {
+                    const result = await publishNote(content, tags, 1, { silent: false });
+                    if (result && result.success) {
+                        alert(`Track linked successfully!`);
+                    } else {
+                        alert('Error linking track');
+                    }
+                } else {
+                    alert('Publish function not available');
+                }
+            } catch (error) {
+                console.error('Error linking track:', error);
+                alert('Error linking track: ' + error.message);
+            }
+        }
+
+        /**
+         * Load track from NOSTR event ID
+         */
+        async function loadTrackFromEventId(eventId) {
+            try {
+                // Connect to relay if needed
+                if (typeof nostrRelay === 'undefined' || !nostrRelay) {
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+                
+                const currentRelay = window.nostrRelay || nostrRelay;
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    throw new Error('NOSTR relay not connected');
+                }
+                
+                // Fetch track event (kind 1063)
+                const event = await new Promise((resolve, reject) => {
+                    const sub = currentRelay.sub([{
+                        kinds: [1063],
+                        ids: [eventId],
+                        limit: 1
+                    }]);
+                    
+                    let trackEvent = null;
+                    
+                    sub.on('event', (evt) => {
+                        trackEvent = evt;
+                    });
+                    
+                    sub.on('eose', () => {
+                        sub.unsub();
+                        resolve(trackEvent);
+                    });
+                    
+                    setTimeout(() => {
+                        sub.unsub();
+                        resolve(trackEvent);
+                    }, 5000);
+                });
+                
+                if (!event) {
+                    throw new Error('Track not found');
+                }
+                
+                // Parse track data (similar to parseMP3Event in nostrify.enhancements.js)
+                const urlTag = event.tags.find(tag => tag[0] === 'url');
+                const titleTag = event.tags.find(tag => tag[0] === 'title');
+                const artistTag = event.tags.find(tag => tag[0] === 'artist');
+                const albumTag = event.tags.find(tag => tag[0] === 'album');
+                const thumbTag = event.tags.find(tag => tag[0] === 'thumb');
+                const summaryTag = event.tags.find(tag => tag[0] === 'summary');
+                const durationTag = event.tags.find(tag => tag[0] === 'duration');
+                
+                let url = urlTag ? urlTag[1] : null;
+                if (!url) {
+                    throw new Error('Track URL not found');
+                }
+                
+                // Convert IPFS URL
+                if (typeof convertIPFSUrlGlobal === 'function') {
+                    url = convertIPFSUrlGlobal(url);
+                }
+                
+                const title = titleTag ? titleTag[1] : (event.content || 'Unknown Title');
+                const artist = artistTag ? artistTag[1] : 'Unknown Artist';
+                const album = albumTag ? albumTag[1] : '—';
+                const thumbnail = thumbTag ? thumbTag[1] : null;
+                const description = summaryTag ? summaryTag[1] : event.content;
+                const duration = durationTag ? parseFloat(durationTag[1]) : null;
+                
+                return {
+                    eventId: event.id,
+                    authorId: event.pubkey,
+                    url: url,
+                    title: title,
+                    artist: artist,
+                    album: album,
+                    thumbnail: thumbnail,
+                    description: description,
+                    duration: duration,
+                    content: event.content
+                };
+                
+            } catch (error) {
+                console.error('Error loading track:', error);
+                throw error;
+            }
+        }
+
+        /**
+         * Load comments for the track
+         */
+        async function loadMP3Comments(eventId, authorId, originalContent) {
+            const commentsList = document.getElementById('mp3CommentsList');
+            const commentStats = document.getElementById('mp3CommentStats');
+            
+            if (!commentsList || !eventId) {
+                if (commentsList) {
+                    commentsList.innerHTML = '<div class="no-comments">No comments available</div>';
+                }
+                return;
+            }
+            
+            commentsList.innerHTML = '<div class="loading-comments">Loading comments...</div>';
+            
+            try {
+                let currentRelay = window.nostrRelay || nostrRelay;
+                
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    if (typeof connectToRelay === 'function') {
+                        console.log('🔌 Connecting to relay for comments...');
+                        await connectToRelay();
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    
+                    currentRelay = window.nostrRelay || nostrRelay || currentRelay;
+                    if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                        commentsList.innerHTML = '<div class="error-comments">NOSTR not connected</div>';
+                        return;
+                    }
+                }
+                
+                // Initialize global comments array
+                window.mp3Comments = [];
+                const comments = window.mp3Comments;
+                
+                // Add original comment if available
+                if (originalContent && originalContent.trim()) {
+                    let authorName = 'Track Author';
+                    
+                    if (authorId) {
+                        try {
+                            if (typeof fetchUserMetadata !== 'undefined') {
+                                const profile = await Promise.race([
+                                    fetchUserMetadata(authorId),
+                                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1500))
+                                ]);
+                                if (profile) {
+                                    authorName = profile.display_name || profile.name || authorName;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Could not fetch profile:', e);
+                        }
+                    }
+                    
+                    comments.push({
+                        id: eventId,
+                        authorId: authorId,
+                        authorName: authorName,
+                        content: originalContent,
+                        timestamp: null,
+                        isOriginal: true,
+                        created_at: null
+                    });
+                }
+                
+                // Fetch comments from NOSTR (kind 1111 - NIP-22 comments)
+                const sub = currentRelay.sub([{
+                    kinds: [1111],
+                    '#E': [eventId]
+                }]);
+                
+                window.currentMP3CommentSubscription = sub;
+                
+                let initialLoadComplete = false;
+                const timeout = setTimeout(() => {
+                    initialLoadComplete = true;
+                    displayMP3Comments(comments, commentStats);
+                    console.log('✅ Initial comments loaded');
+                }, 3000);
+                
+                const authorNameCache = new Map();
+                
+                sub.on('event', async (event) => {
+                    try {
+                        if (event.id === eventId) {
+                            return; // Skip original event
+                        }
+                        
+                        if (comments.find(c => c.id === event.id)) {
+                            return; // Skip duplicates
+                        }
+                        
+                        let authorName = authorNameCache.get(event.pubkey) || event.pubkey.substring(0, 8) + '...';
+                        
+                        if (!authorNameCache.has(event.pubkey) && typeof fetchUserMetadata !== 'undefined') {
+                            try {
+                                const profile = await Promise.race([
+                                    fetchUserMetadata(event.pubkey),
+                                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
+                                ]);
+                                if (profile) {
+                                    authorName = profile.display_name || profile.name || authorName;
+                                    authorNameCache.set(event.pubkey, authorName);
+                                }
+                            } catch (e) {
+                                authorNameCache.set(event.pubkey, authorName);
+                            }
+                        } else if (authorNameCache.has(event.pubkey)) {
+                            authorName = authorNameCache.get(event.pubkey);
+                        }
+                        
+                        const newComment = {
+                            id: event.id,
+                            authorId: event.pubkey,
+                            authorName: authorName,
+                            content: event.content,
+                            timestamp: null,
+                            isOriginal: false,
+                            created_at: event.created_at,
+                            rawEvent: event
+                        };
+                        
+                        comments.push(newComment);
+                        
+                        if (initialLoadComplete) {
+                            displayMP3Comments(comments, commentStats);
+                            
+                            setTimeout(() => {
+                                const commentsList = document.getElementById('mp3CommentsList');
+                                if (commentsList) {
+                                    const commentElements = commentsList.querySelectorAll('.mp3-comment-item:not(.original-comment)');
+                                    const lastComment = commentElements[commentElements.length - 1];
+                                    if (lastComment) {
+                                        lastComment.classList.add('live-comment');
+                                        lastComment.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                    }
+                                }
+                            }, 100);
+                        }
+                    } catch (e) {
+                        console.error('Error processing comment:', e);
+                    }
+                });
+                
+                sub.on('eose', () => {
+                    clearTimeout(timeout);
+                    initialLoadComplete = true;
+                    displayMP3Comments(comments, commentStats);
+                    console.log('📡 Comment subscription active');
+                });
+                
+            } catch (error) {
+                console.error('Error loading comments:', error);
+                commentsList.innerHTML = '<div class="error-comments">Error loading comments</div>';
+            }
+        }
+
+        /**
+         * Display comments
+         */
+        function displayMP3Comments(comments, commentStats) {
+            const commentsList = document.getElementById('mp3CommentsList');
+            if (!commentsList) return;
+            
+            if (comments.length === 0) {
+                commentsList.innerHTML = '<div class="no-comments">No comments</div>';
+                if (commentStats) {
+                    commentStats.textContent = '0 comment(s)';
+                }
+                return;
+            }
+            
+            if (commentStats) {
+                commentStats.textContent = `${comments.length} comment${comments.length > 1 ? 's' : ''}`;
+            }
+            
+            const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : (text) => {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
+            
+            const formatRelativeFn = typeof formatRelativeTime !== 'undefined' ? formatRelativeTime : (timestamp) => {
+                const seconds = Math.floor((Date.now() / 1000) - timestamp);
+                if (seconds < 60) return `${seconds}s ago`;
+                if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+                if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+                return `${Math.floor(seconds / 86400)}d ago`;
+            };
+            
+            // Build comment tree
+            const topLevel = [];
+            const replies = new Map();
+            
+            comments.forEach(comment => {
+                if (comment.isOriginal) {
+                    topLevel.push(comment);
+                    return;
+                }
+                
+                const parentTag = comment.rawEvent?.tags?.find(t => t[0] === 'e');
+                const parentId = parentTag ? parentTag[1] : null;
+                
+                if (parentId) {
+                    if (!replies.has(parentId)) {
+                        replies.set(parentId, []);
+                    }
+                    replies.get(parentId).push(comment);
+                } else {
+                    topLevel.push(comment);
+                }
+            });
+            
+            topLevel.sort((a, b) => {
+                if (a.isOriginal) return -1;
+                if (b.isOriginal) return 1;
+                return (b.created_at || 0) - (a.created_at || 0);
+            });
+            
+            replies.forEach(replyList => {
+                replyList.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+            });
+            
+            // Render comments
+            const html = topLevel.map(comment => renderMP3Comment(comment, replies, escapeFn, formatRelativeFn, 0)).join('');
+            commentsList.innerHTML = html;
+        }
+
+        /**
+         * Render a single comment with its replies
+         */
+        function renderMP3Comment(comment, repliesMap, escapeFn, formatRelativeFn, depth = 0) {
+            const timeAgo = comment.created_at && formatRelativeFn ? formatRelativeFn(comment.created_at) : '';
+            const openProfileFn = typeof openProfileModalInMP3 !== 'undefined' ? 'openProfileModalInMP3' :
+                                 (typeof openProfileModal !== 'undefined' ? 'openProfileModal' : null);
+            const authorLink = comment.authorId && openProfileFn
+                ? `<a href="#" onclick="event.preventDefault(); ${openProfileFn}('${comment.authorId}', '${escapeFn(comment.authorName)}'); return false;" class="mp3-uploader-link">${escapeFn(comment.authorName)}</a>`
+                : escapeFn(comment.authorName);
+            
+            const replies = repliesMap.get(comment.id) || [];
+            const replyCount = replies.length;
+            const isReply = depth > 0;
+            const replyClass = isReply ? 'reply' : '';
+            
+            let html = `
+                <div class="mp3-comment-item ${comment.isOriginal ? 'original-comment' : ''} ${replyClass}" data-comment-id="${comment.id}">
+                    <div class="mp3-comment-author">${authorLink}</div>
+                    <div class="mp3-comment-content">${escapeFn(comment.content)}</div>
+                    <div class="mp3-comment-actions">
+                        ${timeAgo ? `<span class="mp3-comment-time">${timeAgo}</span>` : ''}
+                        ${replyCount > 0 ? `<span class="mp3-reply-count"><i class="bi bi-chat-dots"></i> ${replyCount} reply${replyCount > 1 ? 'ies' : ''}</span>` : ''}
+                        <button class="mp3-comment-reply-btn" onclick="toggleMP3ReplyForm('${comment.id}')">
+                            <i class="bi bi-reply"></i> Reply
+                        </button>
+                    </div>
+                    
+                    <div class="mp3-comment-reply-form" id="mp3-reply-form-${comment.id}">
+                        <textarea 
+                            class="form-control bg-dark text-white border-secondary mb-2"
+                            placeholder="Reply to ${escapeFn(comment.authorName)}..."
+                            rows="2"
+                            id="mp3-reply-input-${comment.id}"></textarea>
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button class="btn btn-sm btn-secondary" onclick="toggleMP3ReplyForm('${comment.id}')">
+                                Cancel
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="submitMP3Reply('${comment.id}', '${comment.authorId || ''}')">
+                                <i class="bi bi-send"></i> Reply
+                            </button>
+                        </div>
+                    </div>
+            `;
+            
+            if (replyCount > 0) {
+                html += '<div class="mp3-comment-replies">';
+                replies.forEach(reply => {
+                    html += renderMP3Comment(reply, repliesMap, escapeFn, formatRelativeFn, depth + 1);
+                });
+                html += '</div>';
+            }
+            
+            html += '</div>';
+            return html;
+        }
+
+        /**
+         * Toggle reply form visibility
+         */
+        function toggleMP3ReplyForm(commentId) {
+            const form = document.getElementById(`mp3-reply-form-${commentId}`);
+            if (!form) return;
+            
+            document.querySelectorAll('.mp3-comment-reply-form.active').forEach(otherForm => {
+                if (otherForm.id !== `mp3-reply-form-${commentId}`) {
+                    otherForm.classList.remove('active');
+                }
+            });
+            
+            form.classList.toggle('active');
+            
+            if (form.classList.contains('active')) {
+                const input = document.getElementById(`mp3-reply-input-${commentId}`);
+                if (input) {
+                    input.focus();
+                }
+            }
+        }
+
+        /**
+         * Submit a reply to a comment
+         */
+        async function submitMP3Reply(parentCommentId, parentAuthorId) {
+            const input = document.getElementById(`mp3-reply-input-${parentCommentId}`);
+            const audioPlayer = document.getElementById('mp3AudioPlayer');
+            
+            if (!input || !audioPlayer) return;
+            
+            const rawContent = input.value.trim();
+            if (!rawContent) {
+                alert('Reply cannot be empty');
+                return;
+            }
+            
+            const content = rawContent.substring(0, 5000);
+            
+            const trackEventId = audioPlayer.getAttribute('data-event-id');
+            const trackAuthorId = audioPlayer.getAttribute('data-author-id');
+            
+            if (!trackEventId) {
+                alert('Track ID not found');
+                return;
+            }
+            
+            let nostrVars = getNostrVariables();
+            let currentUserPubkey = nostrVars.userPubkey;
+            let currentNostrRelay = nostrVars.nostrRelay;
+            
+            if (!currentUserPubkey) {
+                const connectFn = (window.parent && window.parent !== window && typeof window.parent.connectNostr === 'function') 
+                    ? window.parent.connectNostr 
+                    : (typeof connectNostr === 'function' ? connectNostr : null);
+                
+                if (connectFn) {
+                    try {
+                        currentUserPubkey = await connectFn();
+                        if (!currentUserPubkey) {
+                            alert('You must be connected to reply');
+                            return;
+                        }
+                        nostrVars.userPubkey = currentUserPubkey;
+                    } catch (error) {
+                        console.error('Error connecting:', error);
+                        alert('Error connecting: ' + error.message);
+                        return;
+                    }
+                } else {
+                    alert('You must be connected to reply');
+                    return;
+                }
+            }
+            
+            if (!currentNostrRelay || !nostrVars.isNostrConnected) {
+                const connectRelayFn = (window.parent && window.parent !== window && typeof window.parent.connectToRelay === 'function')
+                    ? window.parent.connectToRelay
+                    : (typeof connectToRelay === 'function' ? connectToRelay : null);
+                
+                if (connectRelayFn) {
+                    try {
+                        currentNostrRelay = await connectRelayFn();
+                        if (!currentNostrRelay) {
+                            alert('Error connecting to relay');
+                            return;
+                        }
+                        nostrVars.nostrRelay = currentNostrRelay;
+                        nostrVars.isNostrConnected = true;
+                    } catch (error) {
+                        console.error('Error connecting to relay:', error);
+                        alert('Error connecting to relay: ' + error.message);
+                        return;
+                    }
+                } else {
+                    alert('Relay connection not available');
+                    return;
+                }
+            }
+            
+            try {
+                const relayHint = currentNostrRelay?.url || '';
+                
+                const tags = [
+                    ['E', trackEventId, relayHint, trackAuthorId || ''],
+                    ['K', '1063'],
+                    ['P', trackAuthorId || '', relayHint],
+                    ['e', parentCommentId, relayHint, parentAuthorId || ''],
+                    ['k', '1111'],
+                    ['p', parentAuthorId || '', relayHint]
+                ];
+                
+                const publishFn = (window.parent && window.parent !== window && typeof window.parent.publishNote === 'function')
+                    ? window.parent.publishNote
+                    : (typeof publishNote === 'function' ? publishNote : null);
+                
+                if (!publishFn) {
+                    alert('Publish function not available');
+                    return;
+                }
+                
+                const result = await publishFn(content, tags, 1111, { silent: false });
+                
+                const publishedEvent = result?.event || result;
+                const success = result && (result.success === true || result.id || publishedEvent?.id);
+                
+                if (success) {
+                    input.value = '';
+                    toggleMP3ReplyForm(parentCommentId);
+                    
+                    if (publishedEvent && publishedEvent.id && currentUserPubkey) {
+                        let userName = currentUserPubkey.substring(0, 8) + '...';
+                        const fetchUserMetadataFn = (window.parent && window.parent !== window && typeof window.parent.fetchUserMetadata === 'function')
+                            ? window.parent.fetchUserMetadata
+                            : (typeof fetchUserMetadata !== 'undefined' ? fetchUserMetadata : null);
+                        
+                        if (fetchUserMetadataFn) {
+                            try {
+                                const profile = await fetchUserMetadataFn(currentUserPubkey);
+                                if (profile) {
+                                    userName = profile.display_name || profile.name || userName;
+                                }
+                            } catch (e) {
+                                console.warn('Could not fetch user metadata:', e);
+                            }
+                        }
+                        
+                        const newReply = {
+                            id: publishedEvent.id,
+                            authorId: currentUserPubkey,
+                            authorName: userName,
+                            content: content,
+                            timestamp: null,
+                            isOriginal: false,
+                            created_at: publishedEvent.created_at || Math.floor(Date.now() / 1000),
+                            rawEvent: publishedEvent
+                        };
+                        
+                        if (typeof window.mp3Comments !== 'undefined') {
+                            if (!window.mp3Comments.find(c => c.id === newReply.id)) {
+                                window.mp3Comments.push(newReply);
+                                
+                                const commentsList = document.getElementById('mp3CommentsList');
+                                const commentStats = document.getElementById('mp3CommentStats');
+                                if (typeof displayMP3Comments === 'function') {
+                                    displayMP3Comments(window.mp3Comments, commentStats);
+                                    
+                                    setTimeout(() => {
+                                        if (commentsList) {
+                                            const replyElement = commentsList.querySelector(`[data-comment-id="${newReply.id}"]`);
+                                            if (replyElement) {
+                                                replyElement.classList.add('live-comment');
+                                                replyElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                            }
+                                        }
+                                    }, 100);
+                                }
+                            }
+                        }
+                    }
+                    
+                    console.log('✅ Reply published successfully');
+                } else {
+                    alert('❌ Error publishing reply');
+                }
+            } catch (error) {
+                console.error('Error submitting reply:', error);
+                alert('Error publishing reply: ' + error.message);
+            }
+        }
+
+        /**
+         * Submit a comment
+         */
+        async function submitMP3Comment() {
+            const input = document.getElementById('mp3CommentInput');
+            const audioPlayer = document.getElementById('mp3AudioPlayer');
+            
+            if (!input || !audioPlayer) return;
+            
+            const rawContent = input.value.trim();
+            if (!rawContent) {
+                alert('Comment cannot be empty');
+                return;
+            }
+            
+            const content = rawContent.substring(0, 5000);
+            
+            const eventId = audioPlayer.getAttribute('data-event-id');
+            const authorId = audioPlayer.getAttribute('data-author-id');
+            
+            if (!eventId) {
+                alert('Track ID not found');
+                return;
+            }
+            
+            let nostrVars = getNostrVariables();
+            let currentUserPubkey = nostrVars.userPubkey;
+            let currentNostrRelay = nostrVars.nostrRelay;
+            
+            if (!currentUserPubkey) {
+                const connectFn = (window.parent && window.parent !== window && typeof window.parent.connectNostr === 'function') 
+                    ? window.parent.connectNostr 
+                    : (typeof connectNostr === 'function' ? connectNostr : null);
+                
+                if (connectFn) {
+                    try {
+                        currentUserPubkey = await connectFn();
+                        if (!currentUserPubkey) {
+                            alert('You must be connected to comment');
+                            return;
+                        }
+                        nostrVars.userPubkey = currentUserPubkey;
+                    } catch (error) {
+                        console.error('Error connecting:', error);
+                        alert('Error connecting: ' + error.message);
+                        return;
+                    }
+                } else {
+                    alert('You must be connected to comment');
+                    return;
+                }
+            }
+            
+            if (!currentNostrRelay || !nostrVars.isNostrConnected) {
+                const connectRelayFn = (window.parent && window.parent !== window && typeof window.parent.connectToRelay === 'function')
+                    ? window.parent.connectToRelay
+                    : (typeof connectToRelay === 'function' ? connectToRelay : null);
+                
+                if (connectRelayFn) {
+                    try {
+                        currentNostrRelay = await connectRelayFn();
+                        if (!currentNostrRelay) {
+                            alert('Error connecting to relay');
+                            return;
+                        }
+                        nostrVars.nostrRelay = currentNostrRelay;
+                        nostrVars.isNostrConnected = true;
+                    } catch (error) {
+                        console.error('Error connecting to relay:', error);
+                        alert('Error connecting to relay: ' + error.message);
+                        return;
+                    }
+                } else {
+                    alert('Relay connection not available');
+                    return;
+                }
+            }
+            
+            try {
+                const relayHint = currentNostrRelay?.url || '';
+                
+                const tags = [
+                    ['E', eventId, relayHint, authorId || ''],
+                    ['K', '1063'],
+                    ['P', authorId || '', relayHint],
+                    ['e', eventId, relayHint, authorId || ''],
+                    ['k', '1063'],
+                    ['p', authorId || '', relayHint]
+                ];
+                
+                const publishFn = (window.parent && window.parent !== window && typeof window.parent.publishNote === 'function')
+                    ? window.parent.publishNote
+                    : (typeof publishNote === 'function' ? publishNote : null);
+                
+                if (!publishFn) {
+                    alert('Publish function not available');
+                    return;
+                }
+                
+                const result = await publishFn(content, tags, 1111, { silent: false });
+                
+                const publishedEvent = result?.event || result;
+                const success = result && (result.success === true || result.id || publishedEvent?.id);
+                
+                if (success) {
+                    input.value = '';
+                    
+                    if (publishedEvent && publishedEvent.id && currentUserPubkey) {
+                        let userName = currentUserPubkey.substring(0, 8) + '...';
+                        const fetchUserMetadataFn = (window.parent && window.parent !== window && typeof window.parent.fetchUserMetadata === 'function')
+                            ? window.parent.fetchUserMetadata
+                            : (typeof fetchUserMetadata !== 'undefined' ? fetchUserMetadata : null);
+                        
+                        if (fetchUserMetadataFn) {
+                            try {
+                                const profile = await fetchUserMetadataFn(currentUserPubkey);
+                                if (profile) {
+                                    userName = profile.display_name || profile.name || userName;
+                                }
+                            } catch (e) {
+                                console.warn('Could not fetch user metadata:', e);
+                            }
+                        }
+                        
+                        const newComment = {
+                            id: publishedEvent.id,
+                            authorId: currentUserPubkey,
+                            authorName: userName,
+                            content: content,
+                            timestamp: null,
+                            isOriginal: false,
+                            created_at: publishedEvent.created_at || Math.floor(Date.now() / 1000),
+                            rawEvent: publishedEvent
+                        };
+                        
+                        if (typeof window.mp3Comments !== 'undefined') {
+                            if (!window.mp3Comments.find(c => c.id === newComment.id)) {
+                                window.mp3Comments.push(newComment);
+                                
+                                const commentsList = document.getElementById('mp3CommentsList');
+                                const commentStats = document.getElementById('mp3CommentStats');
+                                if (typeof displayMP3Comments === 'function') {
+                                    displayMP3Comments(window.mp3Comments, commentStats);
+                                    
+                                    setTimeout(() => {
+                                        if (commentsList) {
+                                            const commentElements = commentsList.querySelectorAll('.mp3-comment-item:not(.original-comment)');
+                                            const lastComment = commentElements[commentElements.length - 1];
+                                            if (lastComment) {
+                                                lastComment.classList.add('live-comment');
+                                                lastComment.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                            }
+                                        }
+                                    }, 100);
+                                }
+                            }
+                        }
+                    }
+                    
+                    const submitBtn = document.getElementById('submitMP3CommentBtn');
+                    const originalText = submitBtn?.textContent || 'Publish';
+                    if (submitBtn) {
+                        submitBtn.textContent = '✅ Published!';
+                        submitBtn.disabled = true;
+                        setTimeout(() => {
+                            submitBtn.textContent = originalText;
+                            submitBtn.disabled = false;
+                        }, 2000);
+                    }
+                } else {
+                    alert('❌ Error publishing comment');
+                }
+            } catch (error) {
+                console.error('Error submitting comment:', error);
+                alert('Error publishing comment: ' + error.message);
+            }
+        }
+
+        /**
+         * Handle like button click
+         */
+        async function handleMP3Like() {
+            const audioPlayer = document.getElementById('mp3AudioPlayer');
+            if (!audioPlayer) {
+                alert('Track not found');
+                return;
+            }
+            
+            const eventId = audioPlayer.getAttribute('data-event-id');
+            const authorId = audioPlayer.getAttribute('data-author-id');
+            
+            if (!eventId) {
+                alert('Track ID not found');
+                return;
+            }
+            
+            if (typeof userPubkey === 'undefined' || !userPubkey) {
+                if (typeof connectNostr === 'function') {
+                    try {
+                        const pubkey = await connectNostr();
+                        if (!pubkey) {
+                            alert('❌ Connection required to like. Please connect with NOSTR.');
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('Error connecting:', error);
+                        alert('❌ Error connecting. Please connect manually.');
+                        return;
+                    }
+                } else {
+                    alert('❌ Connection required to like.');
+                    return;
+                }
+            }
+            
+            if (typeof isNostrConnected !== 'undefined' && !isNostrConnected) {
+                if (typeof connectToRelay === 'function') {
+                    try {
+                        await connectToRelay();
+                    } catch (error) {
+                        console.error('Error connecting to relay:', error);
+                        alert('❌ Error connecting to relay.');
+                        return;
+                    }
+                }
+            }
+            
+            const likeBtn = document.getElementById('mp3LikeBtn');
+            const originalHtml = likeBtn ? likeBtn.innerHTML : '';
+            
+            if (likeBtn) {
+                likeBtn.disabled = true;
+                likeBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+            }
+            
+            try {
+                if (typeof sendLike === 'function') {
+                    const result = await sendLike(eventId, authorId, '+');
+                    if (result) {
+                        if (likeBtn) {
+                            likeBtn.innerHTML = '<i class="bi bi-hand-thumbs-up-fill text-success"></i>';
+                            setTimeout(() => {
+                                likeBtn.innerHTML = originalHtml;
+                                likeBtn.disabled = false;
+                            }, 2000);
+                        }
+                        
+                        const likeCountEl = document.getElementById('likeCount');
+                        if (likeCountEl) {
+                            const currentCount = parseInt(likeCountEl.textContent || '0');
+                            likeCountEl.textContent = currentCount + 1;
+                        }
+                    } else {
+                        throw new Error('Failed to send like');
+                    }
+                } else {
+                    throw new Error('sendLike function not available');
+                }
+            } catch (error) {
+                console.error('Error liking track:', error);
+                alert('Error liking track: ' + error.message);
+                if (likeBtn) {
+                    likeBtn.innerHTML = originalHtml;
+                    likeBtn.disabled = false;
+                }
+            }
+        }
+
+        /**
+         * Handle follow button click
+         */
+        async function handleMP3Follow() {
+            const audioPlayer = document.getElementById('mp3AudioPlayer');
+            if (!audioPlayer) {
+                alert('Track not found');
+                return;
+            }
+            
+            const authorId = audioPlayer.getAttribute('data-author-id');
+            
+            if (!authorId) {
+                alert('Author not found');
+                return;
+            }
+            
+            const followBtn = document.getElementById('mp3FollowBtn');
+            const followText = document.getElementById('mp3FollowText');
+            const originalHtml = followBtn ? followBtn.innerHTML : '';
+            
+            if (followBtn) {
+                followBtn.disabled = true;
+                followBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> ...';
+            }
+            
+            try {
+                if (typeof toggleUserFollow === 'function') {
+                    const result = await toggleUserFollow(authorId, {
+                        silent: false,
+                        onSuccess: (action, newFollowList) => {
+                            if (followBtn && followText) {
+                                if (action === 'follow') {
+                                    followBtn.classList.remove('btn-outline-info');
+                                    followBtn.classList.add('btn-info');
+                                    followText.textContent = 'Following';
+                                    followBtn.innerHTML = '<i class="bi bi-person-check-fill"></i> <span id="mp3FollowText">Following</span>';
+                                } else {
+                                    followBtn.classList.remove('btn-info');
+                                    followBtn.classList.add('btn-outline-info');
+                                    followText.textContent = 'Follow';
+                                    followBtn.innerHTML = '<i class="bi bi-person-plus"></i> <span id="mp3FollowText">Follow</span>';
+                                }
+                                
+                                setTimeout(() => {
+                                    followBtn.disabled = false;
+                                }, 500);
+                            }
+                        },
+                        onError: (error) => {
+                            console.error('Error in toggleUserFollow:', error);
+                            if (followBtn) {
+                                followBtn.innerHTML = originalHtml;
+                                followBtn.disabled = false;
+                            }
+                        }
+                    });
+                    
+                    if (!result || !result.success) {
+                        throw new Error(result?.error || 'Failed to update follow list');
+                    }
+                } else {
+                    throw new Error('toggleUserFollow function not available from common.js');
+                }
+            } catch (error) {
+                console.error('Error following/unfollowing:', error);
+                alert('Error updating: ' + error.message);
+                if (followBtn) {
+                    followBtn.innerHTML = originalHtml;
+                    followBtn.disabled = false;
+                }
+            }
+        }
+
+        /**
+         * Handle share button click
+         */
+        async function handleMP3Share() {
+            const audioPlayer = document.getElementById('mp3AudioPlayer');
+            if (!audioPlayer) {
+                alert('Track not found');
+                return;
+            }
+            
+            const eventId = audioPlayer.getAttribute('data-event-id');
+            const titleEl = document.getElementById('mp3Title');
+            const title = titleEl ? titleEl.textContent : 'Track';
+            
+            // Get current URL
+            const currentUrl = window.location.href;
+            const shareUrl = eventId ? `${window.location.origin}/mp3-modal?track=${eventId}` : currentUrl;
+            
+            // Try Web Share API first
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: title,
+                        text: `Check out this track: ${title}`,
+                        url: shareUrl
+                    });
+                    return;
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        console.warn('Web Share API failed:', error);
+                    } else {
+                        return; // User cancelled
+                    }
+                }
+            }
+            
+            // Fallback: copy to clipboard
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                alert('Link copied to clipboard!');
+            } catch (error) {
+                console.error('Error copying to clipboard:', error);
+                // Final fallback: show URL
+                prompt('Share this link:', shareUrl);
+            }
+        }
+
+        /**
+         * Get NOSTR variables from parent or current window
+         */
+        function getNostrVariables() {
+            let parentUserPubkey = null;
+            let parentNostrRelay = null;
+            let parentIsNostrConnected = false;
+            
+            if (window.parent && window.parent !== window) {
+                try {
+                    parentUserPubkey = window.parent.userPubkey || window.parent.window?.userPubkey;
+                    parentNostrRelay = window.parent.nostrRelay || window.parent.window?.nostrRelay;
+                    parentIsNostrConnected = window.parent.isNostrConnected || window.parent.window?.isNostrConnected || false;
+                } catch (e) {
+                    console.warn('⚠️ Could not access parent window variables:', e);
+                }
+            }
+            
+            return {
+                userPubkey: parentUserPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null),
+                nostrRelay: parentNostrRelay || (typeof nostrRelay !== 'undefined' ? nostrRelay : null),
+                isNostrConnected: parentIsNostrConnected || (typeof isNostrConnected !== 'undefined' ? isNostrConnected : false)
+            };
+        }
+
+        /**
+         * Update follow button status
+         */
+        async function updateMP3FollowButtonStatus(authorId) {
+            const followBtn = document.getElementById('mp3FollowBtn');
+            const followText = document.getElementById('mp3FollowText');
+            
+            if (!followBtn || !authorId) return;
+            
+            if (typeof userPubkey === 'undefined' || !userPubkey || userPubkey === authorId) {
+                followBtn.style.display = 'none';
+                return;
+            }
+            
+            followBtn.style.display = 'inline-block';
+            followBtn.classList.remove('btn-info');
+            followBtn.classList.add('btn-outline-info');
+            if (followText) {
+                followText.textContent = 'Follow';
+            }
+            
+            try {
+                const currentRelay = window.nostrRelay || nostrRelay;
+                if (currentRelay && typeof currentRelay.sub === 'function') {
+                    const followListPromise = new Promise((resolve) => {
+                        const sub = currentRelay.sub([{
+                            kinds: [3],
+                            authors: [userPubkey],
+                            limit: 1
+                        }]);
+                        
+                        let followEvent = null;
+                        
+                        sub.on('event', (event) => {
+                            followEvent = event;
+                        });
+                        
+                        sub.on('eose', () => {
+                            sub.unsub();
+                            resolve(followEvent);
+                        });
+                        
+                        setTimeout(() => {
+                            sub.unsub();
+                            resolve(followEvent);
+                        }, 2000);
+                    });
+                    
+                    const followEvent = await followListPromise;
+                    
+                    if (followEvent && followEvent.tags) {
+                        const followList = followEvent.tags
+                            .filter(tag => tag[0] === 'p' && tag[1])
+                            .map(tag => tag[1]);
+                        
+                        const isFollowing = followList.includes(authorId);
+                        
+                        if (isFollowing) {
+                            followBtn.classList.remove('btn-outline-info');
+                            followBtn.classList.add('btn-info');
+                            if (followText) {
+                                followText.textContent = 'Following';
+                            }
+                            followBtn.innerHTML = '<i class="bi bi-person-check-fill"></i> <span id="mp3FollowText">Following</span>';
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not check follow status:', error);
+            }
+        }
+
+        /**
+         * Load track author information
+         */
+        async function loadMP3Author(authorId, artistName) {
+            const artistContainer = document.getElementById('mp3ArtistContainer');
+            if (!artistContainer) return;
+            
+            const artistEl = document.getElementById('mp3Artist');
+            let displayName = artistName || 'Unknown Artist';
+            
+            if (artistEl) {
+                const existingName = artistEl.textContent || artistEl.innerText;
+                if (existingName && existingName !== 'Loading...' && existingName.trim()) {
+                    displayName = existingName.trim();
+                }
+            }
+            
+            const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : (text) => {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
+            
+            if (authorId) {
+                const link = document.createElement('a');
+                link.href = '#';
+                link.className = 'mp3-uploader-link';
+                link.textContent = displayName;
+                link.onclick = function(e) {
+                    e.preventDefault();
+                    openProfileModalInMP3(authorId, displayName);
+                    return false;
+                };
+                artistContainer.innerHTML = '';
+                artistContainer.appendChild(link);
+                
+                if (artistEl && artistEl !== artistContainer) {
+                    artistEl.textContent = displayName;
+                }
+                
+                updateMP3FollowButtonStatus(authorId);
+                
+                try {
+                    if (typeof fetchUserMetadata !== 'undefined') {
+                        const profile = await Promise.race([
+                            fetchUserMetadata(authorId),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+                        ]);
+                        if (profile) {
+                            let newDisplayName = displayName;
+                            if (profile.display_name) {
+                                newDisplayName = profile.display_name;
+                            } else if (profile.name) {
+                                newDisplayName = profile.name;
+                            }
+                            
+                            if (newDisplayName !== displayName) {
+                                displayName = newDisplayName;
+                                link.textContent = displayName;
+                                if (artistEl && artistEl !== artistContainer) {
+                                    artistEl.textContent = displayName;
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Could not fetch author profile:', error);
+                }
+            } else {
+                artistContainer.innerHTML = `<strong>${escapeFn(displayName)}</strong>`;
+                if (artistEl && artistEl !== artistContainer) {
+                    artistEl.textContent = displayName;
+                }
+            }
+        }
+
+        /**
+         * Open profile modal
+         */
+        async function openProfileModalInMP3(authorId, userName = 'Profile') {
+            let ipfsGateway = '';
+            if (window.IPFS_GATEWAY) {
+                ipfsGateway = window.IPFS_GATEWAY;
+            } else if (typeof detectIPFSGatewayGlobal === 'function') {
+                detectIPFSGatewayGlobal();
+                ipfsGateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+            } else {
+                const currentURL = new URL(window.location.href);
+                const hostname = currentURL.hostname;
+                if (hostname === '127.0.0.1' || hostname === 'localhost') {
+                    ipfsGateway = 'http://127.0.0.1:8080';
+                } else if (hostname.startsWith('u.')) {
+                    const baseDomain = hostname.substring('u.'.length);
+                    ipfsGateway = `${currentURL.protocol}//ipfs.${baseDomain}`;
+                } else {
+                    ipfsGateway = 'https://ipfs.copylaradio.com';
+                }
+            }
+            
+            const profileUrl = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${authorId}`;
+            
+            let modal = document.getElementById('iframe-modal');
+            if (!modal && typeof window.parent !== 'undefined' && window.parent.document) {
+                modal = window.parent.document.getElementById('iframe-modal');
+            }
+            
+            if (modal) {
+                const iframe = modal.querySelector('#iframe-modal-iframe') || modal.querySelector('iframe');
+                const titleEl = modal.querySelector('#iframe-modal-title') || modal.querySelector('h3');
+                const openNewBtn = modal.querySelector('#iframe-modal-open-new');
+                
+                if (iframe) {
+                    if (iframe.dataset) {
+                        iframe.dataset.currentUrl = profileUrl;
+                    } else {
+                        iframe.setAttribute('data-current-url', profileUrl);
+                    }
+                    iframe.src = profileUrl;
+                }
+                if (titleEl) {
+                    titleEl.textContent = `👤 ${userName}`;
+                }
+                
+                if (openNewBtn) {
+                    openNewBtn.style.display = 'flex';
+                }
+                
+                modal.style.zIndex = '10002';
+                modal.style.display = 'flex';
+                
+                const body = modal.ownerDocument.body;
+                if (body) {
+                    body.style.overflow = 'hidden';
+                }
+            } else if (typeof openProfileModal !== 'undefined') {
+                openProfileModal(authorId, userName);
+            } else if (typeof window.parent !== 'undefined' && typeof window.parent.openProfileModal === 'function') {
+                window.parent.openProfileModal(authorId, userName);
+            } else {
+                window.open(profileUrl, '_blank');
+            }
+        }
+
+        // Initialize Bootstrap tooltips and event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize tooltips
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+            
+            // Attach event listeners to buttons
+            const likeBtn = document.getElementById('mp3LikeBtn');
+            if (likeBtn) {
+                likeBtn.addEventListener('click', handleMP3Like);
+            }
+            
+            const followBtn = document.getElementById('mp3FollowBtn');
+            if (followBtn) {
+                followBtn.addEventListener('click', handleMP3Follow);
+            }
+            
+            const shareBtn = document.getElementById('mp3ShareBtn');
+            if (shareBtn) {
+                shareBtn.addEventListener('click', handleMP3Share);
+            }
+            
+            const submitCommentBtn = document.getElementById('submitMP3CommentBtn');
+            if (submitCommentBtn) {
+                submitCommentBtn.addEventListener('click', submitMP3Comment);
+            }
+        });
+
+        /**
+         * Initialize NOSTR connection for standalone mode
+         */
+        async function initNostrConnectionStandalone() {
+            const isInIframe = window.self !== window.top;
+            
+            if (isInIframe && window.parent && window.parent !== window) {
+                try {
+                    if (window.parent.userPubkey) {
+                        userPubkey = window.parent.userPubkey;
+                        nostrRelay = window.parent.nostrRelay || null;
+                        isNostrConnected = window.parent.isNostrConnected || false;
+                        
+                        if (typeof window !== 'undefined') {
+                            window.userPubkey = userPubkey;
+                            window.nostrRelay = nostrRelay;
+                            window.isNostrConnected = isNostrConnected;
+                        }
+                        
+                        console.log('[MP3-MODAL] ✅ Using connection from parent window');
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('[MP3-MODAL] ⚠️ Could not access parent window variables:', e);
+                }
+            }
+            
+            if (!nostrRelay || !isNostrConnected) {
+                console.log('[MP3-MODAL] 🔌 Standalone mode - connecting to relay (anonymous)...');
+                
+                try {
+                    if (typeof connectToRelay === 'function') {
+                        nostrRelay = await connectToRelay(false);
+                        isNostrConnected = nostrRelay !== null;
+                        if (nostrRelay && typeof window !== 'undefined') {
+                            window.nostrRelay = nostrRelay;
+                            window.isNostrConnected = isNostrConnected;
+                        }
+                        console.log('[MP3-MODAL] ✅ Connected to relay (anonymous mode)');
+                    }
+                } catch (error) {
+                    console.error('[MP3-MODAL] ❌ Error connecting to relay:', error);
+                }
+            }
+        }
+        
+        // Initialize NOSTR connection on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            await initNostrConnectionStandalone();
+        });
+        
+        // Initialize modal if trackData is passed
+        if (window.trackData) {
+            initializeMP3Modal(window.trackData);
+        }
+        
+        // Check if track parameter is in URL and load it automatically
+        const urlParams = new URLSearchParams(window.location.search);
+        const trackId = urlParams.get('track') || '{{ track_id if track_id else "" }}';
+        
+        if (trackId && !window.trackData) {
+            console.log('🎵 Loading track from URL parameter:', trackId);
+            loadTrackFromEventId(trackId).then(track => {
+                if (track) {
+                    initializeMP3Modal(track);
+                }
+            }).catch(error => {
+                console.error('Error loading track:', error);
+                document.getElementById('mp3Title').textContent = 'Error loading track';
+            });
+        }
+        
+        // Listen for close messages from parent
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'close-mp3-modal') {
+                handleCloseMP3Modal();
+            }
+        });
+        
+        // Listen for ESC key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                handleCloseMP3Modal();
+            }
+        });
+
+        // Expose functions globally
+        window.handleCloseMP3Modal = handleCloseMP3Modal;
+        window.switchMP3Tab = switchMP3Tab;
+        window.initializeMP3Modal = initializeMP3Modal;
+        window.loadMP3Comments = loadMP3Comments;
+        window.displayMP3Comments = displayMP3Comments;
+        window.toggleMP3ReplyForm = toggleMP3ReplyForm;
+        window.submitMP3Reply = submitMP3Reply;
+        window.submitMP3Comment = submitMP3Comment;
+        window.handleMP3Like = handleMP3Like;
+        window.handleMP3Follow = handleMP3Follow;
+        window.handleMP3Share = handleMP3Share;
+        window.searchRelatedTracks = searchRelatedTracks;
+        window.openRelatedTrack = openRelatedTrack;
+        window.linkRelatedTrack = linkRelatedTrack;
+        window.loadTrackFromEventId = loadTrackFromEventId;
+        window.openProfileModalInMP3 = openProfileModalInMP3;
+    </script>
+</body>
+</html>
+
