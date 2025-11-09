@@ -2553,7 +2553,18 @@ async def youtube_route(
                 'message_id': video.get('message_id', ''),
                 'author_id': video.get('author_id', ''),
                 'latitude': video.get('latitude'),  # GPS coordinates
-                'longitude': video.get('longitude')  # GPS coordinates
+                'longitude': video.get('longitude'),  # GPS coordinates
+                # Provenance and compliance information
+                'provenance': video.get('provenance', 'unknown'),  # Provenance: youtube_download, video_channel, webcam, etc.
+                'source_type': video.get('source_type', 'webcam'),  # Source type: youtube, webcam, film, serie
+                'compliance': video.get('compliance', {}),  # Compliance check with UPlanet_FILE_CONTRACT.md
+                'compliance_score': video.get('compliance_score', 0),  # Number of compliant fields
+                'compliance_percent': video.get('compliance_percent', 0),  # Percentage of compliance
+                'is_compliant': video.get('is_compliant', False),  # Boolean indicating if video is compliant (>=80%)
+                'file_hash': video.get('file_hash', ''),  # File hash for provenance tracking
+                'info_cid': video.get('info_cid', ''),  # Info.json CID
+                'upload_chain': video.get('upload_chain', ''),  # Upload chain for provenance
+                'upload_chain_list': video.get('upload_chain_list', [])  # Parsed upload chain list
             }
             validated_videos.append(normalized_video)
         
@@ -3076,7 +3087,8 @@ async def process_webcam_video(
     description: str = Form(default=""),  # Video description (optional)
     publish_nostr: str = Form(default="false"),  # Publish to NOSTR (default: false)
     latitude: str = Form(default=""),  # Geographic latitude (optional)
-    longitude: str = Form(default="")  # Geographic longitude (optional)
+    longitude: str = Form(default=""),  # Geographic longitude (optional)
+    youtube_url: str = Form(default="")  # YouTube URL (optional, for source:youtube tag)
 ):
     """
     Process webcam video and publish to NOSTR as NIP-71 video event
@@ -3395,6 +3407,11 @@ async def process_webcam_video(
                     "--channel", player
                 ])
                 
+                # Add YouTube URL if provided (for source:youtube tag)
+                if youtube_url:
+                    publish_cmd.extend(["--youtube-url", youtube_url])
+                    logging.info(f"📺 YouTube URL: {youtube_url}")
+                
                 logging.info(f"🚀 Executing unified NOSTR publish script...")
                 logging.info(f"📝 Title: {title}")
                 logging.info(f"⏱️  Duration: {duration}s")
@@ -3440,7 +3457,7 @@ async def process_webcam_video(
                         logging.warning(f"⚠️ Failed to parse JSON output: {json_err}")
                         logging.info(f"📤 Script output: {publish_result.stdout}")
                         # Try to extract event ID from output using regex (more robust)
-                        import re
+                        # Note: re is already imported globally at line 34
                         event_id_match = re.search(r'"event_id"\s*:\s*"([a-f0-9]{64})"', publish_result.stdout)
                         if event_id_match:
                             nostr_event_id = event_id_match.group(1)
