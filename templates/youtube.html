@@ -873,6 +873,20 @@
             font-style: italic;
         }
         
+        .video-tags .tags-empty.btn {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-color: #666;
+            color: #666;
+            font-style: normal;
+        }
+        
+        .video-tags .tags-empty.btn:hover {
+            border-color: #888;
+            color: #888;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        
         .video-actions {
             display: flex;
             gap: 8px;
@@ -5014,10 +5028,15 @@
             
             if (!nostrRelay) {
                 console.warn('NOSTR relay not available for tags');
-                // Hide loading indicators
+                // Hide loading indicators and show +tags button
                 document.querySelectorAll('.video-tags .tags-loading').forEach(el => {
                     el.textContent = '';
-                    el.parentElement.innerHTML = '<span class="tags-empty">Aucun tag</span>';
+                    const eventId = el.parentElement.getAttribute('data-event-id');
+                    if (eventId) {
+                        el.parentElement.innerHTML = `<button class="btn btn-sm btn-outline-secondary tags-empty" onclick="window.open('/tags?video=${eventId}', '_blank')" title="Ajouter des tags">+ tags...</button>`;
+                    } else {
+                        el.parentElement.innerHTML = '<span class="tags-empty">Aucun tag</span>';
+                    }
                 });
                 return;
             }
@@ -5122,11 +5141,21 @@
                                 return `<span class="tag-badge" onclick="searchByTag('${escapedTag}')" title="Cliquer pour rechercher les vidéos avec ce tag: ${escapedTag}">${escapedTag}</span>`;
                             }).join('');
                         } else {
-                            tagContainer.innerHTML = '<span class="tags-empty">Aucun tag</span>';
+                            // Show +tags button instead of "Aucun tag"
+                            if (eventId) {
+                                tagContainer.innerHTML = `<button class="btn btn-sm btn-outline-secondary tags-empty" onclick="window.open('/tags?video=${eventId}', '_blank')" title="Ajouter des tags">+ tags...</button>`;
+                            } else {
+                                tagContainer.innerHTML = '<span class="tags-empty">Aucun tag</span>';
+                            }
                         }
                     } catch (error) {
                         console.error('Error loading tags for video:', eventId, error);
-                        tagContainer.innerHTML = '<span class="tags-empty">Erreur de chargement</span>';
+                        // Show +tags button on error as well
+                        if (eventId) {
+                            tagContainer.innerHTML = `<button class="btn btn-sm btn-outline-secondary tags-empty" onclick="window.open('/tags?video=${eventId}', '_blank')" title="Ajouter des tags">+ tags...</button>`;
+                        } else {
+                            tagContainer.innerHTML = '<span class="tags-empty">Erreur de chargement</span>';
+                        }
                     }
                 }));
                 
