@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>☁️ Cloud Drive - NOSTR File Manager</title>
+    
+    <!-- Nostr integration -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    <!-- Common.js with NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    <!-- YouTube enhancements (for loadInfoJsonMetadata function) -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.js"></script>
+    <!-- Cloud enhancements -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/cloud.enhancements.js"></script>
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/cloud.enhancements.css" />
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Roboto', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8f9fa;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .cloud-container {
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div class="cloud-container">
+        <!-- Header -->
+        <div class="cloud-header">
+            <div class="cloud-header-content">
+                <div class="cloud-header-left">
+                    <div class="cloud-logo">
+                        <i class="bi bi-cloud-fill"></i>
+                        <span>Cloud Drive</span>
+                    </div>
+                    <div class="cloud-search">
+                        <i class="bi bi-search"></i>
+                        <input 
+                            type="text" 
+                            id="cloudSearchInput" 
+                            class="form-control" 
+                            placeholder="Search files..."
+                            autocomplete="off">
+                    </div>
+                </div>
+                <div class="cloud-header-right">
+                    <a href="/upload" class="btn btn-primary">
+                        <i class="bi bi-cloud-upload"></i> Upload
+                    </a>
+                    <button class="btn btn-outline-secondary" onclick="window.fetchCloudFiles()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Selection Info Bar -->
+        <div class="cloud-selection-info" id="selectionInfo" style="display: none;">
+            <span id="selectionCount">0 files selected</span>
+            <div class="cloud-selection-actions">
+                <button class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-trash"></i> Delete
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="window.clearSelection()">
+                    Clear
+                </button>
+            </div>
+        </div>
+        
+        <!-- Toolbar -->
+        <div class="cloud-toolbar">
+            <div class="cloud-toolbar-left">
+                <div class="cloud-filter-group">
+                    <button class="cloud-filter-btn active" data-filter="all" onclick="window.setFilter('all')">
+                        <i class="bi bi-grid-3x3-gap"></i> All
+                    </button>
+                    <button class="cloud-filter-btn" data-filter="video" onclick="window.setFilter('video')">
+                        <i class="bi bi-play-circle"></i> Videos
+                    </button>
+                    <button class="cloud-filter-btn" data-filter="audio" onclick="window.setFilter('audio')">
+                        <i class="bi bi-music-note-beamed"></i> Audio
+                    </button>
+                    <button class="cloud-filter-btn" data-filter="image" onclick="window.setFilter('image')">
+                        <i class="bi bi-image"></i> Images
+                    </button>
+                    <button class="cloud-filter-btn" data-filter="document" onclick="window.setFilter('document')">
+                        <i class="bi bi-file-text"></i> Documents
+                    </button>
+                    <button class="cloud-filter-btn" data-filter="other" onclick="window.setFilter('other')">
+                        <i class="bi bi-file-earmark"></i> Other
+                    </button>
+                </div>
+            </div>
+            <div class="cloud-toolbar-right">
+                <div class="cloud-sort-dropdown">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-sort-down"></i> Sort
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item cloud-sort-btn" href="#" data-sort="date" data-order="desc" onclick="window.setSort('date', 'desc'); return false;">
+                                    <i class="bi bi-calendar-event"></i> Date (newest)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item cloud-sort-btn" href="#" data-sort="date" data-order="asc" onclick="window.setSort('date', 'asc'); return false;">
+                                    <i class="bi bi-calendar-event"></i> Date (oldest)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item cloud-sort-btn" href="#" data-sort="name" data-order="asc" onclick="window.setSort('name', 'asc'); return false;">
+                                    <i class="bi bi-sort-alpha-down"></i> Name (A-Z)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item cloud-sort-btn" href="#" data-sort="name" data-order="desc" onclick="window.setSort('name', 'desc'); return false;">
+                                    <i class="bi bi-sort-alpha-up"></i> Name (Z-A)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item cloud-sort-btn" href="#" data-sort="size" data-order="desc" onclick="window.setSort('size', 'desc'); return false;">
+                                    <i class="bi bi-sort-numeric-down"></i> Size (largest)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item cloud-sort-btn" href="#" data-sort="size" data-order="asc" onclick="window.setSort('size', 'asc'); return false;">
+                                    <i class="bi bi-sort-numeric-up"></i> Size (smallest)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item cloud-sort-btn" href="#" data-sort="type" data-order="asc" onclick="window.setSort('type', 'asc'); return false;">
+                                    <i class="bi bi-folder"></i> Type
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="cloud-view-group">
+                    <button 
+                        id="viewGridBtn" 
+                        class="cloud-view-btn active" 
+                        onclick="window.setViewMode('grid')"
+                        title="Grid view">
+                        <i class="bi bi-grid-3x3-gap-fill"></i>
+                    </button>
+                    <button 
+                        id="viewListBtn" 
+                        class="cloud-view-btn" 
+                        onclick="window.setViewMode('list')"
+                        title="List view">
+                        <i class="bi bi-list-ul"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Files Container -->
+        <div id="cloudFilesContainer" class="cloud-files-grid">
+            <div class="cloud-loading-state">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3">Loading files...</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global functions for onclick handlers
+        // These will be available after cloud.enhancements.js loads
+        window.setFilter = function(filter) {
+            if (typeof setFilter === 'function') {
+                setFilter(filter);
+            } else {
+                console.warn('[CLOUD] setFilter not yet available');
+            }
+        };
+        
+        window.setSort = function(sort, order) {
+            if (typeof setSort === 'function') {
+                setSort(sort, order);
+            } else {
+                console.warn('[CLOUD] setSort not yet available');
+            }
+        };
+        
+        window.setViewMode = function(mode) {
+            if (typeof setViewMode === 'function') {
+                setViewMode(mode);
+            } else {
+                console.warn('[CLOUD] setViewMode not yet available');
+            }
+        };
+        
+        window.clearSelection = function() {
+            if (typeof selectedFiles !== 'undefined') {
+                selectedFiles.clear();
+                document.querySelectorAll('.file-checkbox').forEach(cb => cb.checked = false);
+                if (typeof updateSelectionState === 'function') {
+                    updateSelectionState();
+                }
+            }
+        };
+        
+        // Expose functions globally after they're defined
+        window.addEventListener('load', () => {
+            if (typeof fetchCloudFiles !== 'undefined') {
+                window.fetchCloudFiles = fetchCloudFiles;
+            }
+            if (typeof openFilePreview !== 'undefined') {
+                window.openFilePreview = openFilePreview;
+            }
+        });
+    </script>
+</body>
+</html>
+

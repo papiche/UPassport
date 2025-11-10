@@ -2491,6 +2491,14 @@ async def audio_route(request: Request):
     """Redirect to /mp3?html=1"""
     return RedirectResponse(url="/mp3?html=1", status_code=302)
 
+@app.get("/cloud", response_class=HTMLResponse)
+async def cloud_route(request: Request):
+    """Cloud Drive - Professional file management interface"""
+    return templates.TemplateResponse("cloud.html", {
+        "request": request,
+        "myIPFS": get_myipfs_gateway()
+    })
+
 @app.get("/youtube")
 async def youtube_route(
     request: Request, 

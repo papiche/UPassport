@@ -2557,7 +2557,7 @@
             if (videoData.info_cid) {
                 hasProvenance = true;
                 const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
-                const infoUrl = `${gateway}/ipfs/${videoData.info_cid}/info.json`;
+                const infoUrl = `${gateway}/ipfs/${videoData.info_cid}`;
                 linksHtml += `
                     <a href="${infoUrl}" target="_blank" class="btn btn-sm btn-outline-info" title="Métadonnées complètes">
                         <i class="bi bi-file-earmark-code"></i> info.json
