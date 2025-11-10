@@ -2309,6 +2309,9 @@
                 <div class="no-results">
                     <h3>🔍 Aucune vidéo trouvée</h3>
                     <p>Vérifiez la connexion au relay NOSTR ou ajoutez des vidéos via <a href="#" onclick="event.preventDefault(); openWebcamModal(); return false;" style="color: #3ea6ff; cursor: pointer;">📹 Webcam</a>.</p>
+                    <button class="btn btn-primary mt-3" onclick="openWebcamModal()" style="padding: 10px 20px; font-size: 1rem;">
+                        <i class="bi bi-camera-video-fill"></i> Ouvrir
+                    </button>
                 </div>
                 {% endif %}
             </div>
@@ -5880,10 +5883,21 @@
         }
         
         /**
-         * Open webcam recorder in modal
+         * Open webcam recorder in modal or standalone (on mobile)
+         * @param {boolean} forceStandalone - Force opening in standalone window instead of modal
          */
-        function openWebcamModal() {
-            openIframeModal('/webcam', '📹 Video Recorder');
+        function openWebcamModal(forceStandalone = false) {
+            // Detect mobile device
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                            (window.innerWidth <= 768);
+            
+            // On mobile or if forced, open in standalone window (better camera permissions)
+            if (isMobile || forceStandalone) {
+                window.open('/webcam', '_blank', 'noopener,noreferrer');
+            } else {
+                // On desktop, open in modal
+                openIframeModal('/webcam', '📹 Video Recorder');
+            }
         }
         
         /**
@@ -5924,9 +5938,9 @@
             }
             
             // Show/hide "Open in new window" button based on URL type
-            // Only show for profile viewer (nostr_profile_viewer.html)
+            // Show for profile viewer and webcam (better camera permissions in standalone)
             if (openNewBtn) {
-                if (url && url.includes('nostr_profile_viewer.html')) {
+                if (url && (url.includes('nostr_profile_viewer.html') || url.includes('/webcam') || url.startsWith('/webcam'))) {
                     openNewBtn.style.display = 'inline-block';
                 } else {
                     openNewBtn.style.display = 'none';

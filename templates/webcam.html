@@ -182,6 +182,15 @@
             background: #0f0f0f;
         }
         
+        /* Compact layout for webcam section */
+        #webcam-section {
+            max-height: calc(100vh - 100px);
+        }
+        
+        #webcam-section .card-body {
+            overflow-y: auto;
+        }
+        
         /* Webcam Section - Using Bootstrap utilities */
         .webcam-section {
             background: #181818;
@@ -207,13 +216,23 @@
             max-width: 100%;
             height: auto;
             aspect-ratio: 16/9;
-            max-height: 40vh;
+            max-height: 25vh;
             border: 2px solid #3f3f3f;
             border-radius: 12px;
             margin: 10px auto;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             background: #000;
-            object-fit: cover;
+            object-fit: contain;
+            transition: all 0.3s ease;
+        }
+        
+        /* Video preview container - fixed height to prevent layout shift */
+        #video-preview-container {
+            min-height: 25vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: min-height 0.3s ease;
         }
         
         #timer {
@@ -318,9 +337,7 @@
             box-shadow: none;
         }
         
-        .hidden {
-            display: none;
-        }
+        /* .hidden replaced by Bootstrap .d-none */
         
         /* Video upload section - YouTube style */
         .video-upload-section {
@@ -364,77 +381,8 @@
             font-size: 0.85em;
         }
         
-        /* Modal Styles - YouTube theme */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.95);
-            backdrop-filter: blur(5px);
-            overflow-y: auto;
-        }
-        
-        .modal.active {
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            padding: 10px;
-        }
-        
-        .modal-content {
-            background: #181818;
-            border: 1px solid #3f3f3f;
-            border-radius: 12px;
-            padding: 24px;
-            max-width: 800px;
-            width: 100%;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
-            position: relative;
-            margin-top: 10px;
-        }
-        
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .modal-header h2 {
-            color: #ffffff;
-            margin: 0;
-            font-size: 1.5em;
-            font-weight: 500;
-        }
-        
-        .close-modal {
-            background: none;
-            border: none;
-            color: #94a3b8;
-            font-size: 1.5em;
-            cursor: pointer;
-            padding: 0;
-            width: 35px;
-            height: 35px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            transition: all 0.3s ease;
-        }
-        
-        .close-modal:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: #ef4444;
-        }
+        /* Modal Styles - Now using Bootstrap Modal */
+        /* Removed custom modal styles to avoid conflicts with Bootstrap */
         
         .modal-video-preview {
             width: 100%;
@@ -1044,33 +992,24 @@
             }
         }
         
-        /* Central Connection Button */
-        .central-connection {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 70vh;
-            padding: 40px;
-            text-align: center;
+        /* Central Connection Page - Full screen overlay */
+        #central-connection {
+            background: rgba(15, 15, 15, 0.98);
+            backdrop-filter: blur(10px);
         }
         
-        .central-connection.hidden {
-            display: none;
+        /* Compact header when connected */
+        header.compact-header {
+            padding: 0.5rem 1rem;
         }
         
-        .central-connection-title {
-            font-size: 2.5em;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #ffffff;
+        header.compact-header h1 {
+            font-size: 1rem;
         }
         
-        .central-connection-subtitle {
-            font-size: 1.2em;
-            color: #94a3b8;
-            margin-bottom: 40px;
-            max-width: 600px;
+        header.compact-header .btn {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.75rem;
         }
         
         .central-connect-btn {
@@ -1144,9 +1083,20 @@
                 min-width: 70px;
             }
             
-            button {
-                padding: 7px 14px;
-                font-size: 11px;
+            /* Compact buttons on small screens */
+            #select-camera-btn,
+            #apply-camera-btn,
+            #start-recording,
+            #stop-recording,
+            .btn-group-sm .btn {
+                padding: 0.25rem 0.5rem;
+                font-size: 0.75rem;
+                line-height: 1.2;
+            }
+            
+            button:not(.btn-sm):not(.btn-lg) {
+                padding: 0.375rem 0.75rem;
+                font-size: 0.875rem;
             }
             
             .modal-video-preview {
@@ -1190,187 +1140,247 @@
         }
     </style>
 </head>
-<body>
+<body class="bg-dark text-white">
     <!-- Header with Connection Status -->
-    <div class="header">
-        <div class="header-left">
-            <h1>▶️ Multimedia Recorder</h1>
-            <a href="/youtube?html=1" class="youtube-link">
-                <span>📺</span>
-                <span>View on NostrTube</span>
-            </a>
-            <a href="/mp3?html=1" class="nostrify-link">
-                <span>📺</span>
-                <span>Listen on Nostrify</span>
-            </a>
+    <header class="header bg-dark border-bottom border-secondary sticky-top" id="main-header" style="--header-height: 80px;">
+        <div class="container-fluid">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 py-2">
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <h1 class="h4 mb-0 text-white d-flex align-items-center gap-2">
+                        ▶️ Multimedia Recorder
+                    </h1>
+                    <a href="/youtube?html=1" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2">
+                        <span>🎥</span>
+                        <span>📺 NostrTube</span>
+                    </a>
+                    <a href="/mp3?html=1" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2">
+                        <span>🎵</span>
+                        <span>🎧 Nostrify</span>
+                    </a>
+                </div>
+                
+                <!-- NOSTR Connection Status -->
+                <div class="d-flex align-items-center gap-2 flex-wrap" id="nostr-header">
+                    <button id="connect-btn" class="btn btn-primary btn-sm" onclick="handleNostrConnect()">
+                        🔌 Connect
+                    </button>
+                    <button id="verify-auth-btn" class="btn btn-outline-secondary btn-sm d-none" onclick="handleVerifyAuth()" title="Required for uDRIVE upload">
+                        🔐 Auth for Upload
+                    </button>
+                </div>
+            </div>
         </div>
-        
-        <!-- NOSTR Connection Status -->
-        <div class="nostr-header" id="nostr-header">
-            <span class="auth-status" id="auth-status">⚫ Not connected</span>
-            <button id="connect-btn" class="btn-primary" onclick="handleNostrConnect()">
-                🔌 Connect
+    </header>
+    
+    <!-- Central Connection Page (covers full screen when visible) -->
+    <div class="d-none position-fixed top-0 start-0 w-100 h-100 bg-dark d-flex align-items-center justify-content-center z-index-1050" id="central-connection" style="z-index: 1050;">
+        <div class="text-center px-3">
+            <h2 class="h2 text-white mb-3">▶️ Multimedia Recorder</h2>
+            <p class="text-secondary mb-4">
+                Connect to NOSTR to start recording and publishing your audios/videos on UPlanet
+            </p>
+            <button class="btn btn-primary btn-lg mb-3" onclick="handleNostrConnect()">
+                🔌 Connect with NOSTR Extension
             </button>
-            <button id="verify-auth-btn" class="btn-secondary hidden" onclick="handleVerifyAuth()" title="Required for uDRIVE upload">
-                🔐 Auth for Upload
-            </button>
+            <p class="text-secondary small">
+                You'll need a NOSTR browser extension filled with your UPlanet <a href="/g1" class="text-success text-decoration-underline">MULTIPASS nsec key</a>
+            </p>
         </div>
     </div>
     
     <!-- Main Container - Centered -->
-    <div class="main-container">
-        <!-- Central Connection Button (hidden by default, shown only if needed) -->
-        <div class="central-connection hidden" id="central-connection">
-            <h2 class="central-connection-title">▶️ Multimedia Recorder</h2>
-            <p class="central-connection-subtitle">
-                Connect to NOSTR to start recording and publishing your audios/videos on UPlanet
-            </p>
-            <button class="central-connect-btn" onclick="handleNostrConnect()">
-                🔌 Connect with NOSTR Extension
-            </button>
-            <p style="color: #94a3b8; margin-top: 20px; font-size: 0.9em;">
-                You'll need a NOSTR browser extension filled with your UPlanet <a href="/g1" style="color: #4ade80; text-decoration: underline;">MULTIPASS nsec key</a>
-            </p>
-        </div>
-        
+    <main class="container-fluid py-2" id="main-content" style="height: calc(100vh - var(--header-height, 80px)); overflow: hidden;">
         <!-- Webcam Recording Section (shown by default) -->
-        <div class="webcam-section" id="webcam-section">
-            <h2 class="webcam-title" id="webcam-title">🎥 Record Video</h2>
-            
-            <!-- Camera Controls -->
-            <div class="camera-controls">
-                <button type="button" id="select-camera-btn" class="btn-secondary">📷 Select Camera</button>
-            </div>
-            
-            <!-- Camera Selector (hidden by default) -->
-            <div class="camera-selector" id="camera-selector">
-                <select id="camera-select">
-                    <option value="">Select camera...</option>
-                </select>
-                <button type="button" id="apply-camera-btn" class="btn-primary">✓ Apply</button>
-            </div>
+        <div class="row justify-content-center h-100 g-0">
+            <div class="col-12 col-lg-10 col-xl-8 d-flex flex-column h-100">
+                <div class="card bg-dark border-secondary shadow-lg flex-grow-1 d-flex flex-column h-100" id="webcam-section" style="min-height: 0;">
+                    <div class="card-body p-2 p-sm-3 d-flex flex-column flex-grow-1" style="min-height: 0; overflow-y: auto;">
+                        <h2 class="card-title text-center text-white mb-2 small" id="webcam-title">🎥 Record Video</h2>
+                        
+                        <!-- Camera Controls -->
+                        <div class="d-flex justify-content-center mb-1">
+                            <button type="button" id="select-camera-btn" class="btn btn-outline-secondary btn-sm">
+                                <span class="d-none d-sm-inline">📷 Select Camera</span>
+                                <span class="d-sm-none">📷 Camera</span>
+                            </button>
+                        </div>
+                        
+                        <!-- Camera Selector (hidden by default) -->
+                        <div class="d-none mb-1" id="camera-selector">
+                            <div class="row g-1 align-items-end">
+                                <div class="col">
+                                    <select id="camera-select" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                        <option value="">Select camera...</option>
+                                    </select>
+                                </div>
+                                <div class="col-auto">
+                                    <button type="button" id="apply-camera-btn" class="btn btn-primary btn-sm">
+                                        ✓ Apply
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
-    <video id="video-preview" autoplay muted></video>
+                        <div class="text-center mb-1 flex-shrink-0 position-relative" id="video-preview-container" style="min-height: 25vh; display: flex; align-items: center; justify-content: center;">
+                            <video id="video-preview" class="rounded border border-secondary" autoplay muted style="max-height: 25vh; width: 100%; object-fit: contain; background: #000; transition: all 0.3s ease;"></video>
+                            <div id="timer" class="d-none position-absolute top-50 start-50 translate-middle fs-2 fw-bold text-danger" style="text-shadow: 0 0 10px rgba(255, 0, 0, 0.5); z-index: 10;">16</div>
+                        </div>
 
-    <div id="timer" class="hidden">16</div>
+                        <div class="d-flex flex-column align-items-center gap-1 flex-grow-1" style="min-height: 0; overflow-y: auto;">
+                            <!-- Video Orientation Selection -->
+                            <div class="d-flex flex-column align-items-center gap-1 w-100" style="max-width: 500px;">
+                                <label class="mb-0 text-white small">Video Orientation:</label>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Video orientation">
+                                    <input type="radio" class="btn-check" name="video-orientation" id="orientation-landscape" value="landscape" checked>
+                                    <label class="btn btn-outline-primary" for="orientation-landscape">
+                                        📱 Landscape
+                                    </label>
+                                    
+                                    <input type="radio" class="btn-check" name="video-orientation" id="orientation-portrait" value="portrait">
+                                    <label class="btn btn-outline-primary" for="orientation-portrait">
+                                        📱 Portrait
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Recording Option -->
+                            <div class="d-flex flex-column flex-sm-row align-items-center gap-2 w-100" style="max-width: 500px;">
+                                <label for="duration-slider" class="mb-0 text-white small">Duration:</label>
+                                <input type="range" class="form-range flex-grow-1" id="duration-slider" min="3" max="30" value="10">
+                                <div id="duration-display" class="text-success fw-semibold small" style="min-width: 80px;">10s</div>
+                            </div>
+                            
+                            <input type="hidden" id="player" name="player" value="">
+                            
+                            <div class="d-flex gap-1 flex-wrap justify-content-center">
+                                <button id="start-recording" class="btn btn-primary btn-sm">
+                                    <span class="d-none d-sm-inline">🎬 Start Recording</span>
+                                    <span class="d-sm-none">🎬 Start</span>
+                                </button>
+                                <button id="stop-recording" class="btn btn-danger btn-sm d-none">
+                                    ⏹️ Stop
+                                </button>
+                            </div>
 
-            <div class="controls">
-                               
-                <!-- Recording Option -->
-                <div class="duration-control">
-                    <label for="duration-slider">Duration:</label>
-                    <input type="range" id="duration-slider" min="3" max="30" value="10">
-                    <div id="duration-display">10 seconds</div>
-                </div>
-                
-                <input type="hidden" id="player" name="player" value="">
-                
-                <button id="start-recording" class="btn-primary">🎬 Start Recording</button>
-                <button id="stop-recording" class="btn-danger hidden">⏹️ Stop Recording</button>
+                            <div class="text-secondary my-1 small">
+                                — <span title="Upload a video file" class="fs-6">📤</span> — 
+                            </div>
 
-                <div class="or-separator">
-                    — <span title="Upload a video file" style="vertical-align: middle; font-size: 1.15em;">📤</span> — 
-                </div>
-
-                <!-- Video Upload Option -->
-                <div class="video-upload-section" id="video-upload-section">
-                    <label for="video-upload" id="video-upload-label">
-                        📁 Upload Video File (.mp4, .webm, .mov)
-                    </label>
-                    <input type="file" id="video-upload" accept="video/*,.mp4,.webm,.mov" capture="environment">
-                    <small id="video-upload-hint">
-                        Supported formats: MP4, WebM, MOV (max 500MB)<br>
-                        <span class="mobile-hint" style="display: none; color: #3ea6ff;">
-                            📱 On mobile: Use your camera app, then select the video file
-                        </span>
-                    </small>
-                </div>
-                
-                <!-- Audio Upload Option (hidden by default, shown in audio mode) -->
-                <div class="video-upload-section" id="audio-upload-section" style="display: none;">
-                    <label for="audio-upload" id="audio-upload-label" style="font-size: 1.1em; font-weight: 600; color: #1db954; display: block; margin-bottom: 12px;">
-                        🎵 Upload Audio File
-                    </label>
-                    <input type="file" id="audio-upload" accept="audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a" style="margin-top: 12px; padding: 10px; font-size: 1em; width: 100%;">
-                    <small id="audio-upload-hint" style="display: block; margin-top: 12px; line-height: 1.6; color: #b3b3b3;">
-                        <strong style="color: #e2e8f0;">Supported formats:</strong> MP3, WAV, OGG, FLAC, AAC, M4A<br>
-                        <strong style="color: #e2e8f0;">Maximum size:</strong> 500MB (preview will validate file size before upload)<br>
-                        <span class="mobile-hint" style="display: none; color: #3ea6ff; margin-top: 8px;">
-                            📱 On mobile: Select an audio file from your device
-                        </span>
-                    </small>
-                    <div style="margin-top: 16px; padding: 12px; background: rgba(29, 185, 84, 0.1); border-radius: 8px; border: 1px solid rgba(29, 185, 84, 0.3);">
-                        <div style="font-size: 0.9em; color: #b3b3b3;">
-                            <strong style="color: #1db954;">💡 Tip:</strong> After uploading, you can suggest this track in Mixxx mode to continue your collaborative playlist!
+                            <!-- Video Upload Option -->
+                            <div class="w-100" id="video-upload-section">
+                                <label for="video-upload" class="form-label text-white d-block text-center mb-1 small">
+                                    📁 Upload Video File (.mp4, .webm, .mov)
+                                </label>
+                                <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" id="video-upload" accept="video/*,.mp4,.webm,.mov" capture="environment">
+                                <small id="video-upload-hint" class="form-text text-secondary d-block text-center mt-1 small">
+                                    MP4, WebM, MOV (max 500MB)
+                                    <span class="mobile-hint d-none text-info d-block">
+                                        📱 On mobile: Use your camera app, then select the video file
+                                    </span>
+                                </small>
+                            </div>
+                            
+                            <!-- Audio Upload Option (hidden by default, shown in audio mode) -->
+                            <div class="w-100 d-none" id="audio-upload-section">
+                                <label for="audio-upload" class="form-label text-success fw-semibold d-block text-center mb-1 small">
+                                    🎵 Upload Audio File
+                                </label>
+                                <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" id="audio-upload" accept="audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a">
+                                <small id="audio-upload-hint" class="form-text text-secondary d-block text-center mt-1 small">
+                                    <strong class="text-white">Formats:</strong> MP3, WAV, OGG, FLAC, AAC, M4A<br>
+                                    <strong class="text-white">Max:</strong> 500MB
+                                    <span class="mobile-hint d-none text-info mt-1 d-block">
+                                        📱 On mobile: Select an audio file from your device
+                                    </span>
+                                </small>
+                                <div class="alert alert-success mt-2 py-1 small" role="alert" style="background: rgba(29, 185, 84, 0.1); border-color: rgba(29, 185, 84, 0.3);">
+                                    <strong class="text-success">💡 Tip:</strong> After uploading, you can suggest this track in Mixxx mode!
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-                </div>
+    </main>
                 
     <!-- Modal for Video/Audio Preview and Publishing -->
-    <div id="video-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="modal-title">📹 Video Preview & Publish</h2>
-                <button class="close-modal" onclick="closeModal()">&times;</button>
+    <div class="modal fade" id="video-modal" tabindex="-1" aria-labelledby="video-modal-title" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-white" id="video-modal-title">📹 Video Preview & Publish</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" onclick="closeModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-3">
+                        <video id="modal-video-preview" class="img-fluid rounded border border-secondary" controls style="max-width: 100%; max-height: 50vh; background: #000;"></video>
+                        <audio id="modal-audio-preview" class="w-100 d-none" controls style="max-height: 60px;"></audio>
                     </div>
-            
-            <video id="modal-video-preview" class="modal-video-preview" controls></video>
-            <audio id="modal-audio-preview" class="modal-video-preview" controls style="display: none; width: 100%; max-height: 60px; margin: 10px auto;"></audio>
-            
-            <form id="publish-form">
-                <div class="form-group">
-                    <label for="video-title">Title:</label>
-                    <input type="text" id="video-title" name="title" 
-                           placeholder="Enter video title..." required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="video-description">Description (optional):</label>
-                    <textarea id="video-description" name="description" 
-                              placeholder="Describe your video..." rows="3"></textarea>
-                </div>
-                
-                <div class="location-section">
-                    <label>
-                        📍 Geographic Location (for UMAP anchoring)
-                    </label>
-                    <div class="location-controls">
-                            <div class="coord-input">
-                                <label>Lat:</label>
-                            <input type="number" id="modal-lat" step="0.01" min="-90" max="90" value="0.00">
-                            </div>
-                            <div class="coord-input">
-                                <label>Lon:</label>
-                            <input type="number" id="modal-lon" step="0.01" min="-180" max="180" value="0.00">
-                            </div>
-                        <button type="button" class="btn-secondary" onclick="getCurrentLocationForModal()">📍 My Location</button>
+                    
+                    <form id="publish-form">
+                        <div class="mb-3">
+                            <label for="video-title" class="form-label text-white">Title:</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="video-title" name="title" 
+                                   placeholder="Enter video title..." required>
                         </div>
-                    <div id="modal-map" class="modal-map"></div>
+                        
+                        <div class="mb-3">
+                            <label for="video-description" class="form-label text-white">Description (optional):</label>
+                            <textarea class="form-control bg-dark text-white border-secondary" id="video-description" name="description" 
+                                      placeholder="Describe your video..." rows="3"></textarea>
                         </div>
-                
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="checkbox" id="publish-nostr" name="publish_nostr" checked style="width: auto; margin: 0;">
-                        <span>
-                            Publish to UPlanet (geo localized 
-                            <a href="/youtube?html=1" target="_blank" style="color:#4ade80; text-decoration:underline;">/youtube</a>
-                            )
-                        </span>
-                    </label>
+                        
+                        <div class="mb-3">
+                            <label class="form-label text-white">
+                                📍 Geographic Location (for UMAP anchoring)
+                            </label>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="form-label text-secondary small">Lat:</label>
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="modal-lat" step="0.01" min="-90" max="90" value="0.00">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-secondary small">Lon:</label>
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="modal-lon" step="0.01" min="-180" max="180" value="0.00">
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap mb-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="getCurrentLocationForModal()">
+                                    📍 My Location
+                                </button>
+                                <button type="button" class="btn btn-outline-info btn-sm" onclick="findMeWithGPS()">
+                                    🔍 Find Me
+                                </button>
+                                <button type="button" class="btn btn-outline-warning btn-sm" onclick="resetLocation()">
+                                    🔄 Reset
+                                </button>
+                            </div>
+                            <div id="modal-map" class="modal-map rounded border border-secondary" style="height: 200px; background: #181818;"></div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="publish-nostr" name="publish_nostr" checked>
+                                <label class="form-check-label text-white" for="publish-nostr">
+                                    Publish to UPlanet (geo localized 
+                                    <a href="/youtube?html=1" target="_blank" class="text-success text-decoration-underline">/youtube</a>
+                                    )
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" onclick="closeModal()">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="publish-btn">
+                                📡 Publish Video
+                            </button>
+                        </div>
+                    </form>
                 </div>
-                
-                <div class="modal-actions">
-                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-                    <button type="submit" class="btn-primary" id="publish-btn">
-                        📡 Publish Video
-                    </button>
-                </div>
-            </form>
             </div>
         </div>
+    </div>
         
     <!-- Hidden Container for old code compatibility -->
         <div id="webcam-container"></div>
@@ -1743,7 +1753,18 @@
         
         // Close modal
         function closeModal() {
-            document.getElementById('video-modal').classList.remove('active');
+            const modalElement = document.getElementById('video-modal');
+            if (modalElement && typeof bootstrap !== 'undefined') {
+                const bsModal = bootstrap.Modal.getInstance(modalElement);
+                if (bsModal) {
+                    bsModal.hide();
+                } else {
+                    // Fallback if Bootstrap modal not initialized
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.hide();
+                }
+            }
+            
             if (currentStream) {
                 currentStream.getTracks().forEach(track => track.stop());
                 currentStream = null;
@@ -1757,30 +1778,33 @@
             
             if (startButton) {
                 startButton.disabled = false;
-                startButton.classList.remove('hidden');
+                startButton.classList.remove('d-none');
             }
             
             if (stopButton) {
-                stopButton.classList.add('hidden');
+                stopButton.classList.add('d-none');
                 stopButton.disabled = false;
                 stopButton.textContent = '⏹️ Stop Recording';
             }
             
             if (timerDisplay) {
-                timerDisplay.classList.add('hidden');
+                timerDisplay.classList.add('d-none');
                 timerDisplay.textContent = durationSlider ? durationSlider.value : '10';
             }
             
             // Reset form
-            document.getElementById('publish-form').reset();
+            const form = document.getElementById('publish-form');
+            if (form) {
+                form.reset();
+            }
         }
         
         // Show modal with video or audio
         function showVideoModal(mediaBlob, filename = null) {
-            const modal = document.getElementById('video-modal');
+            const modalElement = document.getElementById('video-modal');
             const videoPreview = document.getElementById('modal-video-preview');
             const audioPreview = document.getElementById('modal-audio-preview');
-            const modalTitle = document.getElementById('modal-title');
+            const modalTitle = document.getElementById('video-modal-title');
             const mediaUrl = URL.createObjectURL(mediaBlob);
             
             // Detect if it's audio or video
@@ -1791,9 +1815,11 @@
             
             if (isAudio) {
                 // Hide video preview, show audio player
-                videoPreview.style.display = 'none';
-                audioPreview.style.display = 'block';
-                audioPreview.src = mediaUrl;
+                if (videoPreview) videoPreview.classList.add('d-none');
+                if (audioPreview) {
+                    audioPreview.classList.remove('d-none');
+                    audioPreview.src = mediaUrl;
+                }
                 
                 // Update modal title
                 if (modalTitle) {
@@ -1806,9 +1832,11 @@
                 }
             } else {
                 // Show video preview, hide audio player
-                videoPreview.style.display = 'block';
-                videoPreview.src = mediaUrl;
-                audioPreview.style.display = 'none';
+                if (videoPreview) {
+                    videoPreview.classList.remove('d-none');
+                    videoPreview.src = mediaUrl;
+                }
+                if (audioPreview) audioPreview.classList.add('d-none');
                 
                 // Update modal title
                 if (modalTitle) {
@@ -1821,7 +1849,31 @@
                 }
             }
             
-            modal.classList.add('active');
+            // Show Bootstrap modal - reuse existing instance or create new one
+            if (modalElement && typeof bootstrap !== 'undefined') {
+                // Wait a bit to ensure DOM is ready and media is loaded
+                setTimeout(() => {
+                    let bsModal = bootstrap.Modal.getInstance(modalElement);
+                    if (!bsModal) {
+                        // Create new modal instance if it doesn't exist
+                        bsModal = new bootstrap.Modal(modalElement, {
+                            backdrop: true, // Allow closing by clicking backdrop
+                            keyboard: true,
+                            focus: true
+                        });
+                    } else {
+                        // Dispose old instance to avoid conflicts
+                        bsModal.dispose();
+                        bsModal = new bootstrap.Modal(modalElement, {
+                            backdrop: true,
+                            keyboard: true,
+                            focus: true
+                        });
+                    }
+                    // Show the modal - Bootstrap will handle all styling
+                    bsModal.show();
+                }, 100);
+            }
             
             // Store filename for later use
             const finalFilename = filename || (isAudio ? `audio_${Date.now()}.mp3` : `webcam_${Date.now()}.webm`);
@@ -1829,10 +1881,7 @@
             previewElement.dataset.filename = finalFilename;
             previewElement.dataset.isAudio = isAudio ? 'true' : 'false';
             
-            // Initialize modal map
-            setTimeout(() => {
-                initializeModalMap();
-            }, 100);
+            // Initialize modal map will be done after modal is shown (see event listener below)
             
             // Handle form submission
             document.getElementById('publish-form').onsubmit = async (e) => {
@@ -1849,39 +1898,72 @@
                 return;
             }
             
+            const mapContainer = document.getElementById('modal-map');
+            if (!mapContainer) {
+                console.warn('Modal map container not found');
+                return;
+            }
+            
+            // Check if container is visible and has dimensions
+            const containerRect = mapContainer.getBoundingClientRect();
+            if (containerRect.width === 0 || containerRect.height === 0) {
+                console.warn('Modal map container has no dimensions, retrying...');
+                setTimeout(() => initializeModalMap(), 100);
+                return;
+            }
+            
             const lat = parseFloat(document.getElementById('modal-lat').value) || 0.00;
             const lon = parseFloat(document.getElementById('modal-lon').value) || 0.00;
             
+            // Remove existing map if any
             if (modalMap) {
                 modalMap.remove();
+                modalMap = null;
+                modalMarker = null;
             }
             
-            const mapContainer = document.getElementById('modal-map');
-            if (!mapContainer) return;
+            // Clear container content
+            mapContainer.innerHTML = '';
             
-            modalMap = L.map('modal-map').setView([lat, lon], 10);
+            // Create new map
+            modalMap = L.map('modal-map', {
+                zoomControl: true,
+                attributionControl: true
+            }).setView([lat, lon], lat === 0 && lon === 0 ? 2 : 10);
             
+            // Add tile layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
             }).addTo(modalMap);
             
+            // Add marker
             modalMarker = L.marker([lat, lon], {
                 draggable: true
             }).addTo(modalMap);
             
+            // Map click handler
             modalMap.on('click', function(e) {
                 updateModalCoordinates(e.latlng.lat, e.latlng.lng);
             });
             
+            // Marker drag handler
             modalMarker.on('dragend', function(e) {
                 updateModalCoordinates(e.target.getLatLng().lat, e.target.getLatLng().lng);
             });
+            
+            // Force resize after a short delay to ensure proper rendering
+            setTimeout(() => {
+                if (modalMap) {
+                    modalMap.invalidateSize();
+                }
+            }, 150);
             
             setTimeout(() => {
                 if (modalMap) {
                     modalMap.invalidateSize();
                 }
-            }, 100);
+            }, 300);
         }
         
         function updateModalCoordinates(lat, lon) {
@@ -1984,6 +2066,71 @@
                 showError('Error getting location: ' + error.message, 'Location Error');
             }
         }
+        
+        // Find me using device GPS directly (without myGPS API)
+        function findMeWithGPS() {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = '🔍 Finding...';
+            btn.disabled = true;
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = Math.round(position.coords.latitude * 100) / 100;
+                        const lon = Math.round(position.coords.longitude * 100) / 100;
+                        
+                        updateModalCoordinates(lat, lon);
+                        if (modalMap) {
+                            modalMap.setView([lat, lon], 13);
+                        }
+                        
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                        showSuccess(`Location found: ${lat.toFixed(2)}, ${lon.toFixed(2)}`, 'GPS Location Retrieved');
+                    },
+                    function(error) {
+                        console.error('Geolocation error:', error);
+                        let errorMessage = 'Failed to get your location. ';
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage += 'Location permission denied. Please enable location services in your browser settings.';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage += 'Location information unavailable.';
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage += 'Location request timed out.';
+                                break;
+                            default:
+                                errorMessage += 'Unknown error occurred.';
+                                break;
+                        }
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                        showError(errorMessage, 'GPS Location Error');
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+            } else {
+                btn.textContent = originalText;
+                btn.disabled = false;
+                showError('Geolocation is not supported by your browser.', 'GPS Not Supported');
+            }
+        }
+        
+        // Reset location coordinates to 0.00 0.00
+        function resetLocation() {
+            updateModalCoordinates(0.00, 0.00);
+            if (modalMap) {
+                modalMap.setView([0.00, 0.00], 2); // Zoom out to show world view
+            }
+            showInfo('Location coordinates reset to 0.00, 0.00', 'Location Reset');
+        }
 
         // Enumerate available cameras
         async function enumerateCameras() {
@@ -2059,6 +2206,12 @@
             }
         }
         
+        // Get selected video orientation
+        function getVideoOrientation() {
+            const landscapeRadio = document.getElementById('orientation-landscape');
+            return landscapeRadio && landscapeRadio.checked ? 'landscape' : 'portrait';
+        }
+        
         // Start camera with selected device
         async function startCameraPreview(deviceId = null) {
             try {
@@ -2068,19 +2221,33 @@
                     currentStream = null;
                 }
                 
-                const videoConstraints = {
+                // Get selected orientation
+                const orientation = getVideoOrientation();
+                
+                // Set constraints based on orientation - use exact aspectRatio for consistency
+                let videoConstraints = {
                     deviceId: deviceId ? { exact: deviceId } : undefined,
-                    width: isMobile ? { ideal: 640, max: 1280 } : { ideal: 1280 },
-                    height: isMobile ? { ideal: 480, max: 720 } : { ideal: 720 },
                     frameRate: isMobile ? { ideal: 24, max: 30 } : { ideal: 30 }
                 };
+                
+                if (orientation === 'landscape') {
+                    // Landscape: 16:9 aspect ratio
+                    videoConstraints.aspectRatio = { ideal: 16/9 };
+                    videoConstraints.width = isMobile ? { ideal: 640, max: 1280 } : { ideal: 1280 };
+                    videoConstraints.height = isMobile ? { ideal: 360, max: 720 } : { ideal: 720 };
+                } else {
+                    // Portrait: 9:16 aspect ratio
+                    videoConstraints.aspectRatio = { ideal: 9/16 };
+                    videoConstraints.width = isMobile ? { ideal: 360, max: 720 } : { ideal: 720 };
+                    videoConstraints.height = isMobile ? { ideal: 640, max: 1280 } : { ideal: 1280 };
+                }
                 
                 // Remove deviceId if undefined to let browser choose
                 if (!deviceId) {
                     delete videoConstraints.deviceId;
                 }
                 
-                console.log('🎥 Starting camera with constraints:', videoConstraints);
+                console.log(`🎥 Starting camera with ${orientation} orientation:`, videoConstraints);
                 
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: videoConstraints,
@@ -2090,6 +2257,33 @@
                 currentStream = stream;
                 const videoPreview = document.getElementById('video-preview');
                 videoPreview.srcObject = stream;
+                
+                // Update video preview styling based on orientation - use contain to show exact recording
+                if (orientation === 'portrait') {
+                    videoPreview.style.aspectRatio = '9/16';
+                    videoPreview.style.maxWidth = '50%';
+                    videoPreview.style.width = 'auto';
+                    videoPreview.style.height = 'auto';
+                    videoPreview.style.maxHeight = '60vh';
+                    videoPreview.style.objectFit = 'contain'; // Show exact recording, no cropping
+                    // Keep container height fixed to prevent layout shift
+                    const container = document.getElementById('video-preview-container');
+                    if (container) {
+                        container.style.minHeight = '60vh';
+                    }
+                } else {
+                    videoPreview.style.aspectRatio = '16/9';
+                    videoPreview.style.maxWidth = '100%';
+                    videoPreview.style.width = '100%';
+                    videoPreview.style.height = 'auto';
+                    videoPreview.style.maxHeight = '25vh';
+                    videoPreview.style.objectFit = 'contain'; // Show exact recording, no cropping
+                    // Keep container height fixed to prevent layout shift
+                    const container = document.getElementById('video-preview-container');
+                    if (container) {
+                        container.style.minHeight = '25vh';
+                    }
+                }
                 
                 console.log('✅ Camera preview started');
                 return true;
@@ -2102,6 +2296,56 @@
 
         // Initialize webcam recording functionality
         function initWebcamFeatures() {
+            // Check if getUserMedia is available
+            const isWebcamSupported = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+            
+            if (!isWebcamSupported) {
+                console.warn('⚠️ Webcam recording not supported - showing file upload option');
+                // Hide recording controls
+                const recordSection = document.querySelector('.d-flex.flex-column.align-items-center.gap-1');
+                if (recordSection) {
+                    const startBtn = document.getElementById('start-recording');
+                    const stopBtn = document.getElementById('stop-recording');
+                    const selectCameraBtn = document.getElementById('select-camera-btn');
+                    const cameraSelector = document.getElementById('camera-selector');
+                    const videoPreviewContainer = document.getElementById('video-preview-container');
+                    const orientationSection = document.querySelector('input[name="video-orientation"]')?.closest('.d-flex.flex-column');
+                    
+                    if (startBtn) startBtn.style.display = 'none';
+                    if (stopBtn) stopBtn.style.display = 'none';
+                    if (selectCameraBtn) selectCameraBtn.style.display = 'none';
+                    if (cameraSelector) cameraSelector.style.display = 'none';
+                    if (videoPreviewContainer) videoPreviewContainer.style.display = 'none';
+                    if (orientationSection) orientationSection.style.display = 'none';
+                }
+                
+                // Highlight file upload section
+                const videoUploadSection = document.getElementById('video-upload-section');
+                if (videoUploadSection) {
+                    videoUploadSection.style.border = '2px solid #0d6efd';
+                    videoUploadSection.style.borderRadius = '8px';
+                    videoUploadSection.style.padding = '12px';
+                    videoUploadSection.style.backgroundColor = 'rgba(13, 110, 253, 0.1)';
+                    
+                    const uploadLabel = videoUploadSection.querySelector('label');
+                    if (uploadLabel) {
+                        uploadLabel.innerHTML = '📁 <strong>Upload Video File</strong> (.mp4, .webm, .mov)';
+                        uploadLabel.style.fontSize = '1rem';
+                    }
+                    
+                    const uploadHint = document.getElementById('video-upload-hint');
+                    if (uploadHint) {
+                        uploadHint.innerHTML = '<strong class="text-info">Webcam recording not available. Please upload a video file instead.</strong><br>MP4, WebM, MOV (max 500MB)';
+                        uploadHint.style.fontSize = '0.9rem';
+                    }
+                }
+                
+                // Show info message
+                showInfo('Webcam recording is not available in this browser. Please use the file upload option below.', 'Webcam Not Available');
+                
+                return; // Exit early - no need to initialize recording features
+            }
+            
             const startButton = document.getElementById('start-recording');
             const stopButton = document.getElementById('stop-recording');
             const videoPreview = document.getElementById('video-preview');
@@ -2123,6 +2367,49 @@
 
             durationSlider.addEventListener('input', () => {
                 durationDisplay.textContent = `${durationSlider.value} seconds`;
+            });
+            
+            // Orientation change handler - update preview when orientation changes
+            const orientationRadios = document.querySelectorAll('input[name="video-orientation"]');
+            orientationRadios.forEach(radio => {
+                radio.addEventListener('change', async () => {
+                    const orientation = getVideoOrientation();
+                    const videoPreview = document.getElementById('video-preview');
+                    
+                    // Update preview styling immediately - use contain to show exact recording
+                    if (videoPreview) {
+                        const container = document.getElementById('video-preview-container');
+                        if (orientation === 'portrait') {
+                            videoPreview.style.aspectRatio = '9/16';
+                            videoPreview.style.maxWidth = '50%';
+                            videoPreview.style.width = 'auto';
+                            videoPreview.style.height = 'auto';
+                            videoPreview.style.maxHeight = '60vh';
+                            videoPreview.style.objectFit = 'contain'; // Show exact recording, no cropping
+                            // Keep container height fixed to prevent layout shift
+                            if (container) {
+                                container.style.minHeight = '60vh';
+                            }
+                        } else {
+                            videoPreview.style.aspectRatio = '16/9';
+                            videoPreview.style.maxWidth = '100%';
+                            videoPreview.style.width = '100%';
+                            videoPreview.style.height = 'auto';
+                            videoPreview.style.maxHeight = '25vh';
+                            videoPreview.style.objectFit = 'contain'; // Show exact recording, no cropping
+                            // Keep container height fixed to prevent layout shift
+                            if (container) {
+                                container.style.minHeight = '25vh';
+                            }
+                        }
+                    }
+                    
+                    // If camera is already active, restart preview with new orientation
+                    if (currentStream) {
+                        const deviceId = selectedCameraId || null;
+                        await startCameraPreview(deviceId);
+                    }
+                });
             });
             
             // Camera selection button
@@ -2186,12 +2473,25 @@
                         currentStream = null;
                     }
                     
-                    // Build video constraints
-                    const videoConstraints = {
-                        width: isMobile ? { ideal: 640, max: 1280 } : { ideal: 1280 },
-                        height: isMobile ? { ideal: 480, max: 720 } : { ideal: 720 },
+                    // Get selected orientation
+                    const orientation = getVideoOrientation();
+                    
+                    // Build video constraints based on orientation - use exact aspectRatio for consistency
+                    let videoConstraints = {
                         frameRate: isMobile ? { ideal: 24, max: 30 } : { ideal: 30 }
                     };
+                    
+                    if (orientation === 'landscape') {
+                        // Landscape: 16:9 aspect ratio
+                        videoConstraints.aspectRatio = { ideal: 16/9 };
+                        videoConstraints.width = isMobile ? { ideal: 640, max: 1280 } : { ideal: 1280 };
+                        videoConstraints.height = isMobile ? { ideal: 360, max: 720 } : { ideal: 720 };
+                    } else {
+                        // Portrait: 9:16 aspect ratio
+                        videoConstraints.aspectRatio = { ideal: 9/16 };
+                        videoConstraints.width = isMobile ? { ideal: 360, max: 720 } : { ideal: 720 };
+                        videoConstraints.height = isMobile ? { ideal: 640, max: 1280 } : { ideal: 1280 };
+                    }
                     
                     // Use selected camera if available
                     if (selectedCameraId) {
@@ -2203,7 +2503,7 @@
                         videoConstraints.facingMode = { ideal: 'environment' };
                     }
                     
-                    console.log('🎬 Starting recording with constraints:', videoConstraints);
+                    console.log(`🎬 Starting recording with ${orientation} orientation:`, videoConstraints);
                     
                     const stream = await navigator.mediaDevices.getUserMedia({ 
                         video: videoConstraints,
@@ -2212,6 +2512,33 @@
                     
                     currentStream = stream;
                     videoPreview.srcObject = stream;
+                    
+                    // Update video preview styling based on orientation during recording - use contain to show exact recording
+                    if (orientation === 'portrait') {
+                        videoPreview.style.aspectRatio = '9/16';
+                        videoPreview.style.maxWidth = '50%';
+                        videoPreview.style.width = 'auto';
+                        videoPreview.style.height = 'auto';
+                        videoPreview.style.maxHeight = '60vh';
+                        videoPreview.style.objectFit = 'contain'; // Show exact recording, no cropping
+                        // Keep container height fixed
+                        const container = document.getElementById('video-preview-container');
+                        if (container) {
+                            container.style.minHeight = '60vh';
+                        }
+                    } else {
+                        videoPreview.style.aspectRatio = '16/9';
+                        videoPreview.style.maxWidth = '100%';
+                        videoPreview.style.width = '100%';
+                        videoPreview.style.height = 'auto';
+                        videoPreview.style.maxHeight = '25vh';
+                        videoPreview.style.objectFit = 'contain'; // Show exact recording, no cropping
+                        // Keep container height fixed
+                        const container = document.getElementById('video-preview-container');
+                        if (container) {
+                            container.style.minHeight = '25vh';
+                        }
+                    }
 
                     let mimeType = 'video/webm;codecs=vp9,opus';
                     if (isIOS) {
@@ -2248,9 +2575,9 @@
                     mediaRecorder.start();
                     startTimer(parseInt(durationSlider.value));
                     startButton.disabled = true;
-                    startButton.classList.add('hidden');
-                    stopButton.classList.remove('hidden');
-                    timerDisplay.classList.remove('hidden');
+                    startButton.classList.add('d-none');
+                    stopButton.classList.remove('d-none');
+                    timerDisplay.classList.remove('d-none');
                     
                 } catch (error) {
                     console.error('❌ Error starting recording:', error);
@@ -2661,11 +2988,11 @@
                         // Reset form and prepare for next recording
                         document.getElementById('publish-form').reset();
                         document.getElementById('start-recording').disabled = false;
-                        document.getElementById('start-recording').classList.remove('hidden');
-                        document.getElementById('stop-recording').classList.add('hidden');
+                        document.getElementById('start-recording').classList.remove('d-none');
+                        document.getElementById('stop-recording').classList.add('d-none');
                         document.getElementById('stop-recording').disabled = false;
                         document.getElementById('stop-recording').textContent = '⏹️ Stop Recording';
-                        document.getElementById('timer').classList.add('hidden');
+                        document.getElementById('timer').classList.add('d-none');
                         document.getElementById('timer').textContent = document.getElementById('duration-slider').value;
                     });
                 } else {
@@ -2985,17 +3312,46 @@
         // Show connection prompt when no connection is available
         function showConnectionPrompt() {
             console.log('📢 No NOSTR connection found - showing connection prompt');
-            document.getElementById('central-connection').classList.remove('hidden');
-            document.getElementById('webcam-section').style.display = 'none';
+            const centralConnection = document.getElementById('central-connection');
+            const webcamSection = document.getElementById('webcam-section');
+            const header = document.querySelector('header');
+            
+            // Show full screen connection page
+            centralConnection.classList.remove('d-none');
+            webcamSection.style.display = 'none';
+            
+            // Ensure header is not compact
+            if (header) {
+                header.classList.remove('compact-header');
+            }
+            
+            // Prevent body scroll
+            document.body.style.overflow = 'hidden';
         }
         
-        // Called when connection is successful (simplified - no UI updates needed without header)
+        // Called when connection is successful
         async function onConnectionSuccess() {
             if (!userPubkey) return;
             
-            // Ensure webcam section is visible
-            document.getElementById('webcam-section').style.display = 'block';
-            document.getElementById('central-connection').classList.add('hidden');
+            const centralConnection = document.getElementById('central-connection');
+            const webcamSection = document.getElementById('webcam-section');
+            const header = document.querySelector('header');
+            
+            // Hide full screen connection page
+            centralConnection.classList.add('d-none');
+            
+            // Show webcam section
+            webcamSection.style.display = '';
+            
+            // Make header compact
+            if (header) {
+                header.classList.add('compact-header');
+                // Update CSS variable for header height
+                document.documentElement.style.setProperty('--header-height', '60px');
+            }
+            
+            // Restore body scroll
+            document.body.style.overflow = '';
             
             console.log('✅ Connection successful:', userPubkey.substring(0, 8) + '...');
         }
@@ -3003,7 +3359,7 @@
         // Connect to NOSTR (supports both standalone and iframe modes)
         async function handleNostrConnect() {
             try {
-                updateAuthStatus('🔄 Connecting...', 'connecting');
+                await updateAuthStatus('🔄 Connecting...', 'connecting');
                 
                 const isInIframe = window.self !== window.top;
                 
@@ -3099,55 +3455,104 @@
         }
         
         // Update authentication status UI
-        function updateAuthStatus(text, state) {
-            const statusEl = document.getElementById('auth-status');
+        async function updateAuthStatus(text, state) {
             const connectBtn = document.getElementById('connect-btn');
             const verifyBtn = document.getElementById('verify-auth-btn');
             
-            if (!statusEl) return;
-            
-            statusEl.textContent = text;
+            if (!connectBtn) return;
             
             // Update button states
             if (state === 'authenticated') {
                 // Full authentication with NIP-42 - can upload to uDRIVE
-                if (connectBtn) {
+                if (userPubkey && typeof fetchUserEmailWithFallback === 'function') {
+                    try {
+                        const email = await fetchUserEmailWithFallback(userPubkey);
+                        connectBtn.textContent = `✅ ${email}`;
+                    } catch (e) {
+                        connectBtn.textContent = `✅ ${userPubkey.substring(0, 8)}...`;
+                    }
+                } else if (userPubkey && typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
+                    try {
+                        const email = await window.fetchUserEmailWithFallback(userPubkey);
+                        connectBtn.textContent = `✅ ${email}`;
+                    } catch (e) {
+                        connectBtn.textContent = `✅ ${userPubkey.substring(0, 8)}...`;
+                    }
+                } else {
                     connectBtn.textContent = '✅ Connected';
-                    connectBtn.disabled = true;
-                    connectBtn.classList.remove('btn-primary');
-                    connectBtn.classList.add('btn-secondary');
                 }
+                connectBtn.disabled = true;
+                connectBtn.classList.remove('btn-primary');
+                connectBtn.classList.add('btn-secondary');
                 if (verifyBtn) {
-                    verifyBtn.classList.add('hidden');
+                    verifyBtn.classList.add('d-none');
                 }
             } else if (state === 'connected') {
                 // Basic connection (can record, but upload will trigger NIP-42 check)
-                if (connectBtn) {
+                if (userPubkey && typeof fetchUserEmailWithFallback === 'function') {
+                    try {
+                        const email = await fetchUserEmailWithFallback(userPubkey);
+                        connectBtn.textContent = `✅ ${email}`;
+                    } catch (e) {
+                        connectBtn.textContent = `✅ ${userPubkey.substring(0, 8)}...`;
+                    }
+                } else if (userPubkey && typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
+                    try {
+                        const email = await window.fetchUserEmailWithFallback(userPubkey);
+                        connectBtn.textContent = `✅ ${email}`;
+                    } catch (e) {
+                        connectBtn.textContent = `✅ ${userPubkey.substring(0, 8)}...`;
+                    }
+                } else {
                     connectBtn.textContent = '✅ Connected';
-                    connectBtn.disabled = true;
-                    connectBtn.classList.remove('btn-primary');
-                    connectBtn.classList.add('btn-secondary');
                 }
+                connectBtn.disabled = true;
+                connectBtn.classList.remove('btn-primary');
+                connectBtn.classList.add('btn-secondary');
                 // Don't show verify button yet - only show if upload fails
                 if (verifyBtn) {
-                    verifyBtn.classList.add('hidden');
+                    verifyBtn.classList.add('d-none');
                 }
             } else if (state === 'not-authenticated') {
                 // Connected but upload failed - show verify button
-                if (connectBtn) {
+                if (userPubkey && typeof fetchUserEmailWithFallback === 'function') {
+                    try {
+                        const email = await fetchUserEmailWithFallback(userPubkey);
+                        connectBtn.textContent = `🟡 ${email}`;
+                    } catch (e) {
+                        connectBtn.textContent = `🟡 ${userPubkey.substring(0, 8)}...`;
+                    }
+                } else if (userPubkey && typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
+                    try {
+                        const email = await window.fetchUserEmailWithFallback(userPubkey);
+                        connectBtn.textContent = `🟡 ${email}`;
+                    } catch (e) {
+                        connectBtn.textContent = `🟡 ${userPubkey.substring(0, 8)}...`;
+                    }
+                } else {
                     connectBtn.textContent = '🟡 Connected';
-                    connectBtn.disabled = true;
                 }
+                connectBtn.disabled = true;
                 if (verifyBtn) {
-                    verifyBtn.classList.remove('hidden');
+                    verifyBtn.classList.remove('d-none');
                 }
+            } else if (state === 'connecting') {
+                // Connection in progress
+                connectBtn.textContent = '🔄 Connecting...';
+                connectBtn.disabled = true;
+                connectBtn.classList.remove('btn-secondary');
+                connectBtn.classList.add('btn-primary');
             } else if (state === 'error') {
-                if (connectBtn) {
-                    connectBtn.textContent = '🔌 Retry';
-                    connectBtn.disabled = false;
-                    connectBtn.classList.remove('btn-secondary');
-                    connectBtn.classList.add('btn-primary');
-                }
+                connectBtn.textContent = '🔌 Retry';
+                connectBtn.disabled = false;
+                connectBtn.classList.remove('btn-secondary');
+                connectBtn.classList.add('btn-primary');
+            } else {
+                // Default state (not connected)
+                connectBtn.textContent = '🔌 Connect';
+                connectBtn.disabled = false;
+                connectBtn.classList.remove('btn-secondary');
+                connectBtn.classList.add('btn-primary');
             }
         }
         
@@ -3159,7 +3564,7 @@
             }
             
             try {
-                updateAuthStatus('🔄 Authenticating for upload...', 'connecting');
+                await updateAuthStatus('🔄 Authenticating for upload...', 'connecting');
                 
                 // Force NIP-42 authentication
                 console.log('🔐 Forcing NIP-42 authentication for uDRIVE upload...');
@@ -3178,7 +3583,7 @@
                     : false;
                 
                 if (isAuthenticated) {
-                    updateAuthStatus('✅ Authenticated for upload', 'authenticated');
+                    await updateAuthStatus('✅ Authenticated for upload', 'authenticated');
                     showSuccess(
                         'NIP-42 authentication successful! You can now upload to uDRIVE.',
                         'Authenticated! 🎉'
@@ -3189,7 +3594,7 @@
                 
             } catch (error) {
                 console.error('❌ Verification error:', error);
-                updateAuthStatus('✅ Connected', 'connected');
+                await updateAuthStatus('✅ Connected', 'connected');
                 showError(
                     error.message || 'Verification failed. The upload function will automatically retry authentication if needed.',
                     'Info'
@@ -3318,12 +3723,44 @@
             }
         });
         
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('video-modal');
-            if (event.target === modal) {
-                closeModal();
-            }
+        // Bootstrap modal event listeners
+        const videoModalElement = document.getElementById('video-modal');
+        if (videoModalElement) {
+            // Initialize map when modal is fully shown
+            videoModalElement.addEventListener('shown.bs.modal', function () {
+                // Initialize modal map after modal is completely shown
+                setTimeout(() => {
+                    initializeModalMap();
+                    // Call invalidateSize multiple times to ensure proper rendering
+                    if (modalMap) {
+                        setTimeout(() => {
+                            modalMap.invalidateSize();
+                        }, 50);
+                        setTimeout(() => {
+                            modalMap.invalidateSize();
+                        }, 200);
+                    }
+                }, 100);
+            });
+            
+            // Clean up when modal is closed
+            videoModalElement.addEventListener('hidden.bs.modal', function () {
+                // Clean up when modal is closed
+                const videoPreview = document.getElementById('modal-video-preview');
+                const audioPreview = document.getElementById('modal-audio-preview');
+                if (videoPreview) {
+                    videoPreview.src = '';
+                }
+                if (audioPreview) {
+                    audioPreview.src = '';
+                }
+                // Remove map when modal is closed
+                if (modalMap) {
+                    modalMap.remove();
+                    modalMap = null;
+                    modalMarker = null;
+                }
+            });
         }
     </script>
 </body>

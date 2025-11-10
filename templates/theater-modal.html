@@ -170,6 +170,35 @@
             border-left: 1px solid #3f3f3f;
             width: 400px;
             flex-shrink: 0;
+            transition: all 0.3s ease;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Fullscreen comments mode */
+        .theater-comments-section.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            z-index: 10001;
+            border-left: none;
+            border-top: none;
+            border-right: none;
+            border-bottom: none;
+        }
+        
+        .theater-comments-section.fullscreen .theater-comments-header {
+            border-bottom: 1px solid #3f3f3f;
+        }
+        
+        .theater-comments-section.fullscreen .theater-comments-list {
+            max-height: none !important;
+            height: auto;
         }
         
         .theater-comments-header {
@@ -180,9 +209,32 @@
         }
         
         .theater-comments-header h6 {
-            margin: 0 0 0.5rem 0;
+            margin: 0;
             font-size: 0.875rem;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+        
+        #toggleCommentsFullscreen {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            min-width: auto;
+            min-height: auto;
+            border: 1px solid #3f3f3f;
+            background: transparent;
+            color: #ffffff;
+            transition: all 0.2s ease;
+        }
+        
+        #toggleCommentsFullscreen:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #5bb5ff;
+            color: #5bb5ff;
+        }
+        
+        #toggleCommentsFullscreen:active {
+            background: rgba(255, 255, 255, 0.2);
         }
         
         .theater-comments-form {
@@ -328,8 +380,16 @@
                 border-top: 1px solid #3f3f3f;
             }
             
+            .theater-comments-section.fullscreen {
+                order: 1;
+            }
+            
             .theater-comments-list {
                 max-height: 35vh;
+            }
+            
+            .theater-comments-section.fullscreen .theater-comments-list {
+                max-height: none !important;
             }
             
             .theater-header {
@@ -738,9 +798,16 @@
             </div>
             
             <!-- Comments section: right side (full height) -->
-            <div class="theater-comments-section">
+            <div class="theater-comments-section" id="theaterCommentsSection">
                 <div class="theater-comments-header">
-                    <h6 class="mb-1 text-white"><i class="bi bi-chat-dots"></i> Commentaires</h6>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <h6 class="mb-0 text-white" style="cursor: pointer;" id="commentsHeaderTitle" title="Cliquez pour basculer en mode chat plein écran">
+                            <i class="bi bi-chat-dots"></i> Commentaires
+                            <button class="btn btn-sm btn-outline-secondary ms-2" id="toggleCommentsFullscreen" title="Basculer en mode chat plein écran">
+                                <i class="bi bi-arrows-fullscreen" id="toggleCommentsFullscreenIcon"></i>
+                            </button>
+                        </h6>
+                    </div>
                     <div class="small text-secondary" id="theaterCommentStats">0 commentaire(s)</div>
                 </div>
                 <div class="theater-comments-form">
@@ -912,6 +979,68 @@
         
         // Expose function globally early
         window.handleCloseTheater = handleCloseTheater;
+        
+        /**
+         * Toggle comments section between normal and fullscreen mode
+         * Defined early to ensure it's available when onclick handlers fire
+         */
+        function toggleCommentsFullscreen() {
+            console.log('🔄 toggleCommentsFullscreen called');
+            const commentsSection = document.getElementById('theaterCommentsSection');
+            const toggleBtn = document.getElementById('toggleCommentsFullscreen');
+            const toggleIcon = document.getElementById('toggleCommentsFullscreenIcon');
+            
+            console.log('📋 Elements found:', {
+                commentsSection: !!commentsSection,
+                toggleBtn: !!toggleBtn,
+                toggleIcon: !!toggleIcon
+            });
+            
+            if (!commentsSection || !toggleBtn || !toggleIcon) {
+                console.error('❌ Missing elements:', {
+                    commentsSection: !commentsSection,
+                    toggleBtn: !toggleBtn,
+                    toggleIcon: !toggleIcon
+                });
+                return;
+            }
+            
+            const isFullscreen = commentsSection.classList.contains('fullscreen');
+            console.log('📺 Current state:', isFullscreen ? 'fullscreen' : 'normal');
+            
+            if (isFullscreen) {
+                // Exit fullscreen mode
+                console.log('⬇️ Exiting fullscreen mode');
+                commentsSection.classList.remove('fullscreen');
+                toggleIcon.classList.remove('bi-arrows-angle-contract');
+                toggleIcon.classList.add('bi-arrows-fullscreen');
+                toggleBtn.title = 'Basculer en mode chat plein écran';
+                
+                // Restore body scroll if needed
+                document.body.style.overflow = '';
+                console.log('✅ Exited fullscreen mode');
+            } else {
+                // Enter fullscreen mode
+                console.log('⬆️ Entering fullscreen mode');
+                commentsSection.classList.add('fullscreen');
+                toggleIcon.classList.remove('bi-arrows-fullscreen');
+                toggleIcon.classList.add('bi-arrows-angle-contract');
+                toggleBtn.title = 'Quitter le mode chat plein écran';
+                
+                // Prevent body scroll when in fullscreen
+                document.body.style.overflow = 'hidden';
+                
+                // Scroll to top of comments
+                const commentsList = document.getElementById('theaterCommentsList');
+                if (commentsList) {
+                    commentsList.scrollTop = 0;
+                }
+                console.log('✅ Entered fullscreen mode');
+            }
+        }
+        
+        // Expose function globally early
+        window.toggleCommentsFullscreen = toggleCommentsFullscreen;
         
         // Initialize Bootstrap tooltips and event listeners
         document.addEventListener('DOMContentLoaded', function() {
@@ -3301,8 +3430,63 @@
         // Listen for close button or ESC key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                handleCloseTheater();
+                // If comments are in fullscreen, exit fullscreen first
+                const commentsSection = document.getElementById('theaterCommentsSection');
+                if (commentsSection && commentsSection.classList.contains('fullscreen')) {
+                    toggleCommentsFullscreen();
+                } else {
+                    handleCloseTheater();
+                }
             }
+        });
+        
+        // Attach click handler to toggle button and header title
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔍 DOMContentLoaded - attaching toggle button handler');
+            
+            // Use setTimeout to ensure DOM is fully ready
+            setTimeout(function() {
+                const toggleBtn = document.getElementById('toggleCommentsFullscreen');
+                const headerTitle = document.getElementById('commentsHeaderTitle');
+                
+                console.log('📋 Elements found in DOMContentLoaded:', {
+                    toggleBtn: !!toggleBtn,
+                    headerTitle: !!headerTitle
+                });
+                
+                if (toggleBtn) {
+                    toggleBtn.addEventListener('click', function(e) {
+                        console.log('🖱️ Toggle button clicked');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (typeof toggleCommentsFullscreen === 'function') {
+                            toggleCommentsFullscreen();
+                        } else {
+                            console.error('❌ toggleCommentsFullscreen function not found');
+                        }
+                    });
+                    console.log('✅ Toggle button handler attached');
+                } else {
+                    console.warn('⚠️ Toggle button not found in DOM');
+                }
+                
+                // Also attach to header title
+                if (headerTitle) {
+                    headerTitle.addEventListener('click', function(e) {
+                        // Only trigger if clicking on the title itself, not on the button
+                        const btn = headerTitle.querySelector('#toggleCommentsFullscreen');
+                        if (btn && e.target !== btn && !btn.contains(e.target)) {
+                            console.log('🖱️ Header title clicked');
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (typeof toggleCommentsFullscreen === 'function') {
+                                toggleCommentsFullscreen();
+                            }
+                        }
+                    });
+                    console.log('✅ Header title handler attached');
+                }
+            }, 100); // Small delay to ensure DOM is ready
         });
     </script>
 </body>
