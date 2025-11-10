@@ -34,12 +34,20 @@
             background: #0f0f0f;
             color: #ffffff;
             min-height: 100vh;
-            padding: 20px;
+            padding: 0;
+            overflow-x: hidden;
         }
         
-        .container {
-            max-width: 1200px;
+        .container-fluid {
+            max-width: 1400px;
             margin: 0 auto;
+            padding: 15px;
+        }
+        
+        @media (max-width: 576px) {
+            .container-fluid {
+                padding: 10px;
+            }
         }
         
         .header {
@@ -66,6 +74,40 @@
             padding: 20px;
             margin-bottom: 30px;
             border: 1px solid #3f3f3f;
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        
+        .video-info .video-thumbnail {
+            flex-shrink: 0;
+            width: 200px;
+            max-width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #2a2a2a;
+            border: 1px solid #3f3f3f;
+        }
+        
+        .video-info .video-thumbnail img {
+            width: 100%;
+            height: auto;
+            display: block;
+            object-fit: cover;
+        }
+        
+        .video-info .video-thumbnail.placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 112px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .video-info .video-content {
+            flex: 1;
+            min-width: 0;
         }
         
         .video-info h2 {
@@ -88,6 +130,18 @@
         
         .video-info .video-link:hover {
             text-decoration: underline;
+        }
+        
+        @media (max-width: 768px) {
+            .video-info {
+                flex-direction: column;
+            }
+            
+            .video-info .video-thumbnail {
+                width: 100%;
+                max-width: 400px;
+                margin: 0 auto;
+            }
         }
         
         .tags-section {
@@ -262,6 +316,8 @@
             padding: 15px;
             margin-bottom: 20px;
             color: #ffaaaa;
+            position: relative;
+            z-index: 10;
         }
         
         .empty-state {
@@ -276,11 +332,34 @@
             opacity: 0.5;
         }
         
+        #connectBtn {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        
+        #connectBtn:hover {
+            background: #45a049;
+        }
+        
+        #connectBtn:disabled {
+            background: #3f3f3f;
+            cursor: not-allowed;
+        }
+        
+        #connectionStatus {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
         @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-            
             .header h1 {
                 font-size: 1.5rem;
             }
@@ -290,27 +369,123 @@
                 padding: 15px;
             }
         }
+        
+        /* Toast/Notification overlay styles */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1055;
+            max-width: 350px;
+        }
+        
+        @media (max-width: 576px) {
+            .toast-container {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                max-width: none;
+            }
+        }
+        
+        .toast {
+            background: #1a1a1a;
+            border: 1px solid #3f3f3f;
+            color: #ffffff;
+        }
+        
+        .toast-header {
+            background: #2a2a2a;
+            border-bottom: 1px solid #3f3f3f;
+            color: #ffffff;
+        }
+        
+        .toast-success {
+            border-color: #4CAF50;
+        }
+        
+        .toast-success .toast-header {
+            background: #1a4d1a;
+            border-bottom-color: #2d7a2d;
+        }
+        
+        .toast-error {
+            border-color: #ff4444;
+        }
+        
+        .toast-error .toast-header {
+            background: #4a1a1a;
+            border-bottom-color: #7a2a2a;
+        }
+        
+        .toast-info {
+            border-color: #2196F3;
+        }
+        
+        .toast-info .toast-header {
+            background: #1a3d5a;
+            border-bottom-color: #2d5a7a;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+    <!-- Toast Container for Notifications -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1055;"></div>
+    
+    <!-- Confirmation Modal -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark text-white border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="confirmModalLabel">Confirmation</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="confirmModalBody">
+                    <!-- Content will be inserted here -->
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-danger" id="confirmModalOk">Confirmer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container-fluid">
         <!-- Header -->
         <div class="header">
-            <h1><i class="bi bi-tags"></i> Tags</h1>
-            <div class="subtitle">Gestion des tags pour les vidéos NOSTR</div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1><i class="bi bi-tags"></i> Tags</h1>
+                    <div class="subtitle">Gestion des tags pour les vidéos NOSTR</div>
+                </div>
+                <div>
+                    <button class="btn" id="connectBtn" onclick="handleConnect()" style="display: none;">
+                        <i class="bi bi-wifi"></i> Se connecter au relai
+                    </button>
+                    <div id="connectionStatus" style="display: none; color: #4CAF50; font-size: 0.9rem;">
+                        <i class="bi bi-check-circle"></i> Connecté
+                    </div>
+                </div>
+            </div>
         </div>
         
         <!-- Video Info -->
         <div class="video-info" id="videoInfo" style="display: none;">
-            <h2 id="videoTitle">Chargement...</h2>
-            <div class="video-meta" id="videoMeta"></div>
-            <a href="#" class="video-link" id="videoLink" target="_blank">
-                <i class="bi bi-play-circle"></i> Voir la vidéo
-            </a>
+            <div class="video-thumbnail" id="videoThumbnail">
+                <div class="placeholder">Aucune image</div>
+            </div>
+            <div class="video-content">
+                <h2 id="videoTitle">Chargement...</h2>
+                <div class="video-meta" id="videoMeta"></div>
+                <a href="#" class="video-link" id="videoLink" target="_blank">
+                    <i class="bi bi-play-circle"></i> Voir la vidéo
+                </a>
+            </div>
         </div>
         
-        <!-- Error Message -->
-        <div class="error" id="errorMessage" style="display: none;"></div>
+        <!-- Error Message (hidden by default, only shown for critical errors) -->
+        <div class="error" id="errorMessage" style="display: none; position: relative; z-index: 1;"></div>
         
         <!-- Tags Section -->
         <div class="tags-section">
@@ -366,19 +541,333 @@
             initPage();
         }
         
+        // Request queue to limit concurrent requests (must be defined before initPage)
+        let requestQueue = [];
+        let activeRequests = 0;
+        const MAX_CONCURRENT_REQUESTS = 1; // Only 1 request at a time to avoid "too many concurrent REQs"
+        
+        // Override publishNote to prevent alerts/popups (wait for it to be available)
+        function overridePublishNote() {
+            if (typeof window.publishNote !== 'undefined' && !window.publishNote._tagsOverridden) {
+                const originalPublishNote = window.publishNote;
+                window.publishNote = async function(...args) {
+                    // Always use silent mode to prevent alerts
+                    if (args.length >= 4) {
+                        const options = args[3] || {};
+                        options.silent = true;
+                        args[3] = options;
+                    } else if (args.length === 3) {
+                        args.push({ silent: true });
+                    }
+                    
+                    try {
+                        return await originalPublishNote.apply(this, args);
+                    } catch (error) {
+                        // Don't let publishNote show alerts, throw error instead
+                        throw error;
+                    }
+                };
+                window.publishNote._tagsOverridden = true;
+            }
+        }
+        
+        // Override ensureNostrConnection to prevent alerts
+        function overrideEnsureNostrConnection() {
+            if (typeof window.ensureNostrConnection !== 'undefined' && !window.ensureNostrConnection._tagsOverridden) {
+                const originalEnsureNostrConnection = window.ensureNostrConnection;
+                window.ensureNostrConnection = async function() {
+                    // Check if already connected
+                    if (window.nostrRelay && checkConnectionStatus() && window.userPubkey) {
+                        return window.userPubkey;
+                    }
+                    
+                    // Try to auto-connect silently
+                    if (!checkConnectionStatus()) {
+                        await autoConnectRelay();
+                    }
+                    
+                    // Return pubkey if available
+                    if (window.userPubkey) {
+                        return window.userPubkey;
+                    }
+                    
+                    // If still not connected, try original function but catch alerts
+                    try {
+                        return await originalEnsureNostrConnection.apply(this, arguments);
+                    } catch (error) {
+                        // Don't show alerts, just throw error
+                        throw error;
+                    }
+                };
+                window.ensureNostrConnection._tagsOverridden = true;
+            }
+        }
+        
+        // Try to override immediately and also after a delay
+        overridePublishNote();
+        overrideEnsureNostrConnection();
+        setTimeout(() => {
+            overridePublishNote();
+            overrideEnsureNostrConnection();
+        }, 1000);
+        
+        async function queueRequest(requestFn) {
+            return new Promise((resolve, reject) => {
+                requestQueue.push({ requestFn, resolve, reject });
+                processQueue();
+            });
+        }
+        
+        async function processQueue() {
+            if (activeRequests >= MAX_CONCURRENT_REQUESTS || requestQueue.length === 0) {
+                return;
+            }
+            
+            activeRequests++;
+            const { requestFn, resolve, reject } = requestQueue.shift();
+            
+            try {
+                const result = await requestFn();
+                resolve(result);
+            } catch (error) {
+                reject(error);
+            } finally {
+                activeRequests--;
+                // Process next request in queue
+                setTimeout(processQueue, 100);
+            }
+        }
+        
         async function initPage() {
             try {
                 // Wait for NOSTR functions to be available
                 await waitForNostrFunctions();
                 
-                // Fetch video info
-                await fetchVideoInfo(videoEventId);
+                // Auto-connect to relay silently (if not already connected)
+                if (!checkConnectionStatus()) {
+                    await autoConnectRelay();
+                }
                 
-                // Load tags
-                await loadTags();
+                // Initialize connection state
+                lastConnectionState = checkConnectionStatus();
+                
+                // Check connection status
+                updateConnectionUI();
+                
+                // Start monitoring connection status (after initial check)
+                startConnectionMonitoring();
+                
+                // Fetch video info (queued to avoid too many requests)
+                await queueRequest(() => fetchVideoInfo(videoEventId));
+                
+                // Load tags if connected (queued)
+                if (checkConnectionStatus()) {
+                    await loadTags();
+                }
             } catch (error) {
                 console.error('Error initializing page:', error);
                 showError('Erreur lors de l\'initialisation: ' + error.message);
+            }
+        }
+        
+        // Auto-connect to relay silently
+        async function autoConnectRelay() {
+            try {
+                // Check if connectToRelay function exists
+                if (typeof connectToRelay === 'function') {
+                    // Try to connect silently
+                    await connectToRelay();
+                    // Wait a bit for connection to establish
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    return checkConnectionStatus();
+                } else if (window.nostrRelay && typeof window.nostrRelay.connect === 'function') {
+                    // Direct connection
+                    await window.nostrRelay.connect();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    return checkConnectionStatus();
+                }
+            } catch (error) {
+                console.warn('[Tags] Auto-connect failed (silent):', error.message);
+                // Don't show error to user, just return false
+                return false;
+            }
+            return false;
+        }
+        
+        function checkConnectionStatus() {
+            // Check multiple ways to determine connection status
+            // Priority: WebSocket readyState > status property > fallback checks
+            let isConnected = false;
+            
+            if (window.nostrRelay) {
+                // First check WebSocket readyState (most reliable)
+                if (window.nostrRelay.ws) {
+                    const readyState = window.nostrRelay.ws.readyState;
+                    if (readyState === WebSocket.OPEN) {
+                        isConnected = true;
+                    } else if (readyState === WebSocket.CLOSED || readyState === WebSocket.CLOSING) {
+                        isConnected = false;
+                    }
+                }
+                
+                // If WebSocket check didn't confirm, check status property
+                if (!isConnected && window.nostrRelay.status === 1) {
+                    isConnected = true;
+                }
+                
+                // Fallback: if relay exists and has sub method, and WebSocket is not explicitly closed
+                if (!isConnected && typeof window.nostrRelay.sub === 'function') {
+                    if (!window.nostrRelay.ws || 
+                        (window.nostrRelay.ws.readyState !== WebSocket.CLOSED && 
+                         window.nostrRelay.ws.readyState !== WebSocket.CLOSING)) {
+                        // Relay exists and can create subscriptions, likely connected
+                        isConnected = true;
+                    }
+                }
+            }
+            
+            return isConnected;
+        }
+        
+        function updateConnectionUI() {
+            const connectBtn = document.getElementById('connectBtn');
+            const statusDiv = document.getElementById('connectionStatus');
+            
+            const isConnected = checkConnectionStatus();
+            lastConnectionState = isConnected;
+            
+            if (isConnected) {
+                // Connected
+                connectBtn.style.display = 'none';
+                statusDiv.style.display = 'flex';
+            } else {
+                // Not connected
+                connectBtn.style.display = 'block';
+                statusDiv.style.display = 'none';
+            }
+        }
+        
+        // Poll connection status periodically
+        let connectionCheckInterval = null;
+        let lastConnectionState = false;
+        
+        function startConnectionMonitoring() {
+            // Clear existing interval if any
+            if (connectionCheckInterval) {
+                clearInterval(connectionCheckInterval);
+            }
+            
+            // Check connection status every 5 seconds (less frequent to avoid issues)
+            connectionCheckInterval = setInterval(() => {
+                const currentState = checkConnectionStatus();
+                // Only update UI if state changed
+                if (currentState !== lastConnectionState) {
+                    lastConnectionState = currentState;
+                    updateConnectionUI();
+                }
+            }, 5000);
+        }
+        
+        function stopConnectionMonitoring() {
+            if (connectionCheckInterval) {
+                clearInterval(connectionCheckInterval);
+                connectionCheckInterval = null;
+            }
+        }
+        
+        async function handleConnect() {
+            const connectBtn = document.getElementById('connectBtn');
+            connectBtn.disabled = true;
+            connectBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Connexion...';
+            
+            try {
+                // Connect to relay
+                if (typeof connectToRelay === 'function') {
+                    await connectToRelay();
+                } else {
+                    // Fallback: try to connect manually
+                    if (typeof window.relayUrl === 'undefined' || !window.relayUrl) {
+                        window.relayUrl = 'ws://127.0.0.1:7777';
+                    }
+                    
+                    if (typeof window.nostrRelay === 'undefined') {
+                        // Try to initialize relay if not exists
+                        if (typeof NostrTools !== 'undefined' && NostrTools.relayInit) {
+                            window.nostrRelay = NostrTools.relayInit(window.relayUrl);
+                        } else {
+                            throw new Error('NOSTR relay library not loaded');
+                        }
+                    }
+                    
+                    // Set up event listeners for connection status (only if not already set)
+                    if (!window.nostrRelay._tagsListenersSet) {
+                        window.nostrRelay.on('connect', () => {
+                            console.log('✅ Connected to relay');
+                            lastConnectionState = true;
+                            updateConnectionUI();
+                            // Reload tags after reconnection
+                            if (videoEventId) {
+                                loadTags().catch(err => console.error('Error reloading tags:', err));
+                            }
+                        });
+                        
+                        window.nostrRelay.on('error', (error) => {
+                            console.error('❌ Relay error:', error);
+                            lastConnectionState = false;
+                            updateConnectionUI();
+                        });
+                        
+                        window.nostrRelay.on('disconnect', () => {
+                            console.log('⚠️ Disconnected from relay');
+                            lastConnectionState = false;
+                            updateConnectionUI();
+                        });
+                        
+                        window.nostrRelay._tagsListenersSet = true;
+                    }
+                    
+                    // Connect
+                    await window.nostrRelay.connect();
+                    
+                    // Wait for connection with timeout
+                    await new Promise((resolve, reject) => {
+                        if (checkConnectionStatus()) {
+                            resolve();
+                            return;
+                        }
+                        
+                        const checkInterval = setInterval(() => {
+                            if (checkConnectionStatus()) {
+                                clearInterval(checkInterval);
+                                resolve();
+                            }
+                        }, 100);
+                        
+                        setTimeout(() => {
+                            clearInterval(checkInterval);
+                            if (!checkConnectionStatus()) {
+                                reject(new Error('Connection timeout'));
+                            }
+                        }, 5000);
+                    });
+                }
+                
+                // Update UI
+                updateConnectionUI();
+                
+                // Start monitoring connection
+                startConnectionMonitoring();
+                
+                // Load tags after connection
+                await loadTags();
+                
+                // Show success
+                showToast('Connexion au relai établie!', 'success');
+            } catch (error) {
+                console.error('Error connecting to relay:', error);
+                showError('Erreur de connexion: ' + error.message);
+                connectBtn.disabled = false;
+                connectBtn.innerHTML = '<i class="bi bi-wifi"></i> Se connecter au relai';
             }
         }
         
@@ -405,35 +894,157 @@
         
         async function fetchVideoInfo(eventId) {
             try {
-                // Try to fetch video from NOSTR
-                if (typeof window.nostrRelay === 'undefined' || !window.nostrRelay) {
-                    await connectToRelay();
+                // Try to fetch video info even if connection status is unclear
+                // The subscription will fail gracefully if not connected
+                let isConnected = checkConnectionStatus();
+                
+                // If not connected, try to wait a bit for connection to establish
+                if (!isConnected && window.nostrRelay) {
+                    // Wait up to 2 seconds for connection
+                    for (let i = 0; i < 20; i++) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        isConnected = checkConnectionStatus();
+                        if (isConnected) break;
+                    }
+                }
+                
+                // If still not connected, show message but still try to fetch (might work anyway)
+                if (!isConnected) {
+                    console.warn('Connection status unclear, attempting to fetch video info anyway...');
+                }
+                
+                // Check if relay is available
+                if (!window.nostrRelay || typeof window.nostrRelay.sub !== 'function') {
+                    document.getElementById('videoTitle').textContent = 'Vidéo (ID: ' + eventId.substring(0, 16) + '...)';
+                    document.getElementById('videoMeta').textContent = 'Relai NOSTR non disponible';
+                    document.getElementById('videoThumbnail').innerHTML = '<div class="placeholder"><i class="bi bi-wifi-off"></i> Relai non disponible</div>';
+                    const baseUrl = window.location.origin || '';
+                    document.getElementById('videoLink').href = `${baseUrl}/theater?video=${eventId}`;
+                    document.getElementById('videoInfo').style.display = 'block';
+                    return;
                 }
                 
                 const videoInfo = await new Promise((resolve, reject) => {
-                    const sub = window.nostrRelay.sub([{
-                        kinds: [21, 22],
-                        ids: [eventId]
-                    }]);
-                    
                     let event = null;
-                    sub.on('event', (e) => {
-                        event = e;
-                    });
+                    let resolved = false;
+                    let sub = null;
                     
-                    sub.on('eose', () => {
-                        sub.unsub();
-                        resolve(event);
-                    });
-                    
-                    setTimeout(() => {
-                        sub.unsub();
-                        if (!event) {
-                            reject(new Error('Video not found'));
-                        } else {
-                            resolve(event);
+                    try {
+                        // Use list() method if available (simpler and more reliable)
+                        if (typeof window.nostrRelay.list === 'function') {
+                            window.nostrRelay.list([{
+                                kinds: [21, 22],
+                                ids: [eventId],
+                                limit: 1
+                            }], { timeout: 5000 }).then(events => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    resolve(events && events.length > 0 ? events[0] : null);
+                                }
+                            }).catch(error => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    reject(error);
+                                }
+                            });
+                            return;
                         }
-                    }, 5000);
+                        
+                        // Fallback to subscription method
+                        sub = window.nostrRelay.sub([{
+                            kinds: [21, 22],
+                            ids: [eventId]
+                        }]);
+                        
+                        // Check if sub has onevent method (newer API)
+                        if (sub.onevent) {
+                            const originalOnevent = sub.onevent;
+                            sub.onevent = (relay, e) => {
+                                if (!resolved && e) {
+                                    event = e;
+                                }
+                                if (originalOnevent) {
+                                    originalOnevent.call(sub, relay, e);
+                                }
+                            };
+                        } else if (sub.on) {
+                            // Older API with .on() method
+                            sub.on('event', (e) => {
+                                if (!resolved && e) {
+                                    event = e;
+                                }
+                            });
+                        }
+                        
+                        // Handle EOSE
+                        if (sub.receivedEose) {
+                            const originalReceivedEose = sub.receivedEose;
+                            sub.receivedEose = () => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    if (sub && sub.close) {
+                                        sub.close();
+                                    }
+                                    resolve(event);
+                                }
+                                if (originalReceivedEose) {
+                                    originalReceivedEose.call(sub);
+                                }
+                            };
+                        } else if (sub.on) {
+                            sub.on('eose', () => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    if (sub && sub.close) {
+                                        sub.close();
+                                    } else if (sub && sub.unsub) {
+                                        sub.unsub();
+                                    }
+                                    resolve(event);
+                                }
+                            });
+                        }
+                        
+                        // Handle errors
+                        if (sub.on && typeof sub.on === 'function') {
+                            sub.on('error', (error) => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    if (sub && sub.close) {
+                                        sub.close();
+                                    } else if (sub && sub.unsub) {
+                                        sub.unsub();
+                                    }
+                                    reject(error);
+                                }
+                            });
+                        }
+                        
+                        // Timeout
+                        setTimeout(() => {
+                            if (!resolved) {
+                                resolved = true;
+                                if (sub && sub.close) {
+                                    sub.close();
+                                } else if (sub && sub.unsub) {
+                                    sub.unsub();
+                                }
+                                if (!event) {
+                                    reject(new Error('Video not found or timeout'));
+                                } else {
+                                    resolve(event);
+                                }
+                            }
+                        }, 5000);
+                    } catch (error) {
+                        if (!resolved) {
+                            resolved = true;
+                            if (sub && sub.close) {
+                                sub.close();
+                            }
+                            reject(error);
+                        }
+                    }
                 });
                 
                 if (videoInfo) {
@@ -451,27 +1062,198 @@
                         }
                     }
                     
+                    // Extract thumbnail/gifanim from tags
+                    let thumbnailCid = null;
+                    let gifanimCid = null;
+                    let imageUrl = null;
+                    let gifanimUrl = null;
+                    
+                    // Get IPFS gateway (try multiple sources)
+                    const ipfsGateway = window.myIPFS || (typeof myIPFS !== 'undefined' ? myIPFS : 'https://ipfs.io');
+                    
+                    for (const tag of videoInfo.tags || []) {
+                        // Check for gifanim_ipfs tag (priority)
+                        if (tag[0] === 'gifanim_ipfs' && tag[1]) {
+                            gifanimCid = tag[1];
+                        }
+                        // Check for thumbnail_ipfs tag
+                        if (tag[0] === 'thumbnail_ipfs' && tag[1]) {
+                            thumbnailCid = tag[1];
+                        }
+                        // Check for image tag (might contain IPFS URL)
+                        if (tag[0] === 'image' && tag[1] && tag[1].includes('ipfs')) {
+                            imageUrl = tag[1];
+                        }
+                        // Check for r tag with Thumbnail marker
+                        if (tag[0] === 'r' && tag[1] && tag[1].includes('ipfs') && tag[2] === 'Thumbnail') {
+                            imageUrl = tag[1];
+                        }
+                    }
+                    
+                    // Also check imeta tag for gifanim and image
+                    for (const tag of videoInfo.tags || []) {
+                        if (tag[0] === 'imeta') {
+                            for (let i = 1; i < tag.length; i++) {
+                                const metaItem = tag[i];
+                                if (typeof metaItem === 'string') {
+                                    // Check for gifanim in imeta
+                                    if (metaItem.startsWith('gifanim ')) {
+                                        const gifanimPath = metaItem.substring(8).trim();
+                                        if (gifanimPath.includes('ipfs/')) {
+                                            const cidMatch = gifanimPath.match(/ipfs\/([^\/]+)/);
+                                            if (cidMatch) {
+                                                gifanimCid = cidMatch[1];
+                                            } else {
+                                                gifanimUrl = gifanimPath.startsWith('/') ? gifanimPath : '/' + gifanimPath;
+                                            }
+                                        }
+                                    }
+                                    // Check for image in imeta
+                                    if (metaItem.startsWith('image ')) {
+                                        const imagePath = metaItem.substring(6).trim();
+                                        if (imagePath.includes('ipfs/')) {
+                                            const cidMatch = imagePath.match(/ipfs\/([^\/]+)/);
+                                            if (cidMatch && !thumbnailCid) {
+                                                thumbnailCid = cidMatch[1];
+                                            } else if (!imageUrl) {
+                                                imageUrl = imagePath.startsWith('/') ? imagePath : '/' + imagePath;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Build image URL - prefer gifanim, fallback to thumbnail
+                    let finalImageUrl = null;
+                    if (gifanimCid) {
+                        finalImageUrl = `${ipfsGateway}/ipfs/${gifanimCid}`;
+                    } else if (gifanimUrl) {
+                        finalImageUrl = gifanimUrl.startsWith('http') ? gifanimUrl : `${ipfsGateway}${gifanimUrl}`;
+                    } else if (thumbnailCid) {
+                        finalImageUrl = `${ipfsGateway}/ipfs/${thumbnailCid}`;
+                    } else if (imageUrl) {
+                        finalImageUrl = imageUrl.startsWith('http') ? imageUrl : `${ipfsGateway}${imageUrl}`;
+                    }
+                    
+                    // Display thumbnail
+                    const thumbnailContainer = document.getElementById('videoThumbnail');
+                    if (finalImageUrl) {
+                        // Create img element with proper error handling
+                        const img = document.createElement('img');
+                        img.src = finalImageUrl;
+                        img.alt = 'Thumbnail';
+                        img.style.width = '100%';
+                        img.style.height = 'auto';
+                        img.style.display = 'block';
+                        img.onerror = function() {
+                            thumbnailContainer.innerHTML = '<div class="placeholder"><i class="bi bi-image"></i> Erreur de chargement</div>';
+                        };
+                        img.onload = function() {
+                            console.log('[Tags] Thumbnail loaded:', finalImageUrl);
+                        };
+                        thumbnailContainer.innerHTML = '';
+                        thumbnailContainer.appendChild(img);
+                    } else {
+                        thumbnailContainer.innerHTML = '<div class="placeholder"><i class="bi bi-image"></i> Aucune image</div>';
+                        console.log('[Tags] No thumbnail found in video event');
+                    }
+                    
                     // Display video info
                     document.getElementById('videoTitle').textContent = title;
-                    document.getElementById('videoMeta').textContent = `Publié le ${createdAt} par ${authorId.substring(0, 16)}...`;
-                    document.getElementById('videoLink').href = `/theater?video=${eventId}`;
+                    
+                    // Fetch author profile to get display name
+                    let authorDisplayName = authorId.substring(0, 16) + '...';
+                    if (authorId && window.nostrRelay && checkConnectionStatus()) {
+                        try {
+                            // Try to fetch profile using fetchUserMetadata if available
+                            if (typeof fetchUserMetadata === 'function') {
+                                const profile = await fetchUserMetadata(authorId, true); // Use cached
+                                if (profile) {
+                                    authorDisplayName = profile.name || profile.display_name || authorId.substring(0, 16) + '...';
+                                }
+                            } else {
+                                // Fallback: fetch kind 0 directly
+                                const profileEvents = await new Promise((resolve) => {
+                                    const sub = window.nostrRelay.sub([{
+                                        kinds: [0],
+                                        authors: [authorId],
+                                        limit: 1
+                                    }]);
+                                    let profileEvent = null;
+                                    sub.on('event', (event) => {
+                                        profileEvent = event;
+                                    });
+                                    sub.on('eose', () => {
+                                        sub.unsub();
+                                        resolve(profileEvent);
+                                    });
+                                    setTimeout(() => {
+                                        sub.unsub();
+                                        resolve(profileEvent);
+                                    }, 2000);
+                                });
+                                
+                                if (profileEvents) {
+                                    try {
+                                        const profileData = JSON.parse(profileEvents.content);
+                                        authorDisplayName = profileData.name || profileData.display_name || authorId.substring(0, 16) + '...';
+                                    } catch (e) {
+                                        console.warn('[Tags] Could not parse profile data:', e);
+                                    }
+                                }
+                            }
+                        } catch (error) {
+                            console.warn('[Tags] Could not fetch author profile:', error);
+                            // Keep default display name
+                        }
+                    }
+                    
+                    document.getElementById('videoMeta').textContent = `Publié le ${createdAt} par ${authorDisplayName}`;
+                    
+                    // Build theater URL - use current origin or detect from window
+                    const baseUrl = window.location.origin || '';
+                    const theaterUrl = `${baseUrl}/theater?video=${eventId}`;
+                    document.getElementById('videoLink').href = theaterUrl;
                     document.getElementById('videoInfo').style.display = 'block';
                 }
             } catch (error) {
                 console.error('Error fetching video info:', error);
                 // Still show the page even if video info fails
                 document.getElementById('videoTitle').textContent = 'Vidéo (ID: ' + eventId.substring(0, 16) + '...)';
+                
+                // Check if it's a connection error
+                if (error.message && (error.message.includes('not found') || error.message.includes('timeout'))) {
+                    document.getElementById('videoMeta').textContent = 'Vidéo non trouvée ou erreur de connexion';
+                } else {
+                    document.getElementById('videoMeta').textContent = 'Erreur: ' + error.message;
+                }
+                
+                document.getElementById('videoThumbnail').innerHTML = '<div class="placeholder"><i class="bi bi-exclamation-triangle"></i> Erreur</div>';
+                const baseUrl = window.location.origin || '';
+                document.getElementById('videoLink').href = `${baseUrl}/theater?video=${eventId}`;
                 document.getElementById('videoInfo').style.display = 'block';
             }
         }
         
         async function loadTags() {
+            // Check if connected
+            if (!checkConnectionStatus()) {
+                document.getElementById('userTagsList').innerHTML = '<div class="empty-state"><i class="bi bi-wifi-off"></i><p>Connectez-vous au relai pour charger les tags</p></div>';
+                document.getElementById('tagCloud').innerHTML = '<div class="empty-state"><i class="bi bi-wifi-off"></i><p>Connectez-vous au relai pour charger les tags</p></div>';
+                return;
+            }
+            
             try {
-                // Load user tags
-                await loadUserTags();
-                
-                // Load tag cloud
-                await loadTagCloud();
+                // Load user tags and tag cloud sequentially to avoid too many concurrent requests
+                // Use queueRequest to limit concurrent requests
+                await queueRequest(async () => {
+                    await loadUserTags();
+                });
+                await queueRequest(async () => {
+                    await loadTagCloud();
+                });
             } catch (error) {
                 console.error('Error loading tags:', error);
                 showError('Erreur lors du chargement des tags: ' + error.message);
@@ -482,31 +1264,115 @@
             const container = document.getElementById('userTagsList');
             
             try {
-                if (!window.userPubkey) {
-                    container.innerHTML = '<div class="empty-state"><i class="bi bi-person-x"></i><p>Connectez-vous pour voir vos tags</p></div>';
+                // Check connection first
+                if (!checkConnectionStatus()) {
+                    container.innerHTML = '<div class="empty-state"><i class="bi bi-wifi-off"></i><p>Connectez-vous au relai pour voir vos tags</p></div>';
                     return;
                 }
                 
-                const userTags = await fetchUserTagsForVideo(videoEventId, window.userPubkey);
+                // Try to get user pubkey (multiple methods)
+                let userPubkey = window.userPubkey;
                 
-                if (userTags.length === 0) {
-                    container.innerHTML = '<div class="empty-state"><i class="bi bi-tag"></i><p>Aucun tag ajouté</p></div>';
+                // Method 1: Check if already set
+                if (!userPubkey) {
+                    // Method 2: Try to get from NOSTR extension
+                    if (window.nostr && typeof window.nostr.getPublicKey === 'function') {
+                        try {
+                            const pubkeyPromise = window.nostr.getPublicKey();
+                            userPubkey = pubkeyPromise instanceof Promise ? await pubkeyPromise : pubkeyPromise;
+                            if (userPubkey) {
+                                window.userPubkey = userPubkey;
+                            }
+                        } catch (error) {
+                            console.warn('Could not get pubkey from NOSTR extension:', error);
+                        }
+                    }
+                }
+                
+                // Method 3: Try connectNostr function
+                if (!userPubkey && typeof connectNostr === 'function') {
+                    try {
+                        userPubkey = await connectNostr();
+                        if (userPubkey) {
+                            window.userPubkey = userPubkey;
+                        }
+                    } catch (error) {
+                        console.warn('Could not get pubkey from connectNostr:', error);
+                    }
+                }
+                
+                // Method 4: Extract from tag cloud (if we can identify user's tags)
+                if (!userPubkey) {
+                    try {
+                        const allTags = await fetchVideoTags(videoEventId);
+                        // Try to find tags that might belong to the user
+                        // This is a fallback - we'll show a message asking for authentication
+                        if (Object.keys(allTags).length > 0) {
+                            container.innerHTML = '<div class="empty-state"><i class="bi bi-person-x"></i><p>Authentifiez-vous avec NOSTR pour voir vos tags personnels</p><p style="font-size: 0.85rem; margin-top: 0.5rem; opacity: 0.8;">Vous pouvez voir tous les tags dans le nuage ci-dessous</p></div>';
+                            return;
+                        }
+                    } catch (error) {
+                        console.warn('Could not fetch tags for fallback:', error);
+                    }
+                }
+                
+                // If still no pubkey, show authentication message
+                if (!userPubkey) {
+                    container.innerHTML = '<div class="empty-state"><i class="bi bi-person-x"></i><p>Authentifiez-vous avec NOSTR pour voir vos tags</p><button class="btn" onclick="handleConnectNostr()" style="margin-top: 1rem;">S\'authentifier</button></div>';
                     return;
                 }
                 
-                const html = userTags.map(tag => `
-                    <div class="user-tag-item">
-                        <span class="tag-name">${escapeHtml(tag)}</span>
-                        <button class="tag-remove" onclick="handleRemoveTag('${escapeHtml(tag)}')" title="Supprimer">
-                            <i class="bi bi-x-circle"></i>
-                        </button>
+                // Fetch user tags
+                const userTags = await fetchUserTagsForVideo(videoEventId, userPubkey);
+                
+                if (!userTags || userTags.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><i class="bi bi-tag"></i><p>Aucun tag ajouté par vous</p><p style="font-size: 0.85rem; margin-top: 0.5rem; opacity: 0.8;">Limite: 10 tags par vidéo</p></div>';
+                    return;
+                }
+                
+                const tagCount = userTags.length;
+                const remainingTags = 10 - tagCount;
+                const limitWarning = tagCount >= 10 ? '<p style="font-size: 0.85rem; margin-top: 0.5rem; color: #ff6b6b;"><i class="bi bi-exclamation-triangle"></i> Limite de 10 tags atteinte</p>' : 
+                                    remainingTags <= 2 ? `<p style="font-size: 0.85rem; margin-top: 0.5rem; color: #ffa500;"><i class="bi bi-info-circle"></i> ${remainingTags} tag${remainingTags > 1 ? 's' : ''} restant${remainingTags > 1 ? 's' : ''}</p>` :
+                                    `<p style="font-size: 0.85rem; margin-top: 0.5rem; opacity: 0.8;">${tagCount}/10 tags</p>`;
+                
+                const html = `
+                    ${limitWarning}
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
+                        ${userTags.map(tag => `
+                            <div class="user-tag-item">
+                                <span class="tag-name">${escapeHtml(tag)}</span>
+                                <button class="tag-remove" onclick="handleRemoveTag('${escapeHtml(tag)}')" title="Supprimer">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            </div>
+                        `).join('')}
                     </div>
-                `).join('');
+                `;
                 
                 container.innerHTML = html;
             } catch (error) {
                 console.error('Error loading user tags:', error);
-                container.innerHTML = '<div class="error">Erreur lors du chargement de vos tags</div>';
+                container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Erreur lors du chargement de vos tags</p></div>';
+            }
+        }
+        
+        async function handleConnectNostr() {
+            if (typeof connectNostr === 'function') {
+                try {
+                    const pubkey = await connectNostr();
+                    if (pubkey) {
+                        window.userPubkey = pubkey;
+                        await loadUserTags(); // Reload user tags
+                        showToast('Authentification réussie!', 'success');
+                    } else {
+                        showError('Échec de l\'authentification');
+                    }
+                } catch (error) {
+                    showError('Erreur d\'authentification: ' + error.message);
+                }
+            } else {
+                showError('Fonction d\'authentification NOSTR non disponible');
             }
         }
         
@@ -581,23 +1447,62 @@
                 return;
             }
             
-            // Check if user is connected
+            // Check if relay is connected - try to auto-connect if needed
+            if (!checkConnectionStatus()) {
+                const connected = await autoConnectRelay();
+                if (!connected) {
+                    showError('Vous devez être connecté au relai pour ajouter un tag. Cliquez sur "Se connecter au relai" en haut.');
+                    return;
+                }
+            }
+            
+            // Ensure relay is available
+            if (!window.nostrRelay) {
+                showError('Relai NOSTR non disponible');
+                return;
+            }
+            
+            // Check if user is authenticated (NOSTR key)
             if (!window.userPubkey) {
-                const connect = confirm('Vous devez être connecté pour ajouter un tag. Voulez-vous vous connecter maintenant ?');
-                if (connect) {
+                if (typeof connectNostr === 'function') {
                     try {
                         await connectNostr();
                         if (!window.userPubkey) {
-                            showError('Échec de la connexion');
+                            showError('Échec de l\'authentification NOSTR');
                             return;
                         }
                     } catch (error) {
-                        showError('Erreur de connexion: ' + error.message);
+                        showError('Erreur d\'authentification: ' + error.message);
                         return;
                     }
                 } else {
+                    showError('Authentification NOSTR requise. Utilisez une extension NOSTR.');
                     return;
                 }
+            }
+            
+            // Check if tag already exists for this user and limit to 10 tags
+            try {
+                const existingUserTags = await queueRequest(async () => {
+                    return await fetchUserTagsForVideo(videoEventId, window.userPubkey);
+                });
+                
+                if (existingUserTags && existingUserTags.length > 0) {
+                    // Check for duplicate
+                    if (existingUserTags.includes(tagValue)) {
+                        showError(`Le tag "${tagValue}" existe déjà pour cette vidéo`);
+                        return;
+                    }
+                    
+                    // Check limit of 10 tags per user per video
+                    if (existingUserTags.length >= 10) {
+                        showError('Limite de 10 tags par vidéo atteinte. Supprimez un tag existant pour en ajouter un nouveau.');
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.warn('[Tags] Could not check existing tags, proceeding anyway:', error);
+                // Continue anyway, the relay will handle duplicates
             }
             
             // Disable button
@@ -606,24 +1511,40 @@
             btn.textContent = 'Ajout...';
             
             try {
-                const result = await addVideoTag(videoEventId, tagValue);
+                // Use queueRequest to avoid too many concurrent requests
+                const result = await queueRequest(async () => {
+                    return await addVideoTag(videoEventId, tagValue);
+                });
                 
-                if (result.success) {
+                if (result && result.success) {
                     input.value = '';
-                    await loadTags(); // Reload tags
+                    await loadTags(); // Reload tags (includes user tags)
                     
-                    // Show success notification
-                    if (typeof showNotification === 'function') {
-                        showNotification({ message: `Tag "${tagValue}" ajouté avec succès!`, type: 'success' });
-                    } else {
-                        alert(`Tag "${tagValue}" ajouté avec succès!`);
+                    // Show success notification with remaining tags count
+                    try {
+                        const userTags = await queueRequest(async () => {
+                            return await fetchUserTagsForVideo(videoEventId, window.userPubkey);
+                        });
+                        const remaining = 10 - (userTags?.length || 0);
+                        const message = remaining > 0 ? 
+                            `Tag "${tagValue}" ajouté avec succès! (${remaining} tag${remaining > 1 ? 's' : ''} restant${remaining > 1 ? 's' : ''})` :
+                            `Tag "${tagValue}" ajouté avec succès! (Limite atteinte)`;
+                        showToast(message, 'success');
+                    } catch (error) {
+                        showToast(`Tag "${tagValue}" ajouté avec succès!`, 'success');
                     }
                 } else {
-                    showError('Erreur lors de l\'ajout du tag');
+                    const errorMsg = result?.error || 'Erreur lors de l\'ajout du tag';
+                    showError(errorMsg);
                 }
             } catch (error) {
-                console.error('Error adding tag:', error);
-                showError('Erreur: ' + error.message);
+                console.error('[Tags] Error adding tag:', error);
+                const errorMsg = error.message || String(error);
+                if (errorMsg.includes('connecté') || errorMsg.includes('connected')) {
+                    showError('Vous devez être connecté au relai pour publier');
+                } else {
+                    showError('Erreur: ' + errorMsg);
+                }
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-plus-circle"></i> Ajouter';
@@ -631,21 +1552,27 @@
         }
         
         async function handleAddExistingTag(tagValue) {
-            // Check if user is connected
+            // Check if relay is connected
+            if (!checkConnectionStatus()) {
+                showError('Vous devez être connecté au relai pour ajouter un tag. Cliquez sur "Se connecter au relai" en haut.');
+                return;
+            }
+            
+            // Check if user is authenticated (NOSTR key)
             if (!window.userPubkey) {
-                const connect = confirm('Vous devez être connecté pour ajouter un tag. Voulez-vous vous connecter maintenant ?');
-                if (connect) {
+                if (typeof connectNostr === 'function') {
                     try {
                         await connectNostr();
                         if (!window.userPubkey) {
-                            showError('Échec de la connexion');
+                            showError('Échec de l\'authentification NOSTR');
                             return;
                         }
                     } catch (error) {
-                        showError('Erreur de connexion: ' + error.message);
+                        showError('Erreur d\'authentification: ' + error.message);
                         return;
                     }
                 } else {
+                    showError('Authentification NOSTR requise. Utilisez une extension NOSTR.');
                     return;
                 }
             }
@@ -653,11 +1580,7 @@
             // Check if user already has this tag
             const userTags = await fetchUserTagsForVideo(videoEventId, window.userPubkey);
             if (userTags.includes(tagValue)) {
-                if (typeof showNotification === 'function') {
-                    showNotification({ message: 'Vous avez déjà ajouté ce tag', type: 'info' });
-                } else {
-                    alert('Vous avez déjà ajouté ce tag');
-                }
+                showToast('Vous avez déjà ajouté ce tag', 'info');
                 return;
             }
             
@@ -668,11 +1591,7 @@
                     await loadTags(); // Reload tags
                     
                     // Show success notification
-                    if (typeof showNotification === 'function') {
-                        showNotification({ message: `Tag "${tagValue}" ajouté avec succès!`, type: 'success' });
-                    } else {
-                        alert(`Tag "${tagValue}" ajouté avec succès!`);
-                    }
+                    showToast(`Tag "${tagValue}" ajouté avec succès!`, 'success');
                 } else {
                     showError('Erreur lors de l\'ajout du tag');
                 }
@@ -683,59 +1602,144 @@
         }
         
         async function handleRemoveTag(tagValue) {
-            if (!window.userPubkey) {
-                showError('Vous devez être connecté pour supprimer un tag');
+            // Check relay connection first - try to auto-connect if needed
+            if (!checkConnectionStatus()) {
+                const connected = await autoConnectRelay();
+                if (!connected) {
+                    showToast('Vous devez être connecté au relai pour supprimer un tag', 'error');
+                    return;
+                }
+            }
+            
+            // Ensure relay is available
+            if (!window.nostrRelay) {
+                showToast('Relai NOSTR non disponible', 'error');
                 return;
             }
             
-            if (!confirm(`Voulez-vous vraiment supprimer le tag "${tagValue}" ?`)) {
+            // Try to get user pubkey
+            let userPubkey = window.userPubkey;
+            if (!userPubkey && typeof connectNostr === 'function') {
+                try {
+                    userPubkey = await connectNostr();
+                    if (userPubkey) {
+                        window.userPubkey = userPubkey;
+                    }
+                } catch (error) {
+                    console.warn('Could not get pubkey:', error);
+                }
+            }
+            
+            if (!userPubkey) {
+                showToast('Vous devez être authentifié pour supprimer un tag', 'error');
+                return;
+            }
+            
+            // Show confirmation modal instead of confirm()
+            const confirmed = await showConfirmModal(`Voulez-vous vraiment supprimer le tag "${tagValue}" ?`);
+            if (!confirmed) {
                 return;
             }
             
             try {
-                // Find the tag event ID
-                const userTags = await fetchUserTagsForVideo(videoEventId, window.userPubkey);
-                if (!userTags.includes(tagValue)) {
-                    showError('Tag non trouvé');
-                    return;
-                }
-                
-                // Find the event ID for this tag
-                const allTags = await fetchVideoTags(videoEventId);
-                const tagData = allTags[tagValue];
-                if (!tagData) {
-                    showError('Données du tag non trouvées');
-                    return;
-                }
-                
-                // Find user's event ID for this tag
-                const userTagEvents = await new Promise((resolve) => {
-                    const sub = window.nostrRelay.sub([{
-                        kinds: [1985],
-                        '#e': [videoEventId],
-                        '#l': [tagValue],
-                        authors: [window.userPubkey],
-                        limit: 1
-                    }]);
-                    
-                    const events = [];
-                    sub.on('event', (e) => { events.push(e); });
-                    sub.on('eose', () => { sub.unsub(); resolve(events); });
-                    setTimeout(() => { sub.unsub(); resolve(events); }, 2000);
+                // First check if user has this tag (queued to avoid too many requests)
+                const userTags = await queueRequest(async () => {
+                    return await fetchUserTagsForVideo(videoEventId, userPubkey);
                 });
                 
-                if (userTagEvents.length > 0) {
-                    const result = await removeVideoTag(userTagEvents[0].id);
+                if (!userTags.includes(tagValue)) {
+                    showError('Ce tag n\'a pas été ajouté par vous');
+                    return;
+                }
+                
+                // Try to get event ID from stored map first
+                const userTagEventMap = window.userTagEventMap && window.userTagEventMap[videoEventId];
+                let tagEventId = null;
+                
+                if (userTagEventMap && userTagEventMap[tagValue]) {
+                    tagEventId = userTagEventMap[tagValue];
+                } else {
+                    // Find user's event ID for this tag by querying (queued)
+                    const userTagEvents = await queueRequest(async () => {
+                        return await new Promise((resolve) => {
+                            const events = [];
+                            let resolved = false;
+                            
+                            try {
+                                // Use list() if available
+                                if (typeof window.nostrRelay.list === 'function') {
+                                    window.nostrRelay.list([{
+                                        kinds: [1985],
+                                        '#e': [videoEventId],
+                                        '#l': [tagValue],
+                                        authors: [userPubkey],
+                                        limit: 1
+                                    }], { timeout: 3000 }).then(evts => {
+                                        resolve(evts || []);
+                                    }).catch(() => {
+                                        resolve([]);
+                                    });
+                                    return;
+                                }
+                                
+                                // Fallback to subscription
+                                const sub = window.nostrRelay.sub([{
+                                    kinds: [1985],
+                                    '#e': [videoEventId],
+                                    '#l': [tagValue],
+                                    authors: [userPubkey],
+                                    limit: 1
+                                }]);
+                                
+                                sub.on('event', (e) => {
+                                    if (!resolved && e) {
+                                        events.push(e);
+                                    }
+                                });
+                                
+                                sub.on('eose', () => {
+                                    if (!resolved) {
+                                        resolved = true;
+                                        if (sub.close) sub.close();
+                                        else if (sub.unsub) sub.unsub();
+                                        resolve(events);
+                                    }
+                                });
+                                
+                                setTimeout(() => {
+                                    if (!resolved) {
+                                        resolved = true;
+                                        if (sub.close) sub.close();
+                                        else if (sub.unsub) sub.unsub();
+                                        resolve(events);
+                                    }
+                                }, 3000);
+                            } catch (error) {
+                                if (!resolved) {
+                                    resolved = true;
+                                    console.error('Error in subscription:', error);
+                                    resolve([]);
+                                }
+                            }
+                        });
+                    });
+                    
+                    if (userTagEvents.length > 0) {
+                        tagEventId = userTagEvents[0].id;
+                    }
+                }
+                
+                if (tagEventId) {
+                    // Use queueRequest to avoid too many concurrent requests
+                    const result = await queueRequest(async () => {
+                        return await removeVideoTag(tagEventId);
+                    });
                     
                     if (result.success) {
                         await loadTags(); // Reload tags
                         
                         // Show success notification
-                        if (typeof showNotification === 'function') {
-                            showNotification({ message: 'Tag supprimé avec succès!', type: 'success' });
-                        } else {
-                            alert('Tag supprimé avec succès!');
-                        }
+                        showToast('Tag supprimé avec succès!', 'success');
                     } else {
                         showError('Erreur lors de la suppression du tag');
                     }
@@ -744,18 +1748,143 @@
                 }
             } catch (error) {
                 console.error('Error removing tag:', error);
-                showError('Erreur: ' + error.message);
+                // Check if error message contains connection info
+                const errorMsg = error.message || String(error);
+                if (errorMsg.includes('connecté') || errorMsg.includes('connected')) {
+                    showToast('Vous devez être connecté au relai pour publier', 'error');
+                } else {
+                    showError('Erreur: ' + errorMsg);
+                }
             }
         }
         
-        function showError(message) {
-            const errorDiv = document.getElementById('errorMessage');
-            errorDiv.textContent = '❌ ' + message;
-            errorDiv.style.display = 'block';
+        // Toast notification function
+        function showToast(message, type = 'info') {
+            const container = document.querySelector('.toast-container');
+            if (!container) return;
             
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 5000);
+            const toastId = 'toast-' + Date.now();
+            const icons = {
+                success: 'bi-check-circle',
+                error: 'bi-exclamation-circle',
+                info: 'bi-info-circle',
+                warning: 'bi-exclamation-triangle'
+            };
+            
+            const toastHtml = `
+                <div id="${toastId}" class="toast toast-${type}" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="toast-header">
+                        <i class="bi ${icons[type] || icons.info} me-2"></i>
+                        <strong class="me-auto">${type === 'success' ? 'Succès' : type === 'error' ? 'Erreur' : type === 'warning' ? 'Attention' : 'Information'}</strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${escapeHtml(message)}
+                    </div>
+                </div>
+            `;
+            
+            container.insertAdjacentHTML('beforeend', toastHtml);
+            const toastElement = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastElement, {
+                autohide: true,
+                delay: type === 'error' ? 5000 : 3000
+            });
+            toast.show();
+            
+            // Remove element after hiding
+            toastElement.addEventListener('hidden.bs.toast', () => {
+                toastElement.remove();
+            });
+        }
+        
+        // Confirmation modal function
+        function showConfirmModal(message) {
+            return new Promise((resolve) => {
+                const modalElement = document.getElementById('confirmModal');
+                const modalBody = document.getElementById('confirmModalBody');
+                const modalOk = document.getElementById('confirmModalOk');
+                const modalCancel = modalElement.querySelector('.btn-secondary[data-bs-dismiss="modal"]');
+                const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+                
+                modalBody.textContent = message;
+                
+                let resolved = false;
+                
+                const cleanup = () => {
+                    modalElement.removeEventListener('hidden.bs.modal', handleHidden);
+                    modalElement.removeEventListener('hide.bs.modal', handleHide);
+                    if (newOkBtn) {
+                        newOkBtn.removeEventListener('click', handleConfirm);
+                    }
+                    if (modalCancel) {
+                        modalCancel.removeEventListener('click', handleCancel);
+                    }
+                };
+                
+                const handleConfirm = () => {
+                    if (!resolved) {
+                        resolved = true;
+                        cleanup();
+                        modal.hide();
+                        // Wait for modal to hide before resolving
+                        setTimeout(() => resolve(true), 100);
+                    }
+                };
+                
+                const handleCancel = () => {
+                    if (!resolved) {
+                        resolved = true;
+                        cleanup();
+                        resolve(false);
+                    }
+                };
+                
+                const handleHidden = () => {
+                    if (!resolved) {
+                        resolved = true;
+                        cleanup();
+                        resolve(false);
+                    }
+                };
+                
+                const handleHide = (e) => {
+                    // If closing without clicking confirm, it's a cancel
+                    if (!resolved) {
+                        // Check if it was the confirm button that triggered this
+                        const relatedTarget = e.relatedTarget;
+                        if (relatedTarget && relatedTarget.id === 'confirmModalOk') {
+                            return; // Let handleConfirm handle it
+                        }
+                        resolved = true;
+                        cleanup();
+                        resolve(false);
+                    }
+                };
+                
+                // Remove previous listeners by cloning buttons
+                const newOkBtn = modalOk.cloneNode(true);
+                modalOk.parentNode.replaceChild(newOkBtn, modalOk);
+                
+                newOkBtn.addEventListener('click', handleConfirm);
+                if (modalCancel) {
+                    modalCancel.addEventListener('click', handleCancel);
+                }
+                
+                modalElement.addEventListener('hidden.bs.modal', handleHidden, { once: true });
+                modalElement.addEventListener('hide.bs.modal', handleHide, { once: true });
+                
+                // Show modal and remove aria-hidden
+                modal.show();
+                // Remove aria-hidden after modal is shown
+                setTimeout(() => {
+                    modalElement.removeAttribute('aria-hidden');
+                }, 100);
+            });
+        }
+        
+        function showError(message) {
+            showToast(message, 'error');
         }
         
         function escapeHtml(text) {
@@ -770,7 +1899,518 @@
                 handleAddTag();
             }
         });
+        
+        // Override fetchUserTagsForVideo to use existing connection (even if already defined)
+        // This prevents creating new connections
+        {
+            async function fetchUserTagsForVideo(videoEventId, userPubkey) {
+                // Use existing connection, don't create new one
+                if (!checkConnectionStatus() || !window.nostrRelay) {
+                    return [];
+                }
+                
+                if (!userPubkey) {
+                    console.warn('No user pubkey provided to fetchUserTagsForVideo');
+                    return [];
+                }
+                
+                try {
+                    const filter = {
+                        kinds: [1985],
+                        '#e': [videoEventId],
+                        '#L': ['ugc'],
+                        authors: [userPubkey]
+                    };
+                    
+                    // Use list() if available (doesn't create new connection)
+                    if (typeof window.nostrRelay.list === 'function') {
+                        const tagEvents = await window.nostrRelay.list([filter], { timeout: 5000 });
+                        // Extract unique tag values
+                        const userTags = [];
+                        const tagEventMap = {};
+                        tagEvents.forEach(event => {
+                            const tagValue = event.tags.find(t => t[0] === 'l')?.[1];
+                            if (tagValue) {
+                                if (!userTags.includes(tagValue)) {
+                                    userTags.push(tagValue);
+                                }
+                                if (!tagEventMap[tagValue]) {
+                                    tagEventMap[tagValue] = event.id;
+                                }
+                            }
+                        });
+                        // Store tag event map for deletion
+                        window.userTagEventMap = window.userTagEventMap || {};
+                        window.userTagEventMap[videoEventId] = tagEventMap;
+                        return userTags;
+                    }
+                    
+                    // Fallback to subscription (but reuse existing connection)
+                    const tagEvents = await new Promise((resolve, reject) => {
+                        const events = [];
+                        let resolved = false;
+                        
+                        try {
+                            const sub = window.nostrRelay.sub([filter]);
+                            
+                            sub.on('event', (event) => {
+                                if (!resolved) {
+                                    events.push(event);
+                                }
+                            });
+                            
+                            sub.on('eose', () => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    sub.unsub();
+                                    resolve(events);
+                                }
+                            });
+                            
+                            setTimeout(() => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    sub.unsub();
+                                    resolve(events);
+                                }
+                            }, 5000);
+                        } catch (error) {
+                            if (!resolved) {
+                                resolved = true;
+                                console.error('Error in subscription:', error);
+                                resolve([]);
+                            }
+                        }
+                    });
+                    
+                    // Extract unique tag values
+                    const userTags = [];
+                    const tagEventMap = {}; // Map tag value to event ID for deletion
+                    
+                    tagEvents.forEach(event => {
+                        const tagValue = event.tags.find(t => t[0] === 'l')?.[1];
+                        if (tagValue) {
+                            if (!userTags.includes(tagValue)) {
+                                userTags.push(tagValue);
+                            }
+                            // Store event ID for this tag (for deletion)
+                            if (!tagEventMap[tagValue]) {
+                                tagEventMap[tagValue] = event.id;
+                            }
+                        }
+                    });
+                    
+                    // Store tag event map for deletion
+                    window.userTagEventMap = window.userTagEventMap || {};
+                    window.userTagEventMap[videoEventId] = tagEventMap;
+                    
+                    return userTags;
+                } catch (error) {
+                    console.error('Error fetching user tags:', error);
+                    return [];
+                }
+            }
+            
+            // Make it global (override existing if any)
+            window.fetchUserTagsForVideo = fetchUserTagsForVideo;
+        }
+        
+        // Override fetchVideoTags to use existing connection (even if already defined)
+        // This prevents creating new connections
+        {
+            async function fetchVideoTags(videoEventId, timeout = 5000) {
+                // Use existing connection, don't create new one
+                if (!checkConnectionStatus() || !window.nostrRelay) {
+                    return {};
+                }
+                
+                try {
+                    const filter = {
+                        kinds: [1985],
+                        '#e': [videoEventId],
+                        '#L': ['ugc']
+                    };
+                    
+                    // Use list() if available (doesn't create new connection)
+                    if (typeof window.nostrRelay.list === 'function') {
+                        const tagEvents = await window.nostrRelay.list([filter], { timeout });
+                        // Aggregate tags
+                        const tags = {};
+                        tagEvents.forEach(event => {
+                            const tagValue = event.tags.find(t => t[0] === 'l')?.[1];
+                            if (tagValue) {
+                                if (!tags[tagValue]) {
+                                    tags[tagValue] = {
+                                        count: 0,
+                                        taggers: [],
+                                        events: []
+                                    };
+                                }
+                                tags[tagValue].count++;
+                                if (!tags[tagValue].taggers.includes(event.pubkey)) {
+                                    tags[tagValue].taggers.push(event.pubkey);
+                                }
+                                tags[tagValue].events.push(event.id);
+                            }
+                        });
+                        return tags;
+                    }
+                    
+                    // Fallback to subscription (but reuse existing connection)
+                    const tagEvents = await new Promise((resolve, reject) => {
+                        const events = [];
+                        const sub = window.nostrRelay.sub([filter]);
+                        
+                        sub.on('event', (event) => {
+                            events.push(event);
+                        });
+                        
+                        sub.on('eose', () => {
+                            sub.unsub();
+                            resolve(events);
+                        });
+                        
+                        setTimeout(() => {
+                            sub.unsub();
+                            resolve(events);
+                        }, timeout);
+                    });
+                    
+                    // Aggregate tags
+                    const tags = {};
+                    tagEvents.forEach(event => {
+                        const tagValue = event.tags.find(t => t[0] === 'l')?.[1];
+                        if (tagValue) {
+                            if (!tags[tagValue]) {
+                                tags[tagValue] = {
+                                    count: 0,
+                                    taggers: [],
+                                    events: []
+                                };
+                            }
+                            tags[tagValue].count++;
+                            if (!tags[tagValue].taggers.includes(event.pubkey)) {
+                                tags[tagValue].taggers.push(event.pubkey);
+                            }
+                            tags[tagValue].events.push(event.id);
+                        }
+                    });
+                    
+                    return tags;
+                } catch (error) {
+                    console.error('Error fetching video tags:', error);
+                    return {};
+                }
+            }
+            
+            // Make it global (override existing if any)
+            window.fetchVideoTags = fetchVideoTags;
+        }
+        
+        // Override addVideoTag to use existing connection (even if already defined)
+        // This prevents creating new connections and showing alerts
+        {
+            async function addVideoTag(videoEventId, tagValue, videoAuthorPubkey = null, relayUrl = null) {
+                console.log('[Tags] addVideoTag called for:', tagValue);
+                
+                // Check connection - try to auto-connect if not connected
+                if (!checkConnectionStatus()) {
+                    console.log('[Tags] Not connected, attempting auto-connect...');
+                    const connected = await autoConnectRelay();
+                    if (!connected) {
+                        throw new Error('Vous devez être connecté au relai pour publier');
+                    }
+                }
+                
+                // Ensure relay is available
+                if (!window.nostrRelay) {
+                    throw new Error('Relai NOSTR non disponible');
+                }
+                
+                if (!window.userPubkey) {
+                    throw new Error('Vous devez être authentifié pour publier');
+                }
+                
+                // Validate tag format
+                if (!/^[a-z0-9_-]+$/.test(tagValue)) {
+                    throw new Error('Invalid tag format. Use lowercase alphanumeric with hyphens/underscores.');
+                }
+                
+                // Double-check: verify tag doesn't already exist and limit to 10 tags
+                try {
+                    const existingUserTags = await fetchUserTagsForVideo(videoEventId, window.userPubkey);
+                    if (existingUserTags && existingUserTags.length > 0) {
+                        // Check for duplicate
+                        if (existingUserTags.includes(tagValue)) {
+                            throw new Error(`Le tag "${tagValue}" existe déjà pour cette vidéo`);
+                        }
+                        
+                        // Check limit of 10 tags per user per video
+                        if (existingUserTags.length >= 10) {
+                            throw new Error('Limite de 10 tags par vidéo atteinte. Supprimez un tag existant pour en ajouter un nouveau.');
+                        }
+                    }
+                } catch (error) {
+                    // If error is about duplicate or limit, rethrow it
+                    if (error.message && (error.message.includes('existe déjà') || error.message.includes('Limite de 10'))) {
+                        throw error;
+                    }
+                    // Otherwise, log warning but continue (might be connection issue)
+                    console.warn('[Tags] Could not verify duplicate tag or limit, proceeding anyway:', error);
+                }
+                
+                // Get relay URL
+                if (!relayUrl) {
+                    relayUrl = window.relayUrl || 'ws://127.0.0.1:7777';
+                }
+                
+                // Determine video kind (try to fetch it first, or default to 21)
+                let videoKind = '21';
+                try {
+                    const videoEvent = await new Promise((resolve) => {
+                        const sub = window.nostrRelay.sub([{
+                            kinds: [21, 22],
+                            ids: [videoEventId],
+                            limit: 1
+                        }]);
+                        
+                        let event = null;
+                        sub.on('event', (e) => { event = e; });
+                        sub.on('eose', () => { sub.unsub(); resolve(event); });
+                        setTimeout(() => { sub.unsub(); resolve(event); }, 2000);
+                    });
+                    
+                    if (videoEvent) {
+                        videoKind = videoEvent.kind.toString();
+                    }
+                } catch (error) {
+                    console.warn('Could not determine video kind, using default 21');
+                }
+                
+                // Build tags for kind 1985 (NIP-32 format)
+                const tags = [
+                    ['L', 'ugc'],
+                    ['l', tagValue, 'ugc'],
+                    ['e', videoEventId, relayUrl],
+                    ['k', videoKind]
+                ];
+                
+                if (videoAuthorPubkey) {
+                    tags.push(['p', videoAuthorPubkey, relayUrl]);
+                }
+                
+                // Publish tag event using nostr_send_note.py or direct NOSTR
+                // Double-check connection before publishing
+                if (!checkConnectionStatus() || !window.nostrRelay) {
+                    throw new Error('Vous devez être connecté au relai pour publier');
+                }
+                
+                console.log('[Tags] Publishing kind 1985 tag event');
+                
+                // Try publishNote first, but fallback to direct publishing if it fails
+                let publishNoteFailed = false;
+                
+                if (typeof publishNote === 'function') {
+                    try {
+                        const result = await publishNote('', tags, 1985, { silent: true });
+                        console.log('[Tags] publishNote result:', result);
+                        
+                        if (result && result.success && result.relaysSuccess > 0) {
+                            console.log('[Tags] Tag published successfully via publishNote');
+                            return {
+                                success: true,
+                                tagEventId: result.eventId || result.event_id,
+                                tagValue: tagValue
+                            };
+                        } else {
+                            console.warn('[Tags] publishNote failed or no relays succeeded, using fallback');
+                            publishNoteFailed = true;
+                        }
+                    } catch (error) {
+                        console.warn('[Tags] publishNote error, using fallback:', error);
+                        publishNoteFailed = true;
+                    }
+                } else {
+                    publishNoteFailed = true;
+                }
+                
+                // Fallback: use nostr-tools directly or nostr extension
+                if (publishNoteFailed) {
+                    console.log('[Tags] Using NostrTools/extension directly to publish kind 1985 (fallback)');
+                    
+                    if (typeof NostrTools === 'undefined') {
+                        throw new Error('NostrTools not available for fallback');
+                    }
+                    
+                    // Try nostr extension first
+                    if (window.nostr && typeof window.nostr.signEvent === 'function') {
+                        console.log('[Tags] Using nostr extension to sign kind 1985');
+                        const event = {
+                            kind: 1985,
+                            created_at: Math.floor(Date.now() / 1000),
+                            tags: tags,
+                            content: '',
+                            pubkey: window.userPubkey
+                        };
+                        
+                        const signedEvent = await window.nostr.signEvent(event);
+                        console.log('[Tags] Signed kind 1985 event:', signedEvent.id);
+                        
+                        await window.nostrRelay.publish(signedEvent);
+                        console.log('[Tags] Kind 1985 event published via relay');
+                        
+                        return {
+                            success: true,
+                            tagEventId: signedEvent.id,
+                            tagValue: tagValue
+                        };
+                    } else if (window.userPrivateKey && NostrTools.finalizeEvent) {
+                        // Use private key directly
+                        console.log('[Tags] Using private key to sign kind 1985');
+                        const event = NostrTools.finalizeEvent({
+                            kind: 1985,
+                            created_at: Math.floor(Date.now() / 1000),
+                            tags: tags,
+                            content: ''
+                        }, window.userPrivateKey);
+                        
+                        console.log('[Tags] Finalized kind 1985 event:', event.id);
+                        await window.nostrRelay.publish(event);
+                        console.log('[Tags] Kind 1985 event published via relay');
+                        
+                        return {
+                            success: true,
+                            tagEventId: event.id,
+                            tagValue: tagValue
+                        };
+                    } else {
+                        throw new Error('No signing method available. Please use a NOSTR extension or provide private key.');
+                    }
+                }
+            }
+            
+            // Make it global
+            window.addVideoTag = addVideoTag;
+        }
+        
+        // Override removeVideoTag to ensure kind 5 is sent correctly
+        {
+            async function removeVideoTag(tagEventId) {
+                console.log('[Tags] removeVideoTag called with event ID:', tagEventId);
+                
+                // Check connection - try to auto-connect if not connected
+                if (!checkConnectionStatus()) {
+                    console.log('[Tags] Not connected, attempting auto-connect...');
+                    const connected = await autoConnectRelay();
+                    if (!connected) {
+                        throw new Error('Vous devez être connecté au relai pour publier');
+                    }
+                }
+                
+                if (!window.userPubkey) {
+                    throw new Error('Vous devez être authentifié pour publier');
+                }
+                
+                // Double-check connection before publishing
+                if (!checkConnectionStatus() || !window.nostrRelay) {
+                    throw new Error('Vous devez être connecté au relai pour publier');
+                }
+                
+                console.log('[Tags] Publishing kind 5 deletion event for:', tagEventId);
+                
+                // Publish deletion event (kind 5, NIP-09)
+                // Try publishNote first, but fallback to direct publishing if it fails
+                let publishNoteFailed = false;
+                
+                if (typeof publishNote === 'function') {
+                    try {
+                        console.log('[Tags] Using publishNote to publish kind 5');
+                        // Ensure we're calling with kind 5 explicitly
+                        const result = await publishNote('deleted tag', [['e', tagEventId]], 5, { silent: true });
+                        console.log('[Tags] publishNote result:', result);
+                        
+                        if (result && result.success && result.relaysSuccess > 0) {
+                            console.log('[Tags] Kind 5 deletion published successfully via publishNote');
+                            return {
+                                success: true,
+                                deletedEventId: tagEventId
+                            };
+                        } else {
+                            console.warn('[Tags] publishNote failed or no relays succeeded, using fallback');
+                            publishNoteFailed = true;
+                        }
+                    } catch (error) {
+                        console.warn('[Tags] publishNote error, using fallback:', error);
+                        publishNoteFailed = true;
+                    }
+                } else {
+                    publishNoteFailed = true;
+                }
+                
+                // Fallback: use nostr-tools directly to publish kind 5
+                if (publishNoteFailed) {
+                    console.log('[Tags] Using NostrTools directly to publish kind 5 (fallback)');
+                    
+                    if (typeof NostrTools === 'undefined') {
+                        throw new Error('NostrTools not available for fallback');
+                    }
+                    
+                    // Get private key or use nostr extension
+                    let privateKey = window.userPrivateKey;
+                    
+                    if (window.nostr && typeof window.nostr.signEvent === 'function') {
+                        // Use nostr extension to sign kind 5
+                        console.log('[Tags] Using nostr extension to sign kind 5');
+                        const event = {
+                            kind: 5,
+                            created_at: Math.floor(Date.now() / 1000),
+                            tags: [['e', tagEventId]],
+                            content: 'deleted tag',
+                            pubkey: window.userPubkey
+                        };
+                        
+                        const signedEvent = await window.nostr.signEvent(event);
+                        console.log('[Tags] Signed kind 5 event:', signedEvent.id);
+                        
+                        await window.nostrRelay.publish(signedEvent);
+                        console.log('[Tags] Kind 5 event published via relay');
+                        
+                        return {
+                            success: true,
+                            deletedEventId: tagEventId
+                        };
+                    } else if (privateKey && NostrTools.finalizeEvent) {
+                        // Use private key directly
+                        console.log('[Tags] Using private key to sign kind 5');
+                        const event = NostrTools.finalizeEvent({
+                            kind: 5,
+                            created_at: Math.floor(Date.now() / 1000),
+                            tags: [['e', tagEventId]],
+                            content: 'deleted tag'
+                        }, privateKey);
+                        
+                        console.log('[Tags] Finalized kind 5 event:', event.id);
+                        await window.nostrRelay.publish(event);
+                        console.log('[Tags] Kind 5 event published via relay');
+                        
+                        return {
+                            success: true,
+                            deletedEventId: tagEventId
+                        };
+                    } else {
+                        throw new Error('No signing method available. Please use a NOSTR extension or provide private key.');
+                    }
+                } else {
+                    // This shouldn't happen, but just in case
+                    throw new Error('Unexpected state: publishNote should have been tried');
+                }
+            }
+            
+            // Make it global (override existing if any)
+            window.removeVideoTag = removeVideoTag;
+        }
     </script>
 </body>
 </html>
+
 
