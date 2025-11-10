@@ -1273,7 +1273,7 @@
                 try {
                     console.log('Loading initial tracks from server:', window.SERVER_MP3_DATA.length);
                     // Convert server tracks to client format
-                    NostrifyMP3.allMusicTracks = window.SERVER_MP3_DATA.map(track => ({
+                    const serverTracks = window.SERVER_MP3_DATA.map(track => ({
                         eventId: track.event_id || '',
                         authorId: track.author_id || '',
                         url: track.url || '',
@@ -1289,8 +1289,21 @@
                         sourceType: track.source_type || null,
                         createdAt: track.created_at || 0,
                         date: track.date || null,
-                        liked: false
+                        liked: false,
+                        infoCid: track.info_cid || track.info || null, // INFO_CID from server
+                        rawEvent: track.raw_event || null
                     }));
+                    
+                    // Enrich tracks with .info.json metadata if available (using function from nostrify.enhancements.js)
+                    const enrichFn = typeof enrichTrackWithInfoJson === 'function' ? enrichTrackWithInfoJson : null;
+                    if (enrichFn) {
+                        NostrifyMP3.allMusicTracks = await Promise.all(
+                            serverTracks.map(track => enrichFn(track))
+                        );
+                    } else {
+                        NostrifyMP3.allMusicTracks = serverTracks;
+                    }
+                    
                     NostrifyMP3.filteredTracks = NostrifyMP3.allMusicTracks;
                     NostrifyMP3.renderMusicTracks();
                 } catch (error) {
@@ -1407,9 +1420,10 @@
         
         /**
          * Fetch MP3 tracks from NOSTR (kind 1063)
+         * Uses fetchNostrMP3Tracks from nostrify.enhancements.js which already enriches with .info.json
          */
         NostrifyMP3.fetchMP3Tracks = async function() {
-            // This will be implemented in nostrify.enhancements.js
+            // This is implemented in nostrify.enhancements.js and already enriches with .info.json
             if (typeof fetchNostrMP3Tracks === 'function') {
                 return await fetchNostrMP3Tracks();
             }
@@ -1454,7 +1468,11 @@
                     </div>
                     <div class="music-card-info">
                         <div class="music-card-title" onclick="NostrifyMP3.playTrack(${index})" style="cursor: pointer;">${NostrifyMP3.escapeHtml(track.title || 'Unknown Title')}</div>
-                        <div class="music-card-artist" onclick="NostrifyMP3.playTrack(${index})" style="cursor: pointer;">${NostrifyMP3.escapeHtml(track.artist || 'Unknown Artist')}</div>
+                        <div class="music-card-artist" onclick="NostrifyMP3.playTrack(${index})" style="cursor: pointer;">
+                            ${NostrifyMP3.escapeHtml(track.artist || 'Unknown Artist')}
+                            ${track.channel && track.channel !== track.artist ? `<br><small style="color: #888; font-size: 0.85em;">📺 ${NostrifyMP3.escapeHtml(track.channel)}</small>` : ''}
+                            ${(track.viewCount > 0 || track.statistics?.view_count > 0) ? `<br><small style="color: #888; font-size: 0.8em;">👁️ ${((track.viewCount || track.statistics?.view_count || 0)).toLocaleString()} views</small>` : ''}
+                        </div>
                         <div class="music-card-actions" style="display: flex; gap: 8px; margin-top: 8px; justify-content: center;">
                             <button class="action-btn" onclick="event.stopPropagation(); NostrifyMP3.openModal(${index})" title="Open in modal (comments & discussion)">
                                 <i class="bi bi-chat-dots"></i>
@@ -1493,12 +1511,23 @@
                         </div>
                         <div class="music-list-details">
                             <div class="music-list-title">${NostrifyMP3.escapeHtml(track.title || 'Unknown Title')}</div>
-                            <div class="music-list-artist">${NostrifyMP3.escapeHtml(track.artist || 'Unknown Artist')}</div>
+                            <div class="music-list-artist">
+                                ${NostrifyMP3.escapeHtml(track.artist || 'Unknown Artist')}
+                                ${track.channel && track.channel !== track.artist ? ` • ${NostrifyMP3.escapeHtml(track.channel)}` : ''}
+                                ${(track.viewCount > 0 || track.statistics?.view_count > 0) ? ` • 👁️ ${((track.viewCount || track.statistics?.view_count || 0)).toLocaleString()}` : ''}
+                                ${(track.likeCount > 0 || track.statistics?.like_count > 0) ? ` • 👍 ${((track.likeCount || track.statistics?.like_count || 0)).toLocaleString()}` : ''}
+                            </div>
                         </div>
                     </div>
-                    <div class="music-list-album">${NostrifyMP3.escapeHtml(track.album || '—')}</div>
-                    <div class="music-list-date">${NostrifyMP3.formatDate(track.date)}</div>
-                    <div class="music-list-duration">${NostrifyMP3.formatDuration(track.duration)}</div>
+                    <div class="music-list-album">
+                        ${NostrifyMP3.escapeHtml(track.album || '—')}
+                        ${track.uploadDate || track.dates?.upload_date ? `<br><small style="color: #888; font-size: 0.8em;">📅 ${track.uploadDate || track.dates?.upload_date}</small>` : ''}
+                    </div>
+                    <div class="music-list-date">${NostrifyMP3.formatDate(track.date || track.uploadDate || track.dates?.upload_date)}</div>
+                    <div class="music-list-duration">
+                        ${NostrifyMP3.formatDuration(track.duration)}
+                        ${track.abr > 0 || track.technicalInfo?.abr > 0 ? `<br><small style="color: #888; font-size: 0.8em;">${(track.abr || track.technicalInfo?.abr || 0)} kbps</small>` : ''}
+                    </div>
                     <div class="music-list-actions">
                         <button class="action-btn" onclick="event.stopPropagation(); NostrifyMP3.openModal(${index})" title="Open in modal (comments & discussion)">
                             <i class="bi bi-chat-dots"></i>
@@ -1581,7 +1610,7 @@
             
             const track = NostrifyMP3.filteredTracks[index];
             
-            // Open MP3 modal
+            // Open MP3 modal with comprehensive metadata
             if (typeof openMP3Modal === 'function') {
                 openMP3Modal({
                     title: track.title || 'Unknown Title',
@@ -1593,7 +1622,40 @@
                     album: track.album || '—',
                     duration: track.duration || null,
                     description: track.description || '',
-                    content: track.description || ''
+                    content: track.description || '',
+                    // Comprehensive metadata from .info.json
+                    channel: track.channel || null,
+                    channelId: track.channelId || null,
+                    channelUrl: track.channelUrl || null,
+                    youtubeUrl: track.youtubeUrl || null,
+                    viewCount: track.viewCount || track.statistics?.view_count || 0,
+                    likeCount: track.likeCount || track.statistics?.like_count || 0,
+                    commentCount: track.commentCount || track.statistics?.comment_count || 0,
+                    uploadDate: track.uploadDate || track.dates?.upload_date || null,
+                    releaseDate: track.releaseDate || track.dates?.release_date || null,
+                    language: track.language || track.contentInfo?.language || null,
+                    license: track.license || track.contentInfo?.license || null,
+                    tags: track.tags || track.contentInfo?.tags || [],
+                    categories: track.categories || track.contentInfo?.categories || [],
+                    track: track.track || track.mediaInfo?.track || null,
+                    creator: track.creator || track.mediaInfo?.creator || null,
+                    abr: track.abr || track.technicalInfo?.abr || 0,
+                    acodec: track.acodec || track.technicalInfo?.acodec || null,
+                    formatNote: track.formatNote || track.technicalInfo?.format_note || null,
+                    // Full metadata objects
+                    youtubeMetadata: track.youtubeMetadata || {},
+                    channelInfo: track.channelInfo || {},
+                    contentInfo: track.contentInfo || {},
+                    technicalInfo: track.technicalInfo || {},
+                    statistics: track.statistics || {},
+                    dates: track.dates || {},
+                    mediaInfo: track.mediaInfo || {},
+                    playlistInfo: track.playlistInfo || {},
+                    thumbnails: track.thumbnails || {},
+                    subtitlesInfo: track.subtitlesInfo || {},
+                    chapters: track.chapters || [],
+                    liveInfo: track.liveInfo || {},
+                    infoJson: track.infoJson || null
                 });
             } else {
                 console.warn('openMP3Modal function not available');
@@ -1615,7 +1677,7 @@
             NostrifyMP3.currentTrackIndex = index;
             const track = NostrifyMP3.filteredTracks[index];
             
-            // Open MP3 modal instead of just playing in bottom player
+            // Open MP3 modal instead of just playing in bottom player (with comprehensive metadata)
             if (typeof openMP3Modal === 'function') {
                 openMP3Modal({
                     title: track.title || 'Unknown Title',
@@ -1627,7 +1689,40 @@
                     album: track.album || '—',
                     duration: track.duration || null,
                     description: track.description || '',
-                    content: track.description || ''
+                    content: track.description || '',
+                    // Comprehensive metadata from .info.json
+                    channel: track.channel || null,
+                    channelId: track.channelId || null,
+                    channelUrl: track.channelUrl || null,
+                    youtubeUrl: track.youtubeUrl || null,
+                    viewCount: track.viewCount || track.statistics?.view_count || 0,
+                    likeCount: track.likeCount || track.statistics?.like_count || 0,
+                    commentCount: track.commentCount || track.statistics?.comment_count || 0,
+                    uploadDate: track.uploadDate || track.dates?.upload_date || null,
+                    releaseDate: track.releaseDate || track.dates?.release_date || null,
+                    language: track.language || track.contentInfo?.language || null,
+                    license: track.license || track.contentInfo?.license || null,
+                    tags: track.tags || track.contentInfo?.tags || [],
+                    categories: track.categories || track.contentInfo?.categories || [],
+                    track: track.track || track.mediaInfo?.track || null,
+                    creator: track.creator || track.mediaInfo?.creator || null,
+                    abr: track.abr || track.technicalInfo?.abr || 0,
+                    acodec: track.acodec || track.technicalInfo?.acodec || null,
+                    formatNote: track.formatNote || track.technicalInfo?.format_note || null,
+                    // Full metadata objects
+                    youtubeMetadata: track.youtubeMetadata || {},
+                    channelInfo: track.channelInfo || {},
+                    contentInfo: track.contentInfo || {},
+                    technicalInfo: track.technicalInfo || {},
+                    statistics: track.statistics || {},
+                    dates: track.dates || {},
+                    mediaInfo: track.mediaInfo || {},
+                    playlistInfo: track.playlistInfo || {},
+                    thumbnails: track.thumbnails || {},
+                    subtitlesInfo: track.subtitlesInfo || {},
+                    chapters: track.chapters || [],
+                    liveInfo: track.liveInfo || {},
+                    infoJson: track.infoJson || null
                 });
             } else {
                 // Fallback: use bottom player if modal not available

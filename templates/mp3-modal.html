@@ -1442,15 +1442,157 @@
                 durationEl.textContent = ` • ${minutes}:${String(seconds).padStart(2, '0')}`;
             }
             
-            // Set description
-            if (descriptionEl && trackData.description) {
-                descriptionEl.textContent = trackData.description;
+            // Set description (enriched with comprehensive metadata)
+            if (descriptionEl) {
+                let descriptionText = trackData.description || '';
+                
+                // Add comprehensive metadata to description if available
+                if (trackData.infoJson || trackData.youtubeMetadata || trackData.statistics) {
+                    const metadataParts = [];
+                    
+                    // Add channel info
+                    if (trackData.channel || trackData.channelInfo?.display_name) {
+                        const channelName = trackData.channel || trackData.channelInfo?.display_name || trackData.channelInfo?.name;
+                        if (channelName) {
+                            metadataParts.push(`📺 Channel: ${channelName}`);
+                        }
+                    }
+                    
+                    // Add YouTube URL
+                    if (trackData.youtubeUrl) {
+                        metadataParts.push(`🔗 YouTube: ${trackData.youtubeUrl}`);
+                    }
+                    
+                    // Add statistics
+                    if (trackData.viewCount > 0 || trackData.statistics?.view_count > 0) {
+                        const views = trackData.viewCount || trackData.statistics?.view_count || 0;
+                        metadataParts.push(`👁️ Views: ${views.toLocaleString()}`);
+                    }
+                    if (trackData.likeCount > 0 || trackData.statistics?.like_count > 0) {
+                        const likes = trackData.likeCount || trackData.statistics?.like_count || 0;
+                        metadataParts.push(`👍 Likes: ${likes.toLocaleString()}`);
+                    }
+                    if (trackData.commentCount > 0 || trackData.statistics?.comment_count > 0) {
+                        const comments = trackData.commentCount || trackData.statistics?.comment_count || 0;
+                        metadataParts.push(`💬 Comments: ${comments.toLocaleString()}`);
+                    }
+                    
+                    // Add dates
+                    if (trackData.uploadDate || trackData.dates?.upload_date) {
+                        const uploadDate = trackData.uploadDate || trackData.dates?.upload_date;
+                        if (uploadDate) {
+                            // Format date (YYYYMMDD -> YYYY-MM-DD)
+                            const formattedDate = uploadDate.length === 8 
+                                ? `${uploadDate.substring(0, 4)}-${uploadDate.substring(4, 6)}-${uploadDate.substring(6, 8)}`
+                                : uploadDate;
+                            metadataParts.push(`📅 Uploaded: ${formattedDate}`);
+                        }
+                    }
+                    if (trackData.releaseDate || trackData.dates?.release_date) {
+                        const releaseDate = trackData.releaseDate || trackData.dates?.release_date;
+                        if (releaseDate) {
+                            const formattedDate = releaseDate.length === 8 
+                                ? `${releaseDate.substring(0, 4)}-${releaseDate.substring(4, 6)}-${releaseDate.substring(6, 8)}`
+                                : releaseDate;
+                            metadataParts.push(`🎬 Released: ${formattedDate}`);
+                        }
+                    }
+                    
+                    // Add technical info
+                    if (trackData.abr > 0 || trackData.technicalInfo?.abr > 0) {
+                        const abr = trackData.abr || trackData.technicalInfo?.abr || 0;
+                        metadataParts.push(`🎚️ Bitrate: ${abr} kbps`);
+                    }
+                    if (trackData.acodec || trackData.technicalInfo?.acodec) {
+                        const acodec = trackData.acodec || trackData.technicalInfo?.acodec;
+                        metadataParts.push(`🔊 Codec: ${acodec}`);
+                    }
+                    
+                    // Add tags/categories
+                    if (trackData.tags && trackData.tags.length > 0) {
+                        metadataParts.push(`🏷️ Tags: ${trackData.tags.slice(0, 5).join(', ')}${trackData.tags.length > 5 ? '...' : ''}`);
+                    }
+                    if (trackData.categories && trackData.categories.length > 0) {
+                        metadataParts.push(`📂 Categories: ${trackData.categories.slice(0, 3).join(', ')}${trackData.categories.length > 3 ? '...' : ''}`);
+                    }
+                    
+                    // Add language
+                    if (trackData.language || trackData.contentInfo?.language) {
+                        const lang = trackData.language || trackData.contentInfo?.language;
+                        metadataParts.push(`🌐 Language: ${lang}`);
+                    }
+                    
+                    // Add license
+                    if (trackData.license || trackData.contentInfo?.license) {
+                        const license = trackData.license || trackData.contentInfo?.license;
+                        metadataParts.push(`📜 License: ${license}`);
+                    }
+                    
+                    // Combine description with metadata
+                    if (descriptionText) {
+                        descriptionText += '\n\n' + metadataParts.join('\n');
+                    } else {
+                        descriptionText = metadataParts.join('\n');
+                    }
+                }
+                
+                descriptionEl.textContent = descriptionText;
             }
             
-            // Load artist
-            if (trackData.artist) {
-                if (artistEl) {
-                    artistEl.textContent = trackData.artist;
+            // Load artist (enriched)
+            if (artistEl) {
+                let artistText = trackData.artist || 'Unknown Artist';
+                
+                // Add creator if different from artist
+                if (trackData.creator && trackData.creator !== artistText) {
+                    artistText += ` (by ${trackData.creator})`;
+                }
+                
+                // Add album if available
+                if (trackData.album && trackData.album !== '—') {
+                    artistText += ` • ${trackData.album}`;
+                }
+                
+                artistEl.textContent = artistText;
+            }
+            
+            // Update track stats with comprehensive metadata
+            const likeCountEl = document.getElementById('likeCount');
+            const shareCountEl = document.getElementById('shareCount');
+            const commentCountEl = document.getElementById('commentCount');
+            
+            if (likeCountEl && (trackData.likeCount > 0 || trackData.statistics?.like_count > 0)) {
+                const likes = trackData.likeCount || trackData.statistics?.like_count || 0;
+                likeCountEl.textContent = likes.toLocaleString();
+            }
+            
+            if (commentCountEl && (trackData.commentCount > 0 || trackData.statistics?.comment_count > 0)) {
+                const comments = trackData.commentCount || trackData.statistics?.comment_count || 0;
+                commentCountEl.textContent = comments.toLocaleString();
+            }
+            
+            // Update track meta section with additional info
+            const trackMetaEl = document.getElementById('mp3TrackMeta');
+            if (trackMetaEl) {
+                const metaParts = [];
+                
+                if (trackData.channel || trackData.channelInfo?.display_name) {
+                    const channelName = trackData.channel || trackData.channelInfo?.display_name || trackData.channelInfo?.name;
+                    if (channelName) {
+                        metaParts.push(`📺 ${channelName}`);
+                    }
+                }
+                
+                if (trackData.viewCount > 0 || trackData.statistics?.view_count > 0) {
+                    const views = trackData.viewCount || trackData.statistics?.view_count || 0;
+                    metaParts.push(`👁️ ${views.toLocaleString()} views`);
+                }
+                
+                if (metaParts.length > 0) {
+                    const existingMeta = trackMetaEl.textContent || '';
+                    if (!existingMeta.includes(metaParts[0])) {
+                        trackMetaEl.innerHTML = metaParts.join(' • ') + (existingMeta ? ` • ${existingMeta}` : '');
+                    }
                 }
             }
             
@@ -1889,149 +2031,21 @@
 
         /**
          * Load track from NOSTR event ID
+         * Uses loadTrackFromEventId from nostrify.enhancements.js which already loads .info.json
+         * Store global function reference before creating local alias
          */
+        const globalLoadTrackFromEventId = (typeof window !== 'undefined' && typeof window.loadTrackFromEventId === 'function') 
+            ? window.loadTrackFromEventId 
+            : null;
+        
         async function loadTrackFromEventId(eventId) {
-            try {
-                // Wait for relay connection with retries
-                let currentRelay = window.nostrRelay || nostrRelay;
-                let retries = 0;
-                const maxRetries = 3;
-                
-                // Check if relay is already connected and functional
-                if (currentRelay && typeof currentRelay.sub === 'function') {
-                    // Check if connection is actually working by verifying isNostrConnected flag
-                    if (window.isNostrConnected === true || (typeof isNostrConnected !== 'undefined' && isNostrConnected === true)) {
-                        // Connection appears to be valid, proceed
-                        console.log('✅ Using existing relay connection');
-                    } else {
-                        // Connection flag says not connected, need to reconnect
-                        currentRelay = null;
-                    }
-                }
-                
-                // Connect if needed
-                if (!currentRelay || typeof currentRelay.sub !== 'function') {
-                    if (typeof connectToRelay === 'function') {
-                        console.log('🔌 Connecting to relay...');
-                        const connected = await connectToRelay(false);
-                        if (connected) {
-                            // Wait a bit for connection to stabilize
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                            // Get the relay object from window
-                            currentRelay = window.nostrRelay || nostrRelay;
-                        } else {
-                            throw new Error('Failed to connect to relay');
-                        }
-                    } else {
-                        throw new Error('connectToRelay function not available');
-                    }
-                }
-                
-                // Final verification
-                if (!currentRelay || typeof currentRelay.sub !== 'function') {
-                    throw new Error('NOSTR relay not connected - sub method not available');
-                }
-                
-                // Verify connection flag
-                if (window.isNostrConnected !== true && (typeof isNostrConnected === 'undefined' || isNostrConnected !== true)) {
-                    throw new Error('NOSTR relay connection flag indicates not connected');
-                }
-                
-                // Fetch track event (kind 1063)
-                const event = await new Promise((resolve, reject) => {
-                    const sub = currentRelay.sub([{
-                        kinds: [1063],
-                        ids: [eventId],
-                        limit: 1
-                    }]);
-                    
-                    let trackEvent = null;
-                    
-                    sub.on('event', (evt) => {
-                        trackEvent = evt;
-                    });
-                    
-                    sub.on('eose', () => {
-                        sub.unsub();
-                        resolve(trackEvent);
-                    });
-                    
-                    setTimeout(() => {
-                        sub.unsub();
-                        resolve(trackEvent);
-                    }, 5000);
-                });
-                
-                if (!event) {
-                    throw new Error('Track not found');
-                }
-                
-                // Parse track data (similar to parseMP3Event in nostrify.enhancements.js)
-                const urlTag = event.tags.find(tag => tag[0] === 'url');
-                const titleTag = event.tags.find(tag => tag[0] === 'title');
-                const artistTag = event.tags.find(tag => tag[0] === 'artist');
-                const albumTag = event.tags.find(tag => tag[0] === 'album');
-                const thumbTag = event.tags.find(tag => tag[0] === 'thumb');
-                const summaryTag = event.tags.find(tag => tag[0] === 'summary');
-                const durationTag = event.tags.find(tag => tag[0] === 'duration');
-                
-                let url = urlTag ? urlTag[1] : null;
-                if (!url) {
-                    throw new Error('Track URL not found');
-                }
-                
-                // Convert IPFS URL
-                if (typeof convertIPFSUrlGlobal === 'function') {
-                    url = convertIPFSUrlGlobal(url);
-                }
-                
-                const title = titleTag ? titleTag[1] : (event.content || 'Unknown Title');
-                const artist = artistTag ? artistTag[1] : 'Unknown Artist';
-                const album = albumTag ? albumTag[1] : '—';
-                
-                // Get thumbnail (check thumb, image, and r tags)
-                const imageTag = event.tags.find(tag => tag[0] === 'image');
-                const rTag = event.tags.find(tag => tag[0] === 'r' && tag[2] === 'Thumbnail');
-                let thumbnail = thumbTag ? thumbTag[1] : (imageTag ? imageTag[1] : (rTag ? rTag[1] : null));
-                
-                // Convert IPFS URL if needed
-                if (thumbnail && typeof convertIPFSUrlGlobal === 'function') {
-                    thumbnail = convertIPFSUrlGlobal(thumbnail);
-                } else if (thumbnail) {
-                    const isIPFS = thumbnail.startsWith('ipfs://') || 
-                                  thumbnail.startsWith('/ipfs/') || 
-                                  (!thumbnail.startsWith('http') && thumbnail.match(/^(Qm|bafy)/));
-                    if (isIPFS && window.IPFS_GATEWAY) {
-                        if (thumbnail.startsWith('ipfs://')) {
-                            thumbnail = window.IPFS_GATEWAY + thumbnail.replace('ipfs://', '/ipfs/');
-                        } else if (thumbnail.startsWith('/ipfs/')) {
-                            thumbnail = window.IPFS_GATEWAY + thumbnail;
-                        } else {
-                            thumbnail = window.IPFS_GATEWAY + '/ipfs/' + thumbnail;
-                        }
-                    }
-                }
-                
-                const description = summaryTag ? summaryTag[1] : event.content;
-                const duration = durationTag ? parseFloat(durationTag[1]) : null;
-                
-                return {
-                    eventId: event.id,
-                    authorId: event.pubkey,
-                    url: url,
-                    title: title,
-                    artist: artist,
-                    album: album,
-                    thumbnail: thumbnail,
-                    description: description,
-                    duration: duration,
-                    content: event.content
-                };
-                
-            } catch (error) {
-                console.error('Error loading track:', error);
-                throw error;
+            // Use function from nostrify.enhancements.js if available
+            if (globalLoadTrackFromEventId) {
+                return await globalLoadTrackFromEventId(eventId);
             }
+            
+            // Fallback: try to load basic track data
+            throw new Error('loadTrackFromEventId function not available from nostrify.enhancements.js');
         }
 
         /**

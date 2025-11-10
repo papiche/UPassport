@@ -94,7 +94,22 @@ echo "DEBUG: FILE_SIZE: $FILE_SIZE, FILE_TYPE: $FILE_TYPE, FILE_NAME: $FILE_NAME
 MAX_FILE_SIZE=$((650 * 1024 * 1024)) # 650MB in bytes
 TARGET_FILE_SIZE=$((600 * 1024 * 1024)) # 600MB target (margin below 650MB limit)
 
-# Calculate file hash FIRST (before IPFS upload) for provenance tracking
+# CRITICAL: Reduce video resolution BEFORE calculating hash (if file exceeds limit)
+# This ensures the hash matches the actual file that will be uploaded
+if [[ "$FILE_TYPE" == "video/"* ]] && [ "$FILE_SIZE" -gt "$MAX_FILE_SIZE" ]; then
+    echo "DEBUG: Video size exceeds limit, reducing resolution BEFORE hash calculation..." >&2
+    if reduce_video_if_needed "$FILE_PATH" "$FILE_SIZE" "$MAX_FILE_SIZE" "$TARGET_FILE_SIZE"; then
+        echo "DEBUG: ✅ Video resized successfully, continuing..." >&2
+        # Re-read file size after resize
+        FILE_SIZE=$(stat -c%s "$FILE_PATH")
+        echo "DEBUG: New file size: $FILE_SIZE bytes" >&2
+    else
+        echo '{"status": "error", "message": "File size exceeds 650MB limit and could not be reduced.", "debug": "Video resize failed", "fileSize": "'"$FILE_SIZE"'"}' > "$OUTPUT_FILE"
+    exit 1
+    fi
+fi
+
+# Calculate file hash (AFTER potential resize) for provenance tracking
 FILE_HASH=$(sha256sum "$FILE_PATH" | awk '{print $1}')
 echo "DEBUG: File hash (SHA256): $FILE_HASH" >&2
 
@@ -586,10 +601,8 @@ reduce_video_if_needed() {
                     echo "DEBUG: ✅ File size reduced: $current_size -> $new_size bytes" >&2
                     
                     # Update FILE_SIZE for rest of script
+                    # Note: FILE_HASH will be recalculated after this function returns
                     FILE_SIZE=$new_size
-                    # Recalculate file hash since file has changed
-                    FILE_HASH=$(sha256sum "$video_file" | awk '{print $1}')
-                    echo "DEBUG: File hash recalculated after resize: $FILE_HASH" >&2
                     return 0
                 else
                     echo "WARNING: Failed to replace original file with resized version" >&2
@@ -787,18 +800,8 @@ elif [[ "$FILE_TYPE" == "image/"* ]]; then
     fi
 
 # Video file check (using ffprobe)
+# Note: Video size reduction is already done BEFORE hash calculation (above)
 elif [[ "$FILE_TYPE" == "video/"* ]]; then
-    # Reduce video resolution if file size exceeds limit (before processing)
-    if [ "$FILE_SIZE" -gt "$MAX_FILE_SIZE" ]; then
-        if reduce_video_if_needed "$FILE_PATH" "$FILE_SIZE" "$MAX_FILE_SIZE" "$TARGET_FILE_SIZE"; then
-            echo "DEBUG: Video resized, continuing with processing..." >&2
-            # Re-read file size after resize
-            FILE_SIZE=$(stat -c%s "$FILE_PATH")
-        else
-            echo '{"status": "error", "message": "File size exceeds 650MB limit and could not be reduced.", "debug": "Video resize failed", "fileSize": "'"$FILE_SIZE"'"}' > "$OUTPUT_FILE"
-            exit 1
-        fi
-    fi
     if command -v ffprobe &> /dev/null; then
         DURATION_RAW=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$FILE_PATH" 2>/dev/null)
         # Validate DURATION is numeric, default to 0 if not
