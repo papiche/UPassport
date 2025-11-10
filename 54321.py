@@ -2514,7 +2514,8 @@ async def youtube_route(
     lat: Optional[float] = None,
     lon: Optional[float] = None,
     radius: Optional[float] = None,
-    video: Optional[str] = None
+    video: Optional[str] = None,
+    author_id: Optional[str] = None  # Filter by author pubkey
 ):
     """YouTube video channels and search from NOSTR events
     
@@ -2621,6 +2622,10 @@ async def youtube_route(
         filtered_videos = []
         
         for video in video_messages:
+            # Filter by author_id if specified
+            if author_id and video.get('author_id', '').lower() != author_id.lower():
+                continue
+            
             # Filter by channel if specified
             if channel and video.get('channel_name', '').lower() != channel.lower():
                 continue
@@ -2768,6 +2773,7 @@ async def youtube_route(
             "total_videos": len(video_messages),
             "total_channels": len(channels),
             "channels": channel_playlists,
+            "videos": video_messages,  # Include flat list of videos for easy access (e.g., when filtering by author_id)
             "filters": {
                 "channel": channel,
                 "search": search,
@@ -2779,7 +2785,8 @@ async def youtube_route(
                 "sort_by": sort_by,
                 "lat": lat,
                 "lon": lon,
-                "radius": radius if radius is not None else 2.0 if lat is not None and lon is not None else None
+                "radius": radius if radius is not None else 2.0 if lat is not None and lon is not None else None,
+                "author_id": author_id
             },
             "timestamp": datetime.now().isoformat()
         }

@@ -1086,6 +1086,29 @@
             border-color: rgba(255, 255, 255, 0.4);
         }
         
+        .user-email {
+            display: block;
+            font-size: 0.9rem;
+            color: #ffffff;
+            margin-top: 0.25rem;
+        }
+        
+        .user-pubkey-copy {
+            display: inline-block;
+            font-size: 0.75rem;
+            color: #aaaaaa;
+            margin-left: 0.5rem;
+            text-decoration: underline;
+            cursor: pointer;
+            opacity: 0.7;
+            transition: opacity 0.2s ease;
+        }
+        
+        .user-pubkey-copy:hover {
+            opacity: 1;
+            color: #ffffff;
+        }
+        
         .connection-badge.authenticated {
             background: rgba(16, 185, 129, 0.2);
             border-color: rgba(16, 185, 129, 0.5);
@@ -1827,6 +1850,13 @@
                     <div class="sidebar-item-subtitle" id="gps-subtitle">Local messaging</div>
                 </div>
             </div>
+            <div class="sidebar-item" id="my-videos-sidebar-item" style="display: none;" onclick="showMyVideos()">
+                <div class="sidebar-icon">🎬</div>
+                <div class="sidebar-item-text">
+                    <div class="sidebar-item-name">Mes vidéos</div>
+                    <div class="sidebar-item-subtitle">Manage my videos</div>
+                </div>
+            </div>
         </div>
         
         <div class="sidebar-section">
@@ -2257,6 +2287,11 @@
                                     </button>
                                     <button class="btn btn-sm btn-outline-success" onclick="likeVideo(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-ipfs-url="{{ video.ipfs_url }}" title="Like" data-bs-toggle="tooltip">
                                         <i class="bi bi-hand-thumbs-up"></i>
+                                    </button>
+                                    {% endif %}
+                                    {% if video.author_id and user_pubkey and video.author_id == user_pubkey %}
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteVideo(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-title="{{ video.title }}" data-kind="{{ video.event_kind or 21 }}" title="Supprimer ma vidéo" data-bs-toggle="tooltip">
+                                        <i class="bi bi-trash"></i>
                                     </button>
                                     {% endif %}
                                     {% if video.youtube_url %}
@@ -5521,9 +5556,64 @@
         }
         
         /**
+         * Copy text to clipboard
+         */
+        function copyToClipboard(text, successMessage = 'Copied!') {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    // Show temporary feedback
+                    const toast = document.createElement('div');
+                    toast.textContent = successMessage;
+                    toast.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; padding: 12px 20px; border-radius: 4px; z-index: 10000; box-shadow: 0 4px 6px rgba(0,0,0,0.3);';
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 2000);
+                }).catch(err => {
+                    console.error('Failed to copy:', err);
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.opacity = '0';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        const toast = document.createElement('div');
+                        toast.textContent = successMessage;
+                        toast.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; padding: 12px 20px; border-radius: 4px; z-index: 10000; box-shadow: 0 4px 6px rgba(0,0,0,0.3);';
+                        document.body.appendChild(toast);
+                        setTimeout(() => toast.remove(), 2000);
+                    } catch (err) {
+                        console.error('Fallback copy failed:', err);
+                    }
+                    document.body.removeChild(textArea);
+                });
+            } else {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    const toast = document.createElement('div');
+                    toast.textContent = successMessage;
+                    toast.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; padding: 12px 20px; border-radius: 4px; z-index: 10000; box-shadow: 0 4px 6px rgba(0,0,0,0.3);';
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 2000);
+                } catch (err) {
+                    console.error('Copy failed:', err);
+                }
+                document.body.removeChild(textArea);
+            }
+        }
+        
+        /**
          * Update connection badge UI
          */
-        function updateConnectionBadgeYoutube(pubkey, state) {
+        async function updateConnectionBadgeYoutube(pubkey, state) {
             const badge = document.getElementById('connection-badge');
             const content = document.getElementById('connection-badge-content');
             const connectBtn = document.getElementById('connectBtn');
@@ -5537,9 +5627,38 @@
             switch (state) {
                 case 'authenticated':
                     badge.classList.add('authenticated');
+                    // Get user email from cache or fetch it
+                    let userEmail = window.userServices?.email;
+                    const fullPubkey = pubkey || '';
+                    const shortPubkey = fullPubkey.substring(0, 12) + '...';
+                    
+                    // If email not available, try to fetch it
+                    if (!userEmail || !userEmail.includes('@')) {
+                        if (typeof fetchUserEmailWithFallback === 'function' && fullPubkey) {
+                            try {
+                                userEmail = await fetchUserEmailWithFallback(fullPubkey);
+                                if (userEmail && userEmail.includes('@')) {
+                                    window.userServices = window.userServices || {};
+                                    window.userServices.email = userEmail;
+                                }
+                            } catch (error) {
+                                console.warn('[YOUTUBE] Could not fetch email for badge:', error);
+                            }
+                        }
+                    }
+                    
+                    // Display email if available, otherwise show pubkey
+                    const displayText = (userEmail && userEmail.includes('@')) ? userEmail : shortPubkey;
+                    
                     content.innerHTML = `
                         <span class="status-text">✅ Authenticated</span>
-                        <span class="user-npub">${pubkey.substring(0, 12)}...</span>
+                        <span class="user-email" title="${userEmail || shortPubkey}">${displayText}</span>
+                        <span class="user-pubkey-copy" 
+                              title="Click to copy HEX key: ${fullPubkey}" 
+                              onclick="event.stopPropagation(); copyToClipboard('${fullPubkey}', 'HEX key copied!');"
+                              style="cursor: pointer; opacity: 0.6; font-size: 0.75rem; margin-left: 0.5rem; text-decoration: underline;">
+                            ${shortPubkey}
+                        </span>
                     `;
                     // Replace connect button with profile button
                     if (connectBtn) {
@@ -5691,12 +5810,16 @@
         function showActionButtons() {
             const webcamBtn = document.getElementById('webcam-upload-btn');
             const playlistBtn = document.getElementById('playlist-manager-btn');
+            const myVideosItem = document.getElementById('my-videos-sidebar-item');
             
             if (webcamBtn) {
                 webcamBtn.classList.remove('d-none');
             }
             if (playlistBtn) {
                 playlistBtn.classList.remove('d-none');
+            }
+            if (myVideosItem) {
+                myVideosItem.style.display = 'block';
             }
         }
         
@@ -6314,6 +6437,244 @@
                 console.warn('⚠️ No event ID found for video:', title);
                 alert('❌ Impossible d\'ouvrir cette vidéo en mode théâtre (ID non trouvé)');
             }
+        }
+        
+        /**
+         * Delete a video by publishing a kind 5 deletion event
+         */
+        async function deleteVideo(button) {
+            const eventId = button.getAttribute('data-event-id');
+            const authorId = button.getAttribute('data-author-id');
+            const title = button.getAttribute('data-title');
+            const kind = parseInt(button.getAttribute('data-kind') || '21');
+            
+            if (!eventId || !authorId) {
+                alert('❌ Missing video information');
+                return;
+            }
+            
+            // Check if user is connected and is the owner
+            if (typeof userPubkey === 'undefined' || !userPubkey) {
+                alert('❌ Vous devez être connecté pour supprimer une vidéo');
+                return;
+            }
+            
+            if (userPubkey !== authorId) {
+                alert('❌ Vous ne pouvez supprimer que vos propres vidéos');
+                return;
+            }
+            
+            // Confirm deletion
+            const confirmed = confirm(`⚠️ Êtes-vous sûr de vouloir supprimer cette vidéo ?\n\n"${title}"\n\nCette action est irréversible.`);
+            if (!confirmed) {
+                return;
+            }
+            
+            try {
+                console.log('[YOUTUBE] 🗑️ Deleting video:', eventId);
+                button.disabled = true;
+                button.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+                
+                // Wait for NOSTR functions to be available
+                if (typeof publishNote === 'undefined') {
+                    // Wait a bit for common.js to load
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    if (typeof publishNote === 'undefined') {
+                        throw new Error('NOSTR functions not available. Please refresh the page.');
+                    }
+                }
+                
+                // Create kind 5 deletion event
+                // According to NIP-09: tags should include ["e", eventId] and ["k", kind]
+                const deletionTags = [
+                    ['e', eventId],
+                    ['k', kind.toString()]
+                ];
+                
+                const deletionContent = `Video deletion: ${title}`;
+                
+                // Publish deletion event using publishNote from common.js
+                const result = await publishNote(deletionContent, deletionTags, 5, {
+                    silent: false,
+                    timeout: 10000
+                });
+                
+                if (result.success) {
+                    console.log('[YOUTUBE] ✅ Video deletion published:', result.eventId);
+                    
+                    // Show success message
+                    if (typeof showNotification === 'function') {
+                        showNotification({
+                            type: 'success',
+                            message: '✅ Vidéo supprimée avec succès',
+                            duration: 3000
+                        });
+                    } else {
+                        alert('✅ Vidéo supprimée avec succès');
+                    }
+                    
+                    // Remove video from UI after a short delay
+                    setTimeout(() => {
+                        const videoCard = button.closest('.video');
+                        if (videoCard) {
+                            videoCard.style.transition = 'opacity 0.3s ease';
+                            videoCard.style.opacity = '0';
+                            setTimeout(() => {
+                                videoCard.remove();
+                                // Update video count if needed
+                                updateVideoCount();
+                            }, 300);
+                        }
+                    }, 1000);
+                } else {
+                    throw new Error(`Failed to publish deletion: ${result.errors.join(', ')}`);
+                }
+            } catch (error) {
+                console.error('[YOUTUBE] ❌ Error deleting video:', error);
+                alert(`❌ Erreur lors de la suppression: ${error.message}`);
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-trash"></i>';
+            }
+        }
+        
+        /**
+         * Show user's own videos for management
+         */
+        async function showMyVideos() {
+            if (typeof userPubkey === 'undefined' || !userPubkey) {
+                alert('❌ Vous devez être connecté pour voir vos vidéos');
+                return;
+            }
+            
+            try {
+                console.log('[YOUTUBE] 📹 Loading my videos for:', userPubkey.substring(0, 12) + '...');
+                
+                // Show loading state
+                const mainContent = document.querySelector('.main-content');
+                if (mainContent) {
+                    mainContent.innerHTML = '<div class="loading-skeleton" style="padding: 40px; text-align: center; color: #aaaaaa;">Chargement de vos vidéos...</div>';
+                }
+                
+                // Fetch videos from API with author filter
+                const response = await fetch(`/youtube?author_id=${userPubkey}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch my videos');
+                }
+                
+                const data = await response.json();
+                
+                // Render videos
+                if (data.videos && data.videos.length > 0) {
+                    renderMyVideos(data.videos);
+                } else {
+                    mainContent.innerHTML = `
+                        <div class="no-results">
+                            <h3>📹 Aucune vidéo trouvée</h3>
+                            <p>Vous n'avez pas encore publié de vidéos.</p>
+                            <button class="btn btn-primary mt-3" onclick="openWebcamModal()">
+                                <i class="bi bi-camera-video-fill"></i> Créer ma première vidéo
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                // Update sidebar active state
+                document.querySelectorAll('.sidebar-item').forEach(item => item.classList.remove('active'));
+                document.getElementById('my-videos-sidebar-item')?.classList.add('active');
+                
+            } catch (error) {
+                console.error('[YOUTUBE] ❌ Error loading my videos:', error);
+                alert(`❌ Erreur lors du chargement de vos vidéos: ${error.message}`);
+            }
+        }
+        
+        /**
+         * Render user's videos with delete buttons
+         */
+        function renderMyVideos(videos) {
+            const mainContent = document.querySelector('.main-content');
+            if (!mainContent) return;
+            
+            let html = '<div class="videos-grid">';
+            
+            videos.forEach(video => {
+                const thumbnailSrc = video.thumbnail_ipfs 
+                    ? `${getIPFSGateway()}/ipfs/${video.thumbnail_ipfs}`
+                    : '';
+                
+                html += `
+                    <div class="video" data-event-id="${video.message_id || ''}">
+                        <div class="video-thumbnail" onclick="openVideoInTheater(this)">
+                            ${thumbnailSrc 
+                                ? `<img src="${thumbnailSrc}" alt="${escapeHtml(video.title)}" loading="lazy">`
+                                : '<div class="thumbnail-placeholder">🎬</div>'
+                            }
+                            <div class="video-overlay">
+                                <i class="bi bi-play-circle-fill"></i>
+                            </div>
+                        </div>
+                        <div class="video-info">
+                            <div class="video-title">${escapeHtml(video.title || 'Titre inconnu')}</div>
+                            <div class="video-meta">
+                                ${video.duration ? `${Math.floor(video.duration / 60)}:${String(video.duration % 60).padStart(2, '0')}` : ''}
+                                ${video.created_at ? ` • ${video.created_at.substring(0, 10)}` : ''}
+                            </div>
+                            <div class="video-actions d-flex gap-2 mt-2">
+                                <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); openVideoInTheater(this.closest('.video').querySelector('.video-thumbnail'))" title="Mode théâtre">
+                                    <i class="bi bi-film"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteVideo(this)" 
+                                        data-event-id="${video.message_id}" 
+                                        data-author-id="${video.author_id}" 
+                                        data-title="${escapeHtml(video.title)}" 
+                                        data-kind="${video.event_kind || 21}" 
+                                        title="Supprimer">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            mainContent.innerHTML = html;
+        }
+        
+        /**
+         * Update video count display
+         */
+        function updateVideoCount() {
+            const videos = document.querySelectorAll('.video');
+            const count = videos.length;
+            // Update any count displays if they exist
+            const countElements = document.querySelectorAll('[data-video-count]');
+            countElements.forEach(el => {
+                el.textContent = count;
+            });
+        }
+        
+        /**
+         * Get IPFS gateway URL
+         */
+        function getIPFSGateway() {
+            if (typeof detectIPFSGatewayGlobal === 'function') {
+                return detectIPFSGatewayGlobal();
+            }
+            return window.myIPFS || 'https://ipfs.io';
+        }
+        
+        /**
+         * Escape HTML to prevent XSS (if not already defined)
+         */
+        function escapeHtml(text) {
+            if (typeof window.escapeHtml === 'function') {
+                return window.escapeHtml(text);
+            }
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
     </script>
 </body>
