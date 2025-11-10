@@ -2491,6 +2491,28 @@ async def audio_route(request: Request):
     """Redirect to /mp3?html=1"""
     return RedirectResponse(url="/mp3?html=1", status_code=302)
 
+@app.get("/tags", response_class=HTMLResponse)
+async def tags_route(request: Request, video: Optional[str] = None):
+    """Tags management page for NOSTR videos
+    
+    Args:
+        video: Optional video event ID to display tags for a specific video
+    """
+    # Calculate IPFS gateway from request hostname
+    hostname = request.headers.get("host", "u.copylaradio.com")
+    if hostname.startswith("u."):
+        ipfs_gateway = f"https://ipfs.{hostname[2:]}"
+    elif hostname.startswith("127.0.0.1") or hostname.startswith("localhost"):
+        ipfs_gateway = "http://127.0.0.1:8080"
+    else:
+        ipfs_gateway = "https://ipfs.copylaradio.com"
+    
+    return templates.TemplateResponse("tags.html", {
+        "request": request,
+        "myIPFS": ipfs_gateway,
+        "video_id": video
+    })
+
 @app.get("/cloud", response_class=HTMLResponse)
 async def cloud_route(request: Request):
     """Cloud Drive - Professional file management interface"""

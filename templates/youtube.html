@@ -424,6 +424,44 @@
             color: #f1f1f1;
         }
         
+        /* Source type filters */
+        .source-type-filters {
+            padding: 12px 16px;
+            background: #181818;
+            border-radius: 8px;
+            border: 1px solid #3f3f3f;
+        }
+        
+        .source-type-filters .form-check {
+            margin: 0;
+        }
+        
+        .source-type-filters .form-check-input {
+            background-color: #2a2a2a;
+            border-color: #3f3f3f;
+            cursor: pointer;
+        }
+        
+        .source-type-filters .form-check-input:checked {
+            background-color: #065fd4;
+            border-color: #065fd4;
+        }
+        
+        .source-type-filters .form-check-input:focus {
+            border-color: #065fd4;
+            box-shadow: 0 0 0 0.2rem rgba(6, 95, 212, 0.25);
+        }
+        
+        .source-type-filters .form-check-label {
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.875rem;
+        }
+        
+        .source-type-filters .form-check-label:hover {
+            color: #3ea6ff;
+        }
+        
         .advanced-search-toggle {
             padding: 0.625rem 1rem;
             background: transparent;
@@ -2031,9 +2069,49 @@
                         <option value="medium">Moyenne (5-20 min)</option>
                         <option value="long">Longue (> 20 min)</option>
                     </select>
+                    <button class="btn btn-outline-secondary" onclick="toggleSourceTypeFilters()" title="Filtrer par type de source" id="sourceTypeFilterToggle">
+                        <i class="bi bi-funnel"></i> <span class="d-none d-md-inline">Source</span>
+                    </button>
                     <button class="btn btn-outline-info" onclick="toggleAdvancedSearch()">
                         <i class="bi bi-search"></i> <span data-i18n="advanced_search">Recherche avancée</span>
                     </button>
+                </div>
+                
+                <!-- Source Type Filters (collapsible) -->
+                <div class="source-type-filters mt-2" id="sourceTypeFilters" style="display: none;">
+                    <div class="d-flex flex-wrap gap-3 align-items-center">
+                        <span class="text-secondary small"><i class="bi bi-funnel-fill"></i> Type de source:</span>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="sourceFilterWebcam" value="webcam" checked onchange="applyQuickFilters()">
+                            <label class="form-check-label text-white small" for="sourceFilterWebcam">
+                                <i class="bi bi-camera-video"></i> Webcam
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="sourceFilterFilm" value="film" checked onchange="applyQuickFilters()">
+                            <label class="form-check-label text-white small" for="sourceFilterFilm">
+                                <i class="bi bi-film"></i> Film
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="sourceFilterSerie" value="serie" checked onchange="applyQuickFilters()">
+                            <label class="form-check-label text-white small" for="sourceFilterSerie">
+                                <i class="bi bi-tv"></i> Série
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="sourceFilterYoutube" value="youtube" checked onchange="applyQuickFilters()">
+                            <label class="form-check-label text-white small" for="sourceFilterYoutube">
+                                <i class="bi bi-youtube"></i> YouTube
+                            </label>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="selectAllSourceTypes()" title="Tout sélectionner">
+                            <i class="bi bi-check-all"></i> Tout
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="deselectAllSourceTypes()" title="Tout désélectionner">
+                            <i class="bi bi-x-square"></i> Rien
+                        </button>
+                    </div>
                 </div>
                 
                 <!-- Advanced Search Panel -->
@@ -2124,7 +2202,8 @@
                              data-lat="{{ video.latitude if video.latitude else 0 }}"
                              data-lon="{{ video.longitude if video.longitude else 0 }}"
                              data-duration="{{ video.duration if video.duration else 0 }}"
-                             data-date="{{ video.download_date if video.download_date else (video.created_at if video.created_at else '') }}">
+                             data-date="{{ video.download_date if video.download_date else (video.created_at if video.created_at else '') }}"
+                             data-source-type="{{ video.source_type if video.source_type else 'webcam' }}">
                             <div class="video-thumbnail" onclick="toggleVideoPlayer(this)" ondblclick="openVideoInTheater(this)">
                                 {% if video.thumbnail_ipfs %}
                                 <img src="" alt="Thumbnail" class="thumbnail-img" data-ipfs-url="{{ video.thumbnail_ipfs }}">
@@ -2925,6 +3004,8 @@
         }
         
         function clearAdvancedSearch() {
+            // Also reset source type filters
+            selectAllSourceTypes();
             // Clear all advanced search fields
             document.getElementById('channelFilter').value = '';
             document.getElementById('keywordFilter').value = '';
@@ -3180,17 +3261,22 @@
             const dateFilter = document.getElementById('dateFilter')?.value || 'all';
             const durationFilter = document.getElementById('durationFilter')?.value || 'all';
             
+            // Get selected source types
+            const selectedSourceTypes = getSelectedSourceTypes();
+            
             videos.forEach(video => {
                 const title = video.querySelector('.video-title').textContent.toLowerCase();
                 const meta = video.querySelector('.video-meta').textContent.toLowerCase();
                 const videoChannel = video.getAttribute('data-channel');
+                const videoSourceType = video.getAttribute('data-source-type') || 'webcam';
                 
                 const matchesSearch = !searchTerm || title.includes(searchTerm) || meta.includes(searchTerm);
                 const matchesChannel = !currentChannel || videoChannel === currentChannel;
                 const matchesDate = matchesDateFilter(video, dateFilter);
                 const matchesDuration = matchesDurationFilter(video, durationFilter);
+                const matchesSourceType = selectedSourceTypes.length === 0 || selectedSourceTypes.includes(videoSourceType.toLowerCase());
                 
-                if (matchesSearch && matchesChannel && matchesDate && matchesDuration) {
+                if (matchesSearch && matchesChannel && matchesDate && matchesDuration && matchesSourceType) {
                     video.style.display = 'block';
                 } else {
                     video.style.display = 'none';
@@ -3204,6 +3290,90 @@
             
             // Update header stats
             updateHeaderStats();
+        }
+        
+        /**
+         * Get selected source types from checkboxes
+         */
+        function getSelectedSourceTypes() {
+            const selected = [];
+            const checkboxes = [
+                document.getElementById('sourceFilterWebcam'),
+                document.getElementById('sourceFilterFilm'),
+                document.getElementById('sourceFilterSerie'),
+                document.getElementById('sourceFilterYoutube')
+            ];
+            
+            checkboxes.forEach(checkbox => {
+                if (checkbox && checkbox.checked) {
+                    selected.push(checkbox.value);
+                }
+            });
+            
+            return selected;
+        }
+        
+        /**
+         * Toggle source type filters visibility
+         */
+        function toggleSourceTypeFilters() {
+            const filtersPanel = document.getElementById('sourceTypeFilters');
+            const toggleBtn = document.getElementById('sourceTypeFilterToggle');
+            
+            if (filtersPanel) {
+                const isVisible = filtersPanel.style.display !== 'none';
+                filtersPanel.style.display = isVisible ? 'none' : 'block';
+                
+                if (toggleBtn) {
+                    if (isVisible) {
+                        toggleBtn.classList.remove('btn-primary');
+                        toggleBtn.classList.add('btn-outline-secondary');
+                    } else {
+                        toggleBtn.classList.remove('btn-outline-secondary');
+                        toggleBtn.classList.add('btn-primary');
+                    }
+                }
+            }
+        }
+        
+        /**
+         * Select all source types
+         */
+        function selectAllSourceTypes() {
+            const checkboxes = [
+                document.getElementById('sourceFilterWebcam'),
+                document.getElementById('sourceFilterFilm'),
+                document.getElementById('sourceFilterSerie'),
+                document.getElementById('sourceFilterYoutube')
+            ];
+            
+            checkboxes.forEach(checkbox => {
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            });
+            
+            applyQuickFilters();
+        }
+        
+        /**
+         * Deselect all source types
+         */
+        function deselectAllSourceTypes() {
+            const checkboxes = [
+                document.getElementById('sourceFilterWebcam'),
+                document.getElementById('sourceFilterFilm'),
+                document.getElementById('sourceFilterSerie'),
+                document.getElementById('sourceFilterYoutube')
+            ];
+            
+            checkboxes.forEach(checkbox => {
+                if (checkbox) {
+                    checkbox.checked = false;
+                }
+            });
+            
+            applyQuickFilters();
         }
         
         /**
@@ -4389,7 +4559,7 @@
             
             // Update modal title
             if (titleEl) {
-                titleEl.textContent = '🎬 Mode Théâtre';
+                titleEl.textContent = '🎬 ';
             }
             
             // Show "open in new window" button

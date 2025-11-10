@@ -232,7 +232,62 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: min-height 0.3s ease;
+            transition: all 0.3s ease;
+        }
+        
+        /* Main content wrapper - adapts layout based on orientation */
+        #main-content-wrapper {
+            transition: all 0.3s ease;
+        }
+        
+        /* Portrait mode: side-by-side layout */
+        #main-content-wrapper.portrait-mode {
+            flex-direction: row !important;
+            display: flex !important;
+        }
+        
+        #main-content-wrapper.portrait-mode #video-preview-container {
+            flex: 0 0 50%;
+            min-width: 300px;
+            width: 50%;
+            min-height: 50vh;
+            max-height: 70vh;
+            display: flex !important;
+        }
+        
+        #main-content-wrapper.portrait-mode #video-preview {
+            max-height: 70vh;
+            max-width: 100%;
+            width: 100%;
+            height: auto;
+            object-fit: contain;
+        }
+        
+        #main-content-wrapper.portrait-mode #controls-container {
+            flex: 1 1 auto;
+            min-width: 250px;
+            max-width: 50%;
+            width: 50%;
+        }
+        
+        /* Landscape mode: vertical layout (default) */
+        #main-content-wrapper.landscape-mode {
+            flex-direction: column !important;
+        }
+        
+        #main-content-wrapper.landscape-mode #video-preview-container {
+            width: 100%;
+            min-height: 25vh;
+            max-height: 40vh;
+        }
+        
+        #main-content-wrapper.landscape-mode #video-preview {
+            max-height: 40vh;
+            width: 100%;
+        }
+        
+        #main-content-wrapper.landscape-mode #controls-container {
+            width: 100%;
         }
         
         #timer {
@@ -729,6 +784,63 @@
                 margin: 0.5rem auto;
             }
             
+            /* Mobile: always use vertical layout (column) for better UX */
+            #main-content-wrapper.portrait-mode {
+                flex-direction: column !important;
+                position: relative;
+            }
+            
+            #main-content-wrapper.portrait-mode #video-preview-container {
+                width: 100%;
+                min-height: 40vh;
+                max-height: 50vh;
+                position: relative;
+                z-index: 1;
+            }
+            
+            #main-content-wrapper.portrait-mode #video-preview {
+                max-height: 50vh;
+                width: 100%;
+            }
+            
+            #main-content-wrapper.portrait-mode #controls-container {
+                width: 100%;
+                max-width: 100%;
+                position: relative;
+                z-index: 10;
+                background: rgba(15, 15, 15, 0.95);
+                backdrop-filter: blur(10px);
+                padding: 12px;
+                border-radius: 12px 12px 0 0;
+                margin-top: -20px; /* Overlap with preview */
+                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+            }
+            
+            #main-content-wrapper.landscape-mode {
+                position: relative;
+            }
+            
+            #main-content-wrapper.landscape-mode #video-preview-container {
+                max-height: 35vh;
+                position: relative;
+                z-index: 1;
+            }
+            
+            #main-content-wrapper.landscape-mode #video-preview {
+                max-height: 35vh;
+            }
+            
+            #main-content-wrapper.landscape-mode #controls-container {
+                position: relative;
+                z-index: 10;
+                background: rgba(15, 15, 15, 0.95);
+                backdrop-filter: blur(10px);
+                padding: 12px;
+                border-radius: 12px 12px 0 0;
+                margin-top: -10px; /* Slight overlap */
+                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+            }
+            
             .camera-controls {
                 display: flex;
                 gap: 0.5rem;
@@ -1146,16 +1258,11 @@
         <div class="container-fluid">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 py-2">
                 <div class="d-flex align-items-center gap-3 flex-wrap">
-                    <h1 class="h4 mb-0 text-white d-flex align-items-center gap-2">
-                        ▶️ Multimedia Recorder
-                    </h1>
                     <a href="/youtube?html=1" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2">
-                        <span>🎥</span>
                         <span>📺 NostrTube</span>
                     </a>
                     <a href="/mp3?html=1" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2">
-                        <span>🎵</span>
-                        <span>🎧 Nostrify</span>
+                        <span>🎧 NostrIfy</span>
                     </a>
                 </div>
                 
@@ -1221,80 +1328,85 @@
                             </div>
                         </div>
 
-                        <div class="text-center mb-1 flex-shrink-0 position-relative" id="video-preview-container" style="min-height: 25vh; display: flex; align-items: center; justify-content: center;">
-                            <video id="video-preview" class="rounded border border-secondary" autoplay muted style="max-height: 25vh; width: 100%; object-fit: contain; background: #000; transition: all 0.3s ease;"></video>
-                            <div id="timer" class="d-none position-absolute top-50 start-50 translate-middle fs-2 fw-bold text-danger" style="text-shadow: 0 0 10px rgba(255, 0, 0, 0.5); z-index: 10;">16</div>
-                        </div>
+                        <!-- Main content wrapper - changes layout based on orientation -->
+                        <div id="main-content-wrapper" class="d-flex flex-column flex-md-row gap-2 flex-grow-1" style="min-height: 0;">
+                            <!-- Video Preview Container -->
+                            <div class="text-center flex-shrink-0 position-relative" id="video-preview-container" style="min-height: 25vh; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;">
+                                <video id="video-preview" class="rounded border border-secondary" autoplay muted style="max-height: 25vh; width: 100%; object-fit: contain; background: #000; transition: all 0.3s ease;"></video>
+                                <div id="timer" class="d-none position-absolute top-50 start-50 translate-middle fs-2 fw-bold text-danger" style="text-shadow: 0 0 10px rgba(255, 0, 0, 0.5); z-index: 10;">16</div>
+                            </div>
 
-                        <div class="d-flex flex-column align-items-center gap-1 flex-grow-1" style="min-height: 0; overflow-y: auto;">
-                            <!-- Video Orientation Selection -->
-                            <div class="d-flex flex-column align-items-center gap-1 w-100" style="max-width: 500px;">
-                                <label class="mb-0 text-white small">Video Orientation:</label>
-                                <div class="btn-group btn-group-sm" role="group" aria-label="Video orientation">
-                                    <input type="radio" class="btn-check" name="video-orientation" id="orientation-landscape" value="landscape" checked>
-                                    <label class="btn btn-outline-primary" for="orientation-landscape">
-                                        📱 Landscape
-                                    </label>
-                                    
-                                    <input type="radio" class="btn-check" name="video-orientation" id="orientation-portrait" value="portrait">
-                                    <label class="btn btn-outline-primary" for="orientation-portrait">
-                                        📱 Portrait
-                                    </label>
+                            <!-- Controls Container - adapts to orientation -->
+                            <div class="d-flex flex-column align-items-center gap-1 flex-grow-1" id="controls-container" style="min-height: 0; overflow-y: auto; transition: all 0.3s ease;">
+                                <!-- Video Orientation Selection -->
+                                <div class="d-flex flex-column align-items-center gap-1 w-100" style="max-width: 500px;">
+                                    <label class="mb-0 text-white small">Video Orientation:</label>
+                                    <div class="btn-group btn-group-sm" role="group" aria-label="Video orientation">
+                                        <input type="radio" class="btn-check" name="video-orientation" id="orientation-landscape" value="landscape" checked>
+                                        <label class="btn btn-outline-primary" for="orientation-landscape">
+                                            📱 Landscape
+                                        </label>
+                                        
+                                        <input type="radio" class="btn-check" name="video-orientation" id="orientation-portrait" value="portrait">
+                                        <label class="btn btn-outline-primary" for="orientation-portrait">
+                                            📱 Portrait
+                                        </label>
+                                    </div>
                                 </div>
-                            </div>
-                            
-                            <!-- Recording Option -->
-                            <div class="d-flex flex-column flex-sm-row align-items-center gap-2 w-100" style="max-width: 500px;">
-                                <label for="duration-slider" class="mb-0 text-white small">Duration:</label>
-                                <input type="range" class="form-range flex-grow-1" id="duration-slider" min="3" max="30" value="10">
-                                <div id="duration-display" class="text-success fw-semibold small" style="min-width: 80px;">10s</div>
-                            </div>
-                            
-                            <input type="hidden" id="player" name="player" value="">
-                            
-                            <div class="d-flex gap-1 flex-wrap justify-content-center">
-                                <button id="start-recording" class="btn btn-primary btn-sm">
-                                    <span class="d-none d-sm-inline">🎬 Start Recording</span>
-                                    <span class="d-sm-none">🎬 Start</span>
-                                </button>
-                                <button id="stop-recording" class="btn btn-danger btn-sm d-none">
-                                    ⏹️ Stop
-                                </button>
-                            </div>
+                                
+                                <!-- Recording Option -->
+                                <div class="d-flex flex-column flex-sm-row align-items-center gap-2 w-100" style="max-width: 500px;">
+                                    <label for="duration-slider" class="mb-0 text-white small">Duration:</label>
+                                    <input type="range" class="form-range flex-grow-1" id="duration-slider" min="3" max="30" value="10">
+                                    <div id="duration-display" class="text-success fw-semibold small" style="min-width: 80px;">10s</div>
+                                </div>
+                                
+                                <input type="hidden" id="player" name="player" value="">
+                                
+                                <div class="d-flex gap-1 flex-wrap justify-content-center">
+                                    <button id="start-recording" class="btn btn-primary btn-sm">
+                                        <span class="d-none d-sm-inline">🎬 Start Recording</span>
+                                        <span class="d-sm-none">🎬 Start</span>
+                                    </button>
+                                    <button id="stop-recording" class="btn btn-danger btn-sm d-none">
+                                        ⏹️ Stop
+                                    </button>
+                                </div>
 
-                            <div class="text-secondary my-1 small">
-                                — <span title="Upload a video file" class="fs-6">📤</span> — 
-                            </div>
+                                <div class="text-secondary my-1 small">
+                                    — <span title="Upload a video file" class="fs-6">📤</span> — 
+                                </div>
 
-                            <!-- Video Upload Option -->
-                            <div class="w-100" id="video-upload-section">
-                                <label for="video-upload" class="form-label text-white d-block text-center mb-1 small">
-                                    📁 Upload Video File (.mp4, .webm, .mov)
-                                </label>
-                                <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" id="video-upload" accept="video/*,.mp4,.webm,.mov" capture="environment">
-                                <small id="video-upload-hint" class="form-text text-secondary d-block text-center mt-1 small">
-                                    MP4, WebM, MOV (max 500MB)
-                                    <span class="mobile-hint d-none text-info d-block">
-                                        📱 On mobile: Use your camera app, then select the video file
-                                    </span>
-                                </small>
-                            </div>
-                            
-                            <!-- Audio Upload Option (hidden by default, shown in audio mode) -->
-                            <div class="w-100 d-none" id="audio-upload-section">
-                                <label for="audio-upload" class="form-label text-success fw-semibold d-block text-center mb-1 small">
-                                    🎵 Upload Audio File
-                                </label>
-                                <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" id="audio-upload" accept="audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a">
-                                <small id="audio-upload-hint" class="form-text text-secondary d-block text-center mt-1 small">
-                                    <strong class="text-white">Formats:</strong> MP3, WAV, OGG, FLAC, AAC, M4A<br>
-                                    <strong class="text-white">Max:</strong> 500MB
-                                    <span class="mobile-hint d-none text-info mt-1 d-block">
-                                        📱 On mobile: Select an audio file from your device
-                                    </span>
-                                </small>
-                                <div class="alert alert-success mt-2 py-1 small" role="alert" style="background: rgba(29, 185, 84, 0.1); border-color: rgba(29, 185, 84, 0.3);">
-                                    <strong class="text-success">💡 Tip:</strong> After uploading, you can suggest this track in Mixxx mode!
+                                <!-- Video Upload Option -->
+                                <div class="w-100" id="video-upload-section">
+                                    <label for="video-upload" class="form-label text-white d-block text-center mb-1 small">
+                                        📁 Upload Video File (.mp4, .webm, .mov)
+                                    </label>
+                                    <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" id="video-upload" accept="video/*,.mp4,.webm,.mov" capture="environment">
+                                    <small id="video-upload-hint" class="form-text text-secondary d-block text-center mt-1 small">
+                                        MP4, WebM, MOV (max 500MB)
+                                        <span class="mobile-hint d-none text-info d-block">
+                                            📱 On mobile: Use your camera app, then select the video file
+                                        </span>
+                                    </small>
+                                </div>
+                                
+                                <!-- Audio Upload Option (hidden by default, shown in audio mode) -->
+                                <div class="w-100 d-none" id="audio-upload-section">
+                                    <label for="audio-upload" class="form-label text-success fw-semibold d-block text-center mb-1 small">
+                                        🎵 Upload Audio File
+                                    </label>
+                                    <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" id="audio-upload" accept="audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a">
+                                    <small id="audio-upload-hint" class="form-text text-secondary d-block text-center mt-1 small">
+                                        <strong class="text-white">Formats:</strong> MP3, WAV, OGG, FLAC, AAC, M4A<br>
+                                        <strong class="text-white">Max:</strong> 500MB
+                                        <span class="mobile-hint d-none text-info mt-1 d-block">
+                                            📱 On mobile: Select an audio file from your device
+                                        </span>
+                                    </small>
+                                    <div class="alert alert-success mt-2 py-1 small" role="alert" style="background: rgba(29, 185, 84, 0.1); border-color: rgba(29, 185, 84, 0.3);">
+                                        <strong class="text-success">💡 Tip:</strong> After uploading, you can suggest this track in Mixxx mode!
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2259,29 +2371,39 @@
                 videoPreview.srcObject = stream;
                 
                 // Update video preview styling based on orientation - use contain to show exact recording
+                // Use the same layout function to ensure consistency
+                const mainContentWrapper = document.getElementById('main-content-wrapper');
+                if (mainContentWrapper) {
+                    const orientation = getVideoOrientation();
+                    mainContentWrapper.classList.remove('portrait-mode', 'landscape-mode');
+                    mainContentWrapper.classList.add(`${orientation}-mode`);
+                }
+                
                 if (orientation === 'portrait') {
                     videoPreview.style.aspectRatio = '9/16';
-                    videoPreview.style.maxWidth = '50%';
-                    videoPreview.style.width = 'auto';
+                    videoPreview.style.maxWidth = '100%';
+                    videoPreview.style.width = '100%'; // Fill container
                     videoPreview.style.height = 'auto';
-                    videoPreview.style.maxHeight = '60vh';
-                    videoPreview.style.objectFit = 'contain'; // Show exact recording, no cropping
-                    // Keep container height fixed to prevent layout shift
+                    videoPreview.style.maxHeight = '70vh';
+                    videoPreview.style.objectFit = 'contain';
                     const container = document.getElementById('video-preview-container');
                     if (container) {
-                        container.style.minHeight = '60vh';
+                        container.style.minHeight = '50vh';
+                        container.style.maxHeight = '70vh';
+                        container.style.width = ''; // Clear inline style to use CSS (50% from CSS)
                     }
                 } else {
                     videoPreview.style.aspectRatio = '16/9';
                     videoPreview.style.maxWidth = '100%';
                     videoPreview.style.width = '100%';
                     videoPreview.style.height = 'auto';
-                    videoPreview.style.maxHeight = '25vh';
-                    videoPreview.style.objectFit = 'contain'; // Show exact recording, no cropping
-                    // Keep container height fixed to prevent layout shift
+                    videoPreview.style.maxHeight = '40vh';
+                    videoPreview.style.objectFit = 'contain';
                     const container = document.getElementById('video-preview-container');
                     if (container) {
                         container.style.minHeight = '25vh';
+                        container.style.maxHeight = '40vh';
+                        container.style.width = '100%';
                     }
                 }
                 
@@ -2369,40 +2491,61 @@
                 durationDisplay.textContent = `${durationSlider.value} seconds`;
             });
             
-            // Orientation change handler - update preview when orientation changes
+            // Orientation change handler - update preview and layout when orientation changes
             const orientationRadios = document.querySelectorAll('input[name="video-orientation"]');
+            const mainContentWrapper = document.getElementById('main-content-wrapper');
+            
+            // Function to update layout based on orientation
+            function updateLayoutForOrientation(orientation) {
+                const videoPreview = document.getElementById('video-preview');
+                const container = document.getElementById('video-preview-container');
+                
+                if (!mainContentWrapper || !videoPreview || !container) return;
+                
+                // Update wrapper classes
+                mainContentWrapper.classList.remove('portrait-mode', 'landscape-mode');
+                mainContentWrapper.classList.add(`${orientation}-mode`);
+                
+                if (orientation === 'portrait') {
+                    // Portrait: taller preview, controls on the side
+                    videoPreview.style.aspectRatio = '9/16';
+                    videoPreview.style.maxWidth = '100%';
+                    videoPreview.style.width = '100%'; // Use 100% to fill container
+                    videoPreview.style.height = 'auto';
+                    videoPreview.style.maxHeight = '70vh';
+                    videoPreview.style.objectFit = 'contain';
+                    
+                    // Container for portrait: let CSS handle width (50%), only set height
+                    container.style.minHeight = '50vh';
+                    container.style.maxHeight = '70vh';
+                    // Don't override width - let CSS handle it (50% from CSS)
+                    container.style.width = ''; // Clear inline style to use CSS
+                } else {
+                    // Landscape: wider preview, controls below
+                    videoPreview.style.aspectRatio = '16/9';
+                    videoPreview.style.maxWidth = '100%';
+                    videoPreview.style.width = '100%';
+                    videoPreview.style.height = 'auto';
+                    videoPreview.style.maxHeight = '40vh';
+                    videoPreview.style.objectFit = 'contain';
+                    
+                    // Container for landscape: wider
+                    container.style.minHeight = '25vh';
+                    container.style.maxHeight = '40vh';
+                    container.style.width = '100%';
+                }
+            }
+            
+            // Initialize layout on page load
+            const initialOrientation = getVideoOrientation();
+            updateLayoutForOrientation(initialOrientation);
+            
             orientationRadios.forEach(radio => {
                 radio.addEventListener('change', async () => {
                     const orientation = getVideoOrientation();
-                    const videoPreview = document.getElementById('video-preview');
                     
-                    // Update preview styling immediately - use contain to show exact recording
-                    if (videoPreview) {
-                        const container = document.getElementById('video-preview-container');
-                        if (orientation === 'portrait') {
-                            videoPreview.style.aspectRatio = '9/16';
-                            videoPreview.style.maxWidth = '50%';
-                            videoPreview.style.width = 'auto';
-                            videoPreview.style.height = 'auto';
-                            videoPreview.style.maxHeight = '60vh';
-                            videoPreview.style.objectFit = 'contain'; // Show exact recording, no cropping
-                            // Keep container height fixed to prevent layout shift
-                            if (container) {
-                                container.style.minHeight = '60vh';
-                            }
-                        } else {
-                            videoPreview.style.aspectRatio = '16/9';
-                            videoPreview.style.maxWidth = '100%';
-                            videoPreview.style.width = '100%';
-                            videoPreview.style.height = 'auto';
-                            videoPreview.style.maxHeight = '25vh';
-                            videoPreview.style.objectFit = 'contain'; // Show exact recording, no cropping
-                            // Keep container height fixed to prevent layout shift
-                            if (container) {
-                                container.style.minHeight = '25vh';
-                            }
-                        }
-                    }
+                    // Update layout immediately
+                    updateLayoutForOrientation(orientation);
                     
                     // If camera is already active, restart preview with new orientation
                     if (currentStream) {
@@ -2513,30 +2656,39 @@
                     currentStream = stream;
                     videoPreview.srcObject = stream;
                     
-                    // Update video preview styling based on orientation during recording - use contain to show exact recording
+                    // Update layout and video preview styling based on orientation during recording
+                    const mainContentWrapper = document.getElementById('main-content-wrapper');
+                    if (mainContentWrapper) {
+                        mainContentWrapper.classList.remove('portrait-mode', 'landscape-mode');
+                        mainContentWrapper.classList.add(`${orientation}-mode`);
+                    }
+                    
+                    // Update video preview styling - use contain to show exact recording
                     if (orientation === 'portrait') {
                         videoPreview.style.aspectRatio = '9/16';
-                        videoPreview.style.maxWidth = '50%';
-                        videoPreview.style.width = 'auto';
+                        videoPreview.style.maxWidth = '100%';
+                        videoPreview.style.width = '100%'; // Fill container
                         videoPreview.style.height = 'auto';
-                        videoPreview.style.maxHeight = '60vh';
-                        videoPreview.style.objectFit = 'contain'; // Show exact recording, no cropping
-                        // Keep container height fixed
+                        videoPreview.style.maxHeight = '70vh';
+                        videoPreview.style.objectFit = 'contain';
                         const container = document.getElementById('video-preview-container');
                         if (container) {
-                            container.style.minHeight = '60vh';
+                            container.style.minHeight = '50vh';
+                            container.style.maxHeight = '70vh';
+                            container.style.width = ''; // Clear inline style to use CSS (50% from CSS)
                         }
                     } else {
                         videoPreview.style.aspectRatio = '16/9';
                         videoPreview.style.maxWidth = '100%';
                         videoPreview.style.width = '100%';
                         videoPreview.style.height = 'auto';
-                        videoPreview.style.maxHeight = '25vh';
-                        videoPreview.style.objectFit = 'contain'; // Show exact recording, no cropping
-                        // Keep container height fixed
+                        videoPreview.style.maxHeight = '40vh';
+                        videoPreview.style.objectFit = 'contain';
                         const container = document.getElementById('video-preview-container');
                         if (container) {
                             container.style.minHeight = '25vh';
+                            container.style.maxHeight = '40vh';
+                            container.style.width = '100%';
                         }
                     }
 

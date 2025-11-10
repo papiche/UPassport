@@ -177,28 +177,91 @@
         
         /* Fullscreen comments mode */
         .theater-comments-section.fullscreen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            width: 100vw;
-            height: 100vh;
-            height: 100dvh;
-            z-index: 10001;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            height: 100dvh !important; /* Dynamic viewport height for mobile */
+            min-height: 100vh !important;
+            min-height: 100dvh !important;
+            max-height: none !important;
+            z-index: 10001 !important;
             border-left: none;
             border-top: none;
             border-right: none;
             border-bottom: none;
+            margin: 0 !important;
+            padding: 0 !important;
+            /* Safe area support for mobile */
+            padding-top: env(safe-area-inset-top) !important;
+            padding-bottom: env(safe-area-inset-bottom) !important;
+            padding-left: env(safe-area-inset-left) !important;
+            padding-right: env(safe-area-inset-right) !important;
         }
         
         .theater-comments-section.fullscreen .theater-comments-header {
             border-bottom: 1px solid #3f3f3f;
+            /* Safe area support */
+            padding-top: max(1rem, env(safe-area-inset-top));
         }
+        
+        /* Tags section - fullscreen mode */
+        .theater-tags-section-fullscreen {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            min-height: 100vh !important;
+            min-height: 100dvh !important;
+            max-height: none !important;
+            z-index: 10002 !important;
+            background: #0f0f0f !important;
+            overflow-y: auto !important;
+            padding: 1rem !important;
+            /* Safe area support for mobile */
+            padding-top: max(1rem, env(safe-area-inset-top)) !important;
+            padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important;
+            padding-left: max(1rem, env(safe-area-inset-left)) !important;
+            padding-right: max(1rem, env(safe-area-inset-right)) !important;
+        }
+        
+        .theater-tags-section-fullscreen .theater-tags-header {
+            position: sticky;
+            top: 0;
+            background: #181818;
+            padding: 1rem;
+            border-bottom: 1px solid #3f3f3f;
+            z-index: 10;
+            margin-bottom: 1rem;
+        }
+        
+        .theater-tags-section-fullscreen #theaterTagsContainer {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .theater-tags-section-fullscreen #theaterTagCloudContainer {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
         
         .theater-comments-section.fullscreen .theater-comments-list {
             max-height: none !important;
-            height: auto;
+            height: auto !important;
+            flex: 1 !important;
+            min-height: 0 !important;
+        }
+        
+        .theater-comments-section.fullscreen .theater-comments-form {
+            flex-shrink: 0;
         }
         
         .theater-comments-header {
@@ -382,6 +445,25 @@
             
             .theater-comments-section.fullscreen {
                 order: 1;
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                height: 100dvh !important;
+                min-height: 100vh !important;
+                min-height: 100dvh !important;
+                max-height: none !important;
+                z-index: 10001 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                /* Safe area support for mobile */
+                padding-top: env(safe-area-inset-top) !important;
+                padding-bottom: env(safe-area-inset-bottom) !important;
+                padding-left: env(safe-area-inset-left) !important;
+                padding-right: env(safe-area-inset-right) !important;
             }
             
             .theater-comments-list {
@@ -390,6 +472,13 @@
             
             .theater-comments-section.fullscreen .theater-comments-list {
                 max-height: none !important;
+                height: auto !important;
+                flex: 1 !important;
+                min-height: 0 !important;
+            }
+            
+            .theater-comments-section.fullscreen .theater-comments-header {
+                padding-top: max(0.75rem, env(safe-area-inset-top));
             }
             
             .theater-header {
@@ -754,6 +843,9 @@
                 <button class="btn btn-sm btn-outline-warning" id="theaterBookmarkBtn" title="Bookmark">
                     <i class="bi bi-bookmark"></i>
                 </button>
+                <button class="btn btn-sm btn-outline-info" id="theaterTagsBtn" title="Tags" onclick="openTagsPage()">
+                    <i class="bi bi-tags"></i> <span class="d-none d-sm-inline">Tags</span>
+                </button>
             </div>
         </div>
         
@@ -786,16 +878,31 @@
                     </div>
                     <div class="small text-white-50 lh-base" id="theaterDescription"></div>
                     
+                    <!-- Tags section (10 max) -->
+                    <div class="mt-3 pt-3 border-top border-secondary" id="theaterTagsSection" style="display: none;">
+                        <div class="small">
+                            <div class="text-secondary mb-2">
+                                <i class="bi bi-tags"></i> <strong>Tags</strong>
+                                <a href="#" id="theaterTagsLink" class="text-info text-decoration-none ms-2" style="font-size: 0.75rem;" onclick="openTagsPage(); return false;">
+                                    <i class="bi bi-box-arrow-up-right"></i> Voir tous
+                                </a>
+                            </div>
+                            <div id="theaterTagsCloud" class="d-flex flex-wrap gap-1"></div>
+                        </div>
+                    </div>
+                    
                     <!-- Provenance section -->
                     <div class="mt-3 pt-3 border-top border-secondary" id="theaterProvenanceSection" style="display: none;">
                         <div class="small">
                             <div class="text-secondary mb-2"><i class="bi bi-diagram-3"></i> <strong>Provenance</strong></div>
+                            <div id="theaterSourceType" class="mb-2"></div>
                             <div id="theaterUploadChain" class="mb-2"></div>
                             <div class="d-flex gap-2 flex-wrap" id="theaterProvenanceLinks"></div>
                         </div>
                     </div>
                 </div>
             </div>
+            
             
             <!-- Comments section: right side (full height) -->
             <div class="theater-comments-section" id="theaterCommentsSection">
@@ -1016,8 +1123,34 @@
                 toggleIcon.classList.add('bi-arrows-fullscreen');
                 toggleBtn.title = 'Basculer en mode chat plein écran';
                 
-                // Restore body scroll if needed
+                // Remove inline styles to restore CSS defaults
+                commentsSection.style.position = '';
+                commentsSection.style.top = '';
+                commentsSection.style.left = '';
+                commentsSection.style.right = '';
+                commentsSection.style.bottom = '';
+                commentsSection.style.width = '';
+                commentsSection.style.height = '';
+                commentsSection.style.minHeight = '';
+                commentsSection.style.maxHeight = '';
+                commentsSection.style.zIndex = '';
+                commentsSection.style.margin = '';
+                commentsSection.style.padding = '';
+                
+                // Restore body scroll
                 document.body.style.overflow = '';
+                document.body.style.position = '';
+                document.body.style.width = '';
+                document.body.style.height = '';
+                
+                // Restore comments list styles
+                const commentsList = document.getElementById('theaterCommentsList');
+                if (commentsList) {
+                    commentsList.style.maxHeight = '';
+                    commentsList.style.height = '';
+                    commentsList.style.flex = '';
+                }
+                
                 console.log('✅ Exited fullscreen mode');
             } else {
                 // Enter fullscreen mode
@@ -1027,20 +1160,80 @@
                 toggleIcon.classList.add('bi-arrows-angle-contract');
                 toggleBtn.title = 'Quitter le mode chat plein écran';
                 
+                // Force full height on mobile with inline styles (override any CSS)
+                commentsSection.style.position = 'fixed';
+                commentsSection.style.top = '0';
+                commentsSection.style.left = '0';
+                commentsSection.style.right = '0';
+                commentsSection.style.bottom = '0';
+                commentsSection.style.width = '100vw';
+                commentsSection.style.height = '100vh';
+                commentsSection.style.height = '100dvh'; // Dynamic viewport height for mobile
+                commentsSection.style.minHeight = '100vh';
+                commentsSection.style.minHeight = '100dvh';
+                commentsSection.style.maxHeight = 'none';
+                commentsSection.style.zIndex = '10001';
+                commentsSection.style.margin = '0';
+                commentsSection.style.padding = '0';
+                
                 // Prevent body scroll when in fullscreen
                 document.body.style.overflow = 'hidden';
+                document.body.style.position = 'fixed';
+                document.body.style.width = '100%';
+                document.body.style.height = '100%';
                 
                 // Scroll to top of comments
                 const commentsList = document.getElementById('theaterCommentsList');
                 if (commentsList) {
                     commentsList.scrollTop = 0;
+                    // Force full height for comments list on mobile
+                    commentsList.style.maxHeight = 'none';
+                    commentsList.style.height = 'auto';
+                    commentsList.style.flex = '1';
                 }
+                
+                // Force recalculation on mobile after a short delay
+                setTimeout(() => {
+                    commentsSection.style.height = '100dvh';
+                    if (commentsList) {
+                        commentsList.style.maxHeight = 'none';
+                        commentsList.style.height = 'auto';
+                        commentsList.style.flex = '1';
+                    }
+                    // Trigger reflow
+                    void commentsSection.offsetHeight;
+                }, 50);
+                
                 console.log('✅ Entered fullscreen mode');
             }
         }
         
         // Expose function globally early
         window.toggleCommentsFullscreen = toggleCommentsFullscreen;
+        
+        /**
+         * Open tags page in new tab
+         */
+        function openTagsPage() {
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            if (!videoPlayer) {
+                alert('Vidéo non trouvée');
+                return;
+            }
+            
+            const eventId = videoPlayer.getAttribute('data-event-id');
+            if (!eventId) {
+                alert('ID de la vidéo non trouvé');
+                return;
+            }
+            
+            // Open tags page in new tab
+            const tagsUrl = `/tags?video=${eventId}`;
+            window.open(tagsUrl, '_blank');
+        }
+        
+        // Expose function globally
+        window.openTagsPage = openTagsPage;
         
         // Initialize Bootstrap tooltips and event listeners
         document.addEventListener('DOMContentLoaded', function() {
@@ -1061,6 +1254,18 @@
                     e.stopPropagation();
                     if (typeof handleCloseTheater === 'function') {
                         handleCloseTheater();
+                    }
+                });
+            }
+            
+            // Attach listener for tags button (opens tags page in new tab)
+            const tagsBtn = document.getElementById('theaterTagsBtn');
+            if (tagsBtn) {
+                tagsBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (typeof openTagsPage === 'function') {
+                        openTagsPage();
                     }
                 });
             }
@@ -2839,6 +3044,9 @@
                 loadVideoAuthor(videoData.authorId, videoData.uploader);
             }
             
+            // Load tags (10 max)
+            loadVideoTagsPreview(videoData.eventId);
+            
             // Load provenance info
             loadProvenanceInfo(videoData);
             
@@ -2853,37 +3061,175 @@
         }
         
         /**
+         * Load and display video tags preview (10 max)
+         */
+        async function loadVideoTagsPreview(eventId) {
+            const tagsSection = document.getElementById('theaterTagsSection');
+            const tagsCloud = document.getElementById('theaterTagsCloud');
+            
+            if (!tagsSection || !tagsCloud || !eventId) return;
+            
+            try {
+                // Check if fetchVideoTags function is available
+                if (typeof fetchVideoTags !== 'function') {
+                    // Wait a bit for youtube.enhancements.js to load
+                    setTimeout(() => loadVideoTagsPreview(eventId), 1000);
+                    return;
+                }
+                
+                const allTags = await fetchVideoTags(eventId);
+                
+                if (!allTags || Object.keys(allTags).length === 0) {
+                    tagsSection.style.display = 'none';
+                    return;
+                }
+                
+                // Sort tags by count (descending) and limit to 10
+                const sortedTags = Object.entries(allTags)
+                    .sort((a, b) => b[1].count - a[1].count)
+                    .slice(0, 10);
+                
+                if (sortedTags.length === 0) {
+                    tagsSection.style.display = 'none';
+                    return;
+                }
+                
+                // Get user tags for highlighting
+                const userTags = window.userPubkey ? await fetchUserTagsForVideo(eventId, window.userPubkey) : [];
+                
+                // Escape HTML helper
+                const escapeHtmlFn = typeof escapeHtml !== 'undefined' ? escapeHtml : 
+                                    (typeof window.escapeHtml !== 'undefined' ? window.escapeHtml : escapeHtmlLocal);
+                
+                // Build tags HTML
+                const tagsHtml = sortedTags.map(([tag, data]) => {
+                    const isUserTag = userTags.includes(tag);
+                    const badgeClass = isUserTag ? 'bg-success' : 'bg-secondary';
+                    return `
+                        <span class="badge ${badgeClass} rounded-pill" 
+                              style="cursor: pointer; font-size: 0.75rem;"
+                              onclick="openTagsPage(); return false;"
+                              title="${data.count} utilisateur${data.count > 1 ? 's' : ''}">
+                            ${escapeHtmlFn(tag)} (${data.count})
+                        </span>
+                    `;
+                }).join('');
+                
+                tagsCloud.innerHTML = tagsHtml;
+                tagsSection.style.display = 'block';
+            } catch (error) {
+                console.error('Error loading tags preview:', error);
+                tagsSection.style.display = 'none';
+            }
+        }
+        
+        /**
          * Load and display provenance information
          */
         function loadProvenanceInfo(videoData) {
             const provenanceSection = document.getElementById('theaterProvenanceSection');
+            const sourceTypeEl = document.getElementById('theaterSourceType');
             const uploadChainEl = document.getElementById('theaterUploadChain');
             const provenanceLinksEl = document.getElementById('theaterProvenanceLinks');
             
-            if (!provenanceSection || !uploadChainEl || !provenanceLinksEl) return;
+            if (!provenanceSection || !sourceTypeEl || !uploadChainEl || !provenanceLinksEl) return;
             
             let hasProvenance = false;
             let linksHtml = '';
             
+            // Display source type (webcam, film, serie, youtube)
+            if (videoData.source_type) {
+                hasProvenance = true;
+                let sourceBadge = '';
+                const sourceType = videoData.source_type.toLowerCase();
+                
+                if (sourceType === 'webcam') {
+                    sourceBadge = '<span class="badge bg-info" title="Vidéo personnelle (Webcam)"><i class="bi bi-camera-video"></i> Webcam</span>';
+                } else if (sourceType === 'film') {
+                    sourceBadge = '<span class="badge bg-warning" title="Film (TMDB)"><i class="bi bi-film"></i> Film</span>';
+                } else if (sourceType === 'serie') {
+                    sourceBadge = '<span class="badge bg-warning" title="Série (TMDB)"><i class="bi bi-tv"></i> Série</span>';
+                } else if (sourceType === 'youtube' || sourceType.includes('youtube')) {
+                    sourceBadge = '<span class="badge bg-danger" title="Vidéo YouTube"><i class="bi bi-youtube"></i> YouTube</span>';
+                } else {
+                    const escapeHtmlFn = typeof escapeHtml !== 'undefined' ? escapeHtml : 
+                                        (typeof window.escapeHtml !== 'undefined' ? window.escapeHtml : escapeHtmlLocal);
+                    sourceBadge = `<span class="badge bg-secondary" title="Source: ${videoData.source_type}">${escapeHtmlFn(videoData.source_type)}</span>`;
+                }
+                
+                sourceTypeEl.innerHTML = `
+                    <div class="text-white-50 mb-2">
+                        <i class="bi bi-info-circle text-info"></i> <strong>Source:</strong> ${sourceBadge}
+                    </div>
+                `;
+            }
+            
             // Display upload chain (distribution history)
             if (videoData.upload_chain) {
-                const pubkeys = videoData.upload_chain.split(',').filter(p => p.trim());
-                if (pubkeys.length > 0) {
-                    hasProvenance = true;
+                try {
+                    // Try to parse as JSON first
+                    let chainData = [];
+                    if (videoData.upload_chain.startsWith('[')) {
+                        chainData = JSON.parse(videoData.upload_chain);
+                    } else {
+                        // Fallback: split by comma
+                        const pubkeys = videoData.upload_chain.split(',').filter(p => p.trim());
+                        chainData = pubkeys.map(pubkey => ({ pubkey: pubkey.trim() }));
+                    }
                     
-                    // Show chain with arrows
-                    const chainHtml = pubkeys.map((pubkey, index) => {
-                        const shortKey = pubkey.substring(0, 8) + '...';
-                        const arrow = index < pubkeys.length - 1 ? ' <i class="bi bi-arrow-right"></i> ' : '';
-                        return `<span class="badge bg-secondary" title="${pubkey}">${shortKey}</span>${arrow}`;
-                    }).join('');
-                    
-                    uploadChainEl.innerHTML = `
-                        <div class="text-white-50">
-                            <i class="bi bi-diagram-3-fill text-info"></i> <strong>Distribution:</strong> ${chainHtml}
-                            <small class="text-secondary">(${pubkeys.length} partage${pubkeys.length > 1 ? 's' : ''})</small>
-                        </div>
-                    `;
+                    if (chainData.length > 0) {
+                        hasProvenance = true;
+                        
+                        // Show chain with clickable links
+                        const chainHtml = chainData.map((item, index) => {
+                            const pubkey = item.pubkey || item;
+                            const shortKey = pubkey.substring(0, 8) + '...';
+                            const arrow = index < chainData.length - 1 ? ' <i class="bi bi-arrow-right"></i> ' : '';
+                            
+                            // Make clickable link to profile
+                            return `
+                                <a href="#" 
+                                   class="badge bg-secondary text-decoration-none" 
+                                   title="${pubkey}"
+                                   onclick="event.preventDefault(); openProfileModalInTheater('${pubkey}', '${shortKey}'); return false;">
+                                    ${shortKey}
+                                </a>${arrow}
+                            `;
+                        }).join('');
+                        
+                        uploadChainEl.innerHTML = `
+                            <div class="text-white-50">
+                                <i class="bi bi-diagram-3-fill text-info"></i> <strong>Distribution:</strong> ${chainHtml}
+                                <small class="text-secondary">(${chainData.length} partage${chainData.length > 1 ? 's' : ''})</small>
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    console.error('Error parsing upload chain:', error);
+                    // Fallback: simple display
+                    const pubkeys = videoData.upload_chain.split(',').filter(p => p.trim());
+                    if (pubkeys.length > 0) {
+                        hasProvenance = true;
+                        const chainHtml = pubkeys.map((pubkey, index) => {
+                            const shortKey = pubkey.substring(0, 8) + '...';
+                            const arrow = index < pubkeys.length - 1 ? ' <i class="bi bi-arrow-right"></i> ' : '';
+                            return `
+                                <a href="#" 
+                                   class="badge bg-secondary text-decoration-none" 
+                                   title="${pubkey}"
+                                   onclick="event.preventDefault(); openProfileModalInTheater('${pubkey}', '${shortKey}'); return false;">
+                                    ${shortKey}
+                                </a>${arrow}
+                            `;
+                        }).join('');
+                        
+                        uploadChainEl.innerHTML = `
+                            <div class="text-white-50">
+                                <i class="bi bi-diagram-3-fill text-info"></i> <strong>Distribution:</strong> ${chainHtml}
+                                <small class="text-secondary">(${pubkeys.length} partage${pubkeys.length > 1 ? 's' : ''})</small>
+                            </div>
+                        `;
+                    }
                 }
             }
             
@@ -2939,6 +3285,7 @@
         window.loadVideoAuthor = loadVideoAuthor;
         window.loadVideoComments = loadVideoComments;
         window.loadProvenanceInfo = loadProvenanceInfo;
+        window.loadVideoTagsPreview = loadVideoTagsPreview;
         
         /**
          * Initialize NOSTR connection for standalone mode
@@ -3064,39 +3411,82 @@
                 
                 console.log('📡 Fetching video event from NOSTR:', eventId);
                 
-                // Fetch video event from NOSTR
-                const event = await new Promise((resolve, reject) => {
-                    const sub = currentRelay.sub([{
-                        kinds: [21, 22],
-                        ids: [eventId],
-                        limit: 1
-                    }]);
+                // Fetch video event from NOSTR with longer timeout and retry logic
+                let videoEvent = null;
+                let attempts = 0;
+                const maxAttempts = 3;
+                const timeoutMs = 15000; // 15 seconds timeout (increased from 5s)
+                
+                while (attempts < maxAttempts && !videoEvent) {
+                    attempts++;
+                    console.log(`📡 Attempting to fetch video event (attempt ${attempts}/${maxAttempts})...`);
                     
-                    let videoEvent = null;
-                    
-                    sub.on('event', (evt) => {
-                        console.log('✅ Video event received:', evt.id);
-                        videoEvent = evt;
-                    });
-                    
-                    sub.on('eose', () => {
-                        sub.unsub();
-                        resolve(videoEvent);
-                    });
-                    
-                    // Timeout after 5 seconds
-                    setTimeout(() => {
-                        sub.unsub();
-                        if (!videoEvent) {
-                            reject(new Error('Video not found (timeout)'));
-                        } else {
-                            resolve(videoEvent);
+                    try {
+                        videoEvent = await new Promise((resolve, reject) => {
+                            const sub = currentRelay.sub([{
+                                kinds: [21, 22],
+                                ids: [eventId],
+                                limit: 1
+                            }]);
+                            
+                            let receivedEvent = null;
+                            
+                            sub.on('event', (evt) => {
+                                console.log('✅ Video event received:', evt.id.substring(0, 16) + '...');
+                                receivedEvent = evt;
+                                // Resolve immediately when event is received
+                                sub.unsub();
+                                resolve(evt);
+                            });
+                            
+                            sub.on('eose', () => {
+                                sub.unsub();
+                                // If we got an event, resolve with it, otherwise resolve with null
+                                if (receivedEvent) {
+                                    resolve(receivedEvent);
+                                } else {
+                                    resolve(null);
+                                }
+                            });
+                            
+                            // Timeout after 15 seconds
+                            setTimeout(() => {
+                                sub.unsub();
+                                if (!receivedEvent) {
+                                    console.warn(`⚠️ Timeout after ${timeoutMs}ms (attempt ${attempts}/${maxAttempts})`);
+                                    resolve(null); // Return null instead of rejecting to allow retry
+                                } else {
+                                    resolve(receivedEvent);
+                                }
+                            }, timeoutMs);
+                        });
+                        
+                        if (videoEvent) {
+                            console.log('✅ Video event successfully fetched');
+                            break; // Exit retry loop
+                        } else if (attempts < maxAttempts) {
+                            console.warn(`⚠️ No video event received, retrying in 2 seconds... (attempt ${attempts}/${maxAttempts})`);
+                            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s before retry
                         }
-                    }, 5000);
-                });
+                    } catch (error) {
+                        console.error(`❌ Error on attempt ${attempts}:`, error);
+                        if (attempts < maxAttempts) {
+                            console.warn(`⚠️ Retrying in 2 seconds... (attempt ${attempts}/${maxAttempts})`);
+                            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s before retry
+                        } else {
+                            throw error; // Re-throw if all attempts failed
+                        }
+                    }
+                }
+                
+                const event = videoEvent;
                 
                 if (!event) {
-                    throw new Error('Video not found');
+                    // Provide more helpful error message
+                    const errorMsg = `Vidéo non trouvée sur le relay après ${maxAttempts} tentative(s). ` +
+                                   `Vérifiez que le relay est accessible et que l'ID de la vidéo est correct: ${eventId.substring(0, 16)}...`;
+                    console.error('❌', errorMsg);
+                    throw new Error(errorMsg);
                 }
                 
                 console.log('📹 Parsing video data from event...');
@@ -3114,6 +3504,7 @@
                 let dimensions = '';
                 let channel = '';
                 let uploader = '';
+                let sourceType = '';
                 
                 // Parse all tags according to NIP-71
                 for (const tag of event.tags) {
@@ -3170,6 +3561,12 @@
                             // Reference tag - check if it's a thumbnail
                             if (tag.length >= 3 && tag[2] === 'Thumbnail' && !thumbnailIpfs) {
                                 thumbnailIpfs = tagValue;
+                            }
+                            break;
+                        case 'i':
+                            // Identifier tag - check for source: prefix
+                            if (tagValue.startsWith('source:')) {
+                                sourceType = tagValue.replace('source:', '');
                             }
                             break;
                         case 't':
@@ -3337,7 +3734,8 @@
                     info_cid: infoCid,
                     file_hash: fileHash,
                     upload_chain: uploadChain,
-                    dimensions: dimensions
+                    dimensions: dimensions,
+                    source_type: sourceType
                 };
                 
                 console.log('✅ Video data parsed:', videoData);
@@ -3356,17 +3754,43 @@
                 
             } catch (error) {
                 console.error('❌ Error loading video:', error);
-                document.getElementById('theaterTitle').textContent = 'Erreur de chargement';
+                const titleEl = document.getElementById('theaterTitle');
+                if (titleEl) {
+                    titleEl.textContent = 'Erreur de chargement';
+                }
                 
                 const videoContainer = document.querySelector('.theater-video-container');
                 if (videoContainer) {
+                    const errorMessage = error.message || 'Erreur inconnue lors du chargement de la vidéo';
+                    const isTimeoutError = errorMessage.includes('timeout') || errorMessage.includes('non trouvée') || errorMessage.includes('not found');
+                    
                     videoContainer.innerHTML = `
                         <div style="text-align: center; padding: 40px; color: #ffffff;">
-                            <h3>❌ Erreur</h3>
-                            <p style="color: #aaaaaa; margin: 20px 0;">${error.message}</p>
-                            <button class="btn btn-secondary" onclick="window.history.back()">
-                                <i class="bi bi-arrow-left"></i> Retour
-                            </button>
+                            <h3>❌ Erreur de chargement</h3>
+                            <p style="color: #aaaaaa; margin: 20px 0; max-width: 600px; margin-left: auto; margin-right: auto;">
+                                ${errorMessage}
+                            </p>
+                            ${isTimeoutError ? `
+                                <div style="margin: 20px 0;">
+                                    <p style="color: #888; font-size: 0.9rem;">
+                                        <i class="bi bi-info-circle"></i> Suggestions:
+                                    </p>
+                                    <ul style="text-align: left; color: #aaa; font-size: 0.85rem; max-width: 500px; margin: 10px auto;">
+                                        <li>Vérifiez votre connexion au relay NOSTR</li>
+                                        <li>L'ID de la vidéo peut être incorrect</li>
+                                        <li>La vidéo peut ne pas être disponible sur ce relay</li>
+                                        <li>Essayez de rafraîchir la page</li>
+                                    </ul>
+                                </div>
+                            ` : ''}
+                            <div style="margin-top: 20px;">
+                                <button class="btn btn-secondary me-2" onclick="window.history.back()">
+                                    <i class="bi bi-arrow-left"></i> Retour
+                                </button>
+                                <button class="btn btn-primary" onclick="window.location.reload()">
+                                    <i class="bi bi-arrow-clockwise"></i> Réessayer
+                                </button>
+                            </div>
                         </div>
                     `;
                 }
