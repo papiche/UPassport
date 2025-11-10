@@ -3401,6 +3401,7 @@ async def process_webcam_video(
     upload_chain: str = Form(default=""),  # Upload chain from upload2ipfs.sh provenance (for re-uploads)
     duration: str = Form(default="0"),  # Duration from upload2ipfs.sh (optional, for video kind determination)
     video_dimensions: str = Form(default="640x480"),  # Video dimensions from upload2ipfs.sh (optional, for imeta tag)
+    file_size: str = Form(default="0"),  # File size in bytes from upload2ipfs.sh (REQUIRED, must not be 0)
     description: str = Form(default=""),  # Video description (optional)
     publish_nostr: str = Form(default="false"),  # Publish to NOSTR (default: false)
     latitude: str = Form(default=""),  # Geographic latitude (optional)
@@ -3479,7 +3480,14 @@ async def process_webcam_video(
         
         ipfs_url = None
         filename = None
-        file_size = 0
+        # Extract file_size from form parameter first, then from info.json, then from file
+        file_size_from_form = 0
+        try:
+            file_size_from_form = int(file_size) if file_size and file_size != "0" else 0
+        except (ValueError, TypeError):
+            file_size_from_form = 0
+        
+        file_size = file_size_from_form
         # Use metadata from upload2ipfs.sh (passed via form parameters or loaded from info.json)
         # Default values if not provided
         video_dimensions_param = video_dimensions if video_dimensions and video_dimensions != "640x480" else "640x480"
@@ -3530,6 +3538,13 @@ async def process_webcam_video(
                                 # Keep full precision for duration
                                 duration = float(media["duration"])
                                 logging.info(f"⏱️  Video duration from info.json: {duration}s")
+                            # Extract file_size from info.json if not provided via form
+                            if file_size == 0 and media.get("file_size"):
+                                try:
+                                    file_size = int(media["file_size"])
+                                    logging.info(f"📦 File size from info.json: {file_size} bytes")
+                                except (ValueError, TypeError):
+                                    pass
                             # Load thumbnail and gifanim from info.json if not provided
                             if not thumbnail_ipfs and media.get("thumbnail_ipfs"):
                                 thumbnail_ipfs_from_info = media["thumbnail_ipfs"]
@@ -3537,6 +3552,22 @@ async def process_webcam_video(
                             if not gifanim_ipfs and media.get("gifanim_ipfs"):
                                 gifanim_ipfs_from_info = media["gifanim_ipfs"]
                                 logging.info(f"🎬 Animated GIF CID from info.json: {gifanim_ipfs_from_info}")
+                        
+                        # Also check root level file_size in info.json
+                        if file_size == 0 and info_data.get("file_size"):
+                            try:
+                                file_size = int(info_data["file_size"])
+                                logging.info(f"📦 File size from info.json (root): {file_size} bytes")
+                            except (ValueError, TypeError):
+                                pass
+                        
+                        # Check fileSize (camelCase) as well
+                        if file_size == 0 and info_data.get("fileSize"):
+                            try:
+                                file_size = int(info_data["fileSize"])
+                                logging.info(f"📦 File size from info.json (fileSize): {file_size} bytes")
+                            except (ValueError, TypeError):
+                                pass
             except Exception as e:
                 logging.warning(f"⚠️ Could not load metadata from info.json: {e}")
         
@@ -3585,8 +3616,12 @@ async def process_webcam_video(
                     logging.info(f"📹 Found {len(video_files)} video file(s) in user drive")
                     if video_files:
                         filename = video_files[0].name  # Only the filename, not the full path
-                        file_size = video_files[0].stat().st_size
-                        logging.info(f"✅ Selected video file: {filename} ({file_size} bytes)")
+                        # Only use file size from disk if not already set from form or info.json
+                        if file_size == 0:
+                            file_size = video_files[0].stat().st_size
+                            logging.info(f"✅ Selected video file: {filename} ({file_size} bytes from disk)")
+                        else:
+                            logging.info(f"✅ Selected video file: {filename} (size already set: {file_size} bytes)")
             except Exception as e:
                 logging.warning(f"Could not find user directory: {e}")
                 # If we couldn't find user directory and player is not valid, return error
@@ -3615,8 +3650,19 @@ async def process_webcam_video(
             filename = f"video_{int(time.time())}.webm"
             logging.info(f"⚠️ No filename found, using default: {filename}")
         
+        # Validate that file_size is not 0
+        if file_size == 0:
+            logging.error(f"❌ file_size is 0, cannot proceed with NOSTR publication")
+            return templates.TemplateResponse("webcam.html", {
+                "request": request, 
+                "error": "File size is missing or invalid. Please ensure the file was uploaded correctly.", 
+                "recording": False,
+                "myIPFS": get_myipfs_gateway()
+            })
+        
         ipfs_url = f"/ipfs/{ipfs_cid}/{filename}"
         logging.info(f"🔗 IPFS URL: {ipfs_url}")
+        logging.info(f"📦 File size: {file_size} bytes")
         
         # Generate title if not provided
         if not title:
@@ -3719,6 +3765,7 @@ async def process_webcam_video(
                 publish_cmd.extend([
                     "--duration", str(duration),
                     "--dimensions", video_dimensions,
+                    "--file-size", str(file_size),
                     "--latitude", str(lat),
                     "--longitude", str(lon),
                     "--channel", player

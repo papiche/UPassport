@@ -1121,6 +1121,78 @@
             }
             
             try {
+                // Ensure NOSTR extension is available and functional before calling toggleUserFollow
+                // This prevents the "this._call is not a function" error
+                if (typeof window.nostr === 'undefined' || !window.nostr) {
+                    // Try to get from parent if we're in an iframe
+                    if (window.parent && window.parent !== window && typeof window.parent.nostr !== 'undefined') {
+                        window.nostr = window.parent.nostr;
+                    } else {
+                        // Try to connect if not connected
+                        if (typeof connectNostr === 'function') {
+                            try {
+                                const pubkey = await connectNostr();
+                                if (!pubkey) {
+                                    alert('❌ Connexion requise pour suivre. Veuillez vous connecter avec NOSTR.');
+                                    if (followBtn) {
+                                        followBtn.innerHTML = originalHtml;
+                                        followBtn.disabled = false;
+                                    }
+                                    return;
+                                }
+                            } catch (error) {
+                                console.error('Error connecting:', error);
+                                alert('❌ Erreur lors de la connexion. Veuillez vous connecter manuellement.');
+                                if (followBtn) {
+                                    followBtn.innerHTML = originalHtml;
+                                    followBtn.disabled = false;
+                                }
+                                return;
+                            }
+                        } else {
+                            alert('❌ Extension NOSTR requise pour suivre.');
+                            if (followBtn) {
+                                followBtn.innerHTML = originalHtml;
+                                followBtn.disabled = false;
+                            }
+                            return;
+                        }
+                    }
+                }
+                
+                // Test if window.nostr is functional (check for _call error)
+                if (window.nostr && typeof window.nostr.getPublicKey === 'function') {
+                    try {
+                        // Quick test to see if the extension is functional
+                        const testPromise = window.nostr.getPublicKey();
+                        if (testPromise && typeof testPromise.then === 'function') {
+                            // It's a promise, try to catch any errors
+                            testPromise.catch(err => {
+                                if (err && err.message && err.message.includes('_call')) {
+                                    console.warn('⚠️ NOSTR extension proxy error detected, trying to fix...');
+                                    // If we're in an iframe, try to use parent's window.nostr
+                                    if (window.parent && window.parent !== window && typeof window.parent.nostr !== 'undefined') {
+                                        window.nostr = window.parent.nostr;
+                                        console.log('✅ Using parent window.nostr');
+                                    }
+                                }
+                            });
+                        }
+                    } catch (syncError) {
+                        // Synchronous error (like _call is not a function)
+                        if (syncError.message && syncError.message.includes('_call')) {
+                            console.warn('⚠️ NOSTR extension proxy error detected, trying to fix...');
+                            // If we're in an iframe, try to use parent's window.nostr
+                            if (window.parent && window.parent !== window && typeof window.parent.nostr !== 'undefined') {
+                                window.nostr = window.parent.nostr;
+                                console.log('✅ Using parent window.nostr');
+                            } else {
+                                throw new Error('NOSTR extension proxy error. Please refresh the page.');
+                            }
+                        }
+                    }
+                }
+                
                 // Use toggleUserFollow from common.js (handles connection, relay, and publishing)
                 // This function ensures proper relay connection and uses publishNote correctly
                 if (typeof toggleUserFollow === 'function') {
@@ -1163,7 +1235,16 @@
                 }
             } catch (error) {
                 console.error('Error following/unfollowing:', error);
-                alert('Erreur lors de la mise à jour: ' + error.message);
+                
+                // Provide more specific error messages
+                let errorMessage = error.message || 'Erreur inconnue';
+                if (errorMessage.includes('_call')) {
+                    errorMessage = 'Erreur de connexion NOSTR. Veuillez rafraîchir la page et réessayer.';
+                } else if (errorMessage.includes('not a function')) {
+                    errorMessage = 'Extension NOSTR non disponible. Veuillez vous connecter avec votre extension NOSTR.';
+                }
+                
+                alert('Erreur lors de la mise à jour: ' + errorMessage);
                 if (followBtn) {
                     followBtn.innerHTML = originalHtml;
                     followBtn.disabled = false;
