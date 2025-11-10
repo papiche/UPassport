@@ -2544,7 +2544,14 @@ async def youtube_route(
                 fetch_and_process_nostr_events("ws://127.0.0.1:7777", 200),
                 timeout=15.0  # 15 second timeout
             )
-            logging.info(f"✅ Fetched {len(video_messages)} video events from NOSTR")
+            # Extract relay statistics from first video if available
+            relay_stats = {}
+            if video_messages and video_messages[0].get('_relay_statistics'):
+                relay_stats = video_messages[0].get('_relay_statistics', {})
+                logging.info(f"✅ Fetched {len(video_messages)} video events from NOSTR")
+                logging.info(f"📊 Relay statistics: {relay_stats.get('total_videos_count', 0)} videos, {relay_stats.get('total_size_formatted', 'N/A')}, {relay_stats.get('total_duration_formatted', 'N/A')}")
+            else:
+                logging.info(f"✅ Fetched {len(video_messages)} video events from NOSTR")
         except asyncio.TimeoutError:
             logging.warning("⚠️ Timeout fetching NOSTR events, using empty list")
             video_messages = []
@@ -2565,6 +2572,10 @@ async def youtube_route(
             # Normalize field names for consistency
             # IPFS URLs are kept as CID pur for client-side gateway detection
             
+            # Get info_cid and use it for metadata_ipfs if metadata_ipfs is empty
+            info_cid = video.get('info_cid', '')
+            metadata_ipfs = video.get('metadata_ipfs', '') or info_cid  # Use info_cid as fallback
+            
             normalized_video = {
                 'title': video.get('title', ''),
                 'uploader': video.get('uploader', ''),
@@ -2574,7 +2585,7 @@ async def youtube_route(
                 'youtube_url': video.get('youtube_url', '') or video.get('original_url', ''),
                 'thumbnail_ipfs': video.get('thumbnail_ipfs', ''),
                 'gifanim_ipfs': video.get('gifanim_ipfs', ''),  # Animated GIF CID from upload2ipfs.sh
-                'metadata_ipfs': video.get('metadata_ipfs', ''),
+                'metadata_ipfs': metadata_ipfs,
                 'subtitles': video.get('subtitles', []),
                 'channel_name': video.get('channel_name', ''),
                 'topic_keywords': video.get('topic_keywords', ''),
@@ -2594,7 +2605,7 @@ async def youtube_route(
                 'compliance_level': video.get('compliance_level', 'non-compliant'),  # Compliance level: compliant, partial, non-compliant
                 'is_compliant': video.get('is_compliant', False),  # Boolean indicating if video is compliant (>=80%)
                 'file_hash': video.get('file_hash', ''),  # File hash for provenance tracking
-                'info_cid': video.get('info_cid', ''),  # Info.json CID
+                'info_cid': info_cid,  # Info.json CID
                 'upload_chain': video.get('upload_chain', ''),  # Upload chain for provenance
                 'upload_chain_list': video.get('upload_chain_list', [])  # Parsed upload chain list
             }
