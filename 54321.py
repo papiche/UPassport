@@ -2514,8 +2514,7 @@ async def youtube_route(
     lat: Optional[float] = None,
     lon: Optional[float] = None,
     radius: Optional[float] = None,
-    video: Optional[str] = None,
-    author_id: Optional[str] = None  # Filter by author pubkey
+    video: Optional[str] = None
 ):
     """YouTube video channels and search from NOSTR events
     
@@ -2622,10 +2621,6 @@ async def youtube_route(
         filtered_videos = []
         
         for video in video_messages:
-            # Filter by author_id if specified
-            if author_id and video.get('author_id', '').lower() != author_id.lower():
-                continue
-            
             # Filter by channel if specified
             if channel and video.get('channel_name', '').lower() != channel.lower():
                 continue
@@ -2773,7 +2768,6 @@ async def youtube_route(
             "total_videos": len(video_messages),
             "total_channels": len(channels),
             "channels": channel_playlists,
-            "videos": video_messages,  # Include flat list of videos for easy access (e.g., when filtering by author_id)
             "filters": {
                 "channel": channel,
                 "search": search,
@@ -2785,8 +2779,7 @@ async def youtube_route(
                 "sort_by": sort_by,
                 "lat": lat,
                 "lon": lon,
-                "radius": radius if radius is not None else 2.0 if lat is not None and lon is not None else None,
-                "author_id": author_id
+                "radius": radius if radius is not None else 2.0 if lat is not None and lon is not None else None
             },
             "timestamp": datetime.now().isoformat()
         }
@@ -2845,11 +2838,34 @@ async def youtube_route(
                             }
                             break
             
+            # Extract user pubkey from request if available (for delete button display)
+            # Try to get from NIP-98 auth header (same method as in /api/fileupload)
+            user_pubkey = None
+            try:
+                # Check for NIP-98 Authorization header
+                auth_header = request.headers.get("Authorization", "")
+                if auth_header.startswith("Nostr "):
+                    try:
+                        # Decode the base64-encoded NIP-98 event
+                        token = auth_header.replace("Nostr ", "")
+                        decoded = base64.b64decode(token)
+                        auth_event = json.loads(decoded)
+                        
+                        # Verify it's a valid NIP-98 auth event (kind 27235)
+                        if auth_event.get("kind") == 27235:
+                            user_pubkey = auth_event.get("pubkey")
+                            logging.info(f"🔑 NIP-98 Auth: User pubkey extracted for delete button: {user_pubkey[:16] if user_pubkey else 'N/A'}...")
+                    except Exception as e:
+                        logging.debug(f"Could not extract pubkey from NIP-98 header: {e}")
+            except Exception as e:
+                logging.debug(f"Error extracting user pubkey: {e}")
+            
             return templates.TemplateResponse("youtube.html", {
                 "request": request,
                 "youtube_data": response_data,
                 "myIPFS": ipfs_gateway,
-                "auto_open_video": auto_open_video
+                "auto_open_video": auto_open_video,
+                "user_pubkey": user_pubkey  # Pass user pubkey to template for delete button
             })
         
         # Return JSON response

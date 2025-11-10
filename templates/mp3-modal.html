@@ -51,29 +51,18 @@
             z-index: 10000 !important;
         }
         
-        /* Header bar - fixed height */
+        /* Header bar - fixed height - using Bootstrap classes */
         .mp3-header {
             grid-row: 1;
             grid-column: 1;
             background: #181818;
             border-bottom: 1px solid #3f3f3f;
-            padding: 12px 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
             height: 60px;
         }
         
         .mp3-header h5 {
             margin: 0;
-            font-size: 16px;
             font-weight: 500;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            flex: 1;
-            max-width: 60%;
         }
         
         /* Main content area - CSS Grid: Audio player left, Comments & Links right */
@@ -85,6 +74,19 @@
             height: calc(100vh - 60px) !important;
             gap: 0 !important;
             overflow: hidden !important;
+        }
+        
+        /* Bootstrap responsive breakpoints for content grid */
+        @media (max-width: 1199.98px) {
+            .mp3-content-grid {
+                grid-template-columns: 1fr 350px !important;
+            }
+        }
+        
+        @media (max-width: 991.98px) {
+            .mp3-content-grid {
+                grid-template-columns: 1fr 320px !important;
+            }
         }
         
         /* Audio player container (left side, full height) */
@@ -135,18 +137,18 @@
             margin: 20px;
         }
 
-        /* Audio player element */
+        /* Audio player element - padding handled by Bootstrap classes */
         .mp3-audio-player {
             width: 100%;
             max-width: 600px;
             margin: 0 auto;
-            padding: 20px;
+            padding-top: 1rem;
+            padding-bottom: 1rem;
         }
         
-        /* Track info section (below audio player) */
+        /* Track info section (below audio player) - padding handled by Bootstrap classes */
         .mp3-track-info {
             flex-shrink: 0;
-            padding: 16px 20px;
             background: #181818;
             border-top: 1px solid #3f3f3f;
             overflow-y: auto;
@@ -214,10 +216,9 @@
             background: #1a1a1a;
         }
 
-        /* Comments section */
+        /* Comments section - using Bootstrap flex utilities */
         .mp3-comments-section {
             flex: 1;
-            display: flex;
             flex-direction: column;
             overflow: hidden;
             display: none;
@@ -229,20 +230,18 @@
 
         .mp3-comments-header {
             flex-shrink: 0;
-            padding: 16px;
             border-bottom: 1px solid #3f3f3f;
             background: #181818;
         }
         
         .mp3-comments-header h6 {
-            margin: 0 0 8px 0;
+            margin: 0;
             font-size: 14px;
             font-weight: 600;
         }
         
         .mp3-comments-form {
             flex-shrink: 0;
-            padding: 16px;
             border-bottom: 1px solid #3f3f3f;
             background: #0f0f0f;
         }
@@ -251,7 +250,6 @@
             flex: 1;
             overflow-y: auto;
             overflow-x: hidden;
-            padding: 16px;
             min-height: 0;
         }
         
@@ -283,14 +281,12 @@
 
         .mp3-mixxx-header {
             flex-shrink: 0;
-            padding: 16px;
             border-bottom: 1px solid #3f3f3f;
             background: #181818;
         }
 
         .mp3-mixxx-users {
             flex-shrink: 0;
-            padding: 16px;
             border-bottom: 1px solid #3f3f3f;
             background: #0f0f0f;
         }
@@ -322,13 +318,8 @@
 
         .mp3-mixxx-suggest {
             flex-shrink: 0;
-            padding: 16px;
             border-bottom: 1px solid #3f3f3f;
             background: #0f0f0f;
-        }
-
-        .mp3-mixxx-suggest-header {
-            margin-bottom: 12px;
         }
 
         .mp3-mixxx-suggest-results {
@@ -347,19 +338,14 @@
 
         .mp3-mixxx-suggestions-header {
             flex-shrink: 0;
-            padding: 16px;
             border-bottom: 1px solid #3f3f3f;
             background: #181818;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
 
         .mp3-mixxx-suggestions-list {
             flex: 1;
             overflow-y: auto;
             overflow-x: hidden;
-            padding: 16px;
             min-height: 0;
         }
 
@@ -462,14 +448,9 @@
         /* VJ Mixxx section */
         .mp3-mixxx-vj {
             flex-shrink: 0;
-            padding: 16px;
             border-top: 1px solid #3f3f3f;
             border-bottom: 1px solid #3f3f3f;
             background: #0f0f0f;
-        }
-
-        .mp3-mixxx-vj-header {
-            margin-bottom: 12px;
         }
 
         .mp3-mixxx-vj-results {
@@ -488,19 +469,14 @@
 
         .mp3-mixxx-vj-suggestions-header {
             flex-shrink: 0;
-            padding: 16px;
             border-bottom: 1px solid #3f3f3f;
             background: #181818;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
 
         .mp3-mixxx-vj-suggestions-list {
             flex: 1;
             overflow-y: auto;
             overflow-x: hidden;
-            padding: 16px;
             min-height: 0;
         }
 
@@ -602,20 +578,18 @@
 
         .mp3-related-header {
             flex-shrink: 0;
-            padding: 16px;
             border-bottom: 1px solid #3f3f3f;
             background: #181818;
         }
 
         .mp3-related-header h6 {
-            margin: 0 0 8px 0;
+            margin: 0;
             font-size: 14px;
             font-weight: 600;
         }
 
         .mp3-related-search {
             flex-shrink: 0;
-            padding: 16px;
             border-bottom: 1px solid #3f3f3f;
             background: #0f0f0f;
         }
@@ -624,7 +598,6 @@
             flex: 1;
             overflow-y: auto;
             overflow-x: hidden;
-            padding: 16px;
             min-height: 0;
         }
 
@@ -845,15 +818,8 @@
             animation: slideIn 0.3s ease-out;
         }
 
-        /* Tablet: adjust proportions */
-        @media (max-width: 1200px) and (min-width: 769px) {
-            .mp3-content-grid {
-                grid-template-columns: 1fr 350px !important;
-            }
-        }
-        
-        /* Mobile: stack everything vertically */
-        @media (max-width: 768px) {
+        /* Mobile: stack everything vertically - using Bootstrap md breakpoint */
+        @media (max-width: 767.98px) {
             .mp3-content-grid {
                 display: flex !important;
                 flex-direction: column !important;
@@ -873,7 +839,6 @@
                 max-height: none !important;
                 order: 2;
                 border-top: 1px solid #3f3f3f;
-                padding: 12px 16px;
                 max-height: 30vh;
             }
             
@@ -886,47 +851,27 @@
                 border-left: none;
                 border-top: 1px solid #3f3f3f;
             }
-            
-            .mp3-header h5 {
-                font-size: 14px;
-                max-width: 50%;
-            }
         }
         
-        /* Very small mobile devices */
-        @media (max-width: 480px) {
+        /* Very small mobile devices - using Bootstrap sm breakpoint */
+        @media (max-width: 575.98px) {
             .mp3-header {
-                padding: 8px 12px;
                 height: 50px;
-            }
-            
-            .mp3-header h5 {
-                font-size: 13px;
-                max-width: 40%;
-            }
-            
-            .mp3-header .btn {
-                padding: 4px 8px;
-                font-size: 11px;
-            }
-            
-            .mp3-header .btn span {
-                display: none;
             }
         }
     </style>
 </head>
 <body class="bg-dark text-white">
     <div class="mp3-modal" id="mp3Modal">
-        <!-- Header -->
-        <div class="mp3-header">
-            <h5 class="mb-0 text-truncate flex-grow-1" id="mp3Title" style="max-width: 60%;">Loading...</h5>
-            <div class="d-flex gap-2 align-items-center">
+        <!-- Header - using Bootstrap responsive utilities -->
+        <div class="mp3-header d-flex align-items-center justify-content-between px-3 px-md-4 px-lg-5 py-2 gap-2 gap-md-3">
+            <h5 class="mb-0 text-truncate flex-grow-1 me-2 me-md-3" id="mp3Title" style="max-width: 60%;">Loading...</h5>
+            <div class="d-flex gap-1 gap-sm-2 align-items-center flex-shrink-0">
                 <button class="btn btn-sm btn-outline-secondary" id="mp3CloseBtn" title="Close" onclick="handleCloseMP3Modal()">
                     <i class="bi bi-x-lg"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-info" id="mp3FollowBtn" title="Follow" style="display: none;">
-                    <i class="bi bi-person-plus"></i> <span id="mp3FollowText">Follow</span>
+                <button class="btn btn-sm btn-outline-info d-none" id="mp3FollowBtn" title="Follow">
+                    <i class="bi bi-person-plus"></i> <span id="mp3FollowText" class="d-none d-lg-inline">Follow</span>
                 </button>
                 <button class="btn btn-sm btn-outline-success" id="mp3LikeBtn" title="Like">
                     <i class="bi bi-hand-thumbs-up"></i>
@@ -941,28 +886,28 @@
         <div class="mp3-content-grid">
             <!-- Audio player (left side) -->
             <div class="mp3-audio-container">
-                <div class="mp3-audio-wrapper" style="position: relative;">
-                    <img id="mp3AlbumArt" class="mp3-album-art" style="display: none;" alt="Album Art">
+                <div class="mp3-audio-wrapper position-relative">
+                    <img id="mp3AlbumArt" class="mp3-album-art d-none" alt="Album Art">
                     <div id="mp3AlbumArtPlaceholder" class="mp3-album-art-placeholder">🎵</div>
-                    <button id="mp3ChangeThumbnailBtn" class="btn btn-sm btn-secondary" style="position: absolute; top: 8px; right: 8px; z-index: 10; display: none; opacity: 0.8;" title="Change thumbnail">
+                    <button id="mp3ChangeThumbnailBtn" class="btn btn-sm btn-secondary position-absolute top-0 end-0 m-2 d-none" style="z-index: 10; opacity: 0.8;" title="Change thumbnail">
                         <i class="bi bi-image"></i>
                     </button>
                 </div>
                 
-                <!-- Audio player controls -->
-                <div class="mp3-audio-player">
+                <!-- Audio player controls - using Bootstrap responsive padding -->
+                <div class="mp3-audio-player px-3 px-md-4 px-lg-5">
                     <audio 
                         id="mp3AudioPlayer" 
                         controls 
-                        style="width: 100%;"
+                        class="w-100"
                         preload="metadata">
                         Your browser does not support audio playback.
                     </audio>
                 </div>
                 
-                <!-- Track info (below audio player) -->
-                <div class="mp3-track-info">
-                    <div class="d-flex gap-3 mb-2 flex-wrap" id="mp3TrackStats">
+                <!-- Track info (below audio player) - using Bootstrap spacing utilities -->
+                <div class="mp3-track-info px-3 px-md-4 py-3">
+                    <div class="d-flex gap-2 gap-md-3 mb-2 flex-wrap" id="mp3TrackStats">
                         <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> <span id="likeCount">0</span></span>
                         <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> <span id="shareCount">0</span></span>
                         <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> <span id="commentCount">0</span></span>
@@ -976,7 +921,7 @@
                     <div class="small text-white-50 lh-base" id="mp3Description"></div>
                     
                     <!-- Provenance section -->
-                    <div class="mt-3 pt-3 border-top border-secondary" id="mp3ProvenanceSection" style="display: none;">
+                    <div class="mt-3 pt-3 border-top border-secondary d-none" id="mp3ProvenanceSection">
                         <div class="small">
                             <div class="text-secondary mb-2"><i class="bi bi-diagram-3"></i> <strong>Provenance</strong></div>
                             <div id="mp3UploadChain" class="mb-2"></div>
@@ -990,24 +935,24 @@
             <div class="mp3-right-panel">
                 <!-- Tabs -->
                 <div class="mp3-tabs">
-                    <button class="mp3-tab active" onclick="switchMP3Tab('comments')">
+                    <button class="mp3-tab active" data-tab="comments">
                         <i class="bi bi-chat-dots"></i> Comments
                     </button>
-                    <button class="mp3-tab" onclick="switchMP3Tab('mixxx')">
+                    <button class="mp3-tab" data-tab="mixxx">
                         <i class="bi bi-people"></i> Mixxx Mode
                     </button>
-                    <button class="mp3-tab" onclick="switchMP3Tab('related')">
+                    <button class="mp3-tab" data-tab="related">
                         <i class="bi bi-music-note-list"></i> Related Tracks
                     </button>
                 </div>
 
-                <!-- Comments section -->
-                <div class="mp3-comments-section active" id="mp3CommentsSection">
-                    <div class="mp3-comments-header">
+                <!-- Comments section - using Bootstrap spacing utilities -->
+                <div class="mp3-comments-section active d-flex" id="mp3CommentsSection">
+                    <div class="mp3-comments-header p-3 p-md-4">
                         <h6 class="mb-1 text-white"><i class="bi bi-chat-dots"></i> Comments</h6>
                         <div class="small text-secondary" id="mp3CommentStats">0 comment(s)</div>
                     </div>
-                    <div class="mp3-comments-form">
+                    <div class="mp3-comments-form p-3 p-md-4">
                         <textarea 
                             id="mp3CommentInput" 
                             class="form-control bg-dark text-white border-secondary mb-2"
@@ -1015,25 +960,25 @@
                             rows="3"></textarea>
                         <div class="d-flex gap-2 justify-content-end">
                             <button class="btn btn-sm btn-primary" id="submitMP3CommentBtn">
-                                <i class="bi bi-send"></i> Publish
+                                <i class="bi bi-send"></i> <span class="d-none d-sm-inline">Publish</span>
                             </button>
                         </div>
                     </div>
-                    <div class="mp3-comments-list" id="mp3CommentsList">
+                    <div class="mp3-comments-list p-3 p-md-4" id="mp3CommentsList">
                         <div class="text-center text-secondary py-5">Loading comments...</div>
                     </div>
                 </div>
 
-                <!-- Mixxx Mode section -->
-                <div class="mp3-mixxx-section" id="mp3MixxxSection">
-                    <div class="mp3-mixxx-header">
+                <!-- Mixxx Mode section - using Bootstrap spacing utilities -->
+                <div class="mp3-mixxx-section d-flex flex-column" id="mp3MixxxSection">
+                    <div class="mp3-mixxx-header p-3 p-md-4">
                         <h6 class="mb-1 text-white"><i class="bi bi-people"></i> Mixxx Mode</h6>
                         <div class="small text-secondary">Collaborative playlist building</div>
                     </div>
                     
                     <!-- Connected users -->
-                    <div class="mp3-mixxx-users">
-                        <div class="mp3-mixxx-users-header">
+                    <div class="mp3-mixxx-users p-3 p-md-4">
+                        <div class="mp3-mixxx-users-header d-flex justify-content-between align-items-center mb-3">
                             <span class="small text-secondary"><i class="bi bi-person-circle"></i> Connected DJs</span>
                             <span class="badge bg-success rounded-pill" id="mixxxUsersCount">0</span>
                         </div>
@@ -1043,8 +988,8 @@
                     </div>
                     
                     <!-- Suggest next track -->
-                    <div class="mp3-mixxx-suggest">
-                        <div class="mp3-mixxx-suggest-header">
+                    <div class="mp3-mixxx-suggest p-3 p-md-4">
+                        <div class="mp3-mixxx-suggest-header mb-2">
                             <span class="small text-white"><i class="bi bi-arrow-right-circle"></i> Suggest Next Track</span>
                         </div>
                         <div class="mp3-mixxx-suggest-search">
@@ -1055,25 +1000,25 @@
                                 placeholder="Search track to suggest..."
                                 autocomplete="off">
                         </div>
-                        <div class="mp3-mixxx-suggest-results" id="mp3MixxxSuggestResults" style="display: none;">
+                        <div class="mp3-mixxx-suggest-results d-none" id="mp3MixxxSuggestResults">
                             <!-- Search results will appear here -->
                         </div>
                     </div>
                     
-                    <!-- Suggestions list -->
-                    <div class="mp3-mixxx-suggestions">
-                        <div class="mp3-mixxx-suggestions-header">
+                    <!-- Suggestions list - using Bootstrap spacing utilities -->
+                    <div class="mp3-mixxx-suggestions d-flex flex-column">
+                        <div class="mp3-mixxx-suggestions-header p-3 p-md-4 d-flex justify-content-between align-items-center">
                             <span class="small text-white"><i class="bi bi-list-ul"></i> Track Suggestions</span>
                             <span class="badge bg-primary rounded-pill" id="mixxxSuggestionsCount">0</span>
                         </div>
-                        <div class="mp3-mixxx-suggestions-list" id="mp3MixxxSuggestionsList">
+                        <div class="mp3-mixxx-suggestions-list p-3 p-md-4" id="mp3MixxxSuggestionsList">
                             <div class="text-center text-secondary py-5 small">No suggestions yet. Be the first to suggest a track!</div>
                         </div>
                     </div>
                     
-                    <!-- VJ Mixxx section -->
-                    <div class="mp3-mixxx-vj">
-                        <div class="mp3-mixxx-vj-header">
+                    <!-- VJ Mixxx section - using Bootstrap spacing utilities -->
+                    <div class="mp3-mixxx-vj p-3 p-md-4">
+                        <div class="mp3-mixxx-vj-header mb-2">
                             <span class="small text-white"><i class="bi bi-camera-video"></i> VJ Mixxx - Suggest Video</span>
                         </div>
                         <div class="mp3-mixxx-vj-search">
@@ -1084,30 +1029,30 @@
                                 placeholder="Search video to suggest as VJ mix..."
                                 autocomplete="off">
                         </div>
-                        <div class="mp3-mixxx-vj-results" id="mp3MixxxVJResults" style="display: none;">
+                        <div class="mp3-mixxx-vj-results d-none" id="mp3MixxxVJResults">
                             <!-- Search results will appear here -->
                         </div>
                     </div>
                     
-                    <!-- VJ Suggestions list -->
-                    <div class="mp3-mixxx-vj-suggestions">
-                        <div class="mp3-mixxx-vj-suggestions-header">
+                    <!-- VJ Suggestions list - using Bootstrap spacing utilities -->
+                    <div class="mp3-mixxx-vj-suggestions d-flex flex-column">
+                        <div class="mp3-mixxx-vj-suggestions-header p-3 p-md-4 d-flex justify-content-between align-items-center">
                             <span class="small text-white"><i class="bi bi-film"></i> VJ Suggestions</span>
                             <span class="badge bg-danger rounded-pill" id="mixxxVJSuggestionsCount">0</span>
                         </div>
-                        <div class="mp3-mixxx-vj-suggestions-list" id="mp3MixxxVJSuggestionsList">
+                        <div class="mp3-mixxx-vj-suggestions-list p-3 p-md-4" id="mp3MixxxVJSuggestionsList">
                             <div class="text-center text-secondary py-5 small">No VJ suggestions yet. Be the first to suggest a video!</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Related Tracks section -->
-                <div class="mp3-related-section" id="mp3RelatedSection">
-                    <div class="mp3-related-header">
+                <!-- Related Tracks section - using Bootstrap spacing utilities -->
+                <div class="mp3-related-section d-flex flex-column" id="mp3RelatedSection">
+                    <div class="mp3-related-header p-3 p-md-4">
                         <h6 class="mb-1 text-white"><i class="bi bi-music-note-list"></i> Related Tracks</h6>
                         <div class="small text-secondary">Search and link to other tracks</div>
                     </div>
-                    <div class="mp3-related-search">
+                    <div class="mp3-related-search p-3 p-md-4">
                         <input 
                             type="text" 
                             id="mp3RelatedSearchInput" 
@@ -1116,7 +1061,7 @@
                             autocomplete="off">
                         <div class="small text-secondary">Search results will appear below</div>
                     </div>
-                    <div class="mp3-related-list" id="mp3RelatedList">
+                    <div class="mp3-related-list p-3 p-md-4" id="mp3RelatedList">
                         <div class="text-center text-secondary py-5">Search for tracks to link...</div>
                     </div>
                 </div>
@@ -1261,7 +1206,7 @@
                         }
                         
                         // Fallback: remove modal directly
-                        modalEl.style.display = 'none';
+                        modalEl.classList.add('d-none');
                         modalEl.classList.remove('show');
                         document.body.classList.remove('modal-open');
                         
@@ -1293,8 +1238,10 @@
             // Update tab buttons
             document.querySelectorAll('.mp3-tab').forEach(tab => {
                 tab.classList.remove('active');
+                if (tab.getAttribute('data-tab') === tabName) {
+                    tab.classList.add('active');
+                }
             });
-            event?.target?.classList.add('active');
             
             // Show/hide sections
             const commentsSection = document.getElementById('mp3CommentsSection');
@@ -1324,6 +1271,9 @@
                 }
             }
         }
+        
+        // Expose function globally early
+        window.switchMP3Tab = switchMP3Tab;
 
         /**
          * Initialize MP3 modal with track data
@@ -1407,20 +1357,20 @@
                 
                 if (albumArtEl) {
                     albumArtEl.src = thumbnailUrl;
-                    albumArtEl.style.display = 'block';
+                    albumArtEl.classList.remove('d-none');
                     if (albumArtPlaceholder) {
-                        albumArtPlaceholder.style.display = 'none';
+                        albumArtPlaceholder.classList.add('d-none');
                     }
                 }
             } else {
-                if (albumArtEl) albumArtEl.style.display = 'none';
-                if (albumArtPlaceholder) albumArtPlaceholder.style.display = 'flex';
+                if (albumArtEl) albumArtEl.classList.add('d-none');
+                if (albumArtPlaceholder) albumArtPlaceholder.classList.remove('d-none');
             }
             
             // Setup thumbnail change button
             const changeThumbnailBtn = document.getElementById('mp3ChangeThumbnailBtn');
             if (changeThumbnailBtn) {
-                changeThumbnailBtn.style.display = 'block';
+                changeThumbnailBtn.classList.remove('d-none');
                 changeThumbnailBtn.onclick = () => openThumbnailSearch();
                 
                 // Show button on hover
@@ -2952,11 +2902,12 @@
             if (!followBtn || !authorId) return;
             
             if (typeof userPubkey === 'undefined' || !userPubkey || userPubkey === authorId) {
-                followBtn.style.display = 'none';
+                followBtn.classList.add('d-none');
                 return;
             }
             
-            followBtn.style.display = 'inline-block';
+            followBtn.classList.remove('d-none');
+            followBtn.classList.add('d-md-inline-flex');
             followBtn.classList.remove('btn-info');
             followBtn.classList.add('btn-outline-info');
             if (followText) {
@@ -3138,11 +3089,13 @@
                 }
                 
                 if (openNewBtn) {
-                    openNewBtn.style.display = 'flex';
+                    openNewBtn.classList.remove('d-none');
+                    openNewBtn.classList.add('d-flex');
                 }
                 
                 modal.style.zIndex = '10002';
-                modal.style.display = 'flex';
+                modal.classList.remove('d-none');
+                modal.classList.add('d-flex');
                 
                 const body = modal.ownerDocument.body;
                 if (body) {
@@ -3163,6 +3116,16 @@
             const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
             tooltipTriggerList.map(function (tooltipTriggerEl) {
                 return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+            
+            // Attach event listeners to tab buttons
+            document.querySelectorAll('.mp3-tab').forEach(tabBtn => {
+                tabBtn.addEventListener('click', function(e) {
+                    const tabName = this.getAttribute('data-tab');
+                    if (tabName && typeof switchMP3Tab === 'function') {
+                        switchMP3Tab(tabName);
+                    }
+                });
             });
             
             // Attach event listeners to buttons
@@ -3653,7 +3616,7 @@
                     if (query.length >= 2) {
                         await searchMixxxTracks(query, resultsDiv);
                     } else {
-                        resultsDiv.style.display = 'none';
+                        resultsDiv.classList.add('d-none');
                     }
                 }, 500);
             });
@@ -3663,7 +3626,7 @@
          * Search tracks for Mixxx suggestion
          */
         async function searchMixxxTracks(query, resultsDiv) {
-            resultsDiv.style.display = 'block';
+            resultsDiv.classList.remove('d-none');
             resultsDiv.innerHTML = '<div class="text-center text-secondary py-3 small">Searching...</div>';
             
             try {
@@ -3820,7 +3783,7 @@
                     const searchInput = document.getElementById('mp3MixxxSearchInput');
                     const resultsDiv = document.getElementById('mp3MixxxSuggestResults');
                     if (searchInput) searchInput.value = '';
-                    if (resultsDiv) resultsDiv.style.display = 'none';
+                    if (resultsDiv) resultsDiv.classList.add('d-none');
                     
                     alert('✅ Track suggestion published!');
                 } else {
@@ -3910,7 +3873,7 @@
                     if (query.length >= 2) {
                         await searchMixxxVideos(query, resultsDiv);
                     } else {
-                        resultsDiv.style.display = 'none';
+                        resultsDiv.classList.add('d-none');
                     }
                 }, 500);
             });
@@ -3920,7 +3883,7 @@
          * Search videos for VJ Mixxx suggestion
          */
         async function searchMixxxVideos(query, resultsDiv) {
-            resultsDiv.style.display = 'block';
+            resultsDiv.classList.remove('d-none');
             resultsDiv.innerHTML = '<div class="text-center text-secondary py-3 small">Searching videos...</div>';
             
             try {
@@ -4252,7 +4215,7 @@
                     const searchInput = document.getElementById('mp3MixxxVJSearchInput');
                     const resultsDiv = document.getElementById('mp3MixxxVJResults');
                     if (searchInput) searchInput.value = '';
-                    if (resultsDiv) resultsDiv.style.display = 'none';
+                    if (resultsDiv) resultsDiv.classList.add('d-none');
                     
                     alert('✅ VJ video suggestion published!');
                 } else {
@@ -4276,7 +4239,7 @@
 
         // Expose functions globally
         window.handleCloseMP3Modal = handleCloseMP3Modal;
-        window.switchMP3Tab = switchMP3Tab;
+        // switchMP3Tab is already exposed above
         window.initializeMP3Modal = initializeMP3Modal;
         window.loadMP3Comments = loadMP3Comments;
         window.displayMP3Comments = displayMP3Comments;
@@ -4438,17 +4401,17 @@
             const modal = bootstrap.Modal.getInstance(document.getElementById('thumbnailSearchModal'));
             if (modal) modal.hide();
             
-            // Update thumbnail display immediately
-            const albumArtEl = document.getElementById('mp3AlbumArt');
-            const albumArtPlaceholder = document.getElementById('mp3AlbumArtPlaceholder');
-            
-            if (albumArtEl && imageUrl) {
-                albumArtEl.src = imageUrl;
-                albumArtEl.style.display = 'block';
-                if (albumArtPlaceholder) {
-                    albumArtPlaceholder.style.display = 'none';
-                }
-            }
+                    // Update thumbnail display immediately
+                    const albumArtEl = document.getElementById('mp3AlbumArt');
+                    const albumArtPlaceholder = document.getElementById('mp3AlbumArtPlaceholder');
+                    
+                    if (albumArtEl && imageUrl) {
+                        albumArtEl.src = imageUrl;
+                        albumArtEl.classList.remove('d-none');
+                        if (albumArtPlaceholder) {
+                            albumArtPlaceholder.classList.add('d-none');
+                        }
+                    }
             
             // TODO: Publish a kind 1111 comment or update the track event with the new thumbnail
             // For now, we just update the display

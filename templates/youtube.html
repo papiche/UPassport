@@ -1850,13 +1850,6 @@
                     <div class="sidebar-item-subtitle" id="gps-subtitle">Local messaging</div>
                 </div>
             </div>
-            <div class="sidebar-item" id="my-videos-sidebar-item" style="display: none;" onclick="showMyVideos()">
-                <div class="sidebar-icon">🎬</div>
-                <div class="sidebar-item-text">
-                    <div class="sidebar-item-name">Mes vidéos</div>
-                    <div class="sidebar-item-subtitle">Manage my videos</div>
-                </div>
-            </div>
         </div>
         
         <div class="sidebar-section">
@@ -2289,8 +2282,16 @@
                                         <i class="bi bi-hand-thumbs-up"></i>
                                     </button>
                                     {% endif %}
-                                    {% if video.author_id and user_pubkey and video.author_id == user_pubkey %}
-                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteVideo(this)" data-event-id="{{ video.message_id }}" data-author-id="{{ video.author_id }}" data-title="{{ video.title }}" data-kind="{{ video.event_kind or 21 }}" title="Supprimer ma vidéo" data-bs-toggle="tooltip">
+                                    {% if video.author_id %}
+                                    <button class="btn btn-sm btn-outline-danger delete-video-btn" 
+                                            onclick="deleteVideo(this)" 
+                                            data-event-id="{{ video.message_id }}" 
+                                            data-author-id="{{ video.author_id }}" 
+                                            data-title="{{ video.title }}" 
+                                            data-kind="{{ video.event_kind or 21 }}" 
+                                            title="Supprimer ma vidéo" 
+                                            data-bs-toggle="tooltip"
+                                            style="display: none;">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                     {% endif %}
@@ -4930,10 +4931,13 @@
                     ? await verifyAuthenticationWithAPI(userPubkey)
                     : false;
                 
-                if (isAuthenticated) {
+                    if (isAuthenticated) {
                     console.log('[YOUTUBE] ✅ NIP-42 authenticated!');
                     updateStep(2, 'success', 'Authenticated - uDRIVE & GPS access ✓');
                     updateConnectionBadgeYoutube(userPubkey, 'authenticated');
+                    
+                    // Show delete buttons for user's own videos
+                    showDeleteButtonsForUserVideos(userPubkey);
                     
                     // Fetch user info in background (uDRIVE, GPS, email)
                     console.log('[YOUTUBE] 📡 Starting background fetch of user info...');
@@ -5412,7 +5416,7 @@
                 }
             }
             
-            // Open uDRIVE at /uDRIVE/{email}/APP/uDRIVE path
+            // Open uDRIVE at /{email}/APP/uDRIVE path
             const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
             const udriveUrl = `${gateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
             
@@ -5548,8 +5552,8 @@
             }
             
             const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
-            // Open uDRIVE at /uDRIVE/{email}/APP/uDRIVE path
-            const udriveUrl = `${gateway}/ipns/${ipnsVault}/uDRIVE/${userEmail}/APP/uDRIVE`;
+            // Open uDRIVE at /{email}/APP/uDRIVE path
+            const udriveUrl = `${gateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
             
             console.log('[YOUTUBE] 📁 Opening uDRIVE:', udriveUrl);
             window.open(udriveUrl, '_blank');
@@ -5810,16 +5814,12 @@
         function showActionButtons() {
             const webcamBtn = document.getElementById('webcam-upload-btn');
             const playlistBtn = document.getElementById('playlist-manager-btn');
-            const myVideosItem = document.getElementById('my-videos-sidebar-item');
             
             if (webcamBtn) {
                 webcamBtn.classList.remove('d-none');
             }
             if (playlistBtn) {
                 playlistBtn.classList.remove('d-none');
-            }
-            if (myVideosItem) {
-                myVideosItem.style.display = 'block';
             }
         }
         
@@ -6441,6 +6441,7 @@
         
         /**
          * Delete a video by publishing a kind 5 deletion event
+         * Uses publishNote from common.js with kind 5 and proper NIP-09 tags
          */
         async function deleteVideo(button) {
             const eventId = button.getAttribute('data-event-id');
@@ -6484,8 +6485,8 @@
                     }
                 }
                 
-                // Create kind 5 deletion event
-                // According to NIP-09: tags should include ["e", eventId] and ["k", kind]
+                // Create kind 5 deletion event according to NIP-09
+                // Tags: ["e", eventId] and ["k", kind]
                 const deletionTags = [
                     ['e', eventId],
                     ['k', kind.toString()]
@@ -6538,107 +6539,18 @@
         }
         
         /**
-         * Show user's own videos for management
+         * Show delete buttons for user's own videos
          */
-        async function showMyVideos() {
-            if (typeof userPubkey === 'undefined' || !userPubkey) {
-                alert('❌ Vous devez être connecté pour voir vos vidéos');
-                return;
-            }
+        function showDeleteButtonsForUserVideos(userPubkey) {
+            if (!userPubkey) return;
             
-            try {
-                console.log('[YOUTUBE] 📹 Loading my videos for:', userPubkey.substring(0, 12) + '...');
-                
-                // Show loading state
-                const mainContent = document.querySelector('.main-content');
-                if (mainContent) {
-                    mainContent.innerHTML = '<div class="loading-skeleton" style="padding: 40px; text-align: center; color: #aaaaaa;">Chargement de vos vidéos...</div>';
+            const deleteButtons = document.querySelectorAll('.delete-video-btn');
+            deleteButtons.forEach(button => {
+                const authorId = button.getAttribute('data-author-id');
+                if (authorId && authorId === userPubkey) {
+                    button.style.display = 'inline-block';
                 }
-                
-                // Fetch videos from API with author filter
-                const response = await fetch(`/youtube?author_id=${userPubkey}`);
-                if (!response.ok) {
-                    throw new Error('Failed to fetch my videos');
-                }
-                
-                const data = await response.json();
-                
-                // Render videos
-                if (data.videos && data.videos.length > 0) {
-                    renderMyVideos(data.videos);
-                } else {
-                    mainContent.innerHTML = `
-                        <div class="no-results">
-                            <h3>📹 Aucune vidéo trouvée</h3>
-                            <p>Vous n'avez pas encore publié de vidéos.</p>
-                            <button class="btn btn-primary mt-3" onclick="openWebcamModal()">
-                                <i class="bi bi-camera-video-fill"></i> Créer ma première vidéo
-                            </button>
-                        </div>
-                    `;
-                }
-                
-                // Update sidebar active state
-                document.querySelectorAll('.sidebar-item').forEach(item => item.classList.remove('active'));
-                document.getElementById('my-videos-sidebar-item')?.classList.add('active');
-                
-            } catch (error) {
-                console.error('[YOUTUBE] ❌ Error loading my videos:', error);
-                alert(`❌ Erreur lors du chargement de vos vidéos: ${error.message}`);
-            }
-        }
-        
-        /**
-         * Render user's videos with delete buttons
-         */
-        function renderMyVideos(videos) {
-            const mainContent = document.querySelector('.main-content');
-            if (!mainContent) return;
-            
-            let html = '<div class="videos-grid">';
-            
-            videos.forEach(video => {
-                const thumbnailSrc = video.thumbnail_ipfs 
-                    ? `${getIPFSGateway()}/ipfs/${video.thumbnail_ipfs}`
-                    : '';
-                
-                html += `
-                    <div class="video" data-event-id="${video.message_id || ''}">
-                        <div class="video-thumbnail" onclick="openVideoInTheater(this)">
-                            ${thumbnailSrc 
-                                ? `<img src="${thumbnailSrc}" alt="${escapeHtml(video.title)}" loading="lazy">`
-                                : '<div class="thumbnail-placeholder">🎬</div>'
-                            }
-                            <div class="video-overlay">
-                                <i class="bi bi-play-circle-fill"></i>
-                            </div>
-                        </div>
-                        <div class="video-info">
-                            <div class="video-title">${escapeHtml(video.title || 'Titre inconnu')}</div>
-                            <div class="video-meta">
-                                ${video.duration ? `${Math.floor(video.duration / 60)}:${String(video.duration % 60).padStart(2, '0')}` : ''}
-                                ${video.created_at ? ` • ${video.created_at.substring(0, 10)}` : ''}
-                            </div>
-                            <div class="video-actions d-flex gap-2 mt-2">
-                                <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); openVideoInTheater(this.closest('.video').querySelector('.video-thumbnail'))" title="Mode théâtre">
-                                    <i class="bi bi-film"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteVideo(this)" 
-                                        data-event-id="${video.message_id}" 
-                                        data-author-id="${video.author_id}" 
-                                        data-title="${escapeHtml(video.title)}" 
-                                        data-kind="${video.event_kind || 21}" 
-                                        title="Supprimer">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
             });
-            
-            html += '</div>';
-            mainContent.innerHTML = html;
         }
         
         /**
@@ -6654,27 +6566,12 @@
             });
         }
         
-        /**
-         * Get IPFS gateway URL
-         */
-        function getIPFSGateway() {
-            if (typeof detectIPFSGatewayGlobal === 'function') {
-                return detectIPFSGatewayGlobal();
-            }
-            return window.myIPFS || 'https://ipfs.io';
-        }
-        
-        /**
-         * Escape HTML to prevent XSS (if not already defined)
-         */
-        function escapeHtml(text) {
-            if (typeof window.escapeHtml === 'function') {
-                return window.escapeHtml(text);
-            }
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+        // Show delete buttons when userPubkey becomes available
+        if (typeof userPubkey !== 'undefined' && userPubkey) {
+            // Wait a bit for DOM to be ready
+            setTimeout(() => {
+                showDeleteButtonsForUserVideos(userPubkey);
+            }, 1000);
         }
     </script>
 </body>

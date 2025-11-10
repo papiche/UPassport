@@ -491,6 +491,12 @@
             gap: 8px;
             margin-top: 8px;
             justify-content: center;
+            opacity: 0.7;
+            transition: opacity 0.2s ease;
+        }
+        
+        .music-card:hover .music-card-actions {
+            opacity: 1;
         }
         
         /* Music list view */
@@ -627,17 +633,25 @@
             border: none;
             color: #b3b3b3;
             cursor: pointer;
-            padding: 4px;
+            padding: 6px 8px;
             border-radius: 4px;
             transition: all 0.2s ease;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
+            font-size: 16px;
+            width: 32px;
+            height: 32px;
         }
         
         .action-btn:hover {
             color: #ffffff;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.15);
+            transform: scale(1.1);
+        }
+        
+        .action-btn:active {
+            transform: scale(0.95);
         }
         
         /* Bottom player */
@@ -967,17 +981,25 @@
             cursor: pointer;
             transition: all 0.2s ease;
             font-size: 0.9em;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
         
         .view-toggle-btn:hover {
             border-color: rgba(255, 255, 255, 0.5);
             color: #ffffff;
+            background: rgba(255, 255, 255, 0.05);
         }
         
         .view-toggle-btn.active {
             background: rgba(255, 255, 255, 0.1);
             border-color: rgba(255, 255, 255, 0.5);
             color: #ffffff;
+        }
+        
+        .view-toggle-btn i {
+            font-size: 1em;
         }
     </style>
 </head>
@@ -1118,11 +1140,11 @@
                     <h2 class="section-title">Good evening</h2>
                 </div>
                 <div class="view-toggle">
-                    <button class="view-toggle-btn active" onclick="setViewMode('grid')">
-                        <i class="bi bi-grid-3x3-gap"></i> Grid
+                    <button class="view-toggle-btn active" onclick="setViewMode('grid')" id="gridViewBtn">
+                        <i class="bi bi-grid-3x3-gap"></i> <span>Grid</span>
                     </button>
-                    <button class="view-toggle-btn" onclick="setViewMode('list')">
-                        <i class="bi bi-list"></i> List
+                    <button class="view-toggle-btn" onclick="setViewMode('list')" id="listViewBtn">
+                        <i class="bi bi-list"></i> <span>List</span>
                     </button>
                 </div>
                 <div class="music-grid" id="musicGrid">
@@ -1150,11 +1172,11 @@
                     <p class="section-subtitle">Your personal music collection</p>
                 </div>
                 <div class="view-toggle">
-                    <button class="view-toggle-btn active" onclick="setViewMode('grid')">
-                        <i class="bi bi-grid-3x3-gap"></i> Grid
+                    <button class="view-toggle-btn active" onclick="setViewMode('grid')" id="libraryGridViewBtn">
+                        <i class="bi bi-grid-3x3-gap"></i> <span>Grid</span>
                     </button>
-                    <button class="view-toggle-btn" onclick="setViewMode('list')">
-                        <i class="bi bi-list"></i> List
+                    <button class="view-toggle-btn" onclick="setViewMode('list')" id="libraryListViewBtn">
+                        <i class="bi bi-list"></i> <span>List</span>
                     </button>
                 </div>
                 <div class="music-grid" id="libraryGrid">
@@ -1473,9 +1495,12 @@
                             ${track.channel && track.channel !== track.artist ? `<br><small style="color: #888; font-size: 0.85em;">📺 ${NostrifyMP3.escapeHtml(track.channel)}</small>` : ''}
                             ${(track.viewCount > 0 || track.statistics?.view_count > 0) ? `<br><small style="color: #888; font-size: 0.8em;">👁️ ${((track.viewCount || track.statistics?.view_count || 0)).toLocaleString()} views</small>` : ''}
                         </div>
-                        <div class="music-card-actions" style="display: flex; gap: 8px; margin-top: 8px; justify-content: center;">
+                        <div class="music-card-actions d-flex gap-2 mt-2 justify-content-center">
                             <button class="action-btn" onclick="event.stopPropagation(); NostrifyMP3.openModal(${index})" title="Open in modal (comments & discussion)">
                                 <i class="bi bi-chat-dots"></i>
+                            </button>
+                            <button class="action-btn" onclick="event.stopPropagation(); NostrifyMP3.openModalInNewTab(${index})" title="Open in new tab">
+                                <i class="bi bi-box-arrow-up-right"></i>
                             </button>
                             <button class="action-btn" onclick="event.stopPropagation(); NostrifyMP3.toggleLikeTrack(${index})" title="Like">
                                 <i class="bi ${track.liked ? 'bi-heart-fill' : 'bi-heart'}"></i>
@@ -1528,9 +1553,12 @@
                         ${NostrifyMP3.formatDuration(track.duration)}
                         ${track.abr > 0 || track.technicalInfo?.abr > 0 ? `<br><small style="color: #888; font-size: 0.8em;">${(track.abr || track.technicalInfo?.abr || 0)} kbps</small>` : ''}
                     </div>
-                    <div class="music-list-actions">
+                    <div class="music-list-actions d-flex gap-1">
                         <button class="action-btn" onclick="event.stopPropagation(); NostrifyMP3.openModal(${index})" title="Open in modal (comments & discussion)">
                             <i class="bi bi-chat-dots"></i>
+                        </button>
+                        <button class="action-btn" onclick="event.stopPropagation(); NostrifyMP3.openModalInNewTab(${index})" title="Open in new tab">
+                            <i class="bi bi-box-arrow-up-right"></i>
                         </button>
                         <button class="action-btn" onclick="event.stopPropagation(); NostrifyMP3.toggleLikeTrack(${index})" title="Like">
                             <i class="bi ${track.liked ? 'bi-heart-fill' : 'bi-heart'}"></i>
@@ -1594,12 +1622,35 @@
             document.querySelectorAll('.view-toggle-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
-            if (event && event.target) {
-                event.target.classList.add('active');
+            
+            // Activate the correct button based on mode
+            const gridBtn = document.getElementById('gridViewBtn') || document.getElementById('libraryGridViewBtn');
+            const listBtn = document.getElementById('listViewBtn') || document.getElementById('libraryListViewBtn');
+            
+            if (mode === 'grid' && gridBtn) {
+                gridBtn.classList.add('active');
+            } else if (mode === 'list' && listBtn) {
+                listBtn.classList.add('active');
             }
             
             // Render tracks
             NostrifyMP3.renderMusicTracks();
+        }
+        
+        /**
+         * Open track in modal in new tab
+         */
+        NostrifyMP3.openModalInNewTab = function(index) {
+            if (index < 0 || index >= NostrifyMP3.filteredTracks.length) return;
+            
+            const track = NostrifyMP3.filteredTracks[index];
+            
+            if (track.eventId) {
+                const modalUrl = `/mp3-modal?track=${track.eventId}`;
+                window.open(modalUrl, '_blank', 'noopener,noreferrer');
+            } else {
+                alert('Track ID not available');
+            }
         }
         
         /**
