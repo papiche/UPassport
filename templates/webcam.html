@@ -1444,6 +1444,13 @@
                         </div>
                         
                         <div class="mb-3">
+                            <label for="video-genres" class="form-label text-white">Genres (optional, comma-separated):</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="video-genres" name="genres" 
+                                   placeholder="e.g., Action, Sci-Fi, Comedy" 
+                                   title="Enter genres separated by commas. These will be used to create kind 1985 tag events (NIP-32 Labeling).">
+                        </div>
+                        
+                        <div class="mb-3">
                             <label class="form-label text-white">
                                 📍 Geographic Location (for UMAP anchoring)
                             </label>
@@ -3084,6 +3091,28 @@
                 }
                 formData.append('title', document.getElementById('video-title').value);
                 formData.append('description', document.getElementById('video-description').value);
+                
+                // Process genres: convert comma-separated string to JSON array
+                const genresInput = document.getElementById('video-genres').value.trim();
+                if (genresInput) {
+                    try {
+                        // Split by comma, trim each genre, filter empty strings
+                        const genresArray = genresInput.split(',')
+                            .map(g => g.trim())
+                            .filter(g => g.length > 0);
+                        
+                        if (genresArray.length > 0) {
+                            // Convert to JSON array string
+                            const genresJson = JSON.stringify(genresArray);
+                            formData.append('genres', genresJson);
+                            console.log('🏷️  Genres added:', genresJson);
+                        }
+                    } catch (error) {
+                        console.warn('⚠️  Error processing genres:', error);
+                        // Continue without genres if there's an error
+                    }
+                }
+                
                 formData.append('publish_nostr', document.getElementById('publish-nostr').checked ? 'true' : 'false');
                 
                 // Get location from modal

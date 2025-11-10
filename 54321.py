@@ -3462,7 +3462,8 @@ async def process_webcam_video(
     publish_nostr: str = Form(default="false"),  # Publish to NOSTR (default: false)
     latitude: str = Form(default=""),  # Geographic latitude (optional)
     longitude: str = Form(default=""),  # Geographic longitude (optional)
-    youtube_url: str = Form(default="")  # YouTube URL (optional, for source:youtube tag)
+    youtube_url: str = Form(default=""),  # YouTube URL (optional, for source:youtube tag)
+    genres: str = Form(default="")  # Genres as JSON array (optional, for kind 1985 tags)
 ):
     """
     Process webcam video and publish to NOSTR as NIP-71 video event
@@ -3485,6 +3486,7 @@ async def process_webcam_video(
     - mime_type, duration, video_dimensions: Auto-detected metadata
     - upload_chain: Provenance chain (for re-uploads)
     - publish_nostr: Flag to publish event (default: false)
+    - genres: JSON array of genres (e.g., '["Action","Sci-Fi"]') for kind 1985 tag events (NIP-32 Labeling)
     
     Returns: HTML response with NOSTR event publication status
     """
@@ -3834,6 +3836,23 @@ async def process_webcam_video(
                 else:
                     publish_cmd.extend(["--source-type", "webcam"])
                     logging.info(f"📹 Source type: webcam")
+                
+                # Add genres for kind 1985 tag events (NIP-32 Labeling)
+                if genres and genres.strip():
+                    try:
+                        # Validate that genres is a valid JSON array
+                        genres_json = json.loads(genres)
+                        if isinstance(genres_json, list) and len(genres_json) > 0:
+                            # Ensure it's a compact JSON string (no spaces/newlines)
+                            genres_compact = json.dumps(genres_json, ensure_ascii=False, separators=(',', ':'))
+                            publish_cmd.extend(["--genres", genres_compact])
+                            logging.info(f"🏷️  Genres for kind 1985 tags: {genres_compact}")
+                        else:
+                            logging.warning(f"⚠️  Genres provided but not a valid non-empty array: {genres}")
+                    except json.JSONDecodeError as e:
+                        logging.warning(f"⚠️  Invalid JSON format for genres, skipping kind 1985 tags: {genres} (error: {e})")
+                    except Exception as e:
+                        logging.warning(f"⚠️  Error processing genres, skipping kind 1985 tags: {e}")
                 
                 logging.info(f"🚀 Executing unified NOSTR publish script...")
                 logging.info(f"📝 Title: {title}")
