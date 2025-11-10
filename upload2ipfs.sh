@@ -90,13 +90,9 @@ FILE_NAME=$(basename "$FILE_PATH")
 # Log file information
 echo "DEBUG: FILE_SIZE: $FILE_SIZE, FILE_TYPE: $FILE_TYPE, FILE_NAME: $FILE_NAME" >&2
 
-# Check if file size exceeds 520MB (according to standard limits per format)
-MAX_FILE_SIZE=$((520 * 1024 * 1024)) # 520MB in bytes
-if [ "$FILE_SIZE" -gt "$MAX_FILE_SIZE" ]; then
-    echo '{"status": "error", "message": "File size exceeds 520MB limit.", "debug": "File too large", "fileSize": "'"$FILE_SIZE"'"}' > "$OUTPUT_FILE"
-    
-    exit 1
-fi
+# Check if file size exceeds 650MB (according to CD standard limits per format)
+MAX_FILE_SIZE=$((650 * 1024 * 1024)) # 650MB in bytes
+TARGET_FILE_SIZE=$((600 * 1024 * 1024)) # 600MB target (margin below 650MB limit)
 
 # Calculate file hash FIRST (before IPFS upload) for provenance tracking
 FILE_HASH=$(sha256sum "$FILE_PATH" | awk '{print $1}')
@@ -463,6 +459,160 @@ THUMBNAIL_CID=""
 # Initialize animated GIF CID (empty by default, will be set for video files)
 GIFANIM_CID=""
 
+################################################################################
+# Function: Reduce video resolution if file size exceeds limit
+# Optimized for speed with ffmpeg
+################################################################################
+reduce_video_if_needed() {
+    local video_file="$1"
+    local current_size="$2"
+    local max_size="$3"
+    local target_size="$4"
+    
+    # Only process video files
+    if [[ ! "$FILE_TYPE" == "video/"* ]]; then
+        return 0
+    fi
+    
+    # Check if reduction is needed
+    if [ "$current_size" -le "$max_size" ]; then
+        return 0
+    fi
+    
+    # Check if ffmpeg and ffprobe are available
+    if ! command -v ffmpeg &> /dev/null || ! command -v ffprobe &> /dev/null; then
+        echo "WARNING: ffmpeg/ffprobe not available, cannot reduce video size" >&2
+        return 1
+    fi
+    
+    echo "DEBUG: Video size ($current_size bytes) exceeds limit ($max_size bytes), reducing resolution..." >&2
+    
+    # Get current video dimensions
+    local current_dims=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$video_file" 2>/dev/null | head -n 1 | tr -d '\n\r')
+    if [[ -z "$current_dims" ]]; then
+        echo "WARNING: Could not get video dimensions" >&2
+        return 1
+    fi
+    
+    local current_width=$(echo "$current_dims" | cut -d'x' -f1)
+    local current_height=$(echo "$current_dims" | cut -d'x' -f2)
+    
+    if [[ -z "$current_width" ]] || [[ -z "$current_height" ]] || [[ "$current_width" == "0" ]] || [[ "$current_height" == "0" ]]; then
+        echo "WARNING: Invalid video dimensions: ${current_width}x${current_height}" >&2
+        return 1
+    fi
+    
+    echo "DEBUG: Current resolution: ${current_width}x${current_height}" >&2
+    
+    # Calculate reduction factor needed
+    # Size is approximately proportional to (width * height)
+    # So if we want to reduce size by factor R, we need to reduce resolution by factor sqrt(R)
+    local size_ratio=$(echo "$current_size $target_size" | awk '{printf "%.3f", $1 / $2}')
+    local reduction_factor=$(echo "$size_ratio" | awk '{printf "%.3f", sqrt($1)}')
+    
+    # Add 10% margin to ensure we're under the limit
+    reduction_factor=$(echo "$reduction_factor 1.1" | awk '{printf "%.3f", $1 * $2}')
+    
+    echo "DEBUG: Size ratio: $size_ratio, Reduction factor: $reduction_factor" >&2
+    
+    # Calculate new dimensions (must be even for h264)
+    local new_width=$(echo "$current_width $reduction_factor" | awk '{w = int($1 / $2); if (w % 2 != 0) w = w - 1; print w}')
+    local new_height=$(echo "$current_height $reduction_factor" | awk '{h = int($1 / $2); if (h % 2 != 0) h = h - 1; print h}')
+    
+    # Ensure minimum dimensions (at least 240p)
+    if [[ $new_width -lt 320 ]]; then
+        new_width=320
+        if [[ $((new_width % 2)) -ne 0 ]]; then
+            new_width=320
+        fi
+    fi
+    if [[ $new_height -lt 240 ]]; then
+        new_height=240
+        if [[ $((new_height % 2)) -ne 0 ]]; then
+            new_height=240
+        fi
+    fi
+    
+    # Ensure dimensions are even (required for h264)
+    if [[ $((new_width % 2)) -ne 0 ]]; then
+        new_width=$((new_width - 1))
+    fi
+    if [[ $((new_height % 2)) -ne 0 ]]; then
+        new_height=$((new_height - 1))
+    fi
+    
+    echo "DEBUG: Target resolution: ${new_width}x${new_height}" >&2
+    
+    # Create temporary output file
+    local temp_output="${video_file}.resized.$$"
+    
+    # Build ffmpeg command optimized for speed
+    # Use ultrafast preset, hardware acceleration if available, and fast encoding settings
+    local ffmpeg_cmd="ffmpeg -loglevel error -i \"$video_file\""
+    
+    # Try hardware acceleration first (NVIDIA CUDA)
+    if command -v nvidia-smi &> /dev/null && nvidia-smi &>/dev/null; then
+        echo "DEBUG: Using NVIDIA CUDA hardware acceleration for faster encoding..." >&2
+        # Use nvenc encoder with ultrafast preset (p1 = fastest)
+        # Note: We use software scaling (-vf scale) as it's more reliable than GPU scaling
+        ffmpeg_cmd="$ffmpeg_cmd -c:v h264_nvenc -preset p1 -tune ll -crf 23"
+    else
+        # Software encoding with ultrafast preset for maximum speed
+        echo "DEBUG: Using software encoding with ultrafast preset..." >&2
+        ffmpeg_cmd="$ffmpeg_cmd -c:v libx264 -preset ultrafast -tune fastdecode -crf 23"
+    fi
+    
+    # Audio: copy if possible, otherwise re-encode with fast settings
+    ffmpeg_cmd="$ffmpeg_cmd -c:a aac -b:a 128k"
+    
+    # Scale filter
+    ffmpeg_cmd="$ffmpeg_cmd -vf \"scale=${new_width}:${new_height}\""
+    
+    # Output file
+    ffmpeg_cmd="$ffmpeg_cmd -y \"$temp_output\""
+    
+    echo "DEBUG: Executing: $ffmpeg_cmd" >&2
+    
+    # Execute ffmpeg command
+    if eval "$ffmpeg_cmd" 2>&1; then
+        # Check if output file was created and is smaller
+        if [[ -f "$temp_output" ]] && [[ -s "$temp_output" ]]; then
+            local new_size=$(stat -c%s "$temp_output" 2>/dev/null || echo "0")
+            
+            if [[ $new_size -gt 0 ]] && [[ $new_size -lt "$current_size" ]]; then
+                # Replace original file with resized version
+                if mv "$temp_output" "$video_file" 2>/dev/null; then
+                    echo "DEBUG: ✅ Video resized successfully: ${current_width}x${current_height} -> ${new_width}x${new_height}" >&2
+                    echo "DEBUG: ✅ File size reduced: $current_size -> $new_size bytes" >&2
+                    
+                    # Update FILE_SIZE for rest of script
+                    FILE_SIZE=$new_size
+                    # Recalculate file hash since file has changed
+                    FILE_HASH=$(sha256sum "$video_file" | awk '{print $1}')
+                    echo "DEBUG: File hash recalculated after resize: $FILE_HASH" >&2
+                    return 0
+                else
+                    echo "WARNING: Failed to replace original file with resized version" >&2
+                    rm -f "$temp_output"
+                    return 1
+                fi
+            else
+                echo "WARNING: Resized file is not smaller or invalid (size: $new_size)" >&2
+                rm -f "$temp_output"
+                return 1
+            fi
+        else
+            echo "WARNING: Resized file was not created or is empty" >&2
+            rm -f "$temp_output"
+            return 1
+        fi
+    else
+        echo "WARNING: ffmpeg resize failed" >&2
+        rm -f "$temp_output"
+        return 1
+    fi
+}
+
 # Text file check
 if [[ "$FILE_TYPE" == "text/"* ]]; then
   DESCRIPTION="Plain text file" && IDISK="text"
@@ -638,6 +788,17 @@ elif [[ "$FILE_TYPE" == "image/"* ]]; then
 
 # Video file check (using ffprobe)
 elif [[ "$FILE_TYPE" == "video/"* ]]; then
+    # Reduce video resolution if file size exceeds limit (before processing)
+    if [ "$FILE_SIZE" -gt "$MAX_FILE_SIZE" ]; then
+        if reduce_video_if_needed "$FILE_PATH" "$FILE_SIZE" "$MAX_FILE_SIZE" "$TARGET_FILE_SIZE"; then
+            echo "DEBUG: Video resized, continuing with processing..." >&2
+            # Re-read file size after resize
+            FILE_SIZE=$(stat -c%s "$FILE_PATH")
+        else
+            echo '{"status": "error", "message": "File size exceeds 650MB limit and could not be reduced.", "debug": "Video resize failed", "fileSize": "'"$FILE_SIZE"'"}' > "$OUTPUT_FILE"
+            exit 1
+        fi
+    fi
     if command -v ffprobe &> /dev/null; then
         DURATION_RAW=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$FILE_PATH" 2>/dev/null)
         # Validate DURATION is numeric, default to 0 if not

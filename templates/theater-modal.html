@@ -2,7 +2,10 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Theater Mode - Nostr Tube</title>
     
     <!-- Bootstrap 5 CSS -->
@@ -53,6 +56,7 @@
     <style>
         * {
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
         
         html, body {
@@ -64,77 +68,86 @@
             font-family: 'Roboto', 'Arial', sans-serif;
             background: #000000;
             color: #ffffff;
+            /* Prevent text selection on mobile for better UX */
+            -webkit-user-select: none;
+            user-select: none;
+            /* Smooth scrolling */
+            -webkit-overflow-scrolling: touch;
         }
 
-        /* Theater modal - full screen with CSS Grid */
+        /* Theater modal - full screen with responsive layout */
         .theater-modal {
-            width: 100vw !important;
-            height: 100vh !important;
-            display: grid !important;
-            grid-template-rows: 60px calc(100vh - 60px) !important;
-            grid-template-columns: 1fr !important;
-            background: #000000 !important;
-            overflow: hidden !important;
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            z-index: 10000 !important;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh; /* Dynamic viewport height for mobile browsers */
+            display: flex;
+            flex-direction: column;
+            background: #000000;
+            overflow: hidden;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 10000;
+            /* Safe area support for notched devices */
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
         }
         
-        /* Header bar - fixed height */
+        /* Header bar - responsive height */
         .theater-header {
-            grid-row: 1;
-            grid-column: 1;
             background: #181818;
             border-bottom: 1px solid #3f3f3f;
-            padding: 12px 20px;
+            padding: 0.75rem 1rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 16px;
-            height: 60px;
+            gap: 0.5rem;
+            flex-shrink: 0;
+            min-height: 56px;
+            /* Safe area support */
+            padding-top: max(0.75rem, env(safe-area-inset-top));
         }
         
         .theater-header h5 {
             margin: 0;
-            font-size: 16px;
+            font-size: 1rem;
             font-weight: 500;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
             flex: 1;
-            max-width: 60%;
+            min-width: 0;
         }
         
-        /* Main content area - CSS Grid: Video left, Comments right */
+        /* Main content area - Bootstrap responsive grid */
         .theater-content-grid {
-            grid-row: 2 !important;
-            grid-column: 1 !important;
-            display: grid !important;
-            grid-template-columns: 1fr 400px !important; /* Fixed width for comments on desktop */
-            height: calc(100vh - 60px) !important;
-            gap: 0 !important;
-            overflow: hidden !important;
+            flex: 1;
+            display: flex;
+            min-height: 0;
+            overflow: hidden;
         }
         
-        /* Video player (left side, full height) */
+        /* Video container - responsive */
         .theater-video-container {
-            grid-column: 1 !important;
-            grid-row: 1 !important;
-            background: #000000 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            overflow: hidden !important;
-            position: relative !important;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            background: #000000;
+            min-width: 0;
         }
         
-        /* Video player element */
+        /* Video player wrapper */
         .theater-video-wrapper {
             flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
             min-height: 0;
+            position: relative;
         }
 
         .theater-video-player {
@@ -144,35 +157,37 @@
             max-height: 100%;
             object-fit: contain;
             background: #000000;
+            /* Better touch controls on mobile */
+            touch-action: pan-x pan-y pinch-zoom;
         }
         
-        /* Comments section (right side, full height) */
+        /* Comments section - responsive */
         .theater-comments-section {
-            grid-column: 2 !important;
-            grid-row: 1 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            overflow: hidden !important;
-            background: #0f0f0f !important;
-            border-left: 1px solid #3f3f3f !important;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #0f0f0f;
+            border-left: 1px solid #3f3f3f;
+            width: 400px;
+            flex-shrink: 0;
         }
         
         .theater-comments-header {
             flex-shrink: 0;
-            padding: 16px;
+            padding: 1rem;
             border-bottom: 1px solid #3f3f3f;
             background: #181818;
         }
         
         .theater-comments-header h6 {
-            margin: 0 0 8px 0;
-            font-size: 14px;
+            margin: 0 0 0.5rem 0;
+            font-size: 0.875rem;
             font-weight: 600;
         }
         
         .theater-comments-form {
             flex-shrink: 0;
-            padding: 16px;
+            padding: 1rem;
             border-bottom: 1px solid #3f3f3f;
             background: #0f0f0f;
         }
@@ -181,8 +196,10 @@
             flex: 1;
             overflow-y: auto;
             overflow-x: hidden;
-            padding: 16px;
+            padding: 1rem;
             min-height: 0;
+            /* Smooth scrolling on mobile */
+            -webkit-overflow-scrolling: touch;
         }
         
         .theater-comments-list::-webkit-scrollbar {
@@ -198,14 +215,16 @@
             border-radius: 4px;
         }
         
-        /* Video info section (below video player) */
+        /* Video info section */
         .theater-video-info {
             flex-shrink: 0;
-            padding: 16px 20px;
+            padding: 1rem 1.25rem;
             background: #181818;
             border-top: 1px solid #3f3f3f;
             overflow-y: auto;
-            max-height: 35%; /* Reduced to give more space to video */
+            max-height: 35%;
+            /* Smooth scrolling */
+            -webkit-overflow-scrolling: touch;
         }
         
         .theater-video-info::-webkit-scrollbar {
@@ -222,160 +241,238 @@
         }
         
         .theater-video-info h6 {
-            margin: 0 0 8px 0;
-            font-size: 14px;
+            margin: 0 0 0.5rem 0;
+            font-size: 0.875rem;
         }
         
-        /* Tablet: adjust proportions */
-        @media (max-width: 1200px) and (min-width: 769px) {
-            .theater-content-grid {
-                grid-template-columns: 1fr 350px !important; /* Smaller fixed width for comments */
+        /* Better button sizing for touch */
+        .theater-header .btn {
+            min-width: 44px; /* Minimum touch target size */
+            min-height: 44px;
+            padding: 0.5rem 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+        }
+        
+        .theater-header .btn i {
+            font-size: 1rem;
+        }
+        
+        /* Comment items - better spacing */
+        .theater-comment-item {
+            background: #1a1a1a;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.75rem;
+            border: 1px solid #2a2a2a;
+            position: relative;
+        }
+        
+        .theater-comment-content {
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+        
+        /* Tablet: Bootstrap md breakpoint (768px - 991px) */
+        @media (max-width: 991.98px) {
+            .theater-comments-section {
+                width: 350px;
             }
             
             .theater-video-info {
-                padding: 14px 16px;
+                padding: 0.875rem 1rem;
                 font-size: 0.9em;
             }
             
             .theater-comments-header,
             .theater-comments-form {
-                padding: 14px;
+                padding: 0.875rem;
             }
         }
         
-        /* Mobile: stack everything vertically */
-        @media (max-width: 768px) {
+        /* Mobile: Bootstrap sm breakpoint (max-width: 767.98px) */
+        @media (max-width: 767.98px) {
             .theater-content-grid {
-                display: flex !important;
-                flex-direction: column !important;
-                height: auto !important;
-                min-height: calc(100vh - 60px) !important;
+                flex-direction: column;
             }
             
             .theater-video-container {
-                width: 100% !important;
-                height: auto !important;
-                min-height: 45vh !important;
-                max-height: 55vh !important;
+                width: 100%;
+                min-height: 50vh;
+                max-height: 60vh;
                 order: 1;
             }
             
             .theater-video-wrapper {
-                min-height: 45vh;
-            }
-            
-            .theater-video-player {
-                width: 100%;
-                height: 100%;
+                min-height: 50vh;
             }
             
             .theater-video-info {
-                width: 100% !important;
-                max-height: none !important;
+                width: 100%;
+                max-height: 30vh;
                 order: 2;
                 border-top: 1px solid #3f3f3f;
                 border-left: none;
-                padding: 12px 16px;
-                max-height: 30vh; /* Limit height on mobile */
+                padding: 0.75rem 1rem;
             }
             
             .theater-comments-section {
-                width: 100% !important;
-                height: auto !important;
-                min-height: 45vh !important;
-                max-height: 45vh !important;
+                width: 100%;
+                height: auto;
+                min-height: 40vh;
+                max-height: 50vh;
                 order: 3;
                 border-left: none;
                 border-top: 1px solid #3f3f3f;
             }
             
             .theater-comments-list {
-                max-height: 35vh !important;
+                max-height: 35vh;
             }
             
-            /* Improve readability on small screens */
-            .theater-header h5 {
-                font-size: 14px;
-                max-width: 50%;
-            }
-            
-            .theater-video-info {
-                padding: 12px 16px;
-                font-size: 0.9em;
-            }
-            
-            .theater-comment-item {
-                padding: 10px;
-                margin-bottom: 10px;
-            }
-            
-            .theater-comment-content {
-                font-size: 14px;
-            }
-            
-            /* Larger buttons on mobile */
-            .theater-header .btn {
-                padding: 6px 10px;
-                font-size: 12px;
-            }
-            
-            .theater-header .btn i {
-                font-size: 14px;
-            }
-        }
-        
-        /* Very small mobile devices */
-        @media (max-width: 480px) {
             .theater-header {
-                padding: 8px 12px;
-                height: 50px;
+                padding: 0.5rem 0.75rem;
+                min-height: 52px;
             }
             
             .theater-header h5 {
-                font-size: 13px;
-                max-width: 40%;
+                font-size: 0.875rem;
+                max-width: 55%;
             }
             
             .theater-header .btn {
-                padding: 4px 8px;
-                font-size: 11px;
+                min-width: 40px;
+                min-height: 40px;
+                padding: 0.375rem 0.5rem;
+                font-size: 0.875rem;
             }
             
             .theater-header .btn span {
-                display: none; /* Hide text, show only icons */
-            }
-            
-            .theater-video-container {
-                min-height: 35vh !important;
-                max-height: 45vh !important;
-            }
-            
-            .theater-video-wrapper {
-                min-height: 35vh;
+                display: none; /* Hide text labels on mobile */
             }
             
             .theater-video-info {
-                padding: 10px 12px;
-                font-size: 0.85em;
+                font-size: 0.875rem;
+            }
+            
+            .theater-comment-item {
+                padding: 0.625rem;
+                margin-bottom: 0.625rem;
+            }
+            
+            .theater-comment-content {
+                font-size: 0.8125rem;
+            }
+        }
+        
+        /* Small mobile: Bootstrap xs (max-width: 575.98px) */
+        @media (max-width: 575.98px) {
+            .theater-header {
+                padding: 0.5rem;
+                min-height: 48px;
+            }
+            
+            .theater-header h5 {
+                font-size: 0.8125rem;
+                max-width: 45%;
+            }
+            
+            .theater-header .btn {
+                min-width: 36px;
+                min-height: 36px;
+                padding: 0.25rem 0.375rem;
+                font-size: 0.75rem;
+            }
+            
+            .theater-video-container {
+                min-height: 40vh;
+                max-height: 50vh;
+            }
+            
+            .theater-video-wrapper {
+                min-height: 40vh;
+            }
+            
+            .theater-video-info {
+                padding: 0.625rem 0.75rem;
+                font-size: 0.8125rem;
                 max-height: 25vh;
             }
             
             .theater-comments-section {
-                min-height: 35vh !important;
-                max-height: 35vh !important;
+                min-height: 35vh;
+                max-height: 45vh;
             }
             
             .theater-comments-list {
-                max-height: 25vh !important;
-                padding: 10px;
+                max-height: 30vh;
+                padding: 0.625rem;
             }
             
             .theater-comments-form {
-                padding: 10px;
+                padding: 0.625rem;
             }
             
             .theater-comments-header {
-                padding: 10px;
+                padding: 0.625rem;
+            }
+            
+            .theater-comment-item {
+                padding: 0.5rem;
+                margin-bottom: 0.5rem;
+            }
+            
+            .theater-comment-content {
+                font-size: 0.75rem;
+            }
+        }
+        
+        /* Landscape mobile optimization */
+        @media (max-width: 767.98px) and (orientation: landscape) {
+            .theater-video-container {
+                min-height: 60vh;
+                max-height: 70vh;
+            }
+            
+            .theater-video-info {
+                max-height: 20vh;
+            }
+            
+            .theater-comments-section {
+                min-height: 30vh;
+                max-height: 40vh;
+            }
+        }
+        
+        /* Very small devices (iPhone SE, etc.) */
+        @media (max-width: 374px) {
+            .theater-header h5 {
+                font-size: 0.75rem;
+                max-width: 40%;
+            }
+            
+            .theater-header .btn {
+                min-width: 32px;
+                min-height: 32px;
+                padding: 0.25rem;
+            }
+            
+            .theater-video-container {
+                min-height: 35vh;
+                max-height: 45vh;
+            }
+            
+            .theater-video-info {
+                padding: 0.5rem;
+                font-size: 0.75rem;
+                max-height: 20vh;
+            }
+            
+            .theater-comments-section {
+                min-height: 30vh;
+                max-height: 40vh;
             }
         }
 
@@ -476,28 +573,47 @@
             border: none;
             color: #3ea6ff;
             cursor: pointer;
-            padding: 4px 8px;
-            font-size: 11px;
-            border-radius: 4px;
+            padding: 0.375rem 0.5rem;
+            font-size: 0.75rem;
+            border-radius: 0.25rem;
             transition: all 0.2s ease;
+            min-height: 32px; /* Better touch target */
+            touch-action: manipulation;
         }
         
-        .theater-comment-reply-btn:hover {
+        .theater-comment-reply-btn:hover,
+        .theater-comment-reply-btn:active {
             background: rgba(62, 166, 255, 0.1);
             color: #5bb5ff;
         }
         
         .theater-comment-reply-form {
-            margin-top: 12px;
-            padding: 12px;
+            margin-top: 0.75rem;
+            padding: 0.75rem;
             background: #0f0f0f;
-            border-radius: 8px;
+            border-radius: 0.5rem;
             border: 1px solid #3f3f3f;
             display: none;
         }
         
         .theater-comment-reply-form.active {
             display: block;
+        }
+        
+        /* Better form inputs for mobile */
+        .theater-comments-form textarea,
+        .theater-comment-reply-form textarea {
+            font-size: 1rem; /* Prevents zoom on iOS */
+            min-height: 44px; /* Better touch target */
+            resize: vertical;
+            touch-action: manipulation;
+        }
+        
+        .theater-comments-form .btn,
+        .theater-comment-reply-form .btn {
+            min-height: 44px; /* Better touch target */
+            min-width: 80px;
+            touch-action: manipulation;
         }
         
         .theater-reply-count {
@@ -565,9 +681,9 @@
         <!-- Header -->
         <div class="theater-header">
             <h5 class="mb-0 text-truncate flex-grow-1" id="theaterTitle" style="max-width: 60%;">Loading...</h5>
-            <div class="d-flex gap-2 align-items-center">
+            <div class="d-flex gap-1 gap-sm-2 align-items-center flex-shrink-0">
                 <button class="btn btn-sm btn-outline-info" id="theaterFollowBtn" title="Follow" style="display: none;">
-                    <i class="bi bi-person-plus"></i> <span id="theaterFollowText">Follow</span>
+                    <i class="bi bi-person-plus"></i> <span id="theaterFollowText" class="d-none d-sm-inline">Follow</span>
                 </button>
                 <button class="btn btn-sm btn-outline-success" id="theaterLikeBtn" title="Liker">
                     <i class="bi bi-hand-thumbs-up"></i>
@@ -632,13 +748,17 @@
                         id="theaterCommentInput" 
                         class="form-control bg-dark text-white border-secondary mb-2"
                         placeholder="Ajouter un commentaire..."
-                        rows="3"></textarea>
-                    <div class="d-flex gap-2 justify-content-end">
+                        rows="3"
+                        autocomplete="off"
+                        autocorrect="on"
+                        autocapitalize="sentences"
+                        spellcheck="true"></textarea>
+                    <div class="d-flex gap-2 justify-content-end flex-wrap">
                         <button class="btn btn-sm btn-primary" id="submitTheaterCommentBtn">
-                            <i class="bi bi-send"></i> Publier
+                            <i class="bi bi-send"></i> <span class="d-none d-sm-inline">Publier</span>
                         </button>
                         <button class="btn btn-sm btn-outline-secondary" id="theaterTimestampBtn">
-                            <i class="bi bi-clock"></i> Timestamp
+                            <i class="bi bi-clock"></i> <span class="d-none d-sm-inline">Timestamp</span>
                         </button>
                     </div>
                 </div>
@@ -2495,9 +2615,13 @@
                 durationEl.textContent = ` • ${minutes}:${String(seconds).padStart(2, '0')}`;
             }
             
-            // Set description
+            // Set description (with UTF-8 fix and linkify URLs)
             if (descriptionEl && videoData.description) {
-                descriptionEl.textContent = videoData.description;
+                if (typeof formatDescription === 'function') {
+                    descriptionEl.innerHTML = formatDescription(videoData.description);
+                } else {
+                    descriptionEl.textContent = videoData.description;
+                }
             }
             
             // Load author

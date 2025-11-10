@@ -2,8 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>🎥 Webcam Recorder with NOSTR Publishing</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
     
     <!-- Nostr integration -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
@@ -62,16 +71,17 @@
         }
         
         /* Compact Header - YouTube Style */
+        /* Header - Using Bootstrap utilities */
         .header {
             background: #212121;
             backdrop-filter: blur(10px);
             border-bottom: 1px solid #3f3f3f;
-            padding: 12px 24px;
+            padding: 0.75rem 1.5rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 16px;
+            gap: 1rem;
             position: sticky;
             top: 0;
             z-index: 100;
@@ -93,46 +103,47 @@
             gap: 8px;
         }
         
+        /* Links - Using Bootstrap btn utilities */
         .youtube-link {
-            padding: 8px 16px;
+            padding: 0.5rem 1rem;
             background: transparent;
             border: 1px solid #3f3f3f;
             color: #f1f1f1;
-            border-radius: 18px;
-            font-size: 0.85em;
-            cursor: pointer;
+            border-radius: 1.125rem;
+            font-size: 0.85rem;
             transition: all 0.2s ease;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 0.375rem;
             font-weight: 500;
+            min-height: 36px; /* Better touch target */
         }
         
         .youtube-link:hover {
-            background: #3f3f3f;
+            background-color: #3f3f3f;
             border-color: #ff0000;
             color: #ffffff;
         }
 
         .nostrify-link {
-            padding: 8px 16px;
+            padding: 0.5rem 1rem;
             background: transparent;
             border: 1px solid #3f3f3f;
             color: #f1f1f1;
-            border-radius: 18px;
-            font-size: 0.85em;
-            cursor: pointer;
+            border-radius: 1.125rem;
+            font-size: 0.85rem;
             transition: all 0.2s ease;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 0.375rem;
             font-weight: 500;
+            min-height: 36px; /* Better touch target */
         }
         
         .nostrify-link:hover {
-            background: #3f3f3f;
+            background-color: #3f3f3f;
             border-color: #ff0000;
             color: #ffffff;
         }
@@ -161,32 +172,33 @@
             border-radius: 4px;
         }
         
-        /* Main Container - Full viewport */
+        /* Main Container - Using Bootstrap utilities */
         .main-container {
             max-width: 100%;
-            padding: 24px;
+            padding: 1.5rem;
             height: 100vh;
+            height: 100dvh; /* Dynamic viewport for mobile */
             overflow-y: auto;
             background: #0f0f0f;
         }
         
-        /* Webcam Section - YouTube Style */
+        /* Webcam Section - Using Bootstrap utilities */
         .webcam-section {
             background: #181818;
             backdrop-filter: blur(10px);
             border: 1px solid #3f3f3f;
-            padding: 24px;
-            border-radius: 12px;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
             text-align: center;
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-            max-width: 900px;
+            max-width: 56.25rem;
             margin: 0 auto;
         }
         
         .webcam-title {
             color: #ffffff;
-            font-size: 1.5em;
-            margin-bottom: 20px;
+            font-size: 1.5rem;
+            margin-bottom: 1.25rem;
             font-weight: 500;
         }
         
@@ -725,8 +737,8 @@
             75% { transform: scale(0.95); }
         }
         
-        /* Responsive */
-        @media screen and (max-width: 768px) {
+        /* Responsive - Using Bootstrap breakpoints */
+        @media (max-width: 767.98px) {
             .header {
                 padding: 6px 10px;
             }
@@ -746,39 +758,42 @@
             }
             
             .main-container {
-                padding: 5px;
+                padding: 0.3125rem;
                 height: 100vh;
+                height: 100dvh; /* Dynamic viewport for mobile */
             }
             
             .webcam-section {
-                padding: 10px;
-                border-radius: 10px;
+                padding: 0.625rem;
+                border-radius: 0.625rem;
             }
             
             .webcam-title {
-                font-size: 1.1em;
-                margin-bottom: 10px;
+                font-size: 1.1rem;
+                margin-bottom: 0.625rem;
             }
             
             #video-preview {
                 max-height: 35vh;
+                max-height: 35dvh; /* Dynamic viewport for mobile */
                 border-width: 2px;
-                border-radius: 8px;
-                margin: 8px auto;
+                border-radius: 0.5rem;
+                margin: 0.5rem auto;
             }
             
             .camera-controls {
                 display: flex;
-                gap: 8px;
-                margin-bottom: 10px;
+                gap: 0.5rem;
+                margin-bottom: 0.625rem;
                 justify-content: center;
                 align-items: center;
                 flex-wrap: wrap;
             }
             
             .camera-controls button {
-                padding: 8px 16px;
-                font-size: 12px;
+                padding: 0.5rem 1rem;
+                font-size: 0.75rem;
+                min-height: 44px; /* Better touch target */
             }
             
             .camera-selector {
@@ -1084,25 +1099,26 @@
             transform: translateY(-1px);
         }
         
-        @media screen and (max-width: 768px) {
+        @media (max-width: 767.98px) {
             .central-connection-title {
-                font-size: 2em;
+                font-size: 2rem;
             }
             
             .central-connection-subtitle {
-                font-size: 1em;
-                margin-bottom: 30px;
+                font-size: 1rem;
+                margin-bottom: 1.875rem;
             }
             
             .central-connect-btn {
-                padding: 16px 32px;
-                font-size: 1.1em;
-                min-width: 250px;
+                padding: 1rem 2rem;
+                font-size: 1.1rem;
+                min-width: 15.625rem;
+                min-height: 44px; /* Better touch target */
             }
         }
         
-        /* Extra small mobile devices */
-        @media screen and (max-width: 480px) {
+        /* Extra small mobile devices - Bootstrap xs breakpoint */
+        @media (max-width: 575.98px) {
             .header h1 {
                 font-size: 0.9em;
             }
