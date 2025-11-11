@@ -13,8 +13,9 @@
 # - Request submission by applicants
 # - Multi-signature attestation by certified experts
 # - Verifiable Credentials (VC) issuance upon validation
-# - Final signature by UPLANETNAME.G1 authority
+# - Final signature by oracle authority (myswarm_secret.nostr for stations, UPLANETNAME_G1 for primary)
 # - Integration with DID/NOSTR infrastructure
+# - Resilient architecture: each oracle signs with its own key, only primary uses UPLANETNAME_G1
 #
 # NOSTR Event Kinds:
 # - 30500: Permit Definition (Parameterized Replaceable)
@@ -243,7 +244,7 @@ class OracleSystem:
         self.definitions[definition.id] = definition
         self.save_data()
         
-        # Publish to NOSTR (signed by UPLANETNAME_G1, but saved in creator's directory if provided)
+        # Publish to NOSTR (signed by oracle key, but saved in creator's directory if provided)
         self.publish_permit_definition(definition, creator_npub=creator_npub)
         
         print(f"✅ Permit definition {definition.id} created")
@@ -415,17 +416,88 @@ class OracleSystem:
         print(f"✅ Credential {credential_id} issued for {request.applicant_npub}")
         return credential
     
+    def _is_primary_station(self) -> bool:
+        """Check if this is the primary station (ORACLE des ORACLES)
+        
+        Returns True if IPFSNODEID matches the first STRAP in A_boostrap_nodes.txt
+        """
+        ipfs_node_id = os.getenv("IPFSNODEID", "")
+        if not ipfs_node_id:
+            return False
+        
+        # Check bootstrap nodes file
+        strapfile = None
+        if Path.home().joinpath(".zen/game/MY_boostrap_nodes.txt").exists():
+            strapfile = Path.home() / ".zen/game/MY_boostrap_nodes.txt"
+        elif Path.home().joinpath(".zen/Astroport.ONE/A_boostrap_nodes.txt").exists():
+            strapfile = Path.home() / ".zen/Astroport.ONE/A_boostrap_nodes.txt"
+        
+        if strapfile and strapfile.exists():
+            try:
+                with open(strapfile, 'r') as f:
+                    straps = []
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            # Extract IPFSNODEID from line (same logic as bash: rev | cut -d '/' -f 1 | rev)
+                            strap_id = line.split('/')[-1].strip()
+                            if strap_id:
+                                straps.append(strap_id)
+                    
+                    if straps and straps[0] == ipfs_node_id:
+                        return True
+            except Exception as e:
+                print(f"⚠️  Error reading bootstrap nodes file: {e}")
+        
+        return False
+    
+    def _get_oracle_keyfile(self) -> Optional[Path]:
+        """Get the oracle keyfile (myswarm_secret.nostr or UPLANETNAME_G1 for primary)
+        
+        Returns:
+            Path to keyfile, or None if not found
+        """
+        # Primary station uses UPLANETNAME_G1
+        if self._is_primary_station():
+            keyfile = Path.home() / ".zen/game/uplanet.G1.nostr"
+            if keyfile.exists():
+                print("⭐ Primary station - Using UPLANETNAME_G1 key")
+                return keyfile
+        
+        # Other stations use myswarm_secret.nostr directly
+        # nostr_send_note.py reads NSEC= from the file, so we can use it as-is
+        myswarm_secret = Path.home() / ".zen/game/myswarm_secret.nostr"
+        if myswarm_secret.exists():
+            print(f"🔑 Oracle station - Using myswarm_secret.nostr")
+            return myswarm_secret
+        
+        return None
+    
     def sign_credential(self, request: PermitRequest, definition: PermitDefinition) -> Dict[str, Any]:
-        """Sign a credential with UPlanet authority key"""
-        # Get UPlanet G1 key for signing
-        uplanet_g1_key = os.getenv("UPLANETNAME_G1", "")
+        """Sign a credential with oracle authority key (myswarm_secret.nostr or UPLANETNAME_G1 for primary)"""
+        # Get oracle key for signing (myswarm_secret.nostr or UPLANETNAME_G1)
+        oracle_key = ""
+        if self._is_primary_station():
+            oracle_key = os.getenv("UPLANETNAME_G1", "")
+        else:
+            # Read HEX from myswarm_secret.nostr
+            myswarm_secret = Path.home() / ".zen/game/myswarm_secret.nostr"
+            if myswarm_secret.exists():
+                try:
+                    content = myswarm_secret.read_text()
+                    for line in content.split('\n'):
+                        if line.startswith('HEX='):
+                            oracle_key = line.split('HEX=')[1].split(';')[0].strip()
+                            break
+                except Exception as e:
+                    print(f"⚠️  Error reading HEX from myswarm_secret.nostr: {e}")
         
         # Create proof structure
         proof = {
             "@context": "https://w3id.org/security/v2",
             "type": "Ed25519Signature2020",
             "created": datetime.now().isoformat(),
-            "verificationMethod": f"{definition.issuer_did}#uplanet-authority",
+            "verificationMethod": f"{definition.issuer_did}#oracle-authority",
             "proofPurpose": "assertionMethod",
             "proofValue": ""  # Will be filled by actual signing
         }
@@ -440,10 +512,10 @@ class OracleSystem:
             "issued_at": datetime.now().isoformat()
         }
         
-        # Sign with UPlanet authority
+        # Sign with oracle authority
         # CRITICAL: Use canonical JSON (RFC 8785) for signature consistency
         data_str = canonicalize_json(credential_data)
-        signature = hashlib.sha256(f"{data_str}:{uplanet_g1_key}".encode()).hexdigest()
+        signature = hashlib.sha256(f"{data_str}:{oracle_key}".encode()).hexdigest()
         
         proof["proofValue"] = signature
         
@@ -518,24 +590,44 @@ class OracleSystem:
         """
         # Prepare NOSTR event (kind 30500)
         # CRITICAL: Content must be canonicalized JSON (RFC 8785) for signature consistency
+        tags = [
+            ["d", definition.id],
+            ["t", "permit"],
+            ["t", "definition"],
+            ["t", definition.id]
+        ]
+        
+        # Add IPFSNODEID tag to filter events by Astroport (prevents conflicts in multi-station constellations)
+        ipfs_node_id = os.getenv("IPFSNODEID", "")
+        if ipfs_node_id:
+            tags.append(["ipfs_node", ipfs_node_id])
+        
         event_data = {
             "kind": PermitEventKind.PERMIT_DEFINITION.value,
             "content": canonicalize_json(asdict(definition)),
-            "tags": [
-                ["d", definition.id],
-                ["t", "permit"],
-                ["t", "definition"],
-                ["t", definition.id]
-            ]
+            "tags": tags
         }
         
-        # Event is signed by UPLANETNAME_G1, but saved in creator's directory if provided
-        self._publish_to_nostr(event_data, signer_npub=creator_npub, use_uplanet_key=True)
+        # Event is signed by oracle key (myswarm_secret.nostr or UPLANETNAME_G1 for primary)
+        self._publish_to_nostr(event_data, signer_npub=creator_npub, use_oracle_key=True)
     
     def publish_permit_request(self, request: PermitRequest):
         """Publish permit request to NOSTR"""
         # Prepare NOSTR event (kind 30501)
         # CRITICAL: Content must be canonicalized JSON (RFC 8785) for signature consistency
+        tags = [
+            ["d", request.request_id],
+            ["l", request.permit_definition_id, "permit_type"],
+            ["p", request.applicant_npub],
+            ["t", "permit"],
+            ["t", "request"]
+        ]
+        
+        # Add IPFSNODEID tag to filter events by Astroport (prevents conflicts in multi-station constellations)
+        ipfs_node_id = os.getenv("IPFSNODEID", "")
+        if ipfs_node_id:
+            tags.append(["ipfs_node", ipfs_node_id])
+        
         event_data = {
             "kind": PermitEventKind.PERMIT_REQUEST.value,
             "content": canonicalize_json({
@@ -546,13 +638,7 @@ class OracleSystem:
                 "evidence": request.evidence,
                 "status": request.status.value
             }),
-            "tags": [
-                ["d", request.request_id],
-                ["l", request.permit_definition_id, "permit_type"],
-                ["p", request.applicant_npub],
-                ["t", "permit"],
-                ["t", "request"]
-            ]
+            "tags": tags
         }
         
         self._publish_to_nostr(event_data, request.applicant_npub)
@@ -561,6 +647,19 @@ class OracleSystem:
         """Publish permit attestation to NOSTR"""
         # Prepare NOSTR event (kind 30502)
         # CRITICAL: Content must be canonicalized JSON (RFC 8785) for signature consistency
+        tags = [
+            ["d", attestation.attestation_id],
+            ["e", attestation.request_id],
+            ["p", attestation.attester_npub],
+            ["t", "permit"],
+            ["t", "attestation"]
+        ]
+        
+        # Add IPFSNODEID tag to filter events by Astroport (prevents conflicts in multi-station constellations)
+        ipfs_node_id = os.getenv("IPFSNODEID", "")
+        if ipfs_node_id:
+            tags.append(["ipfs_node", ipfs_node_id])
+        
         event_data = {
             "kind": PermitEventKind.PERMIT_ATTESTATION.value,
             "content": canonicalize_json({
@@ -570,13 +669,7 @@ class OracleSystem:
                 "statement": attestation.statement,
                 "signature": attestation.signature
             }),
-            "tags": [
-                ["d", attestation.attestation_id],
-                ["e", attestation.request_id],
-                ["p", attestation.attester_npub],
-                ["t", "permit"],
-                ["t", "attestation"]
-            ]
+            "tags": tags
         }
         
         self._publish_to_nostr(event_data, attestation.attester_npub)
@@ -586,6 +679,20 @@ class OracleSystem:
         # Prepare NOSTR event (kind 30503)
         # CRITICAL: Content must be canonicalized JSON (RFC 8785) for signature consistency
         # This is especially important for Verifiable Credentials (W3C VC standard)
+        tags = [
+            ["d", credential.credential_id],
+            ["l", credential.permit_definition_id, "permit_type"],
+            ["p", credential.holder_npub],
+            ["t", "permit"],
+            ["t", "credential"],
+            ["t", "verifiable-credential"]
+        ]
+        
+        # Add IPFSNODEID tag to filter events by Astroport (prevents conflicts in multi-station constellations)
+        ipfs_node_id = os.getenv("IPFSNODEID", "")
+        if ipfs_node_id:
+            tags.append(["ipfs_node", ipfs_node_id])
+        
         event_data = {
             "kind": PermitEventKind.PERMIT_CREDENTIAL.value,
             "content": canonicalize_json({
@@ -599,26 +706,19 @@ class OracleSystem:
                 "proof": credential.proof,
                 "status": credential.status.value
             }),
-            "tags": [
-                ["d", credential.credential_id],
-                ["l", credential.permit_definition_id, "permit_type"],
-                ["p", credential.holder_npub],
-                ["t", "permit"],
-                ["t", "credential"],
-                ["t", "verifiable-credential"]
-            ]
+            "tags": tags
         }
         
-        # Use UPlanet authority key for signing
-        self._publish_to_nostr(event_data, None, use_uplanet_key=True)
+        # Use oracle key for signing (myswarm_secret.nostr or UPLANETNAME_G1 for primary)
+        self._publish_to_nostr(event_data, None, use_oracle_key=True)
     
-    def _publish_to_nostr(self, event_data: Dict[str, Any], signer_npub: Optional[str] = None, use_uplanet_key: bool = False):
+    def _publish_to_nostr(self, event_data: Dict[str, Any], signer_npub: Optional[str] = None, use_oracle_key: bool = False):
         """Publish an event to NOSTR relays using nostr_send_note.py
         
         Args:
             event_data: The event data to publish
             signer_npub: Optional NOSTR pubkey of the signer (for saving event in their directory)
-            use_uplanet_key: If True, use UPLANETNAME_G1 key for signing
+            use_oracle_key: If True, use oracle key (myswarm_secret.nostr or UPLANETNAME_G1 for primary)
         """
         import subprocess
         import tempfile
@@ -659,9 +759,12 @@ class OracleSystem:
                 return
             
             # Determine which keyfile to use
-            if use_uplanet_key:
-                # Use UPLANETNAME.G1 key (standardized location)
-                keyfile = Path.home() / ".zen" / "game" / "uplanet.G1.nostr"
+            if use_oracle_key:
+                # Use oracle key (myswarm_secret.nostr or UPLANETNAME_G1 for primary)
+                keyfile = self._get_oracle_keyfile()
+                if not keyfile:
+                    print("⚠️  Oracle keyfile not found (myswarm_secret.nostr or uplanet.G1.nostr)")
+                    return
             elif signer_npub:
                 # Try to find keyfile by email/npub
                 email = self.get_email_from_npub(signer_npub)
@@ -1020,7 +1123,7 @@ def main():
             id=args.id,
             name=args.name,
             description=f"Permit: {args.name}",
-            issuer_did=f"did:nostr:{os.getenv('UPLANETNAME_G1', '')}",
+            issuer_did=f"did:nostr:{oracle._get_oracle_pubkey()}",
             min_attestations=args.min_attestations,
             required_license=args.required_license,
             valid_duration_days=args.valid_days,

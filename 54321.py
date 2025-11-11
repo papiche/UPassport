@@ -1741,6 +1741,35 @@ async def get_wotx2(request: Request, npub: Optional[str] = None, permit_id: Opt
             except Exception as e:
                 logging.warning(f"Error fetching permits from Nostr: {e}")
         
+        # Detect if this is the primary station (ORACLE des ORACLES)
+        # Same logic as ORACLE.refresh.sh - check if IPFSNODEID matches first STRAP in A_boostrap_nodes.txt
+        is_primary_station = False
+        ipfs_node_id = os.getenv("IPFSNODEID", "")
+        if ipfs_node_id:
+            strapfile = None
+            if os.path.exists(os.path.expanduser("~/.zen/game/MY_boostrap_nodes.txt")):
+                strapfile = os.path.expanduser("~/.zen/game/MY_boostrap_nodes.txt")
+            elif os.path.exists(os.path.expanduser("~/.zen/Astroport.ONE/A_boostrap_nodes.txt")):
+                strapfile = os.path.expanduser("~/.zen/Astroport.ONE/A_boostrap_nodes.txt")
+            
+            if strapfile and os.path.exists(strapfile):
+                try:
+                    with open(strapfile, 'r') as f:
+                        straps = []
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith('#'):
+                                # Extract IPFSNODEID from line (same logic as bash: rev | cut -d '/' -f 1 | rev)
+                                strap_id = line.split('/')[-1].strip()
+                                if strap_id:
+                                    straps.append(strap_id)
+                        
+                        if straps and straps[0] == ipfs_node_id:
+                            is_primary_station = True
+                            logging.info(f"⭐ PRIMARY STATION DETECTED - IPFSNODEID {ipfs_node_id} matches first STRAP")
+                except Exception as e:
+                    logging.warning(f"Error reading bootstrap nodes file: {e}")
+        
         return templates.TemplateResponse("wotx2.html", {
             "request": request,
             "myIPFS": myipfs_gateway,
@@ -1749,7 +1778,9 @@ async def get_wotx2(request: Request, npub: Optional[str] = None, permit_id: Opt
             "selected_permit_id": permit_id or "PERMIT_DE_NAGER",
             "npub": npub,
             "uSPOT": os.getenv("uSPOT", "http://127.0.0.1:54321"),
-            "nostr_relay": os.getenv("NOSTR_RELAYS", "ws://127.0.0.1:7777").split()[0] if os.getenv("NOSTR_RELAYS") else "ws://127.0.0.1:7777"
+            "nostr_relay": os.getenv("NOSTR_RELAYS", "ws://127.0.0.1:7777").split()[0] if os.getenv("NOSTR_RELAYS") else "ws://127.0.0.1:7777",
+            "IPFSNODEID": ipfs_node_id,
+            "is_primary_station": is_primary_station
         })
         
     except Exception as e:

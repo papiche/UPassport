@@ -568,11 +568,37 @@
             </div>
         </div>
 
+        <!-- View Mode Tabs (Local/Global) -->
+        <div class="card mb-3" id="viewModeCard" style="display: none;">
+            <div class="card-body">
+                <ul class="nav nav-tabs" id="viewModeTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="local-tab" data-bs-toggle="tab" data-bs-target="#local-view" 
+                                type="button" role="tab" onclick="switchViewMode('local')">
+                            <i class="bi bi-house-door"></i> Vue Locale
+                            <span class="badge bg-primary ms-2" id="local-badge">Cette station</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation" id="global-tab-item" style="display: none;">
+                        <button class="nav-link" id="global-tab" data-bs-toggle="tab" data-bs-target="#global-view" 
+                                type="button" role="tab" onclick="switchViewMode('global')">
+                            <i class="bi bi-globe"></i> Vue Globale
+                            <span class="badge bg-success ms-2" id="global-badge">Constellation</span>
+                            <span class="badge bg-warning ms-1" id="primary-badge" style="display: none;">
+                                <i class="bi bi-star-fill"></i> Primaire
+                            </span>
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
         <!-- All Permits List (similar to oracle.html) -->
         <div class="card mb-4">
             <div class="card-header">
                 <h4 class="mb-0">
                     <i class="bi bi-list-ul"></i> Tous les Permis Disponibles
+                    <span id="view-mode-indicator" class="badge bg-info ms-2"></span>
                 </h4>
             </div>
             <div class="card-body">
@@ -981,6 +1007,8 @@
     <script>
         const uSPOT = "{{ uSPOT }}";
         const myIPFS = "{{ myIPFS }}";
+        const IPFSNODEID = "{{ IPFSNODEID }}";  // IPFS Node ID for filtering events by Astroport
+        const isPrimaryStation = {{ is_primary_station | tojson }};  // True if this is the primary station (ORACLE des ORACLES)
         // Variables will be set by common.js (userPubkey, nostrRelay, isNostrConnected)
         // We use local aliases for compatibility
         let userHEX = null;  // Will be set from userPubkey (common.js)
@@ -992,6 +1020,9 @@
         const allPermitsRaw = {{ all_permits | tojson }};
         const allPermits = allPermitsRaw || [];
         let selectedPermitId = "{{ selected_permit_id }}" || "PERMIT_DE_NAGER";
+        
+        // View mode: 'local' (this station only) or 'global' (all stations in constellation)
+        let viewMode = 'local';  // Default to local view
         
         // Data loaded from Nostr (30501 requests, 30502 attestations, 30503 credentials)
         let permitRequests = [];  // kind 30501
@@ -1086,6 +1117,9 @@
             // Wait for common.js to load
             await waitForNostrFunctions();
             
+            // Initialize view mode tabs
+            initializeViewModeTabs();
+            
             // Close connection panel when clicking outside
             document.addEventListener('click', function(event) {
                 const badge = document.getElementById('connectionBadge');
@@ -1129,6 +1163,72 @@
             });
         });
         
+        // Switch view mode (local/global)
+        async function switchViewMode(mode) {
+            viewMode = mode;
+            
+            // Update tab active state
+            document.getElementById('local-tab').classList.toggle('active', mode === 'local');
+            document.getElementById('global-tab').classList.toggle('active', mode === 'global');
+            
+            // Update view mode indicator
+            const indicator = document.getElementById('view-mode-indicator');
+            if (indicator) {
+                if (mode === 'local') {
+                    indicator.textContent = 'Vue Locale';
+                    indicator.className = 'badge bg-primary ms-2';
+                } else {
+                    indicator.textContent = 'Vue Globale (Constellation)';
+                    indicator.className = 'badge bg-success ms-2';
+                }
+            }
+            
+            // Reload data with new filters
+            if (permitData && permitData.id) {
+                await loadNostrData();
+                loadData();
+            }
+            
+            // Reload permits list
+            await renderAllPermitsList();
+        }
+        
+        // Initialize view mode tabs
+        function initializeViewModeTabs() {
+            const viewModeCard = document.getElementById('viewModeCard');
+            const globalTabItem = document.getElementById('global-tab-item');
+            const primaryBadge = document.getElementById('primary-badge');
+            const viewModeIndicator = document.getElementById('view-mode-indicator');
+            
+            if (!viewModeCard) return;
+            
+            // Show tabs if primary station or if we want to show global view option
+            // For now, only show global tab if primary station
+            if (isPrimaryStation) {
+                viewModeCard.style.display = 'block';
+                if (globalTabItem) {
+                    globalTabItem.style.display = 'block';
+                }
+                if (primaryBadge) {
+                    primaryBadge.style.display = 'inline-block';
+                }
+                console.log('[WoTx2] ⭐ Primary station detected - Global view enabled');
+            } else {
+                // Hide global tab for non-primary stations
+                viewModeCard.style.display = 'none';
+                if (globalTabItem) {
+                    globalTabItem.style.display = 'none';
+                }
+                console.log('[WoTx2] Standard station - Local view only');
+            }
+            
+            // Update view mode indicator
+            if (viewModeIndicator) {
+                viewModeIndicator.textContent = 'Vue Locale';
+                viewModeIndicator.className = 'badge bg-primary ms-2';
+            }
+        }
+        
         // Load data from Nostr (30501 requests, 30502 attestations, 30503 credentials)
         async function loadNostrData() {
             if (!permitData || !permitData.id) {
@@ -1139,16 +1239,30 @@
             }
             
             try {
-                // Load permit requests (kind 30501) for selected permit
-                const requests = await fetchNostrEvents(30501, {
+                // Build filters - only filter by IPFSNODEID in local mode
+                const requestFilters = {
                     '#l': [permitData.id, 'permit_type']
-                });
+                };
+                if (viewMode === 'local' && IPFSNODEID) {
+                    requestFilters['#ipfs_node'] = [IPFSNODEID];
+                }
+                // In global mode, don't filter by IPFSNODEID (get all events from constellation)
+                
+                // Load permit requests (kind 30501) for selected permit
+                const requests = await fetchNostrEvents(30501, requestFilters);
                 permitRequests = requests.map(parsePermitRequest).filter(r => r !== null);
                 
-                // Load permit credentials (kind 30503) for selected permit
-                const credentials = await fetchNostrEvents(30503, {
+                // Build filters for credentials
+                const credentialFilters = {
                     '#l': [permitData.id, 'permit_type']
-                });
+                };
+                if (viewMode === 'local' && IPFSNODEID) {
+                    credentialFilters['#ipfs_node'] = [IPFSNODEID];
+                }
+                // In global mode, don't filter by IPFSNODEID
+                
+                // Load permit credentials (kind 30503) for selected permit
+                const credentials = await fetchNostrEvents(30503, credentialFilters);
                 permitCredentials = credentials.map(parsePermitCredential).filter(c => c !== null);
                 
                 // Calculate required attestations
@@ -1325,9 +1439,14 @@
         
         // Count attestations for a request (kind 30502)
         async function countAttestations(requestId) {
-            const attestations = await fetchNostrEvents(30502, {
+            const filters = {
                 '#e': [requestId]
-            });
+            };
+            // Only filter by IPFSNODEID in local mode
+            if (viewMode === 'local' && IPFSNODEID) {
+                filters['#ipfs_node'] = [IPFSNODEID];
+            }
+            const attestations = await fetchNostrEvents(30502, filters);
             return attestations.length;
         }
 
@@ -2153,6 +2272,11 @@
                     ['t', 'request']
                 ];
                 
+                // Add IPFSNODEID tag to filter events by Astroport (prevents conflicts in multi-station constellations)
+                if (IPFSNODEID) {
+                    eventTags.push(['ipfs_node', IPFSNODEID]);
+                }
+                
                 // Add geolocation tags if available
                 if (location) {
                     eventTags.push(['g', location.latitude.toString(), location.longitude.toString()]);
@@ -2380,6 +2504,11 @@
                     ['t', 'permit'],
                     ['t', 'attestation']
                 ];
+                
+                // Add IPFSNODEID tag to filter events by Astroport (prevents conflicts in multi-station constellations)
+                if (IPFSNODEID) {
+                    eventTags.push(['ipfs_node', IPFSNODEID]);
+                }
                 
                 // Add geolocation tags if provided
                 if (latitude && longitude) {
@@ -2626,9 +2755,14 @@
         // Fetch permit definition (kind 30500) from Nostr
         async function fetchPermitDefinition(permitId) {
             try {
-                const events = await fetchNostrEvents(30500, {
+                const filters = {
                     '#d': [permitId]
-                });
+                };
+                // Only filter by IPFSNODEID in local mode
+                if (viewMode === 'local' && IPFSNODEID) {
+                    filters['#ipfs_node'] = [IPFSNODEID];
+                }
+                const events = await fetchNostrEvents(30500, filters);
                 if (events.length > 0) {
                     // Sort by created_at descending to get the most recent
                     events.sort((a, b) => b.created_at - a.created_at);
@@ -2643,9 +2777,14 @@
         // Check if any 30503 credentials exist for this permit
         async function checkHas30503Credentials(permitId) {
             try {
-                const events = await fetchNostrEvents(30503, {
+                const filters = {
                     '#l': [permitId, 'permit_type']
-                });
+                };
+                // Only filter by IPFSNODEID in local mode
+                if (viewMode === 'local' && IPFSNODEID) {
+                    filters['#ipfs_node'] = [IPFSNODEID];
+                }
+                const events = await fetchNostrEvents(30503, filters);
                 return events.length > 0;
             } catch (e) {
                 console.error('Error checking 30503 credentials:', e);
@@ -2718,6 +2857,11 @@
                     ],
                     created_at: Math.floor(Date.now() / 1000)
                 };
+                
+                // Add IPFSNODEID tag to filter events by Astroport
+                if (IPFSNODEID) {
+                    deleteEvent.tags.push(['ipfs_node', IPFSNODEID]);
+                }
                 
                 // Sign and publish event
                 const signedEvent = await window.nostr.signEvent(deleteEvent);
