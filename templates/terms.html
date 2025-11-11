@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service - UPlanet IPFS Storage</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+        }
+        .last-updated {
+            color: #7f8c8d;
+            font-style: italic;
+            margin-bottom: 30px;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin: 10px 0;
+        }
+        .highlight {
+            background-color: #fff3cd;
+            padding: 15px;
+            border-left: 4px solid #ffc107;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <h1>Terms of Service</h1>
+    <p class="last-updated">Last updated: {{ current_date }}</p>
+    
+    <div class="section">
+        <h2>1. Acceptance of Terms</h2>
+        <p>By accessing and using the UPlanet IPFS Storage service (the "Service"), you accept and agree to be bound by the terms and provision of this agreement.</p>
+    </div>
+
+    <div class="section">
+        <h2>2. Service Description</h2>
+        <p>UPlanet IPFS Storage is a decentralized file storage service that:</p>
+        <ul>
+            <li>Stores files on the InterPlanetary File System (IPFS)</li>
+            <li>Publishes file metadata to NOSTR relays</li>
+            <li>Provides file hosting and distribution capabilities</li>
+            <li>Supports provenance tracking and metadata enrichment</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>3. User Accounts and Authentication</h2>
+        <h3>3.1 MULTIPASS Users</h3>
+        <p>Users with recognized MULTIPASS credentials (verified by UPlanet) are granted:</p>
+        <ul>
+            <li>Storage quota: 650MB per file</li>
+            <li>Full access to all service features</li>
+            <li>Priority support</li>
+        </ul>
+        
+        <h3>3.2 NOSTR Users</h3>
+        <p>Users authenticated via NOSTR (NIP-98) but not recognized as MULTIPASS are granted:</p>
+        <ul>
+            <li>Storage quota: 100MB per file</li>
+            <li>Standard service features</li>
+        </ul>
+        
+        <p><strong>Authentication is required</strong> for all uploads via NIP-98 Authorization header.</p>
+    </div>
+
+    <div class="section">
+        <h2>4. Acceptable Use</h2>
+        <p>You agree NOT to use the Service to:</p>
+        <ul>
+            <li>Upload illegal, harmful, or malicious content</li>
+            <li>Violate any laws or regulations</li>
+            <li>Infringe on intellectual property rights</li>
+            <li>Upload content that violates privacy rights</li>
+            <li>Distribute spam, malware, or viruses</li>
+            <li>Engage in any activity that could harm the Service or other users</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>5. Content Responsibility</h2>
+        <p>You are solely responsible for:</p>
+        <ul>
+            <li>The content you upload to the Service</li>
+            <li>Ensuring you have the right to upload and distribute such content</li>
+            <li>Complying with all applicable laws and regulations</li>
+            <li>Respecting the intellectual property rights of others</li>
+        </ul>
+        <p>UPlanet does not monitor or review uploaded content but reserves the right to remove any content that violates these Terms.</p>
+    </div>
+
+    <div class="section">
+        <h2>6. File Storage and Availability</h2>
+        <ul>
+            <li>Files are stored on IPFS, a decentralized network</li>
+            <li>File availability depends on IPFS network participation</li>
+            <li>UPlanet does not guarantee permanent file availability</li>
+            <li>Users are encouraged to maintain their own backups</li>
+            <li>No file expiration is set by default, but network conditions may affect availability</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>7. Provenance and Metadata</h2>
+        <p>The Service tracks file provenance and metadata:</p>
+        <ul>
+            <li>File hashes (SHA256) are used for deduplication</li>
+            <li>Upload chains track file origin and distribution</li>
+            <li>Metadata is published to NOSTR relays (NIP-71, NIP-94)</li>
+            <li>Users can enrich metadata (e.g., TMDB for films/series)</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>8. Intellectual Property</h2>
+        <p>You retain all rights to content you upload. By uploading content, you grant UPlanet the right to:</p>
+        <ul>
+            <li>Store and distribute your content via IPFS</li>
+            <li>Publish metadata about your content to NOSTR relays</li>
+            <li>Generate thumbnails and previews of your content</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>9. Service Availability</h2>
+        <p>UPlanet ORIGIN strives to provide reliable service and:</p>
+        <ul>
+            <li>Does not guarantee 100% uptime</li>
+            <li>May perform maintenance that temporarily affects availability</li>
+            <li>Is not responsible for IPFS network outages</li>
+            <li>Reserves the right to modify or discontinue the Service</li>
+        </ul>
+        <p>ONLY UPlanet ẐEN can provide 100% reliable service. Contact : support@qo-op.com</p>
+    </div>
+
+    <div class="section">
+        <h2>10. Limitation of Liability</h2>
+        <p>UPlanet shall not be liable for:</p>
+        <ul>
+            <li>Loss of data or files</li>
+            <li>Service interruptions or unavailability</li>
+            <li>Content uploaded by users</li>
+            <li>Any indirect, incidental, or consequential damages</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>11. Privacy</h2>
+        <p>UPlanet respects user privacy:</p>
+        <ul>
+            <li>File metadata is published to public NOSTR relays</li>
+            <li>User authentication uses NOSTR (NIP-98) standards</li>
+            <li>No personal information is collected beyond what is necessary for the Service</li>
+            <li>Users control their own data and can delete uploaded files</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>12. Modifications to Terms</h2>
+        <p>UPlanet reserves the right to modify these Terms at any time. Continued use of the Service after changes constitutes acceptance of the new Terms.</p>
+    </div>
+
+    <div class="section">
+        <h2>13. Termination</h2>
+        <p>UPlanet reserves the right to:</p>
+        <ul>
+            <li>Terminate or suspend access to the Service for violations of these Terms</li>
+            <li>Remove content that violates these Terms</li>
+            <li>Block users who engage in prohibited activities</li>
+        </ul>
+    </div>
+
+    <div class="highlight">
+        <h2>14. Contact</h2>
+        <p>For questions about these Terms, please contact:</p>
+        <p><strong>Email:</strong> support@qo-op.com</p>
+        <p><strong>Website:</strong> <a href="https://qo-op.com">qo-op.com</a></p>
+    </div>
+
+    <div class="footer">
+        <p>&copy; {{ current_year }} UPlanet / CopyLaRadio. All rights reserved.</p>
+        <p>Service powered by IPFS and NOSTR protocols.</p>
+    </div>
+</body>
+</html>
+

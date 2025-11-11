@@ -218,6 +218,12 @@ rate_limiter = RateLimiter()
 nostr_auth_cache = {}
 NOSTR_CACHE_TTL = 300  # 5 minutes
 
+# Cache pour le mapping hex -> email (MULTIPASS detection)
+# Maps hex_pubkey (lowercase) -> email directory name
+hex_to_email_cache = {}
+hex_cache_lock = threading.Lock()
+hex_cache_built = False
+
 def get_client_ip(request: Request) -> str:
     """Extract the real client IP address, handling proxies"""
     # Check for forwarded headers (common with proxies/load balancers)
@@ -635,6 +641,101 @@ def get_authenticated_user_directory(npub: str) -> Path:
     
     logging.info(f"Répertoire APP utilisateur (sécurisé): {app_dir}")
     return app_dir
+
+def _build_hex_index() -> None:
+    """
+    Build the hex -> email cache by scanning ~/.zen/game/nostr/ directories.
+    This is called once (lazy initialization) and the cache is reused for all subsequent calls.
+    Thread-safe with lock.
+    """
+    global hex_to_email_cache, hex_cache_built
+    
+    with hex_cache_lock:
+        # Double-check pattern: another thread might have built it while we waited
+        if hex_cache_built:
+            return
+        
+        logging.info("🔍 Building hex -> email index cache for MULTIPASS detection...")
+        nostr_base_path = Path.home() / ".zen" / "game" / "nostr"
+        
+        if not nostr_base_path.exists():
+            logging.debug(f"ℹ️  NOSTR directory not found: {nostr_base_path}")
+            hex_cache_built = True
+            return
+        
+        count = 0
+        for email_dir in nostr_base_path.iterdir():
+            if email_dir.is_dir() and '@' in email_dir.name:
+                hex_file_path = email_dir / "HEX"
+                
+                if hex_file_path.exists():
+                    try:
+                        with open(hex_file_path, 'r') as f:
+                            stored_hex = f.read().strip().lower()
+                        
+                        if stored_hex:
+                            hex_to_email_cache[stored_hex] = email_dir.name
+                            count += 1
+                            
+                    except Exception as e:
+                        logging.warning(f"⚠️  Error reading {hex_file_path}: {e}")
+                        continue
+        
+        hex_cache_built = True
+        logging.info(f"✅ Hex index cache built: {count} users indexed")
+
+def is_multipass_user(hex_pubkey: str) -> bool:
+    """
+    Verify if a user is recognized as MULTIPASS by checking if their account exists in ~/.zen/game/nostr/.
+    A user is considered MULTIPASS if their hex pubkey is found in any ~/.zen/game/nostr/{email}/HEX file.
+    
+    Uses an in-memory cache (built once) for O(1) lookup instead of scanning all directories.
+    This is optimized for systems with thousands of users (e.g., 2500+ directories).
+    
+    Args:
+        hex_pubkey: User's hexadecimal public key
+        
+    Returns:
+        bool: True if user is MULTIPASS (exists in ~/.zen/game/nostr/), False otherwise
+    """
+    if not hex_pubkey:
+        return False
+    
+    # Normalize the hex key
+    hex_pubkey = hex_pubkey.lower().strip()
+    
+    # Build cache on first call (lazy initialization)
+    if not hex_cache_built:
+        _build_hex_index()
+    
+    # O(1) lookup in cache
+    if hex_pubkey in hex_to_email_cache:
+        email = hex_to_email_cache[hex_pubkey]
+        logging.info(f"✅ User is recognized MULTIPASS (650MB quota) - found in {email}")
+        return True
+    
+    # User not found in cache (not in ~/.zen/game/nostr/)
+    logging.debug(f"ℹ️  User is not recognized MULTIPASS (100MB quota) - hex not in index")
+    return False
+
+def get_max_file_size_for_user(npub: str) -> int:
+    """
+    Get the maximum file size limit for a user according to UPlanet_FILE_CONTRACT.md.
+    
+    MULTIPASS users (recognized by UPlanet): 650MB
+    Other NOSTR users: 100MB
+    
+    Args:
+        npub: User's NOSTR public key (npub format)
+        
+    Returns:
+        int: Maximum file size in bytes (650MB for MULTIPASS, 100MB for others)
+    """
+    hex_pubkey = npub_to_hex(npub) if npub else None
+    if hex_pubkey and is_multipass_user(hex_pubkey):
+        return 681574400  # 650MB (aligned with NIP-96 Discovery)
+    else:
+        return 104857600  # 100MB (default per UPlanet_FILE_CONTRACT.md section 6.2)
 
 def sanitize_filename(filename: str) -> str:
     """Nettoyer le nom de fichier pour qu'il soit sécurisé"""
@@ -1435,15 +1536,6 @@ async def ustats(request: Request, lat: str = None, lon: str = None, deg: str = 
             content={"error": "Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ./tmp/54321.log."}
         )
 
-@app.get("/scan")
-async def get_root(request: Request):
-    return templates.TemplateResponse("scan_new.html", {"request": request})
-
-@app.get("/scan_multipass_payment.html")
-async def get_scan_multipass_payment(request: Request):
-    """MULTIPASS Payment Terminal - Internal route for authenticated payments between MULTIPASS wallets"""
-    return templates.TemplateResponse("scan_multipass_payment.html", {"request": request})
-
 @app.get("/astro")
 async def get_astro(request: Request):
     """Display the Astro Base template with IPFS gateway configuration"""
@@ -1461,6 +1553,19 @@ async def get_cookie_guide(request: Request):
     return templates.TemplateResponse("cookie.html", {
         "request": request,
         "myIPFS": myipfs_gateway
+    })
+
+@app.get("/terms", response_class=HTMLResponse)
+async def get_terms_of_service(request: Request):
+    """Serve Terms of Service template"""
+    from datetime import datetime
+    current_date = datetime.now().strftime("%B %d, %Y")
+    current_year = datetime.now().strftime("%Y")
+    logging.info("Serving Terms of Service template")
+    return templates.TemplateResponse("terms.html", {
+        "request": request,
+        "current_date": current_date,
+        "current_year": current_year
     })
 
 @app.get("/n8n", response_class=HTMLResponse)
@@ -1555,11 +1660,6 @@ async def get_nostr(request: Request, type: str = "default"):
 @app.get("/blog")
 async def get_root(request: Request):
     return templates.TemplateResponse("nostr_blog.html", {"request": request})
-
-# UPlanet G1 Registration
-@app.get("/g1", response_class=HTMLResponse)
-async def get_root(request: Request):
-    return templates.TemplateResponse("g1nostr.html", {"request": request})
 
 # UPlanet Oracle - Permit Management Interface
 @app.get("/wotx2", response_class=HTMLResponse)
@@ -1790,6 +1890,12 @@ async def get_oracle(
                 status_code=500
             )
         raise HTTPException(status_code=500, detail=str(e))
+
+######################################### MULTIPASS CREATION
+# UPlanet G1 MULTIPASS Registration
+@app.get("/g1", response_class=HTMLResponse)
+async def get_root(request: Request):
+    return templates.TemplateResponse("g1nostr.html", {"request": request})
 
 # Beside /g1
 @app.post("/g1nostr")
@@ -3193,6 +3299,13 @@ async def mp3_route(
             )
         raise HTTPException(status_code=500, detail=str(e))
 
+
+####################### MULTI SCAN 
+@app.get("/scan")
+async def get_root(request: Request):
+    return templates.TemplateResponse("scan_new.html", {"request": request})
+
+## DECODER email, G1PUB, SSSS:nodeid ... url ...
 @app.post("/upassport")
 async def scan_qr(
     parametre: str = Form(...),
@@ -3270,6 +3383,13 @@ async def scan_qr(
         error_message = f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs."
         logging.error(error_message)
         return JSONResponse({"error": error_message}, status_code=500)
+
+
+### NEED DEBUG
+@app.get("/scan_multipass_payment.html")
+async def get_scan_multipass_payment(request: Request):
+    """MULTIPASS Payment Terminal - Internal route for authenticated payments between MULTIPASS wallets"""
+    return templates.TemplateResponse("scan_multipass_payment.html", {"request": request})
 
 ###############################################################################
 ## Collect UPassport SSSS KEY and match ot with CAPTAIN parts or SWARM key copy
@@ -3443,6 +3563,7 @@ current_player = None # Pour stocker l'email
 async def rec_form(request: Request):
     return templates.TemplateResponse("rec_form.html", {"request": request, "recording": False})
 
+### UPlanet Media Recorder
 @app.get("/webcam", response_class=HTMLResponse)
 async def rec_form(request: Request):
     return templates.TemplateResponse("webcam.html", {
@@ -3981,6 +4102,7 @@ async def process_webcam_video(
             "recording": False
         })
 
+#### USING OBS Studio recording... deprecated ---
 @app.post("/rec", response_class=HTMLResponse)
 async def start_recording(request: Request, player: str = Form(...), link: str = Form(default=""), file: UploadFile = File(None)):
     global recording_process, current_player
@@ -4139,6 +4261,124 @@ async def get_webhook(request: Request):
     else:
         raise HTTPException(status_code=400, detail="Invalid method.")
 
+### NIP-96 Discovery Endpoint
+@app.get("/.well-known/nostr/nip96.json")
+async def nip96_discovery(request: Request):
+    """
+    NIP-96 discovery endpoint for file storage server.
+    Returns server capabilities and configuration for NOSTR clients.
+    
+    Plans are determined by user authentication:
+    - MULTIPASS users (recognized by UPlanet): 650MB quota
+    - Non-recognized NOSTR users: 100MB quota
+    """
+    import subprocess
+    
+    # Get base URL from request
+    base_url = str(request.base_url).rstrip('/')
+    
+    # Try to extract pubkey from NIP-98 Authorization header
+    user_pubkey_hex = None
+    is_multipass = False
+    
+    try:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Nostr "):
+            # Decode the base64-encoded NIP-98 event
+            auth_base64 = auth_header.replace("Nostr ", "").strip()
+            auth_json = base64.b64decode(auth_base64).decode('utf-8')
+            auth_event = json.loads(auth_json)
+            
+            # Extract pubkey from the NIP-98 event (kind 27235)
+            if auth_event.get("kind") == 27235 and "pubkey" in auth_event:
+                user_pubkey_hex = auth_event["pubkey"]
+                logging.info(f"🔑 NIP-96 Discovery: Checking MULTIPASS status for: {user_pubkey_hex[:16]}...")
+                
+                # Check if user is recognized as MULTIPASS by UPlanet
+                # Try multiple possible paths for the script
+                possible_paths = [
+                    os.path.join(SCRIPT_DIR.parent, "Astroport.ONE", "tools", "search_for_this_hex_in_uplanet.sh"),
+                    os.path.join(os.path.expanduser("~"), ".zen", "Astroport.ONE", "tools", "search_for_this_hex_in_uplanet.sh"),
+                    os.path.join(os.path.expanduser("~"), "workspace", "AAA", "Astroport.ONE", "tools", "search_for_this_hex_in_uplanet.sh"),
+                ]
+                search_script = None
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        search_script = path
+                        break
+                
+                if search_script:
+                    try:
+                        result = subprocess.run(
+                            [search_script, user_pubkey_hex],
+                            capture_output=True,
+                            text=True,
+                            timeout=5
+                        )
+                        # If script found the HEX (returns G1PUBNOSTR or exits with 0 and has output), user is MULTIPASS
+                        if result.returncode == 0 and result.stdout.strip():
+                            is_multipass = True
+                            logging.info(f"✅ NIP-96 Discovery: User is recognized MULTIPASS (650MB quota)")
+                        else:
+                            logging.info(f"ℹ️  NIP-96 Discovery: User is not recognized MULTIPASS (100MB quota)")
+                    except (subprocess.TimeoutExpired, Exception) as e:
+                        logging.warning(f"⚠️  NIP-96 Discovery: Could not check MULTIPASS status: {e}")
+            else:
+                logging.warning(f"⚠️  NIP-96 Discovery: Invalid NIP-98 event: kind={auth_event.get('kind')}")
+    except Exception as e:
+        logging.warning(f"⚠️  NIP-96 Discovery: Could not extract pubkey from NIP-98: {e}")
+    
+    # Determine plans based on MULTIPASS status
+    if is_multipass:
+        # MULTIPASS users: 650MB quota
+        plans = {
+            "multipass": {
+                "name": "MULTIPASS IPFS Storage",
+                "is_nip98_required": True,
+                "max_byte_size": 681574400,  # 650MB
+                "file_expiration": [0, 0],  # No expiration
+                "media_transformations": {
+                    "image": ["thumbnail"],
+                    "video": ["thumbnail", "gif_animation"]
+                }
+            }
+        }
+    else:
+        # Non-recognized NOSTR users: 100MB quota
+        plans = {
+            "free": {
+                "name": "Free IPFS Storage (NOSTR)",
+                "is_nip98_required": True,
+                "max_byte_size": 104857600,  # 100MB
+                "file_expiration": [0, 0],  # No expiration
+                "media_transformations": {
+                    "image": ["thumbnail"],
+                    "video": ["thumbnail", "gif_animation"]
+                }
+            }
+        }
+    
+    return {
+        "api_url": f"{base_url}/upload2ipfs",
+        "download_url": "https://ipfs.copylaradio.com",
+        "supported_nips": [96, 98, 94, 71],
+        "tos_url": f"{base_url}/terms",
+        "content_types": [
+            "image/*",
+            "video/*",
+            "audio/*",
+            "application/pdf"
+        ],
+        "plans": plans,
+        "extensions": {
+            "ipfs": True,
+            "provenance": True,
+            "twin_key": True,
+            "info_json": True,
+            "tmdb_metadata": True
+        }
+    }
+
 ### GENERIC UPLOAD - Free & Anonymous 
 @app.get("/upload", response_class=HTMLResponse)
 async def upload_form(request: Request):
@@ -4262,6 +4502,22 @@ async def upload_file_to_ipfs(
         raise HTTPException(status_code=400, detail="No file uploaded.")
 
     try:
+        # Validate file size according to UPlanet_FILE_CONTRACT.md section 6.2
+        max_size_bytes = get_max_file_size_for_user(npub)
+        if file.size and file.size > max_size_bytes:
+            max_size_mb = max_size_bytes // 1048576
+            file_size_mb = file.size // 1048576
+            raise HTTPException(
+                status_code=413,
+                detail=f"File size ({file_size_mb}MB) exceeds maximum allowed size ({max_size_mb}MB per UPlanet_FILE_CONTRACT.md)"
+            )
+        
+        # Additional validation using validate_uploaded_file for MIME type and content safety
+        max_size_mb = max_size_bytes // 1048576
+        validation_result = await validate_uploaded_file(file, max_size_mb=max_size_mb)
+        if not validation_result["is_valid"]:
+            raise HTTPException(status_code=400, detail=validation_result["error"])
+        
         # Get user directory for file placement
         user_NOSTR_path = get_authenticated_user_directory(npub)
         user_drive_path = user_NOSTR_path  / "APP" / "uDRIVE"
@@ -4720,7 +4976,10 @@ async def upload_file(
         raise HTTPException(status_code=500, detail=f"Error determining user directory: {e}")
 
     # Validation sécurisée du fichier uploadé
-    validation_result = await validate_uploaded_file(file, max_size_mb=720)
+    # Get max file size based on MULTIPASS status (aligned with NIP-96 Discovery and UPlanet_FILE_CONTRACT.md)
+    max_size_bytes = get_max_file_size_for_user(npub)
+    max_size_mb = max_size_bytes // 1048576
+    validation_result = await validate_uploaded_file(file, max_size_mb=max_size_mb)
     if not validation_result["is_valid"]:
         raise HTTPException(status_code=400, detail=validation_result["error"])
     
