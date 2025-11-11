@@ -983,7 +983,7 @@
         const myIPFS = "{{ myIPFS }}";
         // Variables will be set by common.js (userPubkey, nostrRelay, isNostrConnected)
         // We use local aliases for compatibility
-        let userNpub = null;  // Will be set from userPubkey (common.js)
+        let userHEX = null;  // Will be set from userPubkey (common.js)
         let relay = null;     // Will be set from nostrRelay (common.js)
         // Permit data from server (only 30500 definitions)
         const permitDataRaw = {{ permit_data | tojson }};
@@ -1060,14 +1060,14 @@
                     const pubkey = await connectNostr(false); // No force NIP-42
                     
                     if (pubkey) {
-                        userNpub = pubkey;
+                        userHEX = pubkey;
                         // Update from common.js global if available
                         if (typeof userPubkey !== 'undefined') {
-                            userNpub = userPubkey;
+                            userHEX = userPubkey;
                         }
-                        console.log('[WoTx2] ✅ User pubkey retrieved:', userNpub.substring(0, 12) + '...');
+                        console.log('[WoTx2] ✅ User pubkey retrieved:', userHEX.substring(0, 12) + '...');
                         updateStep(2, 'success', 'Authentifié avec MULTIPASS');
-                        updateConnectionBadge(true, userNpub);
+                        updateConnectionBadge(true, userHEX);
                         return true;
                     } else {
                         updateStep(2, 'pending', 'NIP-42 Auth - Accès uDRIVE & GPS');
@@ -1339,12 +1339,12 @@
                     try {
                         const pubkey = await connectNostr(false); // No force NIP-42 initially
                         if (pubkey) {
-                            userNpub = pubkey;
+                            userHEX = pubkey;
                             // Sync with common.js global
                             if (typeof userPubkey !== 'undefined') {
-                                userNpub = userPubkey;
+                                userHEX = userPubkey;
                             }
-                            updateConnectionBadge(true, userNpub);
+                            updateConnectionBadge(true, userHEX);
                             return;
                         }
                     } catch (e) {
@@ -1355,9 +1355,9 @@
                 // Fallback: Check if window.nostr is available
                 if (window.nostr) {
                     try {
-                        userNpub = await window.nostr.getPublicKey();
-                        if (userNpub) {
-                            updateConnectionBadge(true, userNpub);
+                        userHEX = await window.nostr.getPublicKey();
+                        if (userHEX) {
+                            updateConnectionBadge(true, userHEX);
                             return;
                         }
                     } catch (e) {
@@ -1369,7 +1369,7 @@
                 const urlParams = new URLSearchParams(window.location.search);
                 const npubParam = urlParams.get('npub');
                 if (npubParam) {
-                    userNpub = npubParam;
+                    userHEX = npubParam;
                     updateConnectionBadge(true, npubParam);
                     return;
                 }
@@ -1591,13 +1591,13 @@
         
         // Open user drive
         function openUserDrive() {
-            if (!userNpub) {
+            if (!userHEX) {
                 alert('❌ Non connecté');
                 return;
             }
             
             // Try to get email from npub
-            getEmailFromNpub(userNpub).then(email => {
+            getEmailFromNpub(userHEX).then(email => {
                 if (email) {
                     const udriveUrl = `${myIPFS}/ipns/${email}/APP/uDRIVE`;
                     console.log('[WoTx2] 📁 Opening uDRIVE:', udriveUrl);
@@ -1610,17 +1610,17 @@
         
         // Open user profile
         function openUserProfile() {
-            if (!userNpub) {
+            if (!userHEX) {
                 alert('❌ Non connecté');
                 return;
             }
             
             // Open profile in new window using common.js if available
             if (typeof openProfileModal === 'function') {
-                openProfileModal(userNpub, 'Mon Profil');
+                openProfileModal(userHEX, 'Mon Profil');
             } else {
                 // Fallback: open in new tab
-                const profileUrl = `${myIPFS}/ipns/copylaradio.com/profile.html?npub=${userNpub}`;
+                const profileUrl = `${myIPFS}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${userHEX}`;
                 window.open(profileUrl, '_blank');
             }
         }
@@ -1678,18 +1678,18 @@
                 try {
                     const pubkey = await connectNostr(true); // forceAuth = true (NIP-42)
                     if (pubkey) {
-                        userNpub = pubkey;
+                        userHEX = pubkey;
                         // Sync with common.js global
                         if (typeof userPubkey !== 'undefined') {
-                            userNpub = userPubkey;
+                            userHEX = userPubkey;
                         }
-                        localStorage.setItem('nostr_pubkey', userNpub);
+                        localStorage.setItem('nostr_pubkey', userHEX);
                         updateStep(2, 'success', 'Authentifié avec MULTIPASS');
-                        updateConnectionBadge(true, userNpub);
+                        updateConnectionBadge(true, userHEX);
                         
                         // Update URL with npub
                         const url = new URL(window.location);
-                        url.searchParams.set('npub', userNpub);
+                        url.searchParams.set('npub', userHEX);
                         window.history.pushState({}, '', url);
                         
                         // Reload data after connection
@@ -1709,14 +1709,14 @@
             } else if (window.nostr) {
                 // Fallback to direct nostr extension
                 try {
-                    userNpub = await window.nostr.getPublicKey();
-                    if (userNpub) {
-                        localStorage.setItem('nostr_pubkey', userNpub);
+                    userHEX = await window.nostr.getPublicKey();
+                    if (userHEX) {
+                        localStorage.setItem('nostr_pubkey', userHEX);
                         updateStep(2, 'success', 'Connecté avec extension NOSTR');
-                        updateConnectionBadge(true, userNpub);
+                        updateConnectionBadge(true, userHEX);
                         // Update URL with npub
                         const url = new URL(window.location);
-                        url.searchParams.set('npub', userNpub);
+                        url.searchParams.set('npub', userHEX);
                         window.history.pushState({}, '', url);
                     }
                 } catch (e) {
@@ -1853,7 +1853,7 @@
                                     ` : ''}
                                 </div>
                                 <div class="text-end">
-                                    ${userNpub && userNpub !== holder.holder_npub ? `
+                                    ${userHEX && userHEX !== holder.holder_npub ? `
                                         <button class="btn btn-sm btn-success" onclick="showAttestModal('${holder.holder_npub}')">
                                             <i class="bi bi-chat-dots"></i> Contacter
                                         </button>
@@ -1914,8 +1914,8 @@
                 const attestCount = await countAttestations(request.id);
                 request.attestations_count = attestCount;
                 const progress = (request.attestations_count / reqAttest) * 100;
-                const isMyRequest = userNpub && userNpub === request.applicant_npub;
-                const canAttest = userNpub && userNpub !== request.applicant_npub;
+                const isMyRequest = userHEX && userHEX === request.applicant_npub;
+                const canAttest = userHEX && userHEX !== request.applicant_npub;
                 
                 html += `
                     <div class="card mb-3 ${isMyRequest ? 'border-primary' : ''}">
@@ -1982,7 +1982,7 @@
                                     </small>
                                 </div>
                             ` : ''}
-                            ${!userNpub ? `
+                            ${!userHEX ? `
                                 <div class="mt-3">
                                     <button class="btn btn-sm btn-outline-primary" onclick="connectMULTIPASS()">
                                         <i class="bi bi-wallet2"></i> Connecter MULTIPASS pour attester
@@ -1998,7 +1998,7 @@
         }
 
         function showRequestModal() {
-            if (!userNpub) {
+            if (!userHEX) {
                 // Show tooltip instead of alert
                 const btn = event?.target?.closest('button') || document.querySelector('[onclick="showRequestModal()"]');
                 if (btn) {
@@ -2060,7 +2060,7 @@
         }
 
         async function submitRequest() {
-            if (!userNpub || !window.nostr) {
+            if (!userHEX || !window.nostr) {
                 // Show tooltip instead of alert
                 const btn = document.querySelector('[onclick="submitRequest()"]');
                 if (btn) {
@@ -2137,7 +2137,7 @@
                 const requestContent = {
                     request_id: requestId,
                     permit_definition_id: selectedPermitId,
-                    applicant_did: `did:nostr:${userNpub}`,
+                    applicant_did: `did:nostr:${userHEX}`,
                     statement: statement,
                     requested_competency: requestedCompetency, // Competency claimed by the applicant
                     evidence: evidence,
@@ -2148,7 +2148,7 @@
                 const eventTags = [
                     ['d', requestId],
                     ['l', selectedPermitId, 'permit_type'],
-                    ['p', userNpub],
+                    ['p', userHEX],
                     ['t', 'permit'],
                     ['t', 'request']
                 ];
@@ -2248,7 +2248,7 @@
         }
 
         async function showAttestModal(applicantNpub, requestId) {
-            if (!userNpub) {
+            if (!userHEX) {
                 alert('Veuillez vous connecter avec votre MULTIPASS pour attester.');
                 connectMULTIPASS();
                 return;
@@ -2258,7 +2258,7 @@
             document.getElementById('attestApplicantNpub').value = applicantNpub || '';
             
             // Check if user has a 30503 credential for this permit
-            const userCredentials = permitCredentials.filter(c => c.holder_npub === userNpub && c.permit_definition_id === permitData.id);
+            const userCredentials = permitCredentials.filter(c => c.holder_npub === userHEX && c.permit_definition_id === permitData.id);
             
             if (userCredentials.length > 0) {
                 // User has credential - show competencies transfer section
@@ -2313,7 +2313,7 @@
         }
 
         async function submitAttestation() {
-            if (!userNpub || !window.nostr) {
+            if (!userHEX || !window.nostr) {
                 alert('Veuillez vous connecter avec votre MULTIPASS.');
                 return;
             }
@@ -2359,7 +2359,7 @@
                 const attestationContent = {
                     attestation_id: attestationId,
                     request_id: requestId,
-                    attester_did: `did:nostr:${userNpub}`,
+                    attester_did: `did:nostr:${userHEX}`,
                     statement: fullStatement,
                     competencies_transferred: competenciesToTransfer,
                     revealed_competencies: revealedCompetencies ? revealedCompetencies.split(',').map(c => c.trim()) : [],
@@ -2376,7 +2376,7 @@
                 const eventTags = [
                     ['d', attestationId],
                     ['e', requestId],
-                    ['p', userNpub],
+                    ['p', userHEX],
                     ['t', 'permit'],
                     ['t', 'attestation']
                 ];
@@ -2534,7 +2534,7 @@
             
             // For each permit, check if user is creator and if 30503 exists
             let html = '';
-            const userPubkeyHex = userNpub ? npubToHex(userNpub) : null;
+            const userPubkeyHex = userHEX ? npubToHex(userHEX) : null;
             
             for (const permit of allPermits) {
                 // Check if user is the creator (need to fetch the 30500 event)
@@ -2671,7 +2671,7 @@
         
         // Delete permit (kind 5) - only if creator and no 30503 exists
         async function deletePermit(permitId) {
-            if (!userNpub || !window.nostr) {
+            if (!userHEX || !window.nostr) {
                 alert('Veuillez vous connecter avec votre MULTIPASS pour supprimer un permis.');
                 connectMULTIPASS();
                 return;
@@ -2684,8 +2684,8 @@
                 return;
             }
             
-            // Convert userNpub to hex if needed
-            const userPubkeyHex = npubToHex(userNpub);
+            // Convert userHEX to hex if needed
+            const userPubkeyHex = npubToHex(userHEX);
             if (!userPubkeyHex) {
                 alert('Erreur: Impossible de décoder votre clé publique.');
                 return;
@@ -2821,7 +2821,7 @@
 
         // Show new permit modal
         function showNewPermitModal() {
-            if (!userNpub) {
+            if (!userHEX) {
                 // Show tooltip instead of alert
                 const btn = event?.target?.closest('button') || document.querySelector('[onclick="showNewPermitModal()"]');
                 if (btn) {
@@ -2968,7 +2968,7 @@
 
         // Submit new permit
         async function submitNewPermit() {
-            if (!userNpub) {
+            if (!userHEX) {
                 alert('Vous devez être connecté avec MULTIPASS.');
                 return;
             }
@@ -3064,7 +3064,7 @@
                     verification_method: "peer_attestation",
                     metadata: metadata
                 },
-                npub: userNpub,
+                npub: userHEX,
                 bootstrap_emails: null // No bootstrap needed, system starts with 1 signature
             };
 

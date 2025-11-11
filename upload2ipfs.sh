@@ -1037,40 +1037,62 @@ if [ -n "$YOUTUBE_METADATA_JSON" ] && command -v jq &> /dev/null; then
     TMDB_ID=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.tmdb_id // empty' 2>/dev/null)
     
     if [[ -n "$TMDB_ID" ]]; then
-        # This is TMDB metadata
-        echo "DEBUG: Extracting TMDB metadata for info.json..." >&2
-        TMDB_MEDIA_TYPE=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.media_type // empty' 2>/dev/null)
-        TMDB_TITLE=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.title // empty' 2>/dev/null)
-        TMDB_YEAR=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.year // empty' 2>/dev/null)
-        TMDB_URL=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.tmdb_url // empty' 2>/dev/null)
+        # This is TMDB metadata - extract ALL fields from scraper.TMDB.py output
+        echo "DEBUG: Extracting comprehensive TMDB metadata for info.json..." >&2
         
-        # Build TMDB section JSON using jq for proper escaping
-        TMDB_OBJ="{}"
-        if [[ -n "$TMDB_ID" ]]; then
-            TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --argjson id "$TMDB_ID" '. + {tmdb_id: $id}' 2>/dev/null || echo "$TMDB_OBJ")
-        fi
-        if [[ -n "$TMDB_MEDIA_TYPE" ]]; then
-            TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg type "$TMDB_MEDIA_TYPE" '. + {media_type: $type}' 2>/dev/null || echo "$TMDB_OBJ")
-        fi
-        if [[ -n "$TMDB_TITLE" ]]; then
-            TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg title "$TMDB_TITLE" '. + {title: $title}' 2>/dev/null || echo "$TMDB_OBJ")
-        fi
-        if [[ -n "$TMDB_YEAR" ]]; then
-            TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg year "$TMDB_YEAR" '. + {year: $year}' 2>/dev/null || echo "$TMDB_OBJ")
-        fi
-        if [[ -n "$TMDB_URL" ]]; then
-            TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg url "$TMDB_URL" '. + {tmdb_url: $url}' 2>/dev/null || echo "$TMDB_OBJ")
-        fi
+        # Extract all TMDB metadata fields (preserve complete structure from scraper.TMDB.py)
+        # Use jq to merge the entire TMDB metadata object into info.json
+        # This preserves all fields: genres, director, creator, runtime, vote_average, etc.
+        TMDB_FULL_JSON=$(echo "$YOUTUBE_METADATA_JSON" | jq -c '. | select(.tmdb_id != null)' 2>/dev/null)
         
-        # Convert to string and format for insertion
-        if [[ "$TMDB_OBJ" != "{}" ]]; then
-            TMDB_JSON_STR=$(echo "$TMDB_OBJ" | jq -c '.' 2>/dev/null | sed 's/^{//' | sed 's/}$//')
+        if [[ -n "$TMDB_FULL_JSON" ]]; then
+            # Build TMDB section by including the entire metadata object
+            # This ensures all fields from scraper.TMDB.py are preserved
+            TMDB_JSON_STR=$(echo "$TMDB_FULL_JSON" | jq -c '.' 2>/dev/null | sed 's/^{//' | sed 's/}$//')
+            
             if [[ -n "$TMDB_JSON_STR" ]]; then
                 TMDB_SECTION=",
   \"tmdb\": {
     $TMDB_JSON_STR
   }"
-                echo "DEBUG: ✅ TMDB metadata section created" >&2
+                echo "DEBUG: ✅ Comprehensive TMDB metadata section created (includes all scraper fields)" >&2
+            fi
+        else
+            # Fallback: extract basic fields if full JSON merge fails
+            echo "DEBUG: ⚠️ Full TMDB JSON merge failed, using basic fields..." >&2
+            TMDB_MEDIA_TYPE=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.media_type // empty' 2>/dev/null)
+            TMDB_TITLE=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.title // empty' 2>/dev/null)
+            TMDB_YEAR=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.year // empty' 2>/dev/null)
+            TMDB_URL=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.tmdb_url // empty' 2>/dev/null)
+            
+            # Build TMDB section JSON using jq for proper escaping
+            TMDB_OBJ="{}"
+            if [[ -n "$TMDB_ID" ]]; then
+                TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --argjson id "$TMDB_ID" '. + {tmdb_id: $id}' 2>/dev/null || echo "$TMDB_OBJ")
+            fi
+            if [[ -n "$TMDB_MEDIA_TYPE" ]]; then
+                TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg type "$TMDB_MEDIA_TYPE" '. + {media_type: $type}' 2>/dev/null || echo "$TMDB_OBJ")
+            fi
+            if [[ -n "$TMDB_TITLE" ]]; then
+                TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg title "$TMDB_TITLE" '. + {title: $title}' 2>/dev/null || echo "$TMDB_OBJ")
+            fi
+            if [[ -n "$TMDB_YEAR" ]]; then
+                TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg year "$TMDB_YEAR" '. + {year: $year}' 2>/dev/null || echo "$TMDB_OBJ")
+            fi
+            if [[ -n "$TMDB_URL" ]]; then
+                TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg url "$TMDB_URL" '. + {tmdb_url: $url}' 2>/dev/null || echo "$TMDB_OBJ")
+            fi
+            
+            # Convert to string and format for insertion
+            if [[ "$TMDB_OBJ" != "{}" ]]; then
+                TMDB_JSON_STR=$(echo "$TMDB_OBJ" | jq -c '.' 2>/dev/null | sed 's/^{//' | sed 's/}$//')
+                if [[ -n "$TMDB_JSON_STR" ]]; then
+                    TMDB_SECTION=",
+  \"tmdb\": {
+    $TMDB_JSON_STR
+  }"
+                    echo "DEBUG: ✅ Basic TMDB metadata section created" >&2
+                fi
             fi
         fi
     else

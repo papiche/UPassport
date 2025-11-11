@@ -346,6 +346,11 @@ EXTENSION_MAPPING = {
 app = FastAPI()
 # Mount the directory containing static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
+# Mount UPlanet/earth for local JS development
+import os
+earth_path = os.path.expanduser("~/.zen/workspace/UPlanet/earth")
+if os.path.exists(earth_path):
+    app.mount("/earth", StaticFiles(directory=earth_path), name="earth")
 templates = Jinja2Templates(directory="templates")
 
 # Initialize Oracle System (Permit Management)
@@ -2341,9 +2346,13 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
     Args:
         video: Optional NOSTR event ID to load a specific video directly
     """
+    # Allow local JS files for development (set to True to test modifications before IPNS publish)
+    use_local_js = True  # Change to False for IPNS source
+    
     return templates.TemplateResponse("theater-modal.html", {
         "request": request,
-        "myIPFS": get_myipfs_gateway(),
+        "myIPFS": get_myipfs_gateway() if not use_local_js else "",
+        "use_local_js": use_local_js,
         "video_id": video  # Pass video ID to template
     })
 

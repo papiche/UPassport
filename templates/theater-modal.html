@@ -9,14 +9,28 @@
     <title>Theater Mode - Nostr Tube</title>
     
     <!-- Bootstrap 5 CSS -->
+    {% if use_local_js %}
+    <link href="/earth/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="/earth/fonts/bootstrap-icons.min.css">
+    {% else %}
     <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    {% endif %}
     
     <!-- Nostr integration -->
+    {% if use_local_js %}
+    <script src="/earth/nostr.bundle.js"></script>
+    {% else %}
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    {% endif %}
     <!-- Common.js with NOSTR functions -->
+    {% if use_local_js %}
+    <script src="/earth/common.js"></script>
+    {% else %}
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    {% endif %}
     <!-- Define showAlert function for common.js compatibility -->
     <script>
         // Define showAlert function if not already defined (for common.js compatibility)
@@ -48,11 +62,20 @@
         }
     </script>
     <!-- NOSTR Tube functions -->
+    {% if use_local_js %}
+    <script src="/earth/youtube.enhancements.js"></script>
+    <link rel="stylesheet" href="/earth/youtube.enhancements.css" />
+    {% else %}
     <script src="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.js"></script>
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.css" />
+    {% endif %}
     
     <!-- Bootstrap 5 JS Bundle -->
+    {% if use_local_js %}
+    <script src="/earth/bootstrap.bundle.min.js"></script>
+    {% else %}
     <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    {% endif %}
     <style>
         * {
             box-sizing: border-box;
@@ -173,6 +196,8 @@
             transition: all 0.3s ease;
             position: relative;
             z-index: 1;
+            height: 100%;
+            max-height: 100vh;
         }
         
         /* Fullscreen comments mode */
@@ -200,6 +225,38 @@
             padding-bottom: env(safe-area-inset-bottom) !important;
             padding-left: env(safe-area-inset-left) !important;
             padding-right: env(safe-area-inset-right) !important;
+        }
+        
+        /* Fullscreen video info mode */
+        .theater-video-info.fullscreen {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            height: 100dvh !important; /* Dynamic viewport height for mobile */
+            min-height: 100vh !important;
+            min-height: 100dvh !important;
+            max-height: none !important;
+            z-index: 10001 !important;
+            border-top: none !important;
+            border-left: none !important;
+            border-right: none !important;
+            border-bottom: none !important;
+            margin: 0 !important;
+            padding: 1rem 1.25rem !important;
+            overflow-y: auto !important;
+            /* Safe area support for mobile */
+            padding-top: max(1rem, env(safe-area-inset-top)) !important;
+            padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important;
+            padding-left: max(1.25rem, env(safe-area-inset-left)) !important;
+            padding-right: max(1.25rem, env(safe-area-inset-right)) !important;
+        }
+        
+        .theater-video-info.fullscreen #theaterVideoInfoContent {
+            max-height: none !important;
         }
         
         .theater-comments-section.fullscreen .theater-comments-header {
@@ -279,7 +336,8 @@
             align-items: center;
         }
         
-        #toggleCommentsFullscreen {
+        #toggleCommentsFullscreen,
+        #toggleVideoInfoFullscreen {
             padding: 0.25rem 0.5rem;
             font-size: 0.75rem;
             min-width: auto;
@@ -290,13 +348,15 @@
             transition: all 0.2s ease;
         }
         
-        #toggleCommentsFullscreen:hover {
+        #toggleCommentsFullscreen:hover,
+        #toggleVideoInfoFullscreen:hover {
             background: rgba(255, 255, 255, 0.1);
             border-color: #5bb5ff;
             color: #5bb5ff;
         }
         
-        #toggleCommentsFullscreen:active {
+        #toggleCommentsFullscreen:active,
+        #toggleVideoInfoFullscreen:active {
             background: rgba(255, 255, 255, 0.2);
         }
         
@@ -307,14 +367,26 @@
             background: #0f0f0f;
         }
         
+        /* Comments content container */
+        #theaterCommentsContent {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+            flex: 1 1 auto;
+        }
+        
         .theater-comments-list {
-            flex: 1;
-            overflow-y: auto;
-            overflow-x: hidden;
+            flex: 1 1 0;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
             padding: 1rem;
             min-height: 0;
             /* Smooth scrolling on mobile */
             -webkit-overflow-scrolling: touch;
+            /* Ensure scrollbar is visible */
+            scrollbar-width: thin;
+            scrollbar-color: #3f3f3f #0f0f0f;
         }
         
         .theater-comments-list::-webkit-scrollbar {
@@ -388,6 +460,28 @@
         .theater-comment-content {
             font-size: 0.875rem;
             line-height: 1.5;
+        }
+        
+        .theater-comment-content .comment-link {
+            color: #5bb5ff;
+            text-decoration: underline;
+            transition: color 0.2s ease;
+        }
+        
+        .theater-comment-content .comment-link:hover {
+            color: #7cc5ff;
+            text-decoration: underline;
+        }
+        
+        .theater-comment-content .pubkey-placeholder {
+            color: #888;
+            font-family: monospace;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+        
+        .theater-comment-content .pubkey-placeholder:hover {
+            color: #aaa;
         }
         
         /* Tablet: Bootstrap md breakpoint (768px - 991px) */
@@ -464,6 +558,29 @@
                 padding-bottom: env(safe-area-inset-bottom) !important;
                 padding-left: env(safe-area-inset-left) !important;
                 padding-right: env(safe-area-inset-right) !important;
+            }
+            
+            .theater-video-info.fullscreen {
+                order: 1;
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                height: 100dvh !important;
+                min-height: 100vh !important;
+                min-height: 100dvh !important;
+                max-height: none !important;
+                z-index: 10001 !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 0.75rem 1rem !important;
+                padding-top: max(0.75rem, env(safe-area-inset-top)) !important;
+                padding-bottom: max(0.75rem, env(safe-area-inset-bottom)) !important;
+                padding-left: max(1rem, env(safe-area-inset-left)) !important;
+                padding-right: max(1rem, env(safe-area-inset-right)) !important;
             }
             
             .theater-comments-list {
@@ -865,39 +982,65 @@
                 
                 <!-- Video info (below video) -->
                 <div class="theater-video-info">
-                    <div class="d-flex gap-3 mb-2 flex-wrap" id="theaterVideoStats">
-                        <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> <span id="likeCount">0</span></span>
-                        <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> <span id="shareCount">0</span></span>
-                        <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> <span id="commentCount">0</span></span>
-                    </div>
-                    <div class="small text-secondary mb-2" id="theaterVideoMeta">
-                        <span id="theaterUploaderContainer">
-                            <span id="theaterUploader">Loading...</span>
-                        </span>
-                        <span id="theaterDuration"></span>
-                    </div>
-                    <div class="small text-white-50 lh-base" id="theaterDescription"></div>
-                    
-                    <!-- Tags section (10 max) -->
-                    <div class="mt-3 pt-3 border-top border-secondary" id="theaterTagsSection" style="display: none;">
-                        <div class="small">
-                            <div class="text-secondary mb-2">
-                                <i class="bi bi-tags"></i> <strong>Tags</strong>
-                                <a href="#" id="theaterTagsLink" class="text-info text-decoration-none ms-2" style="font-size: 0.75rem;" onclick="openTagsPage(); return false;">
-                                    <i class="bi bi-box-arrow-up-right"></i> Voir tous
-                                </a>
-                            </div>
-                            <div id="theaterTagsCloud" class="d-flex flex-wrap gap-1"></div>
+                    <!-- Video info header with fullscreen button -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary">
+                        <h6 class="mb-0 text-white" style="cursor: pointer;" id="videoInfoHeaderTitle" title="Cliquez pour basculer en mode plein écran">
+                            <i class="bi bi-info-circle"></i> Informations vidéo
+                        </h6>
+                        <div class="d-flex gap-2">
+                            <button 
+                                class="btn btn-sm btn-outline-secondary" 
+                                id="toggleVideoInfoFullscreen" 
+                                title="Basculer en mode plein écran">
+                                <i class="bi bi-arrows-fullscreen" id="toggleVideoInfoFullscreenIcon"></i>
+                            </button>
                         </div>
                     </div>
                     
-                    <!-- Provenance section -->
-                    <div class="mt-3 pt-3 border-top border-secondary" id="theaterProvenanceSection" style="display: none;">
-                        <div class="small">
-                            <div class="text-secondary mb-2"><i class="bi bi-diagram-3"></i> <strong>Provenance</strong></div>
-                            <div id="theaterSourceType" class="mb-2"></div>
-                            <div id="theaterUploadChain" class="mb-2"></div>
-                            <div class="d-flex gap-2 flex-wrap" id="theaterProvenanceLinks"></div>
+                    <!-- Video info content -->
+                    <div id="theaterVideoInfoContent">
+                        <div class="d-flex gap-3 mb-2 flex-wrap" id="theaterVideoStats">
+                            <span class="badge bg-success rounded-pill"><i class="bi bi-hand-thumbs-up"></i> <span id="likeCount">0</span></span>
+                            <span class="badge bg-primary rounded-pill"><i class="bi bi-share"></i> <span id="shareCount">0</span></span>
+                            <span class="badge bg-info rounded-pill"><i class="bi bi-chat"></i> <span id="commentCount">0</span></span>
+                        </div>
+                        <div class="small text-secondary mb-2" id="theaterVideoMeta">
+                            <span id="theaterUploaderContainer">
+                                <span id="theaterUploader">Loading...</span>
+                            </span>
+                            <span id="theaterDuration"></span>
+                        </div>
+                        <div class="small text-white-50 lh-base" id="theaterDescription"></div>
+                        
+                        <!-- Tags section (10 max) -->
+                        <div class="mt-3 pt-3 border-top border-secondary" id="theaterTagsSection" style="display: none;">
+                            <div class="small">
+                                <div class="text-secondary mb-2">
+                                    <i class="bi bi-tags"></i> <strong>Tags</strong>
+                                    <a href="#" id="theaterTagsLink" class="text-info text-decoration-none ms-2" style="font-size: 0.75rem;" onclick="openTagsPage(); return false;">
+                                        <i class="bi bi-box-arrow-up-right"></i> Voir tous
+                                    </a>
+                                </div>
+                                <div id="theaterTagsCloud" class="d-flex flex-wrap gap-1"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- TMDB Metadata section (for Films and Series) -->
+                        <div class="mt-3 pt-3 border-top border-secondary" id="theaterTMDBMetadataSection" style="display: none;">
+                            <div class="small">
+                                <div class="text-secondary mb-2"><i class="bi bi-film"></i> <strong>Informations TMDB</strong></div>
+                                <div id="theaterTMDBContent"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Provenance section -->
+                        <div class="mt-3 pt-3 border-top border-secondary" id="theaterProvenanceSection" style="display: none;">
+                            <div class="small">
+                                <div class="text-secondary mb-2"><i class="bi bi-diagram-3"></i> <strong>Provenance</strong></div>
+                                <div id="theaterSourceType" class="mb-2"></div>
+                                <div id="theaterUploadChain" class="mb-2"></div>
+                                <div class="d-flex gap-2 flex-wrap" id="theaterProvenanceLinks"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -910,34 +1053,38 @@
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <h6 class="mb-0 text-white" style="cursor: pointer;" id="commentsHeaderTitle" title="Cliquez pour basculer en mode chat plein écran">
                             <i class="bi bi-chat-dots"></i> Commentaires
-                            <button class="btn btn-sm btn-outline-secondary ms-2" id="toggleCommentsFullscreen" title="Basculer en mode chat plein écran">
-                                <i class="bi bi-arrows-fullscreen" id="toggleCommentsFullscreenIcon"></i>
-                            </button>
                         </h6>
+                        <button class="btn btn-sm btn-outline-secondary" id="toggleCommentsFullscreen" title="Basculer en mode chat plein écran">
+                            <i class="bi bi-arrows-fullscreen" id="toggleCommentsFullscreenIcon"></i>
+                        </button>
                     </div>
                     <div class="small text-secondary" id="theaterCommentStats">0 commentaire(s)</div>
                 </div>
-                <div class="theater-comments-form">
-                    <textarea 
-                        id="theaterCommentInput" 
-                        class="form-control bg-dark text-white border-secondary mb-2"
-                        placeholder="Ajouter un commentaire..."
-                        rows="3"
-                        autocomplete="off"
-                        autocorrect="on"
-                        autocapitalize="sentences"
-                        spellcheck="true"></textarea>
-                    <div class="d-flex gap-2 justify-content-end flex-wrap">
-                        <button class="btn btn-sm btn-primary" id="submitTheaterCommentBtn">
-                            <i class="bi bi-send"></i> <span class="d-none d-sm-inline">Publier</span>
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary" id="theaterTimestampBtn">
-                            <i class="bi bi-clock"></i> <span class="d-none d-sm-inline">Timestamp</span>
-                        </button>
+                
+                <!-- Comments content -->
+                <div id="theaterCommentsContent">
+                    <div class="theater-comments-form">
+                        <textarea 
+                            id="theaterCommentInput" 
+                            class="form-control bg-dark text-white border-secondary mb-2"
+                            placeholder="Ajouter un commentaire..."
+                            rows="3"
+                            autocomplete="off"
+                            autocorrect="on"
+                            autocapitalize="sentences"
+                            spellcheck="true"></textarea>
+                        <div class="d-flex gap-2 justify-content-end flex-wrap">
+                            <button class="btn btn-sm btn-primary" id="submitTheaterCommentBtn">
+                                <i class="bi bi-send"></i> <span class="d-none d-sm-inline">Publier</span>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" id="theaterTimestampBtn">
+                                <i class="bi bi-clock"></i> <span class="d-none d-sm-inline">Timestamp</span>
+                            </button>
+                        </div>
                     </div>
-                </div>
-                <div class="theater-comments-list" id="theaterCommentsList">
-                    <div class="text-center text-secondary py-5">Chargement des commentaires...</div>
+                    <div class="theater-comments-list" id="theaterCommentsList">
+                        <div class="text-center text-secondary py-5">Chargement des commentaires...</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1212,6 +1359,111 @@
         window.toggleCommentsFullscreen = toggleCommentsFullscreen;
         
         /**
+         * Toggle video info section between normal and fullscreen mode
+         * Defined early to ensure it's available when onclick handlers fire
+         */
+        function toggleVideoInfoFullscreen() {
+            console.log('🔄 toggleVideoInfoFullscreen called');
+            const videoInfoSection = document.querySelector('.theater-video-info');
+            const toggleBtn = document.getElementById('toggleVideoInfoFullscreen');
+            const toggleIcon = document.getElementById('toggleVideoInfoFullscreenIcon');
+            
+            console.log('📋 Elements found:', {
+                videoInfoSection: !!videoInfoSection,
+                toggleBtn: !!toggleBtn,
+                toggleIcon: !!toggleIcon
+            });
+            
+            if (!videoInfoSection || !toggleBtn || !toggleIcon) {
+                console.error('❌ Missing elements:', {
+                    videoInfoSection: !videoInfoSection,
+                    toggleBtn: !toggleBtn,
+                    toggleIcon: !toggleIcon
+                });
+                return;
+            }
+            
+            const isFullscreen = videoInfoSection.classList.contains('fullscreen');
+            console.log('📺 Current state:', isFullscreen ? 'fullscreen' : 'normal');
+            
+            if (isFullscreen) {
+                // Exit fullscreen mode
+                console.log('⬇️ Exiting fullscreen mode');
+                videoInfoSection.classList.remove('fullscreen');
+                toggleIcon.classList.remove('bi-arrows-angle-contract');
+                toggleIcon.classList.add('bi-arrows-fullscreen');
+                toggleBtn.title = 'Basculer en mode plein écran';
+                
+                // Remove inline styles to restore CSS defaults
+                videoInfoSection.style.position = '';
+                videoInfoSection.style.top = '';
+                videoInfoSection.style.left = '';
+                videoInfoSection.style.right = '';
+                videoInfoSection.style.bottom = '';
+                videoInfoSection.style.width = '';
+                videoInfoSection.style.height = '';
+                videoInfoSection.style.minHeight = '';
+                videoInfoSection.style.maxHeight = '';
+                videoInfoSection.style.zIndex = '';
+                videoInfoSection.style.margin = '';
+                videoInfoSection.style.padding = '';
+                
+                // Restore body scroll
+                document.body.style.overflow = '';
+                document.body.style.position = '';
+                document.body.style.width = '';
+                document.body.style.height = '';
+                
+                // Restore video info content styles
+                const videoInfoContent = document.getElementById('theaterVideoInfoContent');
+                if (videoInfoContent) {
+                    videoInfoContent.style.maxHeight = '';
+                }
+                
+                console.log('✅ Exited fullscreen mode');
+            } else {
+                // Enter fullscreen mode
+                console.log('⬆️ Entering fullscreen mode');
+                videoInfoSection.classList.add('fullscreen');
+                toggleIcon.classList.remove('bi-arrows-fullscreen');
+                toggleIcon.classList.add('bi-arrows-angle-contract');
+                toggleBtn.title = 'Quitter le mode plein écran';
+                
+                // Force full height on mobile with inline styles (override any CSS)
+                videoInfoSection.style.position = 'fixed';
+                videoInfoSection.style.top = '0';
+                videoInfoSection.style.left = '0';
+                videoInfoSection.style.right = '0';
+                videoInfoSection.style.bottom = '0';
+                videoInfoSection.style.width = '100vw';
+                videoInfoSection.style.height = '100vh';
+                videoInfoSection.style.height = '100dvh'; // Dynamic viewport height
+                videoInfoSection.style.minHeight = '100vh';
+                videoInfoSection.style.minHeight = '100dvh';
+                videoInfoSection.style.maxHeight = 'none';
+                videoInfoSection.style.zIndex = '10001';
+                videoInfoSection.style.margin = '0';
+                
+                // Prevent body scroll when in fullscreen
+                document.body.style.overflow = 'hidden';
+                document.body.style.position = 'fixed';
+                document.body.style.width = '100%';
+                document.body.style.height = '100%';
+                
+                // Remove max-height restriction on content
+                const videoInfoContent = document.getElementById('theaterVideoInfoContent');
+                if (videoInfoContent) {
+                    videoInfoContent.style.maxHeight = 'none';
+                }
+                
+                console.log('✅ Entered fullscreen mode');
+            }
+        }
+        
+        // Expose function globally early
+        window.toggleVideoInfoFullscreen = toggleVideoInfoFullscreen;
+        
+        /**
          * Open tags page in new tab
          */
         function openTagsPage() {
@@ -1397,6 +1649,7 @@
                 if (typeof sendLike === 'function') {
                     const result = await sendLike(eventId, authorId, '+');
                     if (result) {
+                        // Success: like was sent and confirmed
                         if (likeBtn) {
                             likeBtn.innerHTML = '<i class="bi bi-hand-thumbs-up-fill text-success"></i>';
                             setTimeout(() => {
@@ -1412,17 +1665,94 @@
                             likeCountEl.textContent = currentCount + 1;
                         }
                     } else {
-                        throw new Error('Failed to send like');
+                        // Result is null - check if it's a timeout but connection is active
+                        // In this case, sendLike logs "Timeout mais connexion active, like probablement envoyé"
+                        // We should treat this as a success (silent success)
+                        const currentRelay = window.nostrRelay || nostrRelay;
+                        let ws = null;
+                        if (currentRelay) {
+                            if (currentRelay._ws) ws = currentRelay._ws;
+                            else if (currentRelay.ws) ws = currentRelay.ws;
+                            else if (currentRelay.socket) ws = currentRelay.socket;
+                        }
+                        
+                        const isConnectionActive = ws && ws.readyState === WebSocket.OPEN;
+                        
+                        if (isConnectionActive) {
+                            // Connection is active, like was probably sent (timeout but relay processing)
+                            console.log('✅ Like probablement envoyé (timeout mais connexion active)');
+                            if (likeBtn) {
+                                likeBtn.innerHTML = '<i class="bi bi-hand-thumbs-up-fill text-success"></i>';
+                                setTimeout(() => {
+                                    likeBtn.innerHTML = originalHtml;
+                                    likeBtn.disabled = false;
+                                }, 2000);
+                            }
+                            
+                            // Refresh stats (optimistic update)
+                            const likeCountEl = document.getElementById('likeCount');
+                            if (likeCountEl) {
+                                const currentCount = parseInt(likeCountEl.textContent || '0');
+                                likeCountEl.textContent = currentCount + 1;
+                            }
+                        } else {
+                            // Real failure
+                            throw new Error('Failed to send like');
+                        }
                     }
                 } else {
                     throw new Error('sendLike function not available');
                 }
             } catch (error) {
                 console.error('Error liking video:', error);
-                alert('Erreur lors du like: ' + error.message);
-                if (likeBtn) {
-                    likeBtn.innerHTML = originalHtml;
-                    likeBtn.disabled = false;
+                // Only show alert if it's not a timeout with active connection
+                const errorMessage = error.message || '';
+                const isTimeoutError = errorMessage.includes('Timeout') || errorMessage.includes('timeout');
+                
+                if (!isTimeoutError) {
+                    // Not a timeout error, show alert
+                    alert('Erreur lors du like: ' + error.message);
+                    if (likeBtn) {
+                        likeBtn.innerHTML = originalHtml;
+                        likeBtn.disabled = false;
+                    }
+                } else {
+                    // Timeout error - check connection status
+                    const currentRelay = window.nostrRelay || nostrRelay;
+                    let ws = null;
+                    if (currentRelay) {
+                        if (currentRelay._ws) ws = currentRelay._ws;
+                        else if (currentRelay.ws) ws = currentRelay.ws;
+                        else if (currentRelay.socket) ws = currentRelay.socket;
+                    }
+                    
+                    const isConnectionActive = ws && ws.readyState === WebSocket.OPEN;
+                    
+                    if (isConnectionActive) {
+                        // Timeout but connection active = like probably sent
+                        console.log('✅ Like probablement envoyé (timeout mais connexion active)');
+                        if (likeBtn) {
+                            likeBtn.innerHTML = '<i class="bi bi-hand-thumbs-up-fill text-success"></i>';
+                            setTimeout(() => {
+                                likeBtn.innerHTML = originalHtml;
+                                likeBtn.disabled = false;
+                            }, 2000);
+                        }
+                        
+                        // Refresh stats (optimistic update)
+                        const likeCountEl = document.getElementById('likeCount');
+                        if (likeCountEl) {
+                            const currentCount = parseInt(likeCountEl.textContent || '0');
+                            likeCountEl.textContent = currentCount + 1;
+                        }
+                    } else {
+                        // Real error
+                        alert('Erreur lors du like: ' + error.message);
+                        if (likeBtn) {
+                            likeBtn.innerHTML = originalHtml;
+                            likeBtn.disabled = false;
+                        }
+                    }
                 }
             }
         }
@@ -1756,31 +2086,19 @@
             const uploaderContainer = document.getElementById('theaterUploaderContainer');
             if (!uploaderContainer) return;
             
-            // Try to get current name from DOM first (in case it was already set by openTheaterMode)
             const uploaderEl = document.getElementById('theaterUploader');
-            let displayName = authorName || 'Auteur inconnu';
-            
-            // Extract name from existing DOM element if available
-            if (uploaderEl) {
-                const existingName = uploaderEl.textContent || uploaderEl.innerText;
-                if (existingName && existingName !== 'Loading...' && existingName.trim()) {
-                    displayName = existingName.trim();
-                }
-            }
-            
-            // Escape HTML function
             const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
             
-            // If we have authorId, try to fetch profile and create link
-            if (authorId) {
-                // Show name immediately (don't wait for profile fetch)
+            // If we have authorId, use getProfileNameFromPubkey directly (don't use email or hex)
+            if (authorId && authorId.length === 64) {
+                // Show placeholder immediately (don't wait for profile fetch)
                 const link = document.createElement('a');
                 link.href = '#';
                 link.className = 'theater-uploader-link';
-                link.textContent = displayName;
+                link.textContent = authorId.substring(0, 8) + '...';
                 link.onclick = function(e) {
                     e.preventDefault();
-                    openProfileModalInTheater(authorId, displayName);
+                    openProfileModalInTheater(authorId, authorId.substring(0, 8) + '...');
                     return false;
                 };
                 uploaderContainer.innerHTML = '';
@@ -1788,51 +2106,42 @@
                 
                 // Also update theaterUploader if it exists separately
                 if (uploaderEl && uploaderEl !== uploaderContainer) {
-                    uploaderEl.textContent = displayName;
+                    uploaderEl.textContent = authorId.substring(0, 8) + '...';
                 }
                 
                 // Check follow status and show follow button
                 updateFollowButtonStatus(authorId);
                 
-                // Then try to fetch profile in background (non-blocking)
+                // Fetch profile name using the generic function (not email, not hex)
                 try {
-                    // Try to get profile from NOSTR if available
-                    // Use fetchUserMetadata from common.js (not fetchProfile)
-                    if (typeof fetchUserMetadata !== 'undefined') {
-                        // Use timeout to avoid blocking
-                        const profilePromise = Promise.race([
-                            fetchUserMetadata(authorId),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
-                        ]);
-                        
-                        const profile = await profilePromise;
-                        if (profile) {
-                            let newDisplayName = displayName;
-                            if (profile.display_name) {
-                                newDisplayName = profile.display_name;
-                            } else if (profile.name) {
-                                newDisplayName = profile.name;
-                            }
-                            
-                            // Update display name if we got a better one
-                            if (newDisplayName !== displayName) {
-                                displayName = newDisplayName;
-                                link.textContent = displayName;
-                                if (uploaderEl && uploaderEl !== uploaderContainer) {
-                                    uploaderEl.textContent = displayName;
-                                }
+                    if (typeof getProfileNameFromPubkey === 'function') {
+                        const profileName = await getProfileNameFromPubkey(authorId, true);
+                        // Update display name if we got a valid profile name (not email, not hex)
+                        if (profileName && !profileName.includes('@') && profileName.length !== 64) {
+                            link.textContent = profileName;
+                            const escapedName = escapeFn(profileName);
+                            const escapedPubkey = escapeFn(authorId);
+                            link.setAttribute('onclick', `event.preventDefault(); openProfileModalInTheater('${escapedPubkey}', '${escapedName}'); return false;`);
+                            if (uploaderEl && uploaderEl !== uploaderContainer) {
+                                uploaderEl.textContent = profileName;
                             }
                         }
                     }
                 } catch (error) {
-                    // Silently fail - we already have a name displayed
-                    console.warn('Could not fetch author profile:', error);
+                    // Silently fail - we already have a placeholder displayed
+                    console.warn('Could not fetch author profile name:', error);
+                }
+            } else if (authorName && !authorName.includes('@') && authorName.length !== 64) {
+                // No authorId, but we have a valid name (not email, not hex)
+                uploaderContainer.innerHTML = `<strong>${escapeFn(authorName)}</strong>`;
+                if (uploaderEl && uploaderEl !== uploaderContainer) {
+                    uploaderEl.textContent = authorName;
                 }
             } else {
-                // No authorId, just show name
-                uploaderContainer.innerHTML = `<strong>${escapeFn(displayName)}</strong>`;
+                // No valid author info
+                uploaderContainer.innerHTML = '<strong>Auteur inconnu</strong>';
                 if (uploaderEl && uploaderEl !== uploaderContainer) {
-                    uploaderEl.textContent = displayName;
+                    uploaderEl.textContent = 'Auteur inconnu';
                 }
             }
         }
@@ -1884,46 +2193,15 @@
                 // Add original comment if available (from event 21/22 content)
                 // This is the initial comment/description posted with the video by the author
                 if (originalContent && originalContent.trim()) {
-                    // Get author name - use provided name or try to fetch, but don't block
+                    // Get author name using the generic function
                     let authorName = 'Auteur de la vidéo';
                     
-                    // First try to use the name from uploader parameter if available
-                    // Note: videoData is not available in this scope, we use the authorId parameter
-                    
-                    // Then try to get from DOM if available
-                    if (authorId) {
+                    if (authorId && authorId.length === 64) {
                         try {
-                            const uploaderContainer = document.getElementById('theaterUploaderContainer');
-                            if (uploaderContainer) {
-                                const link = uploaderContainer.querySelector('a');
-                                if (link && link.textContent && link.textContent !== 'Loading...') {
-                                    authorName = link.textContent.trim();
-                                }
-                            }
+                            // Use the generic function to get profile name (not email)
+                            authorName = await getProfileNameFromPubkey(authorId, true);
                         } catch (e) {
-                            // Continue to fetch
-                        }
-                        
-                        // Try to fetch profile (with timeout, non-blocking)
-                        if (typeof fetchUserMetadata !== 'undefined') {
-                            try {
-                                const profilePromise = Promise.race([
-                                    fetchUserMetadata(authorId),
-                                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1500))
-                                ]);
-                                
-                                const profile = await profilePromise;
-                                if (profile) {
-                                    if (profile.display_name) {
-                                        authorName = profile.display_name;
-                                    } else if (profile.name) {
-                                        authorName = profile.name;
-                                    }
-                                }
-                            } catch (e) {
-                                // Use default or already found name
-                                console.warn('Could not fetch profile for original comment author:', e);
-                            }
+                            console.warn('Could not fetch profile for original comment author:', e);
                         }
                     }
                     
@@ -1982,33 +2260,29 @@
                             return;
                         }
                         
-                        // Get author name (use cache if available)
-                        let authorName = authorNameCache.get(event.pubkey) || event.pubkey.substring(0, 8) + '...';
+                        // Get author name (use cache if available, but don't cache hex fallbacks)
+                        let authorName = authorNameCache.get(event.pubkey);
                         
-                        // Fetch profile only if not in cache (optimize performance)
-                        if (!authorNameCache.has(event.pubkey) && typeof fetchUserMetadata !== 'undefined') {
+                        // Check if cached name is a hex fallback (starts with pubkey prefix and ends with ...)
+                        const isHexFallback = authorName && authorName.length === 11 && authorName.endsWith('...') && event.pubkey.startsWith(authorName.substring(0, 8));
+                        
+                        // Fetch profile only if not in cache or if cached value is a hex fallback
+                        if (!authorName || isHexFallback) {
                             try {
-                                // Use timeout to avoid blocking
-                                const profilePromise = Promise.race([
-                                    fetchUserMetadata(event.pubkey),
-                                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
-                                ]);
-                                
-                                const profile = await profilePromise;
-                                if (profile) {
-                                    if (profile.display_name) {
-                                        authorName = profile.display_name;
-                                    } else if (profile.name) {
-                                        authorName = profile.name;
-                                    }
+                                // Use the generic function to get profile name (not email)
+                                authorName = await getProfileNameFromPubkey(event.pubkey, true);
+                                // Only cache if it's a real profile name (not a hex fallback)
+                                if (authorName && !authorName.endsWith('...') && authorName.length !== 11) {
                                     authorNameCache.set(event.pubkey, authorName);
+                                } else {
+                                    // Don't cache hex fallbacks, allow retry later
+                                    authorName = event.pubkey.substring(0, 8) + '...';
                                 }
                             } catch (e) {
-                                // Use default name and cache it to avoid retry
-                                authorNameCache.set(event.pubkey, authorName);
+                                // Use default name but don't cache it to allow retry
+                                authorName = event.pubkey.substring(0, 8) + '...';
+                                console.warn('Could not fetch profile name for comment author:', event.pubkey.substring(0, 8) + '...', e);
                             }
-                        } else if (authorNameCache.has(event.pubkey)) {
-                            authorName = authorNameCache.get(event.pubkey);
                         }
                         
                         // Extract timestamp from comment if available
@@ -2037,10 +2311,16 @@
                             // Re-display all comments with the new one
                             displayComments(comments, commentStats);
                             
-                            // Add visual feedback for new comment (scroll + animation)
+                            // Update author names after displaying (including the new comment)
                             setTimeout(() => {
                                 const commentsList = document.getElementById('theaterCommentsList');
                                 if (commentsList) {
+                                    // Update author names for all comments
+                                    updateCommentAuthorNames(commentsList).catch(err => {
+                                        console.warn('Error updating comment author names:', err);
+                                    });
+                                    
+                                    // Add visual feedback for new comment (scroll + animation)
                                     // Find the new comment element (last non-original one)
                                     const commentElements = commentsList.querySelectorAll('.theater-comment-item:not(.original-comment)');
                                     const lastComment = commentElements[commentElements.length - 1];
@@ -2095,6 +2375,19 @@
             // Render tree with threading
             const html = renderCommentTree(commentTree, 0);
             commentsList.innerHTML = html;
+            
+            // Process pubkeys in comments asynchronously (replace with profile names)
+            replacePubkeysWithNames(commentsList).catch(err => {
+                console.warn('Error replacing pubkeys with names:', err);
+            });
+            
+            // Update author names in comment elements (in case they're still showing pubkeys or emails)
+            // Use setTimeout to ensure DOM is ready
+            setTimeout(() => {
+                updateCommentAuthorNames(commentsList).catch(err => {
+                    console.warn('Error updating comment author names:', err);
+                });
+            }, 100);
         }
         
         /**
@@ -2161,6 +2454,342 @@
         }
         
         /**
+         * Linkify URLs in text
+         * @param {string} text - Text to process
+         * @param {function} escapeFn - HTML escape function
+         * @returns {string} - Text with URLs converted to links
+         */
+        function linkifyUrls(text, escapeFn) {
+            if (!text) return '';
+            // URL regex pattern (matches http://, https://, www., and common domains)
+            const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+|www\.[^\s<>"{}|\\^`\[\]]+|[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}[^\s<>"{}|\\^`\[\]]*)/gi;
+            return text.replace(urlRegex, (url) => {
+                // Add http:// if missing
+                let href = url;
+                if (!url.match(/^https?:\/\//i)) {
+                    href = url.startsWith('www.') ? 'https://' + url : 'http://' + url;
+                }
+                return `<a href="${escapeFn(href)}" target="_blank" rel="noopener noreferrer" class="comment-link" style="color: #5bb5ff; text-decoration: underline;">${escapeFn(url)}</a>`;
+            });
+        }
+        
+        /**
+         * Process comment content: linkify URLs and detect pubkeys
+         * @param {string} content - Comment content
+         * @param {function} escapeFn - HTML escape function
+         * @returns {string} - Processed content with URLs linkified and pubkeys marked
+         */
+        function processCommentContent(content, escapeFn) {
+            if (!content) return '';
+            
+            // Step 1: Linkify URLs in original text (before escaping)
+            let processed = linkifyUrls(content, escapeFn);
+            
+            // Step 2: Detect hex pubkeys (64 hex characters) and mark them for async replacement
+            // We need to do this carefully to avoid matching pubkeys inside URLs
+            const pubkeyRegex = /\b([0-9a-f]{64})\b/gi;
+            processed = processed.replace(pubkeyRegex, (match, pubkey, offset, string) => {
+                // Check if this pubkey is inside an <a> tag (URL link)
+                const beforeMatch = string.substring(0, offset);
+                const afterMatch = string.substring(offset + match.length);
+                const openATags = (beforeMatch.match(/<a\s[^>]*>/gi) || []).length;
+                const closeATags = (beforeMatch.match(/<\/a>/gi) || []).length;
+                
+                // If we're inside an <a> tag, don't replace (it's part of a URL)
+                if (openATags > closeATags) {
+                    return match; // Keep original
+                }
+                
+                const pubkeyLower = pubkey.toLowerCase();
+                // Wrap in a span with data attribute for async replacement
+                return `<span class="pubkey-placeholder" data-pubkey="${pubkeyLower}" style="color: #888; font-family: monospace; cursor: pointer;" title="Chargement du profil...">${escapeFn(pubkey.substring(0, 8))}...</span>`;
+            });
+            
+            // Step 3: Escape any remaining HTML that wasn't already processed
+            // We need to escape text parts but preserve our HTML tags (<a> and <span>)
+            // This is tricky, so we'll use a different approach: escape the whole thing
+            // but restore our tags
+            const tempMarker = '___TEMP_MARKER___';
+            const linkMarkers = [];
+            const pubkeyMarkers = [];
+            
+            // Replace our HTML tags with markers
+            processed = processed.replace(/<a\s[^>]*>.*?<\/a>/gi, (match) => {
+                const marker = `${tempMarker}LINK${linkMarkers.length}${tempMarker}`;
+                linkMarkers.push(match);
+                return marker;
+            });
+            
+            processed = processed.replace(/<span\s[^>]*class="pubkey-placeholder"[^>]*>.*?<\/span>/gi, (match) => {
+                const marker = `${tempMarker}PUBKEY${pubkeyMarkers.length}${tempMarker}`;
+                pubkeyMarkers.push(match);
+                return marker;
+            });
+            
+            // Escape the remaining text
+            processed = escapeFn(processed);
+            
+            // Restore our HTML tags
+            linkMarkers.forEach((link, index) => {
+                processed = processed.replace(`${tempMarker}LINK${index}${tempMarker}`, link);
+            });
+            
+            pubkeyMarkers.forEach((pubkey, index) => {
+                processed = processed.replace(`${tempMarker}PUBKEY${index}${tempMarker}`, pubkey);
+            });
+            
+            return processed;
+        }
+        
+        /**
+         * Generic function to get profile name from pubkey (hex)
+         * Uses getUserDisplayName from common.js if available, otherwise fetchUserMetadata
+         * This function is reusable throughout the application
+         * @param {string} pubkey - Hex pubkey (64 characters)
+         * @param {boolean} cached - Use cached profile if available (default: true)
+         * @returns {Promise<string>} Profile name or truncated pubkey as fallback
+         */
+        async function getProfileNameFromPubkey(pubkey, cached = true) {
+            if (!pubkey || pubkey.length !== 64) {
+                return pubkey ? pubkey.substring(0, 8) + '...' : 'Unknown';
+            }
+            
+            // Helper function to check if a string is a hex fallback (truncated pubkey)
+            const isHexFallback = (name) => {
+                if (!name) return false;
+                // Check if it's exactly 11 characters (8 hex chars + "...")
+                if (name.length === 11 && name.endsWith('...')) {
+                    // Check if it starts with the first 8 characters of the pubkey
+                    return name.substring(0, 8) === pubkey.substring(0, 8);
+                }
+                return false;
+            };
+            
+            try {
+                // First try getUserDisplayName from common.js (preferred method)
+                if (typeof getUserDisplayName === 'function') {
+                    const displayName = await getUserDisplayName(pubkey, cached);
+                    console.log(`🔍 getProfileNameFromPubkey(${pubkey.substring(0, 8)}...): getUserDisplayName returned:`, displayName);
+                    // Reject if it's a hex fallback, Unknown, or contains @
+                    if (displayName && displayName !== 'Unknown' && !displayName.includes('@') && !isHexFallback(displayName)) {
+                        // Don't return email addresses or hex fallbacks, only display names
+                        console.log(`✅ Using profile name from getUserDisplayName: ${displayName}`);
+                        return displayName;
+                    } else {
+                        console.log(`⚠️ getUserDisplayName returned invalid name (hex fallback or email): ${displayName}`);
+                    }
+                } else {
+                    console.warn('⚠️ getUserDisplayName function not available');
+                }
+                
+                // Fallback to fetchUserMetadata (more reliable, fetches full profile)
+                if (typeof fetchUserMetadata !== 'undefined') {
+                    const profile = await fetchUserMetadata(pubkey, cached);
+                    console.log(`🔍 getProfileNameFromPubkey(${pubkey.substring(0, 8)}...): fetchUserMetadata returned:`, profile);
+                    if (profile) {
+                        // Prefer display_name or name, but not email or hex fallback
+                        if (profile.display_name && !profile.display_name.includes('@') && !isHexFallback(profile.display_name)) {
+                            console.log(`✅ Using profile.display_name: ${profile.display_name}`);
+                            return profile.display_name;
+                        } else if (profile.name && !profile.name.includes('@') && !isHexFallback(profile.name)) {
+                            console.log(`✅ Using profile.name: ${profile.name}`);
+                            return profile.name;
+                        } else {
+                            console.log(`⚠️ Profile found but no valid name (display_name: ${profile.display_name}, name: ${profile.name})`);
+                        }
+                    } else {
+                        console.log(`⚠️ fetchUserMetadata returned null/undefined for ${pubkey.substring(0, 8)}...`);
+                    }
+                } else {
+                    console.warn('⚠️ fetchUserMetadata function not available');
+                }
+            } catch (error) {
+                console.warn('❌ Error fetching profile name for pubkey:', pubkey.substring(0, 8) + '...', error);
+            }
+            
+            // Fallback to truncated pubkey (only if no valid profile name found)
+            console.log(`⚠️ No profile name found for ${pubkey.substring(0, 8)}..., using fallback`);
+            return pubkey.substring(0, 8) + '...';
+        }
+        
+        // Expose function globally for use throughout the application
+        window.getProfileNameFromPubkey = getProfileNameFromPubkey;
+        
+        /**
+         * Update author names in comment elements (async)
+         * Finds all elements with data-author-id and updates them with profile names
+         * @param {HTMLElement} container - Container element to process
+         */
+        async function updateCommentAuthorNames(container) {
+            if (!container) {
+                console.warn('⚠️ updateCommentAuthorNames: container is null');
+                return;
+            }
+            
+            const authorElements = container.querySelectorAll('[data-author-id]');
+            console.log(`🔍 updateCommentAuthorNames: found ${authorElements.length} author elements`);
+            
+            if (authorElements.length === 0) return;
+            
+            // Cache for profile names to avoid duplicate requests
+            const profileCache = new Map();
+            
+            // Process each author element
+            for (const element of authorElements) {
+                const pubkey = element.getAttribute('data-author-id');
+                if (!pubkey || pubkey.length !== 64) {
+                    console.warn(`⚠️ Invalid pubkey in data-author-id: ${pubkey}`);
+                    continue;
+                }
+                
+                // Check cache first
+                if (profileCache.has(pubkey)) {
+                    const profileName = profileCache.get(pubkey);
+                    console.log(`✅ Using cached profile name for ${pubkey.substring(0, 8)}...: ${profileName}`);
+                    updateAuthorElement(element, pubkey, profileName);
+                    continue;
+                }
+                
+                // Mark as processing
+                profileCache.set(pubkey, null);
+                
+                try {
+                    console.log(`🔍 Fetching profile name for ${pubkey.substring(0, 8)}...`);
+                    const profileName = await getProfileNameFromPubkey(pubkey, true);
+                    console.log(`✅ Got profile name for ${pubkey.substring(0, 8)}...: ${profileName}`);
+                    profileCache.set(pubkey, profileName);
+                    updateAuthorElement(element, pubkey, profileName);
+                } catch (error) {
+                    console.warn('❌ Error updating author name:', pubkey.substring(0, 8) + '...', error);
+                    const fallbackName = pubkey.substring(0, 8) + '...';
+                    profileCache.set(pubkey, fallbackName);
+                    updateAuthorElement(element, pubkey, fallbackName);
+                }
+            }
+            
+            console.log(`✅ updateCommentAuthorNames completed for ${authorElements.length} elements`);
+        }
+        
+        /**
+         * Update a single author element with profile name
+         * @param {HTMLElement} element - The element to update
+         * @param {string} pubkey - The pubkey
+         * @param {string} profileName - The profile name to display
+         */
+        function updateAuthorElement(element, pubkey, profileName) {
+            if (!element) {
+                console.warn('⚠️ updateAuthorElement: element is null');
+                return;
+            }
+            
+            console.log(`🔄 updateAuthorElement: updating ${pubkey.substring(0, 8)}... with name: ${profileName}`);
+            
+            const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
+            const escapedName = escapeFn(profileName);
+            const escapedPubkey = escapeFn(pubkey);
+            
+            const openProfileFn = typeof openProfileModalInTheater !== 'undefined' ? 'openProfileModalInTheater' :
+                                 (typeof openProfileModal !== 'undefined' ? 'openProfileModal' : null);
+            
+            // Check if element contains a link
+            const existingLink = element.querySelector('a.theater-uploader-link');
+            if (existingLink) {
+                // Update existing link
+                console.log(`✅ Updating existing link for ${pubkey.substring(0, 8)}...`);
+                existingLink.textContent = profileName;
+                if (openProfileFn) {
+                    existingLink.setAttribute('onclick', `event.preventDefault(); ${openProfileFn}('${escapedPubkey}', '${escapedName}'); return false;`);
+                }
+            } else if (element.tagName === 'A') {
+                // Element itself is a link
+                console.log(`✅ Updating link element for ${pubkey.substring(0, 8)}...`);
+                element.textContent = profileName;
+                if (openProfileFn) {
+                    element.setAttribute('onclick', `event.preventDefault(); ${openProfileFn}('${escapedPubkey}', '${escapedName}'); return false;`);
+                    element.className = 'theater-uploader-link';
+                }
+            } else {
+                // Replace content with link if profile function available
+                console.log(`✅ Replacing content with link for ${pubkey.substring(0, 8)}...`);
+                if (openProfileFn) {
+                    element.innerHTML = `<a href="#" onclick="event.preventDefault(); ${openProfileFn}('${escapedPubkey}', '${escapedName}'); return false;" class="theater-uploader-link">${escapedName}</a>`;
+                } else {
+                    element.textContent = profileName;
+                }
+            }
+        }
+        
+        /**
+         * Replace pubkey placeholders with profile names (async)
+         * @param {HTMLElement} container - Container element to process
+         */
+        async function replacePubkeysWithNames(container) {
+            if (!container) return;
+            
+            const placeholders = container.querySelectorAll('.pubkey-placeholder[data-pubkey]');
+            if (placeholders.length === 0) return;
+            
+            // Cache for profile names to avoid duplicate requests
+            const profileCache = new Map();
+            
+            // Process each placeholder
+            for (const placeholder of placeholders) {
+                const pubkey = placeholder.getAttribute('data-pubkey');
+                if (!pubkey) continue;
+                
+                // Check cache first
+                if (profileCache.has(pubkey)) {
+                    const profileName = profileCache.get(pubkey);
+                    if (profileName) {
+                        replacePubkeyPlaceholder(placeholder, pubkey, profileName);
+                    }
+                    continue;
+                }
+                
+                // Mark as processing to avoid duplicate requests
+                profileCache.set(pubkey, null);
+                
+                try {
+                    // Use the generic function to get profile name
+                    const profileName = await getProfileNameFromPubkey(pubkey, true);
+                    profileCache.set(pubkey, profileName);
+                    
+                    // Replace placeholder with profile name link
+                    replacePubkeyPlaceholder(placeholder, pubkey, profileName);
+                } catch (error) {
+                    console.warn('Error fetching profile for pubkey:', pubkey.substring(0, 8) + '...', error);
+                    // Keep the placeholder as is on error, but update cache
+                    const fallbackName = `${pubkey.substring(0, 8)}...`;
+                    profileCache.set(pubkey, fallbackName);
+                    replacePubkeyPlaceholder(placeholder, pubkey, fallbackName);
+                }
+            }
+        }
+        
+        /**
+         * Replace a pubkey placeholder with a profile name link
+         * @param {HTMLElement} placeholder - The placeholder element
+         * @param {string} pubkey - The pubkey
+         * @param {string} profileName - The profile name to display
+         */
+        function replacePubkeyPlaceholder(placeholder, pubkey, profileName) {
+            const escapeFn = typeof escapeHtml !== 'undefined' ? escapeHtml : window.escapeHtml || escapeHtmlLocal;
+            const escapedName = escapeFn(profileName);
+            const escapedPubkey = escapeFn(pubkey);
+            
+            const openProfileFn = typeof openProfileModalInTheater !== 'undefined' ? 'openProfileModalInTheater' :
+                                 (typeof openProfileModal !== 'undefined' ? 'openProfileModal' : null);
+            
+            if (openProfileFn) {
+                placeholder.outerHTML = `<a href="#" onclick="event.preventDefault(); ${openProfileFn}('${escapedPubkey}', '${escapedName}'); return false;" class="theater-uploader-link" style="color: #3ea6ff; text-decoration: none; cursor: pointer;">${escapedName}</a>`;
+            } else {
+                placeholder.textContent = profileName;
+                placeholder.classList.remove('pubkey-placeholder');
+                placeholder.style.color = '#3ea6ff';
+            }
+        }
+        
+        /**
          * Render a single comment with its replies
          */
         function renderComment(comment, repliesMap, escapeFn, formatRelativeFn, depth = 0) {
@@ -2181,10 +2810,13 @@
             const isReply = depth > 0;
             const replyClass = isReply ? 'reply' : '';
             
+            // Process comment content: linkify URLs and mark pubkeys
+            const processedContent = processCommentContent(comment.content, escapeFn);
+            
             let html = `
                 <div class="theater-comment-item ${comment.isOriginal ? 'original-comment' : ''} ${replyClass}" data-comment-id="${comment.id}">
-                    <div class="theater-comment-author">${authorLink}</div>
-                    <div class="theater-comment-content">${escapeFn(comment.content)}</div>
+                    <div class="theater-comment-author" data-author-id="${comment.authorId || ''}">${authorLink}</div>
+                    <div class="theater-comment-content">${processedContent}</div>
                     ${timestampDisplay ? `<button class="theater-comment-timestamp-link" onclick="seekToTimestamp(${comment.timestamp})">⏱️ ${timestampDisplay}</button>` : ''}
                     <div class="theater-comment-actions">
                         ${timeAgo ? `<span class="theater-comment-time">${timeAgo}</span>` : ''}
@@ -3050,6 +3682,11 @@
             // Load provenance info
             loadProvenanceInfo(videoData);
             
+            // Load TMDB metadata from info.json if available
+            if (videoData.info_cid) {
+                loadTMDBMetadata(videoData.info_cid, videoData.eventId, videoData.kind, videoData.authorId);
+            }
+            
             // Load comments (ensure relay is connected first)
             if (videoData.eventId) {
                 // Wait a bit to ensure relay is ready
@@ -3279,6 +3916,412 @@
             }
         }
         
+        /**
+         * Load and display TMDB metadata from info.json and enrichments
+         */
+        async function loadTMDBMetadata(infoCid, videoEventId, videoKind, videoAuthorId) {
+            const tmdbSection = document.getElementById('theaterTMDBMetadataSection');
+            const tmdbContent = document.getElementById('theaterTMDBContent');
+            
+            if (!tmdbSection || !tmdbContent || !infoCid) return;
+            
+            try {
+                const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+                const infoUrl = `${gateway}/ipfs/${infoCid}/info.json`;
+                
+                console.log('📋 Loading TMDB metadata from:', infoUrl);
+                
+                const response = await fetch(infoUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const infoJson = await response.json();
+                
+                // Extract TMDB metadata
+                let tmdb = infoJson.tmdb;
+                if (!tmdb || !tmdb.tmdb_id) {
+                    // No TMDB metadata found
+                    tmdbSection.style.display = 'none';
+                    return;
+                }
+                
+                // Load enrichments from NOSTR if video event ID is available
+                if (videoEventId && videoKind) {
+                    try {
+                        const enrichments = await loadTMDBEnrichments(videoEventId, videoKind, videoAuthorId);
+                        if (enrichments && enrichments.length > 0) {
+                            // Merge enrichments with original metadata
+                            tmdb = mergeTMDBEnrichments(tmdb, enrichments);
+                            console.log(`✅ Merged ${enrichments.length} enrichment(s) with original TMDB metadata`);
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Could not load enrichments:', error);
+                        // Continue with original metadata only
+                    }
+                }
+                
+                // Escape HTML helper
+                const escapeHtmlFn = typeof escapeHtml !== 'undefined' ? escapeHtml : 
+                                    (typeof window.escapeHtml !== 'undefined' ? window.escapeHtml : escapeHtmlLocal);
+                
+                // Build TMDB metadata HTML
+                let tmdbHtml = '';
+                
+                // Basic info
+                if (tmdb.title) {
+                    tmdbHtml += `<div class="mb-2"><strong class="text-white">${escapeHtmlFn(tmdb.title)}</strong>`;
+                    if (tmdb.year) {
+                        tmdbHtml += ` <span class="text-secondary">(${escapeHtmlFn(tmdb.year)})</span>`;
+                    }
+                    tmdbHtml += `</div>`;
+                }
+                
+                // Media type badge
+                if (tmdb.media_type) {
+                    const mediaTypeLabel = tmdb.media_type === 'movie' ? 'Film' : (tmdb.media_type === 'tv' ? 'Série' : tmdb.media_type);
+                    const badgeClass = tmdb.media_type === 'movie' ? 'bg-warning' : 'bg-info';
+                    tmdbHtml += `<div class="mb-2"><span class="badge ${badgeClass}">${escapeHtmlFn(mediaTypeLabel)}</span></div>`;
+                }
+                
+                // Genres
+                if (tmdb.genres && Array.isArray(tmdb.genres) && tmdb.genres.length > 0) {
+                    const genresHtml = tmdb.genres.map(genre => 
+                        `<span class="badge bg-secondary me-1">${escapeHtmlFn(genre)}</span>`
+                    ).join('');
+                    tmdbHtml += `<div class="mb-2"><strong class="text-secondary">Genres:</strong> ${genresHtml}</div>`;
+                }
+                
+                // Overview/Description
+                if (tmdb.overview) {
+                    tmdbHtml += `<div class="mb-2 text-white-50">${escapeHtmlFn(tmdb.overview)}</div>`;
+                }
+                
+                // Tagline
+                if (tmdb.tagline) {
+                    tmdbHtml += `<div class="mb-2"><em class="text-info">"${escapeHtmlFn(tmdb.tagline)}"</em></div>`;
+                }
+                
+                // Director (for movies)
+                if (tmdb.director) {
+                    tmdbHtml += `<div class="mb-1"><strong class="text-secondary">Réalisateur:</strong> <span class="text-white-50">${escapeHtmlFn(tmdb.director)}</span></div>`;
+                }
+                
+                // Creator (for TV shows)
+                if (tmdb.creator) {
+                    tmdbHtml += `<div class="mb-1"><strong class="text-secondary">Créateur:</strong> <span class="text-white-50">${escapeHtmlFn(tmdb.creator)}</span></div>`;
+                }
+                
+                // Runtime
+                if (tmdb.runtime) {
+                    tmdbHtml += `<div class="mb-1"><strong class="text-secondary">Durée:</strong> <span class="text-white-50">${escapeHtmlFn(tmdb.runtime)}</span></div>`;
+                }
+                
+                // Rating
+                if (tmdb.vote_average) {
+                    tmdbHtml += `<div class="mb-1"><strong class="text-secondary">Note:</strong> <span class="text-white-50">${escapeHtmlFn(tmdb.vote_average)}`;
+                    if (tmdb.vote_count) {
+                        tmdbHtml += ` <small class="text-secondary">(${escapeHtmlFn(tmdb.vote_count)} votes)</small>`;
+                    }
+                    tmdbHtml += `</span></div>`;
+                }
+                
+                // Certification/Rating
+                if (tmdb.certification) {
+                    tmdbHtml += `<div class="mb-1"><strong class="text-secondary">Classification:</strong> <span class="badge bg-dark">${escapeHtmlFn(tmdb.certification)}</span></div>`;
+                }
+                
+                // Series-specific metadata
+                if (tmdb.media_type === 'tv') {
+                    // Series name
+                    if (tmdb.series_name) {
+                        tmdbHtml += `<div class="mb-1"><strong class="text-secondary">Série:</strong> <span class="text-white-50">${escapeHtmlFn(tmdb.series_name)}</span></div>`;
+                    }
+                    
+                    // Episode name
+                    if (tmdb.episode_name) {
+                        tmdbHtml += `<div class="mb-1"><strong class="text-secondary">Épisode:</strong> <span class="text-white-50">${escapeHtmlFn(tmdb.episode_name)}</span></div>`;
+                    }
+                    
+                    // Season and episode numbers
+                    if (tmdb.season_number || tmdb.episode_number) {
+                        let seasonEpisode = '';
+                        if (tmdb.season_number) {
+                            seasonEpisode = `Saison ${escapeHtmlFn(tmdb.season_number)}`;
+                        }
+                        if (tmdb.episode_number) {
+                            if (seasonEpisode) seasonEpisode += ', ';
+                            seasonEpisode += `Épisode ${escapeHtmlFn(tmdb.episode_number)}`;
+                        }
+                        tmdbHtml += `<div class="mb-1"><strong class="text-secondary">${seasonEpisode}</strong></div>`;
+                    }
+                    
+                    // Network
+                    if (tmdb.network) {
+                        tmdbHtml += `<div class="mb-1"><strong class="text-secondary">Réseau:</strong> <span class="text-white-50">${escapeHtmlFn(tmdb.network)}</span></div>`;
+                    }
+                    
+                    // Status
+                    if (tmdb.status) {
+                        tmdbHtml += `<div class="mb-1"><strong class="text-secondary">Statut:</strong> <span class="text-white-50">${escapeHtmlFn(tmdb.status)}</span></div>`;
+                    }
+                    
+                    // Number of seasons/episodes
+                    if (tmdb.number_of_seasons || tmdb.number_of_episodes) {
+                        let seriesInfo = '';
+                        if (tmdb.number_of_seasons) {
+                            seriesInfo = `${escapeHtmlFn(tmdb.number_of_seasons)} saison${tmdb.number_of_seasons > 1 ? 's' : ''}`;
+                        }
+                        if (tmdb.number_of_episodes) {
+                            if (seriesInfo) seriesInfo += ', ';
+                            seriesInfo += `${escapeHtmlFn(tmdb.number_of_episodes)} épisode${tmdb.number_of_episodes > 1 ? 's' : ''}`;
+                        }
+                        tmdbHtml += `<div class="mb-1"><strong class="text-secondary">${seriesInfo}</strong></div>`;
+                    }
+                }
+                
+                // Production companies
+                if (tmdb.production_companies && Array.isArray(tmdb.production_companies) && tmdb.production_companies.length > 0) {
+                    const companiesHtml = tmdb.production_companies.map(company => escapeHtmlFn(company)).join(', ');
+                    tmdbHtml += `<div class="mb-1"><strong class="text-secondary">Production:</strong> <span class="text-white-50">${companiesHtml}</span></div>`;
+                }
+                
+                // Countries
+                if (tmdb.countries && Array.isArray(tmdb.countries) && tmdb.countries.length > 0) {
+                    const countriesHtml = tmdb.countries.map(country => escapeHtmlFn(country)).join(', ');
+                    tmdbHtml += `<div class="mb-1"><strong class="text-secondary">Pays:</strong> <span class="text-white-50">${countriesHtml}</span></div>`;
+                }
+                
+                // Languages
+                if (tmdb.languages && Array.isArray(tmdb.languages) && tmdb.languages.length > 0) {
+                    const languagesHtml = tmdb.languages.map(lang => escapeHtmlFn(lang)).join(', ');
+                    tmdbHtml += `<div class="mb-1"><strong class="text-secondary">Langues:</strong> <span class="text-white-50">${languagesHtml}</span></div>`;
+                }
+                
+                // TMDB URL link
+                if (tmdb.tmdb_url) {
+                    tmdbHtml += `<div class="mt-2"><a href="${escapeHtmlFn(tmdb.tmdb_url)}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-box-arrow-up-right"></i> Voir sur TMDB
+                    </a></div>`;
+                }
+                
+                // Add enrichment indicator and contribution button
+                if (videoEventId && videoKind) {
+                    tmdbHtml += `<div class="mt-3 pt-3 border-top border-secondary">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-secondary">
+                                <i class="bi bi-info-circle"></i> Métadonnées enrichies par la communauté
+                            </small>
+                            <button class="btn btn-sm btn-outline-info" onclick="openEnrichmentModal('${escapeHtmlFn(videoEventId)}', ${videoKind}); return false;">
+                                <i class="bi bi-plus-circle"></i> Contribuer
+                            </button>
+                        </div>
+                    </div>`;
+                }
+                
+                // Display TMDB metadata
+                if (tmdbHtml) {
+                    tmdbContent.innerHTML = tmdbHtml;
+                    tmdbSection.style.display = 'block';
+                } else {
+                    tmdbSection.style.display = 'none';
+                }
+                
+            } catch (error) {
+                console.error('Error loading TMDB metadata:', error);
+                tmdbSection.style.display = 'none';
+            }
+        }
+        
+        /**
+         * Load TMDB metadata enrichments from NOSTR (kind 1986 and 30001)
+         */
+        async function loadTMDBEnrichments(videoEventId, videoKind, videoAuthorId) {
+            if (!videoEventId || !videoKind) return [];
+            
+            try {
+                // Get relay from window (consistent source)
+                let currentRelay = window.nostrRelay || nostrRelay;
+                
+                // Ensure we have a valid relay with .sub() method
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    if (typeof connectToRelay === 'function') {
+                        console.log('🔌 Connecting to relay for enrichments...');
+                        const relay = await connectToRelay();
+                        currentRelay = relay || window.nostrRelay || nostrRelay;
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    
+                    currentRelay = window.nostrRelay || nostrRelay || currentRelay;
+                    if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                        console.warn('⚠️ NOSTR relay not connected, cannot load enrichments');
+                        return [];
+                    }
+                }
+                
+                console.log('📋 Loading TMDB enrichments for video:', videoEventId);
+                
+                // Query for kind 1986 enrichments (community contributions)
+                const enrichments1986 = await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Timeout loading enrichments'));
+                    }, 10000);
+                    
+                    const enrichments = [];
+                    const sub = currentRelay.sub([
+                        {
+                            kinds: [1986],
+                            '#e': [videoEventId],
+                            '#k': [String(videoKind)],
+                            '#L': ['tmdb.metadata']
+                        }
+                    ]);
+                    
+                    sub.on('event', (event) => {
+                        try {
+                            const content = JSON.parse(event.content || '{}');
+                            if (content.tmdb) {
+                                enrichments.push({
+                                    event_id: event.id,
+                                    pubkey: event.pubkey,
+                                    created_at: event.created_at,
+                                    type: getEnrichmentType(event.tags),
+                                    content: content,
+                                    reason: content.reason || '',
+                                    source: content.source || ''
+                                });
+                            }
+                        } catch (e) {
+                            console.warn('⚠️ Failed to parse enrichment event:', e);
+                        }
+                    });
+                    
+                    sub.on('eose', () => {
+                        clearTimeout(timeout);
+                        sub.unsub();
+                        resolve(enrichments);
+                    });
+                    
+                    sub.on('error', (error) => {
+                        clearTimeout(timeout);
+                        sub.unsub();
+                        reject(error);
+                    });
+                });
+                
+                // Query for kind 30001 author updates (replaceable)
+                let authorUpdate = null;
+                if (videoAuthorId) {
+                    try {
+                        const authorUpdates = await new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => {
+                                resolve([]);
+                            }, 5000);
+                            
+                            const updates = [];
+                            const sub = currentRelay.sub([
+                                {
+                                    kinds: [30001],
+                                    authors: [videoAuthorId],
+                                    '#d': ['tmdb-metadata'],
+                                    '#e': [videoEventId]
+                                }
+                            ]);
+                            
+                            sub.on('event', (event) => {
+                                try {
+                                    const content = JSON.parse(event.content || '{}');
+                                    if (content.tmdb) {
+                                        updates.push({
+                                            event_id: event.id,
+                                            pubkey: event.pubkey,
+                                            created_at: event.created_at,
+                                            type: 'author_update',
+                                            content: content,
+                                            reason: content.reason || '',
+                                            source: content.source || ''
+                                        });
+                                    }
+                                } catch (e) {
+                                    console.warn('⚠️ Failed to parse author update event:', e);
+                                }
+                            });
+                            
+                            sub.on('eose', () => {
+                                clearTimeout(timeout);
+                                sub.unsub();
+                                // Return only the latest (most recent) update
+                                const latest = updates.sort((a, b) => b.created_at - a.created_at)[0] || null;
+                                resolve(latest);
+                            });
+                            
+                            sub.on('error', () => {
+                                clearTimeout(timeout);
+                                sub.unsub();
+                                resolve(null);
+                            });
+                        });
+                        
+                        if (authorUpdates) {
+                            authorUpdate = authorUpdates;
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Could not load author update:', error);
+                    }
+                }
+                
+                // Combine enrichments: author update first (highest priority), then community enrichments
+                const allEnrichments = [];
+                if (authorUpdate) {
+                    allEnrichments.push(authorUpdate);
+                }
+                allEnrichments.push(...enrichments1986);
+                
+                // Sort by created_at (oldest first for merging)
+                allEnrichments.sort((a, b) => a.created_at - b.created_at);
+                
+                console.log(`✅ Loaded ${allEnrichments.length} enrichment(s) (${authorUpdate ? '1 author update, ' : ''}${enrichments1986.length} community)`);
+                
+                return allEnrichments;
+                
+            } catch (error) {
+                console.error('Error loading TMDB enrichments:', error);
+                return [];
+            }
+        }
+        
+        /**
+         * Get enrichment type from event tags
+         */
+        function getEnrichmentType(tags) {
+            const lTag = tags.find(tag => tag[0] === 'l' && tag[2] === 'tmdb.metadata');
+            return lTag ? lTag[1] : 'enrichment';
+        }
+        
+        /**
+         * Merge TMDB enrichments with original metadata
+         * Priority: author_update > most recent enrichment > original
+         */
+        function mergeTMDBEnrichments(originalTmdb, enrichments) {
+            if (!enrichments || enrichments.length === 0) {
+                return originalTmdb;
+            }
+            
+            // Start with original metadata
+            let merged = JSON.parse(JSON.stringify(originalTmdb));
+            
+            // Apply enrichments in chronological order
+            // Author updates are already first in the array
+            for (const enrichment of enrichments) {
+                if (enrichment.content && enrichment.content.tmdb) {
+                    // Merge enrichment into existing metadata
+                    merged = { ...merged, ...enrichment.content.tmdb };
+                }
+            }
+            
+            return merged;
+        }
+        
         // Expose functions globally
         window.submitTheaterComment = submitTheaterComment;
         window.addTimestampToComment = addTimestampToComment;
@@ -3286,6 +4329,257 @@
         window.loadVideoComments = loadVideoComments;
         window.loadProvenanceInfo = loadProvenanceInfo;
         window.loadVideoTagsPreview = loadVideoTagsPreview;
+        window.loadTMDBMetadata = loadTMDBMetadata;
+        window.loadTMDBEnrichments = loadTMDBEnrichments;
+        window.mergeTMDBEnrichments = mergeTMDBEnrichments;
+        
+        /**
+         * Open modal for submitting TMDB metadata enrichment
+         */
+        function openEnrichmentModal(videoEventId, videoKind) {
+            // Check if user is connected
+            if (!window.userPubkey || !window.isNostrConnected) {
+                if (typeof showAlert === 'function') {
+                    showAlert('Vous devez être connecté à NOSTR pour contribuer aux métadonnées.', 'warning');
+                } else {
+                    alert('Vous devez être connecté à NOSTR pour contribuer aux métadonnées.');
+                }
+                return;
+            }
+            
+            // Create or show enrichment modal
+            let modal = document.getElementById('tmdbEnrichmentModal');
+            if (!modal) {
+                // Create modal HTML
+                modal = document.createElement('div');
+                modal.id = 'tmdbEnrichmentModal';
+                modal.className = 'modal fade';
+                modal.setAttribute('tabindex', '-1');
+                modal.innerHTML = `
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content bg-dark text-white">
+                            <div class="modal-header border-secondary">
+                                <h5 class="modal-title"><i class="bi bi-film"></i> Enrichir les métadonnées TMDB</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Type d'enrichissement</label>
+                                    <select id="enrichmentType" class="form-select bg-dark text-white border-secondary">
+                                        <option value="correction">Correction d'erreur</option>
+                                        <option value="enrichment">Ajout d'informations</option>
+                                        <option value="update">Mise à jour</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Métadonnées TMDB (JSON)</label>
+                                    <textarea id="enrichmentJson" class="form-control bg-dark text-white border-secondary" rows="10" 
+                                              placeholder='{"tmdb": {"title": "Titre corrigé", "genres": ["Action", "Sci-Fi"], ...}}'></textarea>
+                                    <small class="text-secondary">Entrez uniquement les champs à corriger/enrichir</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Raison (optionnel)</label>
+                                    <input type="text" id="enrichmentReason" class="form-control bg-dark text-white border-secondary" 
+                                           placeholder="Explication de la correction/enrichissement">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Source (optionnel)</label>
+                                    <input type="text" id="enrichmentSource" class="form-control bg-dark text-white border-secondary" 
+                                           placeholder="Ex: tmdb.org">
+                                </div>
+                            </div>
+                            <div class="modal-footer border-secondary">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                <button type="button" class="btn btn-primary" onclick="submitTMDBEnrichment('${videoEventId}', ${videoKind});">
+                                    <i class="bi bi-send"></i> Publier l'enrichissement
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+            
+            // Show modal using Bootstrap
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                const bsModal = new bootstrap.Modal(modal);
+                bsModal.show();
+            } else {
+                modal.style.display = 'block';
+            }
+        }
+        
+        /**
+         * Submit TMDB metadata enrichment
+         */
+        async function submitTMDBEnrichment(videoEventId, videoKind) {
+            const typeEl = document.getElementById('enrichmentType');
+            const jsonEl = document.getElementById('enrichmentJson');
+            const reasonEl = document.getElementById('enrichmentReason');
+            const sourceEl = document.getElementById('enrichmentSource');
+            
+            if (!typeEl || !jsonEl) {
+                console.error('Enrichment form elements not found');
+                return;
+            }
+            
+            const type = typeEl.value;
+            let tmdbJson;
+            
+            try {
+                // Parse and validate JSON
+                const inputJson = JSON.parse(jsonEl.value);
+                if (!inputJson.tmdb) {
+                    throw new Error('JSON must contain a "tmdb" object');
+                }
+                tmdbJson = inputJson.tmdb;
+            } catch (error) {
+                if (typeof showAlert === 'function') {
+                    showAlert(`Erreur JSON: ${error.message}`, 'error');
+                } else {
+                    alert(`Erreur JSON: ${error.message}`);
+                }
+                return;
+            }
+            
+            // Build enrichment content
+            const enrichmentContent = {
+                tmdb: tmdbJson
+            };
+            
+            if (reasonEl && reasonEl.value) {
+                enrichmentContent.reason = reasonEl.value;
+            }
+            
+            if (sourceEl && sourceEl.value) {
+                enrichmentContent.source = sourceEl.value;
+            }
+            
+            // Get NOSTR variables
+            let nostrVars = getNostrVariables();
+            let currentUserPubkey = nostrVars.userPubkey;
+            let currentNostrRelay = nostrVars.nostrRelay;
+            
+            if (!currentUserPubkey || !currentNostrRelay) {
+                if (typeof showAlert === 'function') {
+                    showAlert('Erreur: Connexion NOSTR requise pour publier l\'enrichissement', 'error');
+                } else {
+                    alert('Erreur: Connexion NOSTR requise pour publier l\'enrichissement');
+                }
+                return;
+            }
+            
+            // Check if current user is the video author
+            const videoPlayer = document.getElementById('theaterVideoPlayer');
+            const videoAuthorId = videoPlayer ? videoPlayer.getAttribute('data-author-id') : null;
+            const isAuthor = videoAuthorId && currentUserPubkey && 
+                           (videoAuthorId.toLowerCase() === currentUserPubkey.toLowerCase() ||
+                            (videoAuthorId.startsWith('npub') && currentUserPubkey.startsWith('npub') && videoAuthorId === currentUserPubkey));
+            
+            // Determine event kind (1986 for community, 30001 for author updates)
+            // Use 30001 (replaceable) only if user is the author AND type is author_update
+            const eventKind = (type === 'author_update' && isAuthor) ? 30001 : 1986;
+            
+            // Build tags
+            const tags = [
+                ['e', videoEventId, ''],  // Reference to video event
+                ['k', String(videoKind)],  // Kind of target event
+                ['L', 'tmdb.metadata'],   // Namespace
+                ['l', type, 'tmdb.metadata']  // Type of enrichment
+            ];
+            
+            // If replaceable event (kind 30001), add 'd' tag
+            if (eventKind === 30001) {
+                tags.push(['d', 'tmdb-metadata']);
+            }
+            
+            // Add video author reference if available
+            if (videoAuthorId) {
+                tags.push(['p', videoAuthorId, '']);
+            }
+            
+            // Create event
+            const event = {
+                kind: eventKind,
+                pubkey: currentUserPubkey,
+                created_at: Math.floor(Date.now() / 1000),
+                tags: tags,
+                content: JSON.stringify(enrichmentContent)
+            };
+            
+            // Sign and publish event
+            try {
+                // Use window.nostr if available (NIP-07 extension)
+                let signedEvent;
+                if (window.nostr && typeof window.nostr.signEvent === 'function') {
+                    signedEvent = await window.nostr.signEvent(event);
+                } else {
+                    // Fallback: try to use NostrTools if available
+                    if (typeof NostrTools !== 'undefined' && typeof NostrTools.finishEvent === 'function') {
+                        // Need private key - this is not ideal, but for now we'll show an error
+                        throw new Error('Signature NOSTR requise. Veuillez utiliser une extension NOSTR (Alby, nos2x, etc.)');
+                    } else {
+                        throw new Error('Bibliothèque NOSTR non disponible. Veuillez utiliser une extension NOSTR.');
+                    }
+                }
+                
+                // Publish to relay
+                console.log('📋 Publishing TMDB enrichment event...', signedEvent);
+                const publishResult = await currentNostrRelay.publish(signedEvent);
+                
+                if (publishResult && publishResult.status === 'ok') {
+                    console.log('✅ TMDB enrichment published successfully:', signedEvent.id);
+                    
+                    // Close modal
+                    const modal = document.getElementById('tmdbEnrichmentModal');
+                    if (modal && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                        const bsModal = bootstrap.Modal.getInstance(modal);
+                        if (bsModal) bsModal.hide();
+                    } else if (modal) {
+                        modal.style.display = 'none';
+                    }
+                    
+                    // Clear form
+                    if (jsonEl) jsonEl.value = '';
+                    if (reasonEl) reasonEl.value = '';
+                    if (sourceEl) sourceEl.value = '';
+                    
+                    // Show success message
+                    if (typeof showAlert === 'function') {
+                        showAlert('Enrichissement publié avec succès!', 'success');
+                    } else {
+                        alert('Enrichissement publié avec succès!');
+                    }
+                    
+                    // Reload TMDB metadata to show the new enrichment
+                    // Get video data from player
+                    const videoPlayer = document.getElementById('theaterVideoPlayer');
+                    if (videoPlayer) {
+                        const infoCid = videoPlayer.getAttribute('data-info-cid');
+                        const authorId = videoPlayer.getAttribute('data-author-id');
+                        if (infoCid) {
+                            // Reload metadata
+                            setTimeout(() => {
+                                loadTMDBMetadata(infoCid, videoEventId, videoKind, authorId);
+                            }, 1000);
+                        }
+                    }
+                } else {
+                    throw new Error('Échec de la publication sur le relais');
+                }
+            } catch (error) {
+                console.error('Error publishing TMDB enrichment:', error);
+                if (typeof showAlert === 'function') {
+                    showAlert(`Erreur lors de la publication: ${error.message}`, 'error');
+                } else {
+                    alert(`Erreur lors de la publication: ${error.message}`);
+                }
+            }
+        }
+        
+        // Expose enrichment functions
+        window.openEnrichmentModal = openEnrichmentModal;
+        window.submitTMDBEnrichment = submitTMDBEnrichment;
         
         /**
          * Initialize NOSTR connection for standalone mode
@@ -3573,15 +4867,7 @@
                             // Topic tag - check for Channel- prefix
                             if (tagValue.startsWith('Channel-')) {
                                 channel = tagValue.replace('Channel-', '');
-                                // Convert channel name to email format if possible
-                                if (!uploader) {
-                                    const parts = channel.split('_', 1);
-                                    if (parts.length === 2) {
-                                        uploader = `${parts[0]}@${parts[1].replace(/_/g, '.')}`;
-                } else {
-                                        uploader = channel.replace(/_/g, '@').replace(/_/g, '.');
-                                    }
-                                }
+                                // Don't set uploader from channel - use profile name instead
                             }
                             break;
                     }
@@ -3634,87 +4920,10 @@
                     }
                 }
                 
-                // Try to fetch uploader from NOSTR profile if not found
+                // Don't set uploader here - it will be set by loadVideoAuthor using getProfileNameFromPubkey
+                // Just use a placeholder that will be replaced
                 if (!uploader && event.pubkey) {
                     uploader = event.pubkey.substring(0, 8) + '...';
-                    // Try to fetch email from profile (async, non-blocking)
-                    if (typeof fetchUserMetadata === 'function') {
-                        fetchUserMetadata(event.pubkey).then(profile => {
-                            if (profile) {
-                                // Try to get email from profile content or tags
-                                let email = profile.email || profile.nip05 || profile.youser;
-                                
-                                // Also check if profile has tags with 'i' tag containing 'email:'
-                                // fetchUserMetadata should return the full profile event, but if not,
-                                // we can try to fetch it directly
-                                if (!email || !email.includes('@')) {
-                                    // Try to fetch profile event directly to check tags
-                                    const currentRelay = window.nostrRelay || nostrRelay;
-                                    if (currentRelay && typeof currentRelay.sub === 'function') {
-                                        const profileSub = currentRelay.sub([{
-                                            kinds: [0],
-                                            authors: [event.pubkey],
-                                            limit: 1
-                                        }]);
-                                        
-                                        profileSub.on('event', (profileEvent) => {
-                                            // Check tags for 'i' tag with 'email:' prefix
-                                            for (const tag of profileEvent.tags || []) {
-                                                if (tag[0] === 'i' && tag[1] && tag[1].startsWith('email:')) {
-                                                    email = tag[1].substring(6); // Remove 'email:' prefix
-                                                    break;
-                                                }
-                                            }
-                                            
-                                            if (email && email.includes('@')) {
-                                                uploader = email;
-                                                // Update UI if already rendered
-                                                const uploaderEl = document.getElementById('theaterUploader');
-                                                if (uploaderEl) {
-                                                    uploaderEl.textContent = email;
-                                                }
-                                                // Also update the link if it exists
-                                                const uploaderContainer = document.getElementById('theaterUploaderContainer');
-                                                if (uploaderContainer) {
-                                                    const link = uploaderContainer.querySelector('a');
-                                                    if (link) {
-                                                        link.textContent = email;
-                                                    }
-                                                }
-                                            }
-                                            profileSub.unsub();
-                                        });
-                                        
-                                        profileSub.on('eose', () => {
-                                            profileSub.unsub();
-                                        });
-                                        
-                                        // Timeout after 2 seconds
-                                        setTimeout(() => {
-                                            profileSub.unsub();
-                                        }, 2000);
-                                    }
-                                } else if (email && email.includes('@')) {
-                                    uploader = email;
-                                    // Update UI if already rendered
-                                    const uploaderEl = document.getElementById('theaterUploader');
-                                    if (uploaderEl) {
-                                        uploaderEl.textContent = email;
-                                    }
-                                    // Also update the link if it exists
-                                    const uploaderContainer = document.getElementById('theaterUploaderContainer');
-                                    if (uploaderContainer) {
-                                        const link = uploaderContainer.querySelector('a');
-                                        if (link) {
-                                            link.textContent = email;
-                                        }
-                                    }
-                                }
-                            }
-                        }).catch(e => {
-                            console.warn('Could not fetch uploader profile:', e);
-                        });
-                    }
                 }
                 
                 // Build video data object
@@ -3856,8 +5065,11 @@
             if (e.key === 'Escape') {
                 // If comments are in fullscreen, exit fullscreen first
                 const commentsSection = document.getElementById('theaterCommentsSection');
+                const videoInfoSection = document.querySelector('.theater-video-info');
                 if (commentsSection && commentsSection.classList.contains('fullscreen')) {
                     toggleCommentsFullscreen();
+                } else if (videoInfoSection && videoInfoSection.classList.contains('fullscreen')) {
+                    toggleVideoInfoFullscreen();
                 } else {
                     handleCloseTheater();
                 }
@@ -3909,6 +5121,43 @@
                         }
                     });
                     console.log('✅ Header title handler attached');
+                }
+                
+                
+                // Setup fullscreen button handler for video info
+                const toggleVideoInfoFullscreenBtn = document.getElementById('toggleVideoInfoFullscreen');
+                const videoInfoHeaderTitle = document.getElementById('videoInfoHeaderTitle');
+                if (toggleVideoInfoFullscreenBtn) {
+                    toggleVideoInfoFullscreenBtn.addEventListener('click', function(e) {
+                        console.log('🖱️ Video info fullscreen button clicked');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (typeof toggleVideoInfoFullscreen === 'function') {
+                            toggleVideoInfoFullscreen();
+                        } else {
+                            console.error('❌ toggleVideoInfoFullscreen function not found');
+                        }
+                    });
+                    console.log('✅ Video info fullscreen button handler attached');
+                } else {
+                    console.warn('⚠️ Video info fullscreen button not found in DOM');
+                }
+                
+                // Also attach to header title
+                if (videoInfoHeaderTitle) {
+                    videoInfoHeaderTitle.addEventListener('click', function(e) {
+                        // Only trigger if clicking on the title itself, not on the buttons
+                        const fullscreenBtn = videoInfoHeaderTitle.parentElement.querySelector('#toggleVideoInfoFullscreen');
+                        if (!fullscreenBtn || (e.target !== fullscreenBtn && !fullscreenBtn.contains(e.target))) {
+                            console.log('🖱️ Video info header title clicked');
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (typeof toggleVideoInfoFullscreen === 'function') {
+                                toggleVideoInfoFullscreen();
+                            }
+                        }
+                    });
+                    console.log('✅ Video info header title handler attached');
                 }
             }, 100); // Small delay to ensure DOM is ready
         });
