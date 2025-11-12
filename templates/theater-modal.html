@@ -4112,9 +4112,9 @@
                             <small class="text-secondary">
                                 <i class="bi bi-info-circle"></i> Métadonnées enrichies par la communauté
                             </small>
-                            <button class="btn btn-sm btn-outline-info" onclick="openEnrichmentModal('${escapeHtmlFn(videoEventId)}', ${videoKind}); return false;">
+                            <a href="/contrib?video=${escapeHtmlFn(videoEventId)}&kind=${videoKind}" class="btn btn-sm btn-outline-info" target="_blank">
                                 <i class="bi bi-plus-circle"></i> Contribuer
-                            </button>
+                            </a>
                         </div>
                     </div>`;
                 }
@@ -4162,30 +4162,96 @@
                 console.log('📋 Loading TMDB enrichments for video:', videoEventId);
                 
                 // Query for kind 1986 enrichments (community contributions)
-                const enrichments1986 = await new Promise((resolve, reject) => {
+                let enrichments1986 = [];
+                try {
+                    // Verify relay is valid before subscribing
+                    if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                        console.warn('⚠️ Invalid relay for enrichments query');
+                        enrichments1986 = [];
+                    } else {
+                        enrichments1986 = await new Promise((resolve) => {
+                            const enrichments = [];
+                            let sub = null;
+                            let resolved = false;
+                            
+                            const cleanup = () => {
+                                if (sub && typeof sub.unsub === 'function') {
+                                    try {
+                                        sub.unsub();
+                                    } catch (e) {
+                                        console.warn('⚠️ Error unsubscribing:', e);
+                                    }
+                                }
+                            };
+                            
+                            const finish = (result) => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    cleanup();
+                                    resolve(result);
+                                }
+                            };
+                            
                     const timeout = setTimeout(() => {
-                        reject(new Error('Timeout loading enrichments'));
+                                finish([]); // Return empty array on timeout
                     }, 10000);
                     
-                    const enrichments = [];
-                    const sub = currentRelay.sub([
-                        {
+                            try {
+                                // Create subscription with minimal filter (only standard tags)
+                                // Filter by kind and event reference only, then filter manually for namespace
+                                // Use uppercase '#E' like comments (consistent with working code)
+                                const filter = {
                             kinds: [1986],
-                            '#e': [videoEventId],
-                            '#k': [String(videoKind)],
-                            '#L': ['tmdb.metadata']
-                        }
-                    ]);
-                    
-                    sub.on('event', (event) => {
-                        try {
+                                    '#E': [videoEventId]  // Uppercase E for event reference (like comments)
+                                };
+                                
+                                // Use native nostr.bundle.js API with callbacks in params
+                                // This avoids the .on() wrapper that causes errors
+                                // Try subscribe() first (native API), fallback to sub() if needed
+                                try {
+                                    const subscribeMethod = currentRelay.subscribe || currentRelay.sub;
+                                    if (!subscribeMethod) {
+                                        throw new Error('No subscription method available');
+                                    }
+                                    
+                                    sub = subscribeMethod.call(currentRelay, [filter], {
+                                        onevent: (event) => {
+                                            try {
+                                                if (!event || !event.content) return;
+                                                
+                                                // Manual filtering: check if event has correct namespace and kind tags
+                                                const tags = event.tags || [];
+                                                const hasNamespace = tags.some(tag => 
+                                                    Array.isArray(tag) && 
+                                                    tag.length >= 2 && 
+                                                    tag[0] === 'L' && 
+                                                    tag[1] === 'tmdb.metadata'
+                                                );
+                                                const hasKindTag = tags.some(tag => 
+                                                    Array.isArray(tag) && 
+                                                    tag.length >= 2 && 
+                                                    tag[0] === 'k' && 
+                                                    tag[1] === String(videoKind)
+                                                );
+                                                
+                                                // Only process events with correct namespace
+                                                if (!hasNamespace) {
+                                                    return; // Skip events without tmdb.metadata namespace
+                                                }
+                                                
+                                                // Optional: also check kind tag if present
+                                                if (hasKindTag === false && tags.some(tag => tag[0] === 'k')) {
+                                                    // Event has a 'k' tag but it doesn't match - skip it
+                                                    return;
+                                                }
+                                                
                             const content = JSON.parse(event.content || '{}');
-                            if (content.tmdb) {
+                                                if (content && content.tmdb) {
                                 enrichments.push({
                                     event_id: event.id,
                                     pubkey: event.pubkey,
                                     created_at: event.created_at,
-                                    type: getEnrichmentType(event.tags),
+                                                        type: getEnrichmentType(tags),
                                     content: content,
                                     reason: content.reason || '',
                                     source: content.source || ''
@@ -4194,44 +4260,122 @@
                         } catch (e) {
                             console.warn('⚠️ Failed to parse enrichment event:', e);
                         }
-                    });
-                    
-                    sub.on('eose', () => {
+                                        },
+                                        oneose: () => {
                         clearTimeout(timeout);
-                        sub.unsub();
-                        resolve(enrichments);
-                    });
-                    
-                    sub.on('error', (error) => {
+                                            finish(enrichments);
+                                        },
+                                        onclose: (reason) => {
+                                            if (reason && reason !== 'closed by caller') {
+                                                console.warn('⚠️ Subscription closed:', reason);
+                                                clearTimeout(timeout);
+                                                finish([]);
+                                            }
+                                        }
+                                    });
+                                } catch (subError) {
+                                    console.warn('⚠️ Error creating subscription:', subError);
+                                    clearTimeout(timeout);
+                                    finish([]);
+                                    return;
+                                }
+                                
+                                if (!sub) {
+                                    console.warn('⚠️ Subscription is null');
                         clearTimeout(timeout);
-                        sub.unsub();
-                        reject(error);
-                    });
-                });
+                                    finish([]);
+                                    return;
+                                }
+                            } catch (error) {
+                                clearTimeout(timeout);
+                                console.warn('⚠️ Error creating subscription:', error);
+                                finish([]);
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error in enrichments1986 promise:', error);
+                    enrichments1986 = []; // Ensure it's always an array
+                }
+                
+                // Ensure enrichments1986 is always an array
+                if (!Array.isArray(enrichments1986)) {
+                    enrichments1986 = [];
+                }
                 
                 // Query for kind 30001 author updates (replaceable)
                 let authorUpdate = null;
-                if (videoAuthorId) {
+                if (videoAuthorId && currentRelay && typeof currentRelay.sub === 'function') {
                     try {
-                        const authorUpdates = await new Promise((resolve, reject) => {
+                        const authorUpdates = await new Promise((resolve) => {
+                            const updates = [];
+                            let sub = null;
+                            let resolved = false;
+                            
+                            const cleanup = () => {
+                                if (sub && typeof sub.unsub === 'function') {
+                                    try {
+                                        sub.unsub();
+                                    } catch (e) {
+                                        console.warn('⚠️ Error unsubscribing author updates:', e);
+                                    }
+                                }
+                            };
+                            
+                            const finish = (result) => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    cleanup();
+                                    resolve(result);
+                                }
+                            };
+                            
                             const timeout = setTimeout(() => {
-                                resolve([]);
+                                // Return only the latest (most recent) update on timeout
+                                const latest = updates.sort((a, b) => b.created_at - a.created_at)[0] || null;
+                                finish(latest);
                             }, 5000);
                             
-                            const updates = [];
-                            const sub = currentRelay.sub([
-                                {
+                            try {
+                                // Create subscription with standard filter format
+                                // Use only standard tags: kinds, authors, #d (for replaceable), #E (for event reference)
+                                const filter = {
                                     kinds: [30001],
                                     authors: [videoAuthorId],
-                                    '#d': ['tmdb-metadata'],
-                                    '#e': [videoEventId]
-                                }
-                            ]);
-                            
-                            sub.on('event', (event) => {
+                                    '#d': ['tmdb-metadata'],  // Standard tag for replaceable events
+                                    '#E': [videoEventId]  // Uppercase E for event reference (like comments)
+                                };
+                                
+                                // Use native nostr.bundle.js API with callbacks in params
+                                // This avoids the .on() wrapper that causes errors
+                                // Try subscribe() first (native API), fallback to sub() if needed
                                 try {
+                                    const subscribeMethod = currentRelay.subscribe || currentRelay.sub;
+                                    if (!subscribeMethod) {
+                                        throw new Error('No subscription method available');
+                                    }
+                                    
+                                    sub = subscribeMethod.call(currentRelay, [filter], {
+                                        onevent: (event) => {
+                                            try {
+                                                if (!event || !event.content) return;
+                                                
+                                                // Verify this is a tmdb metadata update by checking tags
+                                                const tags = event.tags || [];
+                                                const hasNamespace = tags.some(tag => 
+                                                    Array.isArray(tag) && 
+                                                    tag.length >= 2 && 
+                                                    tag[0] === 'L' && 
+                                                    tag[1] === 'tmdb.metadata'
+                                                );
+                                                
+                                                // Only process events with correct namespace
+                                                if (!hasNamespace) {
+                                                    return; // Skip events without tmdb.metadata namespace
+                                                }
+                                                
                                     const content = JSON.parse(event.content || '{}');
-                                    if (content.tmdb) {
+                                                if (content && content.tmdb) {
                                         updates.push({
                                             event_id: event.id,
                                             pubkey: event.pubkey,
@@ -4245,21 +4389,39 @@
                                 } catch (e) {
                                     console.warn('⚠️ Failed to parse author update event:', e);
                                 }
-                            });
-                            
-                            sub.on('eose', () => {
+                                        },
+                                        oneose: () => {
                                 clearTimeout(timeout);
-                                sub.unsub();
                                 // Return only the latest (most recent) update
                                 const latest = updates.sort((a, b) => b.created_at - a.created_at)[0] || null;
-                                resolve(latest);
-                            });
-                            
-                            sub.on('error', () => {
+                                            finish(latest);
+                                        },
+                                        onclose: (reason) => {
+                                            if (reason && reason !== 'closed by caller') {
+                                                console.warn('⚠️ Subscription closed:', reason);
+                                                clearTimeout(timeout);
+                                                finish(null);
+                                            }
+                                        }
+                                    });
+                                } catch (subError) {
+                                    console.warn('⚠️ Error creating author updates subscription:', subError);
+                                    clearTimeout(timeout);
+                                    finish(null);
+                                    return;
+                                }
+                                
+                                if (!sub) {
+                                    console.warn('⚠️ Author updates subscription is null');
                                 clearTimeout(timeout);
-                                sub.unsub();
-                                resolve(null);
-                            });
+                                    finish(null);
+                                    return;
+                                }
+                            } catch (error) {
+                                clearTimeout(timeout);
+                                console.warn('⚠️ Error creating author updates subscription:', error);
+                                finish(null);
+                            }
                         });
                         
                         if (authorUpdates) {
@@ -4267,6 +4429,7 @@
                         }
                     } catch (error) {
                         console.warn('⚠️ Could not load author update:', error);
+                        authorUpdate = null;
                     }
                 }
                 
@@ -4275,12 +4438,16 @@
                 if (authorUpdate) {
                     allEnrichments.push(authorUpdate);
                 }
+                // Ensure enrichments1986 is an array before spreading
+                if (Array.isArray(enrichments1986) && enrichments1986.length > 0) {
                 allEnrichments.push(...enrichments1986);
+                }
                 
                 // Sort by created_at (oldest first for merging)
                 allEnrichments.sort((a, b) => a.created_at - b.created_at);
                 
-                console.log(`✅ Loaded ${allEnrichments.length} enrichment(s) (${authorUpdate ? '1 author update, ' : ''}${enrichments1986.length} community)`);
+                const communityCount = Array.isArray(enrichments1986) ? enrichments1986.length : 0;
+                console.log(`✅ Loaded ${allEnrichments.length} enrichment(s) (${authorUpdate ? '1 author update, ' : ''}${communityCount} community)`);
                 
                 return allEnrichments;
                 
@@ -4294,8 +4461,16 @@
          * Get enrichment type from event tags
          */
         function getEnrichmentType(tags) {
-            const lTag = tags.find(tag => tag[0] === 'l' && tag[2] === 'tmdb.metadata');
-            return lTag ? lTag[1] : 'enrichment';
+            if (!tags || !Array.isArray(tags)) {
+                return 'enrichment'; // Default type
+            }
+            try {
+                const lTag = tags.find(tag => tag && Array.isArray(tag) && tag[0] === 'l' && tag[2] === 'tmdb.metadata');
+                return lTag && lTag[1] ? lTag[1] : 'enrichment';
+            } catch (e) {
+                console.warn('⚠️ Error parsing enrichment type from tags:', e);
+                return 'enrichment';
+            }
         }
         
         /**
@@ -4332,254 +4507,6 @@
         window.loadTMDBMetadata = loadTMDBMetadata;
         window.loadTMDBEnrichments = loadTMDBEnrichments;
         window.mergeTMDBEnrichments = mergeTMDBEnrichments;
-        
-        /**
-         * Open modal for submitting TMDB metadata enrichment
-         */
-        function openEnrichmentModal(videoEventId, videoKind) {
-            // Check if user is connected
-            if (!window.userPubkey || !window.isNostrConnected) {
-                if (typeof showAlert === 'function') {
-                    showAlert('Vous devez être connecté à NOSTR pour contribuer aux métadonnées.', 'warning');
-                } else {
-                    alert('Vous devez être connecté à NOSTR pour contribuer aux métadonnées.');
-                }
-                return;
-            }
-            
-            // Create or show enrichment modal
-            let modal = document.getElementById('tmdbEnrichmentModal');
-            if (!modal) {
-                // Create modal HTML
-                modal = document.createElement('div');
-                modal.id = 'tmdbEnrichmentModal';
-                modal.className = 'modal fade';
-                modal.setAttribute('tabindex', '-1');
-                modal.innerHTML = `
-                    <div class="modal-dialog modal-lg">
-                        <div class="modal-content bg-dark text-white">
-                            <div class="modal-header border-secondary">
-                                <h5 class="modal-title"><i class="bi bi-film"></i> Enrichir les métadonnées TMDB</h5>
-                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="mb-3">
-                                    <label class="form-label">Type d'enrichissement</label>
-                                    <select id="enrichmentType" class="form-select bg-dark text-white border-secondary">
-                                        <option value="correction">Correction d'erreur</option>
-                                        <option value="enrichment">Ajout d'informations</option>
-                                        <option value="update">Mise à jour</option>
-                                    </select>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Métadonnées TMDB (JSON)</label>
-                                    <textarea id="enrichmentJson" class="form-control bg-dark text-white border-secondary" rows="10" 
-                                              placeholder='{"tmdb": {"title": "Titre corrigé", "genres": ["Action", "Sci-Fi"], ...}}'></textarea>
-                                    <small class="text-secondary">Entrez uniquement les champs à corriger/enrichir</small>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Raison (optionnel)</label>
-                                    <input type="text" id="enrichmentReason" class="form-control bg-dark text-white border-secondary" 
-                                           placeholder="Explication de la correction/enrichissement">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Source (optionnel)</label>
-                                    <input type="text" id="enrichmentSource" class="form-control bg-dark text-white border-secondary" 
-                                           placeholder="Ex: tmdb.org">
-                                </div>
-                            </div>
-                            <div class="modal-footer border-secondary">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                                <button type="button" class="btn btn-primary" onclick="submitTMDBEnrichment('${videoEventId}', ${videoKind});">
-                                    <i class="bi bi-send"></i> Publier l'enrichissement
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(modal);
-            }
-            
-            // Show modal using Bootstrap
-            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-                const bsModal = new bootstrap.Modal(modal);
-                bsModal.show();
-            } else {
-                modal.style.display = 'block';
-            }
-        }
-        
-        /**
-         * Submit TMDB metadata enrichment
-         */
-        async function submitTMDBEnrichment(videoEventId, videoKind) {
-            const typeEl = document.getElementById('enrichmentType');
-            const jsonEl = document.getElementById('enrichmentJson');
-            const reasonEl = document.getElementById('enrichmentReason');
-            const sourceEl = document.getElementById('enrichmentSource');
-            
-            if (!typeEl || !jsonEl) {
-                console.error('Enrichment form elements not found');
-                return;
-            }
-            
-            const type = typeEl.value;
-            let tmdbJson;
-            
-            try {
-                // Parse and validate JSON
-                const inputJson = JSON.parse(jsonEl.value);
-                if (!inputJson.tmdb) {
-                    throw new Error('JSON must contain a "tmdb" object');
-                }
-                tmdbJson = inputJson.tmdb;
-            } catch (error) {
-                if (typeof showAlert === 'function') {
-                    showAlert(`Erreur JSON: ${error.message}`, 'error');
-                } else {
-                    alert(`Erreur JSON: ${error.message}`);
-                }
-                return;
-            }
-            
-            // Build enrichment content
-            const enrichmentContent = {
-                tmdb: tmdbJson
-            };
-            
-            if (reasonEl && reasonEl.value) {
-                enrichmentContent.reason = reasonEl.value;
-            }
-            
-            if (sourceEl && sourceEl.value) {
-                enrichmentContent.source = sourceEl.value;
-            }
-            
-            // Get NOSTR variables
-            let nostrVars = getNostrVariables();
-            let currentUserPubkey = nostrVars.userPubkey;
-            let currentNostrRelay = nostrVars.nostrRelay;
-            
-            if (!currentUserPubkey || !currentNostrRelay) {
-                if (typeof showAlert === 'function') {
-                    showAlert('Erreur: Connexion NOSTR requise pour publier l\'enrichissement', 'error');
-                } else {
-                    alert('Erreur: Connexion NOSTR requise pour publier l\'enrichissement');
-                }
-                return;
-            }
-            
-            // Check if current user is the video author
-            const videoPlayer = document.getElementById('theaterVideoPlayer');
-            const videoAuthorId = videoPlayer ? videoPlayer.getAttribute('data-author-id') : null;
-            const isAuthor = videoAuthorId && currentUserPubkey && 
-                           (videoAuthorId.toLowerCase() === currentUserPubkey.toLowerCase() ||
-                            (videoAuthorId.startsWith('npub') && currentUserPubkey.startsWith('npub') && videoAuthorId === currentUserPubkey));
-            
-            // Determine event kind (1986 for community, 30001 for author updates)
-            // Use 30001 (replaceable) only if user is the author AND type is author_update
-            const eventKind = (type === 'author_update' && isAuthor) ? 30001 : 1986;
-            
-            // Build tags
-            const tags = [
-                ['e', videoEventId, ''],  // Reference to video event
-                ['k', String(videoKind)],  // Kind of target event
-                ['L', 'tmdb.metadata'],   // Namespace
-                ['l', type, 'tmdb.metadata']  // Type of enrichment
-            ];
-            
-            // If replaceable event (kind 30001), add 'd' tag
-            if (eventKind === 30001) {
-                tags.push(['d', 'tmdb-metadata']);
-            }
-            
-            // Add video author reference if available
-            if (videoAuthorId) {
-                tags.push(['p', videoAuthorId, '']);
-            }
-            
-            // Create event
-            const event = {
-                kind: eventKind,
-                pubkey: currentUserPubkey,
-                created_at: Math.floor(Date.now() / 1000),
-                tags: tags,
-                content: JSON.stringify(enrichmentContent)
-            };
-            
-            // Sign and publish event
-            try {
-                // Use window.nostr if available (NIP-07 extension)
-                let signedEvent;
-                if (window.nostr && typeof window.nostr.signEvent === 'function') {
-                    signedEvent = await window.nostr.signEvent(event);
-                } else {
-                    // Fallback: try to use NostrTools if available
-                    if (typeof NostrTools !== 'undefined' && typeof NostrTools.finishEvent === 'function') {
-                        // Need private key - this is not ideal, but for now we'll show an error
-                        throw new Error('Signature NOSTR requise. Veuillez utiliser une extension NOSTR (Alby, nos2x, etc.)');
-                    } else {
-                        throw new Error('Bibliothèque NOSTR non disponible. Veuillez utiliser une extension NOSTR.');
-                    }
-                }
-                
-                // Publish to relay
-                console.log('📋 Publishing TMDB enrichment event...', signedEvent);
-                const publishResult = await currentNostrRelay.publish(signedEvent);
-                
-                if (publishResult && publishResult.status === 'ok') {
-                    console.log('✅ TMDB enrichment published successfully:', signedEvent.id);
-                    
-                    // Close modal
-                    const modal = document.getElementById('tmdbEnrichmentModal');
-                    if (modal && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-                        const bsModal = bootstrap.Modal.getInstance(modal);
-                        if (bsModal) bsModal.hide();
-                    } else if (modal) {
-                        modal.style.display = 'none';
-                    }
-                    
-                    // Clear form
-                    if (jsonEl) jsonEl.value = '';
-                    if (reasonEl) reasonEl.value = '';
-                    if (sourceEl) sourceEl.value = '';
-                    
-                    // Show success message
-                    if (typeof showAlert === 'function') {
-                        showAlert('Enrichissement publié avec succès!', 'success');
-                    } else {
-                        alert('Enrichissement publié avec succès!');
-                    }
-                    
-                    // Reload TMDB metadata to show the new enrichment
-                    // Get video data from player
-                    const videoPlayer = document.getElementById('theaterVideoPlayer');
-                    if (videoPlayer) {
-                        const infoCid = videoPlayer.getAttribute('data-info-cid');
-                        const authorId = videoPlayer.getAttribute('data-author-id');
-                        if (infoCid) {
-                            // Reload metadata
-                            setTimeout(() => {
-                                loadTMDBMetadata(infoCid, videoEventId, videoKind, authorId);
-                            }, 1000);
-                        }
-                    }
-                } else {
-                    throw new Error('Échec de la publication sur le relais');
-                }
-            } catch (error) {
-                console.error('Error publishing TMDB enrichment:', error);
-                if (typeof showAlert === 'function') {
-                    showAlert(`Erreur lors de la publication: ${error.message}`, 'error');
-                } else {
-                    alert(`Erreur lors de la publication: ${error.message}`);
-                }
-            }
-        }
-        
-        // Expose enrichment functions
-        window.openEnrichmentModal = openEnrichmentModal;
-        window.submitTMDBEnrichment = submitTMDBEnrichment;
         
         /**
          * Initialize NOSTR connection for standalone mode

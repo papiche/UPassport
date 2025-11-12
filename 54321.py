@@ -1415,7 +1415,7 @@ async def validate_uploaded_file(file: UploadFile, max_size_mb: int = 100) -> Di
             "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             # Audio (sécurisé)
-            "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/webm",
+            "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/webm", "audio/flac",
             # Vidéo (sécurisé)
             "video/mp4", "video/webm", "video/ogg", "video/avi", "video/mov",
             # Archives (sécurisées)
@@ -1431,6 +1431,43 @@ async def validate_uploaded_file(file: UploadFile, max_size_mb: int = 100) -> Di
         await file.seek(0)  # Reset position
         
         detected_mime = magic.from_buffer(content_sample, mime=True)
+        
+        # Fallback: Si le type détecté est application/octet-stream, vérifier l'extension du fichier
+        if detected_mime == "application/octet-stream" and file.filename:
+            # Mapping des extensions vers types MIME autorisés
+            extension_mime_map = {
+                # Audio
+                ".mp3": "audio/mpeg",
+                ".mpeg": "audio/mpeg",
+                ".wav": "audio/wav",
+                ".ogg": "audio/ogg",
+                ".flac": "audio/flac",
+                ".aac": "audio/mp4",
+                ".m4a": "audio/mp4",
+                # Video
+                ".mp4": "video/mp4",
+                ".webm": "video/webm",
+                ".mov": "video/mov",
+                ".avi": "video/avi",
+                ".mkv": "video/webm",  # Fallback to webm
+                # Images
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+                ".gif": "image/gif",
+                ".webp": "image/webp",
+            }
+            
+            # Extraire l'extension du fichier
+            file_ext = os.path.splitext(file.filename.lower())[1]
+            if file_ext in extension_mime_map:
+                # Utiliser le type MIME basé sur l'extension
+                detected_mime = extension_mime_map[file_ext]
+                logging.info(f"📎 File detected as 'application/octet-stream', using extension-based MIME type: {detected_mime} for {file.filename}")
+            else:
+                # Extension non reconnue, rejeter
+                validation_result["error"] = f"File type 'application/octet-stream' with extension '{file_ext}' is not allowed"
+                return validation_result
         
         if detected_mime not in allowed_mime_types:
             validation_result["error"] = f"File type '{detected_mime}' is not allowed"
@@ -2657,6 +2694,30 @@ async def tags_route(request: Request, video: Optional[str] = None):
         "request": request,
         "myIPFS": ipfs_gateway,
         "video_id": video
+    })
+
+@app.get("/contrib", response_class=HTMLResponse)
+async def contrib_route(request: Request, video: Optional[str] = None, kind: Optional[str] = None):
+    """TMDB metadata enrichment contribution page for NOSTR videos
+    
+    Args:
+        video: Video event ID to contribute metadata for
+        kind: Video kind (21 for regular videos, 22 for shorts)
+    """
+    # Calculate IPFS gateway from request hostname
+    hostname = request.headers.get("host", "u.copylaradio.com")
+    if hostname.startswith("u."):
+        ipfs_gateway = f"https://ipfs.{hostname[2:]}"
+    elif hostname.startswith("127.0.0.1") or hostname.startswith("localhost"):
+        ipfs_gateway = "http://127.0.0.1:8080"
+    else:
+        ipfs_gateway = "https://ipfs.copylaradio.com"
+    
+    return templates.TemplateResponse("contrib.html", {
+        "request": request,
+        "myIPFS": ipfs_gateway,
+        "video_id": video,
+        "video_kind": kind or "21"
     })
 
 @app.get("/cloud", response_class=HTMLResponse)

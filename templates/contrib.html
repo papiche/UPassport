@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>🎬 Contribuer - Enrichissement métadonnées TMDB</title>
+    
+    <!-- Nostr integration -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    <!-- Common.js with NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    <!-- NOSTR Tube functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.js"></script>
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.css" />
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Roboto', 'Arial', sans-serif;
+            background: #0f0f0f;
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        
+        .container-fluid {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 15px;
+        }
+        
+        @media (max-width: 576px) {
+            .container-fluid {
+                padding: 10px;
+            }
+        }
+        
+        .header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #3f3f3f;
+        }
+        
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 10px;
+        }
+        
+        .header .subtitle {
+            color: #aaaaaa;
+            font-size: 0.9rem;
+        }
+        
+        .video-info {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #3f3f3f;
+        }
+        
+        .video-info h2 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #ffffff;
+        }
+        
+        .video-info .video-meta {
+            color: #aaaaaa;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+        
+        .video-info .video-link {
+            color: #ff0000;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        
+        .video-info .video-link:hover {
+            text-decoration: underline;
+        }
+        
+        .contribution-section {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #3f3f3f;
+        }
+        
+        .contribution-section h3 {
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #ffffff;
+            font-weight: 500;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px 15px;
+            background: #2a2a2a;
+            border: 1px solid #3f3f3f;
+            border-radius: 4px;
+            color: #ffffff;
+            font-size: 0.9rem;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: #ff0000;
+        }
+        
+        .form-select {
+            width: 100%;
+            padding: 10px 15px;
+            background: #2a2a2a;
+            border: 1px solid #3f3f3f;
+            border-radius: 4px;
+            color: #ffffff;
+            font-size: 0.9rem;
+        }
+        
+        .form-select:focus {
+            outline: none;
+            border-color: #ff0000;
+        }
+        
+        .form-text {
+            display: block;
+            margin-top: 5px;
+            color: #aaaaaa;
+            font-size: 0.85rem;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            background: #ff0000;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        
+        .btn:hover {
+            background: #cc0000;
+        }
+        
+        .btn:disabled {
+            background: #3f3f3f;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: #3f3f3f;
+        }
+        
+        .btn-secondary:hover {
+            background: #555555;
+        }
+        
+        .history-section {
+            margin-top: 30px;
+        }
+        
+        .history-section h4 {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            color: #ffffff;
+        }
+        
+        .history-item {
+            background: #2a2a2a;
+            border: 1px solid #3f3f3f;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+        
+        .history-item .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 8px;
+        }
+        
+        .history-item .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .badge-info {
+            background: #0d6efd;
+            color: #ffffff;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #aaaaaa;
+        }
+        
+        .error {
+            background: #4a1a1a;
+            border: 1px solid #7a2a2a;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #ffaaaa;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-info {
+            background: #1a3d5a;
+            border: 1px solid #2d5a7a;
+            color: #ffffff;
+        }
+        
+        /* Toast/Notification overlay styles */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1055;
+            max-width: 350px;
+        }
+        
+        @media (max-width: 576px) {
+            .toast-container {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                max-width: none;
+            }
+        }
+        
+        .toast {
+            background: #1a1a1a;
+            border: 1px solid #3f3f3f;
+            color: #ffffff;
+        }
+        
+        .toast-header {
+            background: #2a2a2a;
+            border-bottom: 1px solid #3f3f3f;
+            color: #ffffff;
+        }
+        
+        .toast-success {
+            border-color: #4CAF50;
+        }
+        
+        .toast-success .toast-header {
+            background: #1a4d1a;
+            border-bottom-color: #2d7a2d;
+        }
+        
+        .toast-error {
+            border-color: #ff4444;
+        }
+        
+        .toast-error .toast-header {
+            background: #4a1a1a;
+            border-bottom-color: #7a2a2a;
+        }
+        
+        .toast-info {
+            border-color: #2196F3;
+        }
+        
+        .toast-info .toast-header {
+            background: #1a3d5a;
+            border-bottom-color: #2d5a7a;
+        }
+    </style>
+</head>
+<body>
+    <!-- Toast Container for Notifications -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1055;"></div>
+    
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1><i class="bi bi-film"></i> Contribuer aux métadonnées</h1>
+                    <div class="subtitle">Enrichissement des métadonnées TMDB pour les vidéos NOSTR</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Video Info -->
+        <div class="video-info" id="videoInfo" style="display: none;">
+            <div class="video-content">
+                <h2 id="videoTitle">Chargement...</h2>
+                <div class="video-meta" id="videoMeta"></div>
+                <a href="#" class="video-link" id="videoLink" target="_blank">
+                    <i class="bi bi-play-circle"></i> Voir la vidéo
+                </a>
+            </div>
+        </div>
+        
+        <!-- Error Message -->
+        <div class="error" id="errorMessage" style="display: none;"></div>
+        
+        <!-- Contribution Form -->
+        <div class="contribution-section">
+            <h3><i class="bi bi-pencil-square"></i> Formulaire d'enrichissement</h3>
+            
+            <form id="enrichmentForm">
+                <div class="form-group">
+                    <label class="form-label">Type d'enrichissement</label>
+                    <select id="enrichmentType" class="form-select" required>
+                        <option value="correction">Correction d'erreur</option>
+                        <option value="enrichment">Ajout d'informations</option>
+                        <option value="update">Mise à jour</option>
+                    </select>
+                    <small class="form-text">Sélectionnez le type de contribution</small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Titre</label>
+                    <input type="text" id="enrichmentTitle" class="form-control" 
+                           placeholder="Titre du film/série">
+                </div>
+                
+                <div class="row" style="display: flex; gap: 15px; margin-bottom: 20px;">
+                    <div style="flex: 1;">
+                        <label class="form-label">Année</label>
+                        <input type="text" id="enrichmentYear" class="form-control" 
+                               placeholder="2024">
+                    </div>
+                    <div style="flex: 1;">
+                        <label class="form-label">Durée</label>
+                        <input type="text" id="enrichmentRuntime" class="form-control" 
+                               placeholder="120 minutes">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Genres (séparés par des virgules)</label>
+                    <input type="text" id="enrichmentGenres" class="form-control" 
+                           placeholder="Action, Sci-Fi, Thriller">
+                    <small class="form-text">Ex: Action, Sci-Fi, Thriller</small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Description / Synopsis</label>
+                    <textarea id="enrichmentOverview" class="form-control" rows="3" 
+                              placeholder="Description du film/série..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Réalisateur / Créateur</label>
+                    <input type="text" id="enrichmentDirector" class="form-control" 
+                           placeholder="Nom du réalisateur/créateur">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Note (vote_average)</label>
+                    <input type="text" id="enrichmentVoteAverage" class="form-control" 
+                           placeholder="8.5">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Raison de l'enrichissement</label>
+                    <textarea id="enrichmentReason" class="form-control" rows="2" 
+                              placeholder="Expliquez pourquoi vous apportez cette correction/enrichissement (optionnel)"></textarea>
+                    <small class="form-text">Aide la communauté à comprendre votre contribution</small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Source</label>
+                    <input type="text" id="enrichmentSource" class="form-control" 
+                           placeholder="Ex: tmdb.org, imdb.com (optionnel)">
+                    <small class="form-text">Indiquez la source de vos informations</small>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> <strong>Note:</strong> Seuls les champs remplis seront inclus dans l'enrichissement. 
+                    Les champs vides seront ignorés.
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="window.history.back()">
+                        <i class="bi bi-arrow-left"></i> Retour
+                    </button>
+                    <button type="submit" class="btn" id="submitEnrichmentBtn">
+                        <i class="bi bi-send"></i> Publier l'enrichissement
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- History Section -->
+        <div class="contribution-section history-section">
+            <h4><i class="bi bi-clock-history"></i> Historique des enrichissements</h4>
+            <div id="enrichmentsHistory">
+                <div class="loading">Chargement de l'historique...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Get video ID and kind from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const videoEventId = urlParams.get('video');
+        const videoKind = parseInt(urlParams.get('kind') || '21');
+        
+        if (!videoEventId) {
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('errorMessage').textContent = '❌ Aucune vidéo spécifiée. Utilisez /contrib?video=EVENT_ID&kind=21';
+            document.getElementById('contribution-section').style.display = 'none';
+        } else {
+            // Initialize page
+            initPage();
+        }
+        
+        async function initPage() {
+            try {
+                // Wait for NOSTR functions to be available
+                await waitForNostrFunctions();
+                
+                // Auto-connect to relay silently (if not already connected)
+                if (!checkConnectionStatus()) {
+                    await autoConnectRelay();
+                }
+                
+                // Fetch video info
+                await fetchVideoInfo(videoEventId);
+                
+                // Load current TMDB metadata to pre-fill form
+                await loadCurrentTMDBMetadata();
+                
+                // Load enrichments history
+                await loadEnrichmentsHistory();
+                
+                // Setup form submission
+                document.getElementById('enrichmentForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    await submitEnrichment();
+                });
+            } catch (error) {
+                console.error('Error initializing page:', error);
+                showError('Erreur lors de l\'initialisation: ' + error.message);
+            }
+        }
+        
+        function waitForNostrFunctions() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 50;
+                
+                const checkInterval = setInterval(() => {
+                    attempts++;
+                    if (typeof connectToRelay === 'function' || window.nostrRelay) {
+                        clearInterval(checkInterval);
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        clearInterval(checkInterval);
+                        reject(new Error('NOSTR functions not available after timeout'));
+                    }
+                }, 100);
+            });
+        }
+        
+        async function autoConnectRelay() {
+            try {
+                if (typeof connectToRelay === 'function') {
+                    await connectToRelay();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    return checkConnectionStatus();
+                } else if (window.nostrRelay && typeof window.nostrRelay.connect === 'function') {
+                    await window.nostrRelay.connect();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    return checkConnectionStatus();
+                }
+            } catch (error) {
+                console.warn('[Contrib] Auto-connect failed (silent):', error.message);
+                return false;
+            }
+            return false;
+        }
+        
+        function checkConnectionStatus() {
+            let isConnected = false;
+            
+            if (window.nostrRelay) {
+                if (window.nostrRelay.ws) {
+                    const readyState = window.nostrRelay.ws.readyState;
+                    if (readyState === WebSocket.OPEN) {
+                        isConnected = true;
+                    } else if (readyState === WebSocket.CLOSED || readyState === WebSocket.CLOSING) {
+                        isConnected = false;
+                    }
+                }
+                
+                if (!isConnected && window.nostrRelay.status === 1) {
+                    isConnected = true;
+                }
+                
+                if (!isConnected && typeof window.nostrRelay.sub === 'function') {
+                    if (!window.nostrRelay.ws || 
+                        (window.nostrRelay.ws.readyState !== WebSocket.CLOSED && 
+                         window.nostrRelay.ws.readyState !== WebSocket.CLOSING)) {
+                        isConnected = true;
+                    }
+                }
+            }
+            
+            return isConnected;
+        }
+        
+        async function fetchVideoInfo(eventId) {
+            try {
+                if (!window.nostrRelay || typeof window.nostrRelay.sub !== 'function') {
+                    document.getElementById('videoTitle').textContent = 'Vidéo (ID: ' + eventId.substring(0, 16) + '...)';
+                    document.getElementById('videoMeta').textContent = 'Relai NOSTR non disponible';
+                    const baseUrl = window.location.origin || '';
+                    document.getElementById('videoLink').href = `${baseUrl}/theater?video=${eventId}`;
+                    document.getElementById('videoInfo').style.display = 'block';
+                    return;
+                }
+                
+                const videoInfo = await new Promise((resolve, reject) => {
+                    let event = null;
+                    let resolved = false;
+                    let sub = null;
+                    
+                    try {
+                        if (typeof window.nostrRelay.list === 'function') {
+                            window.nostrRelay.list([{
+                                kinds: [21, 22],
+                                ids: [eventId],
+                                limit: 1
+                            }], { timeout: 5000 }).then(events => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    resolve(events && events.length > 0 ? events[0] : null);
+                                }
+                            }).catch(error => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    reject(error);
+                                }
+                            });
+                            return;
+                        }
+                        
+                        sub = window.nostrRelay.sub([{
+                            kinds: [21, 22],
+                            ids: [eventId]
+                        }]);
+                        
+                        if (sub.onevent) {
+                            const originalOnevent = sub.onevent;
+                            sub.onevent = (relay, e) => {
+                                if (!resolved && e) {
+                                    event = e;
+                                }
+                                if (originalOnevent) {
+                                    originalOnevent.call(sub, relay, e);
+                                }
+                            };
+                        } else if (sub.on) {
+                            sub.on('event', (e) => {
+                                if (!resolved && e) {
+                                    event = e;
+                                }
+                            });
+                        }
+                        
+                        if (sub.receivedEose) {
+                            const originalReceivedEose = sub.receivedEose;
+                            sub.receivedEose = () => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    if (sub && sub.close) {
+                                        sub.close();
+                                    }
+                                    resolve(event);
+                                }
+                                if (originalReceivedEose) {
+                                    originalReceivedEose.call(sub);
+                                }
+                            };
+                        } else if (sub.on) {
+                            sub.on('eose', () => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    if (sub && sub.close) {
+                                        sub.close();
+                                    } else if (sub && sub.unsub) {
+                                        sub.unsub();
+                                    }
+                                    resolve(event);
+                                }
+                            });
+                        }
+                        
+                        setTimeout(() => {
+                            if (!resolved) {
+                                resolved = true;
+                                if (sub && sub.close) {
+                                    sub.close();
+                                } else if (sub && sub.unsub) {
+                                    sub.unsub();
+                                }
+                                if (!event) {
+                                    reject(new Error('Video not found or timeout'));
+                                } else {
+                                    resolve(event);
+                                }
+                            }
+                        }, 5000);
+                    } catch (error) {
+                        if (!resolved) {
+                            resolved = true;
+                            if (sub && sub.close) {
+                                sub.close();
+                            }
+                            reject(error);
+                        }
+                    }
+                });
+                
+                if (videoInfo) {
+                    const title = videoInfo.content || 'Sans titre';
+                    const authorId = videoInfo.pubkey || '';
+                    const createdAt = new Date(videoInfo.created_at * 1000).toLocaleDateString('fr-FR');
+                    
+                    document.getElementById('videoTitle').textContent = title;
+                    document.getElementById('videoMeta').textContent = `Publié le ${createdAt}`;
+                    
+                    const baseUrl = window.location.origin || '';
+                    document.getElementById('videoLink').href = `${baseUrl}/theater?video=${eventId}`;
+                    document.getElementById('videoInfo').style.display = 'block';
+                    
+                    // Store author ID for later use
+                    window.videoAuthorId = authorId;
+                }
+            } catch (error) {
+                console.error('Error fetching video info:', error);
+                document.getElementById('videoTitle').textContent = 'Vidéo (ID: ' + eventId.substring(0, 16) + '...)';
+                document.getElementById('videoMeta').textContent = 'Erreur: ' + error.message;
+                const baseUrl = window.location.origin || '';
+                document.getElementById('videoLink').href = `${baseUrl}/theater?video=${eventId}`;
+                document.getElementById('videoInfo').style.display = 'block';
+            }
+        }
+        
+        async function loadCurrentTMDBMetadata() {
+            // Try to fetch current TMDB metadata from video event
+            try {
+                if (!window.nostrRelay || typeof window.nostrRelay.sub !== 'function') {
+                    return;
+                }
+                
+                const videoInfo = await new Promise((resolve) => {
+                    let event = null;
+                    let resolved = false;
+                    let sub = null;
+                    
+                    try {
+                        if (typeof window.nostrRelay.list === 'function') {
+                            window.nostrRelay.list([{
+                                kinds: [21, 22],
+                                ids: [videoEventId],
+                                limit: 1
+                            }], { timeout: 3000 }).then(events => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    resolve(events && events.length > 0 ? events[0] : null);
+                                }
+                            }).catch(() => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    resolve(null);
+                                }
+                            });
+                            return;
+                        }
+                        
+                        sub = window.nostrRelay.sub([{
+                            kinds: [21, 22],
+                            ids: [videoEventId]
+                        }]);
+                        
+                        if (sub.on) {
+                            sub.on('event', (e) => {
+                                if (!resolved && e) {
+                                    event = e;
+                                }
+                            });
+                        }
+                        
+                        sub.on('eose', () => {
+                            if (!resolved) {
+                                resolved = true;
+                                if (sub && sub.close) {
+                                    sub.close();
+                                } else if (sub && sub.unsub) {
+                                    sub.unsub();
+                                }
+                                resolve(event);
+                            }
+                        });
+                        
+                        setTimeout(() => {
+                            if (!resolved) {
+                                resolved = true;
+                                if (sub && sub.close) {
+                                    sub.close();
+                                } else if (sub && sub.unsub) {
+                                    sub.unsub();
+                                }
+                                resolve(event);
+                            }
+                        }, 3000);
+                    } catch (error) {
+                        if (!resolved) {
+                            resolved = true;
+                            resolve(null);
+                        }
+                    }
+                });
+                
+                if (videoInfo) {
+                    // Find info.json CID in tags
+                    // Look for tag 'r' with marker 'info.json' or try all 'r' tags until we find JSON
+                    let infoCid = null;
+                    const rTags = (videoInfo.tags || []).filter(tag => tag[0] === 'r' && tag[1] && tag[1].includes('ipfs'));
+                    
+                    // First, try to find tag with 'info.json' marker
+                    for (const tag of rTags) {
+                        if (tag.length >= 3 && tag[2] === 'info.json') {
+                            const match = tag[1].match(/ipfs\/([^\/]+)/);
+                            if (match) {
+                                infoCid = match[1];
+                            } else {
+                                infoCid = tag[1].replace('ipfs://', '').replace('/ipfs/', '');
+                            }
+                            break;
+                        }
+                    }
+                    
+                    // If not found, try the first 'r' tag (fallback)
+                    if (!infoCid && rTags.length > 0) {
+                        const tag = rTags[0];
+                        const match = tag[1].match(/ipfs\/([^\/]+)/);
+                        if (match) {
+                            infoCid = match[1];
+                        } else {
+                            infoCid = tag[1].replace('ipfs://', '').replace('/ipfs/', '');
+                        }
+                    }
+                    
+                    if (infoCid) {
+                        const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+                        const infoUrl = `${gateway}/ipfs/${infoCid}`;
+                        try {
+                            const response = await fetch(infoUrl);
+                            if (response.ok) {
+                                // Check Content-Type to ensure it's JSON
+                                const contentType = response.headers.get('content-type') || '';
+                                if (!contentType.includes('application/json') && !contentType.includes('text/json')) {
+                                    console.warn('Info CID does not point to JSON file, skipping metadata load');
+                                    return;
+                                }
+                                
+                                const text = await response.text();
+                                if (!text || text.trim().length === 0) {
+                                    console.warn('Empty response from info.json');
+                                    return;
+                                }
+                                
+                                const infoJson = JSON.parse(text);
+                                const currentTmdb = infoJson.tmdb || {};
+                            
+                            // Pre-fill form with current metadata
+                            if (currentTmdb.title) {
+                                document.getElementById('enrichmentTitle').value = currentTmdb.title;
+                            }
+                            if (currentTmdb.year) {
+                                document.getElementById('enrichmentYear').value = currentTmdb.year;
+                            }
+                            if (currentTmdb.runtime) {
+                                document.getElementById('enrichmentRuntime').value = currentTmdb.runtime;
+                            }
+                            if (currentTmdb.genres) {
+                                const genres = Array.isArray(currentTmdb.genres) 
+                                    ? currentTmdb.genres.join(', ') 
+                                    : currentTmdb.genres;
+                                document.getElementById('enrichmentGenres').value = genres;
+                            }
+                            if (currentTmdb.overview) {
+                                document.getElementById('enrichmentOverview').value = currentTmdb.overview;
+                            }
+                            if (currentTmdb.director) {
+                                document.getElementById('enrichmentDirector').value = currentTmdb.director;
+                            } else if (currentTmdb.creator) {
+                                document.getElementById('enrichmentDirector').value = currentTmdb.creator;
+                            }
+                            if (currentTmdb.vote_average) {
+                                document.getElementById('enrichmentVoteAverage').value = currentTmdb.vote_average;
+                            }
+                            }
+                        } catch (fetchError) {
+                            console.warn('Could not fetch or parse info.json:', fetchError);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not load current TMDB metadata:', error);
+            }
+        }
+        
+        async function loadEnrichmentsHistory() {
+            const container = document.getElementById('enrichmentsHistory');
+            
+            try {
+                if (!checkConnectionStatus() || !window.nostrRelay) {
+                    container.innerHTML = '<div class="empty-state"><i class="bi bi-wifi-off"></i><p>Connectez-vous au relai pour voir l\'historique</p></div>';
+                    return;
+                }
+                
+                const enrichments = await loadTMDBEnrichments(videoEventId, videoKind, window.videoAuthorId);
+                
+                if (!enrichments || enrichments.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><i class="bi bi-clock-history"></i><p>Aucun enrichissement pour cette vidéo</p></div>';
+                    return;
+                }
+                
+                const escapeHtmlFn = escapeHtml;
+                let historyHtml = '';
+                enrichments.forEach((enrichment) => {
+                    const date = new Date(enrichment.created_at * 1000);
+                    const dateStr = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    const typeLabels = {
+                        'correction': 'Correction',
+                        'enrichment': 'Enrichissement',
+                        'update': 'Mise à jour',
+                        'author_update': 'Mise à jour auteur'
+                    };
+                    const typeLabel = typeLabels[enrichment.type] || enrichment.type;
+                    
+                    historyHtml += `
+                        <div class="history-item">
+                            <div class="history-header">
+                                <div>
+                                    <span class="badge badge-info">${escapeHtmlFn(typeLabel)}</span>
+                                    <span style="color: #aaaaaa; margin-left: 10px;">${escapeHtmlFn(dateStr)}</span>
+                                </div>
+                                <small style="color: #aaaaaa;">${escapeHtmlFn(enrichment.pubkey.substring(0, 8))}...</small>
+                            </div>
+                            ${enrichment.reason ? `<div style="color: #cccccc; margin-top: 8px;"><small>${escapeHtmlFn(enrichment.reason)}</small></div>` : ''}
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = historyHtml;
+            } catch (error) {
+                console.error('Error loading enrichments history:', error);
+                container.innerHTML = '<div class="error">Erreur lors du chargement de l\'historique</div>';
+            }
+        }
+        
+        async function loadTMDBEnrichments(videoEventId, videoKind, videoAuthorId) {
+            if (!videoEventId || !videoKind) return [];
+            
+            try {
+                let currentRelay = window.nostrRelay;
+                
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay();
+                        currentRelay = window.nostrRelay;
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    
+                    currentRelay = window.nostrRelay;
+                    if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                        return [];
+                    }
+                }
+                
+                // Query for kind 1986 enrichments (community contributions)
+                let enrichments1986 = [];
+                try {
+                    enrichments1986 = await new Promise((resolve) => {
+                        const enrichments = [];
+                        let sub = null;
+                        let resolved = false;
+                        
+                        const cleanup = () => {
+                            if (sub && typeof sub.unsub === 'function') {
+                                try {
+                                    sub.unsub();
+                                } catch (e) {
+                                    console.warn('⚠️ Error unsubscribing:', e);
+                                }
+                            }
+                        };
+                        
+                        const finish = (result) => {
+                            if (!resolved) {
+                                resolved = true;
+                                cleanup();
+                                resolve(result);
+                            }
+                        };
+                        
+                        const timeout = setTimeout(() => {
+                            finish([]);
+                        }, 10000);
+                        
+                        try {
+                            const filter = {
+                                kinds: [1986],
+                                '#E': [videoEventId]
+                            };
+                            
+                            try {
+                                const subscribeMethod = currentRelay.subscribe || currentRelay.sub;
+                                if (!subscribeMethod) {
+                                    throw new Error('No subscription method available');
+                                }
+                                
+                                sub = subscribeMethod.call(currentRelay, [filter], {
+                                    onevent: (event) => {
+                                        try {
+                                            if (!event || !event.content) return;
+                                            
+                                            const tags = event.tags || [];
+                                            const hasNamespace = tags.some(tag => 
+                                                Array.isArray(tag) && 
+                                                tag.length >= 2 && 
+                                                tag[0] === 'L' && 
+                                                tag[1] === 'tmdb.metadata'
+                                            );
+                                            const hasKindTag = tags.some(tag => 
+                                                Array.isArray(tag) && 
+                                                tag.length >= 2 && 
+                                                tag[0] === 'k' && 
+                                                tag[1] === String(videoKind)
+                                            );
+                                            
+                                            if (!hasNamespace) {
+                                                return;
+                                            }
+                                            
+                                            if (hasKindTag === false && tags.some(tag => tag[0] === 'k')) {
+                                                return;
+                                            }
+                                            
+                                            const content = JSON.parse(event.content || '{}');
+                                            if (content && content.tmdb) {
+                                                enrichments.push({
+                                                    event_id: event.id,
+                                                    pubkey: event.pubkey,
+                                                    created_at: event.created_at,
+                                                    type: getEnrichmentType(tags),
+                                                    content: content,
+                                                    reason: content.reason || '',
+                                                    source: content.source || ''
+                                                });
+                                            }
+                                        } catch (e) {
+                                            console.warn('⚠️ Failed to parse enrichment event:', e);
+                                        }
+                                    },
+                                    oneose: () => {
+                                        clearTimeout(timeout);
+                                        finish(enrichments);
+                                    },
+                                    onclose: (reason) => {
+                                        if (reason && reason !== 'closed by caller') {
+                                            clearTimeout(timeout);
+                                            finish([]);
+                                        }
+                                    }
+                                });
+                            } catch (subError) {
+                                console.warn('⚠️ Error creating subscription:', subError);
+                                clearTimeout(timeout);
+                                finish([]);
+                                return;
+                            }
+                        } catch (error) {
+                            clearTimeout(timeout);
+                            console.warn('⚠️ Error creating subscription:', error);
+                            finish([]);
+                        }
+                    });
+                } catch (error) {
+                    console.warn('⚠️ Error in enrichments1986 promise:', error);
+                    enrichments1986 = [];
+                }
+                
+                if (!Array.isArray(enrichments1986)) {
+                    enrichments1986 = [];
+                }
+                
+                // Query for kind 30001 author updates (replaceable)
+                let authorUpdate = null;
+                if (videoAuthorId && currentRelay && typeof currentRelay.sub === 'function') {
+                    try {
+                        const authorUpdates = await new Promise((resolve) => {
+                            const updates = [];
+                            let sub = null;
+                            let resolved = false;
+                            
+                            const cleanup = () => {
+                                if (sub && typeof sub.unsub === 'function') {
+                                    try {
+                                        sub.unsub();
+                                    } catch (e) {
+                                        console.warn('⚠️ Error unsubscribing author updates:', e);
+                                    }
+                                }
+                            };
+                            
+                            const finish = (result) => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    cleanup();
+                                    resolve(result);
+                                }
+                            };
+                            
+                            const timeout = setTimeout(() => {
+                                const latest = updates.sort((a, b) => b.created_at - a.created_at)[0] || null;
+                                finish(latest);
+                            }, 5000);
+                            
+                            try {
+                                const filter = {
+                                    kinds: [30001],
+                                    authors: [videoAuthorId],
+                                    '#d': ['tmdb-metadata'],
+                                    '#E': [videoEventId]
+                                };
+                                
+                                try {
+                                    const subscribeMethod = currentRelay.subscribe || currentRelay.sub;
+                                    if (!subscribeMethod) {
+                                        throw new Error('No subscription method available');
+                                    }
+                                    
+                                    sub = subscribeMethod.call(currentRelay, [filter], {
+                                        onevent: (event) => {
+                                            try {
+                                                if (!event || !event.content) return;
+                                                
+                                                const tags = event.tags || [];
+                                                const hasNamespace = tags.some(tag => 
+                                                    Array.isArray(tag) && 
+                                                    tag.length >= 2 && 
+                                                    tag[0] === 'L' && 
+                                                    tag[1] === 'tmdb.metadata'
+                                                );
+                                                
+                                                if (!hasNamespace) {
+                                                    return;
+                                                }
+                                                
+                                                const content = JSON.parse(event.content || '{}');
+                                                if (content && content.tmdb) {
+                                                    updates.push({
+                                                        event_id: event.id,
+                                                        pubkey: event.pubkey,
+                                                        created_at: event.created_at,
+                                                        type: 'author_update',
+                                                        content: content,
+                                                        reason: content.reason || '',
+                                                        source: content.source || ''
+                                                    });
+                                                }
+                                            } catch (e) {
+                                                console.warn('⚠️ Failed to parse author update event:', e);
+                                            }
+                                        },
+                                        oneose: () => {
+                                            clearTimeout(timeout);
+                                            const latest = updates.sort((a, b) => b.created_at - a.created_at)[0] || null;
+                                            finish(latest);
+                                        },
+                                        onclose: (reason) => {
+                                            if (reason && reason !== 'closed by caller') {
+                                                clearTimeout(timeout);
+                                                finish(null);
+                                            }
+                                        }
+                                    });
+                                } catch (subError) {
+                                    console.warn('⚠️ Error creating subscription:', subError);
+                                    clearTimeout(timeout);
+                                    finish(null);
+                                    return;
+                                }
+                            } catch (error) {
+                                clearTimeout(timeout);
+                                console.warn('⚠️ Error creating subscription:', error);
+                                finish(null);
+                            }
+                        });
+                        
+                        if (authorUpdates) {
+                            authorUpdate = authorUpdates;
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Error loading author updates:', error);
+                    }
+                }
+                
+                // Combine enrichments (author update first if exists)
+                const allEnrichments = [];
+                if (authorUpdate) {
+                    allEnrichments.push(authorUpdate);
+                }
+                if (Array.isArray(enrichments1986)) {
+                    allEnrichments.push(...enrichments1986);
+                }
+                
+                // Sort by created_at (most recent first)
+                allEnrichments.sort((a, b) => b.created_at - a.created_at);
+                
+                return allEnrichments;
+            } catch (error) {
+                console.error('Error loading TMDB enrichments:', error);
+                return [];
+            }
+        }
+        
+        function getEnrichmentType(tags) {
+            for (const tag of tags) {
+                if (Array.isArray(tag) && tag.length >= 3 && tag[0] === 'l' && tag[2] === 'tmdb.metadata') {
+                    return tag[1] || 'enrichment';
+                }
+            }
+            return 'enrichment';
+        }
+        
+        async function submitEnrichment() {
+            console.log('📋 submitEnrichment called');
+            
+            const typeEl = document.getElementById('enrichmentType');
+            const titleEl = document.getElementById('enrichmentTitle');
+            const yearEl = document.getElementById('enrichmentYear');
+            const runtimeEl = document.getElementById('enrichmentRuntime');
+            const genresEl = document.getElementById('enrichmentGenres');
+            const overviewEl = document.getElementById('enrichmentOverview');
+            const directorEl = document.getElementById('enrichmentDirector');
+            const voteAverageEl = document.getElementById('enrichmentVoteAverage');
+            const reasonEl = document.getElementById('enrichmentReason');
+            const sourceEl = document.getElementById('enrichmentSource');
+            const submitBtn = document.getElementById('submitEnrichmentBtn');
+            
+            // Disable submit button
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Publication...';
+            }
+            
+            const type = typeEl.value;
+            
+            // Build TMDB object from form fields (only include non-empty fields)
+            const tmdbJson = {};
+            
+            if (titleEl && titleEl.value.trim()) {
+                tmdbJson.title = titleEl.value.trim();
+            }
+            
+            if (yearEl && yearEl.value.trim()) {
+                tmdbJson.year = yearEl.value.trim();
+            }
+            
+            if (runtimeEl && runtimeEl.value.trim()) {
+                tmdbJson.runtime = runtimeEl.value.trim();
+            }
+            
+            if (genresEl && genresEl.value.trim()) {
+                const genres = genresEl.value.split(',').map(g => g.trim()).filter(g => g.length > 0);
+                if (genres.length > 0) {
+                    tmdbJson.genres = genres;
+                }
+            }
+            
+            if (overviewEl && overviewEl.value.trim()) {
+                tmdbJson.overview = overviewEl.value.trim();
+            }
+            
+            if (directorEl && directorEl.value.trim()) {
+                // Try to determine if it's a movie or TV show
+                // For now, default to director
+                tmdbJson.director = directorEl.value.trim();
+            }
+            
+            if (voteAverageEl && voteAverageEl.value.trim()) {
+                tmdbJson.vote_average = voteAverageEl.value.trim();
+            }
+            
+            // Check if at least one field is filled
+            if (Object.keys(tmdbJson).length === 0) {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-send"></i> Publier l\'enrichissement';
+                }
+                showError('Veuillez remplir au moins un champ');
+                return;
+            }
+            
+            // Build enrichment content
+            const enrichmentContent = {
+                tmdb: tmdbJson
+            };
+            
+            if (reasonEl && reasonEl.value.trim()) {
+                enrichmentContent.reason = reasonEl.value.trim();
+            }
+            
+            if (sourceEl && sourceEl.value.trim()) {
+                enrichmentContent.source = sourceEl.value.trim();
+            }
+            
+            // Get user pubkey
+            let currentUserPubkey = window.userPubkey;
+            if (!currentUserPubkey && window.nostr && typeof window.nostr.getPublicKey === 'function') {
+                try {
+                    currentUserPubkey = await window.nostr.getPublicKey();
+                    window.userPubkey = currentUserPubkey;
+                } catch (error) {
+                    console.error('Error getting pubkey:', error);
+                }
+            }
+            
+            if (!currentUserPubkey) {
+                if (typeof connectNostr === 'function') {
+                    try {
+                        currentUserPubkey = await connectNostr();
+                        if (currentUserPubkey) {
+                            window.userPubkey = currentUserPubkey;
+                        }
+                    } catch (error) {
+                        console.error('Error connecting:', error);
+                    }
+                }
+            }
+            
+            if (!currentUserPubkey) {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-send"></i> Publier l\'enrichissement';
+                }
+                showError('Vous devez être connecté à NOSTR pour publier');
+                return;
+            }
+            
+            // Get relay
+            let currentNostrRelay = window.nostrRelay;
+            if (!currentNostrRelay || !checkConnectionStatus()) {
+                if (typeof connectToRelay === 'function') {
+                    await connectToRelay();
+                    currentNostrRelay = window.nostrRelay;
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+            
+            if (!currentNostrRelay) {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-send"></i> Publier l\'enrichissement';
+                }
+                showError('Connexion au relai requise');
+                return;
+            }
+            
+            // Check if current user is the video author
+            const videoAuthorId = window.videoAuthorId;
+            const isAuthor = videoAuthorId && currentUserPubkey && 
+                           (videoAuthorId.toLowerCase() === currentUserPubkey.toLowerCase());
+            
+            // Determine event kind (1986 for community, 30001 for author updates)
+            const eventKind = (type === 'author_update' && isAuthor) ? 30001 : 1986;
+            
+            // Build tags
+            const tags = [
+                ['e', videoEventId, ''],  // Reference to video event
+                ['k', String(videoKind)],  // Kind of target event
+                ['L', 'tmdb.metadata'],   // Namespace
+                ['l', type, 'tmdb.metadata']  // Type of enrichment
+            ];
+            
+            // If replaceable event (kind 30001), add 'd' tag
+            if (eventKind === 30001) {
+                tags.push(['d', 'tmdb-metadata']);
+            }
+            
+            // Add video author reference if available
+            if (videoAuthorId) {
+                tags.push(['p', videoAuthorId, '']);
+            }
+            
+            // Create event
+            const event = {
+                kind: eventKind,
+                pubkey: currentUserPubkey,
+                created_at: Math.floor(Date.now() / 1000),
+                tags: tags,
+                content: JSON.stringify(enrichmentContent)
+            };
+            
+            // Sign and publish event
+            try {
+                let signedEvent;
+                if (window.nostr && typeof window.nostr.signEvent === 'function') {
+                    signedEvent = await window.nostr.signEvent(event);
+                } else {
+                    throw new Error('Signature NOSTR requise. Veuillez utiliser une extension NOSTR (Alby, nos2x, etc.)');
+                }
+                
+                console.log('📋 Publishing TMDB enrichment event...', signedEvent);
+                const publishResult = await currentNostrRelay.publish(signedEvent);
+                
+                if (publishResult && publishResult.status === 'ok') {
+                    console.log('✅ TMDB enrichment published successfully:', signedEvent.id);
+                    
+                    // Show success message
+                    showToast('Enrichissement publié avec succès!', 'success');
+                    
+                    // Clear form
+                    if (titleEl) titleEl.value = '';
+                    if (yearEl) yearEl.value = '';
+                    if (runtimeEl) runtimeEl.value = '';
+                    if (genresEl) genresEl.value = '';
+                    if (overviewEl) overviewEl.value = '';
+                    if (directorEl) directorEl.value = '';
+                    if (voteAverageEl) voteAverageEl.value = '';
+                    if (reasonEl) reasonEl.value = '';
+                    if (sourceEl) sourceEl.value = '';
+                    
+                    // Reload history
+                    setTimeout(() => {
+                        loadEnrichmentsHistory();
+                    }, 1000);
+                } else {
+                    throw new Error('Échec de la publication sur le relais');
+                }
+            } catch (error) {
+                console.error('Error publishing TMDB enrichment:', error);
+                showError('Erreur lors de la publication: ' + error.message);
+            } finally {
+                // Re-enable submit button
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-send"></i> Publier l\'enrichissement';
+                }
+            }
+        }
+        
+        // Toast notification function
+        function showToast(message, type = 'info') {
+            const container = document.querySelector('.toast-container');
+            if (!container) return;
+            
+            const toastId = 'toast-' + Date.now();
+            const icons = {
+                success: 'bi-check-circle',
+                error: 'bi-exclamation-circle',
+                info: 'bi-info-circle',
+                warning: 'bi-exclamation-triangle'
+            };
+            
+            const toastHtml = `
+                <div id="${toastId}" class="toast toast-${type}" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="toast-header">
+                        <i class="bi ${icons[type] || icons.info} me-2"></i>
+                        <strong class="me-auto">${type === 'success' ? 'Succès' : type === 'error' ? 'Erreur' : type === 'warning' ? 'Attention' : 'Information'}</strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${escapeHtml(message)}
+                    </div>
+                </div>
+            `;
+            
+            container.insertAdjacentHTML('beforeend', toastHtml);
+            const toastElement = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastElement, {
+                autohide: true,
+                delay: type === 'error' ? 5000 : 3000
+            });
+            toast.show();
+            
+            toastElement.addEventListener('hidden.bs.toast', () => {
+                toastElement.remove();
+            });
+        }
+        
+        function showError(message) {
+            showToast(message, 'error');
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
+

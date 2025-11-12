@@ -1250,6 +1250,47 @@
                 min-width: 80px;
             }
         }
+        
+        /* Audio mode - hide all video/webcam related elements */
+        body.audio-mode #select-camera-btn,
+        body.audio-mode #camera-selector,
+        body.audio-mode #video-preview-container,
+        body.audio-mode #video-preview,
+        body.audio-mode #timer,
+        body.audio-mode #start-recording,
+        body.audio-mode #stop-recording,
+        body.audio-mode #video-upload-section,
+        body.audio-mode #duration-slider,
+        body.audio-mode #duration-display {
+            display: none !important;
+        }
+        
+        /* Hide camera button container - handled by JavaScript */
+        
+        /* Hide Video Orientation section container in audio mode */
+        body.audio-mode #controls-container > div.d-flex.flex-column.align-items-center.gap-1.w-100:first-of-type {
+            display: none !important;
+        }
+        
+        /* Hide Duration section container in audio mode */
+        body.audio-mode #controls-container > div.d-flex.flex-column.flex-sm-row.align-items-center.gap-2.w-100 {
+            display: none !important;
+        }
+        
+        /* Hide recording buttons container in audio mode */
+        body.audio-mode #controls-container > div.d-flex.gap-1.flex-wrap.justify-content-center {
+            display: none !important;
+        }
+        
+        /* Hide separator in audio mode */
+        body.audio-mode #controls-container > div.text-secondary.my-1.small {
+            display: none !important;
+        }
+        
+        /* Show audio upload section in audio mode */
+        body.audio-mode #audio-upload-section {
+            display: block !important;
+        }
     </style>
 </head>
 <body class="bg-dark text-white">
@@ -2425,6 +2466,20 @@
 
         // Initialize webcam recording functionality
         function initWebcamFeatures() {
+            // Check if we're in audio mode - disable webcam completely
+            const urlParams = new URLSearchParams(window.location.search);
+            const isAudioMode = urlParams.get('audio') === '1' || urlParams.get('type') === 'mp3';
+            
+            if (isAudioMode) {
+                console.log('🎵 Audio mode detected - disabling webcam features');
+                // Stop any existing camera streams
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                    currentStream = null;
+                }
+                return; // Exit early - no webcam features in audio mode
+            }
+            
             // Check if getUserMedia is available
             const isWebcamSupported = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
             
@@ -3228,66 +3283,150 @@
 
         // Adapt UI for audio mode
         function adaptUIForAudioMode() {
-            const titleEl = document.getElementById('webcam-title');
-            const videoSection = document.getElementById('video-upload-section');
-            const audioSection = document.getElementById('audio-upload-section');
-            const videoPreview = document.getElementById('video-preview');
-            const cameraControls = document.querySelector('.camera-controls');
-            const cameraSelector = document.getElementById('camera-selector');
-            const timerDisplay = document.getElementById('timer');
-            const orSeparator = document.querySelector('.or-separator');
-            const startRecordingBtn = document.getElementById('start-recording');
-            const stopRecordingBtn = document.getElementById('stop-recording');
-            const durationControl = document.querySelector('.duration-control');
-            const controlsDiv = document.querySelector('.controls');
+            console.log('🎵 Adapting UI for audio mode...');
+            
+            // Add audio-mode class to body for CSS rules
+            document.body.classList.add('audio-mode');
             
             // Update title
+            const titleEl = document.getElementById('webcam-title');
             if (titleEl) {
                 titleEl.textContent = '🎵 Upload Audio File';
             }
             
-            // Hide all video/webcam-specific elements
-            if (videoPreview) {
-                videoPreview.style.display = 'none';
+            // Hide camera selection button and its parent container
+            const selectCameraBtn = document.getElementById('select-camera-btn');
+            if (selectCameraBtn) {
+                const cameraBtnContainer = selectCameraBtn.closest('.d-flex.justify-content-center');
+                if (cameraBtnContainer) {
+                    cameraBtnContainer.style.display = 'none';
+                } else {
+                    selectCameraBtn.style.display = 'none';
+                }
             }
-            if (cameraControls) {
-                cameraControls.style.display = 'none';
-            }
+            
+            // Hide camera selector
+            const cameraSelector = document.getElementById('camera-selector');
             if (cameraSelector) {
                 cameraSelector.style.display = 'none';
             }
+            
+            // Hide video preview container (contains video preview and timer)
+            const videoPreviewContainer = document.getElementById('video-preview-container');
+            if (videoPreviewContainer) {
+                videoPreviewContainer.style.display = 'none';
+            }
+            
+            // Hide video preview
+            const videoPreview = document.getElementById('video-preview');
+            if (videoPreview) {
+                videoPreview.style.display = 'none';
+            }
+            
+            // Hide timer
+            const timerDisplay = document.getElementById('timer');
             if (timerDisplay) {
                 timerDisplay.style.display = 'none';
             }
-            if (orSeparator) {
-                orSeparator.style.display = 'none';
+            
+            // Hide Video Orientation section
+            // Structure: <div class="d-flex flex-column align-items-center gap-1 w-100">
+            //   <label class="mb-0 text-white small">Video Orientation:</label>
+            //   <div class="btn-group">...</div>
+            // </div>
+            const orientationLabel = Array.from(document.querySelectorAll('label.mb-0.text-white.small')).find(
+                label => label.textContent.trim() === 'Video Orientation:'
+            );
+            if (orientationLabel) {
+                // Find the parent div with specific classes
+                const orientationSection = orientationLabel.closest('div.d-flex.flex-column.align-items-center.gap-1.w-100');
+                if (orientationSection) {
+                    orientationSection.style.display = 'none';
+                    console.log('✅ Hidden Video Orientation section');
+                }
             }
+            
+            // Hide Duration section
+            // Structure: <div class="d-flex flex-column flex-sm-row align-items-center gap-2 w-100">
+            //   <label>Duration:</label>
+            //   <input id="duration-slider">
+            //   <div id="duration-display">10s</div>
+            // </div>
+            const durationSlider = document.getElementById('duration-slider');
+            if (durationSlider) {
+                // Find the parent div with specific classes
+                const durationSection = durationSlider.closest('div.d-flex.flex-column.flex-sm-row.align-items-center.gap-2.w-100');
+                if (durationSection) {
+                    durationSection.style.display = 'none';
+                    console.log('✅ Hidden Duration section');
+                }
+            }
+            
+            // Hide duration display (backup)
+            const durationDisplay = document.getElementById('duration-display');
+            if (durationDisplay) {
+                durationDisplay.style.display = 'none';
+            }
+            
+            // Hide start/stop recording buttons container
+            // Structure: <div class="d-flex gap-1 flex-wrap justify-content-center">
+            //   <button id="start-recording">...</button>
+            //   <button id="stop-recording">...</button>
+            // </div>
+            const startRecordingBtn = document.getElementById('start-recording');
             if (startRecordingBtn) {
-                startRecordingBtn.style.display = 'none';
+                const recordingButtonsContainer = startRecordingBtn.closest('div.d-flex.gap-1.flex-wrap.justify-content-center');
+                if (recordingButtonsContainer) {
+                    recordingButtonsContainer.style.display = 'none';
+                    console.log('✅ Hidden recording buttons container');
+                } else {
+                    startRecordingBtn.style.display = 'none';
+                }
             }
+            
+            const stopRecordingBtn = document.getElementById('stop-recording');
             if (stopRecordingBtn) {
                 stopRecordingBtn.style.display = 'none';
             }
-            if (durationControl) {
-                durationControl.style.display = 'none';
+            
+            // Hide the separator "— 📤 —"
+            // Structure: <div class="text-secondary my-1 small">— <span>📤</span> —</div>
+            const separatorDiv = Array.from(document.querySelectorAll('div.text-secondary.my-1.small')).find(el => {
+                const text = el.textContent || '';
+                return text.includes('📤') || (text.includes('—') && text.trim().length < 30);
+            });
+            if (separatorDiv) {
+                separatorDiv.style.display = 'none';
+                console.log('✅ Hidden separator');
             }
             
             // Hide video upload section
+            const videoSection = document.getElementById('video-upload-section');
             if (videoSection) {
                 videoSection.style.display = 'none';
             }
             
             // Show audio upload section
+            const audioSection = document.getElementById('audio-upload-section');
             if (audioSection) {
+                audioSection.classList.remove('d-none');
                 audioSection.style.display = 'block';
+                console.log('✅ Shown audio upload section');
             }
             
-            // Adjust controls div styling for audio-only mode
-            if (controlsDiv) {
-                controlsDiv.style.marginTop = '20px';
+            // Adjust main content wrapper for audio-only mode
+            const mainContentWrapper = document.getElementById('main-content-wrapper');
+            if (mainContentWrapper) {
+                mainContentWrapper.style.flexDirection = 'column';
             }
             
-            console.log('✅ UI adapted for audio mode - webcam elements hidden, audio upload shown');
+            // Stop any active camera streams
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+            
+            console.log('✅ UI adapted for audio mode - all webcam elements hidden, audio upload shown');
         }
         
         // Handle video file upload
@@ -3837,6 +3976,10 @@
             // Adapt UI for audio mode
             if (isAudioMode) {
                 adaptUIForAudioMode();
+                // Also call after a short delay to ensure all elements are loaded
+                setTimeout(() => {
+                    adaptUIForAudioMode();
+                }, 100);
             }
             
             // Initialize connection variables from parent if in iframe
