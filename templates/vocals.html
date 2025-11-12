@@ -1,0 +1,4046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>🎤 Voice Messages with NOSTR Publishing & Encryption</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    
+    <!-- Nostr integration -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+
+    <!-- Common.js with enhanced UPlanet NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    <!-- Define showAlert function for common.js compatibility -->
+    <script>
+        // Define showAlert function if not already defined (for common.js compatibility)
+        if (typeof showAlert === 'undefined') {
+            window.showAlert = function(message, type = 'info', title = '') {
+                // Use Bootstrap alert or native alert as fallback
+                if (typeof bootstrap !== 'undefined' && bootstrap.Alert) {
+                    // Create Bootstrap alert
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
+                    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+                    alertDiv.innerHTML = `
+                        ${title ? `<strong>${title}</strong><br>` : ''}
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    document.body.appendChild(alertDiv);
+                    // Auto-remove after 5 seconds
+                    setTimeout(() => {
+                        if (alertDiv.parentNode) {
+                            alertDiv.remove();
+                        }
+                    }, 5000);
+                } else {
+                    // Fallback to native alert
+                    alert(title ? `${title}\n\n${message}` : message);
+                }
+            };
+        }
+    </script>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/leaflet.css"/>
+    <!-- Leaflet JavaScript -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/leaflet.js"></script>
+    
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Roboto', 'Arial', sans-serif;
+            background: #0f0f0f;
+            color: #ffffff;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        
+        /* Compact Header - YouTube Style */
+        /* Header - Using Bootstrap utilities */
+        .header {
+            background: #212121;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #3f3f3f;
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 1.3em;
+            font-weight: 400;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* Links - Using Bootstrap btn utilities */
+        .youtube-link {
+            padding: 0.5rem 1rem;
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #f1f1f1;
+            border-radius: 1.125rem;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            font-weight: 500;
+            min-height: 36px; /* Better touch target */
+        }
+        
+        .youtube-link:hover {
+            background-color: #3f3f3f;
+            border-color: #ff0000;
+            color: #ffffff;
+        }
+
+        .nostrify-link {
+            padding: 0.5rem 1rem;
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #f1f1f1;
+            border-radius: 1.125rem;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            font-weight: 500;
+            min-height: 36px; /* Better touch target */
+        }
+        
+        .nostrify-link:hover {
+            background-color: #3f3f3f;
+            border-color: #ff0000;
+            color: #ffffff;
+        }
+
+        /* Compact NOSTR Auth in Header */
+        .nostr-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        
+        .nostr-header .auth-status {
+            font-size: 0.75em;
+            color: #94a3b8;
+            padding: 3px 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        
+        .nostr-header button {
+            padding: 5px 10px;
+            font-size: 0.75em;
+            margin: 0;
+            border-radius: 4px;
+        }
+        
+        /* Main Container - Using Bootstrap utilities */
+        .main-container {
+            max-width: 100%;
+            padding: 1.5rem;
+            height: 100vh;
+            height: 100dvh; /* Dynamic viewport for mobile */
+            overflow-y: auto;
+            background: #0f0f0f;
+        }
+        
+        /* Compact layout for webcam section */
+        #webcam-section {
+            max-height: calc(100vh - 100px);
+        }
+        
+        #webcam-section .card-body {
+            overflow-y: auto;
+        }
+        
+        /* Webcam Section - Using Bootstrap utilities */
+        .webcam-section {
+            background: #181818;
+            backdrop-filter: blur(10px);
+            border: 1px solid #3f3f3f;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            text-align: center;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+            max-width: 56.25rem;
+            margin: 0 auto;
+        }
+        
+        .webcam-title {
+            color: #ffffff;
+            font-size: 1.5rem;
+            margin-bottom: 1.25rem;
+            font-weight: 500;
+        }
+        
+        #video-preview {
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+            aspect-ratio: 16/9;
+            max-height: 25vh;
+            border: 2px solid #3f3f3f;
+            border-radius: 12px;
+            margin: 10px auto;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            background: #000;
+            object-fit: contain;
+            transition: all 0.3s ease;
+        }
+        
+        /* Video preview container - fixed height to prevent layout shift */
+        #video-preview-container {
+            min-height: 25vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        
+        /* Main content wrapper - adapts layout based on orientation */
+        #main-content-wrapper {
+            transition: all 0.3s ease;
+        }
+        
+        /* Portrait mode: side-by-side layout */
+        #main-content-wrapper.portrait-mode {
+            flex-direction: row !important;
+            display: flex !important;
+        }
+        
+        #main-content-wrapper.portrait-mode #video-preview-container {
+            flex: 0 0 50%;
+            min-width: 300px;
+            width: 50%;
+            min-height: 50vh;
+            max-height: 70vh;
+            display: flex !important;
+        }
+        
+        #main-content-wrapper.portrait-mode #video-preview {
+            max-height: 70vh;
+            max-width: 100%;
+            width: 100%;
+            height: auto;
+            object-fit: contain;
+        }
+        
+        #main-content-wrapper.portrait-mode #controls-container {
+            flex: 1 1 auto;
+            min-width: 250px;
+            max-width: 50%;
+            width: 50%;
+        }
+        
+        /* Landscape mode: vertical layout (default) */
+        #main-content-wrapper.landscape-mode {
+            flex-direction: column !important;
+        }
+        
+        #main-content-wrapper.landscape-mode #video-preview-container {
+            width: 100%;
+            min-height: 25vh;
+            max-height: 40vh;
+        }
+        
+        #main-content-wrapper.landscape-mode #video-preview {
+            max-height: 40vh;
+            width: 100%;
+        }
+        
+        #main-content-wrapper.landscape-mode #controls-container {
+            width: 100%;
+        }
+        
+        #timer {
+            font-size: 2.5em;
+            margin: 10px 0;
+            color: #ff0000;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+            font-weight: bold;
+        }
+        
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            margin: 15px 0;
+        }
+        
+        .duration-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 8px 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        input[type="range"] {
+            width: 180px;
+            height: 6px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #4ade80;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+        }
+        
+        #duration-display {
+            font-size: 1em;
+            color: #4ade80;
+            font-weight: 600;
+            min-width: 100px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 18px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-primary {
+            background: #065fd4;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #0556c2;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(6, 95, 212, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #3f3f3f;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #606060;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(255, 255, 255, 0.1);
+        }
+        
+        .btn-danger {
+            background: #ff0000;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #cc0000;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(255, 0, 0, 0.3);
+        }
+        
+        button:disabled {
+            background: rgba(148, 163, 184, 0.5);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        /* .hidden replaced by Bootstrap .d-none */
+        
+        /* Video upload section - YouTube style */
+        .video-upload-section {
+            margin: 10px 0;
+            padding: 16px;
+            background: rgba(63, 63, 63, 0.3);
+            border-radius: 12px;
+            border: 1px solid #3f3f3f;
+        }
+        
+        .video-upload-section label {
+            display: block;
+            margin-bottom: 8px;
+            color: #e2e8f0;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        
+        .video-upload-section input[type="file"] {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #e2e8f0;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+        
+        .video-upload-section small {
+            color: #94a3b8;
+            font-size: 0.75em;
+            display: block;
+            margin-top: 4px;
+        }
+        
+        .or-separator {
+            text-align: center;
+            margin: 10px 0;
+            color: #94a3b8;
+            font-size: 0.85em;
+        }
+        
+        /* Modal Styles - Now using Bootstrap Modal */
+        /* Removed custom modal styles to avoid conflicts with Bootstrap */
+        
+        .modal-video-preview {
+            width: 100%;
+            max-height: 35vh;
+            border-radius: 10px;
+            margin: 10px auto;
+            display: block;
+        }
+        
+        .form-group {
+            margin: 12px 0;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #e2e8f0;
+            font-size: 0.9em;
+        }
+        
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #4ade80;
+            box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.1);
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        
+        .location-section {
+            background: rgba(63, 63, 63, 0.3);
+            border: 1px solid #3f3f3f;
+            padding: 16px;
+            border-radius: 12px;
+            margin: 12px 0;
+        }
+        
+        .location-section > label {
+            display: block;
+            margin-bottom: 8px;
+            color: #ffffff;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        
+        .location-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .coord-input {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex: 1;
+            min-width: 120px;
+        }
+        
+        .coord-input label {
+            font-weight: bold;
+            color: #e2e8f0;
+            margin: 0;
+            min-width: 28px;
+            font-size: 0.85em;
+        }
+        
+        .coord-input input {
+            flex: 1;
+            padding: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        
+        .modal-map {
+            height: 200px;
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-top: 10px;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 15px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            flex-wrap: wrap;
+        }
+        
+        .modal-actions button {
+            flex: 1;
+            min-width: 120px;
+        }
+        
+        /* Expanded NOSTR Section (when clicking expand) */
+        .nostr-section {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            min-width: 300px;
+            z-index: 200;
+            margin-top: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .nostr-section.expanded {
+            display: block;
+        }
+        
+        .auth-mode {
+            margin: 10px 0;
+        }
+        
+        .kind-options {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .kind-option {
+            display: flex;
+            align-items: center;
+                gap: 5px;
+            }
+            
+        .kind-option input[type="radio"] {
+            width: auto;
+            margin: 0;
+        }
+        
+        .nsec-input {
+            display: none;
+            margin-top: 10px;
+        }
+        
+        .nsec-input.visible {
+            display: block;
+        }
+        
+        /* Notification Modal */
+        .notification-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .notification-modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .notification-content {
+            background: #181818;
+            border-radius: 12px;
+            padding: 25px;
+            max-width: 450px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            border: 2px solid;
+            animation: slideIn 0.3s ease;
+            position: relative;
+        }
+        
+        .notification-content.success {
+            border-color: #065fd4;
+        }
+        
+        .notification-content.error {
+            border-color: #ff0000;
+        }
+        
+        .notification-content.info {
+            border-color: #3f3f3f;
+        }
+        
+        .notification-content.warning {
+            border-color: #f59e0b;
+        }
+        
+        .notification-icon {
+            font-size: 3em;
+            text-align: center;
+            margin-bottom: 15px;
+            animation: bounce 0.6s ease;
+        }
+        
+        .notification-title {
+            font-size: 1.4em;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 10px;
+            color: #e8e8e8;
+        }
+        
+        .notification-message {
+            font-size: 1em;
+            text-align: center;
+            margin-bottom: 20px;
+            color: #cbd5e1;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        
+        .notification-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        .notification-btn {
+            padding: 10px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            min-width: 100px;
+        }
+        
+        .notification-btn.primary {
+            background: #065fd4;
+            color: white;
+        }
+        
+        .notification-btn.primary:hover {
+            background: #0556c2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(6, 95, 212, 0.4);
+        }
+        
+        .notification-btn.secondary {
+            background: #3f3f3f;
+            color: white;
+        }
+        
+        .notification-btn.secondary:hover {
+            background: #606060;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: scale(1); }
+            25% { transform: scale(0.9); }
+            50% { transform: scale(1.1); }
+            75% { transform: scale(0.95); }
+        }
+        
+        /* Responsive - Using Bootstrap breakpoints */
+        @media (max-width: 767.98px) {
+            .header {
+                padding: 6px 10px;
+            }
+            
+            .header h1 {
+                font-size: 1em;
+            }
+            
+            .nostr-header .auth-status {
+                font-size: 0.7em;
+                padding: 2px 4px;
+            }
+            
+            .nostr-header button {
+                padding: 4px 8px;
+                font-size: 0.7em;
+            }
+            
+            .main-container {
+                padding: 0.3125rem;
+                height: 100vh;
+                height: 100dvh; /* Dynamic viewport for mobile */
+            }
+            
+            .webcam-section {
+                padding: 0.625rem;
+                border-radius: 0.625rem;
+            }
+            
+            .webcam-title {
+                font-size: 1.1rem;
+                margin-bottom: 0.625rem;
+            }
+            
+            #video-preview {
+                max-height: 35vh;
+                max-height: 35dvh; /* Dynamic viewport for mobile */
+                border-width: 2px;
+                border-radius: 0.5rem;
+                margin: 0.5rem auto;
+            }
+            
+            /* Mobile: always use vertical layout (column) for better UX */
+            #main-content-wrapper.portrait-mode {
+                flex-direction: column !important;
+                position: relative;
+            }
+            
+            #main-content-wrapper.portrait-mode #video-preview-container {
+                width: 100%;
+                min-height: 40vh;
+                max-height: 50vh;
+                position: relative;
+                z-index: 1;
+            }
+            
+            #main-content-wrapper.portrait-mode #video-preview {
+                max-height: 50vh;
+                width: 100%;
+            }
+            
+            #main-content-wrapper.portrait-mode #controls-container {
+                width: 100%;
+                max-width: 100%;
+                position: relative;
+                z-index: 10;
+                background: rgba(15, 15, 15, 0.95);
+                backdrop-filter: blur(10px);
+                padding: 12px;
+                border-radius: 12px 12px 0 0;
+                margin-top: -20px; /* Overlap with preview */
+                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+            }
+            
+            #main-content-wrapper.landscape-mode {
+                position: relative;
+            }
+            
+            #main-content-wrapper.landscape-mode #video-preview-container {
+                max-height: 35vh;
+                position: relative;
+                z-index: 1;
+            }
+            
+            #main-content-wrapper.landscape-mode #video-preview {
+                max-height: 35vh;
+            }
+            
+            #main-content-wrapper.landscape-mode #controls-container {
+                position: relative;
+                z-index: 10;
+                background: rgba(15, 15, 15, 0.95);
+                backdrop-filter: blur(10px);
+                padding: 12px;
+                border-radius: 12px 12px 0 0;
+                margin-top: -10px; /* Slight overlap */
+                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+            }
+            
+            .camera-controls {
+                display: flex;
+                gap: 0.5rem;
+                margin-bottom: 0.625rem;
+                justify-content: center;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+            
+            .camera-controls button {
+                padding: 0.5rem 1rem;
+                font-size: 0.75rem;
+                min-height: 44px; /* Better touch target */
+            }
+            
+            .camera-selector {
+                display: none;
+                margin: 10px 0;
+                text-align: center;
+            }
+            
+            .camera-selector select {
+                padding: 6px 10px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 5px;
+                background-color: rgba(255, 255, 255, 0.05);
+                color: #e2e8f0;
+                margin-right: 8px;
+                min-width: 180px;
+                font-size: 12px;
+            }
+            
+            .camera-selector button {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+            
+            #timer {
+                font-size: 2em;
+                margin: 8px 0;
+            }
+            
+            .controls {
+                gap: 8px;
+                margin: 10px 0;
+            }
+            
+            .duration-control {
+                gap: 6px;
+                margin: 6px 0;
+            }
+            
+            .duration-control label {
+                font-size: 0.85em;
+            }
+            
+            input[type="range"] {
+                width: 140px;
+                height: 5px;
+            }
+            
+            input[type="range"]::-webkit-slider-thumb {
+                width: 14px;
+                height: 14px;
+            }
+            
+            #duration-display {
+                font-size: 0.9em;
+                min-width: 80px;
+            }
+            
+            button {
+                padding: 8px 16px;
+                font-size: 12px;
+            }
+            
+            .video-upload-section {
+                padding: 8px;
+                margin: 8px 0;
+            }
+            
+            .video-upload-section label {
+                font-size: 0.85em;
+                margin-bottom: 6px;
+            }
+            
+            .video-upload-section input[type="file"] {
+                padding: 5px;
+                font-size: 0.8em;
+            }
+            
+            .video-upload-section small {
+                font-size: 0.7em;
+            }
+            
+            .or-separator {
+                margin: 8px 0;
+                font-size: 0.8em;
+            }
+            
+            /* Modal responsive */
+            .modal.active {
+                padding: 5px;
+                align-items: flex-start;
+            }
+            
+            .modal-content {
+                padding: 12px;
+                border-radius: 10px;
+                max-height: 95vh;
+                margin-top: 5px;
+            }
+            
+            .modal-header {
+                margin-bottom: 10px;
+                padding-bottom: 8px;
+            }
+            
+            .modal-header h2 {
+                font-size: 1.1em;
+            }
+            
+            .close-modal {
+                font-size: 1.3em;
+                width: 30px;
+                height: 30px;
+            }
+            
+            .modal-video-preview {
+                max-height: 30vh;
+                border-radius: 8px;
+                margin: 8px auto;
+            }
+            
+            .form-group {
+                margin: 10px 0;
+            }
+            
+            .form-group label {
+                margin-bottom: 4px;
+                font-size: 0.85em;
+            }
+            
+            .form-group input, .form-group textarea {
+                padding: 6px;
+                font-size: 13px;
+                border-radius: 5px;
+            }
+            
+            .form-group textarea {
+                min-height: 50px;
+            }
+            
+            .location-section {
+                padding: 10px;
+                border-radius: 8px;
+                margin: 10px 0;
+            }
+            
+            .location-section > label {
+                font-size: 0.85em;
+                margin-bottom: 6px;
+            }
+            
+            .location-controls {
+                gap: 6px;
+                margin-top: 8px;
+            }
+            
+            .coord-input {
+                min-width: 100px;
+            }
+            
+            .coord-input label {
+                font-size: 0.8em;
+                min-width: 24px;
+            }
+            
+            .coord-input input {
+                padding: 5px;
+                font-size: 0.8em;
+            }
+            
+            .location-controls .btn-secondary {
+                width: 100%;
+                padding: 6px 12px;
+                font-size: 0.8em;
+            }
+            
+            .modal-map {
+                height: 180px;
+                border-radius: 6px;
+                margin-top: 8px;
+            }
+            
+            .modal-actions {
+                gap: 8px;
+                margin-top: 12px;
+                padding-top: 10px;
+            }
+            
+            .modal-actions button {
+                min-width: 100px;
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            
+            /* NOSTR expanded section mobile */
+            .nostr-section {
+                min-width: 250px;
+                padding: 12px;
+                font-size: 0.9em;
+            }
+            
+            .nostr-section h3 {
+                font-size: 0.95em;
+            }
+            
+            .kind-options {
+                gap: 10px;
+            }
+            
+            .kind-option label {
+                font-size: 0.8em;
+            }
+            
+            #nsec-input-container input {
+                padding: 6px;
+                font-size: 0.8em;
+            }
+            
+            #nsec-input-container small {
+                font-size: 0.7em;
+            }
+            
+            /* Notification modal responsive */
+            .notification-content {
+                padding: 20px;
+                max-width: 90%;
+            }
+            
+            .notification-icon {
+                font-size: 2.5em;
+                margin-bottom: 12px;
+            }
+            
+            .notification-title {
+                font-size: 1.2em;
+                margin-bottom: 8px;
+            }
+            
+            .notification-message {
+                font-size: 0.9em;
+                margin-bottom: 15px;
+            }
+            
+            .notification-btn {
+                padding: 8px 20px;
+                font-size: 0.85em;
+                min-width: 90px;
+            }
+        }
+        
+        /* Central Connection Page - Full screen overlay */
+        #central-connection {
+            background: rgba(15, 15, 15, 0.98);
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Compact header when connected */
+        header.compact-header {
+            padding: 0.5rem 1rem;
+        }
+        
+        header.compact-header h1 {
+            font-size: 1rem;
+        }
+        
+        header.compact-header .btn {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.75rem;
+        }
+        
+        .central-connect-btn {
+            padding: 20px 40px;
+            font-size: 1.3em;
+            font-weight: 700;
+            background: #065fd4;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 20px rgba(6, 95, 212, 0.4);
+            min-width: 300px;
+        }
+        
+        .central-connect-btn:hover {
+            background: #0556c2;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 30px rgba(6, 95, 212, 0.6);
+        }
+        
+        .central-connect-btn:active {
+            transform: translateY(-1px);
+        }
+        
+        @media (max-width: 767.98px) {
+            .central-connection-title {
+                font-size: 2rem;
+            }
+            
+            .central-connection-subtitle {
+                font-size: 1rem;
+                margin-bottom: 1.875rem;
+            }
+            
+            .central-connect-btn {
+                padding: 1rem 2rem;
+                font-size: 1.1rem;
+                min-width: 15.625rem;
+                min-height: 44px; /* Better touch target */
+            }
+        }
+        
+        /* Extra small mobile devices - Bootstrap xs breakpoint */
+        @media (max-width: 575.98px) {
+            .header h1 {
+                font-size: 0.9em;
+            }
+            
+            .webcam-title {
+                font-size: 1em;
+            }
+            
+            #video-preview {
+                max-height: 30vh;
+            }
+            
+            #timer {
+                font-size: 1.8em;
+            }
+            
+            input[type="range"] {
+                width: 120px;
+            }
+            
+            #duration-display {
+                font-size: 0.85em;
+                min-width: 70px;
+            }
+            
+            /* Compact buttons on small screens */
+            #select-camera-btn,
+            #apply-camera-btn,
+            #start-recording,
+            #stop-recording,
+            .btn-group-sm .btn {
+                padding: 0.25rem 0.5rem;
+                font-size: 0.75rem;
+                line-height: 1.2;
+            }
+            
+            button:not(.btn-sm):not(.btn-lg) {
+                padding: 0.375rem 0.75rem;
+                font-size: 0.875rem;
+            }
+            
+            .modal-video-preview {
+                max-height: 25vh;
+            }
+            
+            .modal-map {
+                height: 150px;
+            }
+            
+            .coord-input {
+                min-width: 90px;
+            }
+            
+            /* Notification modal extra small */
+            .notification-content {
+                padding: 18px;
+                max-width: 95%;
+            }
+            
+            .notification-icon {
+                font-size: 2.2em;
+                margin-bottom: 10px;
+            }
+            
+            .notification-title {
+                font-size: 1.1em;
+                margin-bottom: 8px;
+            }
+            
+            .notification-message {
+                font-size: 0.85em;
+                margin-bottom: 12px;
+            }
+            
+            .notification-btn {
+                padding: 7px 18px;
+                font-size: 0.8em;
+                min-width: 80px;
+            }
+        }
+        
+        /* Audio mode - hide all video/webcam related elements */
+        body.audio-mode #select-camera-btn,
+        body.audio-mode #camera-selector,
+        body.audio-mode #video-preview-container,
+        body.audio-mode #video-preview,
+        body.audio-mode #timer,
+        body.audio-mode #start-recording,
+        body.audio-mode #stop-recording,
+        body.audio-mode #video-upload-section,
+        body.audio-mode #duration-slider,
+        body.audio-mode #duration-display {
+            display: none !important;
+        }
+        
+        /* Hide camera button container - handled by JavaScript */
+        
+        /* Hide Video Orientation section container in audio mode */
+        body.audio-mode #controls-container > div.d-flex.flex-column.align-items-center.gap-1.w-100:first-of-type {
+            display: none !important;
+        }
+        
+        /* Hide Duration section container in audio mode */
+        body.audio-mode #controls-container > div.d-flex.flex-column.flex-sm-row.align-items-center.gap-2.w-100 {
+            display: none !important;
+        }
+        
+        /* Hide recording buttons container in audio mode */
+        body.audio-mode #controls-container > div.d-flex.gap-1.flex-wrap.justify-content-center {
+            display: none !important;
+        }
+        
+        /* Hide separator in audio mode */
+        body.audio-mode #controls-container > div.text-secondary.my-1.small {
+            display: none !important;
+        }
+        
+        /* Show audio upload section in audio mode */
+        body.audio-mode #audio-upload-section {
+            display: block !important;
+        }
+    </style>
+</head>
+<body class="bg-dark text-white">
+    <!-- Header with Connection Status -->
+    <header class="header bg-dark border-bottom border-secondary sticky-top" id="main-header" style="--header-height: 80px;">
+        <div class="container-fluid">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 py-2">
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <a href="/youtube?html=1" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2">
+                        <span>📺 NostrTube</span>
+                    </a>
+                    <a href="/mp3?html=1" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2">
+                        <span>🎧 NostrIfy</span>
+                    </a>
+                </div>
+                
+                <!-- NOSTR Connection Status -->
+                <div class="d-flex align-items-center gap-2 flex-wrap" id="nostr-header">
+                    <button id="connect-btn" class="btn btn-primary btn-sm" onclick="handleNostrConnect()">
+                        🔌 Connect
+                    </button>
+                    <button id="verify-auth-btn" class="btn btn-outline-secondary btn-sm d-none" onclick="handleVerifyAuth()" title="Required for uDRIVE upload">
+                        🔐 Auth for Upload
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Central Connection Page (covers full screen when visible) -->
+    <div class="d-none position-fixed top-0 start-0 w-100 h-100 bg-dark d-flex align-items-center justify-content-center z-index-1050" id="central-connection" style="z-index: 1050;">
+        <div class="text-center px-3">
+            <h2 class="h2 text-white mb-3">▶️ VOCAL Recorder</h2>
+            <p class="text-secondary mb-4">
+                Connect to NOSTR to start recording and publishing your audios/videos on UPlanet
+            </p>
+            <button class="btn btn-primary btn-lg mb-3" onclick="handleNostrConnect()">
+                🔌 Connect with NOSTR Extension
+            </button>
+            <p class="text-secondary small">
+                You'll need a NOSTR browser extension filled with your UPlanet <a href="/g1" class="text-success text-decoration-underline">MULTIPASS nsec key</a>
+            </p>
+        </div>
+    </div>
+    
+    <!-- Main Container - Centered -->
+    <main class="container-fluid py-2" id="main-content" style="height: calc(100vh - var(--header-height, 80px)); overflow: hidden;">
+        <!-- Webcam Recording Section (shown by default) -->
+        <div class="row justify-content-center h-100 g-0">
+            <div class="col-12 col-lg-10 col-xl-8 d-flex flex-column h-100">
+                <div class="card bg-dark border-secondary shadow-lg flex-grow-1 d-flex flex-column h-100" id="webcam-section" style="min-height: 0;">
+                    <div class="card-body p-2 p-sm-3 d-flex flex-column flex-grow-1" style="min-height: 0; overflow-y: auto;">
+                        <h2 class="card-title text-center text-white mb-2 small" id="vocals-title">🎤 Record Voice Message</h2>
+                        
+                        <!-- Audio Recording Controls -->
+                        <div class="d-flex flex-column align-items-center gap-2 w-100" id="audio-recording-container">
+                            <!-- Microphone Status -->
+                            <div class="text-center mb-2">
+                                <div id="microphone-status" class="text-secondary small">🎤 Microphone ready</div>
+                                <div id="audio-level-indicator" class="d-none mt-2">
+                                    <div class="progress" style="height: 8px; width: 200px; background: rgba(255,255,255,0.1);">
+                                        <div id="audio-level-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%; transition: width 0.1s;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Recording Duration -->
+                            <div class="d-flex flex-column flex-sm-row align-items-center gap-2 w-100" style="max-width: 500px;">
+                                <label for="duration-slider" class="mb-0 text-white small">Duration:</label>
+                                <input type="range" class="form-range flex-grow-1" id="duration-slider" min="3" max="60" value="30">
+                                <div id="duration-display" class="text-success fw-semibold small" style="min-width: 80px;">30s</div>
+                            </div>
+                            
+                            <input type="hidden" id="player" name="player" value="">
+                            
+                            <div class="d-flex gap-1 flex-wrap justify-content-center">
+                                <button id="start-recording" class="btn btn-primary btn-sm">
+                                    <span class="d-none d-sm-inline">🎤 Start Recording</span>
+                                    <span class="d-sm-none">🎤 Start</span>
+                                </button>
+                                <button id="stop-recording" class="btn btn-danger btn-sm d-none">
+                                    ⏹️ Stop
+                                </button>
+                            </div>
+                            
+                            <div id="timer" class="d-none fs-2 fw-bold text-danger text-center" style="text-shadow: 0 0 10px rgba(255, 0, 0, 0.5); margin: 10px 0;">30</div>
+                        </div>
+
+                                <div class="text-secondary my-1 small">
+                                    — <span title="Upload an audio file" class="fs-6">📤</span> — 
+                                </div>
+
+                                <!-- Audio Upload Option -->
+                                <div class="w-100" id="audio-upload-section">
+                                    <label for="audio-upload" class="form-label text-success fw-semibold d-block text-center mb-1 small">
+                                        🎵 Upload Audio File
+                                    </label>
+                                    <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" id="audio-upload" accept="audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a">
+                                    <small id="audio-upload-hint" class="form-text text-secondary d-block text-center mt-1 small">
+                                        <strong class="text-white">Formats:</strong> MP3, WAV, OGG, FLAC, AAC, M4A<br>
+                                        <strong class="text-white">Max:</strong> 500MB
+                                        <span class="mobile-hint d-none text-info mt-1 d-block">
+                                            📱 On mobile: Select an audio file from your device
+                                        </span>
+                                    </small>
+                                    <div class="alert alert-success mt-2 py-1 small" role="alert" style="background: rgba(29, 185, 84, 0.1); border-color: rgba(29, 185, 84, 0.3);">
+                                        <strong class="text-success">💡 Tip:</strong> After uploading, you can suggest this track in Mixxx mode!
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+                
+    <!-- Modal for Video/Audio Preview and Publishing -->
+    <div class="modal fade" id="video-modal" tabindex="-1" aria-labelledby="video-modal-title" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-white" id="voice-modal-title">🎤 Voice Message Preview & Publish</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" onclick="closeModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-3">
+                        <video id="modal-video-preview" class="img-fluid rounded border border-secondary" controls style="max-width: 100%; max-height: 50vh; background: #000;"></video>
+                        <audio id="modal-audio-preview" class="w-100 d-none" controls style="max-height: 60px;"></audio>
+                    </div>
+                    
+                    <form id="publish-form">
+                        <div class="mb-3">
+                            <label for="voice-title" class="form-label text-white">Title:</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="voice-title" name="title" 
+                                   placeholder="Enter voice message title..." required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="voice-description" class="form-label text-white">Description (optional):</label>
+                            <textarea class="form-control bg-dark text-white border-secondary" id="voice-description" name="description" 
+                                      placeholder="Describe your voice message..." rows="3"></textarea>
+                        </div>
+                        
+                        <!-- Encryption Options -->
+                        <div class="mb-3">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="encrypt-message" name="encrypt">
+                                <label class="form-check-label text-white" for="encrypt-message">
+                                    🔐 Encrypt message (End-to-End)
+                                </label>
+                            </div>
+                            <div id="encryption-options" class="d-none ms-4">
+                                <div class="mb-2">
+                                    <label class="form-label text-white small">Encryption Method:</label>
+                                    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="encryption-method">
+                                        <option value="nip44" selected>NIP-44 (Recommended - ChaCha20-Poly1305)</option>
+                                        <option value="nip04">NIP-04 (Legacy - AES-256-CBC)</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label text-white small">Recipients (pubkeys, one per line):</label>
+                                    
+                                    <!-- Contact Search and Selection -->
+                                    <div class="mb-2 p-2 bg-dark border border-secondary rounded">
+                                        <label class="form-label text-white small mb-1">🔍 Search contacts:</label>
+                                        <div class="input-group input-group-sm mb-2">
+                                            <input type="text" class="form-control bg-dark text-white border-secondary" 
+                                                   id="recipient-search" placeholder="Type name or email to search...">
+                                            <button class="btn btn-outline-secondary" type="button" id="load-contacts-btn" title="Load contacts from network">
+                                                📋 Load Contacts
+                                            </button>
+                                        </div>
+                                        <div id="contacts-list-container" class="d-none">
+                                            <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" 
+                                                    id="contacts-select" size="5" style="max-height: 150px;">
+                                                <option value="" disabled selected>No contacts loaded. Click "Load Contacts" to fetch your network.</option>
+                                            </select>
+                                            <button class="btn btn-primary btn-sm w-100" type="button" id="add-selected-contact-btn" disabled>
+                                                ➕ Add Selected Contact
+                                            </button>
+                                        </div>
+                                        <small class="text-secondary d-block mt-1">Select from your network or enter npub manually below.</small>
+                                    </div>
+                                    
+                                    <!-- Manual Recipients Input -->
+                                    <textarea class="form-control form-control-sm bg-dark text-white border-secondary" id="recipients-list" 
+                                              rows="3" placeholder="npub1...&#10;npub1..."></textarea>
+                                    <small class="text-secondary">Enter recipient public keys (npub format). Each recipient will be able to decrypt the message.</small>
+                                    
+                                    <!-- Selected Recipients Display -->
+                                    <div id="selected-recipients" class="mt-2 d-none">
+                                        <label class="form-label text-white small mb-1">Selected recipients:</label>
+                                        <div id="selected-recipients-list" class="d-flex flex-wrap gap-1"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label text-white">
+                                📍 Geographic Location (for UMAP anchoring)
+                            </label>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="form-label text-secondary small">Lat:</label>
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="modal-lat" step="0.01" min="-90" max="90" value="0.00">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-secondary small">Lon:</label>
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary" id="modal-lon" step="0.01" min="-180" max="180" value="0.00">
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap mb-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="getCurrentLocationForModal()">
+                                    📍 My Location
+                                </button>
+                                <button type="button" class="btn btn-outline-info btn-sm" onclick="findMeWithGPS()">
+                                    🔍 Find Me
+                                </button>
+                                <button type="button" class="btn btn-outline-warning btn-sm" onclick="resetLocation()">
+                                    🔄 Reset
+                                </button>
+                            </div>
+                            <div id="modal-map" class="modal-map rounded border border-secondary" style="height: 200px; background: #181818;"></div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="publish-nostr" name="publish_nostr" checked>
+                                <label class="form-check-label text-white" for="publish-nostr">
+                                    Publish to UPlanet (NIP-A0 voice message)
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" onclick="closeModal()">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="publish-btn">
+                                📡 Publish Voice Message
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+        
+    <!-- Hidden Container for old code compatibility -->
+        <div id="webcam-container"></div>
+
+    <!-- Notification Modal -->
+    <div id="notification-modal" class="notification-modal">
+        <div class="notification-content" id="notification-content">
+            <div class="notification-icon" id="notification-icon"></div>
+            <div class="notification-title" id="notification-title"></div>
+            <div class="notification-message" id="notification-message"></div>
+            <div class="notification-actions">
+                <button class="notification-btn primary" id="notification-btn-ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // NOSTR Extension Proxy for iframes (communicate with parent window)
+        (function() {
+            let nostrProxyReady = false;
+            const pendingRequests = new Map();
+            let requestIdCounter = 0;
+            
+            // Check if we're in an iframe
+            const isInIframe = window.self !== window.top;
+            
+            // Only create proxy if we're in an iframe AND window.nostr doesn't exist
+            // Wait a bit for NOSTR extension to initialize first
+            if (isInIframe) {
+                // Wait a moment for NOSTR extension to load (extensions usually load at document_end)
+                setTimeout(() => {
+                    // Check if real extension exists and is functional
+                    if (typeof window.nostr !== 'undefined' && 
+                        window.nostr && 
+                        typeof window.nostr.getPublicKey === 'function') {
+                        // Try to test if it's actually working (not just a stub)
+                        // We need to catch synchronous errors (like _call is not a function)
+                        try {
+                            // Quick test call to verify extension works
+                            const testPromise = window.nostr.getPublicKey();
+                            
+                            // Check if it returned a promise
+                            if (!testPromise || typeof testPromise.then !== 'function') {
+                                // Doesn't return a promise, probably not working
+                                console.warn('⚠️ window.nostr.getPublicKey() does not return a Promise, creating proxy');
+                                createNostrProxy();
+                                return;
+                            }
+                            
+                            // Save extension reference before testing (we might replace window.nostr with proxy)
+                            const savedExtension = window.nostr;
+                            
+                            // Test if the promise actually resolves (with timeout)
+                            // If test fails, we'll create proxy
+                            Promise.race([
+                                testPromise,
+                                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+                            ]).then(() => {
+                                // Extension works! Don't create proxy
+                                console.log('✅ NOSTR extension detected in iframe and working, using real extension');
+                            }).catch((testError) => {
+                                // Extension doesn't work properly, create proxy
+                                if (testError.message && testError.message.includes('_call')) {
+                                    console.warn('⚠️ NOSTR extension detected but not functional (', testError.message, '), creating proxy');
+                                } else {
+                                    console.warn('⚠️ NOSTR extension detected but test failed, creating proxy as fallback');
+                                }
+                                // Only create proxy if window.nostr is still the extension (not already replaced)
+                                if (window.nostr === savedExtension) {
+                                    createNostrProxy();
+                                }
+                            });
+                            
+                            return;
+                            
+                        } catch (e) {
+                            // Extension exists but throws a synchronous error when called (e.g., _call is not a function)
+                            console.warn('⚠️ NOSTR extension detected but throws synchronous error:', e.message);
+                            console.warn('⚠️ This usually means extension is not fully initialized in iframe context');
+                            console.warn('⚠️ Creating proxy as fallback');
+                            createNostrProxy();
+                            return;
+                        }
+                    }
+                    
+                    // Extension not available, create proxy
+                    createNostrProxy();
+                }, 500); // Increased delay to give extension more time to initialize
+            }
+            
+            function createNostrProxy() {
+                // Create a proxy for window.nostr that communicates with parent
+                const nostrProxy = {
+                    getPublicKey: async function() {
+                        return await proxyNostrMethod('getPublicKey', []);
+                    },
+                    signEvent: async function(event) {
+                        return await proxyNostrMethod('signEvent', [event]);
+                    }
+                };
+                
+                // NIP-44 (Recommended): Modern encryption using ChaCha20-Poly1305
+                // This is the replacement for NIP-04 and should be preferred for new implementations
+                Object.defineProperty(nostrProxy, 'nip44', {
+                    value: {
+                        encrypt: async function(pubkey, plaintext) {
+                            return await proxyNostrMethod('nip44.encrypt', [pubkey, plaintext]);
+                        },
+                        decrypt: async function(pubkey, ciphertext) {
+                            return await proxyNostrMethod('nip44.decrypt', [pubkey, ciphertext]);
+                        }
+                    },
+                    writable: false,
+                    configurable: false
+                });
+                
+                // NIP-04 (Deprecated): Legacy encryption - use NIP-44 instead
+                // Kept for backward compatibility only
+                Object.defineProperty(nostrProxy, 'nip04', {
+                    value: {
+                        encrypt: async function(pubkey, plaintext) {
+                            console.warn('⚠️ NIP-04 is deprecated. Please use NIP-44 (window.nostr.nip44.encrypt) instead.');
+                            return await proxyNostrMethod('nip04.encrypt', [pubkey, plaintext]);
+                        },
+                        decrypt: async function(pubkey, ciphertext) {
+                            console.warn('⚠️ NIP-04 is deprecated. Please use NIP-44 (window.nostr.nip44.decrypt) instead.');
+                            return await proxyNostrMethod('nip04.decrypt', [pubkey, ciphertext]);
+                        }
+                    },
+                    writable: false,
+                    configurable: false
+                });
+                
+                function proxyNostrMethod(method, params) {
+                    return new Promise((resolve, reject) => {
+                        const requestId = ++requestIdCounter;
+                        pendingRequests.set(requestId, { resolve, reject });
+                        
+                        // Send request to parent
+                        window.parent.postMessage({
+                            type: 'nostr-request',
+                            requestId: requestId,
+                            method: method,
+                            params: params
+                        }, '*');
+                        
+                        // Timeout after 10 seconds
+                        setTimeout(() => {
+                            if (pendingRequests.has(requestId)) {
+                                pendingRequests.delete(requestId);
+                                reject(new Error('NOSTR request timeout'));
+                            }
+                        }, 10000);
+                    });
+                }
+                
+                // Listen for responses from parent
+                window.addEventListener('message', function(event) {
+                    if (event.data && event.data.type === 'nostr-response') {
+                        const { requestId, success, data, error } = event.data;
+                        
+                        if (pendingRequests.has(requestId)) {
+                            const { resolve, reject } = pendingRequests.get(requestId);
+                            pendingRequests.delete(requestId);
+                            
+                            if (success) {
+                                resolve(data);
+                            } else {
+                                reject(new Error(error || 'NOSTR request failed'));
+                            }
+                        }
+                    }
+                });
+                
+                // Only set window.nostr if it doesn't exist or is not functional
+                // Double-check that extension still isn't available before overwriting
+                if (typeof window.nostr === 'undefined' || !window.nostr) {
+                    // window.nostr doesn't exist, safe to set our proxy
+                    Object.defineProperty(window, 'nostr', {
+                        value: nostrProxy,
+                        writable: true,  // Allow overwriting if extension loads later
+                        configurable: true
+                    });
+                    
+                    nostrProxyReady = true;
+                    console.log('✅ NOSTR proxy initialized for iframe');
+                } else if (typeof window.nostr.getPublicKey !== 'function') {
+                    // window.nostr exists but doesn't have required methods, replace with proxy
+                    console.warn('⚠️ window.nostr exists but getPublicKey is not a function, replacing with proxy');
+                    Object.defineProperty(window, 'nostr', {
+                        value: nostrProxy,
+                        writable: true,
+                        configurable: true
+                    });
+                    
+                    nostrProxyReady = true;
+                    console.log('✅ NOSTR proxy initialized for iframe - replaced non-functional window.nostr');
+                } else {
+                    // window.nostr exists and has getPublicKey, but it might not be functional in iframe
+                    // Try to test it quickly - if it throws _call error, replace it
+                    try {
+                        // Quick test: try to call getPublicKey and catch synchronous errors
+                        const testCall = window.nostr.getPublicKey();
+                        // If it returns a Promise, check if it will fail
+                        if (testCall && typeof testCall.then === 'function') {
+                            testCall.catch(err => {
+                                // If it fails with _call error, replace with proxy
+                                if (err.message && err.message.includes('_call')) {
+                                    console.warn('⚠️ window.nostr.getPublicKey() failed with _call error, replacing with proxy');
+                                    Object.defineProperty(window, 'nostr', {
+                                        value: nostrProxy,
+                                        writable: true,
+                                        configurable: true
+                                    });
+                                    nostrProxyReady = true;
+                                    console.log('✅ NOSTR proxy initialized (replaced non-functional extension)');
+                                }
+                            });
+                        }
+                        // If no immediate error, assume extension works (but proxy creation might still happen in catch handler above)
+                        // Don't log "functional" yet - wait for async test result
+                    } catch (syncError) {
+                        // Synchronous error (like _call is not a function thrown immediately)
+                        if (syncError.message && syncError.message.includes('_call')) {
+                            console.warn('⚠️ window.nostr throws synchronous _call error, replacing with proxy');
+                            Object.defineProperty(window, 'nostr', {
+                                value: nostrProxy,
+                                writable: true,
+                                configurable: true
+                            });
+                            nostrProxyReady = true;
+                            console.log('✅ NOSTR proxy initialized (replaced non-functional extension)');
+                        } else {
+                            // Different error, assume extension works
+                            console.log('✅ NOSTR extension already present, skipping proxy creation');
+                        }
+                    }
+                }
+            }
+        })();
+        
+        // Global variables (non-conflicting with common.js)
+        let mediaRecorder;
+        let recordedChunks = [];
+        let currentStream = null;
+        let authMode = 'extension';
+        let userEmail = null;
+        let availableCameras = [];
+        let selectedCameraId = null;
+        // userPubkey and userPrivateKey are declared in common.js
+        
+        // Mobile detection
+        let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        let isAndroid = /Android/.test(navigator.userAgent);
+        
+        // Show mobile hint and adapt UI for mobile devices
+        if (isMobile) {
+            const mobileHint = document.querySelector('.mobile-hint');
+            if (mobileHint) {
+                mobileHint.style.display = 'inline';
+            }
+            
+            // Hide webcam recording section on mobile (limited browser support)
+            const recordSection = document.querySelector('.recording-section');
+            if (recordSection) {
+                recordSection.style.opacity = '0.5';
+                recordSection.title = 'Webcam recording may not be supported on mobile. Please use file upload instead.';
+            }
+            
+            console.log('📱 Mobile device detected - File upload recommended for better compatibility');
+        }
+        
+        // Location and map variables
+        let currentLocation = null;
+        let miniMap = null;
+        let miniMarker = null;
+        let modalMap = null;
+        let modalMarker = null;
+        let userHasInteractedWithMap = false;
+        
+        // Auto-connect nsec (injected by upassport.sh when scanning SSSS with code 1111)
+        const AUTO_CONNECT_NSEC = null;
+        
+        // Notification system
+        function showNotification(options) {
+            const {
+                type = 'info',  // 'success', 'error', 'warning', 'info'
+                title = '',
+                message = '',
+                icon = null,
+                onConfirm = null,
+                confirmText = 'OK'
+            } = options;
+            
+            const modal = document.getElementById('notification-modal');
+            const content = document.getElementById('notification-content');
+            const iconElement = document.getElementById('notification-icon');
+            const titleElement = document.getElementById('notification-title');
+            const messageElement = document.getElementById('notification-message');
+            const btnOk = document.getElementById('notification-btn-ok');
+            
+            // Set icon based on type or custom icon
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+            iconElement.textContent = icon || icons[type] || icons.info;
+            
+            // Set content class for styling
+            content.className = 'notification-content ' + type;
+            
+            // Set title and message
+            titleElement.textContent = title;
+            messageElement.textContent = message;
+            
+            // Set button text
+            btnOk.textContent = confirmText;
+            
+            // Show modal with animation
+            modal.classList.add('active');
+            
+            // Handle confirmation
+            const handleConfirm = () => {
+                modal.classList.remove('active');
+                btnOk.removeEventListener('click', handleConfirm);
+                if (onConfirm) {
+                    onConfirm();
+                }
+            };
+            
+            btnOk.addEventListener('click', handleConfirm);
+            
+            // Allow closing with ESC key
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    handleConfirm();
+                    document.removeEventListener('keydown', handleEscape);
+                }
+            };
+            document.addEventListener('keydown', handleEscape);
+            
+            // Close modal when clicking outside content
+            modal.onclick = (event) => {
+                if (event.target === modal) {
+                    handleConfirm();
+                }
+            };
+        }
+        
+        // Convenience functions
+        function showSuccess(message, title = 'Success', onConfirm = null) {
+            showNotification({ type: 'success', title, message, onConfirm });
+        }
+        
+        function showError(message, title = 'Error', onConfirm = null) {
+            showNotification({ type: 'error', title, message, onConfirm });
+        }
+        
+        function showWarning(message, title = 'Warning', onConfirm = null) {
+            showNotification({ type: 'warning', title, message, onConfirm });
+        }
+        
+        function showInfo(message, title = 'Information', onConfirm = null) {
+            showNotification({ type: 'info', title, message, onConfirm });
+        }
+        
+        
+        // Close modal
+        function closeModal() {
+            const modalElement = document.getElementById('video-modal');
+            if (modalElement && typeof bootstrap !== 'undefined') {
+                const bsModal = bootstrap.Modal.getInstance(modalElement);
+                if (bsModal) {
+                    bsModal.hide();
+                } else {
+                    // Fallback if Bootstrap modal not initialized
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.hide();
+                }
+            }
+            
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+            
+            // Reset recording UI when closing modal
+            const startButton = document.getElementById('start-recording');
+            const stopButton = document.getElementById('stop-recording');
+            const timerDisplay = document.getElementById('timer');
+            const durationSlider = document.getElementById('duration-slider');
+            
+            if (startButton) {
+                startButton.disabled = false;
+                startButton.classList.remove('d-none');
+            }
+            
+            if (stopButton) {
+                stopButton.classList.add('d-none');
+                stopButton.disabled = false;
+                stopButton.textContent = '⏹️ Stop Recording';
+            }
+            
+            if (timerDisplay) {
+                timerDisplay.classList.add('d-none');
+                timerDisplay.textContent = durationSlider ? durationSlider.value : '10';
+            }
+            
+            // Reset form
+            const form = document.getElementById('publish-form');
+            if (form) {
+                form.reset();
+            }
+        }
+        
+        // Show modal with audio (voice messages are always audio)
+        function showVideoModal(mediaBlob, filename = null) {
+            const modalElement = document.getElementById('video-modal');
+            const videoPreview = document.getElementById('modal-video-preview');
+            const audioPreview = document.getElementById('modal-audio-preview');
+            const modalTitle = document.getElementById('voice-modal-title');
+            const mediaUrl = URL.createObjectURL(mediaBlob);
+            
+            // Voice messages are always audio
+            const isAudio = true;
+            
+            // Get publish button to update its text
+            const publishBtn = document.getElementById('publish-btn');
+            
+            // Hide video preview, show audio player
+            if (videoPreview) videoPreview.classList.add('d-none');
+            if (audioPreview) {
+                audioPreview.classList.remove('d-none');
+                audioPreview.src = mediaUrl;
+            }
+            
+            // Update modal title
+            if (modalTitle) {
+                modalTitle.textContent = '🎤 Voice Message Preview & Publish';
+            }
+            
+            // Update publish button text
+            if (publishBtn) {
+                publishBtn.textContent = '📡 Publish Voice Message';
+            }
+            
+            // Show Bootstrap modal - reuse existing instance or create new one
+            if (modalElement && typeof bootstrap !== 'undefined') {
+                // Wait a bit to ensure DOM is ready and media is loaded
+                setTimeout(() => {
+                    let bsModal = bootstrap.Modal.getInstance(modalElement);
+                    if (!bsModal) {
+                        // Create new modal instance if it doesn't exist
+                        bsModal = new bootstrap.Modal(modalElement, {
+                            backdrop: true, // Allow closing by clicking backdrop
+                            keyboard: true,
+                            focus: true
+                        });
+                    } else {
+                        // Dispose old instance to avoid conflicts
+                        bsModal.dispose();
+                        bsModal = new bootstrap.Modal(modalElement, {
+                            backdrop: true,
+                            keyboard: true,
+                            focus: true
+                        });
+                    }
+                    // Show the modal - Bootstrap will handle all styling
+                    bsModal.show();
+                }, 100);
+            }
+            
+            // Store filename for later use
+            const finalFilename = filename || (isAudio ? `audio_${Date.now()}.mp3` : `webcam_${Date.now()}.webm`);
+            const previewElement = isAudio ? audioPreview : videoPreview;
+            previewElement.dataset.filename = finalFilename;
+            previewElement.dataset.isAudio = isAudio ? 'true' : 'false';
+            
+            // Initialize modal map will be done after modal is shown (see event listener below)
+            
+            // Handle form submission
+            document.getElementById('publish-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const filename = previewElement.dataset.filename;
+                await publishVoiceMessage(mediaBlob, filename);
+            };
+            
+            // Handle encryption checkbox
+            const encryptCheckbox = document.getElementById('encrypt-message');
+            const encryptionOptions = document.getElementById('encryption-options');
+            if (encryptCheckbox && encryptionOptions) {
+                encryptCheckbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        encryptionOptions.classList.remove('d-none');
+                    } else {
+                        encryptionOptions.classList.add('d-none');
+                    }
+                });
+            }
+            
+            // Initialize recipient selection UI
+            initializeRecipientSelection();
+        }
+        
+        // Recipient selection functionality
+        let contactsList = [];
+        let selectedRecipients = new Set(); // Track selected npubs to avoid duplicates
+        
+        async function initializeRecipientSelection() {
+            const loadContactsBtn = document.getElementById('load-contacts-btn');
+            const recipientSearch = document.getElementById('recipient-search');
+            const contactsSelect = document.getElementById('contacts-select');
+            const addSelectedBtn = document.getElementById('add-selected-contact-btn');
+            const contactsContainer = document.getElementById('contacts-list-container');
+            
+            if (!loadContactsBtn || !recipientSearch || !contactsSelect || !addSelectedBtn) {
+                console.warn('⚠️ Recipient selection UI elements not found');
+                return;
+            }
+            
+            // Load contacts button
+            loadContactsBtn.addEventListener('click', async () => {
+                await loadContactsFromNetwork();
+            });
+            
+            // Search filter
+            recipientSearch.addEventListener('input', (e) => {
+                filterContacts(e.target.value);
+            });
+            
+            // Contact selection
+            contactsSelect.addEventListener('change', (e) => {
+                addSelectedBtn.disabled = !e.target.value;
+            });
+            
+            // Add selected contact
+            addSelectedBtn.addEventListener('click', () => {
+                const selectedOption = contactsSelect.options[contactsSelect.selectedIndex];
+                if (selectedOption && selectedOption.value) {
+                    const npub = selectedOption.value;
+                    const name = selectedOption.text;
+                    addRecipient(npub, name);
+                }
+            });
+            
+            // Double-click to add contact
+            contactsSelect.addEventListener('dblclick', () => {
+                if (!addSelectedBtn.disabled) {
+                    addSelectedBtn.click();
+                }
+            });
+        }
+        
+        async function loadContactsFromNetwork() {
+            const loadBtn = document.getElementById('load-contacts-btn');
+            const contactsSelect = document.getElementById('contacts-select');
+            const contactsContainer = document.getElementById('contacts-list-container');
+            
+            if (!userPubkey) {
+                showError('Please connect to NOSTR first to load contacts.', 'Not Connected');
+                return;
+            }
+            
+            try {
+                loadBtn.disabled = true;
+                loadBtn.textContent = '🔄 Loading...';
+                
+                // Convert userPubkey to hex for API call
+                // userPubkey might already be hex (64 chars) or npub format
+                let userHex = null;
+                
+                // Check if it's already hex (64 hex characters)
+                if (userPubkey && userPubkey.length === 64 && /^[0-9a-fA-F]{64}$/.test(userPubkey)) {
+                    userHex = userPubkey.toLowerCase();
+                    console.log('✅ userPubkey is already in hex format');
+                } else if (userPubkey && userPubkey.startsWith('npub1')) {
+                    // It's a npub, need to convert to hex
+                    if (typeof npubToHex === 'function') {
+                        userHex = npubToHex(userPubkey);
+                    } else if (typeof window !== 'undefined' && typeof window.npubToHex === 'function') {
+                        userHex = window.npubToHex(userPubkey);
+                    } else {
+                        // Fallback: try to decode npub manually using NostrTools
+                        try {
+                            if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                                const decoded = NostrTools.nip19.decode(userPubkey);
+                                if (decoded.type === 'npub') {
+                                    // decoded.data is a Uint8Array, convert to hex string
+                                    const data = decoded.data;
+                                    if (data instanceof Uint8Array) {
+                                        userHex = Array.from(data)
+                                            .map(b => b.toString(16).padStart(2, '0'))
+                                            .join('');
+                                    } else if (typeof data === 'string') {
+                                        userHex = data;
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('⚠️ Could not decode npub:', e);
+                        }
+                    }
+                } else {
+                    // Try to use as-is (might be hex already)
+                    userHex = userPubkey;
+                }
+                
+                if (!userHex || userHex.length !== 64) {
+                    throw new Error(`Invalid userPubkey format. Expected hex (64 chars) or npub, got: ${userPubkey ? userPubkey.substring(0, 20) + '...' : 'null'}`);
+                }
+                
+                console.log('📡 Fetching contacts from /api/getN2 for:', userHex.substring(0, 16) + '...');
+                
+                // Fetch network (mutual connections by default)
+                const response = await fetch(`/api/getN2?hex=${userHex}&range=default&output=json`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch contacts: ${response.statusText}`);
+                }
+                
+                const network = await response.json();
+                
+                if (!network.nodes || !Array.isArray(network.nodes)) {
+                    throw new Error('Invalid network data received');
+                }
+                
+                // Filter contacts that have npub and are mutual connections
+                contactsList = network.nodes
+                    .filter(node => node.npub && (node.mutual || node.is_follower || node.is_followed))
+                    .map(node => ({
+                        npub: node.npub,
+                        name: node.display_name || node.name || 'Unknown',
+                        email: node.email || '',
+                        picture: node.picture || '',
+                        mutual: node.mutual || false
+                    }))
+                    .sort((a, b) => {
+                        // Sort by mutual first, then by name
+                        if (a.mutual && !b.mutual) return -1;
+                        if (!a.mutual && b.mutual) return 1;
+                        return a.name.localeCompare(b.name);
+                    });
+                
+                console.log(`✅ Loaded ${contactsList.length} contacts from network`);
+                
+                // Populate select dropdown
+                contactsSelect.innerHTML = '';
+                if (contactsList.length === 0) {
+                    contactsSelect.innerHTML = '<option value="" disabled>No contacts found in your network.</option>';
+                } else {
+                    contactsList.forEach(contact => {
+                        const option = document.createElement('option');
+                        option.value = contact.npub;
+                        option.textContent = `${contact.mutual ? '🤝 ' : ''}${contact.name}${contact.email ? ` (${contact.email})` : ''}`;
+                        option.dataset.name = contact.name;
+                        option.dataset.email = contact.email;
+                        contactsSelect.appendChild(option);
+                    });
+                }
+                
+                // Show contacts container
+                contactsContainer.classList.remove('d-none');
+                
+                // Apply current search filter
+                const searchValue = document.getElementById('recipient-search').value;
+                if (searchValue) {
+                    filterContacts(searchValue);
+                }
+                
+                showSuccess(`Loaded ${contactsList.length} contact(s) from your network`, 'Contacts Loaded');
+                
+            } catch (error) {
+                console.error('❌ Error loading contacts:', error);
+                showError(`Failed to load contacts: ${error.message}`, 'Error');
+            } finally {
+                loadBtn.disabled = false;
+                loadBtn.textContent = '📋 Load Contacts';
+            }
+        }
+        
+        function filterContacts(searchTerm) {
+            const contactsSelect = document.getElementById('contacts-select');
+            if (!contactsSelect || !searchTerm) {
+                // Show all if no search term
+                Array.from(contactsSelect.options).forEach(option => {
+                    option.style.display = '';
+                });
+                return;
+            }
+            
+            const lowerSearch = searchTerm.toLowerCase();
+            let visibleCount = 0;
+            
+            Array.from(contactsSelect.options).forEach(option => {
+                if (!option.value) {
+                    // Keep placeholder option visible
+                    option.style.display = '';
+                    return;
+                }
+                
+                const name = (option.dataset.name || '').toLowerCase();
+                const email = (option.dataset.email || '').toLowerCase();
+                const npub = option.value.toLowerCase();
+                
+                const matches = name.includes(lowerSearch) || 
+                               email.includes(lowerSearch) || 
+                               npub.includes(lowerSearch);
+                
+                option.style.display = matches ? '' : 'none';
+                if (matches) visibleCount++;
+            });
+            
+            // Update placeholder if no results
+            if (visibleCount === 0 && contactsSelect.options.length > 0) {
+                const placeholder = contactsSelect.querySelector('option[value=""]');
+                if (placeholder) {
+                    placeholder.textContent = 'No contacts match your search.';
+                }
+            }
+        }
+        
+        function addRecipient(npub, name) {
+            if (selectedRecipients.has(npub)) {
+                showInfo('This recipient is already added.', 'Duplicate');
+                return;
+            }
+            
+            selectedRecipients.add(npub);
+            
+            // Add to textarea
+            const recipientsTextarea = document.getElementById('recipients-list');
+            if (recipientsTextarea) {
+                const currentValue = recipientsTextarea.value.trim();
+                const newValue = currentValue ? `${currentValue}\n${npub}` : npub;
+                recipientsTextarea.value = newValue;
+            }
+            
+            // Add to selected recipients display
+            const selectedContainer = document.getElementById('selected-recipients');
+            const selectedList = document.getElementById('selected-recipients-list');
+            
+            if (selectedContainer && selectedList) {
+                selectedContainer.classList.remove('d-none');
+                
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-primary d-inline-flex align-items-center gap-1';
+                badge.innerHTML = `
+                    ${name || npub.substring(0, 8) + '...'}
+                    <button type="button" class="btn-close btn-close-white" style="font-size: 0.65em;" 
+                            onclick="removeRecipient('${npub}', this)" aria-label="Remove"></button>
+                `;
+                badge.dataset.npub = npub;
+                selectedList.appendChild(badge);
+            }
+            
+            console.log('✅ Added recipient:', name || npub.substring(0, 8) + '...');
+        }
+        
+        function removeRecipient(npub, buttonElement) {
+            selectedRecipients.delete(npub);
+            
+            // Remove from textarea
+            const recipientsTextarea = document.getElementById('recipients-list');
+            if (recipientsTextarea) {
+                const lines = recipientsTextarea.value.split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line && line !== npub);
+                recipientsTextarea.value = lines.join('\n');
+            }
+            
+            // Remove badge
+            if (buttonElement) {
+                const badge = buttonElement.closest('.badge');
+                if (badge) {
+                    badge.remove();
+                }
+            }
+            
+            // Hide selected recipients container if empty
+            const selectedList = document.getElementById('selected-recipients-list');
+            if (selectedList && selectedList.children.length === 0) {
+                const selectedContainer = document.getElementById('selected-recipients');
+                if (selectedContainer) {
+                    selectedContainer.classList.add('d-none');
+                }
+            }
+        }
+        
+        // Make removeRecipient available globally for onclick handlers
+        window.removeRecipient = removeRecipient;
+        
+        // Initialize modal map
+        function initializeModalMap() {
+            if (typeof L === 'undefined') {
+                console.error('Leaflet library not loaded');
+                return;
+            }
+            
+            const mapContainer = document.getElementById('modal-map');
+            if (!mapContainer) {
+                console.warn('Modal map container not found');
+                return;
+            }
+            
+            // Check if container is visible and has dimensions
+            const containerRect = mapContainer.getBoundingClientRect();
+            if (containerRect.width === 0 || containerRect.height === 0) {
+                console.warn('Modal map container has no dimensions, retrying...');
+                setTimeout(() => initializeModalMap(), 100);
+                return;
+            }
+            
+            const lat = parseFloat(document.getElementById('modal-lat').value) || 0.00;
+            const lon = parseFloat(document.getElementById('modal-lon').value) || 0.00;
+            
+            // Remove existing map if any
+            if (modalMap) {
+                modalMap.remove();
+                modalMap = null;
+                modalMarker = null;
+            }
+            
+            // Clear container content
+            mapContainer.innerHTML = '';
+            
+            // Create new map
+            modalMap = L.map('modal-map', {
+                zoomControl: true,
+                attributionControl: true
+            }).setView([lat, lon], lat === 0 && lon === 0 ? 2 : 10);
+            
+            // Add tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(modalMap);
+            
+            // Add marker
+            modalMarker = L.marker([lat, lon], {
+                draggable: true
+            }).addTo(modalMap);
+            
+            // Map click handler
+            modalMap.on('click', function(e) {
+                updateModalCoordinates(e.latlng.lat, e.latlng.lng);
+            });
+            
+            // Marker drag handler
+            modalMarker.on('dragend', function(e) {
+                updateModalCoordinates(e.target.getLatLng().lat, e.target.getLatLng().lng);
+            });
+            
+            // Force resize after a short delay to ensure proper rendering
+            setTimeout(() => {
+                if (modalMap) {
+                    modalMap.invalidateSize();
+                }
+            }, 150);
+            
+            setTimeout(() => {
+                if (modalMap) {
+                    modalMap.invalidateSize();
+                }
+            }, 300);
+        }
+        
+        function updateModalCoordinates(lat, lon) {
+            const roundedLat = Math.round(lat * 100) / 100;
+            const roundedLon = Math.round(lon * 100) / 100;
+            
+            document.getElementById('modal-lat').value = roundedLat.toFixed(2);
+            document.getElementById('modal-lon').value = roundedLon.toFixed(2);
+            
+            if (modalMarker) {
+                modalMarker.setLatLng([roundedLat, roundedLon]);
+            }
+        }
+        
+        async function getCurrentLocationForModal() {
+            const btn = event.target;
+            btn.textContent = 'Getting...';
+            btn.disabled = true;
+            
+            try {
+                // Strategy 1: Try to get GPS from /api/myGPS (requires NIP-42, more accurate)
+                if (userPubkey) {
+                    try {
+                        // Check NIP-42 authentication first
+                        let isAuthenticated = false;
+                        if (typeof verifyAuthenticationWithAPI === 'function') {
+                            const authResult = await verifyAuthenticationWithAPI(userPubkey);
+                            isAuthenticated = authResult && authResult.auth_verified === true;
+                        }
+                        
+                        if (isAuthenticated) {
+                            console.log('🔐 NIP-42 authenticated, fetching GPS from /api/myGPS...');
+                            const gpsResponse = await fetch(`/api/myGPS?npub=${userPubkey}`);
+                            
+                            if (gpsResponse.ok) {
+                                const gpsData = await gpsResponse.json();
+                                if (gpsData.success && gpsData.coordinates) {
+                                    const lat = Math.round(gpsData.coordinates.lat * 100) / 100;
+                                    const lon = Math.round(gpsData.coordinates.lon * 100) / 100;
+                                    
+                                    updateModalCoordinates(lat, lon);
+                                    if (modalMap) {
+                                        modalMap.setView([lat, lon], 13);
+                                    }
+                                    
+                                    btn.textContent = '📍 My Location';
+                                    btn.disabled = false;
+                                    showSuccess('GPS coordinates retrieved from your UPlanet profile', 'Location Retrieved');
+                                    return;
+                                }
+                            } else if (gpsResponse.status === 403) {
+                                console.log('⚠️ GPS access denied - NIP-42 authentication required');
+                                // Fall through to browser geolocation
+                            } else {
+                                console.log('⚠️ GPS not found in profile, using browser geolocation');
+                                // Fall through to browser geolocation
+                            }
+                        } else {
+                            console.log('⚠️ NIP-42 not authenticated, using browser geolocation');
+                            // Fall through to browser geolocation
+                        }
+                    } catch (gpsError) {
+                        console.warn('⚠️ Error fetching GPS from API, using browser geolocation:', gpsError);
+                        // Fall through to browser geolocation
+                    }
+                }
+                
+                // Strategy 2: Fallback to browser geolocation (doesn't require NIP-42)
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            const lat = Math.round(position.coords.latitude * 100) / 100;
+                            const lon = Math.round(position.coords.longitude * 100) / 100;
+                            
+                            updateModalCoordinates(lat, lon);
+                            if (modalMap) {
+                                modalMap.setView([lat, lon], 13);
+                            }
+                            
+                            btn.textContent = '📍 My Location';
+                            btn.disabled = false;
+                            showInfo('Using browser geolocation. For more accurate GPS, authenticate with NIP-42.', 'Location Retrieved');
+                        },
+                        function(error) {
+                            console.error('Geolocation error:', error);
+                            btn.textContent = '📍 My Location';
+                            btn.disabled = false;
+                            showError('Failed to get your location. Please ensure location services are enabled or authenticate with NIP-42 for GPS from your UPlanet profile.', 'Location Error');
+                        }
+                    );
+                } else {
+                    btn.textContent = '📍 My Location';
+                    btn.disabled = false;
+                    showError('Geolocation is not supported by your browser. Please enter coordinates manually or authenticate with NIP-42.', 'Location Not Supported');
+                }
+            } catch (error) {
+                console.error('Error getting location:', error);
+                btn.textContent = '📍 My Location';
+                btn.disabled = false;
+                showError('Error getting location: ' + error.message, 'Location Error');
+            }
+        }
+        
+        // Find me using device GPS directly (without myGPS API)
+        function findMeWithGPS() {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = '🔍 Finding...';
+            btn.disabled = true;
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = Math.round(position.coords.latitude * 100) / 100;
+                        const lon = Math.round(position.coords.longitude * 100) / 100;
+                        
+                        updateModalCoordinates(lat, lon);
+                        if (modalMap) {
+                            modalMap.setView([lat, lon], 13);
+                        }
+                        
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                        showSuccess(`Location found: ${lat.toFixed(2)}, ${lon.toFixed(2)}`, 'GPS Location Retrieved');
+                    },
+                    function(error) {
+                        console.error('Geolocation error:', error);
+                        let errorMessage = 'Failed to get your location. ';
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage += 'Location permission denied. Please enable location services in your browser settings.';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage += 'Location information unavailable.';
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage += 'Location request timed out.';
+                                break;
+                            default:
+                                errorMessage += 'Unknown error occurred.';
+                                break;
+                        }
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                        showError(errorMessage, 'GPS Location Error');
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+            } else {
+                btn.textContent = originalText;
+                btn.disabled = false;
+                showError('Geolocation is not supported by your browser.', 'GPS Not Supported');
+            }
+        }
+        
+        // Reset location coordinates to 0.00 0.00
+        function resetLocation() {
+            updateModalCoordinates(0.00, 0.00);
+            if (modalMap) {
+                modalMap.setView([0.00, 0.00], 2); // Zoom out to show world view
+            }
+            showInfo('Location coordinates reset to 0.00, 0.00', 'Location Reset');
+        }
+
+        // Removed camera enumeration and preview functions - not needed for voice messages
+
+        // Initialize microphone recording functionality
+        function initWebcamFeatures() {
+            // Check if getUserMedia is available
+            const isMicrophoneSupported = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+            
+            if (!isMicrophoneSupported) {
+                console.warn('⚠️ Microphone recording not supported - showing file upload option');
+                // Hide recording controls
+                const startBtn = document.getElementById('start-recording');
+                const stopBtn = document.getElementById('stop-recording');
+                const audioRecordingContainer = document.getElementById('audio-recording-container');
+                
+                if (startBtn) startBtn.style.display = 'none';
+                if (stopBtn) stopBtn.style.display = 'none';
+                if (audioRecordingContainer) {
+                    audioRecordingContainer.style.opacity = '0.5';
+                    audioRecordingContainer.title = 'Microphone recording not available. Please use file upload instead.';
+                }
+                
+                // Highlight file upload section
+                const audioUploadSection = document.getElementById('audio-upload-section');
+                if (audioUploadSection) {
+                    audioUploadSection.style.border = '2px solid #0d6efd';
+                    audioUploadSection.style.borderRadius = '8px';
+                    audioUploadSection.style.padding = '12px';
+                    audioUploadSection.style.backgroundColor = 'rgba(13, 110, 253, 0.1)';
+                }
+                
+                // Show info message
+                showInfo('Microphone recording is not available in this browser. Please use the file upload option below.', 'Microphone Not Available');
+                
+                return; // Exit early - no need to initialize recording features
+            }
+            
+            const startButton = document.getElementById('start-recording');
+            const stopButton = document.getElementById('stop-recording');
+            const timerDisplay = document.getElementById('timer');
+            const durationSlider = document.getElementById('duration-slider');
+            const durationDisplay = document.getElementById('duration-display');
+            const microphoneStatus = document.getElementById('microphone-status');
+
+            // Mobile optimization
+            if (isMobile) {
+                const defaultDuration = isIOS ? 15 : 30;
+                durationSlider.value = defaultDuration;
+                durationDisplay.textContent = `${defaultDuration}s`;
+                durationSlider.max = 60; // Voice messages can be up to 60 seconds
+            }
+
+            durationSlider.addEventListener('input', () => {
+                durationDisplay.textContent = `${durationSlider.value}s`;
+            });
+            
+            // Update microphone status
+            if (microphoneStatus) {
+                microphoneStatus.textContent = '🎤 Microphone ready';
+            }
+
+            startButton.addEventListener('click', async () => {
+                try {
+                    // Stop any existing stream
+                    if (currentStream) {
+                        currentStream.getTracks().forEach(track => track.stop());
+                        currentStream = null;
+                    }
+                    
+                    console.log('🎤 Starting microphone recording...');
+                    
+                    // Request microphone access only (no video)
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true,
+                            sampleRate: 44100
+                        },
+                        video: false // No video for voice messages
+                    });
+                    
+                    currentStream = stream;
+                    
+                    // Setup audio level monitoring
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const analyser = audioContext.createAnalyser();
+                    const microphone = audioContext.createMediaStreamSource(stream);
+                    microphone.connect(analyser);
+                    analyser.fftSize = 256;
+                    
+                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    const audioLevelBar = document.getElementById('audio-level-bar');
+                    const audioLevelIndicator = document.getElementById('audio-level-indicator');
+                    
+                    // Show audio level indicator
+                    if (audioLevelIndicator) {
+                        audioLevelIndicator.classList.remove('d-none');
+                    }
+                    
+                    // Update audio level
+                    function updateAudioLevel() {
+                        if (mediaRecorder && mediaRecorder.state === 'recording') {
+                            analyser.getByteFrequencyData(dataArray);
+                            const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+                            const level = Math.min(100, (average / 255) * 100);
+                            
+                            if (audioLevelBar) {
+                                audioLevelBar.style.width = level + '%';
+                                audioLevelBar.className = level > 70 ? 'progress-bar bg-danger' : 
+                                                         level > 40 ? 'progress-bar bg-warning' : 
+                                                         'progress-bar bg-success';
+                            }
+                            
+                            requestAnimationFrame(updateAudioLevel);
+                        }
+                    }
+                    
+                    // Determine best audio MIME type
+                    let mimeType = 'audio/webm';
+                    const supportedTypes = [
+                        'audio/webm;codecs=opus',
+                        'audio/webm',
+                        'audio/mp4',
+                        'audio/ogg;codecs=opus',
+                        'audio/ogg'
+                    ];
+                    
+                    for (const type of supportedTypes) {
+                        if (MediaRecorder.isTypeSupported(type)) {
+                            mimeType = type;
+                            break;
+                        }
+                    }
+                    
+                    console.log(`🎤 Using MIME type: ${mimeType}`);
+
+                    mediaRecorder = new MediaRecorder(stream, {
+                        mimeType: mimeType
+                    });
+                    
+                    // Start audio level monitoring
+                    updateAudioLevel();
+                    
+                    recordedChunks = [];
+                    
+                    mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            recordedChunks.push(event.data);
+                        }
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                        showVideoModal(blob);
+                        if (currentStream) {
+                            currentStream.getTracks().forEach(track => track.stop());
+                            currentStream = null;
+                        }
+                    };
+
+                    mediaRecorder.start();
+                    startTimer(parseInt(durationSlider.value));
+                    startButton.disabled = true;
+                    startButton.classList.add('d-none');
+                    stopButton.classList.remove('d-none');
+                    timerDisplay.classList.remove('d-none');
+                    
+                } catch (error) {
+                    console.error('❌ Error starting recording:', error);
+                    showError(`Could not access your camera: ${error.message}\n\nPlease ensure camera permissions are granted and your camera is not in use by another application.`, 'Camera Access Error');
+                }
+            });
+
+            stopButton.addEventListener('click', () => {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                }
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                }
+                stopButton.disabled = true;
+                stopButton.textContent = 'Processing...';
+            });
+            
+            // Auto-enumerate cameras on page load for mobile
+            if (isMobile) {
+                setTimeout(async () => {
+                    console.log('📱 Mobile detected - enumerating cameras...');
+                    const cameras = await enumerateCameras();
+                    if (cameras.length > 0) {
+                        populateCameraSelector(cameras);
+                        // Show camera selector automatically on mobile
+                        // cameraSelector.style.display = 'block'; // Optional: auto-show
+                    }
+                }, 1000);
+            }
+        }
+
+        // Timer function
+        function startTimer(duration) {
+            let timer = duration;
+            const timerDisplay = document.getElementById('timer');
+            const countdown = setInterval(() => {
+                timerDisplay.textContent = timer;
+                if (--timer < 0) {
+                    clearInterval(countdown);
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                    }
+                    if (currentStream) {
+                        currentStream.getTracks().forEach(track => track.stop());
+                        currentStream = null;
+                    }
+                    timerDisplay.textContent = "Done! 🌟";
+                }
+            }, 1000);
+        }
+        
+        // Publish voice message
+        let isPublishing = false; // Prevent double submission
+        async function publishVoiceMessage(audioBlob, filename = null) {
+            // Prevent double submission
+            if (isPublishing) {
+                console.warn('⚠️ Publication already in progress, ignoring duplicate call');
+                return;
+            }
+            
+            try {
+                isPublishing = true;
+                
+                // Get userPubkey from current window or parent window (assume connection exists)
+                const isInIframe = window.self !== window.top;
+                let currentPubkey = null;
+                
+                // Try current window first (check both window.userPubkey and global userPubkey)
+                if (typeof window !== 'undefined' && window.userPubkey) {
+                    currentPubkey = window.userPubkey;
+                    console.log('✅ Using userPubkey from current window:', currentPubkey.substring(0, 8) + '...');
+                } else if (typeof userPubkey !== 'undefined' && userPubkey) {
+                    currentPubkey = userPubkey;
+                    console.log('✅ Using userPubkey from global scope:', currentPubkey.substring(0, 8) + '...');
+                }
+                
+                // If not found and in iframe, try parent window (with retry)
+                if (!currentPubkey && isInIframe && window.parent) {
+                    // Try multiple times with small delays
+                    for (let i = 0; i < 5 && !currentPubkey; i++) {
+                        try {
+                            if (window.parent.userPubkey) {
+                                currentPubkey = window.parent.userPubkey;
+                                userPubkey = currentPubkey;
+                                if (typeof window !== 'undefined') {
+                                    window.userPubkey = currentPubkey;
+                                }
+                                console.log('✅ Using userPubkey from parent window for publishing:', currentPubkey.substring(0, 8) + '...');
+                                break;
+                            } else if (i < 4) {
+                                // Wait a bit before retrying
+                                await new Promise(resolve => setTimeout(resolve, 200));
+                            }
+                        } catch (e) {
+                            if (i >= 4) {
+                                console.warn('⚠️ Cannot access parent.userPubkey:', e.message);
+                            }
+                            await new Promise(resolve => setTimeout(resolve, 200));
+                        }
+                    }
+                }
+                
+                // If still not found, throw error
+                if (!currentPubkey) {
+                    const errorMsg = 'Vous devez être connecté à NOSTR pour publier une vidéo. Veuillez vous connecter depuis la page principale et réessayer.';
+                    showError(errorMsg, 'Connexion requise');
+                    throw new Error(errorMsg);
+                }
+                
+                const publishBtn = document.getElementById('publish-btn');
+                publishBtn.disabled = true;
+                publishBtn.textContent = 'Checking authentication...';
+                
+                // Step 0: Verify NIP-42 authentication (required for /api/fileupload)
+                let isAuthenticated = false;
+                if (typeof verifyAuthenticationWithAPI === 'function') {
+                    try {
+                        const authResult = await verifyAuthenticationWithAPI(currentPubkey);
+                        isAuthenticated = authResult && authResult.auth_verified === true;
+                        console.log('🔐 NIP-42 authentication check:', isAuthenticated ? '✅ Authenticated' : '❌ Not authenticated');
+                    } catch (authError) {
+                        console.warn('⚠️ Error checking authentication:', authError);
+                    }
+                }
+                
+                // If not authenticated, try to send NIP-42 auth event
+                if (!isAuthenticated) {
+                    publishBtn.textContent = 'Authenticating...';
+                    console.log('🔐 NIP-42 not authenticated, sending auth event...');
+                    
+                    try {
+                        if (typeof sendNIP42Auth === 'function') {
+                            const relayUrl = nostrRelay?.url || (typeof DEFAULT_RELAYS !== 'undefined' && DEFAULT_RELAYS[0]) || 'wss://astroport.com';
+                            await sendNIP42Auth(relayUrl, true);
+                            
+                            // Wait a bit for the event to be processed
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            
+                            // Verify again
+                            if (typeof verifyAuthenticationWithAPI === 'function') {
+                                const authResult = await verifyAuthenticationWithAPI(currentPubkey);
+                                isAuthenticated = authResult && authResult.auth_verified === true;
+                                console.log('🔐 NIP-42 authentication after sending:', isAuthenticated ? '✅ Authenticated' : '❌ Still not authenticated');
+                            }
+                        } else if (typeof connectNostr === 'function') {
+                            // Fallback: re-connect with force auth
+                            await connectNostr(true);
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            
+                            // Verify again
+                            if (typeof verifyAuthenticationWithAPI === 'function') {
+                                const authResult = await verifyAuthenticationWithAPI(currentPubkey);
+                                isAuthenticated = authResult && authResult.auth_verified === true;
+                            }
+                        }
+                    } catch (authError) {
+                        console.warn('⚠️ Error sending NIP-42 auth:', authError);
+                        // Continue anyway - backend will check and return appropriate error
+                    }
+                }
+                
+                if (!isAuthenticated) {
+                    console.warn('⚠️ NIP-42 authentication not verified, but continuing upload (backend will check)');
+                }
+                
+                publishBtn.textContent = 'Uploading to IPFS...';
+                
+                // Step 1: Upload video/audio to IPFS via /api/fileupload (requires NIP-42)
+                // Get filename from either video or audio preview element
+                const videoPreviewEl = document.getElementById('modal-video-preview');
+                const audioPreviewEl = document.getElementById('modal-audio-preview');
+                const previewElement = (audioPreviewEl && audioPreviewEl.dataset.filename) ? audioPreviewEl : videoPreviewEl;
+                const finalFilename = filename || previewElement?.dataset.filename || `voice_${Date.now()}.webm`;
+                const audioFile = new File([audioBlob], finalFilename, { type: audioBlob.type || 'audio/webm' });
+                
+                const uploadFormData = new FormData();
+                uploadFormData.append('file', audioFile);
+                if (currentPubkey) {
+                    uploadFormData.append('npub', currentPubkey);
+                }
+                
+                console.log('📤 Uploading audio to IPFS via /api/fileupload...');
+                console.log('📤 userPubkey for upload:', currentPubkey ? currentPubkey.substring(0, 8) + '...' : 'MISSING');
+                console.log('📤 NIP-42 authenticated:', isAuthenticated);
+                
+                const uploadResponse = await fetch('/api/fileupload', {
+                    method: 'POST',
+                    body: uploadFormData
+                });
+                
+                if (!uploadResponse.ok) {
+                    let errorMessage = `Upload failed: ${uploadResponse.statusText}`;
+                    try {
+                        const errorData = await uploadResponse.json();
+                        if (errorData.detail) {
+                            errorMessage = errorData.detail;
+                        } else if (errorData.message) {
+                            errorMessage = errorData.message;
+                        } else if (typeof errorData === 'string') {
+                            errorMessage = errorData;
+                        } else {
+                            errorMessage = JSON.stringify(errorData);
+                        }
+                    } catch (e) {
+                        // Already have default error message
+                    }
+                    throw new Error(errorMessage);
+                }
+                
+                const uploadResult = await uploadResponse.json();
+                
+                if (!uploadResult.success || !uploadResult.new_cid) {
+                    throw new Error(uploadResult.message || 'IPFS upload failed - no CID returned');
+                }
+                
+                console.log('✅ Video uploaded to IPFS:', uploadResult.new_cid);
+                console.log('📋 Upload result keys:', Object.keys(uploadResult));
+                console.log('📋 Upload result:', JSON.stringify(uploadResult, null, 2));
+                
+                // Step 2: Publish to NOSTR with IPFS CID
+                publishBtn.textContent = 'Retrieving email from profile...';
+                
+                // Ensure we have a valid email address for player field (required by server)
+                // Try to get email from profile if we only have a pubkey
+                const playerField = document.getElementById('player');
+                let playerValue = '';
+                
+                // Check if playerField has a valid email already
+                if (playerField && playerField.value) {
+                    const fieldValue = playerField.value.trim();
+                    // Check if it's a valid email (contains @)
+                    if (fieldValue.includes('@')) {
+                        playerValue = fieldValue;
+                    }
+                }
+                
+                // If we don't have a valid email yet, try to get it from profile
+                // Note: If email is not found, we can still send the pubkey - the backend will resolve it to email
+                if (!playerValue || !playerValue.includes('@')) {
+                    const pubkeyToUse = currentPubkey || userPubkey;
+                    
+                    if (pubkeyToUse) {
+                        console.log('📧 Fetching email from NOSTR profile for:', pubkeyToUse.substring(0, 8) + '...');
+                        
+                        try {
+                            // Try to get email from profile using fetchUserEmailWithFallback
+                            let fetchedEmail = null;
+                            if (typeof fetchUserEmailWithFallback === 'function') {
+                                fetchedEmail = await fetchUserEmailWithFallback(pubkeyToUse);
+                            } else if (typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
+                                fetchedEmail = await window.fetchUserEmailWithFallback(pubkeyToUse);
+                            }
+                            
+                            // Check if we got a valid email (not a pubkey)
+                            if (fetchedEmail && fetchedEmail.includes('@') && fetchedEmail.length > 5) {
+                                playerValue = fetchedEmail;
+                                userEmail = fetchedEmail;
+                                console.log('✅ Email retrieved from profile:', fetchedEmail);
+                            } else if (userEmail && userEmail.includes('@')) {
+                                // Use cached userEmail if valid
+                                playerValue = userEmail;
+                                console.log('✅ Using cached email:', userEmail);
+                            } else {
+                                // No email found in profile, but we have a pubkey
+                                // Backend will resolve pubkey to email via user directory lookup
+                                console.log('⚠️ No email found in profile, backend will resolve pubkey to email via directory lookup');
+                                // Send empty string - backend will use npub to find email from directory
+                                playerValue = '';
+                            }
+                        } catch (emailError) {
+                            console.warn('⚠️ Error fetching email, backend will resolve from directory:', emailError);
+                            // Don't throw error - let backend resolve email from directory
+                            playerValue = '';
+                        }
+                    } else {
+                        throw new Error('No public key available. Please connect to NOSTR first.');
+                    }
+                }
+                
+                // Note: We allow empty playerValue if npub is provided - backend will resolve email from directory
+                // Only require email if we don't have npub either
+                
+                // Update the field value for next time
+                if (playerField) {
+                    playerField.value = playerValue;
+                }
+                
+                console.log('📤 Using player email:', playerValue);
+                
+                const formData = new FormData();
+                formData.append('player', playerValue);
+                formData.append('ipfs_cid', uploadResult.new_cid);  // Send CID instead of video_blob
+                // Pass thumbnail_ipfs from upload2ipfs.sh (centralized thumbnail generation)
+                if (uploadResult.thumbnail_ipfs) {
+                    formData.append('thumbnail_ipfs', uploadResult.thumbnail_ipfs);
+                    console.log('✅ Using thumbnail from upload2ipfs.sh:', uploadResult.thumbnail_ipfs);
+                }
+                // Pass gifanim_ipfs from upload2ipfs.sh (centralized animated GIF generation)
+                if (uploadResult.gifanim_ipfs) {
+                    formData.append('gifanim_ipfs', uploadResult.gifanim_ipfs);
+                    console.log('✅ Using animated GIF from upload2ipfs.sh:', uploadResult.gifanim_ipfs);
+                }
+                // Pass metadata from upload2ipfs.sh (centralized extraction) - REQUIRED
+                if (uploadResult.info) {
+                    formData.append('info_cid', uploadResult.info);
+                    console.log('✅ Using info_cid from upload2ipfs.sh:', uploadResult.info);
+                } else {
+                    console.error('❌ No info_cid provided from upload2ipfs.sh - this is required!');
+                    throw new Error('Missing info_cid from upload result. Upload may have failed.');
+                }
+                // Pass file hash for provenance tracking (CRITICAL for deduplication) - REQUIRED
+                if (uploadResult.fileHash) {
+                    formData.append('file_hash', uploadResult.fileHash);
+                    console.log('✅ Using file hash from upload2ipfs.sh:', uploadResult.fileHash.substring(0, 16) + '...');
+                } else {
+                    console.error('❌ No file hash provided from upload2ipfs.sh - this is required!');
+                    throw new Error('Missing file_hash from upload result. Upload may have failed.');
+                }
+                // Pass MIME type from upload2ipfs.sh (supports multiple video formats)
+                if (uploadResult.mimeType) {
+                    formData.append('mime_type', uploadResult.mimeType);
+                    console.log('✅ Using MIME type from upload2ipfs.sh:', uploadResult.mimeType);
+                } else {
+                    console.warn('⚠️ No MIME type provided, will use default video/webm');
+                }
+                // Pass upload_chain if provenance detected (for re-uploads)
+                if (uploadResult.provenance && uploadResult.provenance.upload_chain) {
+                    formData.append('upload_chain', uploadResult.provenance.upload_chain);
+                    console.log('🔗 Using upload chain from provenance:', uploadResult.provenance.upload_chain);
+                } else {
+                    console.log('📝 No provenance - this is a first upload');
+                }
+                // Pass duration and dimensions from upload result if available
+                // Check direct fields first (from JSON response of upload2ipfs.sh)
+                if (uploadResult.duration !== undefined && uploadResult.duration !== null) {
+                    formData.append('duration', uploadResult.duration.toString());
+                    console.log('✅ Using duration from upload2ipfs.sh:', uploadResult.duration);
+                }
+                // Get dimensions from direct field or metadata
+                if (uploadResult.dimensions) {
+                    formData.append('video_dimensions', uploadResult.dimensions);
+                    console.log('✅ Using dimensions from upload2ipfs.sh:', uploadResult.dimensions);
+                } else if (uploadResult.metadata && uploadResult.metadata.media && uploadResult.metadata.media.dimensions) {
+                    formData.append('video_dimensions', uploadResult.metadata.media.dimensions);
+                    console.log('✅ Using dimensions from metadata:', uploadResult.metadata.media.dimensions);
+                }
+                // Fallback: duration from metadata if not in direct field
+                if (!uploadResult.duration && uploadResult.metadata && uploadResult.metadata.media && uploadResult.metadata.media.duration) {
+                    formData.append('duration', uploadResult.metadata.media.duration.toString());
+                    console.log('✅ Using duration from metadata:', uploadResult.metadata.media.duration);
+                }
+                formData.append('title', document.getElementById('voice-title').value);
+                formData.append('description', document.getElementById('voice-description').value);
+                
+                // Add encryption parameters
+                formData.append('encrypted', isEncrypted ? 'true' : 'false');
+                if (isEncrypted) {
+                    formData.append('encryption_method', encryptionMethod);
+                    formData.append('recipients', JSON.stringify(recipientsList));
+                    // If encrypted, use encrypted content instead of direct URL
+                    if (encryptedContent) {
+                        // Note: For encrypted messages, the content field will contain the encrypted payload
+                        // The backend will handle publishing with encrypted content
+                        console.log('📝 Using encrypted content for voice message');
+                    }
+                }
+                
+                formData.append('publish_nostr', document.getElementById('publish-nostr').checked ? 'true' : 'false');
+                
+                // Get location from modal
+                const lat = parseFloat(document.getElementById('modal-lat').value) || 0.00;
+                const lon = parseFloat(document.getElementById('modal-lon').value) || 0.00;
+                    formData.append('latitude', lat.toString());
+                    formData.append('longitude', lon.toString());
+                
+                // npub is REQUIRED by backend, even if publish_nostr is false
+                // (needed for authentication and user directory lookup)
+                if (currentPubkey) {
+                    formData.append('npub', currentPubkey);
+                    console.log('✅ Adding npub (required):', currentPubkey.substring(0, 8) + '...');
+                } else {
+                    console.error('❌ No npub available - this is required!');
+                    throw new Error('No NOSTR public key available. Please connect to NOSTR first.');
+                }
+                
+                // Check if encryption is enabled
+                const isEncrypted = document.getElementById('encrypt-message')?.checked || false;
+                const encryptionMethod = document.getElementById('encryption-method')?.value || 'nip44';
+                const recipientsText = document.getElementById('recipients-list')?.value || '';
+                
+                // If encrypted, encrypt the content before sending
+                let encryptedContent = null;
+                let recipientsList = [];
+                
+                if (isEncrypted && recipientsText.trim()) {
+                    // Parse recipients
+                    recipientsList = recipientsText.split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line.length > 0 && line.startsWith('npub'));
+                    
+                    if (recipientsList.length === 0) {
+                        showError('Please enter at least one valid recipient pubkey (npub format)', 'Encryption Error');
+                        return;
+                    }
+                    
+                    // Prepare metadata for encryption
+                    const voiceMetadata = {
+                        url: uploadResult.new_cid ? `${gateway}/ipfs/${uploadResult.new_cid}` : '',
+                        duration: uploadResult.duration || 0,
+                        title: document.getElementById('voice-title').value,
+                        description: document.getElementById('voice-description').value
+                    };
+                    
+                    // Get location if provided
+                    const lat = parseFloat(document.getElementById('modal-lat').value) || 0.00;
+                    const lon = parseFloat(document.getElementById('modal-lon').value) || 0.00;
+                    if (lat !== 0.00 || lon !== 0.00) {
+                        voiceMetadata.latitude = lat;
+                        voiceMetadata.longitude = lon;
+                    }
+                    
+                    // Encrypt for first recipient (for now, single recipient encryption)
+                    // TODO: Support multiple recipients with separate events
+                    try {
+                        if (encryptionMethod === 'nip44' && window.nostr && window.nostr.nip44) {
+                            encryptedContent = await window.nostr.nip44.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
+                            console.log('✅ Content encrypted with NIP-44');
+                        } else if (encryptionMethod === 'nip04' && window.nostr && window.nostr.nip04) {
+                            encryptedContent = await window.nostr.nip04.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
+                            console.log('✅ Content encrypted with NIP-04');
+                        } else {
+                            throw new Error('Encryption method not available. Please ensure NOSTR extension supports encryption.');
+                        }
+                    } catch (encryptError) {
+                        console.error('❌ Encryption error:', encryptError);
+                        showError(`Encryption failed: ${encryptError.message}`, 'Encryption Error');
+                        return;
+                    }
+                }
+                
+                const response = await fetch('/vocals', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const result = await response.text();
+                    
+                    // Detect if it's audio or video
+                    const isAudio = videoBlob.type.startsWith('audio/');
+                    const mediaType = isAudio ? 'Audio' : 'Video';
+                    const mediaTypeLower = isAudio ? 'audio' : 'video';
+                    
+                    // Re-enable button before showing success modal
+                    const publishBtn = document.getElementById('publish-btn');
+                    publishBtn.disabled = false;
+                    publishBtn.textContent = isAudio ? '📡 Publish Audio' : '📡 Publish Video';
+                    
+                    // Notify parent window that media was published successfully
+                    // This allows parent to reload the page when modal closes
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({
+                            type: `${mediaTypeLower}-published-success`,
+                            cid: uploadResult.new_cid
+                        }, '*');
+                        console.log(`✅ Notified parent window of successful ${mediaTypeLower} publish`);
+                    }
+                    
+                    const successMessage = isAudio 
+                        ? `Audio track published successfully to IPFS!\n\nCID: ${uploadResult.new_cid}\n\nYour track is now available on UPlanet and can be suggested in Mixxx mode.`
+                        : `Video published successfully to IPFS!\n\nCID: ${uploadResult.new_cid}\n\nYour video is now available on UPlanet.`;
+                    
+                    showSuccess(successMessage, `${mediaType} Published! 🎉`, () => {
+                        isPublishing = false; // Reset flag
+                        closeModal();
+                        // Reset form and prepare for next recording
+                        document.getElementById('publish-form').reset();
+                        document.getElementById('start-recording').disabled = false;
+                        document.getElementById('start-recording').classList.remove('d-none');
+                        document.getElementById('stop-recording').classList.add('d-none');
+                        document.getElementById('stop-recording').disabled = false;
+                        document.getElementById('stop-recording').textContent = '⏹️ Stop Recording';
+                        document.getElementById('timer').classList.add('d-none');
+                        document.getElementById('timer').textContent = document.getElementById('duration-slider').value;
+                    });
+                } else {
+                    isPublishing = false; // Reset flag on error
+                    let errorMessage = `Publication failed: ${response.statusText}`;
+                    try {
+                        const errorData = await response.json();
+                        if (errorData.detail) {
+                            errorMessage = errorData.detail;
+                        } else if (errorData.message) {
+                            errorMessage = errorData.message;
+                        } else if (typeof errorData === 'string') {
+                            errorMessage = errorData;
+                        } else {
+                            errorMessage = JSON.stringify(errorData);
+                        }
+                    } catch (e) {
+                        try {
+                            const text = await response.text();
+                            if (text && text.trim()) {
+                                errorMessage = text.trim();
+                            }
+                        } catch (e2) {
+                            // Keep default error message
+                        }
+                    }
+                    throw new Error(errorMessage);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error publishing media:', error);
+                const errorMsg = error.message || 'Une erreur est survenue lors de la publication';
+                showError(errorMsg, 'Échec de la publication');
+                isPublishing = false; // Reset flag on error
+                const publishBtn = document.getElementById('publish-btn');
+                publishBtn.disabled = false;
+                // Detect if it's audio or video to set correct button text
+                const isAudio = videoBlob.type.startsWith('audio/');
+                publishBtn.textContent = isAudio ? '📡 Publish Audio' : '📡 Publish Video';
+            }
+        }
+
+        // Utility function to convert blob to base64
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        // Adapt UI for audio mode
+        function adaptUIForAudioMode() {
+            console.log('🎵 Adapting UI for audio mode...');
+            
+            // Add audio-mode class to body for CSS rules
+            document.body.classList.add('audio-mode');
+            
+            // Update title
+            const titleEl = document.getElementById('webcam-title');
+            if (titleEl) {
+                titleEl.textContent = '🎵 Upload Audio File';
+            }
+            
+            // Hide camera selection button and its parent container
+            const selectCameraBtn = document.getElementById('select-camera-btn');
+            if (selectCameraBtn) {
+                const cameraBtnContainer = selectCameraBtn.closest('.d-flex.justify-content-center');
+                if (cameraBtnContainer) {
+                    cameraBtnContainer.style.display = 'none';
+                } else {
+                    selectCameraBtn.style.display = 'none';
+                }
+            }
+            
+            // Hide camera selector
+            const cameraSelector = document.getElementById('camera-selector');
+            if (cameraSelector) {
+                cameraSelector.style.display = 'none';
+            }
+            
+            // Hide video preview container (contains video preview and timer)
+            const videoPreviewContainer = document.getElementById('video-preview-container');
+            if (videoPreviewContainer) {
+                videoPreviewContainer.style.display = 'none';
+            }
+            
+            // Hide video preview
+            const videoPreview = document.getElementById('video-preview');
+            if (videoPreview) {
+                videoPreview.style.display = 'none';
+            }
+            
+            // Hide timer
+            const timerDisplay = document.getElementById('timer');
+            if (timerDisplay) {
+                timerDisplay.style.display = 'none';
+            }
+            
+            // Hide Video Orientation section
+            // Structure: <div class="d-flex flex-column align-items-center gap-1 w-100">
+            //   <label class="mb-0 text-white small">Video Orientation:</label>
+            //   <div class="btn-group">...</div>
+            // </div>
+            const orientationLabel = Array.from(document.querySelectorAll('label.mb-0.text-white.small')).find(
+                label => label.textContent.trim() === 'Video Orientation:'
+            );
+            if (orientationLabel) {
+                // Find the parent div with specific classes
+                const orientationSection = orientationLabel.closest('div.d-flex.flex-column.align-items-center.gap-1.w-100');
+                if (orientationSection) {
+                    orientationSection.style.display = 'none';
+                    console.log('✅ Hidden Video Orientation section');
+                }
+            }
+            
+            // Hide Duration section
+            // Structure: <div class="d-flex flex-column flex-sm-row align-items-center gap-2 w-100">
+            //   <label>Duration:</label>
+            //   <input id="duration-slider">
+            //   <div id="duration-display">10s</div>
+            // </div>
+            const durationSlider = document.getElementById('duration-slider');
+            if (durationSlider) {
+                // Find the parent div with specific classes
+                const durationSection = durationSlider.closest('div.d-flex.flex-column.flex-sm-row.align-items-center.gap-2.w-100');
+                if (durationSection) {
+                    durationSection.style.display = 'none';
+                    console.log('✅ Hidden Duration section');
+                }
+            }
+            
+            // Hide duration display (backup)
+            const durationDisplay = document.getElementById('duration-display');
+            if (durationDisplay) {
+                durationDisplay.style.display = 'none';
+            }
+            
+            // Hide start/stop recording buttons container
+            // Structure: <div class="d-flex gap-1 flex-wrap justify-content-center">
+            //   <button id="start-recording">...</button>
+            //   <button id="stop-recording">...</button>
+            // </div>
+            const startRecordingBtn = document.getElementById('start-recording');
+            if (startRecordingBtn) {
+                const recordingButtonsContainer = startRecordingBtn.closest('div.d-flex.gap-1.flex-wrap.justify-content-center');
+                if (recordingButtonsContainer) {
+                    recordingButtonsContainer.style.display = 'none';
+                    console.log('✅ Hidden recording buttons container');
+                } else {
+                    startRecordingBtn.style.display = 'none';
+                }
+            }
+            
+            const stopRecordingBtn = document.getElementById('stop-recording');
+            if (stopRecordingBtn) {
+                stopRecordingBtn.style.display = 'none';
+            }
+            
+            // Hide the separator "— 📤 —"
+            // Structure: <div class="text-secondary my-1 small">— <span>📤</span> —</div>
+            const separatorDiv = Array.from(document.querySelectorAll('div.text-secondary.my-1.small')).find(el => {
+                const text = el.textContent || '';
+                return text.includes('📤') || (text.includes('—') && text.trim().length < 30);
+            });
+            if (separatorDiv) {
+                separatorDiv.style.display = 'none';
+                console.log('✅ Hidden separator');
+            }
+            
+            // Hide video upload section
+            const videoSection = document.getElementById('video-upload-section');
+            if (videoSection) {
+                videoSection.style.display = 'none';
+            }
+            
+            // Show audio upload section
+            const audioSection = document.getElementById('audio-upload-section');
+            if (audioSection) {
+                audioSection.classList.remove('d-none');
+                audioSection.style.display = 'block';
+                console.log('✅ Shown audio upload section');
+            }
+            
+            // Adjust main content wrapper for audio-only mode
+            const mainContentWrapper = document.getElementById('main-content-wrapper');
+            if (mainContentWrapper) {
+                mainContentWrapper.style.flexDirection = 'column';
+            }
+            
+            // Stop any active camera streams
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+            
+            console.log('✅ UI adapted for audio mode - all webcam elements hidden, audio upload shown');
+        }
+        
+        // Handle audio file upload
+        function handleAudioUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Validate file type
+            const validTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac', 'audio/mp4', 'audio/x-m4a', 'audio/wma'];
+            const validExtensions = ['.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a', '.wma'];
+            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!validTypes.includes(file.type) && !validExtensions.includes(fileExtension)) {
+                showError('Invalid file type. Please upload an audio file in one of these formats: MP3, WAV, OGG, FLAC, AAC, M4A', 'Invalid File Type');
+                return;
+            }
+            
+            // Validate file size (max 500MB)
+            const maxSize = 500 * 1024 * 1024; // 500MB
+            if (file.size > maxSize) {
+                showError('File is too large. Maximum allowed size is 500MB. Please compress your audio or choose a smaller file.', 'File Too Large');
+                return;
+            }
+            
+            // Create blob from file and show in modal (reuse video modal for audio)
+            const audioBlob = new Blob([file], { type: file.type });
+            showVideoModal(audioBlob, file.name);
+            
+            // Auto-fill title with filename (without extension)
+            const filenameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+            const titleField = document.getElementById('voice-title') || document.getElementById('video-title');
+            if (titleField) titleField.value = filenameWithoutExt;
+            
+            // Reset file input
+            event.target.value = '';
+        }
+
+        // Helper function to fill player field and fetch email (reused in multiple places)
+        async function fillPlayerFieldAndFetchEmail(pubkey, logPrefix = '') {
+            if (!pubkey) return;
+            
+            const playerField = document.getElementById('player');
+            if (!playerField) return;
+            
+            // First, set pubkey as temporary value
+            playerField.value = pubkey;
+            
+            // Try to fetch email asynchronously (prefer email over pubkey)
+            try {
+                let fetchedEmail = null;
+                
+                // Try fetchUserEmailWithFallback from common.js
+                if (typeof fetchUserEmailWithFallback === 'function') {
+                    fetchedEmail = await fetchUserEmailWithFallback(pubkey);
+                } else if (typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
+                    fetchedEmail = await window.fetchUserEmailWithFallback(pubkey);
+                }
+                
+                // Check if we got a valid email (not a pubkey)
+                if (fetchedEmail && fetchedEmail.includes('@') && fetchedEmail.length > 5 && fetchedEmail !== pubkey) {
+                    playerField.value = fetchedEmail;
+                    userEmail = fetchedEmail;
+                    console.log('✅ Email retrieved and set in player field:', fetchedEmail);
+                } else {
+                    console.warn('⚠️ No email found in profile, player field contains pubkey (server may reject)');
+                }
+            } catch (err) {
+                console.warn('⚠️ Could not fetch user email, player field contains pubkey:', err);
+            }
+        }
+        
+        // Initialize connection variables from parent window if in iframe
+        function initializeConnectionVars() {
+            const isInIframe = window.self !== window.top;
+            
+            // Try multiple times to get userPubkey (parent might not be ready immediately)
+            let attempts = 0;
+            const maxAttempts = 10;
+            
+            const tryGetConnection = () => {
+                attempts++;
+                let foundPubkey = null;
+                
+                // Strategy 1: Try to get from current window (check both global and window scope)
+                if (typeof window !== 'undefined' && window.userPubkey) {
+                    foundPubkey = window.userPubkey;
+                    userPubkey = foundPubkey;
+                    if (window.nostrRelay) nostrRelay = window.nostrRelay;
+                    if (typeof window.isNostrConnected !== 'undefined') isNostrConnected = window.isNostrConnected;
+                    console.log('✅ Using connection from current window.userPubkey:', foundPubkey.substring(0, 8) + '...');
+                } else if (typeof userPubkey !== 'undefined' && userPubkey) {
+                    foundPubkey = userPubkey;
+                    // Set in window for easier access
+                    if (typeof window !== 'undefined') {
+                        window.userPubkey = foundPubkey;
+                    }
+                    console.log('✅ Using connection from current window global scope:', foundPubkey.substring(0, 8) + '...');
+                }
+                // Strategy 2: If in iframe, try to get from parent window
+                else if (isInIframe && window.parent) {
+                    try {
+                        if (window.parent.userPubkey) {
+                            foundPubkey = window.parent.userPubkey;
+                            userPubkey = foundPubkey;
+                            nostrRelay = window.parent.nostrRelay || null;
+                            isNostrConnected = window.parent.isNostrConnected || false;
+                            
+                            // Set in current window for easier access
+                            if (typeof window !== 'undefined') {
+                                window.userPubkey = foundPubkey;
+                                window.nostrRelay = nostrRelay;
+                                window.isNostrConnected = isNostrConnected;
+                            }
+                            
+                            console.log('✅ Using connection from parent window:', foundPubkey ? foundPubkey.substring(0, 8) + '...' : 'none');
+                        } else {
+                            if (attempts >= maxAttempts) {
+                                console.warn('⚠️ Parent window has no userPubkey after', maxAttempts, 'attempts');
+                            }
+                            return false;
+                        }
+                    } catch (e) {
+                        // Cross-origin or other error
+                        if (attempts >= maxAttempts) {
+                            console.warn('⚠️ Cannot access parent window variables:', e.message);
+                        }
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+                
+                // If we found a pubkey, fill player field and fetch email
+                if (foundPubkey) {
+                    // fillPlayerFieldAndFetchEmail is async but we call it without await (non-blocking)
+                    fillPlayerFieldAndFetchEmail(foundPubkey).catch(err => {
+                        console.warn('⚠️ Error filling player field:', err);
+                    });
+                    return true;
+                }
+                
+                return false;
+            };
+            
+            // Try immediately
+            if (tryGetConnection()) {
+                // Connection found - show webcam interface
+                onConnectionSuccess();
+                return;
+            }
+            
+            // Retry with intervals if not found
+            const retryInterval = setInterval(() => {
+                if (tryGetConnection()) {
+                    clearInterval(retryInterval);
+                    onConnectionSuccess();
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(retryInterval);
+                    // No connection found after all attempts
+                    // Show central connection button if not in iframe or if in standalone mode
+                    if (!isInIframe || window.location.search.includes('standalone=1')) {
+                        showConnectionPrompt();
+                    } else {
+                        console.log('⚠️ Running in iframe without connection - waiting for parent connection');
+                    }
+                }
+            }, 500);
+        }
+        
+        // Show connection prompt when no connection is available
+        function showConnectionPrompt() {
+            console.log('📢 No NOSTR connection found - showing connection prompt');
+            const centralConnection = document.getElementById('central-connection');
+            const webcamSection = document.getElementById('webcam-section');
+            const header = document.querySelector('header');
+            
+            // Show full screen connection page
+            centralConnection.classList.remove('d-none');
+            webcamSection.style.display = 'none';
+            
+            // Ensure header is not compact
+            if (header) {
+                header.classList.remove('compact-header');
+            }
+            
+            // Prevent body scroll
+            document.body.style.overflow = 'hidden';
+        }
+        
+        // Called when connection is successful
+        async function onConnectionSuccess() {
+            if (!userPubkey) return;
+            
+            const centralConnection = document.getElementById('central-connection');
+            const webcamSection = document.getElementById('webcam-section');
+            const header = document.querySelector('header');
+            
+            // Hide full screen connection page
+            centralConnection.classList.add('d-none');
+            
+            // Show webcam section
+            webcamSection.style.display = '';
+            
+            // Make header compact
+            if (header) {
+                header.classList.add('compact-header');
+                // Update CSS variable for header height
+                document.documentElement.style.setProperty('--header-height', '60px');
+            }
+            
+            // Restore body scroll
+            document.body.style.overflow = '';
+            
+            console.log('✅ Connection successful:', userPubkey.substring(0, 8) + '...');
+        }
+        
+        // Connect to NOSTR (supports both standalone and iframe modes)
+        async function handleNostrConnect() {
+            try {
+                await updateAuthStatus('🔄 Connecting...', 'connecting');
+                
+                const isInIframe = window.self !== window.top;
+                
+                // Always try parent window first if in iframe
+                if (isInIframe && window.parent && window.parent.userPubkey) {
+                    console.log('✅ Using existing connection from parent window');
+                    userPubkey = window.parent.userPubkey;
+                    if (window.parent.nostrRelay) {
+                        nostrRelay = window.parent.nostrRelay;
+                    }
+                    if (window.parent.isNostrConnected) {
+                        isNostrConnected = window.parent.isNostrConnected;
+                    }
+                } else {
+                    // Standalone mode - connect to NOSTR + relay
+                    console.log('🔌 Connecting to NOSTR extension...');
+                    
+                    // Use common.js connectNostr function
+                    if (typeof connectNostr === 'function') {
+                        console.log('📌 Using common.js connectNostr...');
+                        // Don't force NIP-42 yet - it will be checked when needed (upload)
+                        userPubkey = await connectNostr(false);
+                        
+                        if (!userPubkey) {
+                            throw new Error("No public key returned from connectNostr");
+                        }
+                        
+                        console.log('✅ Connected, pubkey:', userPubkey.substring(0, 8) + '...');
+                    } else {
+                        // Fallback to direct extension access
+                        console.log('⚠️ common.js not loaded, using direct extension access');
+                        
+                        if (typeof window.nostr === 'undefined' || !window.nostr) {
+                            showError(
+                                'NOSTR extension not detected. Please install a NOSTR extension like Alby, nos2x, or Flamingo to continue.',
+                                'Extension Required'
+                            );
+                            throw new Error("NOSTR extension not available");
+                        }
+                        
+                        const pubkey = await window.nostr.getPublicKey();
+                        if (pubkey) {
+                            userPubkey = pubkey;
+                            if (typeof window !== 'undefined') {
+                                window.userPubkey = pubkey;
+                            }
+                            console.log('✅ Connected to NOSTR extension, pubkey:', pubkey.substring(0, 8) + '...');
+                        } else {
+                            throw new Error("No public key returned from extension");
+                        }
+                        
+                        // Try to connect to relay
+                        if (typeof connectToRelay === 'function') {
+                            try {
+                                await connectToRelay(false); // No force NIP-42 yet
+                            } catch (relayError) {
+                                console.warn('⚠️ Failed to connect to relay:', relayError);
+                            }
+                        }
+                    }
+                }
+                
+                // Update UI - show connected status
+                updateAuthStatus('✅ Connected', 'connected');
+                
+                // Fetch user email if available
+                if (typeof fetchUserEmail === 'function') {
+                    await fetchUserEmail();
+                } else {
+                    // Set player field with pubkey if email not available
+                    const playerField = document.getElementById('player');
+                    if (playerField && userPubkey) {
+                        playerField.value = userPubkey;
+                    }
+                }
+                
+                // Update UI to show webcam interface
+                await onConnectionSuccess();
+                
+                showSuccess(
+                    'Connected! You can now record audios/videos. NIP-42 authentication will be checked automatically when uploading to uDRIVE.',
+                    'Connected! 🎉'
+                );
+                
+            } catch (error) {
+                console.error("❌ Connection error:", error);
+                updateAuthStatus('❌ Connection failed', 'error');
+                showError(
+                    error.message || 'Failed to connect to NOSTR. Please try again.',
+                    'Connection Error'
+                );
+            }
+        }
+        
+        // Update authentication status UI
+        async function updateAuthStatus(text, state) {
+            const connectBtn = document.getElementById('connect-btn');
+            const verifyBtn = document.getElementById('verify-auth-btn');
+            
+            if (!connectBtn) return;
+            
+            // Update button states
+            if (state === 'authenticated') {
+                // Full authentication with NIP-42 - can upload to uDRIVE
+                if (userPubkey && typeof fetchUserEmailWithFallback === 'function') {
+                    try {
+                        const email = await fetchUserEmailWithFallback(userPubkey);
+                        connectBtn.textContent = `✅ ${email}`;
+                    } catch (e) {
+                        connectBtn.textContent = `✅ ${userPubkey.substring(0, 8)}...`;
+                    }
+                } else if (userPubkey && typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
+                    try {
+                        const email = await window.fetchUserEmailWithFallback(userPubkey);
+                        connectBtn.textContent = `✅ ${email}`;
+                    } catch (e) {
+                        connectBtn.textContent = `✅ ${userPubkey.substring(0, 8)}...`;
+                    }
+                } else {
+                    connectBtn.textContent = '✅ Connected';
+                }
+                connectBtn.disabled = true;
+                connectBtn.classList.remove('btn-primary');
+                connectBtn.classList.add('btn-secondary');
+                if (verifyBtn) {
+                    verifyBtn.classList.add('d-none');
+                }
+            } else if (state === 'connected') {
+                // Basic connection (can record, but upload will trigger NIP-42 check)
+                if (userPubkey && typeof fetchUserEmailWithFallback === 'function') {
+                    try {
+                        const email = await fetchUserEmailWithFallback(userPubkey);
+                        connectBtn.textContent = `✅ ${email}`;
+                    } catch (e) {
+                        connectBtn.textContent = `✅ ${userPubkey.substring(0, 8)}...`;
+                    }
+                } else if (userPubkey && typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
+                    try {
+                        const email = await window.fetchUserEmailWithFallback(userPubkey);
+                        connectBtn.textContent = `✅ ${email}`;
+                    } catch (e) {
+                        connectBtn.textContent = `✅ ${userPubkey.substring(0, 8)}...`;
+                    }
+                } else {
+                    connectBtn.textContent = '✅ Connected';
+                }
+                connectBtn.disabled = true;
+                connectBtn.classList.remove('btn-primary');
+                connectBtn.classList.add('btn-secondary');
+                // Don't show verify button yet - only show if upload fails
+                if (verifyBtn) {
+                    verifyBtn.classList.add('d-none');
+                }
+            } else if (state === 'not-authenticated') {
+                // Connected but upload failed - show verify button
+                if (userPubkey && typeof fetchUserEmailWithFallback === 'function') {
+                    try {
+                        const email = await fetchUserEmailWithFallback(userPubkey);
+                        connectBtn.textContent = `🟡 ${email}`;
+                    } catch (e) {
+                        connectBtn.textContent = `🟡 ${userPubkey.substring(0, 8)}...`;
+                    }
+                } else if (userPubkey && typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
+                    try {
+                        const email = await window.fetchUserEmailWithFallback(userPubkey);
+                        connectBtn.textContent = `🟡 ${email}`;
+                    } catch (e) {
+                        connectBtn.textContent = `🟡 ${userPubkey.substring(0, 8)}...`;
+                    }
+                } else {
+                    connectBtn.textContent = '🟡 Connected';
+                }
+                connectBtn.disabled = true;
+                if (verifyBtn) {
+                    verifyBtn.classList.remove('d-none');
+                }
+            } else if (state === 'connecting') {
+                // Connection in progress
+                connectBtn.textContent = '🔄 Connecting...';
+                connectBtn.disabled = true;
+                connectBtn.classList.remove('btn-secondary');
+                connectBtn.classList.add('btn-primary');
+            } else if (state === 'error') {
+                connectBtn.textContent = '🔌 Retry';
+                connectBtn.disabled = false;
+                connectBtn.classList.remove('btn-secondary');
+                connectBtn.classList.add('btn-primary');
+            } else {
+                // Default state (not connected)
+                connectBtn.textContent = '🔌 Connect';
+                connectBtn.disabled = false;
+                connectBtn.classList.remove('btn-secondary');
+                connectBtn.classList.add('btn-primary');
+            }
+        }
+        
+        // Handle verify authentication button
+        async function handleVerifyAuth() {
+            if (!userPubkey) {
+                showError('Please connect to NOSTR first.', 'Not Connected');
+                return;
+            }
+            
+            try {
+                await updateAuthStatus('🔄 Authenticating for upload...', 'connecting');
+                
+                // Force NIP-42 authentication
+                console.log('🔐 Forcing NIP-42 authentication for uDRIVE upload...');
+                if (typeof sendNIP42Auth === 'function') {
+                    await sendNIP42Auth(nostrRelay?.url || 'wss://astroport.com', true);
+                } else if (typeof connectNostr === 'function') {
+                    await connectNostr(true); // Re-connect with force auth
+                }
+                
+                // Wait for processing
+                await new Promise(resolve => setTimeout(resolve, 2500));
+                
+                // Verify again
+                const isAuthenticated = typeof verifyAuthenticationWithAPI === 'function' 
+                    ? await verifyAuthenticationWithAPI(userPubkey)
+                    : false;
+                
+                if (isAuthenticated) {
+                    await updateAuthStatus('✅ Authenticated for upload', 'authenticated');
+                    showSuccess(
+                        'NIP-42 authentication successful! You can now upload to uDRIVE.',
+                        'Authenticated! 🎉'
+                    );
+                } else {
+                    throw new Error('Authentication verification failed. You may not have a MULTIPASS account on this relay.');
+                }
+                
+            } catch (error) {
+                console.error('❌ Verification error:', error);
+                await updateAuthStatus('✅ Connected', 'connected');
+                showError(
+                    error.message || 'Verification failed. The upload function will automatically retry authentication if needed.',
+                    'Info'
+                );
+            }
+        }
+
+        // Fetch user email from NOSTR DID document
+        async function fetchUserEmail() {
+            if (!userPubkey) return;
+            
+            try {
+                // Use fetchUserEmailWithFallback from common.js if available
+                if (typeof fetchUserEmailWithFallback === 'function') {
+                    userEmail = await fetchUserEmailWithFallback(userPubkey);
+                } else {
+                    // Fallback: try to get from window if available
+                    if (typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
+                        userEmail = await window.fetchUserEmailWithFallback(userPubkey);
+                    } else {
+                        console.warn('⚠️ fetchUserEmailWithFallback not available, using pubkey');
+                        userEmail = null;
+                    }
+                }
+                
+                if (userEmail === userPubkey) {
+                    userEmail = null;
+                }
+                
+                const playerField = document.getElementById('player');
+                if (playerField) {
+                    playerField.value = userEmail || userPubkey;
+                }
+            } catch (error) {
+                console.error('Error fetching user email:', error);
+                userEmail = null;
+                const playerField = document.getElementById('player');
+                if (playerField) {
+                    playerField.value = userPubkey;
+                }
+            }
+        }
+
+
+        // Check if audio mode is requested (supports both ?audio=1 and ?type=mp3)
+        const urlParams = new URLSearchParams(window.location.search);
+        const isAudioMode = urlParams.get('audio') === '1' || urlParams.get('type') === 'mp3';
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if we're in standalone mode (not in iframe)
+            const isInIframe = window.self !== window.top;
+            const isStandalone = !isInIframe || window.location.search.includes('standalone=1');
+            
+            console.log('🚀 Initializing webcam page...');
+            console.log('📍 Mode:', isStandalone ? 'Standalone' : 'Iframe');
+            console.log('🎵 Audio mode:', isAudioMode ? 'Enabled' : 'Disabled');
+            
+            // Adapt UI for audio mode
+            if (isAudioMode) {
+                adaptUIForAudioMode();
+                // Also call after a short delay to ensure all elements are loaded
+                setTimeout(() => {
+                    adaptUIForAudioMode();
+                }, 100);
+            }
+            
+            // Initialize connection variables from parent if in iframe
+            initializeConnectionVars();
+            
+            // Auto-connect with nsec if provided
+            if (AUTO_CONNECT_NSEC && AUTO_CONNECT_NSEC !== null && AUTO_CONNECT_NSEC.trim() !== '') {
+                const nsecRadio = document.getElementById('auth-nsec');
+                const nsecInput = document.getElementById('nsec-key');
+                const nsecContainer = document.getElementById('nsec-input-container');
+                
+                if (nsecRadio && nsecInput && nsecContainer) {
+                    nsecRadio.checked = true;
+                    nsecContainer.classList.add('visible');
+                    authMode = 'nsec';
+                    nsecInput.value = AUTO_CONNECT_NSEC;
+                    
+                    setTimeout(() => {
+                        handleNostrConnect();
+                    }, 700);
+                }
+            }
+            
+            // Handle auth mode change
+            const authRadios = document.querySelectorAll('input[name="auth-mode"]');
+            authRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    authMode = this.value;
+                    const nsecContainer = document.getElementById('nsec-input-container');
+                    if (authMode === 'nsec') {
+                        nsecContainer.classList.add('visible');
+                    } else {
+                        nsecContainer.classList.remove('visible');
+                    }
+                });
+            });
+            
+            // Handle audio file upload
+            const audioUpload = document.getElementById('audio-upload');
+            if (audioUpload) {
+                audioUpload.addEventListener('change', handleAudioUpload);
+            }
+            
+            // Initialize webcam features (always initialize, even if hidden)
+            initWebcamFeatures();
+            
+            // If in standalone mode and no connection detected after a short delay, show connection prompt
+            if (isStandalone) {
+                setTimeout(() => {
+                    // Check if we have a connection
+                    if (!userPubkey && !window.userPubkey) {
+                        console.log('⚠️ No connection detected in standalone mode - showing connection prompt');
+                        showConnectionPrompt();
+                    } else {
+                        console.log('✅ Connection detected, showing webcam interface');
+                        onConnectionSuccess();
+                    }
+                }, 1500);
+            }
+        });
+        
+        // Bootstrap modal event listeners
+        const videoModalElement = document.getElementById('video-modal');
+        if (videoModalElement) {
+            // Initialize map when modal is fully shown
+            videoModalElement.addEventListener('shown.bs.modal', function () {
+                // Initialize modal map after modal is completely shown
+                setTimeout(() => {
+                    initializeModalMap();
+                    // Call invalidateSize multiple times to ensure proper rendering
+                    if (modalMap) {
+                        setTimeout(() => {
+                            modalMap.invalidateSize();
+                        }, 50);
+                        setTimeout(() => {
+                            modalMap.invalidateSize();
+                        }, 200);
+                    }
+                }, 100);
+            });
+            
+            // Clean up when modal is closed
+            videoModalElement.addEventListener('hidden.bs.modal', function () {
+                // Clean up when modal is closed
+                const videoPreview = document.getElementById('modal-video-preview');
+                const audioPreview = document.getElementById('modal-audio-preview');
+                if (videoPreview) {
+                    videoPreview.src = '';
+                }
+                if (audioPreview) {
+                    audioPreview.src = '';
+                }
+                // Remove map when modal is closed
+                if (modalMap) {
+                    modalMap.remove();
+                    modalMap = null;
+                    modalMarker = null;
+                }
+            });
+        }
+    </script>
+</body>
+</html>

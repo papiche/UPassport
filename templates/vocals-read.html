@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>🎧 Voice Messages Reader - Decrypt & Play</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    
+    <!-- Nostr integration -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+
+    <!-- Common.js with enhanced UPlanet NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Roboto', 'Arial', sans-serif;
+            background: #0f0f0f;
+            color: #ffffff;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        
+        .header {
+            background: #212121;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #3f3f3f;
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 1.3em;
+            font-weight: 400;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+        
+        .voice-message-card {
+            background: #181818;
+            border: 1px solid #3f3f3f;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .voice-message-card:hover {
+            border-color: #065fd4;
+            box-shadow: 0 4px 12px rgba(6, 95, 212, 0.2);
+        }
+        
+        .voice-message-card.encrypted {
+            border-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.05);
+        }
+        
+        .voice-message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .voice-message-info {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .voice-message-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 0.5rem;
+        }
+        
+        .voice-message-meta {
+            font-size: 0.85em;
+            color: #94a3b8;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .voice-message-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .encryption-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid #f59e0b;
+            border-radius: 4px;
+            font-size: 0.75em;
+            color: #fbbf24;
+        }
+        
+        .audio-player-container {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+        }
+        
+        .audio-player {
+            width: 100%;
+            height: 60px;
+        }
+        
+        .waveform-container {
+            height: 80px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            margin: 1rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+            font-size: 0.85em;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #065fd4;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            color: #ef4444;
+            padding: 0.5rem;
+            background: rgba(239, 68, 68, 0.1);
+            border-radius: 4px;
+            margin: 0.5rem 0;
+        }
+        
+        .decrypt-button {
+            background: #f59e0b;
+            color: #000;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .decrypt-button:hover {
+            background: #fbbf24;
+            transform: translateY(-1px);
+        }
+        
+        .decrypt-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .filters-section {
+            background: #181818;
+            border: 1px solid #3f3f3f;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .filters-section h3 {
+            font-size: 1.1em;
+            margin-bottom: 1rem;
+            color: #ffffff;
+        }
+        
+        .filter-group {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .filter-group label {
+            font-size: 0.9em;
+            color: #e2e8f0;
+        }
+        
+        .filter-group select,
+        .filter-group input {
+            padding: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #3f3f3f;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 0.9em;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #94a3b8;
+        }
+        
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 1rem;
+        }
+        
+        @media (max-width: 767.98px) {
+            .main-container {
+                padding: 1rem;
+            }
+            
+            .voice-message-card {
+                padding: 1rem;
+            }
+            
+            .voice-message-header {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body class="bg-dark text-white">
+    <!-- Header -->
+    <header class="header bg-dark border-bottom border-secondary sticky-top">
+        <div class="container-fluid">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 py-2">
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <h1 class="mb-0">🎧 Voice Messages Reader</h1>
+                </div>
+                
+                <!-- NOSTR Connection Status -->
+                <div class="d-flex align-items-center gap-2 flex-wrap" id="nostr-header">
+                    <button id="connect-btn" class="btn btn-primary btn-sm" onclick="handleNostrConnect()">
+                        🔌 Connect
+                    </button>
+                    <span id="connection-status" class="text-secondary small d-none">Connected</span>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main Container -->
+    <main class="main-container">
+        <!-- Filters Section -->
+        <div class="filters-section">
+            <h3>🔍 Filters</h3>
+            <div class="filter-group">
+                <label for="filter-type">Type:</label>
+                <select id="filter-type" class="form-select form-select-sm bg-dark text-white border-secondary">
+                    <option value="all">All Messages</option>
+                    <option value="public">Public Only</option>
+                    <option value="encrypted">Encrypted Only</option>
+                    <option value="sent">Sent by Me</option>
+                    <option value="received">Received by Me</option>
+                </select>
+                
+                <label for="filter-since">Since:</label>
+                <select id="filter-since" class="form-select form-select-sm bg-dark text-white border-secondary">
+                    <option value="1h">Last Hour</option>
+                    <option value="24h" selected>Last 24 Hours</option>
+                    <option value="7d">Last 7 Days</option>
+                    <option value="30d">Last 30 Days</option>
+                    <option value="all">All Time</option>
+                </select>
+                
+                <button id="refresh-btn" class="btn btn-primary btn-sm" onclick="loadVoiceMessages()">
+                    🔄 Refresh
+                </button>
+            </div>
+        </div>
+        
+        <!-- Voice Messages List -->
+        <div id="voice-messages-container">
+            <div class="empty-state">
+                <div class="empty-state-icon">🎤</div>
+                <p>Connect to NOSTR to load voice messages</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Global variables
+        let userPubkey = null;
+        let userPrivateKey = null;
+        let nostrPool = null;
+        let isNostrConnected = false;
+        let nostrRelay = null;
+        
+        // Default relays
+        const DEFAULT_RELAYS = ['wss://astroport.com', 'wss://relay.damus.io', 'wss://nos.lol'];
+        
+        // Voice messages cache
+        let voiceMessagesCache = [];
+        
+        // Connect to NOSTR
+        async function handleNostrConnect() {
+            try {
+                const connectBtn = document.getElementById('connect-btn');
+                connectBtn.disabled = true;
+                connectBtn.textContent = '🔄 Connecting...';
+                
+                // Check if window.nostr is available
+                if (typeof window.nostr === 'undefined' || !window.nostr) {
+                    throw new Error('NOSTR extension not detected. Please install a NOSTR extension like Alby, nos2x, or Flamingo.');
+                }
+                
+                // Get public key
+                userPubkey = await window.nostr.getPublicKey();
+                if (!userPubkey) {
+                    throw new Error('No public key returned from NOSTR extension');
+                }
+                
+                console.log('✅ Connected to NOSTR, pubkey:', userPubkey.substring(0, 8) + '...');
+                
+                // Initialize NOSTR pool
+                if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                    nostrPool = new NostrTools.SimplePool();
+                } else {
+                    throw new Error('NostrTools.SimplePool not available');
+                }
+                
+                isNostrConnected = true;
+                
+                // Update UI
+                connectBtn.textContent = '✅ Connected';
+                connectBtn.disabled = true;
+                connectBtn.classList.remove('btn-primary');
+                connectBtn.classList.add('btn-secondary');
+                
+                const statusEl = document.getElementById('connection-status');
+                if (statusEl) {
+                    statusEl.textContent = `Connected: ${userPubkey.substring(0, 8)}...`;
+                    statusEl.classList.remove('d-none');
+                }
+                
+                // Load voice messages
+                await loadVoiceMessages();
+                
+            } catch (error) {
+                console.error('❌ Connection error:', error);
+                const connectBtn = document.getElementById('connect-btn');
+                connectBtn.disabled = false;
+                connectBtn.textContent = '🔌 Retry';
+                alert(`Connection failed: ${error.message}`);
+            }
+        }
+        
+        // Load voice messages from NOSTR
+        async function loadVoiceMessages() {
+            if (!userPubkey || !nostrPool) {
+                console.warn('⚠️ Not connected to NOSTR');
+                return;
+            }
+            
+            const container = document.getElementById('voice-messages-container');
+            const refreshBtn = document.getElementById('refresh-btn');
+            
+            try {
+                refreshBtn.disabled = true;
+                refreshBtn.innerHTML = '<span class="loading-spinner"></span> Loading...';
+                container.innerHTML = '<div class="text-center p-4"><div class="loading-spinner"></div><p class="mt-2">Loading voice messages...</p></div>';
+                
+                // Get filter values
+                const filterType = document.getElementById('filter-type').value;
+                const filterSince = document.getElementById('filter-since').value;
+                
+                // Calculate since timestamp
+                let since = 0;
+                const now = Math.floor(Date.now() / 1000);
+                switch (filterSince) {
+                    case '1h':
+                        since = now - 3600;
+                        break;
+                    case '24h':
+                        since = now - 86400;
+                        break;
+                    case '7d':
+                        since = now - 604800;
+                        break;
+                    case '30d':
+                        since = now - 2592000;
+                        break;
+                    case 'all':
+                        since = 0;
+                        break;
+                }
+                
+                // Build filter
+                const filter = {
+                    kinds: [1222, 1244], // Voice message kinds
+                    since: since,
+                    limit: 100
+                };
+                
+                // Adjust filter based on type
+                if (filterType === 'sent') {
+                    filter.authors = [userPubkey];
+                } else if (filterType === 'received') {
+                    // For received, we need to check p tags
+                    // This is handled in post-processing
+                }
+                
+                console.log('📡 Fetching voice messages with filter:', filter);
+                
+                // Fetch events from relays
+                const events = await nostrPool.list(DEFAULT_RELAYS, [filter]);
+                
+                console.log(`✅ Fetched ${events.length} voice message events`);
+                
+                // Process events
+                const processedMessages = await processVoiceMessageEvents(events, filterType);
+                
+                // Sort by created_at (newest first)
+                processedMessages.sort((a, b) => b.created_at - a.created_at);
+                
+                // Update cache
+                voiceMessagesCache = processedMessages;
+                
+                // Render messages
+                renderVoiceMessages(processedMessages);
+                
+            } catch (error) {
+                console.error('❌ Error loading voice messages:', error);
+                container.innerHTML = `<div class="error-message">Error loading voice messages: ${error.message}</div>`;
+            } finally {
+                refreshBtn.disabled = false;
+                refreshBtn.innerHTML = '🔄 Refresh';
+            }
+        }
+        
+        // Process voice message events
+        async function processVoiceMessageEvents(events, filterType) {
+            const processed = [];
+            
+            for (const event of events) {
+                try {
+                    // Check if encrypted
+                    const isEncrypted = event.tags.some(tag => tag[0] === 'encrypted' && tag[1] === 'true');
+                    const encryptionMethod = event.tags.find(tag => tag[0] === 'encryption')?.[1] || 'nip44';
+                    
+                    // Check if received (for filterType === 'received')
+                    if (filterType === 'received') {
+                        const recipientTags = event.tags.filter(tag => tag[0] === 'p');
+                        const isRecipient = recipientTags.some(tag => {
+                            // Convert npub to hex for comparison
+                            try {
+                                const hexPubkey = npubToHex(tag[1]);
+                                return hexPubkey && hexPubkey.toLowerCase() === userPubkey.toLowerCase();
+                            } catch (e) {
+                                return false;
+                            }
+                        });
+                        
+                        if (!isRecipient && event.pubkey !== userPubkey) {
+                            continue; // Skip if not a recipient and not sent by user
+                        }
+                    }
+                    
+                    // Check if public (for filterType === 'public')
+                    if (filterType === 'public' && isEncrypted) {
+                        continue; // Skip encrypted messages
+                    }
+                    
+                    // Check if encrypted (for filterType === 'encrypted')
+                    if (filterType === 'encrypted' && !isEncrypted) {
+                        continue; // Skip public messages
+                    }
+                    
+                    // Parse imeta tags for metadata
+                    const imetaTags = event.tags.filter(tag => tag[0] === 'imeta');
+                    let metadata = {};
+                    imetaTags.forEach(tag => {
+                        if (tag.length > 1) {
+                            const imetaContent = tag.slice(1).join(' ');
+                            // Parse imeta format: "url https://... duration 45 waveform ... title ... description ..."
+                            const parts = imetaContent.split(/\s+/);
+                            for (let i = 0; i < parts.length; i += 2) {
+                                if (i + 1 < parts.length) {
+                                    const key = parts[i];
+                                    let value = parts[i + 1];
+                                    // Handle multi-word values (e.g., descriptions with spaces)
+                                    if (key === 'description' || key === 'title') {
+                                        // Collect remaining parts for description/title
+                                        value = parts.slice(i + 1).join(' ');
+                                        i = parts.length; // Skip remaining iterations
+                                    }
+                                    if (key === 'duration') {
+                                        metadata.duration = parseFloat(value);
+                                    } else if (key === 'waveform') {
+                                        metadata.waveform = value;
+                                    } else if (key === 'url') {
+                                        metadata.url = value;
+                                    } else if (key === 'title') {
+                                        metadata.title = value;
+                                    } else if (key === 'description') {
+                                        metadata.description = value;
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Also check for title and description in separate tags (if present)
+                    const titleTag = event.tags.find(tag => tag[0] === 'title');
+                    if (titleTag && titleTag[1]) {
+                        metadata.title = titleTag[1];
+                    }
+                    const descriptionTag = event.tags.find(tag => tag[0] === 'description');
+                    if (descriptionTag && descriptionTag[1]) {
+                        metadata.description = descriptionTag[1];
+                    }
+                    
+                    // Get sender profile
+                    let senderProfile = null;
+                    try {
+                        const profileEvents = await nostrPool.list(DEFAULT_RELAYS, [
+                            { kinds: [0], authors: [event.pubkey], limit: 1 }
+                        ]);
+                        if (profileEvents.length > 0) {
+                            senderProfile = JSON.parse(profileEvents[0].content);
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ Could not fetch sender profile:', e);
+                    }
+                    
+                    processed.push({
+                        event: event,
+                        id: event.id,
+                        pubkey: event.pubkey,
+                        created_at: event.created_at,
+                        content: event.content,
+                        isEncrypted: isEncrypted,
+                        encryptionMethod: encryptionMethod,
+                        metadata: metadata,
+                        senderProfile: senderProfile,
+                        tags: event.tags
+                    });
+                    
+                } catch (error) {
+                    console.error('❌ Error processing event:', error);
+                }
+            }
+            
+            return processed;
+        }
+        
+        // Render voice messages
+        function renderVoiceMessages(messages) {
+            const container = document.getElementById('voice-messages-container');
+            
+            if (messages.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎤</div>
+                        <p>No voice messages found</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = messages.map(msg => {
+                const date = new Date(msg.created_at * 1000);
+                const dateStr = date.toLocaleString();
+                const senderName = msg.senderProfile?.name || msg.senderProfile?.display_name || msg.pubkey.substring(0, 8) + '...';
+                const senderPicture = msg.senderProfile?.picture || '';
+                
+                return `
+                    <div class="voice-message-card ${msg.isEncrypted ? 'encrypted' : ''}" data-event-id="${msg.id}">
+                        <div class="voice-message-header">
+                            <div class="voice-message-info">
+                                <div class="voice-message-title">
+                                    ${msg.metadata.title || 'Voice Message'}
+                                    ${msg.isEncrypted ? '<span class="encryption-badge">🔐 Encrypted</span>' : ''}
+                                </div>
+                                <div class="voice-message-meta">
+                                    <span>👤 ${senderName}</span>
+                                    <span>📅 ${dateStr}</span>
+                                    ${msg.metadata.duration ? `<span>⏱️ ${Math.round(msg.metadata.duration)}s</span>` : ''}
+                                </div>
+                            </div>
+                            <div class="voice-message-actions">
+                                ${msg.isEncrypted ? `
+                                    <button class="decrypt-button" onclick="decryptAndPlayMessage('${msg.id}', this)">
+                                        🔓 Decrypt & Play
+                                    </button>
+                                ` : `
+                                    <button class="btn btn-primary btn-sm" onclick="playMessage('${msg.id}')">
+                                        ▶️ Play
+                                    </button>
+                                `}
+                            </div>
+                        </div>
+                        ${msg.metadata.description ? `<p class="text-secondary small mb-2">${msg.metadata.description}</p>` : ''}
+                        ${msg.isEncrypted ? `
+                            <div id="decrypt-status-${msg.id}" class="d-none"></div>
+                            <div id="audio-container-${msg.id}" class="d-none">
+                                <div class="audio-player-container">
+                                    <audio id="audio-player-${msg.id}" class="audio-player" controls></audio>
+                                </div>
+                            </div>
+                        ` : `
+                            <div class="audio-player-container">
+                                <audio id="audio-player-${msg.id}" class="audio-player" controls src="${msg.content}"></audio>
+                            </div>
+                        `}
+                        ${msg.metadata.waveform ? `
+                            <div class="waveform-container" id="waveform-${msg.id}">
+                                Waveform visualization (${msg.metadata.waveform.split(' ').length} points)
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Play public message
+        function playMessage(messageId) {
+            const audioPlayer = document.getElementById(`audio-player-${messageId}`);
+            if (audioPlayer) {
+                audioPlayer.play();
+            }
+        }
+        
+        // Decrypt and play encrypted message
+        async function decryptAndPlayMessage(messageId, buttonElement) {
+            const message = voiceMessagesCache.find(msg => msg.id === messageId);
+            if (!message || !message.isEncrypted) {
+                console.error('Message not found or not encrypted');
+                return;
+            }
+            
+            const decryptBtn = buttonElement || document.querySelector(`[data-event-id="${messageId}"] .decrypt-button`);
+            const statusDiv = document.getElementById(`decrypt-status-${messageId}`);
+            const audioContainer = document.getElementById(`audio-container-${messageId}`);
+            
+            try {
+                decryptBtn.disabled = true;
+                decryptBtn.textContent = '🔓 Decrypting...';
+                statusDiv.classList.remove('d-none');
+                statusDiv.innerHTML = '<div class="loading-spinner"></div> Decrypting message...';
+                
+                // Check if window.nostr is available
+                if (typeof window.nostr === 'undefined' || !window.nostr) {
+                    throw new Error('NOSTR extension not available');
+                }
+                
+                // Decrypt content
+                let decryptedContent = null;
+                if (message.encryptionMethod === 'nip44' && window.nostr.nip44) {
+                    decryptedContent = await window.nostr.nip44.decrypt(message.pubkey, message.content);
+                } else if (message.encryptionMethod === 'nip04' && window.nostr.nip04) {
+                    decryptedContent = await window.nostr.nip04.decrypt(message.pubkey, message.content);
+                } else {
+                    throw new Error(`Encryption method ${message.encryptionMethod} not supported`);
+                }
+                
+                // Parse decrypted JSON
+                const decryptedData = JSON.parse(decryptedContent);
+                
+                console.log('✅ Decrypted voice message:', decryptedData);
+                
+                // Update message in cache with decrypted metadata
+                const messageIndex = voiceMessagesCache.findIndex(msg => msg.id === messageId);
+                if (messageIndex !== -1) {
+                    voiceMessagesCache[messageIndex].decryptedMetadata = decryptedData;
+                    if (decryptedData.title) {
+                        voiceMessagesCache[messageIndex].metadata.title = decryptedData.title;
+                    }
+                    if (decryptedData.description) {
+                        voiceMessagesCache[messageIndex].metadata.description = decryptedData.description;
+                    }
+                    if (decryptedData.duration) {
+                        voiceMessagesCache[messageIndex].metadata.duration = decryptedData.duration;
+                    }
+                    if (decryptedData.waveform) {
+                        voiceMessagesCache[messageIndex].metadata.waveform = decryptedData.waveform;
+                    }
+                }
+                
+                // Show audio player with decrypted URL
+                audioContainer.classList.remove('d-none');
+                const audioPlayer = document.getElementById(`audio-player-${messageId}`);
+                if (audioPlayer && decryptedData.url) {
+                    audioPlayer.src = decryptedData.url;
+                    audioPlayer.play();
+                } else {
+                    throw new Error('No audio URL found in decrypted data');
+                }
+                
+                // Update status
+                statusDiv.innerHTML = '<span class="text-success">✅ Decrypted successfully</span>';
+                decryptBtn.textContent = '✅ Decrypted';
+                
+                // Update UI with decrypted metadata
+                const cardEl = document.querySelector(`[data-event-id="${messageId}"]`);
+                if (cardEl) {
+                    // Update title
+                    const titleEl = cardEl.querySelector('.voice-message-title');
+                    if (titleEl && decryptedData.title) {
+                        titleEl.innerHTML = `${decryptedData.title} <span class="encryption-badge">🔐 Decrypted</span>`;
+                    }
+                    
+                    // Update description if present
+                    if (decryptedData.description) {
+                        let descEl = cardEl.querySelector('.voice-message-description');
+                        if (!descEl) {
+                            descEl = document.createElement('p');
+                            descEl.className = 'text-secondary small mb-2 voice-message-description';
+                            const headerEl = cardEl.querySelector('.voice-message-header');
+                            if (headerEl && headerEl.nextSibling) {
+                                headerEl.parentNode.insertBefore(descEl, headerEl.nextSibling);
+                            } else {
+                                headerEl.parentNode.appendChild(descEl);
+                            }
+                        }
+                        descEl.textContent = decryptedData.description;
+                    }
+                    
+                    // Update duration if present
+                    if (decryptedData.duration) {
+                        const metaEl = cardEl.querySelector('.voice-message-meta');
+                        if (metaEl) {
+                            const durationSpan = metaEl.querySelector('span:contains("⏱️")');
+                            if (!durationSpan || !metaEl.textContent.includes('⏱️')) {
+                                const durationSpan = document.createElement('span');
+                                durationSpan.innerHTML = `⏱️ ${Math.round(decryptedData.duration)}s`;
+                                metaEl.appendChild(durationSpan);
+                            }
+                        }
+                    }
+                }
+                
+            } catch (error) {
+                console.error('❌ Decryption error:', error);
+                statusDiv.innerHTML = `<div class="error-message">Decryption failed: ${error.message}</div>`;
+                decryptBtn.disabled = false;
+                decryptBtn.textContent = '🔓 Retry Decrypt';
+            }
+        }
+        
+        // Convert npub to hex (helper function)
+        function npubToHex(npub) {
+            try {
+                if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                    const decoded = NostrTools.nip19.decode(npub);
+                    if (decoded.type === 'npub') {
+                        return decoded.data;
+                    }
+                }
+                return null;
+            } catch (e) {
+                console.warn('⚠️ Error converting npub to hex:', e);
+                return null;
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Initializing voice messages reader...');
+            
+            // Check if already connected (from parent window if in iframe)
+            const isInIframe = window.self !== window.top;
+            if (isInIframe && window.parent && window.parent.userPubkey) {
+                userPubkey = window.parent.userPubkey;
+                if (window.parent.nostrPool) {
+                    nostrPool = window.parent.nostrPool;
+                } else if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                    nostrPool = new NostrTools.SimplePool();
+                }
+                isNostrConnected = true;
+                
+                const connectBtn = document.getElementById('connect-btn');
+                connectBtn.textContent = '✅ Connected';
+                connectBtn.disabled = true;
+                connectBtn.classList.remove('btn-primary');
+                connectBtn.classList.add('btn-secondary');
+                
+                loadVoiceMessages();
+            }
+        });
+    </script>
+</body>
+</html>
+

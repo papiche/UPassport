@@ -5,19 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎵 Nostrify - NOSTR Music Library</title>
     <!-- Nostr integration -->
+    {% if use_local_js %}
+    <script src="/earth/nostr.bundle.js"></script>
+    <script src="/earth/common.js"></script>
+    <script src="/earth/nostrify.enhancements.js"></script>
+    <link rel="stylesheet" href="/earth/nostrify.enhancements.css" />
+    <link href="/earth/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/earth/fonts/bootstrap-icons.css">
+    <script src="/earth/bootstrap.bundle.min.js"></script>
+    {% else %}
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
-    <!-- Common.js with NOSTR functions -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
-    <!-- Nostrify enhancements -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostrify.enhancements.js"></script>
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/nostrify.enhancements.css" />
-    
-    <!-- Bootstrap 5 CSS -->
     <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
-    <!-- Bootstrap 5 JS Bundle -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    {% endif %}
     
     <style>
         * {
@@ -2149,11 +2153,69 @@
             <div class="modal-content bg-dark" style="background: #000000 !important;">
                 <!-- Modal content will be loaded dynamically from /mp3-modal template -->
                 <div class="modal-body p-0" style="padding: 0 !important;">
-                    <!-- Content injected by openMP3Modal() -->
+                    <iframe id="mp3ModalIframe" src="" style="width: 100%; height: 100vh; border: none; background: #000000;"></iframe>
                 </div>
             </div>
         </div>
     </div>
+    
+    <script>
+        /**
+         * Open MP3 modal with track data
+         * This function loads mp3-modal.html in an iframe
+         */
+        function openMP3Modal(trackData) {
+            console.log('🎵 openMP3Modal called with:', trackData);
+            
+            const modal = document.getElementById('mp3Modal');
+            const iframe = document.getElementById('mp3ModalIframe');
+            
+            if (!modal || !iframe) {
+                console.error('❌ MP3 modal elements not found');
+                // Fallback: open in new window
+                if (trackData.eventId) {
+                    window.open(`/mp3-modal?track=${trackData.eventId}`, '_blank');
+                }
+                return;
+            }
+            
+            // Build URL with track data
+            const params = new URLSearchParams();
+            if (trackData.eventId) {
+                params.set('track', trackData.eventId);
+            }
+            
+            // Load mp3-modal.html in iframe
+            iframe.src = `/mp3-modal?${params.toString()}`;
+            
+            // Show Bootstrap modal
+            const bsModal = new bootstrap.Modal(modal, {
+                backdrop: 'static',
+                keyboard: true
+            });
+            bsModal.show();
+            
+            // Send track data to iframe once it's loaded
+            iframe.onload = function() {
+                console.log('📤 Sending track data to iframe');
+                iframe.contentWindow.postMessage({
+                    type: 'mp3-track-data',
+                    trackData: trackData
+                }, '*');
+            };
+            
+            // Listen for close messages from iframe
+            window.addEventListener('message', function(event) {
+                if (event.data && event.data.type === 'close-mp3-modal') {
+                    console.log('📩 Received close-mp3-modal message');
+                    bsModal.hide();
+                }
+            });
+        }
+        
+        // Expose globally
+        window.openMP3Modal = openMP3Modal;
+    </script>
 </body>
 </html>
 

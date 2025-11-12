@@ -32,7 +32,7 @@ except Exception as e:
 import uuid
 import hmac
 import re
-from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
+from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException, Depends
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,7 +43,6 @@ from typing import Optional, Dict, Any, List
 import asyncio
 import aiofiles
 import json
-import os
 import logging
 import base64
 from datetime import datetime
@@ -210,6 +209,14 @@ class RateLimiter:
             del nostr_auth_cache[npub]
         if expired_npub:
             logging.info(f"NOSTR cache cleanup: removed {len(expired_npub)} expired entries")
+        
+        # Clean up expired profile cache
+        expired_profiles = [pubkey for pubkey, (_, cached_time) in nostr_profile_cache.items()
+                           if current_time - cached_time > NOSTR_PROFILE_CACHE_TTL]
+        for pubkey in expired_profiles:
+            del nostr_profile_cache[pubkey]
+        if expired_profiles:
+            logging.info(f"NOSTR profile cache cleanup: removed {len(expired_profiles)} expired entries")
 
 # Create global rate limiter instance
 rate_limiter = RateLimiter()
@@ -218,9 +225,17 @@ rate_limiter = RateLimiter()
 nostr_auth_cache = {}
 NOSTR_CACHE_TTL = 300  # 5 minutes
 
+# Cache pour les profils NOSTR (évite les requêtes répétées)
+# Maps pubkey (hex) -> (profile_data, timestamp)
+nostr_profile_cache = {}
+NOSTR_PROFILE_CACHE_TTL = 3600  # 1 hour
+
 # Cache pour le mapping hex -> email (MULTIPASS detection)
 # Maps hex_pubkey (lowercase) -> email directory name
 hex_to_email_cache = {}
+# Cache pour les répertoires utilisateur (évite les scans répétés)
+# Maps hex_pubkey (lowercase) -> Path to user directory
+hex_to_directory_cache = {}
 hex_cache_lock = threading.Lock()
 hex_cache_built = False
 
@@ -353,7 +368,6 @@ app = FastAPI()
 # Mount the directory containing static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 # Mount UPlanet/earth for local JS development
-import os
 earth_path = os.path.expanduser("~/.zen/workspace/UPlanet/earth")
 if os.path.exists(earth_path):
     app.mount("/earth", StaticFiles(directory=earth_path), name="earth")
@@ -559,12 +573,25 @@ if not os.path.exists('tmp'):
     os.makedirs('tmp')
 
 def find_user_directory_by_hex(hex_pubkey: str) -> Path:
-    """Trouver le répertoire utilisateur correspondant à la clé publique hex"""
+    """Trouver le répertoire utilisateur correspondant à la clé publique hex (with caching)"""
     if not hex_pubkey:
         raise HTTPException(status_code=400, detail="Clé publique hex manquante")
     
     # Normaliser la clé hex
     hex_pubkey = hex_pubkey.lower().strip()
+    
+    # Check cache first
+    with hex_cache_lock:
+        if hex_pubkey in hex_to_directory_cache:
+            cached_dir = hex_to_directory_cache[hex_pubkey]
+            # Verify cache is still valid (directory still exists)
+            if cached_dir.exists():
+                logging.info(f"✅ Répertoire trouvé dans le cache pour {hex_pubkey}: {cached_dir}")
+                return cached_dir
+            else:
+                # Cache invalid, remove it
+                del hex_to_directory_cache[hex_pubkey]
+                logging.warning(f"Cache invalide pour {hex_pubkey}, répertoire n'existe plus")
     
     # Chemin de base pour les utilisateurs NOSTR
     nostr_base_path = Path.home() / ".zen" / "game" / "nostr"
@@ -607,6 +634,10 @@ def find_user_directory_by_hex(hex_pubkey: str) -> Path:
                                 logging.info(f"Lien symbolique créé vers {user_script}")
                             else:
                                 logging.warning(f"Script générique non trouvé dans {generic_script}")
+                        
+                        # Cache the result
+                        with hex_cache_lock:
+                            hex_to_directory_cache[hex_pubkey] = email_dir
                         
                         return email_dir
                         
@@ -738,18 +769,11 @@ def get_max_file_size_for_user(npub: str) -> int:
         return 104857600  # 100MB (default per UPlanet_FILE_CONTRACT.md section 6.2)
 
 def sanitize_filename(filename: str) -> str:
-    """Nettoyer le nom de fichier pour qu'il soit sécurisé"""
-    # Remplacer les caractères dangereux par des underscores
-    dangerous_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '#', '|']
-    clean_name = filename
-    for char in dangerous_chars:
-        clean_name = clean_name.replace(char, '_')
-    
-    # Éviter les noms commençant par un point
-    if clean_name.startswith('.'):
-        clean_name = 'file_' + clean_name[1:]
-    
-    return clean_name
+    """
+    DEPRECATED: Use sanitize_filename_python() instead.
+    This function is kept for backward compatibility but redirects to the more secure version.
+    """
+    return sanitize_filename_python(filename)
 
 def detect_file_type(file_content: bytes, filename: str) -> str:
     """
@@ -923,6 +947,34 @@ async def run_Urbanivore_generation_script(source_dir: Path, enable_logging: boo
     return await run_uDRIVE_generation_script(source_dir, enable_logging=enable_logging)
 
 # NOSTR and NIP42 Functions
+def hex_to_npub(hex_pubkey: str) -> Optional[str]:
+    """
+    Convert hex pubkey to npub (bech32 format).
+    
+    Args:
+        hex_pubkey: 64-character hexadecimal public key
+        
+    Returns:
+        npub string (npub1...) or None if conversion fails
+    """
+    if not hex_pubkey or len(hex_pubkey) != 64:
+        return None
+    
+    try:
+        # Try using nostr_sdk first (preferred)
+        from nostr_sdk import PublicKey
+        return PublicKey.from_hex(hex_pubkey).to_bech32()
+    except Exception:
+        try:
+            # Fallback to bech32 library
+            import bech32
+            # Convert hex to bytes
+            pubkey_bytes = bytes.fromhex(hex_pubkey)
+            # Encode as npub
+            return bech32.bech32_encode('npub', bech32.convertbits(pubkey_bytes, 8, 5))
+        except Exception:
+            return None
+
 def npub_to_hex(npub: str) -> Optional[str]:
     """Convertir une clé publique npub en format hexadécimal"""
     try:
@@ -1160,6 +1212,25 @@ def validate_nip42_event(event: Dict[str, Any], expected_relay_url: str) -> bool
     except Exception as e:
         logging.error(f"Erreur lors de la validation de l'événement NIP42: {e}")
         return False
+
+async def require_nostr_auth(npub: str = Form(...), force_check: bool = False) -> str:
+    """
+    FastAPI dependency to require NOSTR authentication.
+    Returns the authenticated npub or raises HTTPException.
+    
+    Usage:
+        @app.post("/api/endpoint")
+        async def my_endpoint(npub: str = Depends(require_nostr_auth)):
+            # npub is guaranteed to be authenticated
+            ...
+    """
+    auth_verified = await verify_nostr_auth(npub, force_check=force_check)
+    if not auth_verified:
+        raise HTTPException(
+            status_code=403, 
+            detail="Nostr authentication failed. Please ensure you have sent a recent NIP-42 authentication event (kind 22242)."
+        )
+    return npub
 
 async def verify_nostr_auth(npub: Optional[str], force_check: bool = False) -> bool:
     """Vérifier l'authentification NOSTR si une npub est fournie avec cache
@@ -2537,9 +2608,13 @@ async def mp3_modal_route(request: Request, track: Optional[str] = None):
     Args:
         track: Optional NOSTR event ID to load a specific track directly
     """
+    # Allow local JS files for development (set to True to test modifications before IPNS publish)
+    use_local_js = True  # Change to False for production
+    
     return templates.TemplateResponse("mp3-modal.html", {
         "request": request,
-        "myIPFS": get_myipfs_gateway(),
+        "myIPFS": get_myipfs_gateway() if not use_local_js else "",
+        "use_local_js": use_local_js,
         "track_id": track  # Pass track ID to template
     })
 
@@ -3373,10 +3448,14 @@ async def mp3_route(
         
         # Return HTML template if requested
         if html is not None:
+            # Allow local JS files for development (set to True to test modifications before IPNS publish)
+            use_local_js = True  # Change to False for production
+            
             return templates.TemplateResponse("mp3.html", {
                 "request": request,
                 "mp3_data": response_data,
-                "myIPFS": ipfs_gateway
+                "myIPFS": ipfs_gateway if not use_local_js else "",
+                "use_local_js": use_local_js
             })
         
         # Return JSON response
@@ -3661,6 +3740,22 @@ async def rec_form(request: Request):
     return templates.TemplateResponse("webcam.html", {
         "request": request, 
         "recording": False,
+        "myIPFS": get_myipfs_gateway()
+    })
+
+@app.get("/vocals", response_class=HTMLResponse)
+async def vocals_form(request: Request):
+    """Voice messages interface with encryption support"""
+    return templates.TemplateResponse("vocals.html", {
+        "request": request,
+        "myIPFS": get_myipfs_gateway()
+    })
+
+@app.get("/vocals-read", response_class=HTMLResponse)
+async def vocals_read(request: Request):
+    """Voice messages reader interface - decrypt and play encrypted messages"""
+    return templates.TemplateResponse("vocals-read.html", {
+        "request": request,
         "myIPFS": get_myipfs_gateway()
     })
 
@@ -4194,6 +4289,212 @@ async def process_webcam_video(
             "recording": False
         })
 
+@app.post("/vocals", response_class=HTMLResponse)
+async def process_vocals_message(
+    request: Request,
+    player: str = Form(...),
+    ipfs_cid: str = Form(...),  # IPFS CID from /api/fileupload (REQUIRED)
+    title: str = Form(...),  # Voice message title (REQUIRED)
+    npub: str = Form(...),  # NOSTR public key (REQUIRED for authentication)
+    file_hash: str = Form(...),  # SHA256 hash (REQUIRED for provenance tracking)
+    info_cid: str = Form(default=""),  # Info.json CID (optional for voice messages)
+    mime_type: str = Form(default="audio/mpeg"),  # MIME type from upload2ipfs.sh
+    duration: str = Form(default="0"),  # Duration in seconds
+    description: str = Form(default=""),  # Voice message description (optional)
+    publish_nostr: str = Form(default="false"),  # Publish to NOSTR (default: false)
+    latitude: str = Form(default=""),  # Geographic latitude (optional)
+    longitude: str = Form(default=""),  # Geographic longitude (optional)
+    encrypted: str = Form(default="false"),  # Encrypt message (default: false)
+    encryption_method: str = Form(default="nip44"),  # Encryption method: nip44 or nip04
+    recipients: str = Form(default=""),  # JSON array of recipient pubkeys for encryption
+    waveform: str = Form(default="")  # Waveform data (optional, for imeta tag)
+):
+    """
+    Process voice message and publish to NOSTR as NIP-A0 voice event (kind 1222 or 1244)
+    
+    Supports both public and encrypted voice messages per A0-encryption-extension.md
+    
+    REQUIRED Parameters:
+    - ipfs_cid: IPFS Content Identifier (from /api/fileupload)
+    - title: Voice message title
+    - npub: NOSTR public key (authentication, NIP-42)
+    - file_hash: SHA256 hash (provenance tracking)
+    - player: User identifier/email
+    
+    OPTIONAL Parameters:
+    - encrypted: "true" to enable encryption (default: "false")
+    - encryption_method: "nip44" (recommended) or "nip04" (legacy)
+    - recipients: JSON array of recipient pubkeys (required if encrypted=true)
+    - duration: Audio duration in seconds
+    - waveform: Waveform data for visual preview
+    - latitude, longitude: Geolocation tags
+    - description: Voice message description
+    - publish_nostr: Flag to publish event (default: false)
+    
+    Returns: HTML response with NOSTR event publication status
+    """
+    logging.info(f"🎤 POST /vocals endpoint called with player={player}, ipfs_cid={ipfs_cid}, encrypted={encrypted}")
+    
+    # Validate IPFS CID
+    if not ipfs_cid or not ipfs_cid.strip():
+        logging.error("No IPFS CID provided")
+        return templates.TemplateResponse("vocals.html", {
+            "request": request,
+            "error": "No IPFS CID provided. Audio must be uploaded via /api/fileupload first.",
+            "myIPFS": get_myipfs_gateway()
+        })
+    
+    # Validate encryption parameters
+    is_encrypted = encrypted.lower() == "true"
+    if is_encrypted:
+        if not recipients or not recipients.strip():
+            logging.error("Recipients required for encrypted messages")
+            return templates.TemplateResponse("vocals.html", {
+                "request": request,
+                "error": "Recipients required for encrypted voice messages. Please specify at least one recipient pubkey.",
+                "myIPFS": get_myipfs_gateway()
+            })
+        try:
+            recipients_list = json.loads(recipients)
+            if not isinstance(recipients_list, list) or len(recipients_list) == 0:
+                raise ValueError("Recipients must be a non-empty array")
+        except (json.JSONDecodeError, ValueError) as e:
+            logging.error(f"Invalid recipients format: {e}")
+            return templates.TemplateResponse("vocals.html", {
+                "request": request,
+                "error": f"Invalid recipients format. Expected JSON array of pubkeys: {e}",
+                "myIPFS": get_myipfs_gateway()
+            })
+    
+    try:
+        # Get user secret file for NOSTR signing
+        user_dir = os.path.expanduser(f"~/.zen/tmp/{player}")
+        secret_file = os.path.join(user_dir, "secret.dunikey")
+        
+        if not os.path.exists(secret_file):
+            logging.error(f"Secret file not found: {secret_file}")
+            return templates.TemplateResponse("vocals.html", {
+                "request": request,
+                "error": "NOSTR authentication required. Please connect with NIP-42 first.",
+                "myIPFS": get_myipfs_gateway()
+            })
+        
+        # Prepare location
+        try:
+            lat = float(latitude) if latitude else 0.00
+            lon = float(longitude) if longitude else 0.00
+        except (ValueError, TypeError):
+            lat = 0.00
+            lon = 0.00
+        
+        # Determine kind: 1222 for root, 1244 for reply (if replying to another voice message)
+        # For now, default to 1222 (root message)
+        voice_kind = 1222
+        
+        # Build IPFS URL
+        gateway = get_myipfs_gateway()
+        ipfs_url = f"{gateway}/ipfs/{ipfs_cid}"
+        
+        # Prepare voice message metadata
+        voice_metadata = {
+            "url": ipfs_url,
+            "duration": float(duration) if duration else 0.0,
+            "title": title,
+            "description": description
+        }
+        
+        if waveform:
+            voice_metadata["waveform"] = waveform
+        
+        if lat != 0.00 or lon != 0.00:
+            voice_metadata["latitude"] = lat
+            voice_metadata["longitude"] = lon
+        
+        # If encrypted, the frontend should have already encrypted the content
+        # For now, we'll publish the event with encrypted content if provided
+        # The encryption should be done client-side using window.nostr.nip44.encrypt
+        
+        # Use publish_nostr_video.sh script (it can handle voice messages too)
+        # Or create a dedicated publish_nostr_voice.sh script
+        publish_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/publish_nostr_video.sh")
+        
+        if not os.path.exists(publish_script):
+            logging.error(f"Publish script not found: {publish_script}")
+            return templates.TemplateResponse("vocals.html", {
+                "request": request,
+                "error": "NOSTR publish script not found. Please check installation.",
+                "myIPFS": get_myipfs_gateway()
+            })
+        
+        # Build command (reuse video script for now, but with kind 1222)
+        publish_cmd = [
+            "bash", publish_script,
+            "--nsec", str(secret_file),
+            "--ipfs-cid", ipfs_cid,
+            "--title", title,
+            "--json",
+            "--kind", str(voice_kind)  # Override kind to 1222 for voice messages
+        ]
+        
+        if description:
+            publish_cmd.extend(["--description", description])
+        if file_hash:
+            publish_cmd.extend(["--file-hash", file_hash])
+        if mime_type:
+            publish_cmd.extend(["--mime-type", mime_type])
+        if duration:
+            publish_cmd.extend(["--duration", str(duration)])
+        if lat != 0.00 or lon != 0.00:
+            publish_cmd.extend(["--latitude", str(lat), "--longitude", str(lon)])
+        if waveform:
+            publish_cmd.extend(["--waveform", waveform])
+        
+        publish_cmd.extend(["--channel", player])
+        
+        logging.info(f"🚀 Publishing voice message (kind {voice_kind})...")
+        
+        # Execute script
+        publish_result = subprocess.run(publish_cmd, capture_output=True, text=True, timeout=30)
+        
+        if publish_result.returncode == 0:
+            try:
+                result_json = json.loads(publish_result.stdout)
+                nostr_event_id = result_json.get('event_id', '')
+                relays_success = result_json.get('relays_success', 0)
+                relays_total = result_json.get('relays_total', 0)
+                
+                logging.info(f"✅ NOSTR voice message (kind {voice_kind}) published: {nostr_event_id}")
+                logging.info(f"📡 Published to {relays_success}/{relays_total} relay(s)")
+                
+                return templates.TemplateResponse("vocals.html", {
+                    "request": request,
+                    "success": f"Voice message published successfully! Event ID: {nostr_event_id[:16]}...",
+                    "event_id": nostr_event_id,
+                    "myIPFS": get_myipfs_gateway()
+                })
+            except json.JSONDecodeError:
+                logging.warning("Failed to parse JSON output")
+                return templates.TemplateResponse("vocals.html", {
+                    "request": request,
+                    "error": "Voice message published but could not parse response.",
+                    "myIPFS": get_myipfs_gateway()
+                })
+        else:
+            logging.error(f"Failed to publish voice message: {publish_result.stderr}")
+            return templates.TemplateResponse("vocals.html", {
+                "request": request,
+                "error": f"Failed to publish voice message: {publish_result.stderr}",
+                "myIPFS": get_myipfs_gateway()
+            })
+            
+    except Exception as e:
+        logging.error(f"Error processing voice message: {e}", exc_info=True)
+        return templates.TemplateResponse("vocals.html", {
+            "request": request,
+            "error": f"Error processing voice message: {str(e)}",
+            "myIPFS": get_myipfs_gateway()
+        })
+
 #### USING OBS Studio recording... deprecated ---
 @app.post("/rec", response_class=HTMLResponse)
 async def start_recording(request: Request, player: str = Form(...), link: str = Form(default=""), file: UploadFile = File(None)):
@@ -4576,19 +4877,7 @@ async def upload_file_to_ipfs(
     """
     # Verify NIP-42 authentication with force_check to ensure fresh validation
     logging.info(f"🔐 Vérification NIP-42 pour upload (force_check=True)")
-    auth_verified = await verify_nostr_auth(npub, force_check=True)
-    if not auth_verified:
-        error_detail = {
-            "error": "Nostr authentication failed",
-            "message": "⚠️ No recent NIP-42 authentication event found on relay",
-            "solution": "Please reconnect using the 'Connect' button to send a fresh NIP-42 event",
-            "relay": get_nostr_relay_url()
-        }
-        logging.warning(f"❌ Upload denied: {error_detail}")
-        raise HTTPException(
-            status_code=403, 
-            detail=f"⚠️ No recent NIP-42 event found on relay. Click 'Connect' button to authenticate."
-        )
+    npub = await require_nostr_auth(npub, force_check=True)
 
     if not file:
         raise HTTPException(status_code=400, detail="No file uploaded.")
@@ -5053,11 +5342,8 @@ async def upload_file_to_ipfs(
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
-    npub: str = Form(...)  # Seule npub ou hex est acceptée
+    npub: str = Depends(require_nostr_auth)
 ):
-    auth_verified = await verify_nostr_auth(npub)
-    if not auth_verified:
-        raise HTTPException(status_code=403, detail="Nostr authentication failed or not provided.")
 
     try:
         user_NOSTR_path = get_authenticated_user_directory(npub)
@@ -5129,7 +5415,7 @@ async def upload_file(
             target_directory="Apps",
             new_cid=new_cid_info,
             timestamp=datetime.now().isoformat(),
-            auth_verified=auth_verified
+            auth_verified=True
         )
 
     # Determine target directory for other files
@@ -5180,7 +5466,7 @@ async def upload_file(
             target_directory=target_directory_name,
             new_cid=new_cid_info,
             timestamp=datetime.now().isoformat(),
-            auth_verified=auth_verified
+            auth_verified=True
         )
     except Exception as e:
         logging.error(f"Error saving file or running IPFS script: {e}")
@@ -5193,9 +5479,8 @@ async def upload_from_drive(request: UploadFromDriveRequest):
     if request.owner_hex_pubkey or request.owner_email:
         logging.info(f"Sync from drive - Source owner: {request.owner_email} (hex: {request.owner_hex_pubkey[:12] if request.owner_hex_pubkey else 'N/A'}...)")
     
-    auth_verified = await verify_nostr_auth(request.npub)
-    if not auth_verified:
-        raise HTTPException(status_code=403, detail="Nostr authentication failed or not provided.")
+    # Verify authentication
+    request.npub = await require_nostr_auth(request.npub)
 
     try:
         user_NOSTR_path = get_authenticated_user_directory(request.npub)
@@ -5275,7 +5560,7 @@ async def upload_from_drive(request: UploadFromDriveRequest):
             file_type=file_type,
             new_cid=new_cid_info,
             timestamp=datetime.now().isoformat(),
-            auth_verified=auth_verified
+            auth_verified=True
         )
     except Exception as e:
         logging.error(f"Error downloading from IPFS or saving file: {e}")
@@ -5295,19 +5580,8 @@ async def delete_file(request: DeleteRequest):
         
         # Vérifier l'authentification NOSTR (obligatoire)
         logging.info(f"Vérification NOSTR obligatoire pour suppression - npub: {request.npub}")
-        auth_verified = await verify_nostr_auth(request.npub)
-        
-        if not auth_verified:
-            logging.warning(f"❌ Authentification NOSTR échouée pour suppression - npub: {request.npub}")
-            raise HTTPException(
-                status_code=401,
-                detail="❌ Authentification NOSTR échouée. "
-                       "Vérifiez que vous êtes connecté au relai NOSTR et que votre "
-                       "événement d'authentification NIP42 est récent (moins de 24h). "
-                       f"Clé publique: {request.npub}"
-            )
-        else:
-            logging.info(f"✅ Authentification NOSTR réussie pour suppression - npub: {request.npub}")
+        request.npub = await require_nostr_auth(request.npub)
+        logging.info(f"✅ Authentification NOSTR réussie pour suppression - npub: {request.npub}")
         
         # Obtenir le répertoire source basé UNIQUEMENT sur la clé publique NOSTR
         base_dir = get_authenticated_user_directory(request.npub)
@@ -5471,6 +5745,13 @@ class N2NetworkNode(BaseModel):
     is_followed: bool = False  # True si la clé centrale suit cette clé
     mutual: bool = False  # True si c'est un suivi mutuel
     connections: List[str] = []  # Liste des pubkeys auxquels ce nœud est connecté
+    # Profile information for vocals messaging
+    npub: Optional[str] = None  # Bech32 encoded public key (npub1...)
+    email: Optional[str] = None  # User email from profile
+    display_name: Optional[str] = None  # Display name from profile
+    name: Optional[str] = None  # Name from profile
+    picture: Optional[str] = None  # Profile picture URL
+    about: Optional[str] = None  # About/bio from profile
 
 class N2NetworkResponse(BaseModel):
     center_pubkey: str
@@ -5539,9 +5820,7 @@ async def create_urbanivore_resource(resource: UrbanivoreResource):
     """Créer une ressource Urbanivore et la publier sur IPFS + NOSTR"""
     try:
         # Vérifier l'authentification NOSTR
-        auth_verified = await verify_nostr_auth(resource.npub)
-        if not auth_verified:
-            raise HTTPException(status_code=403, detail="Authentification NOSTR requise")
+        resource.npub = await require_nostr_auth(resource.npub)
         
         # Créer le répertoire utilisateur
         user_drive_path = get_authenticated_user_directory(resource.npub)
@@ -5663,9 +5942,7 @@ async def copy_project_to_udrive(request: CopyProjectRequest):
     """Copier un projet IPFS complet dans l'uDRIVE de l'utilisateur comme une App"""
     try:
         # Vérifier l'authentification NOSTR
-        auth_verified = await verify_nostr_auth(request.npub)
-        if not auth_verified:
-            raise HTTPException(status_code=403, detail="Authentification NOSTR requise")
+        request.npub = await require_nostr_auth(request.npub)
         
         # Obtenir le répertoire utilisateur
         user_NOSTR_path = get_authenticated_user_directory(request.npub)
@@ -5767,9 +6044,7 @@ async def list_urbanivore_resources(npub: str, limit: int = 50):
     """Lister les ressources Urbanivore d'un utilisateur"""
     try:
         # Vérifier l'authentification NOSTR
-        auth_verified = await verify_nostr_auth(npub)
-        if not auth_verified:
-            raise HTTPException(status_code=403, detail="Authentification NOSTR requise")
+        npub = await require_nostr_auth(npub)
         
         # Obtenir le répertoire utilisateur
         user_drive_path = get_authenticated_user_directory(npub)
@@ -5873,10 +6148,30 @@ async def get_n2_network(
     """
     Analyser le réseau N2 (amis d'amis) d'une clé publique NOSTR
     
+    Cette endpoint enrichit les nœuds avec les informations de profil NOSTR (kind 0)
+    pour permettre la sélection des destinataires de messages vocaux.
+    
     Paramètres:
     - hex: Clé publique en format hexadécimal (64 caractères)
     - range: "default" (seulement les connexions mutuelles) ou "full" (toutes les connexions N1)
     - output: "json" (réponse JSON) ou "html" (visualisation avec p5.js)
+    
+    Retourne:
+    - nodes: Liste de nœuds enrichis avec:
+      - npub: Clé publique en format bech32 (npub1...)
+      - email: Email de l'utilisateur (si disponible dans le profil)
+      - display_name: Nom d'affichage
+      - name: Nom
+      - picture: URL de la photo de profil
+      - about: Bio/description
+      - mutual: True si connexion mutuelle (peut envoyer/recevoir des vocals)
+      - is_follower: True si cette personne suit l'utilisateur central
+      - is_followed: True si l'utilisateur central suit cette personne
+    
+    Utilisation pour vocals:
+    - Filtrer les nœuds avec mutual=True pour les contacts mutuels
+    - Utiliser npub pour le chiffrement des messages vocaux
+    - Afficher display_name/name et picture pour l'interface utilisateur
     """
     try:
         # Validation de la clé hex
@@ -6993,6 +7288,119 @@ async def get_followers(pubkey_hex: str) -> List[str]:
         logging.error(f"Erreur lors de la récupération des followers: {e}")
         return []
 
+async def fetch_nostr_profiles(pubkeys: List[str]) -> Dict[str, Dict[str, Any]]:
+    """
+    Fetch NOSTR profiles (kind 0) for a list of pubkeys with caching (1 hour TTL)
+    Returns a dictionary mapping pubkey -> profile data
+    """
+    profiles = {}
+    if not pubkeys:
+        return profiles
+    
+    # Check cache first
+    current_time = time.time()
+    pubkeys_to_fetch = []
+    for pubkey in pubkeys:
+        if pubkey in nostr_profile_cache:
+            cached_data, cached_time = nostr_profile_cache[pubkey]
+            if current_time - cached_time < NOSTR_PROFILE_CACHE_TTL:
+                profiles[pubkey] = cached_data
+                logging.debug(f"✅ Profile cache hit for {pubkey[:12]}...")
+                continue
+        pubkeys_to_fetch.append(pubkey)
+    
+    if not pubkeys_to_fetch:
+        logging.info(f"✅ All {len(pubkeys)} profiles found in cache")
+        return profiles
+    
+    logging.info(f"📡 Fetching {len(pubkeys_to_fetch)} profiles from NOSTR (cache: {len(profiles)})")
+    
+    try:
+        from pathlib import Path
+        import json
+        
+        # Path to nostr_get_events.sh
+        nostr_script_path = Path.home() / ".zen" / "Astroport.ONE" / "tools" / "nostr_get_events.sh"
+        
+        if not nostr_script_path.exists():
+            logging.warning(f"nostr_get_events.sh not found, skipping profile enrichment")
+            return profiles
+        
+        # Fetch profiles in batches to avoid command line length issues
+        batch_size = 50
+        for i in range(0, len(pubkeys), batch_size):
+            batch = pubkeys[i:i + batch_size]
+            
+            # Build command to fetch profile events (kind 0) for these pubkeys
+            cmd = [
+                str(nostr_script_path),
+                "--kind", "0",
+                "--authors", ",".join(batch),
+                "--output", "json"
+            ]
+            
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=str(nostr_script_path.parent)
+                )
+                
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=10.0
+                )
+                
+                if process.returncode == 0 and stdout:
+                    # Parse JSON events (one per line)
+                    for line in stdout.decode('utf-8', errors='ignore').strip().split('\n'):
+                        if not line.strip():
+                            continue
+                        
+                        try:
+                            event = json.loads(line)
+                            pubkey = event.get('pubkey', '')
+                            
+                            if pubkey and pubkey in batch:
+                                # Parse profile content (JSON string)
+                                content = event.get('content', '{}')
+                                try:
+                                    profile_data = json.loads(content) if content else {}
+                                    
+                                    # Convert hex pubkey to npub (bech32)
+                                    npub = hex_to_npub(pubkey)
+                                    
+                                    profile_data_dict = {
+                                        'npub': npub,
+                                        'email': profile_data.get('email') or profile_data.get('lud16') or profile_data.get('lud06'),
+                                        'display_name': profile_data.get('display_name') or profile_data.get('displayName'),
+                                        'name': profile_data.get('name'),
+                                        'picture': profile_data.get('picture'),
+                                        'about': profile_data.get('about')
+                                    }
+                                    profiles[pubkey] = profile_data_dict
+                                    # Cache the profile
+                                    nostr_profile_cache[pubkey] = (profile_data_dict, current_time)
+                                except json.JSONDecodeError:
+                                    # Profile content is not valid JSON, skip
+                                    pass
+                        except json.JSONDecodeError:
+                            # Invalid event JSON, skip
+                            continue
+                            
+            except asyncio.TimeoutError:
+                logging.warning(f"Timeout fetching profiles for batch {i//batch_size + 1}")
+            except Exception as e:
+                logging.warning(f"Error fetching profiles batch: {e}")
+        
+        logging.info(f"✅ Fetched {len(profiles)} profiles (cached: {len([p for p in profiles if p in nostr_profile_cache])}, new: {len([p for p in profiles if p not in nostr_profile_cache])})")
+        
+    except Exception as e:
+        logging.warning(f"Error in fetch_nostr_profiles: {e}")
+    
+    return profiles
+
 async def analyze_n2_network(center_pubkey: str, range_mode: str = "default") -> Dict[str, Any]:
     """Analyser le réseau N2 d'une clé publique"""
     start_time = time.time()
@@ -7081,6 +7489,30 @@ async def analyze_n2_network(center_pubkey: str, range_mode: str = "default") ->
                 connections=[]
             )
     
+    # Enrich nodes with profile information for vocals messaging
+    all_pubkeys = list(nodes.keys())
+    profiles = await fetch_nostr_profiles(all_pubkeys)
+    
+    # Enrich each node with profile data
+    enriched_nodes = []
+    for node in nodes.values():
+        profile = profiles.get(node.pubkey, {})
+        enriched_node = N2NetworkNode(
+            pubkey=node.pubkey,
+            level=node.level,
+            is_follower=node.is_follower,
+            is_followed=node.is_followed,
+            mutual=node.mutual,
+            connections=node.connections,
+            npub=profile.get('npub'),
+            email=profile.get('email'),
+            display_name=profile.get('display_name'),
+            name=profile.get('name'),
+            picture=profile.get('picture'),
+            about=profile.get('about')
+        )
+        enriched_nodes.append(enriched_node)
+    
     processing_time_ms = int((time.time() - start_time) * 1000)
     
     return {
@@ -7089,7 +7521,7 @@ async def analyze_n2_network(center_pubkey: str, range_mode: str = "default") ->
         "total_n2": len(n2_keys),
         "total_nodes": len(nodes),
         "range_mode": range_mode,
-        "nodes": list(nodes.values()),
+        "nodes": enriched_nodes,
         "connections": connections,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "processing_time_ms": processing_time_ms

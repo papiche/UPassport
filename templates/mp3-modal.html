@@ -6,20 +6,28 @@
     <title>Nostrify Modal - NOSTR Music Mixxxer</title>
     
     <!-- Bootstrap 5 CSS -->
+    {% if use_local_js %}
+    <link href="/static/earth/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/earth/fonts/bootstrap-icons.css">
+    {% else %}
     <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    {% endif %}
         
     <!-- Nostr integration -->
+    {% if use_local_js %}
+    <script src="/static/earth/nostr.bundle.js"></script>
+    <script src="/static/earth/common.js"></script>
+    <script src="/static/earth/nostrify.enhancements.js"></script>
+    <link rel="stylesheet" href="/static/earth/nostrify.enhancements.css" />
+    <script src="/static/earth/bootstrap.bundle.min.js"></script>
+    {% else %}
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
-    <!-- Common.js with NOSTR functions -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
-    <!-- Nostrify enhancements -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostrify.enhancements.js"></script>
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/nostrify.enhancements.css" />
-    
-    <!-- Bootstrap 5 JS Bundle -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    {% endif %}
     <style>
         * {
             box-sizing: border-box;
@@ -269,7 +277,6 @@
         /* Mixxx Mode section */
         .mp3-mixxx-section {
             flex: 1;
-            display: flex;
             flex-direction: column;
             overflow: hidden;
             display: none;
@@ -566,7 +573,6 @@
         /* Related Tracks section */
         .mp3-related-section {
             flex: 1;
-            display: flex;
             flex-direction: column;
             overflow: hidden;
             display: none;
@@ -867,7 +873,7 @@
         <div class="mp3-header d-flex align-items-center justify-content-between px-3 px-md-4 px-lg-5 py-2 gap-2 gap-md-3">
             <h5 class="mb-0 text-truncate flex-grow-1 me-2 me-md-3" id="mp3Title" style="max-width: 60%;">Loading...</h5>
             <div class="d-flex gap-1 gap-sm-2 align-items-center flex-shrink-0">
-                <button class="btn btn-sm btn-outline-secondary" id="mp3CloseBtn" title="Close" onclick="handleCloseMP3Modal()">
+                <button class="btn btn-sm btn-outline-secondary" id="mp3CloseBtn" title="Close">
                     <i class="bi bi-x-lg"></i>
                 </button>
                 <button class="btn btn-sm btn-outline-info d-none" id="mp3FollowBtn" title="Follow">
@@ -1235,11 +1241,14 @@
          * Switch between Comments, Mixxx Mode, and Related Tracks tabs
          */
         function switchMP3Tab(tabName) {
+            console.log('🟢 switchMP3Tab called with:', tabName);
+            
             // Update tab buttons
             document.querySelectorAll('.mp3-tab').forEach(tab => {
                 tab.classList.remove('active');
                 if (tab.getAttribute('data-tab') === tabName) {
                     tab.classList.add('active');
+                    console.log('✅ Activated tab button:', tabName);
                 }
             });
             
@@ -1248,27 +1257,46 @@
             const mixxxSection = document.getElementById('mp3MixxxSection');
             const relatedSection = document.getElementById('mp3RelatedSection');
             
+            console.log('📋 Sections found:', {
+                comments: !!commentsSection,
+                mixxx: !!mixxxSection,
+                related: !!relatedSection
+            });
+            
             if (tabName === 'comments') {
-                if (commentsSection) commentsSection.classList.add('active');
+                if (commentsSection) {
+                    commentsSection.classList.add('active');
+                    console.log('✅ Showing comments section');
+                }
                 if (mixxxSection) mixxxSection.classList.remove('active');
                 if (relatedSection) relatedSection.classList.remove('active');
             } else if (tabName === 'mixxx') {
                 if (commentsSection) commentsSection.classList.remove('active');
-                if (mixxxSection) mixxxSection.classList.add('active');
+                if (mixxxSection) {
+                    mixxxSection.classList.add('active');
+                    console.log('✅ Showing mixxx section');
+                    // Initialize Mixxx mode
+                    if (typeof initializeMixxxMode === 'function') {
+                        initializeMixxxMode();
+                    } else {
+                        console.warn('⚠️ initializeMixxxMode function not available');
+                    }
+                }
                 if (relatedSection) relatedSection.classList.remove('active');
-                
-                // Initialize Mixxx mode
-                initializeMixxxMode();
             } else if (tabName === 'related') {
                 if (commentsSection) commentsSection.classList.remove('active');
                 if (mixxxSection) mixxxSection.classList.remove('active');
-                if (relatedSection) relatedSection.classList.add('active');
-                
-                // Focus search input when switching to related tab
-                const searchInput = document.getElementById('mp3RelatedSearchInput');
-                if (searchInput) {
-                    setTimeout(() => searchInput.focus(), 100);
+                if (relatedSection) {
+                    relatedSection.classList.add('active');
+                    console.log('✅ Showing related section');
+                    // Focus search input when switching to related tab
+                    const searchInput = document.getElementById('mp3RelatedSearchInput');
+                    if (searchInput) {
+                        setTimeout(() => searchInput.focus(), 100);
+                    }
                 }
+            } else {
+                console.warn('⚠️ Unknown tab name:', tabName);
             }
         }
         
@@ -3121,14 +3149,39 @@
             // Attach event listeners to tab buttons
             document.querySelectorAll('.mp3-tab').forEach(tabBtn => {
                 tabBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
                     const tabName = this.getAttribute('data-tab');
+                    console.log('🔵 Tab clicked:', tabName, 'switchMP3Tab available:', typeof switchMP3Tab === 'function');
                     if (tabName && typeof switchMP3Tab === 'function') {
                         switchMP3Tab(tabName);
+                    } else {
+                        console.error('❌ switchMP3Tab function not available or tabName missing');
                     }
                 });
             });
             
             // Attach event listeners to buttons
+            const closeBtn = document.getElementById('mp3CloseBtn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🔴 Close button clicked');
+                    if (typeof handleCloseMP3Modal === 'function') {
+                        handleCloseMP3Modal();
+                    } else {
+                        console.error('❌ handleCloseMP3Modal not available, trying fallback');
+                        // Fallback: try to close via postMessage or direct close
+                        if (window.parent && window.parent !== window) {
+                            window.parent.postMessage({ type: 'close-mp3-modal' }, '*');
+                        } else {
+                            window.close();
+                        }
+                    }
+                });
+            }
+            
             const likeBtn = document.getElementById('mp3LikeBtn');
             if (likeBtn) {
                 likeBtn.addEventListener('click', handleMP3Like);
@@ -3147,6 +3200,12 @@
             const submitCommentBtn = document.getElementById('submitMP3CommentBtn');
             if (submitCommentBtn) {
                 submitCommentBtn.addEventListener('click', submitMP3Comment);
+            }
+            
+            // Check if trackData was passed from parent
+            if (window.mp3ModalTrackData) {
+                console.log('📦 Track data found from parent, initializing modal...');
+                initializeMP3Modal(window.mp3ModalTrackData);
             }
         });
 
@@ -3198,10 +3257,13 @@
         
         // Initialize NOSTR connection on page load
         document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 MP3 Modal DOMContentLoaded');
+            
             await initNostrConnectionStandalone();
             
-            // Initialize modal if trackData is passed
+            // Initialize modal if trackData is passed from parent (via postMessage)
             if (window.trackData) {
+                console.log('📦 Track data found in window.trackData');
                 initializeMP3Modal(window.trackData);
                 return;
             }
@@ -3226,7 +3288,19 @@
                         titleElement.textContent = 'Error loading track';
                     }
                 }
+            } else {
+                console.log('⚠️ No track data or track ID found');
             }
+            
+            // Listen for track data from parent window (if loaded in iframe)
+            window.addEventListener('message', function(event) {
+                if (event.data && event.data.type === 'mp3-track-data') {
+                    console.log('📦 Received track data from parent');
+                    if (event.data.trackData) {
+                        initializeMP3Modal(event.data.trackData);
+                    }
+                }
+            });
         });
         
         // Listen for close messages from parent
