@@ -20,9 +20,45 @@
     <!-- Common.js with enhanced UPlanet NOSTR functions -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     
-    <!-- p5.js for waveform visualization -->
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/p5.min.js"></script>
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/p5.sound.min.js"></script>
+    <!-- p5.js for waveform visualization (optional, loaded dynamically) -->
+    <script>
+        // Load p5.js dynamically only if needed
+        let p5Loaded = false;
+        let p5Loading = false;
+        
+        async function loadP5JS() {
+            if (p5Loaded || p5Loading) return p5Loaded;
+            if (typeof p5 !== 'undefined') {
+                p5Loaded = true;
+                return true;
+            }
+            
+            p5Loading = true;
+            try {
+                // Try to load from CDN as fallback
+                const p5Script = document.createElement('script');
+                p5Script.src = 'https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js';
+                
+                await new Promise((resolve, reject) => {
+                    p5Script.onload = () => {
+                        p5Loaded = true;
+                        p5Loading = false;
+                        resolve();
+                    };
+                    p5Script.onerror = () => {
+                        p5Loading = false;
+                        console.warn('⚠️ Could not load p5.js from CDN');
+                        reject(new Error('Failed to load p5.js'));
+                    };
+                    document.head.appendChild(p5Script);
+                });
+            } catch (e) {
+                p5Loading = false;
+                console.warn('⚠️ Could not load p5.js:', e);
+            }
+            return p5Loaded;
+        }
+    </script>
     
     <style>
         * {
@@ -381,7 +417,7 @@
                     <!-- Chronological View -->
                     <div class="tab-pane fade show active" id="chronological" role="tabpanel">
                         <div class="row g-3 mb-3">
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label for="filter-type" class="form-label small">Type:</label>
                                 <select id="filter-type" class="form-select form-select-sm bg-dark text-white border-secondary">
                                     <option value="all">All Messages</option>
@@ -391,7 +427,7 @@
                                     <option value="received">Received by Me</option>
                                 </select>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label for="filter-since" class="form-label small">Since:</label>
                                 <select id="filter-since" class="form-select form-select-sm bg-dark text-white border-secondary">
                                     <option value="1h">Last Hour</option>
@@ -401,12 +437,21 @@
                                     <option value="all">All Time</option>
                                 </select>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label for="sort-order" class="form-label small">Sort Order:</label>
                                 <select id="sort-order" class="form-select form-select-sm bg-dark text-white border-secondary">
                                     <option value="newest">Newest First</option>
                                     <option value="oldest">Oldest First</option>
                                 </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Waveform Visualization:</label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="waveform-p5-toggle" checked onchange="toggleWaveformP5()">
+                                    <label class="form-check-label small" for="waveform-p5-toggle">
+                                        Enable p5.js visualization
+                                    </label>
+                                </div>
                             </div>
                             <div class="col-md-3 d-flex align-items-end">
                                 <button id="refresh-btn" class="btn btn-primary btn-sm w-100" onclick="loadVoiceMessages()">
@@ -680,6 +725,7 @@
         let currentViewMode = 'chronological'; // chronological, by-author, threads, personal
         let currentPage = 1;
         const messagesPerPage = 20;
+        let waveformP5Enabled = true; // p5.js visualization enabled by default
         
         // Connect to NOSTR (make available globally)
         window.handleNostrConnect = async function handleNostrConnect() {
@@ -1629,11 +1675,56 @@
             renderWaveforms();
         }
         
-        // Render waveforms using p5.js
-        function renderWaveforms() {
+        // Toggle waveform p5.js visualization
+        function toggleWaveformP5() {
+            const toggle = document.getElementById('waveform-p5-toggle');
+            waveformP5Enabled = toggle ? toggle.checked : false;
+            
+            // Re-render all waveforms
+            renderWaveforms();
+        }
+        
+        // Make toggleWaveformP5 available globally
+        window.toggleWaveformP5 = toggleWaveformP5;
+        
+        // Render waveforms using p5.js (optional) or HTML5 canvas fallback
+        async function renderWaveforms() {
             // Find all waveform containers
             const waveformContainers = document.querySelectorAll('.waveform-container[data-waveform]');
             
+            if (waveformContainers.length === 0) return;
+            
+            // Check if p5.js visualization is enabled
+            if (!waveformP5Enabled) {
+                // Simple text fallback
+                waveformContainers.forEach(container => {
+                    const waveformData = container.getAttribute('data-waveform');
+                    if (!waveformData) return;
+                    const waveformPoints = waveformData.split(/\s+/).filter(v => v.trim() !== '');
+                    container.innerHTML = `<span class="text-secondary small">Waveform: ${waveformPoints.length} points</span>`;
+                });
+                return;
+            }
+            
+            // Try to use p5.js
+            let canUseP5 = false;
+            if (typeof p5 !== 'undefined') {
+                canUseP5 = true;
+            } else {
+                // Try to load p5.js
+                canUseP5 = await loadP5JS();
+            }
+            
+            if (!canUseP5 || typeof p5 === 'undefined') {
+                // Fallback to HTML5 canvas
+                console.warn('⚠️ p5.js not available, using HTML5 canvas fallback');
+                waveformContainers.forEach(container => {
+                    renderWaveformCanvas(container);
+                });
+                return;
+            }
+            
+            // Use p5.js for visualization
             waveformContainers.forEach(container => {
                 const waveformData = container.getAttribute('data-waveform');
                 if (!waveformData) return;
@@ -1699,12 +1790,83 @@
                 
                 // Remove existing sketch if any
                 if (window.waveformSketches[waveformId]) {
-                    window.waveformSketches[waveformId].remove();
+                    try {
+                        window.waveformSketches[waveformId].remove();
+                    } catch (e) {
+                        console.warn('Could not remove p5 sketch:', e);
+                    }
                 }
                 
                 // Create new p5 instance
-                window.waveformSketches[waveformId] = new p5(sketch, container);
+                try {
+                    window.waveformSketches[waveformId] = new p5(sketch, container);
+                } catch (e) {
+                    console.error('Error creating p5 sketch:', e);
+                    // Fallback to canvas
+                    renderWaveformCanvas(container);
+                }
             });
+        }
+        
+        // Fallback: Render waveform using HTML5 canvas
+        function renderWaveformCanvas(container) {
+            const waveformData = container.getAttribute('data-waveform');
+            if (!waveformData) return;
+            
+            // Parse waveform data
+            const waveformPoints = waveformData.split(/\s+/).map(v => parseFloat(v)).filter(v => !isNaN(v));
+            
+            if (waveformPoints.length === 0) {
+                container.innerHTML = '<span class="text-secondary small">No waveform data</span>';
+                return;
+            }
+            
+            // Clear container
+            container.innerHTML = '';
+            
+            // Create canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = container.offsetWidth || 800;
+            canvas.height = container.offsetHeight || 80;
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            container.appendChild(canvas);
+            
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            const centerY = height / 2;
+            
+            // Normalize waveform values
+            const maxValue = Math.max(...waveformPoints.map(Math.abs));
+            if (maxValue === 0) return;
+            
+            // Draw waveform
+            ctx.strokeStyle = '#065fd4'; // Blue
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            for (let i = 0; i < waveformPoints.length; i++) {
+                const x = (i / (waveformPoints.length - 1)) * width;
+                const normalizedValue = waveformPoints[i] / maxValue;
+                const y = centerY - (normalizedValue * (height / 2 - 10));
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            
+            ctx.stroke();
+            
+            // Draw center line
+            ctx.strokeStyle = 'rgba(63, 63, 63, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(width, centerY);
+            ctx.stroke();
         }
         
         // Play public message
