@@ -4332,6 +4332,7 @@ async def process_vocals_message(
     file_hash: str = Form(...),  # SHA256 hash (REQUIRED for provenance tracking)
     info_cid: str = Form(default=""),  # Info.json CID (optional for voice messages)
     mime_type: str = Form(default="audio/mpeg"),  # MIME type from upload2ipfs.sh
+    file_name: str = Form(default=""),  # Filename from upload2ipfs.sh (REQUIRED for correct IPFS URL)
     duration: str = Form(default="0"),  # Duration in seconds
     description: str = Form(default=""),  # Voice message description (optional)
     publish_nostr: str = Form(default="false"),  # Publish to NOSTR (default: false)
@@ -4490,11 +4491,20 @@ async def process_vocals_message(
         # Pass the keyfile path directly - publish_nostr_vocal.sh can handle both file paths and direct NSEC keys
         secret_file_str = str(secret_file)
         
+        # Use the actual filename from upload2ipfs.sh if provided, otherwise generate one
+        if file_name and file_name.strip():
+            actual_filename = file_name.strip()
+        else:
+            # Fallback: generate filename from timestamp and mime type
+            extension = mime_type.split('/')[-1] if '/' in mime_type else 'mp3'
+            actual_filename = f"voice_{int(time.time())}.{extension}"
+            logging.warning(f"No filename provided, using generated: {actual_filename}")
+        
         publish_cmd = [
             "bash", publish_script,
             "--nsec", secret_file_str,
             "--ipfs-cid", ipfs_cid,
-            "--filename", f"voice_{int(time.time())}.{mime_type.split('/')[-1] if '/' in mime_type else 'mp3'}",
+            "--filename", actual_filename,
             "--title", title,
             "--json",
             "--kind", str(voice_kind)  # 1222 for root, 1244 for reply

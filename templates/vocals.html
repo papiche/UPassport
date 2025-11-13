@@ -3194,6 +3194,13 @@
                 } else {
                     console.warn('⚠️ No MIME type provided, will use default video/webm');
                 }
+                // Pass fileName from upload2ipfs.sh (REQUIRED for correct IPFS URL)
+                if (uploadResult.fileName) {
+                    formData.append('file_name', uploadResult.fileName);
+                    console.log('✅ Using fileName from upload2ipfs.sh:', uploadResult.fileName);
+                } else {
+                    console.warn('⚠️ No fileName provided from upload2ipfs.sh - backend will generate one');
+                }
                 // Pass upload_chain if provenance detected (for re-uploads)
                 if (uploadResult.provenance && uploadResult.provenance.upload_chain) {
                     formData.append('upload_chain', uploadResult.provenance.upload_chain);
