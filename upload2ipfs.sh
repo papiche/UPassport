@@ -5,7 +5,7 @@
 ######################################################
 ## NIP-96/NIP-94 compatibility
 ## Add https://domain.tld/.well-known/nostr/nip96.json
-## { "api_url": "https://u.domain.tld/upload2ipfs" }
+## { "api_url": "https://u.domain.tld/api/upload2ipfs" }
 ####################################################
 
 MY_PATH="`dirname \"$0\"`"              # relative
@@ -1099,62 +1099,29 @@ if [ -n "$YOUTUBE_METADATA_JSON" ] && command -v jq &> /dev/null; then
         # This is YouTube metadata
         echo "DEBUG: Extracting comprehensive YouTube metadata for info.json..." >&2
         
-        # Extract ALL YouTube metadata fields (preserve complete structure from process_youtube.sh)
-        # Use jq to merge the entire YouTube metadata object into info.json
-        # This preserves all fields: youtube_id, youtube_url, title, description, uploader, channel_info, 
-        # content_info, technical_info, statistics, dates, media_info, playlist_info, thumbnails, etc.
+        # The metadata is already structured by transform_youtube_metadata_to_structured() in 54321.py
+        # It contains: channel_info, content_info, technical_info, statistics, dates, media_info, 
+        # playlist_info, thumbnails, etc. at the root level (not nested in "youtube" section)
         YOUTUBE_FULL_JSON=$(echo "$YOUTUBE_METADATA_JSON" | jq -c '.' 2>/dev/null)
         
         if [[ -n "$YOUTUBE_FULL_JSON" ]] && [[ "$YOUTUBE_FULL_JSON" != "{}" ]]; then
-            # Build YouTube section by including the entire metadata object
-            # This ensures all fields from process_youtube.sh are preserved
-            YOUTUBE_JSON_STR=$(echo "$YOUTUBE_FULL_JSON" | jq -c '.' 2>/dev/null | sed 's/^{//' | sed 's/}$//')
+            # Metadata is structured - place it at root level of info.json
+            # This format is compatible with both enrichTrackWithInfoJson (nostrify.enhancements.js) 
+            # and loadInfoJsonMetadata (youtube.enhancements.js)
+            echo "DEBUG: ✅ YouTube metadata is structured (from transform_youtube_metadata_to_structured)" >&2
             
-            if [[ -n "$YOUTUBE_JSON_STR" ]]; then
+            # Extract structured fields to place at root level
+            YOUTUBE_ROOT_JSON_STR=$(echo "$YOUTUBE_FULL_JSON" | jq -c '.' 2>/dev/null | sed 's/^{//' | sed 's/}$//')
+            
+            if [[ -n "$YOUTUBE_ROOT_JSON_STR" ]]; then
+                # Place structured metadata at root level (not in "youtube" section)
+                # This allows both mp3.html and youtube.html to use the same structure
                 YOUTUBE_SECTION=",
-  \"youtube\": {
-    $YOUTUBE_JSON_STR
-  }"
-                echo "DEBUG: ✅ Comprehensive YouTube metadata section created (includes all process_youtube.sh fields)" >&2
+    $YOUTUBE_ROOT_JSON_STR"
+                echo "DEBUG: ✅ Structured YouTube metadata placed at root level (compatible with mp3.html and youtube.html)" >&2
             fi
         else
-            # Fallback: extract basic fields if full JSON merge fails
-            echo "DEBUG: ⚠️ Full YouTube JSON merge failed, using basic fields..." >&2
-            YT_TITLE=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.title // empty' 2>/dev/null)
-            YT_DESCRIPTION=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.description // empty' 2>/dev/null)
-            YT_UPLOADER=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.uploader // .channel // empty' 2>/dev/null)
-            YT_VIDEO_ID=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.id // .video_id // .youtube_id // empty' 2>/dev/null)
-            YT_WEBPAGE_URL=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.webpage_url // .url // .youtube_url // empty' 2>/dev/null)
-            
-            # Build YouTube section JSON using jq for proper escaping
-            YT_OBJ="{}"
-            if [[ -n "$YT_TITLE" ]]; then
-                YT_OBJ=$(echo "$YT_OBJ" | jq --arg title "$YT_TITLE" '. + {title: $title}' 2>/dev/null || echo "$YT_OBJ")
-            fi
-            if [[ -n "$YT_DESCRIPTION" ]]; then
-                YT_OBJ=$(echo "$YT_OBJ" | jq --arg desc "$YT_DESCRIPTION" '. + {description: $desc}' 2>/dev/null || echo "$YT_OBJ")
-            fi
-            if [[ -n "$YT_UPLOADER" ]]; then
-                YT_OBJ=$(echo "$YT_OBJ" | jq --arg uploader "$YT_UPLOADER" '. + {uploader: $uploader}' 2>/dev/null || echo "$YT_OBJ")
-            fi
-            if [[ -n "$YT_VIDEO_ID" ]]; then
-                YT_OBJ=$(echo "$YT_OBJ" | jq --arg video_id "$YT_VIDEO_ID" '. + {video_id: $video_id}' 2>/dev/null || echo "$YT_OBJ")
-            fi
-            if [[ -n "$YT_WEBPAGE_URL" ]]; then
-                YT_OBJ=$(echo "$YT_OBJ" | jq --arg url "$YT_WEBPAGE_URL" '. + {webpage_url: $url}' 2>/dev/null || echo "$YT_OBJ")
-            fi
-            
-            # Convert to string and format for insertion
-            if [[ "$YT_OBJ" != "{}" ]]; then
-                YT_JSON_STR=$(echo "$YT_OBJ" | jq -c '.' 2>/dev/null | sed 's/^{//' | sed 's/}$//')
-                if [[ -n "$YT_JSON_STR" ]]; then
-                    YOUTUBE_SECTION=",
-  \"youtube\": {
-    $YT_JSON_STR
-  }"
-                    echo "DEBUG: ✅ Basic YouTube metadata section created" >&2
-                fi
-            fi
+            echo "WARNING: Empty or invalid YouTube metadata JSON" >&2
         fi
     fi
 fi

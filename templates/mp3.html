@@ -23,6 +23,13 @@
     <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
     {% endif %}
     
+    <!-- jsmediatags for extracting MP3 metadata (ID3 tags including thumbnails) -->
+    {% if use_local_js %}
+    <script src="/earth/jsmediatags.min.js"></script>
+    {% else %}
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/jsmediatags.min.js"></script>
+    {% endif %}
+    
     <style>
         * {
             box-sizing: border-box;
@@ -1458,18 +1465,18 @@
         /**
          * Render music tracks
          */
-        NostrifyMP3.renderMusicTracks = function() {
+        NostrifyMP3.renderMusicTracks = async function() {
             if (NostrifyMP3.currentViewMode === 'grid') {
-                NostrifyMP3.renderMusicGrid();
+                await NostrifyMP3.renderMusicGrid();
             } else {
-                NostrifyMP3.renderMusicList();
+                await NostrifyMP3.renderMusicList();
             }
         }
         
         /**
          * Render music grid view
          */
-        NostrifyMP3.renderMusicGrid = function() {
+        NostrifyMP3.renderMusicGrid = async function() {
             const grid = document.getElementById('musicGrid');
             const list = document.getElementById('musicList');
             
@@ -1481,46 +1488,23 @@
                 return;
             }
             
-            grid.innerHTML = NostrifyMP3.filteredTracks.map((track, index) => {
-                // Convert thumbnail URL if needed
-                console.log(`🔍 [DEBUG] Track ${index}:`, {
-                    title: track.title,
-                    thumbnail: track.thumbnail,
-                    hasInfoJson: !!track.infoJson,
-                    infoJsonThumbnail: track.infoJson?.thumbnail,
-                    allKeys: Object.keys(track).filter(k => k.includes('thumb') || k.includes('image') || k.includes('art'))
-                });
-                
-                let thumbnailUrl = track.thumbnail || null;
-                
-                // Try to get thumbnail from infoJson if not in track.thumbnail
-                if (!thumbnailUrl && track.infoJson && track.infoJson.thumbnail) {
-                    console.log(`🔍 [DEBUG] Track ${index}: Found thumbnail in infoJson:`, track.infoJson.thumbnail);
-                    thumbnailUrl = track.infoJson.thumbnail;
-                }
-                
-                if (thumbnailUrl) {
-                    console.log(`🔍 [DEBUG] Track ${index}: Original thumbnail URL:`, thumbnailUrl);
-                    if (typeof convertIPFSUrlGlobal === 'function') {
-                        thumbnailUrl = convertIPFSUrlGlobal(thumbnailUrl);
-                        console.log(`🔍 [DEBUG] Track ${index}: Converted via convertIPFSUrlGlobal:`, thumbnailUrl);
-                    } else if (window.IPFS_GATEWAY && thumbnailUrl.includes('/ipfs/')) {
-                        const match = thumbnailUrl.match(/\/ipfs\/[^?"#]+/);
-                        if (match) {
-                            thumbnailUrl = window.IPFS_GATEWAY + match[0];
-                            console.log(`🔍 [DEBUG] Track ${index}: Converted via IPFS_GATEWAY:`, thumbnailUrl);
-                        }
-                    } else {
-                        console.log(`🔍 [DEBUG] Track ${index}: No conversion needed`);
-                    }
+            grid.innerHTML = (await Promise.all(NostrifyMP3.filteredTracks.map(async (track, index) => {
+                // Use unified thumbnail extraction function
+                let thumbnailUrl = null;
+                if (typeof getTrackThumbnail === 'function') {
+                    thumbnailUrl = await getTrackThumbnail(track);
                 } else {
-                    console.warn(`⚠️ [DEBUG] Track ${index}: No thumbnail available`);
+                    // Fallback to simple thumbnail extraction
+                    thumbnailUrl = track.thumbnail || (track.infoJson?.thumbnails?.thumbnail) || (track.infoJson?.thumbnail) || null;
+                    if (thumbnailUrl && typeof convertIPFSUrlGlobal === 'function') {
+                        thumbnailUrl = convertIPFSUrlGlobal(thumbnailUrl);
+                    }
                 }
                 
                 return `
                 <div class="music-card">
                     <div class="music-card-image" onclick="NostrifyMP3.playTrack(${index})">
-                        ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="${NostrifyMP3.escapeHtml(track.title || '')}" onerror="console.error('❌ [DEBUG] Image failed to load for track ${index}:', '${thumbnailUrl}'); this.parentElement.innerHTML='🎵';" onload="console.log('✅ [DEBUG] Image loaded for track ${index}:', '${thumbnailUrl}');">` : '🎵'}
+                        ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="${NostrifyMP3.escapeHtml(track.title || '')}" onerror="this.parentElement.innerHTML='🎵';">` : '🎵'}
                         <button class="music-card-play-button" onclick="event.stopPropagation(); NostrifyMP3.playTrack(${index})" title="Play">
                             <i class="bi bi-play-fill"></i>
                         </button>
@@ -1546,13 +1530,13 @@
                     </div>
                 </div>
             `;
-            }).join('');
+            }))).join('');
         }
         
         /**
          * Render music list view
          */
-        NostrifyMP3.renderMusicList = function() {
+        NostrifyMP3.renderMusicList = async function() {
             const grid = document.getElementById('musicGrid');
             const list = document.getElementById('musicList');
             
@@ -1564,37 +1548,17 @@
                 return;
             }
             
-            list.innerHTML = NostrifyMP3.filteredTracks.map((track, index) => {
-                // Convert thumbnail URL if needed
-                console.log(`🔍 [DEBUG LIST] Track ${index}:`, {
-                    title: track.title,
-                    thumbnail: track.thumbnail,
-                    hasInfoJson: !!track.infoJson,
-                    infoJsonThumbnail: track.infoJson?.thumbnail
-                });
-                
-                let thumbnailUrl = track.thumbnail || null;
-                
-                // Try to get thumbnail from infoJson if not in track.thumbnail
-                if (!thumbnailUrl && track.infoJson && track.infoJson.thumbnail) {
-                    console.log(`🔍 [DEBUG LIST] Track ${index}: Found thumbnail in infoJson:`, track.infoJson.thumbnail);
-                    thumbnailUrl = track.infoJson.thumbnail;
-                }
-                
-                if (thumbnailUrl) {
-                    console.log(`🔍 [DEBUG LIST] Track ${index}: Original thumbnail URL:`, thumbnailUrl);
-                    if (typeof convertIPFSUrlGlobal === 'function') {
-                        thumbnailUrl = convertIPFSUrlGlobal(thumbnailUrl);
-                        console.log(`🔍 [DEBUG LIST] Track ${index}: Converted via convertIPFSUrlGlobal:`, thumbnailUrl);
-                    } else if (window.IPFS_GATEWAY && thumbnailUrl.includes('/ipfs/')) {
-                        const match = thumbnailUrl.match(/\/ipfs\/[^?"#]+/);
-                        if (match) {
-                            thumbnailUrl = window.IPFS_GATEWAY + match[0];
-                            console.log(`🔍 [DEBUG LIST] Track ${index}: Converted via IPFS_GATEWAY:`, thumbnailUrl);
-                        }
-                    }
+            list.innerHTML = (await Promise.all(NostrifyMP3.filteredTracks.map(async (track, index) => {
+                // Use unified thumbnail extraction function
+                let thumbnailUrl = null;
+                if (typeof getTrackThumbnail === 'function') {
+                    thumbnailUrl = await getTrackThumbnail(track);
                 } else {
-                    console.warn(`⚠️ [DEBUG LIST] Track ${index}: No thumbnail available`);
+                    // Fallback to simple thumbnail extraction
+                    thumbnailUrl = track.thumbnail || (track.infoJson?.thumbnails?.thumbnail) || (track.infoJson?.thumbnail) || null;
+                    if (thumbnailUrl && typeof convertIPFSUrlGlobal === 'function') {
+                        thumbnailUrl = convertIPFSUrlGlobal(thumbnailUrl);
+                    }
                 }
                 
                 return `
@@ -1603,7 +1567,7 @@
                     <div class="music-list-play"><i class="bi bi-play-fill"></i></div>
                     <div class="music-list-info">
                         <div class="music-list-image">
-                            ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="${NostrifyMP3.escapeHtml(track.title || '')}" onerror="console.error('❌ [DEBUG LIST] Image failed to load for track ${index}:', '${thumbnailUrl}'); this.parentElement.innerHTML='🎵';" onload="console.log('✅ [DEBUG LIST] Image loaded for track ${index}:', '${thumbnailUrl}');">` : '🎵'}
+                            ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="${NostrifyMP3.escapeHtml(track.title || '')}" onerror="this.parentElement.innerHTML='🎵';">` : '🎵'}
                         </div>
                         <div class="music-list-details">
                             <div class="music-list-title">${NostrifyMP3.escapeHtml(track.title || 'Unknown Title')}</div>
@@ -1640,7 +1604,7 @@
                     </div>
                 </div>
             `;
-            }).join('');
+            }))).join('');
         }
         
         /**

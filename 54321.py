@@ -4904,6 +4904,158 @@ async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
         )
 
 # Upload after NIP-42 NOSTR authentication
+def transform_youtube_metadata_to_structured(flat_metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Transform flat YouTube metadata (from ajouter_media.sh) to structured format
+    expected by enrichTrackWithInfoJson in nostrify.enhancements.js.
+    
+    Args:
+        flat_metadata: Flat YouTube metadata dictionary from yt-dlp .info.json
+        
+    Returns:
+        Structured metadata dictionary with nested objects (channel_info, content_info, etc.)
+    """
+    # Extract channel information
+    channel_name = flat_metadata.get('channel') or flat_metadata.get('uploader', '')
+    channel_info = {
+        'display_name': channel_name,
+        'name': channel_name,
+        'channel_id': flat_metadata.get('channel_id', ''),
+        'channel_url': flat_metadata.get('channel_url', ''),
+        'channel_follower_count': flat_metadata.get('channel_follower_count')
+    }
+    
+    # Extract content information
+    content_info = {
+        'description': flat_metadata.get('description', ''),
+        'language': flat_metadata.get('language', ''),
+        'license': flat_metadata.get('license', ''),
+        'tags': flat_metadata.get('tags', []),
+        'categories': flat_metadata.get('categories', [])
+    }
+    
+    # Extract technical information
+    technical_info = {
+        'abr': flat_metadata.get('abr', 0),
+        'acodec': flat_metadata.get('acodec', ''),
+        'format_note': flat_metadata.get('format_note', ''),
+        'vcodec': flat_metadata.get('vcodec', ''),
+        'vbr': flat_metadata.get('vbr', 0),
+        'tbr': flat_metadata.get('tbr', 0),
+        'resolution': flat_metadata.get('resolution', ''),
+        'fps': flat_metadata.get('fps', 0)
+    }
+    
+    # Extract statistics
+    statistics = {
+        'view_count': flat_metadata.get('view_count', 0),
+        'like_count': flat_metadata.get('like_count', 0),
+        'comment_count': flat_metadata.get('comment_count', 0),
+        'average_rating': flat_metadata.get('average_rating')
+    }
+    
+    # Extract dates
+    dates = {
+        'upload_date': flat_metadata.get('upload_date', ''),
+        'release_date': flat_metadata.get('release_date', ''),
+        'timestamp': flat_metadata.get('timestamp'),
+        'release_timestamp': flat_metadata.get('release_timestamp')
+    }
+    
+    # Extract media information
+    media_info = {
+        'artist': flat_metadata.get('artist', ''),
+        'album': flat_metadata.get('album', ''),
+        'track': flat_metadata.get('track', ''),
+        'creator': flat_metadata.get('creator', '')
+    }
+    
+    # Extract thumbnails
+    thumbnails = {
+        'thumbnail': flat_metadata.get('thumbnail', ''),
+        'thumbnails': flat_metadata.get('thumbnails', [])
+    }
+    
+    # Extract playlist information (if applicable)
+    playlist_info = {}
+    if flat_metadata.get('playlist') or flat_metadata.get('playlist_id'):
+        playlist_info = {
+            'playlist': flat_metadata.get('playlist', ''),
+            'playlist_id': flat_metadata.get('playlist_id', ''),
+            'playlist_title': flat_metadata.get('playlist_title', ''),
+            'playlist_index': flat_metadata.get('playlist_index'),
+            'n_entries': flat_metadata.get('n_entries')
+        }
+    
+    # Extract subtitles information
+    subtitles_info = {
+        'subtitles': flat_metadata.get('subtitles', {}),
+        'automatic_captions': flat_metadata.get('automatic_captions', {})
+    }
+    
+    # Extract live information
+    live_info = {
+        'live_status': flat_metadata.get('live_status', ''),
+        'was_live': flat_metadata.get('was_live', False),
+        'is_live': flat_metadata.get('is_live', False)
+    }
+    
+    # Build structured metadata
+    structured = {
+        # Top-level fields
+        'title': flat_metadata.get('title', ''),
+        'description': flat_metadata.get('description', ''),
+        'duration': flat_metadata.get('duration', 0),
+        'youtube_url': flat_metadata.get('youtube_url', ''),
+        'youtube_short_url': flat_metadata.get('youtube_short_url', ''),
+        'youtube_id': flat_metadata.get('youtube_id', ''),
+        'uploader': flat_metadata.get('uploader', ''),
+        'uploader_id': flat_metadata.get('uploader_id', ''),
+        'uploader_url': flat_metadata.get('uploader_url', ''),
+        
+        # Nested structures
+        'channel_info': channel_info,
+        'content_info': content_info,
+        'technical_info': technical_info,
+        'statistics': statistics,
+        'dates': dates,
+        'media_info': media_info,
+        'thumbnails': thumbnails,
+        'playlist_info': playlist_info if playlist_info else None,
+        'subtitles_info': subtitles_info,
+        'chapters': flat_metadata.get('chapters', []),
+        'live_info': live_info,
+        
+        # Additional fields
+        'age_limit': flat_metadata.get('age_limit'),
+        'availability': flat_metadata.get('availability', ''),
+        'format': flat_metadata.get('format', ''),
+        'format_id': flat_metadata.get('format_id', ''),
+        'ext': flat_metadata.get('ext', ''),
+        'filesize': flat_metadata.get('filesize'),
+        'filesize_approx': flat_metadata.get('filesize_approx'),
+        'location': flat_metadata.get('location'),
+        'license': flat_metadata.get('license', ''),
+        'languages': flat_metadata.get('languages', []),
+        'extractor': flat_metadata.get('extractor', ''),
+        'extractor_key': flat_metadata.get('extractor_key', ''),
+        
+        # Keep full original metadata for reference
+        'youtube_metadata': flat_metadata
+    }
+    
+    # Remove None values from nested structures to keep JSON clean
+    for key in ['playlist_info', 'channel_info', 'content_info', 'technical_info', 
+                'statistics', 'dates', 'media_info', 'thumbnails', 'subtitles_info', 'live_info']:
+        if structured.get(key) is None:
+            del structured[key]
+        elif isinstance(structured.get(key), dict):
+            # Remove None values from nested dicts
+            structured[key] = {k: v for k, v in structured[key].items() if v is not None}
+    
+    return structured
+
+
 @app.post("/api/fileupload", response_model=UploadResponse)
 async def upload_file_to_ipfs(
     file: UploadFile = File(...),
@@ -5198,6 +5350,9 @@ async def upload_file_to_ipfs(
                 youtube_metadata_content = await youtube_metadata.read()
                 youtube_metadata_json = json.loads(youtube_metadata_content.decode('utf-8'))
                 
+                # Transform flat YouTube metadata to structured format expected by enrichTrackWithInfoJson
+                structured_metadata = transform_youtube_metadata_to_structured(youtube_metadata_json)
+                
                 # Create temporary metadata file for upload2ipfs.sh
                 # Use absolute path in tmp directory
                 tmp_dir = os.path.expanduser("~/.zen/tmp")
@@ -5205,12 +5360,17 @@ async def upload_file_to_ipfs(
                 youtube_metadata_file = os.path.join(tmp_dir, f"youtube_metadata_{uuid.uuid4()}.json")
                 
                 async with aiofiles.open(youtube_metadata_file, 'w') as metadata_file:
-                    await metadata_file.write(json.dumps(youtube_metadata_json, indent=2))
+                    await metadata_file.write(json.dumps(structured_metadata, indent=2))
                 
-                logging.info(f"📋 YouTube metadata file created: {youtube_metadata_file}")
-                logging.info(f"   - Video ID: {youtube_metadata_json.get('youtube_id', 'N/A')}")
-                logging.info(f"   - Channel: {youtube_metadata_json.get('channel', youtube_metadata_json.get('uploader', 'N/A'))}")
-                logging.info(f"   - Views: {youtube_metadata_json.get('view_count', 'N/A')}")
+                logging.info(f"📋 YouTube metadata file created (structured): {youtube_metadata_file}")
+                logging.info(f"   - Video ID: {structured_metadata.get('youtube_id', 'N/A')}")
+                channel_name = (structured_metadata.get('channel_info', {}).get('display_name') or 
+                              structured_metadata.get('channel_info', {}).get('name') or
+                              structured_metadata.get('channel', 'N/A'))
+                logging.info(f"   - Channel: {channel_name}")
+                view_count = structured_metadata.get('statistics', {}).get('view_count', 
+                          structured_metadata.get('view_count', 'N/A'))
+                logging.info(f"   - Views: {view_count}")
             except Exception as e:
                 logging.warning(f"⚠️ Failed to process YouTube metadata: {e}")
                 youtube_metadata_file = None
