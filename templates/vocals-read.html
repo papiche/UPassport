@@ -702,9 +702,11 @@
             }
         }
         
-        // Initial sync
+        // Initial sync (with delays to ensure common.js is loaded)
         syncFromCommonJS();
         setTimeout(syncFromCommonJS, 100);
+        setTimeout(syncFromCommonJS, 500);
+        setTimeout(syncFromCommonJS, 1000);
         
         // Note: The code below uses localUserPubkey, localUserPrivateKey, localIsNostrConnected, localNostrRelay
         // These are synced with window scope and common.js variables automatically
@@ -844,12 +846,29 @@
                     // This is handled in post-processing
                 }
                 
-                console.log('📡 Fetching voice messages with filter:', filter);
+                console.log('📡 Fetching voice messages with filter:', JSON.stringify(filter, null, 2));
+                console.log('📡 Using relays:', VOCALS_READ_DEFAULT_RELAYS);
+                console.log('📡 User pubkey:', localUserPubkey ? localUserPubkey.substring(0, 8) + '...' : 'not set');
                 
                 // Fetch events from relays
                 const events = await nostrPool.list(VOCALS_READ_DEFAULT_RELAYS, [filter]);
                 
                 console.log(`✅ Fetched ${events.length} voice message events`);
+                if (events.length > 0) {
+                    console.log('📋 Sample event:', {
+                        id: events[0].id?.substring(0, 16) + '...',
+                        kind: events[0].kind,
+                        pubkey: events[0].pubkey?.substring(0, 8) + '...',
+                        created_at: new Date(events[0].created_at * 1000).toISOString(),
+                        tags_count: events[0].tags?.length || 0
+                    });
+                } else {
+                    console.warn('⚠️ No events found. This could mean:');
+                    console.warn('  1. No messages published yet');
+                    console.warn('  2. Messages published to different relay');
+                    console.warn('  3. Time filter excluding messages');
+                    console.warn('  4. Relay not synced yet (try refreshing)');
+                }
                 
                 // Process events
                 const processedMessages = await processVoiceMessageEvents(events, filterType);
@@ -2564,9 +2583,15 @@
                 }
             });
             
-            // Check if already connected (from parent window if in iframe)
+            // Sync from common.js first to get latest connection state
+            syncFromCommonJS();
+            
+            // Check if already connected (from parent window if in iframe, or from common.js in standalone)
             const isInIframe = window.self !== window.top;
+            let shouldAutoLoad = false;
+            
             if (isInIframe && window.parent && window.parent.userPubkey) {
+                // Iframe mode: use parent's connection
                 localUserPubkey = window.parent.userPubkey;
                 if (window.parent.nostrPool) {
                     nostrPool = window.parent.nostrPool;
@@ -2575,14 +2600,32 @@
                 }
                 localIsNostrConnected = true;
                 syncToCommonJS();
-                
+                shouldAutoLoad = true;
+            } else if (localUserPubkey && localIsNostrConnected) {
+                // Standalone mode: already connected via common.js
+                console.log('✅ Already connected via common.js, pubkey:', localUserPubkey.substring(0, 8) + '...');
+                // Initialize pool if not already done
+                if (!nostrPool && typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                    nostrPool = new NostrTools.SimplePool();
+                    console.log('✅ Initialized NOSTR pool');
+                }
+                shouldAutoLoad = true;
+            }
+            
+            if (shouldAutoLoad) {
                 const connectBtn = document.getElementById('connect-btn');
-                connectBtn.textContent = '✅ Connected';
-                connectBtn.disabled = true;
-                connectBtn.classList.remove('btn-primary');
-                connectBtn.classList.add('btn-secondary');
+                if (connectBtn) {
+                    connectBtn.textContent = '✅ Connected';
+                    connectBtn.disabled = true;
+                    connectBtn.classList.remove('btn-primary');
+                    connectBtn.classList.add('btn-secondary');
+                }
                 
+                // Auto-load messages
+                console.log('🔄 Auto-loading voice messages...');
                 loadVoiceMessages();
+            } else {
+                console.log('ℹ️ Not connected yet - user needs to click Connect button');
             }
         });
     </script>
