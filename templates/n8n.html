@@ -1046,7 +1046,7 @@
                 image_generation: { prompt: '', output_path: 'Images/' },
                 filter: { field: '', operator: '==', value: '' },
                 transform: { mapping: '{}', format: 'json' },
-                nostr_publish: { kind: 1, tags: '[]', content_template: '' },
+                nostr_publish: { kind: 1, tags: '[]', content_template: '', send_bro: false },
                 udrive_save: { path: 'Documents/', format: 'json' },
                 email_send: { to: '', subject: '', template: '' }
             };
@@ -1161,6 +1161,15 @@
                             <label class="form-label">Tags (JSON array)</label>
                             <input type="text" class="form-control" id="nodeTags" value='${node.parameters?.tags || '[]'}' placeholder='[["t", "tag1"], ["t", "tag2"]]'>
                         </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="nodeSendBro" ${node.parameters?.send_bro === true ? 'checked' : ''}>
+                                <label class="form-check-label" for="nodeSendBro">
+                                    Send as #BRO command (triggers UPlanet_IA_Responder.sh)
+                                </label>
+                                <small class="form-text text-muted d-block">When enabled, prepends #BRO to content to trigger AI responder</small>
+                            </div>
+                        </div>
                     `;
                     break;
                     
@@ -1195,6 +1204,7 @@
                 case 'nostr_publish':
                     selectedNode.parameters.kind = parseInt(document.getElementById('nodeKind').value);
                     selectedNode.parameters.content_template = document.getElementById('nodeContent').value;
+                    selectedNode.parameters.send_bro = document.getElementById('nodeSendBro').checked;
                     try {
                         selectedNode.parameters.tags = JSON.parse(document.getElementById('nodeTags').value);
                     } catch (e) {
