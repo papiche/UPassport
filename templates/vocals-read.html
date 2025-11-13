@@ -21,45 +21,8 @@
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     
     <!-- p5.js for waveform visualization (optional, loaded dynamically) -->
-    <script>
-        // Load p5.js dynamically only if needed
-        let p5Loaded = false;
-        let p5Loading = false;
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/p5.min.js"></script>
         
-        async function loadP5JS() {
-            if (p5Loaded || p5Loading) return p5Loaded;
-            if (typeof p5 !== 'undefined') {
-                p5Loaded = true;
-                return true;
-            }
-            
-            p5Loading = true;
-            try {
-                // Try to load from CDN as fallback
-                const p5Script = document.createElement('script');
-                p5Script.src = 'https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js';
-                
-                await new Promise((resolve, reject) => {
-                    p5Script.onload = () => {
-                        p5Loaded = true;
-                        p5Loading = false;
-                        resolve();
-                    };
-                    p5Script.onerror = () => {
-                        p5Loading = false;
-                        console.warn('⚠️ Could not load p5.js from CDN');
-                        reject(new Error('Failed to load p5.js'));
-                    };
-                    document.head.appendChild(p5Script);
-                });
-            } catch (e) {
-                p5Loading = false;
-                console.warn('⚠️ Could not load p5.js:', e);
-            }
-            return p5Loaded;
-        }
-    </script>
-    
     <style>
         * {
             box-sizing: border-box;
@@ -390,7 +353,15 @@
             <div class="card-header bg-dark border-secondary">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h5 class="mb-0">🔍 Filters & Sort</h5>
-                    <span id="message-count" class="badge bg-secondary message-stats">0 messages</span>
+                    <div class="d-flex align-items-center gap-3 flex-wrap">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="waveform-p5-toggle" checked onchange="toggleWaveformP5()">
+                            <label class="form-check-label small text-white" for="waveform-p5-toggle" title="Enable/disable p5.js waveform visualization">
+                                📊 Waveform
+                            </label>
+                        </div>
+                        <span id="message-count" class="badge bg-secondary message-stats">0 messages</span>
+                    </div>
                 </div>
             </div>
             <div class="card-body">
@@ -450,16 +421,7 @@
                                     <option value="oldest">Oldest First</option>
                                 </select>
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label small">Waveform Visualization:</label>
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="waveform-p5-toggle" checked onchange="toggleWaveformP5()">
-                                    <label class="form-check-label small" for="waveform-p5-toggle">
-                                        Enable p5.js visualization
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="col-md-3 d-flex align-items-end">
+                            <div class="col-md-4 d-flex align-items-end">
                                 <button id="refresh-btn" class="btn btn-primary btn-sm w-100" onclick="loadVoiceMessages()">
                                     🔄 Refresh
                                 </button>
@@ -756,42 +718,27 @@
                 connectBtn.disabled = true;
                 connectBtn.textContent = '🔄 Connecting...';
                 
-                // Strategy 1: Use common.js connectNostr if available (better handling)
-                if (typeof connectNostr === 'function') {
-                    console.log('📌 Using common.js connectNostr...');
-                    localUserPubkey = await connectNostr(false);
-                    
-                    if (!localUserPubkey) {
-                        throw new Error('No public key returned from connectNostr');
-                    }
-                    
-                    // Sync with window scope and common.js
-                    syncToCommonJS();
-                    
-                    console.log('✅ Connected to NOSTR via common.js, pubkey:', localUserPubkey.substring(0, 8) + '...');
-                } else {
-                    // Strategy 2: Direct extension access (fallback)
-                    // Check if window.nostr is available (with better error message)
-                    if (typeof window.nostr === 'undefined' || !window.nostr) {
-                        // Provide helpful error message with MULTIPASS option
-                        throw new Error(
-                            'NOSTR extension not detected.\n\n' +
-                            'Please ensure your NOSTR extension (Alby, nos2x, Flamingo, Nostr Connect, etc.) is installed and enabled.\n\n' +
-                            '💡 Alternative: Use /scan and scan your MULTIPASS SSSS QR code with PASS code "8888" to automatically enable encryption.'
-                        );
-                    }
-                    
-                    // Get public key
-                    localUserPubkey = await window.nostr.getPublicKey();
-                    if (!localUserPubkey) {
-                        throw new Error('No public key returned from NOSTR extension');
-                    }
-                    
-                    // Sync with window scope and common.js
-                    syncToCommonJS();
-                    
-                    console.log('✅ Connected to NOSTR, pubkey:', localUserPubkey.substring(0, 8) + '...');
+                // Use direct extension access (avoid common.js connectNostr which may show French MULTIPASS message)
+                // Check if window.nostr is available (with better error message)
+                if (typeof window.nostr === 'undefined' || !window.nostr) {
+                    // Provide helpful error message with MULTIPASS option
+                    throw new Error(
+                        'NOSTR extension not detected.\n\n' +
+                        'Please ensure your NOSTR extension (Alby, nos2x, Flamingo, Nostr Connect, etc.) is installed and enabled.\n\n' +
+                        '💡 Alternative: Use /scan and scan your MULTIPASS SSSS QR code with PASS code "8888" to automatically enable encryption.'
+                    );
                 }
+                
+                // Get public key directly from extension
+                localUserPubkey = await window.nostr.getPublicKey();
+                if (!localUserPubkey) {
+                    throw new Error('No public key returned from NOSTR extension');
+                }
+                
+                // Sync with window scope and common.js
+                syncToCommonJS();
+                
+                console.log('✅ Connected to NOSTR, pubkey:', localUserPubkey.substring(0, 8) + '...');
                 
                 // Initialize NOSTR pool
                 if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
@@ -2982,48 +2929,12 @@
                     setTimeout(checkExtension, initialDelay);
                 }
                 
-                // Strategy 1: Try to use common.js connectNostr (better handling of extension loading)
-                if (typeof connectNostr === 'function') {
-                    console.log('📌 Using common.js connectNostr for auto-login...');
-                    connectNostr(false).then((pubkey) => {
-                        if (pubkey) {
-                            localUserPubkey = pubkey;
-                            syncToCommonJS();
-                            
-                            // Initialize NOSTR pool
-                            if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
-                                nostrPool = new NostrTools.SimplePool();
-                            }
-                            localIsNostrConnected = true;
-                            syncToCommonJS();
-                            
-                            // Update UI
-                            const connectBtn = document.getElementById('connect-btn');
-                            const profileBtn = document.getElementById('profile-btn');
-                            if (connectBtn) {
-                                connectBtn.textContent = '✅ Connected';
-                                connectBtn.disabled = true;
-                                connectBtn.classList.remove('btn-primary');
-                                connectBtn.classList.add('btn-secondary');
-                            }
-                            if (profileBtn) {
-                                profileBtn.classList.remove('d-none');
-                            }
-                            
-                            // Load messages
-                            console.log('🔄 Auto-loading voice messages...');
-                            loadVoiceMessages();
-                        }
-                    }).catch((error) => {
-                        console.log('ℹ️ Auto-login via common.js failed:', error.message);
-                        // Fall through to Strategy 2
-                        tryDirectExtensionConnection();
-                    });
-                    // Don't return - let it try both strategies if needed
-                } else {
-                    // connectNostr not available, try direct extension access
-                    tryDirectExtensionConnection();
-                }
+                // Strategy 1: Try direct extension access first (avoid common.js connectNostr which may show French MULTIPASS message)
+                // We'll use connectNostr only if direct access fails
+                tryDirectExtensionConnection();
+                
+                // Note: We skip using common.js connectNostr for auto-login to avoid the French MULTIPASS error message
+                // Users can still click "Connect" button which will use handleNostrConnect() that may use connectNostr
             }
             
             if (shouldAutoLoad) {

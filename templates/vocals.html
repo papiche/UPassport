@@ -3632,25 +3632,25 @@
                             console.log('🔐 Private key found in HTML code - using NostrTools for encryption');
                             try {
                                 if (typeof NostrTools !== 'undefined') {
-                                    encryptedContent = await encryptWithNostrTools(encryptionMethod, recipientsList[0], JSON.stringify(voiceMetadata));
-                                    console.log(`✅ Content encrypted with ${encryptionMethod.toUpperCase()} using NostrTools`);
-                                    encryptionSuccess = true;
+                                encryptedContent = await encryptWithNostrTools(encryptionMethod, recipientsList[0], JSON.stringify(voiceMetadata));
+                                console.log(`✅ Content encrypted with ${encryptionMethod.toUpperCase()} using NostrTools`);
+                                encryptionSuccess = true;
                                 } else {
                                     throw new Error('NostrTools not available');
-                                }
-                            } catch (nostrToolsError) {
-                                console.warn('⚠️ NostrTools encryption failed:', nostrToolsError.message);
+                            }
+                        } catch (nostrToolsError) {
+                            console.warn('⚠️ NostrTools encryption failed:', nostrToolsError.message);
                                 // Fallback: try extension if NostrTools fails
-                                if (encryptionMethod === 'nip44' && window.nostr && window.nostr.nip44 && typeof window.nostr.nip44.encrypt === 'function') {
+                            if (encryptionMethod === 'nip44' && window.nostr && window.nostr.nip44 && typeof window.nostr.nip44.encrypt === 'function') {
                                     console.log('🔄 Falling back to extension encryption');
-                                    encryptedContent = await window.nostr.nip44.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
+                            encryptedContent = await window.nostr.nip44.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
                                     console.log('✅ Content encrypted with NIP-44 using extension (fallback)');
-                                    encryptionSuccess = true;
-                                } else if (encryptionMethod === 'nip04' && window.nostr && window.nostr.nip04 && typeof window.nostr.nip04.encrypt === 'function') {
+                                encryptionSuccess = true;
+                            } else if (encryptionMethod === 'nip04' && window.nostr && window.nostr.nip04 && typeof window.nostr.nip04.encrypt === 'function') {
                                     console.log('🔄 Falling back to extension encryption');
-                                    encryptedContent = await window.nostr.nip04.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
+                            encryptedContent = await window.nostr.nip04.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
                                     console.log('✅ Content encrypted with NIP-04 using extension (fallback)');
-                                    encryptionSuccess = true;
+                                encryptionSuccess = true;
                                 } else {
                                     throw nostrToolsError;
                                 }
