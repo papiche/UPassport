@@ -3553,11 +3553,11 @@
                         // Strategy 2: Try extension if NostrTools failed or no private key
                         if (!encryptionSuccess) {
                             if (encryptionMethod === 'nip44' && window.nostr && window.nostr.nip44 && typeof window.nostr.nip44.encrypt === 'function') {
-                                encryptedContent = await window.nostr.nip44.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
+                            encryptedContent = await window.nostr.nip44.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
                                 console.log('✅ Content encrypted with NIP-44 using extension');
                                 encryptionSuccess = true;
                             } else if (encryptionMethod === 'nip04' && window.nostr && window.nostr.nip04 && typeof window.nostr.nip04.encrypt === 'function') {
-                                encryptedContent = await window.nostr.nip04.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
+                            encryptedContent = await window.nostr.nip04.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
                                 console.log('✅ Content encrypted with NIP-04 using extension');
                                 encryptionSuccess = true;
                             }
@@ -3575,7 +3575,7 @@
                             
                             if (isInIframe) {
                                 errorMsg += 'The NOSTR extension in the parent window may not support encryption, or the proxy communication failed.';
-                            } else {
+                        } else {
                                 errorMsg += 'Please ensure your NOSTR extension supports encryption (NIP-44 or NIP-04), or provide your private key for NostrTools encryption.';
                             }
                             

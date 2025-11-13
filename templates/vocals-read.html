@@ -20,6 +20,10 @@
     <!-- Common.js with enhanced UPlanet NOSTR functions -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     
+    <!-- p5.js for waveform visualization -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/p5.min.js"></script>
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/p5.sound.min.js"></script>
+    
     <style>
         * {
             box-sizing: border-box;
@@ -234,6 +238,13 @@
             justify-content: center;
             color: #94a3b8;
             font-size: 0.85em;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .waveform-container canvas {
+            width: 100% !important;
+            height: 100% !important;
         }
         
         .loading-spinner {
@@ -279,40 +290,9 @@
             cursor: not-allowed;
         }
         
-        .filters-section {
-            background: #181818;
-            border: 1px solid #3f3f3f;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-        
-        .filters-section h3 {
-            font-size: 1.1em;
-            margin-bottom: 1rem;
-            color: #ffffff;
-        }
-        
-        .filter-group {
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        
-        .filter-group label {
-            font-size: 0.9em;
-            color: #e2e8f0;
-        }
-        
-        .filter-group select,
-        .filter-group input {
-            padding: 0.5rem;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid #3f3f3f;
-            border-radius: 6px;
-            color: #ffffff;
-            font-size: 0.9em;
+        .message-stats {
+            font-size: 0.85em;
+            color: #94a3b8;
         }
         
         .empty-state {
@@ -363,32 +343,160 @@
     
     <!-- Main Container -->
     <main class="main-container">
-        <!-- Filters Section -->
-        <div class="filters-section">
-            <h3>🔍 Filters</h3>
-            <div class="filter-group">
-                <label for="filter-type">Type:</label>
-                <select id="filter-type" class="form-select form-select-sm bg-dark text-white border-secondary">
-                    <option value="all">All Messages</option>
-                    <option value="public">Public Only</option>
-                    <option value="encrypted">Encrypted Only</option>
-                    <option value="sent">Sent by Me</option>
-                    <option value="received">Received by Me</option>
-                </select>
-                
-                <label for="filter-since">Since:</label>
-                <select id="filter-since" class="form-select form-select-sm bg-dark text-white border-secondary">
-                    <option value="1h">Last Hour</option>
-                    <option value="24h" selected>Last 24 Hours</option>
-                    <option value="7d">Last 7 Days</option>
-                    <option value="30d">Last 30 Days</option>
-                    <option value="all">All Time</option>
-                </select>
-                
-                <button id="refresh-btn" class="btn btn-primary btn-sm" onclick="loadVoiceMessages()">
-                    🔄 Refresh
-                </button>
+        <!-- Filters and Sort Section - 100% Bootstrap -->
+        <div class="card bg-dark border-secondary mb-3">
+            <div class="card-header bg-dark border-secondary">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="mb-0">🔍 Filters & Sort</h5>
+                    <span id="message-count" class="badge bg-secondary message-stats">0 messages</span>
+                </div>
             </div>
+            <div class="card-body">
+                <!-- View Mode Tabs -->
+                <ul class="nav nav-tabs nav-tabs-dark mb-3" id="viewModeTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="chronological-tab" data-bs-toggle="tab" data-bs-target="#chronological" type="button" role="tab">
+                            📅 Chronological
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="by-author-tab" data-bs-toggle="tab" data-bs-target="#by-author" type="button" role="tab">
+                            👤 By Author
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="threads-tab" data-bs-toggle="tab" data-bs-target="#threads" type="button" role="tab">
+                            💬 Threads
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="personal-tab" data-bs-toggle="tab" data-bs-target="#personal" type="button" role="tab">
+                            🔒 Personal
+                        </button>
+                    </li>
+                </ul>
+                
+                <!-- Tab Content -->
+                <div class="tab-content" id="viewModeTabContent">
+                    <!-- Chronological View -->
+                    <div class="tab-pane fade show active" id="chronological" role="tabpanel">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-3">
+                                <label for="filter-type" class="form-label small">Type:</label>
+                                <select id="filter-type" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="all">All Messages</option>
+                                    <option value="public">Public Only</option>
+                                    <option value="encrypted">Encrypted Only</option>
+                                    <option value="sent">Sent by Me</option>
+                                    <option value="received">Received by Me</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="filter-since" class="form-label small">Since:</label>
+                                <select id="filter-since" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="1h">Last Hour</option>
+                                    <option value="24h" selected>Last 24 Hours</option>
+                                    <option value="7d">Last 7 Days</option>
+                                    <option value="30d">Last 30 Days</option>
+                                    <option value="all">All Time</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="sort-order" class="form-label small">Sort Order:</label>
+                                <select id="sort-order" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="newest">Newest First</option>
+                                    <option value="oldest">Oldest First</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button id="refresh-btn" class="btn btn-primary btn-sm w-100" onclick="loadVoiceMessages()">
+                                    🔄 Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- By Author View -->
+                    <div class="tab-pane fade" id="by-author" role="tabpanel">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label for="filter-author" class="form-label small">Author:</label>
+                                <select id="filter-author" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="all">All Authors</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="filter-location" class="form-label small">Location (if available):</label>
+                                <select id="filter-location" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="all">All Locations</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button class="btn btn-primary btn-sm w-100" onclick="applyAuthorFilter()">
+                                    🔍 Apply Filter
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Threads View -->
+                    <div class="tab-pane fade" id="threads" role="tabpanel">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label for="filter-thread-type" class="form-label small">Thread Type:</label>
+                                <select id="filter-thread-type" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="all">All Threads</option>
+                                    <option value="encrypted">Encrypted Conversations</option>
+                                    <option value="public">Public Threads</option>
+                                    <option value="my-threads">My Threads</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="filter-thread-participant" class="form-label small">With Participant:</label>
+                                <select id="filter-thread-participant" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="all">All Participants</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button class="btn btn-primary btn-sm w-100" onclick="applyThreadFilter()">
+                                    🔍 Apply Filter
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Personal View -->
+                    <div class="tab-pane fade" id="personal" role="tabpanel">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label for="filter-personal-type" class="form-label small">Personal Messages:</label>
+                                <select id="filter-personal-type" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="self">Messages to Myself</option>
+                                    <option value="drafts">Drafts (Unsent)</option>
+                                    <option value="saved">Saved Messages</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end">
+                                <button class="btn btn-primary btn-sm w-100" onclick="applyPersonalFilter()">
+                                    🔍 Apply Filter
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pagination Info -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <span class="text-secondary small">Showing <span id="showing-count">0</span> of <span id="total-count">0</span> messages</span>
+            </div>
+            <nav aria-label="Messages pagination">
+                <ul class="pagination pagination-sm mb-0" id="pagination-controls">
+                    <!-- Pagination will be generated dynamically -->
+                </ul>
+            </nav>
         </div>
         
         <!-- Voice Messages List -->
@@ -568,6 +676,10 @@
         
         // Voice messages cache
         let voiceMessagesCache = [];
+        let allProcessedMessages = []; // All messages for filtering
+        let currentViewMode = 'chronological'; // chronological, by-author, threads, personal
+        let currentPage = 1;
+        const messagesPerPage = 20;
         
         // Connect to NOSTR (make available globally)
         window.handleNostrConnect = async function handleNostrConnect() {
@@ -668,11 +780,11 @@
                         break;
                 }
                 
-                // Build filter
+                // Build filter - increase limit to 120
                 const filter = {
                     kinds: [1222, 1244], // Voice message kinds
                     since: since,
-                    limit: 100
+                    limit: 120
                 };
                 
                 // Adjust filter based on type
@@ -693,14 +805,22 @@
                 // Process events
                 const processedMessages = await processVoiceMessageEvents(events, filterType);
                 
-                // Organize messages into threads
-                const threads = organizeIntoThreads(processedMessages);
+                // Store all processed messages
+                allProcessedMessages = processedMessages;
                 
                 // Update cache (flat list for decryption)
                 voiceMessagesCache = processedMessages;
                 
-                // Render threads
-                renderThreads(threads);
+                // Update message count
+                updateMessageCount(processedMessages.length);
+                
+                // Populate filter dropdowns
+                populateAuthorFilter(processedMessages);
+                populateLocationFilter(processedMessages);
+                populateThreadParticipantFilter(processedMessages);
+                
+                // Apply current view mode
+                applyCurrentViewMode();
                 
             } catch (error) {
                 console.error('❌ Error loading voice messages:', error);
@@ -940,6 +1060,375 @@
             }
         }
         
+        // Apply current view mode
+        function applyCurrentViewMode() {
+            let messagesToDisplay = [...allProcessedMessages];
+            
+            // Apply filters based on current view mode
+            switch (currentViewMode) {
+                case 'chronological':
+                    messagesToDisplay = applyChronologicalFilter(messagesToDisplay);
+                    break;
+                case 'by-author':
+                    messagesToDisplay = applyAuthorViewFilter(messagesToDisplay);
+                    break;
+                case 'threads':
+                    messagesToDisplay = applyThreadViewFilter(messagesToDisplay);
+                    break;
+                case 'personal':
+                    messagesToDisplay = applyPersonalViewFilter(messagesToDisplay);
+                    break;
+            }
+            
+            // Sort messages
+            const sortOrder = document.getElementById('sort-order')?.value || 'newest';
+            if (sortOrder === 'newest') {
+                messagesToDisplay.sort((a, b) => b.created_at - a.created_at);
+            } else {
+                messagesToDisplay.sort((a, b) => a.created_at - b.created_at);
+            }
+            
+            // Paginate
+            const totalPages = Math.ceil(messagesToDisplay.length / messagesPerPage);
+            const startIndex = (currentPage - 1) * messagesPerPage;
+            const endIndex = startIndex + messagesPerPage;
+            const paginatedMessages = messagesToDisplay.slice(startIndex, endIndex);
+            
+            // Update pagination UI
+            updatePagination(totalPages, messagesToDisplay.length);
+            
+            // Organize into threads if needed
+            if (currentViewMode === 'threads') {
+                const threads = organizeIntoThreads(paginatedMessages);
+                renderThreads(threads);
+            } else {
+                // Render as flat list
+                renderMessagesList(paginatedMessages);
+            }
+        }
+        
+        // Apply chronological filter
+        function applyChronologicalFilter(messages) {
+            const filterType = document.getElementById('filter-type')?.value || 'all';
+            return filterMessagesByType(messages, filterType);
+        }
+        
+        // Apply author view filter
+        function applyAuthorViewFilter(messages) {
+            const authorFilter = document.getElementById('filter-author')?.value || 'all';
+            const locationFilter = document.getElementById('filter-location')?.value || 'all';
+            
+            let filtered = messages;
+            
+            if (authorFilter !== 'all') {
+                filtered = filtered.filter(msg => msg.pubkey === authorFilter);
+            }
+            
+            if (locationFilter !== 'all') {
+                // Filter by location if available in metadata
+                filtered = filtered.filter(msg => {
+                    const location = msg.metadata?.location || msg.senderProfile?.location;
+                    return location && location.includes(locationFilter);
+                });
+            }
+            
+            return filtered;
+        }
+        
+        // Apply thread view filter
+        function applyThreadViewFilter(messages) {
+            const threadType = document.getElementById('filter-thread-type')?.value || 'all';
+            const participant = document.getElementById('filter-thread-participant')?.value || 'all';
+            
+            let filtered = messages;
+            
+            if (threadType === 'encrypted') {
+                filtered = filtered.filter(msg => msg.isEncrypted);
+            } else if (threadType === 'public') {
+                filtered = filtered.filter(msg => !msg.isEncrypted);
+            } else if (threadType === 'my-threads') {
+                filtered = filtered.filter(msg => 
+                    msg.pubkey === localUserPubkey || 
+                    msg.tags.some(tag => tag[0] === 'p' && tag[1] === localUserPubkey)
+                );
+            }
+            
+            if (participant !== 'all') {
+                filtered = filtered.filter(msg => 
+                    msg.pubkey === participant || 
+                    msg.tags.some(tag => tag[0] === 'p' && tag[1] === participant)
+                );
+            }
+            
+            return filtered;
+        }
+        
+        // Apply personal view filter
+        function applyPersonalViewFilter(messages) {
+            const personalType = document.getElementById('filter-personal-type')?.value || 'self';
+            
+            if (personalType === 'self') {
+                // Messages to myself (p tag with my pubkey)
+                return messages.filter(msg => 
+                    msg.pubkey === localUserPubkey && 
+                    msg.tags.some(tag => tag[0] === 'p' && tag[1] === localUserPubkey)
+                );
+            } else if (personalType === 'drafts') {
+                // Drafts - messages not yet published (would need local storage)
+                return [];
+            } else if (personalType === 'saved') {
+                // Saved messages (would need local storage or tags)
+                return messages.filter(msg => 
+                    msg.tags.some(tag => tag[0] === 'saved' && tag[1] === 'true')
+                );
+            }
+            
+            return messages;
+        }
+        
+        // Filter messages by type
+        function filterMessagesByType(messages, filterType) {
+            if (filterType === 'all') return messages;
+            if (filterType === 'public') return messages.filter(msg => !msg.isEncrypted);
+            if (filterType === 'encrypted') return messages.filter(msg => msg.isEncrypted);
+            if (filterType === 'sent') return messages.filter(msg => msg.pubkey === localUserPubkey);
+            if (filterType === 'received') {
+                return messages.filter(msg => {
+                    if (msg.pubkey === localUserPubkey) return false;
+                    const recipientTags = msg.tags.filter(tag => tag[0] === 'p');
+                    return recipientTags.some(tag => {
+                        try {
+                            const hexPubkey = npubToHex(tag[1]);
+                            return hexPubkey && hexPubkey.toLowerCase() === localUserPubkey.toLowerCase();
+                        } catch (e) {
+                            return false;
+                        }
+                    });
+                });
+            }
+            return messages;
+        }
+        
+        // Populate author filter dropdown
+        function populateAuthorFilter(messages) {
+            const authorSelect = document.getElementById('filter-author');
+            if (!authorSelect) return;
+            
+            const authors = new Map();
+            messages.forEach(msg => {
+                const pubkey = msg.pubkey;
+                if (!authors.has(pubkey)) {
+                    const name = msg.senderProfile?.name || msg.senderProfile?.display_name || pubkey.substring(0, 8) + '...';
+                    authors.set(pubkey, name);
+                }
+            });
+            
+            // Clear existing options except "All Authors"
+            authorSelect.innerHTML = '<option value="all">All Authors</option>';
+            
+            // Add authors sorted by name
+            Array.from(authors.entries())
+                .sort((a, b) => a[1].localeCompare(b[1]))
+                .forEach(([pubkey, name]) => {
+                    const option = document.createElement('option');
+                    option.value = pubkey;
+                    option.textContent = `${name} (${pubkey.substring(0, 8)}...)`;
+                    authorSelect.appendChild(option);
+                });
+        }
+        
+        // Populate location filter dropdown
+        function populateLocationFilter(messages) {
+            const locationSelect = document.getElementById('filter-location');
+            if (!locationSelect) return;
+            
+            const locations = new Set();
+            messages.forEach(msg => {
+                const location = msg.metadata?.location || msg.senderProfile?.location;
+                if (location) {
+                    locations.add(location);
+                }
+            });
+            
+            locationSelect.innerHTML = '<option value="all">All Locations</option>';
+            Array.from(locations).sort().forEach(location => {
+                const option = document.createElement('option');
+                option.value = location;
+                option.textContent = location;
+                locationSelect.appendChild(option);
+            });
+        }
+        
+        // Populate thread participant filter
+        function populateThreadParticipantFilter(messages) {
+            const participantSelect = document.getElementById('filter-thread-participant');
+            if (!participantSelect) return;
+            
+            const participants = new Map();
+            messages.forEach(msg => {
+                // Add message author
+                if (!participants.has(msg.pubkey)) {
+                    const name = msg.senderProfile?.name || msg.senderProfile?.display_name || msg.pubkey.substring(0, 8) + '...';
+                    participants.set(msg.pubkey, name);
+                }
+                // Add p tag recipients
+                msg.tags.filter(tag => tag[0] === 'p').forEach(tag => {
+                    if (!participants.has(tag[1])) {
+                        participants.set(tag[1], tag[1].substring(0, 8) + '...');
+                    }
+                });
+            });
+            
+            participantSelect.innerHTML = '<option value="all">All Participants</option>';
+            Array.from(participants.entries())
+                .sort((a, b) => a[1].localeCompare(b[1]))
+                .forEach(([pubkey, name]) => {
+                    const option = document.createElement('option');
+                    option.value = pubkey;
+                    option.textContent = `${name} (${pubkey.substring(0, 8)}...)`;
+                    participantSelect.appendChild(option);
+                });
+        }
+        
+        // Update message count
+        function updateMessageCount(count) {
+            const countEl = document.getElementById('message-count');
+            if (countEl) {
+                countEl.textContent = `${count} message${count !== 1 ? 's' : ''}`;
+            }
+        }
+        
+        // Update pagination
+        function updatePagination(totalPages, totalMessages) {
+            const showingCount = Math.min((currentPage - 1) * messagesPerPage + 1, totalMessages);
+            const showingEnd = Math.min(currentPage * messagesPerPage, totalMessages);
+            
+            document.getElementById('showing-count').textContent = showingCount === showingEnd ? showingCount : `${showingCount}-${showingEnd}`;
+            document.getElementById('total-count').textContent = totalMessages;
+            
+            const paginationEl = document.getElementById('pagination-controls');
+            if (!paginationEl) return;
+            
+            paginationEl.innerHTML = '';
+            
+            if (totalPages <= 1) return;
+            
+            // Previous button
+            const prevLi = document.createElement('li');
+            prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+            prevLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">Previous</a>`;
+            paginationEl.appendChild(prevLi);
+            
+            // Page numbers
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, currentPage + 2);
+            
+            if (startPage > 1) {
+                const firstLi = document.createElement('li');
+                firstLi.className = 'page-item';
+                firstLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(1); return false;">1</a>`;
+                paginationEl.appendChild(firstLi);
+                if (startPage > 2) {
+                    const ellipsis = document.createElement('li');
+                    ellipsis.className = 'page-item disabled';
+                    ellipsis.innerHTML = '<span class="page-link">...</span>';
+                    paginationEl.appendChild(ellipsis);
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const li = document.createElement('li');
+                li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+                li.innerHTML = `<a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>`;
+                paginationEl.appendChild(li);
+            }
+            
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const ellipsis = document.createElement('li');
+                    ellipsis.className = 'page-item disabled';
+                    ellipsis.innerHTML = '<span class="page-link">...</span>';
+                    paginationEl.appendChild(ellipsis);
+                }
+                const lastLi = document.createElement('li');
+                lastLi.className = 'page-item';
+                lastLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${totalPages}); return false;">${totalPages}</a>`;
+                paginationEl.appendChild(lastLi);
+            }
+            
+            // Next button
+            const nextLi = document.createElement('li');
+            nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+            nextLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">Next</a>`;
+            paginationEl.appendChild(nextLi);
+        }
+        
+        // Change page
+        function changePage(page) {
+            if (page < 1) return;
+            currentPage = page;
+            applyCurrentViewMode();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        // Make changePage available globally
+        window.changePage = changePage;
+        
+        // Apply author filter
+        function applyAuthorFilter() {
+            currentViewMode = 'by-author';
+            currentPage = 1;
+            applyCurrentViewMode();
+        }
+        
+        // Make applyAuthorFilter available globally
+        window.applyAuthorFilter = applyAuthorFilter;
+        
+        // Apply thread filter
+        function applyThreadFilter() {
+            currentViewMode = 'threads';
+            currentPage = 1;
+            applyCurrentViewMode();
+        }
+        
+        // Make applyThreadFilter available globally
+        window.applyThreadFilter = applyThreadFilter;
+        
+        // Apply personal filter
+        function applyPersonalFilter() {
+            currentViewMode = 'personal';
+            currentPage = 1;
+            applyCurrentViewMode();
+        }
+        
+        // Make applyPersonalFilter available globally
+        window.applyPersonalFilter = applyPersonalFilter;
+        
+        // Render messages as flat list
+        function renderMessagesList(messages) {
+            const container = document.getElementById('voice-messages-container');
+            
+            if (messages.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎤</div>
+                        <p>No voice messages found</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = messages.map(msg => {
+                return renderMessageCard(msg, 'message', false, 0);
+            }).join('');
+            
+            // Attach event listeners
+            attachThreadEventListeners();
+            
+            // Render waveforms
+            renderWaveforms();
+        }
+        
         // Render threads
         function renderThreads(threads) {
             const container = document.getElementById('voice-messages-container');
@@ -960,6 +1449,9 @@
             
             // Attach event listeners for reply buttons and expand/collapse
             attachThreadEventListeners();
+            
+            // Render waveforms with p5.js
+            renderWaveforms();
         }
         
         // Render a single thread (root + replies)
@@ -1059,9 +1551,7 @@
                         </div>
                     `}
                     ${msg.metadata.waveform ? `
-                        <div class="waveform-container" id="waveform-${msg.id}">
-                            Waveform visualization (${msg.metadata.waveform.split(' ').length} points)
-                        </div>
+                        <div class="waveform-container" id="waveform-${msg.id}" data-waveform="${msg.metadata.waveform}"></div>
                     ` : ''}
                 </div>
             `;
@@ -1129,13 +1619,92 @@
                             </div>
                         `}
                         ${msg.metadata.waveform ? `
-                            <div class="waveform-container" id="waveform-${msg.id}">
-                                Waveform visualization (${msg.metadata.waveform.split(' ').length} points)
-                            </div>
+                            <div class="waveform-container" id="waveform-${msg.id}" data-waveform="${msg.metadata.waveform}"></div>
                         ` : ''}
                     </div>
                 `;
             }).join('');
+            
+            // Render waveforms with p5.js
+            renderWaveforms();
+        }
+        
+        // Render waveforms using p5.js
+        function renderWaveforms() {
+            // Find all waveform containers
+            const waveformContainers = document.querySelectorAll('.waveform-container[data-waveform]');
+            
+            waveformContainers.forEach(container => {
+                const waveformData = container.getAttribute('data-waveform');
+                if (!waveformData) return;
+                
+                // Parse waveform data (space-separated values)
+                const waveformPoints = waveformData.split(/\s+/).map(v => parseFloat(v)).filter(v => !isNaN(v));
+                
+                if (waveformPoints.length === 0) {
+                    container.textContent = 'No waveform data';
+                    return;
+                }
+                
+                // Create p5 instance for this waveform
+                const waveformId = container.id;
+                const sketch = function(p) {
+                    p.setup = function() {
+                        const canvas = p.createCanvas(container.offsetWidth, container.offsetHeight);
+                        canvas.parent(container);
+                        p.noLoop();
+                    };
+                    
+                    p.draw = function() {
+                        p.background(0, 0, 0, 0); // Transparent background
+                        
+                        const width = p.width;
+                        const height = p.height;
+                        const centerY = height / 2;
+                        
+                        // Normalize waveform values to fit canvas
+                        const maxValue = Math.max(...waveformPoints.map(Math.abs));
+                        if (maxValue === 0) return;
+                        
+                        // Draw waveform
+                        p.stroke(6, 95, 212); // Blue color (#065fd4)
+                        p.strokeWeight(2);
+                        p.noFill();
+                        
+                        p.beginShape();
+                        for (let i = 0; i < waveformPoints.length; i++) {
+                            const x = p.map(i, 0, waveformPoints.length - 1, 0, width);
+                            const normalizedValue = waveformPoints[i] / maxValue;
+                            const y = centerY - (normalizedValue * (height / 2 - 10)); // Leave 10px margin
+                            p.vertex(x, y);
+                        }
+                        p.endShape();
+                        
+                        // Draw center line
+                        p.stroke(63, 63, 63, 100); // Gray center line
+                        p.strokeWeight(1);
+                        p.line(0, centerY, width, centerY);
+                    };
+                    
+                    p.windowResized = function() {
+                        p.resizeCanvas(container.offsetWidth, container.offsetHeight);
+                        p.redraw();
+                    };
+                };
+                
+                // Store p5 instance to avoid conflicts
+                if (!window.waveformSketches) {
+                    window.waveformSketches = {};
+                }
+                
+                // Remove existing sketch if any
+                if (window.waveformSketches[waveformId]) {
+                    window.waveformSketches[waveformId].remove();
+                }
+                
+                // Create new p5 instance
+                window.waveformSketches[waveformId] = new p5(sketch, container);
+            });
         }
         
         // Play public message
@@ -1306,6 +1875,16 @@
                     }
                     if (decryptedData.waveform) {
                         voiceMessagesCache[messageIndex].metadata.waveform = decryptedData.waveform;
+                        
+                        // Update waveform container if it exists
+                        const waveformContainer = document.getElementById(`waveform-${messageId}`);
+                        if (waveformContainer) {
+                            waveformContainer.setAttribute('data-waveform', decryptedData.waveform);
+                            // Re-render waveform
+                            setTimeout(() => {
+                                renderWaveforms();
+                            }, 100);
+                        }
                     }
                 }
                 
@@ -1728,7 +2307,7 @@
                 formData.append('ipfs_cid', uploadResult.new_cid);
                 formData.append('title', title || 'Voice Reply');
                 formData.append('description', description);
-                formData.append('npub', userPubkey);
+                formData.append('npub', localUserPubkey);
                 formData.append('file_hash', uploadResult.fileHash || '');
                 formData.append('duration', (uploadResult.duration || 0).toString());
                 formData.append('mime_type', uploadResult.mimeType || 'audio/webm');
@@ -1780,12 +2359,45 @@
             }
         }
         
-        // Initialize on page load
+        // Handle tab changes
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Initializing voice messages reader...');
             
             // Attach reply modal event listeners
             attachThreadEventListeners();
+            
+            // Handle view mode tab changes
+            const viewModeTabs = document.querySelectorAll('#viewModeTabs button[data-bs-toggle="tab"]');
+            viewModeTabs.forEach(tab => {
+                tab.addEventListener('shown.bs.tab', function(event) {
+                    const targetId = event.target.getAttribute('data-bs-target');
+                    if (targetId === '#chronological') {
+                        currentViewMode = 'chronological';
+                    } else if (targetId === '#by-author') {
+                        currentViewMode = 'by-author';
+                    } else if (targetId === '#threads') {
+                        currentViewMode = 'threads';
+                    } else if (targetId === '#personal') {
+                        currentViewMode = 'personal';
+                    }
+                    currentPage = 1;
+                    applyCurrentViewMode();
+                });
+            });
+            
+            // Handle filter changes
+            const filterInputs = ['filter-type', 'filter-since', 'sort-order'];
+            filterInputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('change', function() {
+                        if (currentViewMode === 'chronological') {
+                            currentPage = 1;
+                            applyCurrentViewMode();
+                        }
+                    });
+                }
+            });
             
             // Check if already connected (from parent window if in iframe)
             const isInIframe = window.self !== window.top;
