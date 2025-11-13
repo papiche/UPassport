@@ -428,6 +428,8 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
             ### PASS CODE HANDLER ###
             # PASS "1111" = Open astro_base.html (full Nostr messenger interface)
             # PASS "9999" = Open scan_multipass_payment.html (MULTIPASS Payment Terminal)
+            # PASS "7777" = Open webcam.html (Webcam Recorder with NOSTR authentication)
+            # PASS "8888" = Open vocals.html (Voice Messages Recorder with NOSTR authentication)
             # PASS "0000" = Regenerate MULTIPASS (handled earlier)
             # Default    = Open nostr.html (simple message interface)
             
@@ -491,6 +493,21 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
                 
                 # Generate webcam.html from template with nsec injected
                 cat ~/.zen/UPassport/templates/webcam.html \
+                    | sed -e "s~http://127.0.0.1:8080~${myIPFS}~g" \
+                          -e "s~https://ipfs.copylaradio.com~${myIPFS}~g" \
+                          -e "s~{{ myIPFS }}~${myIPFS}~g" \
+                          -e "s~const AUTO_CONNECT_NSEC = null;~const AUTO_CONNECT_NSEC = '${NSEC}';~g" \
+                    > ${MY_PATH}/tmp/${MOATS}.out.html
+                
+                echo "${MY_PATH}/tmp/${MOATS}.out.html"
+                exit 0
+                
+            elif [[ "$IMAGE" == "8888" ]]; then
+                ### PASS 8888: Open Voice Messages Recorder with NOSTR authentication
+                echo "PASS 8888: Opening Voice Messages Recorder with authenticated nsec..."
+                
+                # Generate vocals.html from template with nsec injected
+                cat ~/.zen/UPassport/templates/vocals.html \
                     | sed -e "s~http://127.0.0.1:8080~${myIPFS}~g" \
                           -e "s~https://ipfs.copylaradio.com~${myIPFS}~g" \
                           -e "s~{{ myIPFS }}~${myIPFS}~g" \

@@ -1306,6 +1306,9 @@
                 
                 <!-- NOSTR Connection Status -->
                 <div class="d-flex align-items-center gap-2 flex-wrap" id="nostr-header">
+                    <button id="profile-btn" class="btn btn-success btn-sm d-none" onclick="viewProfile()" title="View my profile">
+                        <i class="bi bi-person-circle"></i> Profile
+                    </button>
                     <button id="connect-btn" class="btn btn-primary btn-sm" onclick="handleNostrConnect()">
                         🔌 Connect
                     </button>
@@ -3549,9 +3552,10 @@
                         const hasPrivateKeyInCode = privkey && privkey.trim().length > 0;
                         
                         if (!hasPrivateKeyInCode) {
-                            // No private key in code HTML - use NOSTR extension directly
-                            console.log('🔐 No private key in HTML code - using NOSTR extension for encryption');
+                            // No private key in code HTML - try extension first, then ask user for private key
+                            console.log('🔐 No private key in HTML code - trying NOSTR extension for encryption');
                             try {
+                                // Try extension first (if it supports NIP-44)
                                 if (encryptionMethod === 'nip44' && window.nostr && window.nostr.nip44 && typeof window.nostr.nip44.encrypt === 'function') {
                                     encryptedContent = await window.nostr.nip44.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
                                     console.log('✅ Content encrypted with NIP-44 using extension');
@@ -3561,11 +3565,64 @@
                                     console.log('✅ Content encrypted with NIP-04 using extension');
                                     encryptionSuccess = true;
                                 } else {
-                                    throw new Error(`NOSTR extension does not support ${encryptionMethod.toUpperCase()} encryption`);
+                                    // Extension doesn't support encryption - ask user for private key to use nostr.bundle.js
+                                    console.log('⚠️ Extension does not support NIP-44 encryption - requesting private key for encryption');
+                                    const userNsec = prompt(
+                                        `Your NOSTR extension doesn't support ${encryptionMethod.toUpperCase()} encryption.\n\n` +
+                                        `To encrypt this message, please enter your private key (nsec) temporarily.\n` +
+                                        `The key will be used only for encryption and not stored.\n\n` +
+                                        `Enter your nsec key:`
+                                    );
+                                    
+                                    if (!userNsec || !userNsec.trim()) {
+                                        throw new Error('Private key required for encryption. Encryption cancelled.');
+                                    }
+                                    
+                                    if (!userNsec.startsWith('nsec1')) {
+                                        throw new Error('Invalid nsec format. Please enter a valid nsec key starting with "nsec1".');
+                                    }
+                                    
+                                    // Use NostrTools with the provided private key
+                                    console.log('🔐 Using provided private key for encryption with nostr.bundle.js');
+                                    if (typeof NostrTools === 'undefined') {
+                                        throw new Error('NostrTools library not loaded');
+                                    }
+                                    
+                                    // Decode nsec
+                                    let tempPrivkey = userNsec.trim();
+                                    if (tempPrivkey.startsWith('nsec1')) {
+                                        if (typeof NostrTools.nip19 !== 'undefined' && NostrTools.nip19.decode) {
+                                            const decoded = NostrTools.nip19.decode(tempPrivkey);
+                                            if (decoded.type === 'nsec') {
+                                                tempPrivkey = Array.from(decoded.data)
+                                                    .map(b => b.toString(16).padStart(2, '0'))
+                                                    .join('');
+                                            }
+                                        } else {
+                                            throw new Error('Cannot decode nsec - NostrTools.nip19 not available');
+                                        }
+                                    }
+                                    
+                                    // Use encryptWithNostrTools with temporary private key
+                                    const originalUserPrivateKey = userPrivateKey || window.userPrivateKey;
+                                    try {
+                                        // Temporarily set private key
+                                        if (!window.userPrivateKey) {
+                                            window.userPrivateKey = tempPrivkey;
+                                        }
+                                        encryptedContent = await encryptWithNostrTools(encryptionMethod, recipientsList[0], JSON.stringify(voiceMetadata));
+                                        console.log(`✅ Content encrypted with ${encryptionMethod.toUpperCase()} using nostr.bundle.js`);
+                                        encryptionSuccess = true;
+                                    } finally {
+                                        // Clear temporary private key
+                                        if (!originalUserPrivateKey) {
+                                            window.userPrivateKey = null;
+                                        }
+                                    }
                                 }
                             } catch (extensionError) {
-                                console.warn('⚠️ Extension encryption failed:', extensionError);
-                                throw new Error(`Extension encryption failed: ${extensionError.message}`);
+                                console.warn('⚠️ Encryption failed:', extensionError);
+                                throw new Error(`Encryption failed: ${extensionError.message}`);
                             }
                         } else {
                             // Private key available in code - use NostrTools
@@ -4177,10 +4234,25 @@
             }
         }
         
+        // View user profile (make available globally)
+        window.viewProfile = async function viewProfile() {
+            const currentPubkey = userPubkey || window.userPubkey;
+            if (!currentPubkey) {
+                alert('Please connect first');
+                return;
+            }
+            
+            console.log('[PROFILE] Opening profile viewer for:', currentPubkey);
+            const ipfsGateway = '{{ myIPFS }}';
+            const profileUrl = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${currentPubkey}`;
+            window.open(profileUrl, '_blank');
+        }
+        
         // Update authentication status UI
         async function updateAuthStatus(text, state) {
             const connectBtn = document.getElementById('connect-btn');
             const verifyBtn = document.getElementById('verify-auth-btn');
+            const profileBtn = document.getElementById('profile-btn');
             
             if (!connectBtn) return;
             
@@ -4210,6 +4282,10 @@
                 if (verifyBtn) {
                     verifyBtn.classList.add('d-none');
                 }
+                // Show profile button
+                if (profileBtn && userPubkey) {
+                    profileBtn.classList.remove('d-none');
+                }
             } else if (state === 'connected') {
                 // Basic connection (can record, but upload will trigger NIP-42 check)
                 if (userPubkey && typeof fetchUserEmailWithFallback === 'function') {
@@ -4236,6 +4312,10 @@
                 if (verifyBtn) {
                     verifyBtn.classList.add('d-none');
                 }
+                // Show profile button
+                if (profileBtn && userPubkey) {
+                    profileBtn.classList.remove('d-none');
+                }
             } else if (state === 'not-authenticated') {
                 // Connected but upload failed - show verify button
                 if (userPubkey && typeof fetchUserEmailWithFallback === 'function') {
@@ -4259,23 +4339,39 @@
                 if (verifyBtn) {
                     verifyBtn.classList.remove('d-none');
                 }
+                // Show profile button
+                if (profileBtn && userPubkey) {
+                    profileBtn.classList.remove('d-none');
+                }
             } else if (state === 'connecting') {
                 // Connection in progress
                 connectBtn.textContent = '🔄 Connecting...';
                 connectBtn.disabled = true;
                 connectBtn.classList.remove('btn-secondary');
                 connectBtn.classList.add('btn-primary');
+                // Hide profile button while connecting
+                if (profileBtn) {
+                    profileBtn.classList.add('d-none');
+                }
             } else if (state === 'error') {
                 connectBtn.textContent = '🔌 Retry';
                 connectBtn.disabled = false;
                 connectBtn.classList.remove('btn-secondary');
                 connectBtn.classList.add('btn-primary');
+                // Hide profile button on error
+                if (profileBtn) {
+                    profileBtn.classList.add('d-none');
+                }
             } else {
                 // Default state (not connected)
                 connectBtn.textContent = '🔌 Connect';
                 connectBtn.disabled = false;
                 connectBtn.classList.remove('btn-secondary');
                 connectBtn.classList.add('btn-primary');
+                // Hide profile button when not connected
+                if (profileBtn) {
+                    profileBtn.classList.add('d-none');
+                }
             }
         }
         
@@ -4403,6 +4499,19 @@
                     setTimeout(() => {
                         handleNostrConnect();
                     }, 700);
+                }
+            } else if (!userPubkey && !window.userPubkey) {
+                // Auto-login: Try to connect automatically if extension is available (and no nsec provided)
+                console.log('🔄 Attempting auto-login...');
+                if (typeof window.nostr !== 'undefined' && window.nostr && typeof window.nostr.getPublicKey === 'function') {
+                    // Extension available - try to connect automatically
+                    setTimeout(() => {
+                        handleNostrConnect().catch((error) => {
+                            console.log('ℹ️ Auto-login failed, user needs to click Connect button:', error.message);
+                        });
+                    }, 500); // Small delay to ensure page is ready
+                } else {
+                    console.log('ℹ️ NOSTR extension not available - user needs to click Connect button');
                 }
             }
             

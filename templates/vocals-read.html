@@ -371,6 +371,9 @@
                 
                 <!-- NOSTR Connection Status -->
                 <div class="d-flex align-items-center gap-2 flex-wrap" id="nostr-header">
+                    <button id="profile-btn" class="btn btn-success btn-sm d-none" onclick="viewProfile()" title="View my profile">
+                        <i class="bi bi-person-circle"></i> Profile
+                    </button>
                     <button id="connect-btn" class="btn btn-primary btn-sm" onclick="handleNostrConnect()">
                         🔌 Connect
                     </button>
@@ -732,10 +735,24 @@
         const messagesPerPage = 20;
         let waveformP5Enabled = true; // p5.js visualization enabled by default
         
+        // View user profile (make available globally)
+        window.viewProfile = async function viewProfile() {
+            if (!localUserPubkey) {
+                alert('Please connect first');
+                return;
+            }
+            
+            console.log('[PROFILE] Opening profile viewer for:', localUserPubkey);
+            const ipfsGateway = '{{ myIPFS }}';
+            const profileUrl = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${localUserPubkey}`;
+            window.open(profileUrl, '_blank');
+        }
+        
         // Connect to NOSTR (make available globally)
         window.handleNostrConnect = async function handleNostrConnect() {
             try {
                 const connectBtn = document.getElementById('connect-btn');
+                const profileBtn = document.getElementById('profile-btn');
                 connectBtn.disabled = true;
                 connectBtn.textContent = '🔄 Connecting...';
                 
@@ -773,6 +790,11 @@
                 connectBtn.classList.remove('btn-primary');
                 connectBtn.classList.add('btn-secondary');
                 
+                // Show profile button
+                if (profileBtn) {
+                    profileBtn.classList.remove('d-none');
+                }
+                
                 const statusEl = document.getElementById('connection-status');
                 if (statusEl) {
                     statusEl.textContent = `Connected: ${localUserPubkey.substring(0, 8)}...`;
@@ -788,6 +810,7 @@
                 connectBtn.disabled = false;
                 connectBtn.textContent = '🔌 Retry';
                 alert(`Connection failed: ${error.message}`);
+                throw error; // Re-throw for auto-login handling
             }
         }
         
@@ -2832,15 +2855,38 @@
                     console.log('✅ Initialized NOSTR pool');
                 }
                 shouldAutoLoad = true;
+            } else {
+                // Auto-login: Try to connect automatically if extension is available
+                console.log('🔄 Attempting auto-login...');
+                if (typeof window.nostr !== 'undefined' && window.nostr && typeof window.nostr.getPublicKey === 'function') {
+                    // Extension available - try to connect automatically
+                    handleNostrConnect().then(() => {
+                        // Connection successful - handleNostrConnect already loads messages
+                        const profileBtn = document.getElementById('profile-btn');
+                        if (profileBtn && localUserPubkey) {
+                            profileBtn.classList.remove('d-none');
+                        }
+                    }).catch((error) => {
+                        console.log('ℹ️ Auto-login failed, user needs to click Connect button:', error.message);
+                    });
+                    // Don't set shouldAutoLoad here - handleNostrConnect will handle loading
+                    return; // Exit early, handleNostrConnect will handle everything
+                } else {
+                    console.log('ℹ️ NOSTR extension not available - user needs to click Connect button');
+                }
             }
             
             if (shouldAutoLoad) {
                 const connectBtn = document.getElementById('connect-btn');
+                const profileBtn = document.getElementById('profile-btn');
                 if (connectBtn) {
                     connectBtn.textContent = '✅ Connected';
                     connectBtn.disabled = true;
                     connectBtn.classList.remove('btn-primary');
                     connectBtn.classList.add('btn-secondary');
+                }
+                if (profileBtn && localUserPubkey) {
+                    profileBtn.classList.remove('d-none');
                 }
                 
                 // Auto-load messages
