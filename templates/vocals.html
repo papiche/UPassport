@@ -2829,7 +2829,8 @@
                     };
 
                     mediaRecorder.onstop = () => {
-                        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                        // For voice messages, use audio/webm MIME type (not video/webm)
+                        const blob = new Blob(recordedChunks, { type: mimeType || 'audio/webm' });
                         showVideoModal(blob);
                         if (currentStream) {
                             currentStream.getTracks().forEach(track => track.stop());
@@ -3017,7 +3018,34 @@
                 const audioPreviewEl = document.getElementById('modal-audio-preview');
                 const previewElement = (audioPreviewEl && audioPreviewEl.dataset.filename) ? audioPreviewEl : videoPreviewEl;
                 const finalFilename = filename || previewElement?.dataset.filename || `voice_${Date.now()}.webm`;
-                const audioFile = new File([audioBlob], finalFilename, { type: audioBlob.type || 'audio/webm' });
+                
+                // Determine correct MIME type based on filename extension or blob type
+                let correctMimeType = audioBlob.type || 'audio/webm';
+                const fileExtension = finalFilename.split('.').pop()?.toLowerCase();
+                
+                // Map file extensions to correct MIME types
+                const mimeTypeMap = {
+                    'mp3': 'audio/mpeg',
+                    'wav': 'audio/wav',
+                    'ogg': 'audio/ogg',
+                    'flac': 'audio/flac',
+                    'aac': 'audio/aac',
+                    'm4a': 'audio/mp4',
+                    'webm': 'audio/webm',  // For audio-only webm files
+                    'opus': 'audio/ogg;codecs=opus'
+                };
+                
+                // If we have a file extension, use the mapped MIME type
+                if (fileExtension && mimeTypeMap[fileExtension]) {
+                    correctMimeType = mimeTypeMap[fileExtension];
+                } else if (correctMimeType.startsWith('video/')) {
+                    // If blob type is video/webm but this is an audio file, change to audio/webm
+                    // Voice messages are always audio, even if MediaRecorder reports video/webm
+                    correctMimeType = correctMimeType.replace('video/', 'audio/');
+                }
+                
+                const audioFile = new File([audioBlob], finalFilename, { type: correctMimeType });
+                console.log('📤 File MIME type:', correctMimeType, 'for filename:', finalFilename);
                 
                 const uploadFormData = new FormData();
                 uploadFormData.append('file', audioFile);
@@ -3286,154 +3314,274 @@
                     // Encrypt for first recipient (for now, single recipient encryption)
                     // TODO: Support multiple recipients with separate events
                     try {
-                        // Check if encryption methods are available, and if in iframe, try to enhance window.nostr
+                        // Check if encryption methods are available
                         const isInIframe = window.self !== window.top;
-                        if (isInIframe && window.nostr && (!window.nostr.nip44 || !window.nostr.nip04)) {
-                            // Try to add encryption methods via proxy if in iframe
-                            console.log('⚠️ Encryption methods missing, attempting to add via proxy...');
-                            try {
-                                // Create proxy encryption methods that communicate with parent
-                                if (!window.nostr.nip44) {
-                                    window.nostr.nip44 = {
-                                        encrypt: async function(pubkey, plaintext) {
-                                            return await new Promise((resolve, reject) => {
-                                                const requestId = Date.now() + Math.random();
-                                                const timeout = setTimeout(() => {
-                                                    reject(new Error('Encryption request timeout'));
-                                                }, 10000);
-                                                
-                                                const messageHandler = (event) => {
-                                                    if (event.data && event.data.type === 'nostr-response' && event.data.requestId === requestId) {
-                                                        clearTimeout(timeout);
-                                                        window.removeEventListener('message', messageHandler);
-                                                        if (event.data.success) {
-                                                            resolve(event.data.data);
-                                                        } else {
-                                                            reject(new Error(event.data.error || 'Encryption failed'));
-                                                        }
-                                                    }
-                                                };
-                                                
-                                                window.addEventListener('message', messageHandler);
-                                                window.parent.postMessage({
-                                                    type: 'nostr-request',
-                                                    requestId: requestId,
-                                                    method: 'nip44.encrypt',
-                                                    params: [pubkey, plaintext]
-                                                }, '*');
-                                            });
-                                        },
-                                        decrypt: async function(pubkey, ciphertext) {
-                                            return await new Promise((resolve, reject) => {
-                                                const requestId = Date.now() + Math.random();
-                                                const timeout = setTimeout(() => {
-                                                    reject(new Error('Decryption request timeout'));
-                                                }, 10000);
-                                                
-                                                const messageHandler = (event) => {
-                                                    if (event.data && event.data.type === 'nostr-response' && event.data.requestId === requestId) {
-                                                        clearTimeout(timeout);
-                                                        window.removeEventListener('message', messageHandler);
-                                                        if (event.data.success) {
-                                                            resolve(event.data.data);
-                                                        } else {
-                                                            reject(new Error(event.data.error || 'Decryption failed'));
-                                                        }
-                                                    }
-                                                };
-                                                
-                                                window.addEventListener('message', messageHandler);
-                                                window.parent.postMessage({
-                                                    type: 'nostr-request',
-                                                    requestId: requestId,
-                                                    method: 'nip44.decrypt',
-                                                    params: [pubkey, ciphertext]
-                                                }, '*');
-                                            });
-                                        }
-                                    };
+                        console.log('🔐 Encryption check - isInIframe:', isInIframe, 'window.nostr:', !!window.nostr);
+                        console.log('🔐 window.nostr.nip44:', !!window.nostr?.nip44, 'window.nostr.nip04:', !!window.nostr?.nip04);
+                        console.log('🔐 NostrTools available:', typeof NostrTools !== 'undefined');
+                        console.log('🔐 NostrTools.nip44:', typeof NostrTools?.nip44 !== 'undefined', 'NostrTools.nip04:', typeof NostrTools?.nip04 !== 'undefined');
+                        console.log('🔐 userPrivateKey available:', typeof userPrivateKey !== 'undefined' && userPrivateKey !== null);
+                        
+                        // Helper function to encrypt using NostrTools (preferred - more reliable)
+                        async function encryptWithNostrTools(method, recipientPubkey, plaintext) {
+                            if (typeof NostrTools === 'undefined') {
+                                throw new Error('NostrTools library not loaded');
+                            }
+                            
+                            // Check if we have private key (required for NostrTools encryption)
+                            let privkey = userPrivateKey || window.userPrivateKey;
+                            if (!privkey) {
+                                throw new Error('Private key not available for encryption');
+                            }
+                            
+                            // Convert nsec to hex if needed
+                            if (typeof privkey === 'string' && privkey.startsWith('nsec1')) {
+                                if (typeof NostrTools.nip19 !== 'undefined' && NostrTools.nip19.decode) {
+                                    const decoded = NostrTools.nip19.decode(privkey);
+                                    if (decoded.type === 'nsec') {
+                                        // decoded.data is Uint8Array, convert to hex
+                                        privkey = Array.from(decoded.data)
+                                            .map(b => b.toString(16).padStart(2, '0'))
+                                            .join('');
+                                    }
+                                } else {
+                                    throw new Error('Cannot decode nsec - NostrTools.nip19 not available');
                                 }
-                                
-                                if (!window.nostr.nip04) {
-                                    window.nostr.nip04 = {
-                                        encrypt: async function(pubkey, plaintext) {
-                                            return await new Promise((resolve, reject) => {
-                                                const requestId = Date.now() + Math.random();
-                                                const timeout = setTimeout(() => {
-                                                    reject(new Error('Encryption request timeout'));
-                                                }, 10000);
-                                                
-                                                const messageHandler = (event) => {
-                                                    if (event.data && event.data.type === 'nostr-response' && event.data.requestId === requestId) {
-                                                        clearTimeout(timeout);
-                                                        window.removeEventListener('message', messageHandler);
-                                                        if (event.data.success) {
-                                                            resolve(event.data.data);
-                                                        } else {
-                                                            reject(new Error(event.data.error || 'Encryption failed'));
-                                                        }
-                                                    }
-                                                };
-                                                
-                                                window.addEventListener('message', messageHandler);
-                                                window.parent.postMessage({
-                                                    type: 'nostr-request',
-                                                    requestId: requestId,
-                                                    method: 'nip04.encrypt',
-                                                    params: [pubkey, plaintext]
-                                                }, '*');
-                                            });
-                                        },
-                                        decrypt: async function(pubkey, ciphertext) {
-                                            return await new Promise((resolve, reject) => {
-                                                const requestId = Date.now() + Math.random();
-                                                const timeout = setTimeout(() => {
-                                                    reject(new Error('Decryption request timeout'));
-                                                }, 10000);
-                                                
-                                                const messageHandler = (event) => {
-                                                    if (event.data && event.data.type === 'nostr-response' && event.data.requestId === requestId) {
-                                                        clearTimeout(timeout);
-                                                        window.removeEventListener('message', messageHandler);
-                                                        if (event.data.success) {
-                                                            resolve(event.data.data);
-                                                        } else {
-                                                            reject(new Error(event.data.error || 'Decryption failed'));
-                                                        }
-                                                    }
-                                                };
-                                                
-                                                window.addEventListener('message', messageHandler);
-                                                window.parent.postMessage({
-                                                    type: 'nostr-request',
-                                                    requestId: requestId,
-                                                    method: 'nip04.decrypt',
-                                                    params: [pubkey, ciphertext]
-                                                }, '*');
-                                            });
-                                        }
-                                    };
+                            }
+                            
+                            // Ensure privkey is hex string (not Uint8Array)
+                            if (privkey instanceof Uint8Array) {
+                                privkey = Array.from(privkey)
+                                    .map(b => b.toString(16).padStart(2, '0'))
+                                    .join('');
+                            }
+                            
+                            // Convert npub to hex if needed
+                            let recipientHex = recipientPubkey;
+                            if (recipientPubkey.startsWith('npub1')) {
+                                if (typeof NostrTools.nip19 !== 'undefined' && NostrTools.nip19.decode) {
+                                    const decoded = NostrTools.nip19.decode(recipientPubkey);
+                                    if (decoded.type === 'npub') {
+                                        // decoded.data is Uint8Array, convert to hex
+                                        recipientHex = Array.from(decoded.data)
+                                            .map(b => b.toString(16).padStart(2, '0'))
+                                            .join('');
+                                    }
+                                } else {
+                                    throw new Error('Cannot decode npub - NostrTools.nip19 not available');
                                 }
-                                console.log('✅ Encryption methods added via proxy');
-                            } catch (proxyError) {
-                                console.warn('⚠️ Could not add encryption methods via proxy:', proxyError);
+                            }
+                            
+                            // Ensure recipientHex is hex string (not Uint8Array)
+                            if (recipientHex instanceof Uint8Array) {
+                                recipientHex = Array.from(recipientHex)
+                                    .map(b => b.toString(16).padStart(2, '0'))
+                                    .join('');
+                            }
+                            
+                            if (method === 'nip44') {
+                                // NIP-44: Get conversation key first, then encrypt
+                                if (!NostrTools.nip44 || !NostrTools.nip44.v2) {
+                                    throw new Error('NostrTools.nip44.v2 not available');
+                                }
+                                const conversationKey = NostrTools.nip44.v2.getConversationKey(privkey, recipientHex);
+                                return NostrTools.nip44.encrypt(conversationKey, plaintext, { version: 2 });
+                            } else if (method === 'nip04') {
+                                // NIP-04: Direct encryption
+                                if (!NostrTools.nip04) {
+                                    throw new Error('NostrTools.nip04 not available');
+                                }
+                                return await NostrTools.nip04.encrypt(privkey, recipientHex, plaintext);
+                            } else {
+                                throw new Error(`Unknown encryption method: ${method}`);
                             }
                         }
                         
-                        // Now try to use encryption
-                        if (encryptionMethod === 'nip44' && window.nostr && window.nostr.nip44 && typeof window.nostr.nip44.encrypt === 'function') {
-                            encryptedContent = await window.nostr.nip44.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
-                            console.log('✅ Content encrypted with NIP-44');
-                        } else if (encryptionMethod === 'nip04' && window.nostr && window.nostr.nip04 && typeof window.nostr.nip04.encrypt === 'function') {
-                            encryptedContent = await window.nostr.nip04.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
-                            console.log('✅ Content encrypted with NIP-04');
-                        } else {
+                        // Try to add encryption methods if missing (works in both iframe and non-iframe contexts)
+                        if (window.nostr && (!window.nostr.nip44 || !window.nostr.nip04)) {
+                            // Try to add encryption methods via proxy (if in iframe) or direct extension access
+                            console.log('⚠️ Encryption methods missing, attempting to add...');
+                            try {
+                                if (isInIframe) {
+                                    // In iframe: create proxy encryption methods that communicate with parent
+                                    if (!window.nostr.nip44) {
+                                        window.nostr.nip44 = {
+                                            encrypt: async function(pubkey, plaintext) {
+                                                return await new Promise((resolve, reject) => {
+                                                    const requestId = Date.now() + Math.random();
+                                                    const timeout = setTimeout(() => {
+                                                        reject(new Error('Encryption request timeout'));
+                                                    }, 10000);
+                                                    
+                                                    const messageHandler = (event) => {
+                                                        if (event.data && event.data.type === 'nostr-response' && event.data.requestId === requestId) {
+                                                            clearTimeout(timeout);
+                                                            window.removeEventListener('message', messageHandler);
+                                                            if (event.data.success) {
+                                                                resolve(event.data.data);
+                                                            } else {
+                                                                reject(new Error(event.data.error || 'Encryption failed'));
+                                                            }
+                                                        }
+                                                    };
+                                                    
+                                                    window.addEventListener('message', messageHandler);
+                                                    window.parent.postMessage({
+                                                        type: 'nostr-request',
+                                                        requestId: requestId,
+                                                        method: 'nip44.encrypt',
+                                                        params: [pubkey, plaintext]
+                                                    }, '*');
+                                                });
+                                            },
+                                            decrypt: async function(pubkey, ciphertext) {
+                                                return await new Promise((resolve, reject) => {
+                                                    const requestId = Date.now() + Math.random();
+                                                    const timeout = setTimeout(() => {
+                                                        reject(new Error('Decryption request timeout'));
+                                                    }, 10000);
+                                                    
+                                                    const messageHandler = (event) => {
+                                                        if (event.data && event.data.type === 'nostr-response' && event.data.requestId === requestId) {
+                                                            clearTimeout(timeout);
+                                                            window.removeEventListener('message', messageHandler);
+                                                            if (event.data.success) {
+                                                                resolve(event.data.data);
+                                                            } else {
+                                                                reject(new Error(event.data.error || 'Decryption failed'));
+                                                            }
+                                                        }
+                                                    };
+                                                    
+                                                    window.addEventListener('message', messageHandler);
+                                                    window.parent.postMessage({
+                                                        type: 'nostr-request',
+                                                        requestId: requestId,
+                                                        method: 'nip44.decrypt',
+                                                        params: [pubkey, ciphertext]
+                                                    }, '*');
+                                                });
+                                            }
+                                        };
+                                    }
+                                    
+                                    if (!window.nostr.nip04) {
+                                        window.nostr.nip04 = {
+                                            encrypt: async function(pubkey, plaintext) {
+                                                return await new Promise((resolve, reject) => {
+                                                    const requestId = Date.now() + Math.random();
+                                                    const timeout = setTimeout(() => {
+                                                        reject(new Error('Encryption request timeout'));
+                                                    }, 10000);
+                                                    
+                                                    const messageHandler = (event) => {
+                                                        if (event.data && event.data.type === 'nostr-response' && event.data.requestId === requestId) {
+                                                            clearTimeout(timeout);
+                                                            window.removeEventListener('message', messageHandler);
+                                                            if (event.data.success) {
+                                                                resolve(event.data.data);
+                                                            } else {
+                                                                reject(new Error(event.data.error || 'Encryption failed'));
+                                                            }
+                                                        }
+                                                    };
+                                                    
+                                                    window.addEventListener('message', messageHandler);
+                                                    window.parent.postMessage({
+                                                        type: 'nostr-request',
+                                                        requestId: requestId,
+                                                        method: 'nip04.encrypt',
+                                                        params: [pubkey, plaintext]
+                                                    }, '*');
+                                                });
+                                            },
+                                            decrypt: async function(pubkey, ciphertext) {
+                                                return await new Promise((resolve, reject) => {
+                                                    const requestId = Date.now() + Math.random();
+                                                    const timeout = setTimeout(() => {
+                                                        reject(new Error('Decryption request timeout'));
+                                                    }, 10000);
+                                                    
+                                                    const messageHandler = (event) => {
+                                                        if (event.data && event.data.type === 'nostr-response' && event.data.requestId === requestId) {
+                                                            clearTimeout(timeout);
+                                                            window.removeEventListener('message', messageHandler);
+                                                            if (event.data.success) {
+                                                                resolve(event.data.data);
+                                                            } else {
+                                                                reject(new Error(event.data.error || 'Decryption failed'));
+                                                            }
+                                                        }
+                                                    };
+                                                    
+                                                    window.addEventListener('message', messageHandler);
+                                                    window.parent.postMessage({
+                                                        type: 'nostr-request',
+                                                        requestId: requestId,
+                                                        method: 'nip04.decrypt',
+                                                        params: [pubkey, ciphertext]
+                                                    }, '*');
+                                                });
+                                            }
+                                        };
+                                    }
+                                    console.log('✅ Encryption methods added via iframe proxy');
+                                } else {
+                                    // Not in iframe: try to access encryption methods directly from extension
+                                    // Some extensions expose encryption methods differently
+                                    console.log('⚠️ Not in iframe - encryption methods should be available directly from extension');
+                                    console.log('⚠️ Extension may not support encryption, or methods are not exposed');
+                                }
+                            } catch (proxyError) {
+                                console.warn('⚠️ Could not add encryption methods:', proxyError);
+                            }
+                        }
+                        
+                        // Now try to use encryption - prefer NostrTools (more reliable) over extension
+                        let encryptionSuccess = false;
+                        
+                        // Strategy 1: Try NostrTools first (if we have private key)
+                        try {
+                            const privkey = userPrivateKey || window.userPrivateKey;
+                            if (privkey && typeof NostrTools !== 'undefined') {
+                                encryptedContent = await encryptWithNostrTools(encryptionMethod, recipientsList[0], JSON.stringify(voiceMetadata));
+                                console.log(`✅ Content encrypted with ${encryptionMethod.toUpperCase()} using NostrTools`);
+                                encryptionSuccess = true;
+                            }
+                        } catch (nostrToolsError) {
+                            console.warn('⚠️ NostrTools encryption failed:', nostrToolsError.message);
+                            // Fall through to try extension
+                        }
+                        
+                        // Strategy 2: Try extension if NostrTools failed or no private key
+                        if (!encryptionSuccess) {
+                            if (encryptionMethod === 'nip44' && window.nostr && window.nostr.nip44 && typeof window.nostr.nip44.encrypt === 'function') {
+                                encryptedContent = await window.nostr.nip44.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
+                                console.log('✅ Content encrypted with NIP-44 using extension');
+                                encryptionSuccess = true;
+                            } else if (encryptionMethod === 'nip04' && window.nostr && window.nostr.nip04 && typeof window.nostr.nip04.encrypt === 'function') {
+                                encryptedContent = await window.nostr.nip04.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
+                                console.log('✅ Content encrypted with NIP-04 using extension');
+                                encryptionSuccess = true;
+                            }
+                        }
+                        
+                        if (!encryptionSuccess) {
                             // Provide detailed error message
                             const missingMethod = encryptionMethod === 'nip44' ? 'NIP-44' : 'NIP-04';
-                            const errorMsg = `Encryption method ${missingMethod} is not available. ` +
-                                (isInIframe 
-                                    ? 'The NOSTR extension in the parent window may not support encryption, or the proxy communication failed.'
-                                    : 'Please ensure your NOSTR extension supports encryption (NIP-44 or NIP-04).');
+                            let errorMsg = `Encryption method ${missingMethod} is not available. `;
+                            
+                            const privkey = userPrivateKey || window.userPrivateKey;
+                            if (!privkey && typeof NostrTools !== 'undefined') {
+                                errorMsg += 'Private key not available for NostrTools encryption. ';
+                            }
+                            
+                            if (isInIframe) {
+                                errorMsg += 'The NOSTR extension in the parent window may not support encryption, or the proxy communication failed.';
+                            } else {
+                                errorMsg += 'Please ensure your NOSTR extension supports encryption (NIP-44 or NIP-04), or provide your private key for NostrTools encryption.';
+                            }
+                            
                             throw new Error(errorMsg);
                         }
                     } catch (encryptError) {

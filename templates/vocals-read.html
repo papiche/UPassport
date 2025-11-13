@@ -1070,19 +1070,126 @@
                 statusDiv.classList.remove('d-none');
                 statusDiv.innerHTML = '<div class="loading-spinner"></div> Decrypting message...';
                 
-                // Check if window.nostr is available
-                if (typeof window.nostr === 'undefined' || !window.nostr) {
-                    throw new Error('NOSTR extension not available');
+                // Helper function to decrypt using NostrTools (preferred - more reliable)
+                async function decryptWithNostrTools(method, senderPubkey, ciphertext) {
+                    if (typeof NostrTools === 'undefined') {
+                        throw new Error('NostrTools library not loaded');
+                    }
+                    
+                    // Check if we have private key (required for NostrTools decryption)
+                    let privkey = userPrivateKey || window.userPrivateKey;
+                    if (!privkey) {
+                        throw new Error('Private key not available for decryption');
+                    }
+                    
+                    // Convert nsec to hex if needed
+                    if (typeof privkey === 'string' && privkey.startsWith('nsec1')) {
+                        if (typeof NostrTools.nip19 !== 'undefined' && NostrTools.nip19.decode) {
+                            const decoded = NostrTools.nip19.decode(privkey);
+                            if (decoded.type === 'nsec') {
+                                // decoded.data is Uint8Array, convert to hex
+                                privkey = Array.from(decoded.data)
+                                    .map(b => b.toString(16).padStart(2, '0'))
+                                    .join('');
+                            }
+                        } else {
+                            throw new Error('Cannot decode nsec - NostrTools.nip19 not available');
+                        }
+                    }
+                    
+                    // Ensure privkey is hex string (not Uint8Array)
+                    if (privkey instanceof Uint8Array) {
+                        privkey = Array.from(privkey)
+                            .map(b => b.toString(16).padStart(2, '0'))
+                            .join('');
+                    }
+                    
+                    // Convert sender npub to hex if needed
+                    let senderHex = senderPubkey;
+                    if (senderPubkey.startsWith('npub1')) {
+                        if (typeof NostrTools.nip19 !== 'undefined' && NostrTools.nip19.decode) {
+                            const decoded = NostrTools.nip19.decode(senderPubkey);
+                            if (decoded.type === 'npub') {
+                                // decoded.data is Uint8Array, convert to hex
+                                senderHex = Array.from(decoded.data)
+                                    .map(b => b.toString(16).padStart(2, '0'))
+                                    .join('');
+                            }
+                        } else {
+                            throw new Error('Cannot decode npub - NostrTools.nip19 not available');
+                        }
+                    }
+                    
+                    // Ensure senderHex is hex string (not Uint8Array)
+                    if (senderHex instanceof Uint8Array) {
+                        senderHex = Array.from(senderHex)
+                            .map(b => b.toString(16).padStart(2, '0'))
+                            .join('');
+                    }
+                    
+                    if (method === 'nip44') {
+                        // NIP-44: Get conversation key first, then decrypt
+                        if (!NostrTools.nip44 || !NostrTools.nip44.v2) {
+                            throw new Error('NostrTools.nip44.v2 not available');
+                        }
+                        const conversationKey = NostrTools.nip44.v2.getConversationKey(privkey, senderHex);
+                        return NostrTools.nip44.decrypt(conversationKey, ciphertext);
+                    } else if (method === 'nip04') {
+                        // NIP-04: Direct decryption
+                        if (!NostrTools.nip04) {
+                            throw new Error('NostrTools.nip04 not available');
+                        }
+                        return await NostrTools.nip04.decrypt(privkey, senderHex, ciphertext);
+                    } else {
+                        throw new Error(`Unknown encryption method: ${method}`);
+                    }
                 }
                 
-                // Decrypt content
+                // Decrypt content - prefer NostrTools (more reliable) over extension
                 let decryptedContent = null;
-                if (message.encryptionMethod === 'nip44' && window.nostr.nip44) {
-                    decryptedContent = await window.nostr.nip44.decrypt(message.pubkey, message.content);
-                } else if (message.encryptionMethod === 'nip04' && window.nostr.nip04) {
-                    decryptedContent = await window.nostr.nip04.decrypt(message.pubkey, message.content);
-                } else {
-                    throw new Error(`Encryption method ${message.encryptionMethod} not supported`);
+                let decryptionSuccess = false;
+                
+                // Strategy 1: Try NostrTools first (if we have private key)
+                try {
+                    const privkey = userPrivateKey || window.userPrivateKey;
+                    if (privkey && typeof NostrTools !== 'undefined') {
+                        decryptedContent = await decryptWithNostrTools(message.encryptionMethod, message.pubkey, message.content);
+                        console.log(`✅ Content decrypted with ${message.encryptionMethod.toUpperCase()} using NostrTools`);
+                        decryptionSuccess = true;
+                    }
+                } catch (nostrToolsError) {
+                    console.warn('⚠️ NostrTools decryption failed:', nostrToolsError.message);
+                    // Fall through to try extension
+                }
+                
+                // Strategy 2: Try extension if NostrTools failed or no private key
+                if (!decryptionSuccess) {
+                    if (typeof window.nostr === 'undefined' || !window.nostr) {
+                        throw new Error('NOSTR extension not available and private key not available for NostrTools decryption');
+                    }
+                    
+                    if (message.encryptionMethod === 'nip44' && window.nostr.nip44 && typeof window.nostr.nip44.decrypt === 'function') {
+                        decryptedContent = await window.nostr.nip44.decrypt(message.pubkey, message.content);
+                        console.log('✅ Content decrypted with NIP-44 using extension');
+                        decryptionSuccess = true;
+                    } else if (message.encryptionMethod === 'nip04' && window.nostr.nip04 && typeof window.nostr.nip04.decrypt === 'function') {
+                        decryptedContent = await window.nostr.nip04.decrypt(message.pubkey, message.content);
+                        console.log('✅ Content decrypted with NIP-04 using extension');
+                        decryptionSuccess = true;
+                    }
+                }
+                
+                if (!decryptionSuccess) {
+                    const privkey = userPrivateKey || window.userPrivateKey;
+                    let errorMsg = `Decryption method ${message.encryptionMethod} is not available. `;
+                    
+                    if (!privkey && typeof NostrTools !== 'undefined') {
+                        errorMsg += 'Private key not available for NostrTools decryption. ';
+                    }
+                    
+                    errorMsg += 'Please ensure your NOSTR extension supports decryption, or provide your private key for NostrTools decryption.';
+                    
+                    throw new Error(errorMsg);
                 }
                 
                 // Parse decrypted JSON
@@ -1175,7 +1282,14 @@
                 if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
                     const decoded = NostrTools.nip19.decode(npub);
                     if (decoded.type === 'npub') {
-                        return decoded.data;
+                        // decoded.data is Uint8Array, convert to hex string
+                        if (decoded.data instanceof Uint8Array) {
+                            return Array.from(decoded.data)
+                                .map(b => b.toString(16).padStart(2, '0'))
+                                .join('');
+                        } else if (typeof decoded.data === 'string') {
+                            return decoded.data;
+                        }
                     }
                 }
                 return null;
