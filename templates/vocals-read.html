@@ -756,21 +756,37 @@
                 connectBtn.disabled = true;
                 connectBtn.textContent = '🔄 Connecting...';
                 
-                // Check if window.nostr is available
-                if (typeof window.nostr === 'undefined' || !window.nostr) {
-                    throw new Error('NOSTR extension not detected. Please install a NOSTR extension like Alby, nos2x, or Flamingo.');
+                // Strategy 1: Use common.js connectNostr if available (better handling)
+                if (typeof connectNostr === 'function') {
+                    console.log('📌 Using common.js connectNostr...');
+                    localUserPubkey = await connectNostr(false);
+                    
+                    if (!localUserPubkey) {
+                        throw new Error('No public key returned from connectNostr');
+                    }
+                    
+                    // Sync with window scope and common.js
+                    syncToCommonJS();
+                    
+                    console.log('✅ Connected to NOSTR via common.js, pubkey:', localUserPubkey.substring(0, 8) + '...');
+                } else {
+                    // Strategy 2: Direct extension access (fallback)
+                    // Check if window.nostr is available
+                    if (typeof window.nostr === 'undefined' || !window.nostr) {
+                        throw new Error('NOSTR extension not detected. Please install a NOSTR extension like Alby, nos2x, or Flamingo.');
+                    }
+                    
+                    // Get public key
+                    localUserPubkey = await window.nostr.getPublicKey();
+                    if (!localUserPubkey) {
+                        throw new Error('No public key returned from NOSTR extension');
+                    }
+                    
+                    // Sync with window scope and common.js
+                    syncToCommonJS();
+                    
+                    console.log('✅ Connected to NOSTR, pubkey:', localUserPubkey.substring(0, 8) + '...');
                 }
-                
-                // Get public key
-                localUserPubkey = await window.nostr.getPublicKey();
-                if (!localUserPubkey) {
-                    throw new Error('No public key returned from NOSTR extension');
-                }
-                
-                // Sync with window scope and common.js
-                syncToCommonJS();
-                
-                console.log('✅ Connected to NOSTR, pubkey:', localUserPubkey.substring(0, 8) + '...');
                 
                 // Initialize NOSTR pool
                 if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
@@ -2858,21 +2874,80 @@
             } else {
                 // Auto-login: Try to connect automatically if extension is available
                 console.log('🔄 Attempting auto-login...');
-                if (typeof window.nostr !== 'undefined' && window.nostr && typeof window.nostr.getPublicKey === 'function') {
-                    // Extension available - try to connect automatically
-                    handleNostrConnect().then(() => {
-                        // Connection successful - handleNostrConnect already loads messages
-                        const profileBtn = document.getElementById('profile-btn');
-                        if (profileBtn && localUserPubkey) {
-                            profileBtn.classList.remove('d-none');
+                
+                // Strategy 2: Try direct extension access (with retry for extension loading delay)
+                function tryDirectExtensionConnection() {
+                    let attempts = 0;
+                    const maxAttempts = 5;
+                    const checkInterval = 500; // Check every 500ms
+                    
+                    const checkExtension = () => {
+                        attempts++;
+                        if (typeof window.nostr !== 'undefined' && window.nostr && typeof window.nostr.getPublicKey === 'function') {
+                            // Extension available - try to connect automatically
+                            console.log('✅ NOSTR extension detected, connecting...');
+                            handleNostrConnect().then(() => {
+                                // Connection successful - handleNostrConnect already loads messages
+                                const profileBtn = document.getElementById('profile-btn');
+                                if (profileBtn && localUserPubkey) {
+                                    profileBtn.classList.remove('d-none');
+                                }
+                            }).catch((error) => {
+                                console.log('ℹ️ Auto-login failed, user needs to click Connect button:', error.message);
+                            });
+                        } else if (attempts < maxAttempts) {
+                            // Extension not ready yet, retry
+                            setTimeout(checkExtension, checkInterval);
+                        } else {
+                            console.log('ℹ️ NOSTR extension not available after', maxAttempts, 'attempts - user needs to click Connect button');
+                        }
+                    };
+                    
+                    // Start checking
+                    checkExtension();
+                }
+                
+                // Strategy 1: Try to use common.js connectNostr (better handling of extension loading)
+                if (typeof connectNostr === 'function') {
+                    console.log('📌 Using common.js connectNostr for auto-login...');
+                    connectNostr(false).then((pubkey) => {
+                        if (pubkey) {
+                            localUserPubkey = pubkey;
+                            syncToCommonJS();
+                            
+                            // Initialize NOSTR pool
+                            if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                                nostrPool = new NostrTools.SimplePool();
+                            }
+                            localIsNostrConnected = true;
+                            syncToCommonJS();
+                            
+                            // Update UI
+                            const connectBtn = document.getElementById('connect-btn');
+                            const profileBtn = document.getElementById('profile-btn');
+                            if (connectBtn) {
+                                connectBtn.textContent = '✅ Connected';
+                                connectBtn.disabled = true;
+                                connectBtn.classList.remove('btn-primary');
+                                connectBtn.classList.add('btn-secondary');
+                            }
+                            if (profileBtn) {
+                                profileBtn.classList.remove('d-none');
+                            }
+                            
+                            // Load messages
+                            console.log('🔄 Auto-loading voice messages...');
+                            loadVoiceMessages();
                         }
                     }).catch((error) => {
-                        console.log('ℹ️ Auto-login failed, user needs to click Connect button:', error.message);
+                        console.log('ℹ️ Auto-login via common.js failed:', error.message);
+                        // Fall through to Strategy 2
+                        tryDirectExtensionConnection();
                     });
-                    // Don't set shouldAutoLoad here - handleNostrConnect will handle loading
-                    return; // Exit early, handleNostrConnect will handle everything
+                    // Don't return - let it try both strategies if needed
                 } else {
-                    console.log('ℹ️ NOSTR extension not available - user needs to click Connect button');
+                    // connectNostr not available, try direct extension access
+                    tryDirectExtensionConnection();
                 }
             }
             
