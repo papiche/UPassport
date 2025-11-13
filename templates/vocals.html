@@ -3286,14 +3286,155 @@
                     // Encrypt for first recipient (for now, single recipient encryption)
                     // TODO: Support multiple recipients with separate events
                     try {
-                        if (encryptionMethod === 'nip44' && window.nostr && window.nostr.nip44) {
+                        // Check if encryption methods are available, and if in iframe, try to enhance window.nostr
+                        const isInIframe = window.self !== window.top;
+                        if (isInIframe && window.nostr && (!window.nostr.nip44 || !window.nostr.nip04)) {
+                            // Try to add encryption methods via proxy if in iframe
+                            console.log('⚠️ Encryption methods missing, attempting to add via proxy...');
+                            try {
+                                // Create proxy encryption methods that communicate with parent
+                                if (!window.nostr.nip44) {
+                                    window.nostr.nip44 = {
+                                        encrypt: async function(pubkey, plaintext) {
+                                            return await new Promise((resolve, reject) => {
+                                                const requestId = Date.now() + Math.random();
+                                                const timeout = setTimeout(() => {
+                                                    reject(new Error('Encryption request timeout'));
+                                                }, 10000);
+                                                
+                                                const messageHandler = (event) => {
+                                                    if (event.data && event.data.type === 'nostr-response' && event.data.requestId === requestId) {
+                                                        clearTimeout(timeout);
+                                                        window.removeEventListener('message', messageHandler);
+                                                        if (event.data.success) {
+                                                            resolve(event.data.data);
+                                                        } else {
+                                                            reject(new Error(event.data.error || 'Encryption failed'));
+                                                        }
+                                                    }
+                                                };
+                                                
+                                                window.addEventListener('message', messageHandler);
+                                                window.parent.postMessage({
+                                                    type: 'nostr-request',
+                                                    requestId: requestId,
+                                                    method: 'nip44.encrypt',
+                                                    params: [pubkey, plaintext]
+                                                }, '*');
+                                            });
+                                        },
+                                        decrypt: async function(pubkey, ciphertext) {
+                                            return await new Promise((resolve, reject) => {
+                                                const requestId = Date.now() + Math.random();
+                                                const timeout = setTimeout(() => {
+                                                    reject(new Error('Decryption request timeout'));
+                                                }, 10000);
+                                                
+                                                const messageHandler = (event) => {
+                                                    if (event.data && event.data.type === 'nostr-response' && event.data.requestId === requestId) {
+                                                        clearTimeout(timeout);
+                                                        window.removeEventListener('message', messageHandler);
+                                                        if (event.data.success) {
+                                                            resolve(event.data.data);
+                                                        } else {
+                                                            reject(new Error(event.data.error || 'Decryption failed'));
+                                                        }
+                                                    }
+                                                };
+                                                
+                                                window.addEventListener('message', messageHandler);
+                                                window.parent.postMessage({
+                                                    type: 'nostr-request',
+                                                    requestId: requestId,
+                                                    method: 'nip44.decrypt',
+                                                    params: [pubkey, ciphertext]
+                                                }, '*');
+                                            });
+                                        }
+                                    };
+                                }
+                                
+                                if (!window.nostr.nip04) {
+                                    window.nostr.nip04 = {
+                                        encrypt: async function(pubkey, plaintext) {
+                                            return await new Promise((resolve, reject) => {
+                                                const requestId = Date.now() + Math.random();
+                                                const timeout = setTimeout(() => {
+                                                    reject(new Error('Encryption request timeout'));
+                                                }, 10000);
+                                                
+                                                const messageHandler = (event) => {
+                                                    if (event.data && event.data.type === 'nostr-response' && event.data.requestId === requestId) {
+                                                        clearTimeout(timeout);
+                                                        window.removeEventListener('message', messageHandler);
+                                                        if (event.data.success) {
+                                                            resolve(event.data.data);
+                                                        } else {
+                                                            reject(new Error(event.data.error || 'Encryption failed'));
+                                                        }
+                                                    }
+                                                };
+                                                
+                                                window.addEventListener('message', messageHandler);
+                                                window.parent.postMessage({
+                                                    type: 'nostr-request',
+                                                    requestId: requestId,
+                                                    method: 'nip04.encrypt',
+                                                    params: [pubkey, plaintext]
+                                                }, '*');
+                                            });
+                                        },
+                                        decrypt: async function(pubkey, ciphertext) {
+                                            return await new Promise((resolve, reject) => {
+                                                const requestId = Date.now() + Math.random();
+                                                const timeout = setTimeout(() => {
+                                                    reject(new Error('Decryption request timeout'));
+                                                }, 10000);
+                                                
+                                                const messageHandler = (event) => {
+                                                    if (event.data && event.data.type === 'nostr-response' && event.data.requestId === requestId) {
+                                                        clearTimeout(timeout);
+                                                        window.removeEventListener('message', messageHandler);
+                                                        if (event.data.success) {
+                                                            resolve(event.data.data);
+                                                        } else {
+                                                            reject(new Error(event.data.error || 'Decryption failed'));
+                                                        }
+                                                    }
+                                                };
+                                                
+                                                window.addEventListener('message', messageHandler);
+                                                window.parent.postMessage({
+                                                    type: 'nostr-request',
+                                                    requestId: requestId,
+                                                    method: 'nip04.decrypt',
+                                                    params: [pubkey, ciphertext]
+                                                }, '*');
+                                            });
+                                        }
+                                    };
+                                }
+                                console.log('✅ Encryption methods added via proxy');
+                            } catch (proxyError) {
+                                console.warn('⚠️ Could not add encryption methods via proxy:', proxyError);
+                            }
+                        }
+                        
+                        // Now try to use encryption
+                        if (encryptionMethod === 'nip44' && window.nostr && window.nostr.nip44 && typeof window.nostr.nip44.encrypt === 'function') {
                             encryptedContent = await window.nostr.nip44.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
                             console.log('✅ Content encrypted with NIP-44');
-                        } else if (encryptionMethod === 'nip04' && window.nostr && window.nostr.nip04) {
+                        } else if (encryptionMethod === 'nip04' && window.nostr && window.nostr.nip04 && typeof window.nostr.nip04.encrypt === 'function') {
                             encryptedContent = await window.nostr.nip04.encrypt(recipientsList[0], JSON.stringify(voiceMetadata));
                             console.log('✅ Content encrypted with NIP-04');
                         } else {
-                            throw new Error('Encryption method not available. Please ensure NOSTR extension supports encryption.');
+                            // Provide detailed error message
+                            const missingMethod = encryptionMethod === 'nip44' ? 'NIP-44' : 'NIP-04';
+                            const errorMsg = `Encryption method ${missingMethod} is not available. ` +
+                                (isInIframe 
+                                    ? 'The NOSTR extension in the parent window may not support encryption, or the proxy communication failed.'
+                                    : 'Please ensure your NOSTR extension supports encryption (NIP-44 or NIP-04).');
+                            throw new Error(errorMsg);
                         }
                     } catch (encryptError) {
                         console.error('❌ Encryption error:', encryptError);
