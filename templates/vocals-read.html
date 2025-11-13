@@ -563,8 +563,8 @@
         function getNostrRelay() { syncFromCommonJS(); return localNostrRelay; }
         function setNostrRelay(v) { localNostrRelay = v; syncToCommonJS(); }
         
-        // Default relays
-        const DEFAULT_RELAYS = ['wss://astroport.com', 'wss://relay.damus.io', 'wss://nos.lol'];
+        // Default relays (use different name to avoid conflict with common.js)
+        const VOCALS_READ_DEFAULT_RELAYS = ['wss://relay.copylaradio.com', 'wss://relay.damus.io', 'wss://nos.lol'];
         
         // Voice messages cache
         let voiceMessagesCache = [];
@@ -686,7 +686,7 @@
                 console.log('📡 Fetching voice messages with filter:', filter);
                 
                 // Fetch events from relays
-                const events = await nostrPool.list(DEFAULT_RELAYS, [filter]);
+                const events = await nostrPool.list(VOCALS_READ_DEFAULT_RELAYS, [filter]);
                 
                 console.log(`✅ Fetched ${events.length} voice message events`);
                 
@@ -811,7 +811,7 @@
                     // Get sender profile
                     let senderProfile = null;
                     try {
-                        const profileEvents = await nostrPool.list(DEFAULT_RELAYS, [
+                        const profileEvents = await nostrPool.list(VOCALS_READ_DEFAULT_RELAYS, [
                             { kinds: [0], authors: [event.pubkey], limit: 1 }
                         ]);
                         if (profileEvents.length > 0) {
