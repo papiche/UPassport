@@ -1477,9 +1477,16 @@
                                     </div>
                                     
                                     <!-- Manual Recipients Input -->
-                                    <textarea class="form-control form-control-sm bg-dark text-white border-secondary" id="recipients-list" 
-                                              rows="3" placeholder="npub1...&#10;npub1..."></textarea>
-                                    <small class="text-secondary">Enter recipient public keys (npub format). Each recipient will be able to decrypt the message.</small>
+                                    <div class="mb-2">
+                                        <div class="d-flex gap-2 mb-2">
+                                            <button type="button" class="btn btn-outline-info btn-sm" id="send-to-myself-btn" onclick="addMyselfAsRecipient()">
+                                                📝 Send to Myself
+                                            </button>
+                                        </div>
+                                        <textarea class="form-control form-control-sm bg-dark text-white border-secondary" id="recipients-list" 
+                                                  rows="3" placeholder="npub1...&#10;npub1..."></textarea>
+                                    </div>
+                                    <small class="text-secondary">Enter recipient public keys (npub format). Each recipient will be able to decrypt the message. You can send to yourself for reminders or notes.</small>
                                     
                                     <!-- Selected Recipients Display -->
                                     <div id="selected-recipients" class="mt-2 d-none">
@@ -1516,6 +1523,19 @@
                                 </button>
                             </div>
                             <div id="modal-map" class="modal-map rounded border border-secondary" style="height: 200px; background: #181818;"></div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label text-white">
+                                ⏰ Expiration Date (NIP-40) - Optional
+                            </label>
+                            <div class="row g-2 mb-2">
+                                <div class="col-12">
+                                    <input type="datetime-local" class="form-control form-control-sm bg-dark text-white border-secondary" 
+                                           id="expires-date" min="">
+                                    <small class="text-secondary">Set a date/time when the relay will delete this event (NIP-40). Relays supporting NIP-40 will automatically delete the event after this timestamp. Leave empty for no expiration.</small>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="mb-3">
@@ -2021,6 +2041,20 @@
             
             // Initialize modal map will be done after modal is shown (see event listener below)
             
+            // Initialize expiration date field with minimum date (today)
+            const expiresDateInput = document.getElementById('expires-date');
+            if (expiresDateInput) {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const minDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+                expiresDateInput.min = minDateTime;
+                expiresDateInput.value = ''; // Clear any previous value
+            }
+            
             // Handle form submission
             document.getElementById('publish-form').onsubmit = async (e) => {
                 e.preventDefault();
@@ -2094,6 +2128,42 @@
             });
         }
         
+        // Add myself as recipient function
+        function addMyselfAsRecipient() {
+            if (!userPubkey) {
+                showError('Please connect to NOSTR first to add yourself as recipient.', 'Not Connected');
+                return;
+            }
+            
+            // Convert hex to npub if needed
+            let myNpub = userPubkey;
+            if (userPubkey.length === 64 && /^[0-9a-fA-F]{64}$/.test(userPubkey)) {
+                // It's hex, need to convert to npub
+                if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                    try {
+                        myNpub = NostrTools.nip19.npubEncode(userPubkey);
+                    } catch (e) {
+                        console.error('❌ Error converting hex to npub:', e);
+                        showError('Could not convert your pubkey to npub format. Please enter it manually.', 'Conversion Error');
+                        return;
+                    }
+                } else {
+                    showError('NostrTools not available. Please enter your npub manually.', 'Tools Not Available');
+                    return;
+                }
+            } else if (!userPubkey.startsWith('npub1')) {
+                showError('Invalid pubkey format. Expected hex or npub.', 'Invalid Format');
+                return;
+            }
+            
+            // Add to recipients list
+            addRecipient(myNpub, 'Myself');
+            showInfo('Added yourself as recipient. You will be able to decrypt this message.', 'Recipient Added');
+        }
+        
+        // Make addMyselfAsRecipient available globally
+        window.addMyselfAsRecipient = addMyselfAsRecipient;
+        
         async function loadContactsFromNetwork() {
             const loadBtn = document.getElementById('load-contacts-btn');
             const contactsSelect = document.getElementById('contacts-select');
@@ -2153,21 +2223,55 @@
                 }
                 
                 console.log('📡 Fetching contacts from /api/getN2 for:', userHex.substring(0, 16) + '...');
+                console.log('📡 Full hex pubkey:', userHex);
+                console.log('📡 API URL:', `/api/getN2?hex=${userHex}&range=default&output=json`);
                 
                 // Fetch network (mutual connections by default)
                 const response = await fetch(`/api/getN2?hex=${userHex}&range=default&output=json`);
                 
+                console.log('📡 Response status:', response.status, response.statusText);
+                
                 if (!response.ok) {
-                    throw new Error(`Failed to fetch contacts: ${response.statusText}`);
+                    const errorText = await response.text().catch(() => '');
+                    console.error('❌ API error response:', errorText);
+                    throw new Error(`Failed to fetch contacts: ${response.statusText}${errorText ? ' - ' + errorText : ''}`);
                 }
                 
                 const network = await response.json();
                 
+                console.log('📡 Network response keys:', Object.keys(network));
+                console.log('📡 Network response:', JSON.stringify(network, null, 2));
+                console.log('📡 Total nodes in network:', network.nodes ? network.nodes.length : 0);
+                console.log('📡 Total N1:', network.total_n1 || 0);
+                console.log('📡 Total N2:', network.total_n2 || 0);
+                
                 if (!network.nodes || !Array.isArray(network.nodes)) {
+                    console.error('❌ Invalid network data - nodes is not an array:', typeof network.nodes);
                     throw new Error('Invalid network data received');
                 }
                 
+                // Log all nodes before filtering
+                console.log('📡 All nodes before filtering:', network.nodes.length);
+                network.nodes.forEach((node, index) => {
+                    console.log(`📡 Node ${index}:`, {
+                        pubkey: node.pubkey ? node.pubkey.substring(0, 16) + '...' : 'missing',
+                        npub: node.npub ? node.npub.substring(0, 16) + '...' : 'missing',
+                        name: node.name || node.display_name || 'no name',
+                        mutual: node.mutual || false,
+                        is_follower: node.is_follower || false,
+                        is_followed: node.is_followed || false
+                    });
+                });
+                
                 // Filter contacts that have npub and are mutual connections
+                const nodesWithNpub = network.nodes.filter(node => node.npub);
+                console.log('📡 Nodes with npub:', nodesWithNpub.length);
+                
+                const nodesWithConnection = network.nodes.filter(node => 
+                    node.npub && (node.mutual || node.is_follower || node.is_followed)
+                );
+                console.log('📡 Nodes with npub AND connection (mutual/follower/followed):', nodesWithConnection.length);
+                
                 contactsList = network.nodes
                     .filter(node => node.npub && (node.mutual || node.is_follower || node.is_followed))
                     .map(node => ({
@@ -2184,7 +2288,7 @@
                         return a.name.localeCompare(b.name);
                     });
                 
-                console.log(`✅ Loaded ${contactsList.length} contacts from network`);
+                console.log(`✅ Loaded ${contactsList.length} contacts from network after filtering`);
                 
                 // Populate select dropdown
                 contactsSelect.innerHTML = '';
@@ -3094,6 +3198,15 @@
                 formData.append('title', document.getElementById('voice-title').value);
                 formData.append('description', document.getElementById('voice-description').value);
                 
+                // Check if encryption is enabled (MUST be before using isEncrypted)
+                const isEncrypted = document.getElementById('encrypt-message')?.checked || false;
+                const encryptionMethod = document.getElementById('encryption-method')?.value || 'nip44';
+                const recipientsText = document.getElementById('recipients-list')?.value || '';
+                
+                // If encrypted, encrypt the content before sending
+                let encryptedContent = null;
+                let recipientsList = [];
+                
                 // Add encryption parameters
                 formData.append('encrypted', isEncrypted ? 'true' : 'false');
                 if (isEncrypted) {
@@ -3115,6 +3228,17 @@
                     formData.append('latitude', lat.toString());
                     formData.append('longitude', lon.toString());
                 
+                // Get expiration date from modal (NIP-40: Expiration Timestamp)
+                // Relays supporting NIP-40 will delete the event after this timestamp
+                const expiresDateInput = document.getElementById('expires-date');
+                if (expiresDateInput && expiresDateInput.value) {
+                    const expiresDate = new Date(expiresDateInput.value);
+                    const expirationTimestamp = Math.floor(expiresDate.getTime() / 1000); // Convert to Unix timestamp
+                    formData.append('expiration', expirationTimestamp.toString());
+                    console.log('⏰ Expiration date set (NIP-40):', expiresDate.toISOString(), '(', expirationTimestamp, ')');
+                    console.log('⏰ Relay will delete this event after:', expiresDate.toLocaleString());
+                }
+                
                 // npub is REQUIRED by backend, even if publish_nostr is false
                 // (needed for authentication and user directory lookup)
                 if (currentPubkey) {
@@ -3124,15 +3248,6 @@
                     console.error('❌ No npub available - this is required!');
                     throw new Error('No NOSTR public key available. Please connect to NOSTR first.');
                 }
-                
-                // Check if encryption is enabled
-                const isEncrypted = document.getElementById('encrypt-message')?.checked || false;
-                const encryptionMethod = document.getElementById('encryption-method')?.value || 'nip44';
-                const recipientsText = document.getElementById('recipients-list')?.value || '';
-                
-                // If encrypted, encrypt the content before sending
-                let encryptedContent = null;
-                let recipientsList = [];
                 
                 if (isEncrypted && recipientsText.trim()) {
                     // Parse recipients
@@ -3146,8 +3261,15 @@
                     }
                     
                     // Prepare metadata for encryption
+                    // Get gateway from common.js or use default
+                    const gatewayUrl = (typeof gateway !== 'undefined' && gateway) 
+                        ? gateway 
+                        : (typeof window !== 'undefined' && window.gateway) 
+                            ? window.gateway 
+                            : 'https://ipfs.io'; // Default fallback
+                    
                     const voiceMetadata = {
-                        url: uploadResult.new_cid ? `${gateway}/ipfs/${uploadResult.new_cid}` : '',
+                        url: uploadResult.new_cid ? `${gatewayUrl}/ipfs/${uploadResult.new_cid}` : '',
                         duration: uploadResult.duration || 0,
                         title: document.getElementById('voice-title').value,
                         description: document.getElementById('voice-description').value
@@ -3189,7 +3311,7 @@
                     const result = await response.text();
                     
                     // Detect if it's audio or video
-                    const isAudio = videoBlob.type.startsWith('audio/');
+                    const isAudio = audioBlob.type.startsWith('audio/');
                     const mediaType = isAudio ? 'Audio' : 'Video';
                     const mediaTypeLower = isAudio ? 'audio' : 'video';
                     
@@ -3260,7 +3382,7 @@
                 const publishBtn = document.getElementById('publish-btn');
                 publishBtn.disabled = false;
                 // Detect if it's audio or video to set correct button text
-                const isAudio = videoBlob.type.startsWith('audio/');
+                const isAudio = audioBlob ? audioBlob.type.startsWith('audio/') : true; // Default to audio for voice messages
                 publishBtn.textContent = isAudio ? '📡 Publish Audio' : '📡 Publish Video';
             }
         }

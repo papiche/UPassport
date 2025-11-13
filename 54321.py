@@ -4307,7 +4307,11 @@ async def process_vocals_message(
     encrypted: str = Form(default="false"),  # Encrypt message (default: false)
     encryption_method: str = Form(default="nip44"),  # Encryption method: nip44 or nip04
     recipients: str = Form(default=""),  # JSON array of recipient pubkeys for encryption
-    waveform: str = Form(default="")  # Waveform data (optional, for imeta tag)
+    waveform: str = Form(default=""),  # Waveform data (optional, for imeta tag)
+    kind: str = Form(default="1222"),  # Event kind: 1222 (root) or 1244 (reply)
+    reply_to_event_id: str = Form(default=""),  # Event ID being replied to (for kind 1244)
+    reply_to_pubkey: str = Form(default=""),  # Pubkey of the event being replied to (for kind 1244)
+    expiration: str = Form(default="")  # Expiration timestamp (NIP-40)
 ):
     """
     Process voice message and publish to NOSTR as NIP-A0 voice event (kind 1222 or 1244)
@@ -4388,8 +4392,21 @@ async def process_vocals_message(
             lon = 0.00
         
         # Determine kind: 1222 for root, 1244 for reply (if replying to another voice message)
-        # For now, default to 1222 (root message)
-        voice_kind = 1222
+        try:
+            voice_kind = int(kind) if kind else 1222
+            if voice_kind not in [1222, 1244]:
+                voice_kind = 1222  # Default to root if invalid kind
+        except (ValueError, TypeError):
+            voice_kind = 1222
+        
+        # For kind 1244 (reply), validate reply parameters
+        if voice_kind == 1244:
+            if not reply_to_event_id or not reply_to_event_id.strip():
+                logging.warning("Kind 1244 specified but no reply_to_event_id provided, defaulting to kind 1222")
+                voice_kind = 1222
+            elif not reply_to_pubkey or not reply_to_pubkey.strip():
+                logging.warning("Kind 1244 specified but no reply_to_pubkey provided, defaulting to kind 1222")
+                voice_kind = 1222
         
         # Build IPFS URL
         gateway = get_myipfs_gateway()
@@ -4414,9 +4431,8 @@ async def process_vocals_message(
         # For now, we'll publish the event with encrypted content if provided
         # The encryption should be done client-side using window.nostr.nip44.encrypt
         
-        # Use publish_nostr_video.sh script (it can handle voice messages too)
-        # Or create a dedicated publish_nostr_voice.sh script
-        publish_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/publish_nostr_video.sh")
+        # Use publish_nostr_vocal.sh script (dedicated for voice messages)
+        publish_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/publish_nostr_vocal.sh")
         
         if not os.path.exists(publish_script):
             logging.error(f"Publish script not found: {publish_script}")
@@ -4426,14 +4442,15 @@ async def process_vocals_message(
                 "myIPFS": get_myipfs_gateway()
             })
         
-        # Build command (reuse video script for now, but with kind 1222)
+        # Build command for voice message publication
         publish_cmd = [
             "bash", publish_script,
             "--nsec", str(secret_file),
             "--ipfs-cid", ipfs_cid,
+            "--filename", f"voice_{int(time.time())}.{mime_type.split('/')[-1] if '/' in mime_type else 'mp3'}",
             "--title", title,
             "--json",
-            "--kind", str(voice_kind)  # Override kind to 1222 for voice messages
+            "--kind", str(voice_kind)  # 1222 for root, 1244 for reply
         ]
         
         if description:
@@ -4448,6 +4465,29 @@ async def process_vocals_message(
             publish_cmd.extend(["--latitude", str(lat), "--longitude", str(lon)])
         if waveform:
             publish_cmd.extend(["--waveform", waveform])
+        if info_cid:
+            publish_cmd.extend(["--info-cid", info_cid])
+        
+        # Add reply tags for kind 1244 (NIP-22)
+        if voice_kind == 1244 and reply_to_event_id and reply_to_pubkey:
+            publish_cmd.extend(["--reply-to-event-id", reply_to_event_id])
+            publish_cmd.extend(["--reply-to-pubkey", reply_to_pubkey])
+        
+        # Add expiration tag (NIP-40)
+        if expiration and expiration.strip():
+            try:
+                exp_timestamp = int(expiration)
+                if exp_timestamp > 0:
+                    publish_cmd.extend(["--expiration", str(exp_timestamp)])
+            except (ValueError, TypeError):
+                logging.warning(f"Invalid expiration timestamp: {expiration}")
+        
+        # Add encryption parameters if encrypted
+        if is_encrypted:
+            publish_cmd.extend(["--encrypted", "true"])
+            publish_cmd.extend(["--encryption-method", encryption_method])
+            if recipients:
+                publish_cmd.extend(["--recipients", recipients])
         
         publish_cmd.extend(["--channel", player])
         
@@ -4612,7 +4652,7 @@ async def rate_limit_status(request: Request):
 
 @app.get("/dev", response_class=HTMLResponse)
 async def welcomeuplanet(request: Request):
-    return templates.TemplateResponse("index.html", {
+    return templates.TemplateResponse("dev.html", {
         "request": request,
         "myIPFS": get_myipfs_gateway()
     })

@@ -2177,7 +2177,7 @@
                                 <!-- Theater Mode Switch -->
                                 <div class="d-flex align-items-center gap-2 me-2">
                                     <span class="small text-secondary" style="white-space: nowrap;">
-                                        <i class="bi bi-film"></i> Théâtre:
+                                        <i class="bi bi-film"></i>
                                     </span>
                                     <div class="btn-group" role="group" aria-label="Theater mode">
                                         <button type="button" 
@@ -2417,15 +2417,33 @@
                                 <!-- Compliance badge -->
                                 <div class="video-compliance-badge">
                                     {% if video.compliance_level == 'compliant' %}
-                                    <span class="compliance-badge compliance-compliant" title="Conforme ({{ video.compliance_percent }}%)">
+                                    <span class="compliance-badge compliance-compliant" title="Conforme ({{ video.compliance_percent }}%)&#10;✓ Channel tag&#10;✓ File hash&#10;✓ Info CID&#10;✓ Thumbnail&#10;✓ GIF animation&#10;✓ Upload chain&#10;✓ Dimensions&#10;✓ Duration">
                                         <i class="bi bi-check-circle"></i> Conforme
                                     </span>
                                     {% elif video.compliance_level == 'partial' %}
-                                    <span class="compliance-badge compliance-partial" title="Partiellement conforme ({{ video.compliance_percent }}%)">
+                                    {% set missing_str = '' %}
+                                    {% if not video.compliance.get('has_channel_tag', False) %}{% set missing_str = missing_str + 'Channel tag' %}{% endif %}
+                                    {% if not video.compliance.get('has_file_hash', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'File hash' %}{% endif %}
+                                    {% if not video.compliance.get('has_info_cid', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'Info CID' %}{% endif %}
+                                    {% if not video.compliance.get('has_thumbnail', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'Thumbnail' %}{% endif %}
+                                    {% if not video.compliance.get('has_gifanim', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'GIF animation' %}{% endif %}
+                                    {% if not video.compliance.get('has_upload_chain', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'Upload chain' %}{% endif %}
+                                    {% if not video.compliance.get('has_dimensions', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'Dimensions' %}{% endif %}
+                                    {% if not video.compliance.get('has_duration', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'Duration' %}{% endif %}
+                                    <span class="compliance-badge compliance-partial" title="Partiellement conforme ({{ video.compliance_percent }}%)&#10;Score: {{ video.compliance_score }}/8&#10;&#10;Manque: {{ missing_str if missing_str else 'Aucun' }}">
                                         <i class="bi bi-exclamation-circle"></i> Partiel
                                     </span>
                                     {% else %}
-                                    <span class="compliance-badge compliance-non-compliant" title="Non conforme ({{ video.compliance_percent }}%)">
+                                    {% set missing_str = '' %}
+                                    {% if not video.compliance.get('has_channel_tag', False) %}{% set missing_str = missing_str + 'Channel tag' %}{% endif %}
+                                    {% if not video.compliance.get('has_file_hash', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'File hash' %}{% endif %}
+                                    {% if not video.compliance.get('has_info_cid', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'Info CID' %}{% endif %}
+                                    {% if not video.compliance.get('has_thumbnail', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'Thumbnail' %}{% endif %}
+                                    {% if not video.compliance.get('has_gifanim', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'GIF animation' %}{% endif %}
+                                    {% if not video.compliance.get('has_upload_chain', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'Upload chain' %}{% endif %}
+                                    {% if not video.compliance.get('has_dimensions', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'Dimensions' %}{% endif %}
+                                    {% if not video.compliance.get('has_duration', False) %}{% if missing_str %}{% set missing_str = missing_str + ', ' %}{% endif %}{% set missing_str = missing_str + 'Duration' %}{% endif %}
+                                    <span class="compliance-badge compliance-non-compliant" title="Non conforme ({{ video.compliance_percent }}%)&#10;Score: {{ video.compliance_score }}/8&#10;&#10;Manque: {{ missing_str if missing_str else 'Aucun' }}">
                                         <i class="bi bi-x-circle"></i> Non conforme
                                     </span>
                                     {% endif %}

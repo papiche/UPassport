@@ -85,6 +85,86 @@
             background: rgba(245, 158, 11, 0.05);
         }
         
+        /* Threading styles */
+        .thread-container {
+            margin-bottom: 1.5rem;
+        }
+        
+        .thread-root {
+            border-left: 3px solid #065fd4;
+        }
+        
+        .thread-reply {
+            margin-left: 2rem;
+            margin-top: 0.75rem;
+            border-left: 2px solid #3f3f3f;
+            padding-left: 1rem;
+            background: rgba(63, 63, 63, 0.2);
+            border-radius: 8px;
+        }
+        
+        .thread-reply-nested {
+            margin-left: 2rem;
+        }
+        
+        .reply-count {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: rgba(6, 95, 212, 0.1);
+            border: 1px solid rgba(6, 95, 212, 0.3);
+            border-radius: 12px;
+            font-size: 0.75em;
+            color: #60a5fa;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .reply-count:hover {
+            background: rgba(6, 95, 212, 0.2);
+            border-color: #065fd4;
+        }
+        
+        .replies-container {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(63, 63, 63, 0.5);
+        }
+        
+        .replies-container.collapsed {
+            display: none;
+        }
+        
+        .thread-line {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #3f3f3f;
+        }
+        
+        .reply-button {
+            background: transparent;
+            border: 1px solid #3f3f3f;
+            color: #94a3b8;
+            padding: 0.375rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .reply-button:hover {
+            border-color: #065fd4;
+            color: #60a5fa;
+            background: rgba(6, 95, 212, 0.1);
+        }
+        
         .voice-message-header {
             display: flex;
             justify-content: space-between;
@@ -319,6 +399,73 @@
             </div>
         </div>
     </main>
+    
+    <!-- Reply Recording Modal -->
+    <div class="modal fade" id="reply-modal" tabindex="-1" aria-labelledby="reply-modal-title" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-white" id="reply-modal-title">🎤 Reply with Voice Message</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <p class="text-secondary small mb-2">Replying to:</p>
+                        <div id="reply-to-preview" class="p-2 bg-dark border border-secondary rounded"></div>
+                    </div>
+                    
+                    <div class="alert alert-info d-none" id="reply-recording-status">
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        <span id="reply-status-text">Preparing recording...</span>
+                    </div>
+                    
+                    <div id="reply-recording-controls" class="d-none">
+                        <div class="text-center mb-3">
+                            <div id="reply-timer" class="fs-2 fw-bold text-danger mb-3">30</div>
+                            <div class="d-flex gap-2 justify-content-center">
+                                <button id="reply-start-recording" class="btn btn-primary">
+                                    🎤 Start Recording
+                                </button>
+                                <button id="reply-stop-recording" class="btn btn-danger d-none">
+                                    ⏹️ Stop
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label text-white small">Or upload audio file:</label>
+                            <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" 
+                                   id="reply-audio-upload" accept="audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a">
+                        </div>
+                    </div>
+                    
+                    <div id="reply-preview-section" class="d-none">
+                        <div class="text-center mb-3">
+                            <audio id="reply-audio-preview" class="w-100" controls style="max-height: 60px;"></audio>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="reply-title" class="form-label text-white">Title (optional):</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" 
+                                   id="reply-title" placeholder="Reply title...">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="reply-description" class="form-label text-white">Description (optional):</label>
+                            <textarea class="form-control bg-dark text-white border-secondary" 
+                                      id="reply-description" rows="2" placeholder="Reply description..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="reply-publish-btn" disabled>
+                        📡 Publish Reply
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         // Global variables
@@ -452,14 +599,14 @@
                 // Process events
                 const processedMessages = await processVoiceMessageEvents(events, filterType);
                 
-                // Sort by created_at (newest first)
-                processedMessages.sort((a, b) => b.created_at - a.created_at);
+                // Organize messages into threads
+                const threads = organizeIntoThreads(processedMessages);
                 
-                // Update cache
+                // Update cache (flat list for decryption)
                 voiceMessagesCache = processedMessages;
                 
-                // Render messages
-                renderVoiceMessages(processedMessages);
+                // Render threads
+                renderThreads(threads);
                 
             } catch (error) {
                 console.error('❌ Error loading voice messages:', error);
@@ -479,6 +626,21 @@
                     // Check if encrypted
                     const isEncrypted = event.tags.some(tag => tag[0] === 'encrypted' && tag[1] === 'true');
                     const encryptionMethod = event.tags.find(tag => tag[0] === 'encryption')?.[1] || 'nip44';
+                    
+                    // Check expiration date (NIP-40: Expiration Timestamp)
+                    // Relays supporting NIP-40 will delete the event after this timestamp
+                    const expirationTag = event.tags.find(tag => tag[0] === 'expiration');
+                    let expirationTimestamp = null;
+                    let isExpired = false;
+                    
+                    if (expirationTag && expirationTag[1]) {
+                        expirationTimestamp = parseInt(expirationTag[1]);
+                        const now = Math.floor(Date.now() / 1000);
+                        
+                        if (expirationTimestamp < now) {
+                            isExpired = true; // Message has expired (relay should have deleted it, but may still be visible)
+                        }
+                    }
                     
                     // Check if received (for filterType === 'received')
                     if (filterType === 'received') {
@@ -565,9 +727,38 @@
                         console.warn('⚠️ Could not fetch sender profile:', e);
                     }
                     
+                    // Detect if this is a reply (kind 1244) and extract thread info
+                    const isReply = event.kind === 1244;
+                    let rootEventId = null;
+                    let parentEventId = null;
+                    let replyToPubkey = null;
+                    
+                    if (isReply) {
+                        // NIP-22: Extract e tags for root and parent
+                        const eTags = event.tags.filter(tag => tag[0] === 'e');
+                        // Find root (usually first e tag or marked with "root")
+                        const rootTag = eTags.find(tag => tag.length > 3 && tag[3] === 'root') || 
+                                       eTags.find(tag => tag.length === 2 || tag.length === 3);
+                        if (rootTag) {
+                            rootEventId = rootTag[1];
+                        }
+                        // Find parent (marked with "reply" or second e tag)
+                        const parentTag = eTags.find(tag => tag.length > 3 && tag[3] === 'reply') ||
+                                         (eTags.length > 1 ? eTags[1] : null);
+                        if (parentTag) {
+                            parentEventId = parentTag[1];
+                        }
+                        // Extract p tag for the original sender
+                        const pTags = event.tags.filter(tag => tag[0] === 'p');
+                        if (pTags.length > 0) {
+                            replyToPubkey = pTags[0][1];
+                        }
+                    }
+                    
                     processed.push({
                         event: event,
                         id: event.id,
+                        kind: event.kind,
                         pubkey: event.pubkey,
                         created_at: event.created_at,
                         content: event.content,
@@ -575,7 +766,13 @@
                         encryptionMethod: encryptionMethod,
                         metadata: metadata,
                         senderProfile: senderProfile,
-                        tags: event.tags
+                        tags: event.tags,
+                        expirationTimestamp: expirationTimestamp,
+                        isExpired: isExpired,
+                        isReply: isReply,
+                        rootEventId: rootEventId,
+                        parentEventId: parentEventId || rootEventId,
+                        replyToPubkey: replyToPubkey
                     });
                     
                 } catch (error) {
@@ -586,7 +783,197 @@
             return processed;
         }
         
-        // Render voice messages
+        // Organize messages into threads
+        function organizeIntoThreads(messages) {
+            const threads = new Map(); // rootEventId -> { root: message, replies: [] }
+            const replyMap = new Map(); // replyId -> reply message
+            
+            // First pass: identify roots and replies
+            for (const msg of messages) {
+                if (msg.isReply) {
+                    replyMap.set(msg.id, msg);
+                } else {
+                    // Root message (kind 1222)
+                    threads.set(msg.id, {
+                        root: msg,
+                        replies: [],
+                        allReplies: new Map() // For nested replies
+                    });
+                }
+            }
+            
+            // Second pass: attach replies to threads
+            for (const [replyId, reply] of replyMap) {
+                const rootId = reply.rootEventId || reply.parentEventId;
+                if (rootId && threads.has(rootId)) {
+                    const thread = threads.get(rootId);
+                    // Build reply tree
+                    attachReplyToThread(reply, thread, replyMap);
+                } else {
+                    // Orphan reply - create a thread for it
+                    threads.set(replyId, {
+                        root: reply,
+                        replies: [],
+                        allReplies: new Map()
+                    });
+                }
+            }
+            
+            // Convert to array and sort by root created_at (newest first)
+            return Array.from(threads.values()).sort((a, b) => 
+                b.root.created_at - a.root.created_at
+            );
+        }
+        
+        // Recursively attach replies to thread
+        function attachReplyToThread(reply, thread, replyMap) {
+            thread.allReplies.set(reply.id, reply);
+            
+            const parentId = reply.parentEventId;
+            if (parentId === thread.root.id) {
+                // Direct reply to root
+                thread.replies.push(reply);
+            } else if (thread.allReplies.has(parentId)) {
+                // Nested reply - attach to parent reply
+                const parentReply = thread.allReplies.get(parentId);
+                if (!parentReply.replies) {
+                    parentReply.replies = [];
+                }
+                parentReply.replies.push(reply);
+            } else {
+                // Fallback: attach to root
+                thread.replies.push(reply);
+            }
+        }
+        
+        // Render threads
+        function renderThreads(threads) {
+            const container = document.getElementById('voice-messages-container');
+            
+            if (threads.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎤</div>
+                        <p>No voice messages found</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = threads.map(thread => {
+                return renderThread(thread);
+            }).join('');
+            
+            // Attach event listeners for reply buttons and expand/collapse
+            attachThreadEventListeners();
+        }
+        
+        // Render a single thread (root + replies)
+        function renderThread(thread) {
+            const root = thread.root;
+            const replyCount = thread.allReplies.size;
+            const hasReplies = replyCount > 0;
+            
+            return `
+                <div class="thread-container">
+                    ${renderMessageCard(root, 'root', hasReplies, replyCount)}
+                    ${hasReplies ? `
+                        <div class="replies-container" id="replies-${root.id}">
+                            ${thread.replies.map(reply => renderReplyTree(reply, 0)).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        // Render reply tree recursively
+        function renderReplyTree(reply, depth) {
+            const hasNestedReplies = reply.replies && reply.replies.length > 0;
+            const nestedCount = hasNestedReplies ? reply.replies.length : 0;
+            
+            return `
+                <div class="thread-reply ${depth > 0 ? 'thread-reply-nested' : ''}" style="margin-left: ${depth * 2}rem;" data-event-id="${reply.id}">
+                    ${renderMessageCard(reply, 'reply', hasNestedReplies, nestedCount)}
+                    ${hasNestedReplies ? `
+                        <div class="replies-container" id="replies-${reply.id}">
+                            ${reply.replies.map(nestedReply => renderReplyTree(nestedReply, depth + 1)).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        // Render a single message card
+        function renderMessageCard(msg, type, hasReplies, replyCount) {
+            const date = new Date(msg.created_at * 1000);
+            const dateStr = date.toLocaleString();
+            const senderName = msg.senderProfile?.name || msg.senderProfile?.display_name || msg.pubkey.substring(0, 8) + '...';
+            const senderPicture = msg.senderProfile?.picture || '';
+            const isRoot = type === 'root';
+            const cardClass = isRoot ? 'thread-root' : '';
+            
+            return `
+                <div class="voice-message-card ${msg.isEncrypted ? 'encrypted' : ''} ${cardClass}" data-event-id="${msg.id}" data-kind="${msg.kind}">
+                    <div class="voice-message-header">
+                        <div class="voice-message-info">
+                            <div class="voice-message-title">
+                                ${msg.metadata.title || 'Voice Message'}
+                                ${msg.isEncrypted ? '<span class="encryption-badge">🔐 Encrypted</span>' : ''}
+                                ${msg.isExpired ? '<span class="encryption-badge" style="background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #fca5a5;">⏰ Expired (NIP-40)</span>' : ''}
+                                ${msg.expirationTimestamp && !msg.isExpired ? `<span class="encryption-badge" style="background: rgba(59, 130, 246, 0.2); border-color: #3b82f6; color: #93c5fd;">⏰ Expires: ${new Date(msg.expirationTimestamp * 1000).toLocaleString()} (NIP-40)</span>` : ''}
+                            </div>
+                            <div class="voice-message-meta">
+                                <span>👤 ${senderName}</span>
+                                <span>📅 ${dateStr}</span>
+                                ${msg.metadata.duration ? `<span>⏱️ ${Math.round(msg.metadata.duration)}s</span>` : ''}
+                                ${msg.isReply ? '<span class="text-secondary">↩️ Reply</span>' : ''}
+                            </div>
+                        </div>
+                        <div class="voice-message-actions">
+                            ${msg.isEncrypted ? `
+                                <button class="decrypt-button btn btn-sm" onclick="decryptAndPlayMessage('${msg.id}', this)">
+                                    🔓 Decrypt & Play
+                                </button>
+                            ` : `
+                                <button class="btn btn-primary btn-sm" onclick="playMessage('${msg.id}')">
+                                    ▶️ Play
+                                </button>
+                            `}
+                            <button class="reply-button btn btn-sm" onclick="openReplyModal('${msg.id}')" title="Reply to this message">
+                                💬 Reply
+                            </button>
+                        </div>
+                    </div>
+                    ${msg.metadata.description ? `<p class="text-secondary small mb-2">${msg.metadata.description}</p>` : ''}
+                    ${hasReplies ? `
+                        <div class="mt-2">
+                            <span class="reply-count" onclick="toggleReplies('${msg.id}')" id="reply-toggle-${msg.id}">
+                                💬 ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}
+                            </span>
+                        </div>
+                    ` : ''}
+                    ${msg.isEncrypted ? `
+                        <div id="decrypt-status-${msg.id}" class="d-none"></div>
+                        <div id="audio-container-${msg.id}" class="d-none">
+                            <div class="audio-player-container">
+                                <audio id="audio-player-${msg.id}" class="audio-player" controls></audio>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="audio-player-container">
+                            <audio id="audio-player-${msg.id}" class="audio-player" controls src="${msg.content}"></audio>
+                        </div>
+                    `}
+                    ${msg.metadata.waveform ? `
+                        <div class="waveform-container" id="waveform-${msg.id}">
+                            Waveform visualization (${msg.metadata.waveform.split(' ').length} points)
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        // Render voice messages (legacy - kept for compatibility)
         function renderVoiceMessages(messages) {
             const container = document.getElementById('voice-messages-container');
             
@@ -613,6 +1000,8 @@
                                 <div class="voice-message-title">
                                     ${msg.metadata.title || 'Voice Message'}
                                     ${msg.isEncrypted ? '<span class="encryption-badge">🔐 Encrypted</span>' : ''}
+                                    ${msg.isExpired ? '<span class="encryption-badge" style="background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #fca5a5;">⏰ Expired (NIP-40)</span>' : ''}
+                                    ${msg.expirationTimestamp && !msg.isExpired ? `<span class="encryption-badge" style="background: rgba(59, 130, 246, 0.2); border-color: #3b82f6; color: #93c5fd;">⏰ Expires: ${new Date(msg.expirationTimestamp * 1000).toLocaleString()} (NIP-40)</span>` : ''}
                                 </div>
                                 <div class="voice-message-meta">
                                     <span>👤 ${senderName}</span>
@@ -796,9 +1185,399 @@
             }
         }
         
+        // Toggle replies visibility
+        function toggleReplies(messageId) {
+            const repliesContainer = document.getElementById(`replies-${messageId}`);
+            const toggleBtn = document.getElementById(`reply-toggle-${messageId}`);
+            
+            if (repliesContainer) {
+                const isCollapsed = repliesContainer.classList.contains('collapsed');
+                if (isCollapsed) {
+                    repliesContainer.classList.remove('collapsed');
+                    if (toggleBtn) {
+                        toggleBtn.innerHTML = toggleBtn.innerHTML.replace('▶️', '▼');
+                    }
+                } else {
+                    repliesContainer.classList.add('collapsed');
+                    if (toggleBtn) {
+                        toggleBtn.innerHTML = toggleBtn.innerHTML.replace('▼', '▶️');
+                    }
+                }
+            }
+        }
+        
+        // Make toggleReplies available globally
+        window.toggleReplies = toggleReplies;
+        
+        // Reply recording variables
+        let replyMediaRecorder = null;
+        let replyRecordedChunks = [];
+        let replyCurrentStream = null;
+        let replyTargetMessageId = null;
+        let replyTargetMessage = null;
+        let replyTimerInterval = null;
+        
+        // Open reply modal
+        function openReplyModal(messageId) {
+            if (!userPubkey || !isNostrConnected) {
+                alert('Please connect to NOSTR first to reply.');
+                return;
+            }
+            
+            const message = voiceMessagesCache.find(msg => msg.id === messageId);
+            if (!message) {
+                console.error('Message not found:', messageId);
+                return;
+            }
+            
+            replyTargetMessageId = messageId;
+            replyTargetMessage = message;
+            
+            // Show preview of message being replied to
+            const previewDiv = document.getElementById('reply-to-preview');
+            const senderName = message.senderProfile?.name || message.senderProfile?.display_name || message.pubkey.substring(0, 8) + '...';
+            const date = new Date(message.created_at * 1000).toLocaleString();
+            previewDiv.innerHTML = `
+                <div class="d-flex align-items-start gap-2">
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold text-white">${message.metadata.title || 'Voice Message'}</div>
+                        <div class="text-secondary small">👤 ${senderName} • 📅 ${date}</div>
+                        ${message.metadata.description ? `<div class="text-secondary small mt-1">${message.metadata.description}</div>` : ''}
+                    </div>
+                </div>
+            `;
+            
+            // Reset modal state
+            document.getElementById('reply-recording-status').classList.add('d-none');
+            document.getElementById('reply-recording-controls').classList.add('d-none');
+            document.getElementById('reply-preview-section').classList.add('d-none');
+            document.getElementById('reply-publish-btn').disabled = true;
+            document.getElementById('reply-title').value = '';
+            document.getElementById('reply-description').value = '';
+            document.getElementById('reply-audio-upload').value = '';
+            
+            // Show recording controls
+            document.getElementById('reply-recording-controls').classList.remove('d-none');
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('reply-modal'));
+            modal.show();
+        }
+        
+        // Make openReplyModal available globally
+        window.openReplyModal = openReplyModal;
+        
+        // Attach thread event listeners
+        function attachThreadEventListeners() {
+            // Reply recording button
+            const replyStartBtn = document.getElementById('reply-start-recording');
+            const replyStopBtn = document.getElementById('reply-stop-recording');
+            const replyUploadInput = document.getElementById('reply-audio-upload');
+            const replyPublishBtn = document.getElementById('reply-publish-btn');
+            
+            if (replyStartBtn) {
+                replyStartBtn.addEventListener('click', startReplyRecording);
+            }
+            
+            if (replyStopBtn) {
+                replyStopBtn.addEventListener('click', stopReplyRecording);
+            }
+            
+            if (replyUploadInput) {
+                replyUploadInput.addEventListener('change', handleReplyAudioUpload);
+            }
+            
+            if (replyPublishBtn) {
+                replyPublishBtn.addEventListener('click', publishReply);
+            }
+        }
+        
+        // Start reply recording
+        async function startReplyRecording() {
+            try {
+                const startBtn = document.getElementById('reply-start-recording');
+                const stopBtn = document.getElementById('reply-stop-recording');
+                const timerDisplay = document.getElementById('reply-timer');
+                const statusDiv = document.getElementById('reply-recording-status');
+                const statusText = document.getElementById('reply-status-text');
+                
+                // Stop any existing stream
+                if (replyCurrentStream) {
+                    replyCurrentStream.getTracks().forEach(track => track.stop());
+                    replyCurrentStream = null;
+                }
+                
+                statusDiv.classList.remove('d-none');
+                statusText.textContent = 'Requesting microphone access...';
+                
+                // Request microphone access
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        sampleRate: 44100
+                    },
+                    video: false
+                });
+                
+                replyCurrentStream = stream;
+                
+                // Determine best audio MIME type
+                let mimeType = 'audio/webm';
+                const supportedTypes = [
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
+                    'audio/mp4',
+                    'audio/ogg;codecs=opus',
+                    'audio/ogg'
+                ];
+                
+                for (const type of supportedTypes) {
+                    if (MediaRecorder.isTypeSupported(type)) {
+                        mimeType = type;
+                        break;
+                    }
+                }
+                
+                replyMediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+                replyRecordedChunks = [];
+                
+                replyMediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        replyRecordedChunks.push(event.data);
+                    }
+                };
+                
+                replyMediaRecorder.onstop = () => {
+                    const blob = new Blob(replyRecordedChunks, { type: mimeType });
+                    showReplyPreview(blob);
+                    if (replyCurrentStream) {
+                        replyCurrentStream.getTracks().forEach(track => track.stop());
+                        replyCurrentStream = null;
+                    }
+                };
+                
+                replyMediaRecorder.start();
+                
+                // Start timer (30 seconds max)
+                let timer = 30;
+                timerDisplay.textContent = timer;
+                replyTimerInterval = setInterval(() => {
+                    timer--;
+                    timerDisplay.textContent = timer;
+                    if (timer <= 0) {
+                        stopReplyRecording();
+                    }
+                }, 1000);
+                
+                // Update UI
+                startBtn.classList.add('d-none');
+                stopBtn.classList.remove('d-none');
+                statusDiv.classList.add('d-none');
+                timerDisplay.classList.remove('d-none');
+                
+            } catch (error) {
+                console.error('❌ Error starting reply recording:', error);
+                alert(`Could not access microphone: ${error.message}`);
+            }
+        }
+        
+        // Stop reply recording
+        function stopReplyRecording() {
+            if (replyMediaRecorder && replyMediaRecorder.state === 'recording') {
+                replyMediaRecorder.stop();
+            }
+            
+            if (replyTimerInterval) {
+                clearInterval(replyTimerInterval);
+                replyTimerInterval = null;
+            }
+            
+            const startBtn = document.getElementById('reply-start-recording');
+            const stopBtn = document.getElementById('reply-stop-recording');
+            const timerDisplay = document.getElementById('reply-timer');
+            
+            if (startBtn) startBtn.classList.remove('d-none');
+            if (stopBtn) stopBtn.classList.add('d-none');
+            if (timerDisplay) timerDisplay.classList.add('d-none');
+        }
+        
+        // Handle reply audio upload
+        function handleReplyAudioUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Validate file type
+            const validTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac', 'audio/mp4', 'audio/x-m4a'];
+            const validExtensions = ['.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a'];
+            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!validTypes.includes(file.type) && !validExtensions.includes(fileExtension)) {
+                alert('Invalid file type. Please upload an audio file.');
+                return;
+            }
+            
+            // Validate file size (max 500MB)
+            const maxSize = 500 * 1024 * 1024;
+            if (file.size > maxSize) {
+                alert('File is too large. Maximum allowed size is 500MB.');
+                return;
+            }
+            
+            const audioBlob = new Blob([file], { type: file.type });
+            showReplyPreview(audioBlob, file.name);
+            
+            // Reset file input
+            event.target.value = '';
+        }
+        
+        // Show reply preview
+        function showReplyPreview(audioBlob, filename = null) {
+            const previewSection = document.getElementById('reply-preview-section');
+            const audioPreview = document.getElementById('reply-audio-preview');
+            const publishBtn = document.getElementById('reply-publish-btn');
+            
+            const audioUrl = URL.createObjectURL(audioBlob);
+            audioPreview.src = audioUrl;
+            
+            // Auto-fill title if filename provided
+            if (filename) {
+                const filenameWithoutExt = filename.replace(/\.[^/.]+$/, '');
+                document.getElementById('reply-title').value = `Re: ${filenameWithoutExt}`;
+            }
+            
+            previewSection.classList.remove('d-none');
+            publishBtn.disabled = false;
+            
+            // Store blob for publishing
+            audioPreview.dataset.blob = 'stored'; // Marker
+            audioPreview.dataset.audioBlob = audioBlob; // Will be stored in closure
+            window.replyAudioBlob = audioBlob; // Store globally for publish
+        }
+        
+        // Publish reply
+        async function publishReply() {
+            if (!replyTargetMessageId || !window.replyAudioBlob) {
+                alert('No audio recorded or uploaded. Please record or upload an audio file first.');
+                return;
+            }
+            
+            const publishBtn = document.getElementById('reply-publish-btn');
+            const title = document.getElementById('reply-title').value || '';
+            const description = document.getElementById('reply-description').value || '';
+            
+            try {
+                publishBtn.disabled = true;
+                publishBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Publishing...';
+                
+                // Step 1: Upload audio to IPFS
+                const audioFile = new File([window.replyAudioBlob], `reply_${Date.now()}.webm`, { 
+                    type: window.replyAudioBlob.type || 'audio/webm' 
+                });
+                
+                const uploadFormData = new FormData();
+                uploadFormData.append('file', audioFile);
+                uploadFormData.append('npub', userPubkey);
+                
+                console.log('📤 Uploading reply audio to IPFS...');
+                const uploadResponse = await fetch('/api/fileupload', {
+                    method: 'POST',
+                    body: uploadFormData
+                });
+                
+                if (!uploadResponse.ok) {
+                    throw new Error(`Upload failed: ${uploadResponse.statusText}`);
+                }
+                
+                const uploadResult = await uploadResponse.json();
+                
+                if (!uploadResult.success || !uploadResult.new_cid) {
+                    throw new Error(uploadResult.message || 'IPFS upload failed');
+                }
+                
+                console.log('✅ Reply audio uploaded to IPFS:', uploadResult.new_cid);
+                
+                // Step 2: Get user email for player field
+                let playerValue = '';
+                try {
+                    if (typeof fetchUserEmailWithFallback === 'function') {
+                        playerValue = await fetchUserEmailWithFallback(userPubkey);
+                    } else if (typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
+                        playerValue = await window.fetchUserEmailWithFallback(userPubkey);
+                    }
+                    
+                    if (!playerValue || !playerValue.includes('@')) {
+                        playerValue = '';
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Could not fetch email, backend will resolve from directory');
+                }
+                
+                // Step 3: Prepare form data for reply (kind 1244)
+                const formData = new FormData();
+                formData.append('player', playerValue);
+                formData.append('ipfs_cid', uploadResult.new_cid);
+                formData.append('title', title || 'Voice Reply');
+                formData.append('description', description);
+                formData.append('npub', userPubkey);
+                formData.append('file_hash', uploadResult.fileHash || '');
+                formData.append('duration', (uploadResult.duration || 0).toString());
+                formData.append('mime_type', uploadResult.mimeType || 'audio/webm');
+                
+                // Reply-specific: kind 1244 and parent event reference
+                formData.append('kind', '1244'); // Reply kind
+                formData.append('reply_to_event_id', replyTargetMessageId);
+                formData.append('reply_to_pubkey', replyTargetMessage.pubkey);
+                
+                if (uploadResult.info) {
+                    formData.append('info_cid', uploadResult.info);
+                }
+                
+                formData.append('publish_nostr', 'true');
+                
+                // Step 4: Publish reply
+                console.log('📡 Publishing reply to NOSTR...');
+                const response = await fetch('/vocals', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text().catch(() => '');
+                    throw new Error(`Publication failed: ${response.statusText}${errorText ? ' - ' + errorText : ''}`);
+                }
+                
+                // Success
+                publishBtn.innerHTML = '✅ Published!';
+                publishBtn.classList.remove('btn-primary');
+                publishBtn.classList.add('btn-success');
+                
+                // Close modal after short delay
+                setTimeout(() => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('reply-modal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+                    
+                    // Reload messages to show new reply
+                    loadVoiceMessages();
+                }, 1500);
+                
+            } catch (error) {
+                console.error('❌ Error publishing reply:', error);
+                alert(`Failed to publish reply: ${error.message}`);
+                publishBtn.disabled = false;
+                publishBtn.innerHTML = '📡 Publish Reply';
+            }
+        }
+        
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Initializing voice messages reader...');
+            
+            // Attach reply modal event listeners
+            attachThreadEventListeners();
             
             // Check if already connected (from parent window if in iframe)
             const isInIframe = window.self !== window.top;
