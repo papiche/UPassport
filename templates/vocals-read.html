@@ -468,12 +468,32 @@
     </div>
 
     <script>
-        // Global variables
-        let userPubkey = null;
-        let userPrivateKey = null;
-        let nostrPool = null;
-        let isNostrConnected = false;
-        let nostrRelay = null;
+        // Global variables (avoid redeclaration conflicts with common.js)
+        // userPubkey, userPrivateKey, nostrRelay, and isNostrConnected may be declared in common.js
+        // Use var instead of let to allow redeclaration without errors
+        // Note: var allows redeclaration, so this won't cause errors if common.js already declared them
+        var userPubkey = (typeof window !== 'undefined' && window.userPubkey) || null;
+        var userPrivateKey = (typeof window !== 'undefined' && window.userPrivateKey) || null;
+        var nostrPool = null;
+        var isNostrConnected = (typeof window !== 'undefined' && window.isNostrConnected) || false;
+        var nostrRelay = (typeof window !== 'undefined' && window.nostrRelay) || null;
+        
+        // Sync with window scope if variables exist there (from common.js)
+        // This happens after common.js loads
+        function syncWithCommonJS() {
+            if (typeof window !== 'undefined') {
+                if (window.userPubkey !== undefined) userPubkey = window.userPubkey;
+                if (window.userPrivateKey !== undefined) userPrivateKey = window.userPrivateKey;
+                if (window.isNostrConnected !== undefined) isNostrConnected = window.isNostrConnected;
+                if (window.nostrRelay !== undefined) nostrRelay = window.nostrRelay;
+            }
+        }
+        
+        // Try to sync immediately (if common.js already loaded)
+        syncWithCommonJS();
+        
+        // Also sync after a short delay (in case common.js loads after this script)
+        setTimeout(syncWithCommonJS, 100);
         
         // Default relays
         const DEFAULT_RELAYS = ['wss://astroport.com', 'wss://relay.damus.io', 'wss://nos.lol'];
@@ -481,8 +501,8 @@
         // Voice messages cache
         let voiceMessagesCache = [];
         
-        // Connect to NOSTR
-        async function handleNostrConnect() {
+        // Connect to NOSTR (make available globally)
+        window.handleNostrConnect = async function handleNostrConnect() {
             try {
                 const connectBtn = document.getElementById('connect-btn');
                 connectBtn.disabled = true;
@@ -499,6 +519,11 @@
                     throw new Error('No public key returned from NOSTR extension');
                 }
                 
+                // Sync with window scope (for common.js compatibility)
+                if (typeof window !== 'undefined') {
+                    window.userPubkey = userPubkey;
+                }
+                
                 console.log('✅ Connected to NOSTR, pubkey:', userPubkey.substring(0, 8) + '...');
                 
                 // Initialize NOSTR pool
@@ -509,6 +534,11 @@
                 }
                 
                 isNostrConnected = true;
+                
+                // Sync with window scope (for common.js compatibility)
+                if (typeof window !== 'undefined') {
+                    window.isNostrConnected = isNostrConnected;
+                }
                 
                 // Update UI
                 connectBtn.textContent = '✅ Connected';
