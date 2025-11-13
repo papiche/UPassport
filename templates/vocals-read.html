@@ -1808,9 +1808,35 @@
         // Toggle waveform p5.js visualization
         function toggleWaveformP5() {
             const toggle = document.getElementById('waveform-p5-toggle');
-            waveformP5Enabled = toggle ? toggle.checked : false;
+            const newState = toggle ? toggle.checked : false;
             
-            // Re-render all waveforms
+            console.log('🔄 Toggling waveform visualization:', newState ? 'ON' : 'OFF');
+            
+            // Clean up existing p5.js instances
+            if (window.waveformSketches) {
+                Object.keys(window.waveformSketches).forEach(waveformId => {
+                    try {
+                        if (window.waveformSketches[waveformId] && typeof window.waveformSketches[waveformId].remove === 'function') {
+                            window.waveformSketches[waveformId].remove();
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ Error removing p5 sketch:', e);
+                    }
+                });
+                window.waveformSketches = {};
+            }
+            
+            // Clear all waveform containers
+            const waveformContainers = document.querySelectorAll('.waveform-container[data-waveform]');
+            waveformContainers.forEach(container => {
+                // Clear container but keep the data-waveform attribute
+                container.innerHTML = '';
+            });
+            
+            // Update state
+            waveformP5Enabled = newState;
+            
+            // Re-render all waveforms with new state
             renderWaveforms();
         }
         
@@ -1826,13 +1852,28 @@
             
             // Check if p5.js visualization is enabled
             if (!waveformP5Enabled) {
-                // Simple text fallback
+                // Simple text fallback - clear any existing visualizations first
                 waveformContainers.forEach(container => {
+                    // Remove any p5.js instances
+                    const waveformId = container.id;
+                    if (window.waveformSketches && window.waveformSketches[waveformId]) {
+                        try {
+                            window.waveformSketches[waveformId].remove();
+                            delete window.waveformSketches[waveformId];
+                        } catch (e) {
+                            console.warn('⚠️ Error removing p5 sketch:', e);
+                        }
+                    }
+                    
+                    // Clear container
+                    container.innerHTML = '';
+                    
                     const waveformData = container.getAttribute('data-waveform');
                     if (!waveformData) return;
                     const waveformPoints = waveformData.split(/\s+/).filter(v => v.trim() !== '');
-                    container.innerHTML = `<span class="text-secondary small">Waveform: ${waveformPoints.length} points</span>`;
+                    container.innerHTML = `<span class="text-secondary small">Waveform: ${waveformPoints.length} points (visualization disabled)</span>`;
                 });
+                console.log('📊 Waveform visualization disabled - showing text only');
                 return;
             }
             
