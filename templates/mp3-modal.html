@@ -193,47 +193,48 @@
         }
 
         /* Tabs for Comments and Related Tracks */
-        .mp3-tabs {
+        /* Bootstrap Tabs styling */
+        #mp3Tabs {
             flex-shrink: 0;
-            display: flex;
-            background: #181818;
             border-bottom: 1px solid #3f3f3f;
         }
 
-        .mp3-tab {
-            flex: 1;
-            padding: 12px 16px;
-            background: transparent;
-            border: none;
+        #mp3Tabs .nav-link {
             color: #b3b3b3;
-            cursor: pointer;
+            border: none;
+            border-bottom: 2px solid transparent;
+            background: transparent;
+            padding: 12px 16px;
             font-size: 14px;
             font-weight: 500;
             transition: all 0.2s;
-            border-bottom: 2px solid transparent;
         }
 
-        .mp3-tab.active {
-            color: #ffffff;
-            border-bottom-color: #1db954;
-            background: #0f0f0f;
-        }
-
-        .mp3-tab:hover {
+        #mp3Tabs .nav-link:hover {
             color: #ffffff;
             background: #1a1a1a;
+            border-bottom-color: transparent;
         }
 
-        /* Comments section - using Bootstrap flex utilities */
-        .mp3-comments-section {
+        #mp3Tabs .nav-link.active {
+            color: #ffffff;
+            background: #0f0f0f;
+            border-bottom-color: #1db954;
+        }
+
+        /* Tab content */
+        #mp3TabContent {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Comments section - using Bootstrap tab-pane */
+        #mp3CommentsSection {
             flex: 1;
             flex-direction: column;
             overflow: hidden;
-            display: none;
-        }
-
-        .mp3-comments-section.active {
-            display: flex;
         }
 
         .mp3-comments-header {
@@ -274,16 +275,11 @@
             border-radius: 4px;
         }
 
-        /* Mixxx Mode section */
-        .mp3-mixxx-section {
+        /* Mixxx Mode section - using Bootstrap tab-pane */
+        #mp3MixxxSection {
             flex: 1;
             flex-direction: column;
             overflow: hidden;
-            display: none;
-        }
-
-        .mp3-mixxx-section.active {
-            display: flex;
         }
 
         .mp3-mixxx-header {
@@ -570,16 +566,11 @@
             color: #ff0000;
         }
 
-        /* Related Tracks section */
-        .mp3-related-section {
+        /* Related Tracks section - using Bootstrap tab-pane */
+        #mp3RelatedSection {
             flex: 1;
             flex-direction: column;
             overflow: hidden;
-            display: none;
-        }
-
-        .mp3-related-section.active {
-            display: flex;
         }
 
         .mp3-related-header {
@@ -874,7 +865,7 @@
             <h5 class="mb-0 text-truncate flex-grow-1 me-2 me-md-3" id="mp3Title" style="max-width: 60%;">Loading...</h5>
             <div class="d-flex gap-1 gap-sm-2 align-items-center flex-shrink-0">
                 <button class="btn btn-sm btn-outline-info" id="mp3OpenNewTabBtn" title="Open in new tab (standalone)">
-                    <i class="bi bi-box-arrow-up-right"></i> <span class="d-none d-md-inline">Open</span>
+                    <i class="bi bi-box-arrow-up-right"></i> <span class="d-none d-sm-inline">Open</span>
                 </button>
                 <button class="btn btn-sm btn-outline-secondary" id="mp3CloseBtn" title="Close">
                     <i class="bi bi-x-lg"></i>
@@ -942,21 +933,29 @@
             
             <!-- Right panel: Comments & Related Tracks -->
             <div class="mp3-right-panel">
-                <!-- Tabs -->
-                <div class="mp3-tabs">
-                    <button class="mp3-tab active" data-tab="comments">
-                        <i class="bi bi-chat-dots"></i> Comments
-                    </button>
-                    <button class="mp3-tab" data-tab="mixxx">
-                        <i class="bi bi-people"></i> Mixxx Mode
-                    </button>
-                    <button class="mp3-tab" data-tab="related">
-                        <i class="bi bi-music-note-list"></i> Related Tracks
-                    </button>
-                </div>
+                <!-- Bootstrap Tabs -->
+                <ul class="nav nav-tabs bg-dark border-secondary" id="mp3Tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="comments-tab" data-bs-toggle="tab" data-bs-target="#mp3CommentsSection" type="button" role="tab" aria-controls="mp3CommentsSection" aria-selected="true">
+                            <i class="bi bi-chat-dots"></i> Comments
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="mixxx-tab" data-bs-toggle="tab" data-bs-target="#mp3MixxxSection" type="button" role="tab" aria-controls="mp3MixxxSection" aria-selected="false">
+                            <i class="bi bi-people"></i> Mixxx Mode
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="related-tab" data-bs-toggle="tab" data-bs-target="#mp3RelatedSection" type="button" role="tab" aria-controls="mp3RelatedSection" aria-selected="false">
+                            <i class="bi bi-music-note-list"></i> Related Tracks
+                        </button>
+                    </li>
+                </ul>
 
-                <!-- Comments section - using Bootstrap spacing utilities -->
-                <div class="mp3-comments-section active d-flex" id="mp3CommentsSection">
+                <!-- Tab Content -->
+                <div class="tab-content h-100" id="mp3TabContent">
+                <!-- Comments section - using Bootstrap tab-pane -->
+                <div class="tab-pane fade show active d-flex flex-column h-100" id="mp3CommentsSection" role="tabpanel" aria-labelledby="comments-tab">
                     <div class="mp3-comments-header p-3 p-md-4">
                         <h6 class="mb-1 text-white"><i class="bi bi-chat-dots"></i> Comments</h6>
                         <div class="small text-secondary" id="mp3CommentStats">0 comment(s)</div>
@@ -978,8 +977,8 @@
                     </div>
                 </div>
 
-                <!-- Mixxx Mode section - using Bootstrap spacing utilities -->
-                <div class="mp3-mixxx-section d-flex flex-column" id="mp3MixxxSection">
+                <!-- Mixxx Mode section - using Bootstrap tab-pane -->
+                <div class="tab-pane fade d-flex flex-column h-100" id="mp3MixxxSection" role="tabpanel" aria-labelledby="mixxx-tab">
                     <div class="mp3-mixxx-header p-3 p-md-4">
                         <h6 class="mb-1 text-white"><i class="bi bi-people"></i> Mixxx Mode</h6>
                         <div class="small text-secondary">Collaborative playlist building</div>
@@ -1055,8 +1054,8 @@
                     </div>
                 </div>
 
-                <!-- Related Tracks section - using Bootstrap spacing utilities -->
-                <div class="mp3-related-section d-flex flex-column" id="mp3RelatedSection">
+                <!-- Related Tracks section - using Bootstrap tab-pane -->
+                <div class="tab-pane fade d-flex flex-column h-100" id="mp3RelatedSection" role="tabpanel" aria-labelledby="related-tab">
                     <div class="mp3-related-header p-3 p-md-4">
                         <h6 class="mb-1 text-white"><i class="bi bi-music-note-list"></i> Related Tracks</h6>
                         <div class="small text-secondary">Search and link to other tracks</div>
@@ -1074,6 +1073,7 @@
                         <div class="text-center text-secondary py-5">Search for tracks to link...</div>
                     </div>
                 </div>
+                </div> <!-- End tab-content -->
             </div>
         </div>
     </div>
@@ -1263,64 +1263,56 @@
 
         /**
          * Switch between Comments, Mixxx Mode, and Related Tracks tabs
+         * Uses Bootstrap Tab API (100% Bootstrap)
          */
         function switchMP3Tab(tabName) {
             console.log('🟢 switchMP3Tab called with:', tabName);
             
-            // Update tab buttons
-            document.querySelectorAll('.mp3-tab').forEach(tab => {
-                tab.classList.remove('active');
-                if (tab.getAttribute('data-tab') === tabName) {
-                    tab.classList.add('active');
-                    console.log('✅ Activated tab button:', tabName);
-                }
-            });
+            // Map tab names to Bootstrap tab IDs
+            const tabMap = {
+                'comments': 'comments-tab',
+                'mixxx': 'mixxx-tab',
+                'related': 'related-tab'
+            };
             
-            // Show/hide sections
-            const commentsSection = document.getElementById('mp3CommentsSection');
-            const mixxxSection = document.getElementById('mp3MixxxSection');
-            const relatedSection = document.getElementById('mp3RelatedSection');
+            const tabId = tabMap[tabName];
+            if (!tabId) {
+                console.warn('⚠️ Unknown tab name:', tabName);
+                return;
+            }
             
-            console.log('📋 Sections found:', {
-                comments: !!commentsSection,
-                mixxx: !!mixxxSection,
-                related: !!relatedSection
-            });
-            
-            if (tabName === 'comments') {
-                if (commentsSection) {
-                    commentsSection.classList.add('active');
-                    console.log('✅ Showing comments section');
-                }
-                if (mixxxSection) mixxxSection.classList.remove('active');
-                if (relatedSection) relatedSection.classList.remove('active');
-            } else if (tabName === 'mixxx') {
-                if (commentsSection) commentsSection.classList.remove('active');
-                if (mixxxSection) {
-                    mixxxSection.classList.add('active');
-                    console.log('✅ Showing mixxx section');
-                    // Initialize Mixxx mode
-                    if (typeof initializeMixxxMode === 'function') {
-                        initializeMixxxMode();
-                    } else {
-                        console.warn('⚠️ initializeMixxxMode function not available');
+            // Use Bootstrap Tab API to show the tab
+            if (typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+                const tabElement = document.getElementById(tabId);
+                if (tabElement) {
+                    const tab = new bootstrap.Tab(tabElement);
+                    tab.show();
+                    console.log('✅ Activated Bootstrap tab:', tabName);
+                    
+                    // Additional logic for specific tabs
+                    if (tabName === 'mixxx') {
+                        // Initialize Mixxx mode when tab is shown
+                        setTimeout(() => {
+                            if (typeof initializeMixxxMode === 'function') {
+                                initializeMixxxMode();
+                            } else {
+                                console.warn('⚠️ initializeMixxxMode function not available');
+                            }
+                        }, 100);
+                    } else if (tabName === 'related') {
+                        // Focus search input when switching to related tab
+                        setTimeout(() => {
+                            const searchInput = document.getElementById('mp3RelatedSearchInput');
+                            if (searchInput) {
+                                searchInput.focus();
+                            }
+                        }, 100);
                     }
-                }
-                if (relatedSection) relatedSection.classList.remove('active');
-            } else if (tabName === 'related') {
-                if (commentsSection) commentsSection.classList.remove('active');
-                if (mixxxSection) mixxxSection.classList.remove('active');
-                if (relatedSection) {
-                    relatedSection.classList.add('active');
-                    console.log('✅ Showing related section');
-                    // Focus search input when switching to related tab
-                    const searchInput = document.getElementById('mp3RelatedSearchInput');
-                    if (searchInput) {
-                        setTimeout(() => searchInput.focus(), 100);
-                    }
+                } else {
+                    console.error('❌ Tab element not found:', tabId);
                 }
             } else {
-                console.warn('⚠️ Unknown tab name:', tabName);
+                console.error('❌ Bootstrap Tab API not available');
             }
         }
         
@@ -2042,10 +2034,36 @@
             }
             
             // Load event directly from relay (avoid recursion by not calling external function)
-            if (typeof window !== 'undefined' && window.nostrRelay) {
+            if (typeof window !== 'undefined') {
                 window._loadingTrackFromEventId = true;
                 try {
-                    const relay = window.nostrRelay;
+                    // Get relay - wait for it to be available and connected
+                    let relay = window.nostrRelay;
+                    
+                    // If no relay, try to connect
+                    if (!relay || !relay.sub) {
+                        if (typeof connectToRelay === 'function') {
+                            await connectToRelay(false);
+                            relay = window.nostrRelay;
+                        }
+                    }
+                    
+                    // Wait a bit for relay to be ready if needed
+                    if (!relay || !relay.sub) {
+                        // Try to wait for connection
+                        for (let i = 0; i < 10; i++) {
+                            await new Promise(resolve => setTimeout(resolve, 200));
+                            relay = window.nostrRelay;
+                            if (relay && typeof relay.sub === 'function') {
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (!relay || typeof relay.sub !== 'function') {
+                        throw new Error('Relay not available or not connected');
+                    }
+                    
                     return new Promise((resolve, reject) => {
                         const sub = relay.sub([{ ids: [eventId] }]);
                         let eventReceived = false;
@@ -3257,17 +3275,28 @@
                 return new bootstrap.Tooltip(tooltipTriggerEl);
             });
             
-            // Attach event listeners to tab buttons
-            document.querySelectorAll('.mp3-tab').forEach(tabBtn => {
-                tabBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const tabName = this.getAttribute('data-tab');
-                    console.log('🔵 Tab clicked:', tabName, 'switchMP3Tab available:', typeof switchMP3Tab === 'function');
-                    if (tabName && typeof switchMP3Tab === 'function') {
-                        switchMP3Tab(tabName);
-                    } else {
-                        console.error('❌ switchMP3Tab function not available or tabName missing');
+            // Bootstrap tabs handle clicks automatically via data-bs-toggle="tab"
+            // Listen to Bootstrap tab events for additional logic
+            const tabElements = document.querySelectorAll('#mp3Tabs button[data-bs-toggle="tab"]');
+            tabElements.forEach(tabElement => {
+                tabElement.addEventListener('shown.bs.tab', function(event) {
+                    const targetId = event.target.getAttribute('data-bs-target');
+                    console.log('🔵 Bootstrap tab shown:', targetId);
+                    
+                    // Additional logic based on which tab was shown
+                    if (targetId === '#mp3MixxxSection') {
+                        // Initialize Mixxx mode when tab is shown
+                        if (typeof initializeMixxxMode === 'function') {
+                            initializeMixxxMode();
+                        }
+                    } else if (targetId === '#mp3RelatedSection') {
+                        // Focus search input when switching to related tab
+                        setTimeout(() => {
+                            const searchInput = document.getElementById('mp3RelatedSearchInput');
+                            if (searchInput) {
+                                searchInput.focus();
+                            }
+                        }, 100);
                     }
                 });
             });
