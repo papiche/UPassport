@@ -469,31 +469,99 @@
 
     <script>
         // Global variables (avoid redeclaration conflicts with common.js)
-        // userPubkey, userPrivateKey, nostrRelay, and isNostrConnected may be declared in common.js
-        // Use var instead of let to allow redeclaration without errors
-        // Note: var allows redeclaration, so this won't cause errors if common.js already declared them
-        var userPubkey = (typeof window !== 'undefined' && window.userPubkey) || null;
-        var userPrivateKey = (typeof window !== 'undefined' && window.userPrivateKey) || null;
-        var nostrPool = null;
-        var isNostrConnected = (typeof window !== 'undefined' && window.isNostrConnected) || false;
-        var nostrRelay = (typeof window !== 'undefined' && window.nostrRelay) || null;
+        // userPubkey, userPrivateKey, nostrRelay, and isNostrConnected are declared in common.js
+        // Use local variables with different names and sync with window/common.js scope
+        let localUserPubkey = null;
+        let localUserPrivateKey = null;
+        let nostrPool = null;
+        let localIsNostrConnected = false;
+        let localNostrRelay = null;
         
-        // Sync with window scope if variables exist there (from common.js)
-        // This happens after common.js loads
-        function syncWithCommonJS() {
-            if (typeof window !== 'undefined') {
-                if (window.userPubkey !== undefined) userPubkey = window.userPubkey;
-                if (window.userPrivateKey !== undefined) userPrivateKey = window.userPrivateKey;
-                if (window.isNostrConnected !== undefined) isNostrConnected = window.isNostrConnected;
-                if (window.nostrRelay !== undefined) nostrRelay = window.nostrRelay;
+        // Sync function to get values from common.js or window scope
+        function syncFromCommonJS() {
+            try {
+                if (typeof userPubkey !== 'undefined') {
+                    localUserPubkey = userPubkey;
+                } else if (typeof window !== 'undefined' && window.userPubkey) {
+                    localUserPubkey = window.userPubkey;
+                }
+            } catch (e) {
+                if (typeof window !== 'undefined' && window.userPubkey) {
+                    localUserPubkey = window.userPubkey;
+                }
+            }
+            
+            try {
+                if (typeof userPrivateKey !== 'undefined') {
+                    localUserPrivateKey = userPrivateKey;
+                } else if (typeof window !== 'undefined' && window.userPrivateKey) {
+                    localUserPrivateKey = window.userPrivateKey;
+                }
+            } catch (e) {
+                if (typeof window !== 'undefined' && window.userPrivateKey) {
+                    localUserPrivateKey = window.userPrivateKey;
+                }
+            }
+            
+            try {
+                if (typeof isNostrConnected !== 'undefined') {
+                    localIsNostrConnected = isNostrConnected;
+                } else if (typeof window !== 'undefined' && window.isNostrConnected !== undefined) {
+                    localIsNostrConnected = window.isNostrConnected;
+                }
+            } catch (e) {
+                if (typeof window !== 'undefined' && window.isNostrConnected !== undefined) {
+                    localIsNostrConnected = window.isNostrConnected;
+                }
+            }
+            
+            try {
+                if (typeof nostrRelay !== 'undefined') {
+                    localNostrRelay = nostrRelay;
+                } else if (typeof window !== 'undefined' && window.nostrRelay) {
+                    localNostrRelay = window.nostrRelay;
+                }
+            } catch (e) {
+                if (typeof window !== 'undefined' && window.nostrRelay) {
+                    localNostrRelay = window.nostrRelay;
+                }
             }
         }
         
-        // Try to sync immediately (if common.js already loaded)
-        syncWithCommonJS();
+        // Sync to common.js/window scope when values change
+        function syncToCommonJS() {
+            if (typeof window !== 'undefined') {
+                window.userPubkey = localUserPubkey;
+                window.userPrivateKey = localUserPrivateKey;
+                window.isNostrConnected = localIsNostrConnected;
+                window.nostrRelay = localNostrRelay;
+            }
+            try {
+                if (typeof userPubkey !== 'undefined') userPubkey = localUserPubkey;
+                if (typeof userPrivateKey !== 'undefined') userPrivateKey = localUserPrivateKey;
+                if (typeof isNostrConnected !== 'undefined') isNostrConnected = localIsNostrConnected;
+                if (typeof nostrRelay !== 'undefined') nostrRelay = localNostrRelay;
+            } catch (e) {
+                // Variables not accessible, only sync to window
+            }
+        }
         
-        // Also sync after a short delay (in case common.js loads after this script)
-        setTimeout(syncWithCommonJS, 100);
+        // Initial sync
+        syncFromCommonJS();
+        setTimeout(syncFromCommonJS, 100);
+        
+        // Note: The code below uses localUserPubkey, localUserPrivateKey, localIsNostrConnected, localNostrRelay
+        // These are synced with window scope and common.js variables automatically
+        // We'll replace references throughout the code to use these local variables
+        // For now, create helper functions to access them easily
+        function getUserPubkey() { syncFromCommonJS(); return localUserPubkey; }
+        function setUserPubkey(v) { localUserPubkey = v; syncToCommonJS(); }
+        function getUserPrivateKey() { syncFromCommonJS(); return localUserPrivateKey; }
+        function setUserPrivateKey(v) { localUserPrivateKey = v; syncToCommonJS(); }
+        function getIsNostrConnected() { syncFromCommonJS(); return localIsNostrConnected; }
+        function setIsNostrConnected(v) { localIsNostrConnected = v; syncToCommonJS(); }
+        function getNostrRelay() { syncFromCommonJS(); return localNostrRelay; }
+        function setNostrRelay(v) { localNostrRelay = v; syncToCommonJS(); }
         
         // Default relays
         const DEFAULT_RELAYS = ['wss://astroport.com', 'wss://relay.damus.io', 'wss://nos.lol'];
@@ -514,17 +582,15 @@
                 }
                 
                 // Get public key
-                userPubkey = await window.nostr.getPublicKey();
-                if (!userPubkey) {
+                localUserPubkey = await window.nostr.getPublicKey();
+                if (!localUserPubkey) {
                     throw new Error('No public key returned from NOSTR extension');
                 }
                 
-                // Sync with window scope (for common.js compatibility)
-                if (typeof window !== 'undefined') {
-                    window.userPubkey = userPubkey;
-                }
+                // Sync with window scope and common.js
+                syncToCommonJS();
                 
-                console.log('✅ Connected to NOSTR, pubkey:', userPubkey.substring(0, 8) + '...');
+                console.log('✅ Connected to NOSTR, pubkey:', localUserPubkey.substring(0, 8) + '...');
                 
                 // Initialize NOSTR pool
                 if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
@@ -533,12 +599,10 @@
                     throw new Error('NostrTools.SimplePool not available');
                 }
                 
-                isNostrConnected = true;
+                localIsNostrConnected = true;
                 
-                // Sync with window scope (for common.js compatibility)
-                if (typeof window !== 'undefined') {
-                    window.isNostrConnected = isNostrConnected;
-                }
+                // Sync with window scope and common.js
+                syncToCommonJS();
                 
                 // Update UI
                 connectBtn.textContent = '✅ Connected';
@@ -548,7 +612,7 @@
                 
                 const statusEl = document.getElementById('connection-status');
                 if (statusEl) {
-                    statusEl.textContent = `Connected: ${userPubkey.substring(0, 8)}...`;
+                    statusEl.textContent = `Connected: ${localUserPubkey.substring(0, 8)}...`;
                     statusEl.classList.remove('d-none');
                 }
                 
@@ -566,7 +630,7 @@
         
         // Load voice messages from NOSTR
         async function loadVoiceMessages() {
-            if (!userPubkey || !nostrPool) {
+            if (!localUserPubkey || !nostrPool) {
                 console.warn('⚠️ Not connected to NOSTR');
                 return;
             }
@@ -613,7 +677,7 @@
                 
                 // Adjust filter based on type
                 if (filterType === 'sent') {
-                    filter.authors = [userPubkey];
+                    filter.authors = [localUserPubkey];
                 } else if (filterType === 'received') {
                     // For received, we need to check p tags
                     // This is handled in post-processing
@@ -679,13 +743,13 @@
                             // Convert npub to hex for comparison
                             try {
                                 const hexPubkey = npubToHex(tag[1]);
-                                return hexPubkey && hexPubkey.toLowerCase() === userPubkey.toLowerCase();
+                                return hexPubkey && hexPubkey.toLowerCase() === localUserPubkey.toLowerCase();
                             } catch (e) {
                                 return false;
                             }
                         });
                         
-                        if (!isRecipient && event.pubkey !== userPubkey) {
+                        if (!isRecipient && event.pubkey !== localUserPubkey) {
                             continue; // Skip if not a recipient and not sent by user
                         }
                     }
@@ -1363,7 +1427,7 @@
         
         // Open reply modal
         function openReplyModal(messageId) {
-            if (!userPubkey || !isNostrConnected) {
+            if (!localUserPubkey || !localIsNostrConnected) {
                 alert('Please connect to NOSTR first to reply.');
                 return;
             }
@@ -1622,7 +1686,7 @@
                 
                 const uploadFormData = new FormData();
                 uploadFormData.append('file', audioFile);
-                uploadFormData.append('npub', userPubkey);
+                uploadFormData.append('npub', localUserPubkey);
                 
                 console.log('📤 Uploading reply audio to IPFS...');
                 const uploadResponse = await fetch('/api/fileupload', {
@@ -1646,9 +1710,9 @@
                 let playerValue = '';
                 try {
                     if (typeof fetchUserEmailWithFallback === 'function') {
-                        playerValue = await fetchUserEmailWithFallback(userPubkey);
+                        playerValue = await fetchUserEmailWithFallback(localUserPubkey);
                     } else if (typeof window !== 'undefined' && typeof window.fetchUserEmailWithFallback === 'function') {
-                        playerValue = await window.fetchUserEmailWithFallback(userPubkey);
+                        playerValue = await window.fetchUserEmailWithFallback(localUserPubkey);
                     }
                     
                     if (!playerValue || !playerValue.includes('@')) {
@@ -1726,13 +1790,14 @@
             // Check if already connected (from parent window if in iframe)
             const isInIframe = window.self !== window.top;
             if (isInIframe && window.parent && window.parent.userPubkey) {
-                userPubkey = window.parent.userPubkey;
+                localUserPubkey = window.parent.userPubkey;
                 if (window.parent.nostrPool) {
                     nostrPool = window.parent.nostrPool;
                 } else if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
                     nostrPool = new NostrTools.SimplePool();
                 }
-                isNostrConnected = true;
+                localIsNostrConnected = true;
+                syncToCommonJS();
                 
                 const connectBtn = document.getElementById('connect-btn');
                 connectBtn.textContent = '✅ Connected';
