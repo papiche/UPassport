@@ -4186,7 +4186,9 @@
                         
                         if (typeof window.nostr === 'undefined' || !window.nostr) {
                             showError(
-                                'NOSTR extension not detected. Please install a NOSTR extension like Alby, nos2x, or Flamingo to continue.',
+                                'NOSTR extension not detected.\n\n' +
+                                'Please ensure your NOSTR extension (Alby, nos2x, Flamingo, Nostr Connect, etc.) is installed and enabled.\n\n' +
+                                '💡 Alternative: Use /scan and scan your MULTIPASS SSSS QR code with PASS code "8888" to automatically enable encryption.',
                                 'Extension Required'
                             );
                             throw new Error("NOSTR extension not available");
@@ -4515,16 +4517,57 @@
             } else if (!userPubkey && !window.userPubkey) {
                 // Auto-login: Try to connect automatically if extension is available (and no nsec provided)
                 console.log('🔄 Attempting auto-login...');
-                if (typeof window.nostr !== 'undefined' && window.nostr && typeof window.nostr.getPublicKey === 'function') {
-                    // Extension available - try to connect automatically
-                    setTimeout(() => {
-                        handleNostrConnect().catch((error) => {
-                            console.log('ℹ️ Auto-login failed, user needs to click Connect button:', error.message);
-                        });
-                    }, 500); // Small delay to ensure page is ready
-                } else {
-                    console.log('ℹ️ NOSTR extension not available - user needs to click Connect button');
-                }
+                
+                // Wait for extension to load (check multiple times)
+                let attempts = 0;
+                const maxAttempts = 30; // Increased to 30 (15 seconds total)
+                const checkInterval = 500;
+                const initialDelay = 1500; // Wait 1.5 seconds before first check (extensions need time to inject)
+                
+                const tryAutoConnect = () => {
+                    attempts++;
+                    
+                    // Multiple ways to check for NOSTR extension
+                    const nostrAvailable = typeof window.nostr !== 'undefined' && window.nostr !== null;
+                    const nostrGetPublicKey = nostrAvailable && typeof window.nostr.getPublicKey === 'function';
+                    
+                    // Also check for alternative extension names
+                    const nostrConnect = typeof window.nostrConnect !== 'undefined';
+                    const nostrProvider = typeof window.nostrProvider !== 'undefined';
+                    
+                    if (attempts === 1) {
+                        console.log('🔍 Checking for NOSTR extension...');
+                        console.log('   window.nostr:', nostrAvailable ? 'available' : 'not available');
+                        console.log('   window.nostrConnect:', nostrConnect ? 'available' : 'not available');
+                        console.log('   window.nostrProvider:', nostrProvider ? 'available' : 'not available');
+                        if (nostrAvailable) {
+                            console.log('   Methods:', Object.keys(window.nostr).join(', '));
+                        }
+                    }
+                    
+                    if (nostrGetPublicKey) {
+                        // Extension available - try to connect automatically
+                        console.log(`✅ NOSTR extension detected after ${attempts} attempt(s), connecting...`);
+                        setTimeout(() => {
+                            handleNostrConnect().catch((error) => {
+                                console.log('ℹ️ Auto-login failed, user needs to click Connect button:', error.message);
+                            });
+                        }, 200);
+                    } else if (attempts < maxAttempts) {
+                        // Extension not ready yet, retry
+                        if (attempts % 4 === 0) { // Log every 2 seconds
+                            console.log(`🔄 Still waiting for NOSTR extension... (${attempts}/${maxAttempts})`);
+                        }
+                        setTimeout(tryAutoConnect, checkInterval);
+                    } else {
+                        console.log(`ℹ️ NOSTR extension not available after ${maxAttempts} attempts (${maxAttempts * checkInterval / 1000}s) - user needs to click Connect button`);
+                        console.log('💡 Tip: Make sure your NOSTR extension (Alby, nos2x, Flamingo, Nostr Connect, etc.) is installed and enabled.');
+                        console.log('💡 Tip: You can also use /scan with your MULTIPASS SSSS QR code and PASS "8888" to auto-inject your private key.');
+                    }
+                };
+                
+                // Start checking after initial delay to let extensions initialize
+                setTimeout(tryAutoConnect, initialDelay);
             }
             
             // Handle auth mode change

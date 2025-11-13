@@ -771,9 +771,14 @@
                     console.log('✅ Connected to NOSTR via common.js, pubkey:', localUserPubkey.substring(0, 8) + '...');
                 } else {
                     // Strategy 2: Direct extension access (fallback)
-                    // Check if window.nostr is available
+                    // Check if window.nostr is available (with better error message)
                     if (typeof window.nostr === 'undefined' || !window.nostr) {
-                        throw new Error('NOSTR extension not detected. Please install a NOSTR extension like Alby, nos2x, or Flamingo.');
+                        // Provide helpful error message with MULTIPASS option
+                        throw new Error(
+                            'NOSTR extension not detected.\n\n' +
+                            'Please ensure your NOSTR extension (Alby, nos2x, Flamingo, Nostr Connect, etc.) is installed and enabled.\n\n' +
+                            '💡 Alternative: Use /scan and scan your MULTIPASS SSSS QR code with PASS code "8888" to automatically enable encryption.'
+                        );
                     }
                     
                     // Get public key
@@ -825,7 +830,30 @@
                 const connectBtn = document.getElementById('connect-btn');
                 connectBtn.disabled = false;
                 connectBtn.textContent = '🔌 Retry';
-                alert(`Connection failed: ${error.message}`);
+                
+                // Enhanced error message with diagnostic
+                let errorMessage = error.message;
+                if (errorMessage.includes('NOSTR extension not detected') || errorMessage.includes('extension not available')) {
+                    // Check if extension might be loading
+                    const nostrExists = typeof window.nostr !== 'undefined';
+                    const nostrMethods = nostrExists ? Object.keys(window.nostr || {}).join(', ') : 'none';
+                    
+                    errorMessage = 'NOSTR extension not detected.\n\n';
+                    errorMessage += 'Please ensure your NOSTR extension (Alby, nos2x, Flamingo, Nostr Connect, etc.) is:\n';
+                    errorMessage += '1. Installed in your browser\n';
+                    errorMessage += '2. Enabled/activated\n';
+                    errorMessage += '3. Has permissions for this website\n\n';
+                    
+                    if (nostrExists) {
+                        errorMessage += `⚠️ window.nostr exists but getPublicKey is not available.\n`;
+                        errorMessage += `Available methods: ${nostrMethods}\n\n`;
+                        errorMessage += 'The extension may still be loading. Please wait a few seconds and try again.\n\n';
+                    }
+                    
+                    errorMessage += '💡 Alternative: Use /scan and scan your MULTIPASS SSSS QR code with PASS code "8888" to automatically enable encryption.';
+                }
+                
+                alert(errorMessage);
                 throw error; // Re-throw for auto-login handling
             }
         }
@@ -2878,33 +2906,80 @@
                 // Strategy 2: Try direct extension access (with retry for extension loading delay)
                 function tryDirectExtensionConnection() {
                     let attempts = 0;
-                    const maxAttempts = 5;
+                    const maxAttempts = 30; // Increased to 30 (15 seconds total)
                     const checkInterval = 500; // Check every 500ms
+                    const initialDelay = 1500; // Wait 1.5 seconds before first check (extensions need time to inject)
                     
                     const checkExtension = () => {
                         attempts++;
-                        if (typeof window.nostr !== 'undefined' && window.nostr && typeof window.nostr.getPublicKey === 'function') {
+                        
+                        // Multiple ways to check for NOSTR extension
+                        const nostrAvailable = typeof window.nostr !== 'undefined' && window.nostr !== null;
+                        const nostrGetPublicKey = nostrAvailable && typeof window.nostr.getPublicKey === 'function';
+                        const nostrSignEvent = nostrAvailable && typeof window.nostr.signEvent === 'function';
+                        
+                        // Also check for alternative extension names (some extensions use different APIs)
+                        const nostrConnect = typeof window.nostrConnect !== 'undefined';
+                        const nostrProvider = typeof window.nostrProvider !== 'undefined';
+                        
+                        if (attempts === 1) {
+                            console.log('🔍 Checking for NOSTR extension...');
+                            console.log('   window.nostr:', nostrAvailable ? 'available' : 'not available');
+                            console.log('   window.nostrConnect:', nostrConnect ? 'available' : 'not available');
+                            console.log('   window.nostrProvider:', nostrProvider ? 'available' : 'not available');
+                            if (nostrAvailable) {
+                                console.log('   Methods:', Object.keys(window.nostr).join(', '));
+                            }
+                        }
+                        
+                        if (nostrGetPublicKey) {
                             // Extension available - try to connect automatically
-                            console.log('✅ NOSTR extension detected, connecting...');
-                            handleNostrConnect().then(() => {
-                                // Connection successful - handleNostrConnect already loads messages
-                                const profileBtn = document.getElementById('profile-btn');
-                                if (profileBtn && localUserPubkey) {
-                                    profileBtn.classList.remove('d-none');
+                            console.log(`✅ NOSTR extension detected after ${attempts} attempt(s), connecting...`);
+                            // Try to test if extension actually works (some extensions need user interaction)
+                            try {
+                                const testPromise = window.nostr.getPublicKey();
+                                if (testPromise && typeof testPromise.then === 'function') {
+                                    // It's async, try to connect
+                                    handleNostrConnect().then(() => {
+                                        // Connection successful - handleNostrConnect already loads messages
+                                        const profileBtn = document.getElementById('profile-btn');
+                                        if (profileBtn && localUserPubkey) {
+                                            profileBtn.classList.remove('d-none');
+                                        }
+                                    }).catch((error) => {
+                                        console.log('ℹ️ Auto-login failed, user needs to click Connect button:', error.message);
+                                        // Don't show alert for auto-login failures, just log
+                                    });
+                                } else {
+                                    // Synchronous, might work
+                                    handleNostrConnect().then(() => {
+                                        const profileBtn = document.getElementById('profile-btn');
+                                        if (profileBtn && localUserPubkey) {
+                                            profileBtn.classList.remove('d-none');
+                                        }
+                                    }).catch((error) => {
+                                        console.log('ℹ️ Auto-login failed, user needs to click Connect button:', error.message);
+                                    });
                                 }
-                            }).catch((error) => {
-                                console.log('ℹ️ Auto-login failed, user needs to click Connect button:', error.message);
-                            });
+                            } catch (testError) {
+                                // Extension exists but might need user interaction
+                                console.log('ℹ️ Extension detected but may require user interaction. User should click Connect button.');
+                            }
                         } else if (attempts < maxAttempts) {
                             // Extension not ready yet, retry
+                            if (attempts % 4 === 0) { // Log every 2 seconds
+                                console.log(`🔄 Still waiting for NOSTR extension... (${attempts}/${maxAttempts})`);
+                            }
                             setTimeout(checkExtension, checkInterval);
                         } else {
-                            console.log('ℹ️ NOSTR extension not available after', maxAttempts, 'attempts - user needs to click Connect button');
+                            console.log(`ℹ️ NOSTR extension not available after ${maxAttempts} attempts (${maxAttempts * checkInterval / 1000}s) - user needs to click Connect button`);
+                            console.log('💡 Tip: Make sure your NOSTR extension (Alby, nos2x, Flamingo, etc.) is installed and enabled.');
+                            console.log('💡 Tip: You can also use /scan with your MULTIPASS SSSS QR code and PASS "8888" to auto-inject your private key.');
                         }
                     };
                     
-                    // Start checking
-                    checkExtension();
+                    // Start checking after initial delay to let extensions initialize
+                    setTimeout(checkExtension, initialDelay);
                 }
                 
                 // Strategy 1: Try to use common.js connectNostr (better handling of extension loading)
