@@ -35,6 +35,19 @@
     {% else %}
     <script src="{{ myIPFS }}/ipns/copylaradio.com/jsmediatags.min.js"></script>
     {% endif %}
+    <script>
+        // Debug: Check if jsmediatags is loaded
+        window.addEventListener('load', function() {
+            console.log('🔍 [DEBUG] Checking jsmediatags library...');
+            console.log('🔍 [DEBUG] typeof jsmediatags:', typeof jsmediatags);
+            if (typeof jsmediatags !== 'undefined') {
+                console.log('✅ [DEBUG] jsmediatags library is loaded');
+                console.log('🔍 [DEBUG] jsmediatags object:', jsmediatags);
+            } else {
+                console.error('❌ [DEBUG] jsmediatags library NOT loaded!');
+            }
+        });
+    </script>
     <style>
         * {
             box-sizing: border-box;
@@ -1346,58 +1359,113 @@
          * Set album art from multiple sources: ID3 tags (MP3 metadata), thumbnail URL, or placeholder
          */
         async function setAlbumArt(trackData, albumArtEl, albumArtPlaceholder) {
-            if (!albumArtEl || !albumArtPlaceholder) return;
+            console.log('🎨 [DEBUG] setAlbumArt called with trackData:', {
+                url: trackData.url,
+                thumbnail: trackData.thumbnail,
+                hasInfoJson: !!trackData.infoJson,
+                infoJsonThumbnail: trackData.infoJson?.thumbnail,
+                allKeys: Object.keys(trackData)
+            });
+            
+            if (!albumArtEl || !albumArtPlaceholder) {
+                console.warn('⚠️ [DEBUG] Missing album art elements:', { albumArtEl: !!albumArtEl, albumArtPlaceholder: !!albumArtPlaceholder });
+                return;
+            }
             
             let thumbnailSet = false;
             
             // Priority 1: Try to extract thumbnail from MP3 ID3 tags
+            console.log('🔍 [DEBUG] Priority 1: Checking ID3 tags extraction');
+            console.log('🔍 [DEBUG] - trackData.url:', trackData.url);
+            console.log('🔍 [DEBUG] - jsmediatags available:', typeof jsmediatags !== 'undefined');
+            
             if (trackData.url && typeof jsmediatags !== 'undefined') {
                 try {
-                    console.log('🎨 Attempting to extract thumbnail from MP3 ID3 tags...');
+                    console.log('🎨 [DEBUG] Attempting to extract thumbnail from MP3 ID3 tags...');
+                    console.log('🎨 [DEBUG] MP3 URL:', trackData.url);
                     // Note: This may fail due to CORS if the MP3 is on a different domain
                     // That's okay, we'll fall back to other sources
                     const thumbnail = await extractThumbnailFromMP3(trackData.url);
                     if (thumbnail) {
+                        console.log('✅ [DEBUG] Thumbnail extracted from MP3 ID3 tags, length:', thumbnail.length);
                         albumArtEl.src = thumbnail;
                         albumArtEl.classList.remove('d-none');
                         albumArtPlaceholder.classList.add('d-none');
                         thumbnailSet = true;
-                        console.log('✅ Thumbnail extracted from MP3 ID3 tags');
+                        console.log('✅ [DEBUG] Thumbnail set from ID3 tags');
+                    } else {
+                        console.warn('⚠️ [DEBUG] extractThumbnailFromMP3 returned null/undefined');
                     }
                 } catch (e) {
                     // CORS errors are expected if MP3 is on different domain
                     // Silently fall back to other thumbnail sources
+                    console.error('❌ [DEBUG] Error extracting thumbnail from ID3:', e);
                     if (e.message && e.message.includes('CORS')) {
-                        console.log('ℹ️ Cannot extract thumbnail from MP3 (CORS restriction), using fallback');
+                        console.log('ℹ️ [DEBUG] Cannot extract thumbnail from MP3 (CORS restriction), using fallback');
                     } else {
-                        console.warn('⚠️ Could not extract thumbnail from MP3:', e.message || e);
+                        console.warn('⚠️ [DEBUG] Could not extract thumbnail from MP3:', e.message || e);
                     }
+                }
+            } else {
+                if (!trackData.url) {
+                    console.warn('⚠️ [DEBUG] No trackData.url available for ID3 extraction');
+                }
+                if (typeof jsmediatags === 'undefined') {
+                    console.warn('⚠️ [DEBUG] jsmediatags library not loaded');
                 }
             }
             
             // Priority 2: Use thumbnail from trackData (from .info.json or NOSTR tags)
+            console.log('🔍 [DEBUG] Priority 2: Checking trackData.thumbnail');
+            console.log('🔍 [DEBUG] - thumbnailSet:', thumbnailSet);
+            console.log('🔍 [DEBUG] - trackData.thumbnail:', trackData.thumbnail);
+            
             if (!thumbnailSet && trackData.thumbnail) {
                 let thumbnailUrl = trackData.thumbnail;
+                console.log('🔍 [DEBUG] Original thumbnail URL:', thumbnailUrl);
+                
                 if (typeof convertIPFSUrlGlobal === 'function') {
                     thumbnailUrl = convertIPFSUrlGlobal(thumbnailUrl);
+                    console.log('🔍 [DEBUG] Converted via convertIPFSUrlGlobal:', thumbnailUrl);
                 } else if (window.IPFS_GATEWAY && thumbnailUrl.includes('/ipfs/')) {
                     const match = thumbnailUrl.match(/\/ipfs\/[^?"#]+/);
                     if (match) {
                         thumbnailUrl = window.IPFS_GATEWAY + match[0];
+                        console.log('🔍 [DEBUG] Converted via IPFS_GATEWAY:', thumbnailUrl);
                     }
+                } else {
+                    console.log('🔍 [DEBUG] No conversion needed or IPFS_GATEWAY not available');
                 }
                 
+                console.log('✅ [DEBUG] Setting thumbnail from metadata:', thumbnailUrl);
                 albumArtEl.src = thumbnailUrl;
                 albumArtEl.classList.remove('d-none');
                 albumArtPlaceholder.classList.add('d-none');
                 thumbnailSet = true;
-                console.log('✅ Using thumbnail from metadata');
+                
+                // Add error handler to see if image loads
+                albumArtEl.onerror = function() {
+                    console.error('❌ [DEBUG] Failed to load thumbnail image:', thumbnailUrl);
+                    console.error('❌ [DEBUG] Image element:', albumArtEl);
+                };
+                albumArtEl.onload = function() {
+                    console.log('✅ [DEBUG] Thumbnail image loaded successfully:', thumbnailUrl);
+                };
+            } else {
+                if (thumbnailSet) {
+                    console.log('ℹ️ [DEBUG] Skipping Priority 2 (thumbnail already set from ID3)');
+                } else {
+                    console.warn('⚠️ [DEBUG] No trackData.thumbnail available');
+                }
             }
             
             // Priority 3: Show placeholder if no thumbnail found
             if (!thumbnailSet) {
+                console.warn('⚠️ [DEBUG] No thumbnail found, showing placeholder');
                 albumArtEl.classList.add('d-none');
                 albumArtPlaceholder.classList.remove('d-none');
+            } else {
+                console.log('✅ [DEBUG] Thumbnail successfully set');
             }
         }
         
@@ -1405,14 +1473,29 @@
          * Extract thumbnail from MP3 file using ID3 tags
          */
         function extractThumbnailFromMP3(mp3Url) {
+            console.log('🔍 [DEBUG] extractThumbnailFromMP3 called with URL:', mp3Url);
+            
             return new Promise((resolve, reject) => {
                 if (typeof jsmediatags === 'undefined') {
+                    console.error('❌ [DEBUG] jsmediatags library not loaded');
                     reject(new Error('jsmediatags library not loaded'));
                     return;
                 }
                 
+                console.log('🔍 [DEBUG] jsmediatags library is available, reading MP3...');
+                
                 jsmediatags.read(mp3Url, {
                     onSuccess: function(tag) {
+                        console.log('✅ [DEBUG] jsmediatags.read succeeded');
+                        console.log('🔍 [DEBUG] Tag structure:', {
+                            hasTags: !!tag.tags,
+                            tagKeys: tag.tags ? Object.keys(tag.tags) : [],
+                            hasPicture: !!tag.tags?.picture,
+                            hasAPIC: !!tag.tags?.APIC,
+                            pictureType: tag.tags?.picture ? typeof tag.tags.picture : null,
+                            APICType: tag.tags?.APIC ? typeof tag.tags.APIC : null
+                        });
+                        
                         try {
                             // Helper function to convert Uint8Array to base64 (handles large arrays)
                             function uint8ArrayToBase64(uint8Array) {
@@ -1428,34 +1511,51 @@
                             // Look for picture/cover art in ID3 tags
                             // jsmediatags returns picture data in different formats depending on ID3 version
                             const picture = tag.tags.picture || tag.tags.APIC;
+                            console.log('🔍 [DEBUG] Picture object:', picture);
+                            
                             if (picture) {
                                 let imageData, mimeType;
                                 
                                 // Handle different picture formats
                                 if (picture.data) {
+                                    console.log('🔍 [DEBUG] Found picture.data, type:', typeof picture.data, 'length:', picture.data?.length);
                                     imageData = picture.data;
                                     mimeType = picture.format || picture.imageFormat || 'image/jpeg';
+                                    console.log('🔍 [DEBUG] MIME type:', mimeType);
                                 } else if (picture.imageFormat) {
+                                    console.log('🔍 [DEBUG] Found picture.imageFormat, data directly in picture');
                                     // Sometimes data is directly in picture
                                     imageData = picture;
                                     mimeType = picture.imageFormat || 'image/jpeg';
                                 } else {
+                                    console.error('❌ [DEBUG] Picture data format not recognized:', picture);
                                     reject(new Error('Picture data format not recognized'));
                                     return;
                                 }
                                 
                                 // Convert to base64
+                                console.log('🔍 [DEBUG] Converting image data to base64, size:', imageData.length);
                                 const base64String = uint8ArrayToBase64(imageData);
                                 const dataUrl = `data:${mimeType};base64,${base64String}`;
+                                console.log('✅ [DEBUG] Base64 data URL created, length:', dataUrl.length);
                                 resolve(dataUrl);
                             } else {
+                                console.warn('⚠️ [DEBUG] No picture found in MP3 ID3 tags');
+                                console.log('🔍 [DEBUG] Available tags:', tag.tags ? Object.keys(tag.tags) : []);
                                 reject(new Error('No picture found in MP3 ID3 tags'));
                             }
                         } catch (e) {
+                            console.error('❌ [DEBUG] Error processing picture data:', e);
                             reject(e);
                         }
                     },
                     onError: function(error) {
+                        console.error('❌ [DEBUG] jsmediatags.read error:', error);
+                        console.error('❌ [DEBUG] Error details:', {
+                            message: error.message,
+                            type: error.type,
+                            info: error.info
+                        });
                         reject(error);
                     }
                 });
@@ -1466,7 +1566,19 @@
          * Initialize MP3 modal with track data
          */
         function initializeMP3Modal(trackData) {
-            if (!trackData) return;
+            console.log('🎵 [DEBUG] initializeMP3Modal called with trackData:', {
+                title: trackData?.title,
+                url: trackData?.url,
+                thumbnail: trackData?.thumbnail,
+                hasInfoJson: !!trackData?.infoJson,
+                infoJsonThumbnail: trackData?.infoJson?.thumbnail,
+                allKeys: trackData ? Object.keys(trackData) : []
+            });
+            
+            if (!trackData) {
+                console.error('❌ [DEBUG] initializeMP3Modal: trackData is null/undefined');
+                return;
+            }
             
             const audioPlayer = document.getElementById('mp3AudioPlayer');
             const titleEl = document.getElementById('mp3Title');
@@ -1475,6 +1587,13 @@
             const artistEl = document.getElementById('mp3Artist');
             const albumArtEl = document.getElementById('mp3AlbumArt');
             const albumArtPlaceholder = document.getElementById('mp3AlbumArtPlaceholder');
+            
+            console.log('🔍 [DEBUG] initializeMP3Modal: Elements found:', {
+                audioPlayer: !!audioPlayer,
+                titleEl: !!titleEl,
+                albumArtEl: !!albumArtEl,
+                albumArtPlaceholder: !!albumArtPlaceholder
+            });
             
             // Set title
             if (titleEl && trackData.title) {

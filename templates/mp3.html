@@ -1299,10 +1299,31 @@
                     // Enrich tracks with .info.json metadata if available (using function from nostrify.enhancements.js)
                     const enrichFn = typeof enrichTrackWithInfoJson === 'function' ? enrichTrackWithInfoJson : null;
                     if (enrichFn) {
+                        console.log('🔍 [DEBUG] Enriching tracks with .info.json metadata...');
                         NostrifyMP3.allMusicTracks = await Promise.all(
-                            serverTracks.map(track => enrichFn(track))
+                            serverTracks.map((track, idx) => {
+                                console.log(`🔍 [DEBUG] Enriching track ${idx}:`, {
+                                    title: track.title,
+                                    thumbnail: track.thumbnail,
+                                    infoCid: track.infoCid
+                                });
+                                return enrichFn(track).then(enriched => {
+                                    console.log(`✅ [DEBUG] Track ${idx} enriched:`, {
+                                        title: enriched.title,
+                                        thumbnail: enriched.thumbnail,
+                                        hasInfoJson: !!enriched.infoJson,
+                                        infoJsonThumbnail: enriched.infoJson?.thumbnail
+                                    });
+                                    return enriched;
+                                });
+                            })
                         );
+                        console.log('✅ [DEBUG] All tracks enriched, checking thumbnails...');
+                        NostrifyMP3.allMusicTracks.forEach((track, idx) => {
+                            console.log(`🔍 [DEBUG] Final track ${idx} thumbnail:`, track.thumbnail || track.infoJson?.thumbnail || 'NONE');
+                        });
                     } else {
+                        console.warn('⚠️ [DEBUG] enrichTrackWithInfoJson function not available');
                         NostrifyMP3.allMusicTracks = serverTracks;
                     }
                     
@@ -1462,22 +1483,44 @@
             
             grid.innerHTML = NostrifyMP3.filteredTracks.map((track, index) => {
                 // Convert thumbnail URL if needed
+                console.log(`🔍 [DEBUG] Track ${index}:`, {
+                    title: track.title,
+                    thumbnail: track.thumbnail,
+                    hasInfoJson: !!track.infoJson,
+                    infoJsonThumbnail: track.infoJson?.thumbnail,
+                    allKeys: Object.keys(track).filter(k => k.includes('thumb') || k.includes('image') || k.includes('art'))
+                });
+                
                 let thumbnailUrl = track.thumbnail || null;
+                
+                // Try to get thumbnail from infoJson if not in track.thumbnail
+                if (!thumbnailUrl && track.infoJson && track.infoJson.thumbnail) {
+                    console.log(`🔍 [DEBUG] Track ${index}: Found thumbnail in infoJson:`, track.infoJson.thumbnail);
+                    thumbnailUrl = track.infoJson.thumbnail;
+                }
+                
                 if (thumbnailUrl) {
+                    console.log(`🔍 [DEBUG] Track ${index}: Original thumbnail URL:`, thumbnailUrl);
                     if (typeof convertIPFSUrlGlobal === 'function') {
                         thumbnailUrl = convertIPFSUrlGlobal(thumbnailUrl);
+                        console.log(`🔍 [DEBUG] Track ${index}: Converted via convertIPFSUrlGlobal:`, thumbnailUrl);
                     } else if (window.IPFS_GATEWAY && thumbnailUrl.includes('/ipfs/')) {
                         const match = thumbnailUrl.match(/\/ipfs\/[^?"#]+/);
                         if (match) {
                             thumbnailUrl = window.IPFS_GATEWAY + match[0];
+                            console.log(`🔍 [DEBUG] Track ${index}: Converted via IPFS_GATEWAY:`, thumbnailUrl);
                         }
+                    } else {
+                        console.log(`🔍 [DEBUG] Track ${index}: No conversion needed`);
                     }
+                } else {
+                    console.warn(`⚠️ [DEBUG] Track ${index}: No thumbnail available`);
                 }
                 
                 return `
                 <div class="music-card">
                     <div class="music-card-image" onclick="NostrifyMP3.playTrack(${index})">
-                        ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="${NostrifyMP3.escapeHtml(track.title || '')}" onerror="this.parentElement.innerHTML='🎵'">` : '🎵'}
+                        ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="${NostrifyMP3.escapeHtml(track.title || '')}" onerror="console.error('❌ [DEBUG] Image failed to load for track ${index}:', '${thumbnailUrl}'); this.parentElement.innerHTML='🎵';" onload="console.log('✅ [DEBUG] Image loaded for track ${index}:', '${thumbnailUrl}');">` : '🎵'}
                         <button class="music-card-play-button" onclick="event.stopPropagation(); NostrifyMP3.playTrack(${index})" title="Play">
                             <i class="bi bi-play-fill"></i>
                         </button>
@@ -1523,16 +1566,35 @@
             
             list.innerHTML = NostrifyMP3.filteredTracks.map((track, index) => {
                 // Convert thumbnail URL if needed
+                console.log(`🔍 [DEBUG LIST] Track ${index}:`, {
+                    title: track.title,
+                    thumbnail: track.thumbnail,
+                    hasInfoJson: !!track.infoJson,
+                    infoJsonThumbnail: track.infoJson?.thumbnail
+                });
+                
                 let thumbnailUrl = track.thumbnail || null;
+                
+                // Try to get thumbnail from infoJson if not in track.thumbnail
+                if (!thumbnailUrl && track.infoJson && track.infoJson.thumbnail) {
+                    console.log(`🔍 [DEBUG LIST] Track ${index}: Found thumbnail in infoJson:`, track.infoJson.thumbnail);
+                    thumbnailUrl = track.infoJson.thumbnail;
+                }
+                
                 if (thumbnailUrl) {
+                    console.log(`🔍 [DEBUG LIST] Track ${index}: Original thumbnail URL:`, thumbnailUrl);
                     if (typeof convertIPFSUrlGlobal === 'function') {
                         thumbnailUrl = convertIPFSUrlGlobal(thumbnailUrl);
+                        console.log(`🔍 [DEBUG LIST] Track ${index}: Converted via convertIPFSUrlGlobal:`, thumbnailUrl);
                     } else if (window.IPFS_GATEWAY && thumbnailUrl.includes('/ipfs/')) {
                         const match = thumbnailUrl.match(/\/ipfs\/[^?"#]+/);
                         if (match) {
                             thumbnailUrl = window.IPFS_GATEWAY + match[0];
+                            console.log(`🔍 [DEBUG LIST] Track ${index}: Converted via IPFS_GATEWAY:`, thumbnailUrl);
                         }
                     }
+                } else {
+                    console.warn(`⚠️ [DEBUG LIST] Track ${index}: No thumbnail available`);
                 }
                 
                 return `
@@ -1541,7 +1603,7 @@
                     <div class="music-list-play"><i class="bi bi-play-fill"></i></div>
                     <div class="music-list-info">
                         <div class="music-list-image">
-                            ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="${NostrifyMP3.escapeHtml(track.title || '')}" onerror="this.parentElement.innerHTML='🎵'">` : '🎵'}
+                            ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="${NostrifyMP3.escapeHtml(track.title || '')}" onerror="console.error('❌ [DEBUG LIST] Image failed to load for track ${index}:', '${thumbnailUrl}'); this.parentElement.innerHTML='🎵';" onload="console.log('✅ [DEBUG LIST] Image loaded for track ${index}:', '${thumbnailUrl}');">` : '🎵'}
                         </div>
                         <div class="music-list-details">
                             <div class="music-list-title">${NostrifyMP3.escapeHtml(track.title || 'Unknown Title')}</div>
