@@ -1029,11 +1029,15 @@
                     
                     // Convert relative IPFS URL to absolute URL with gateway
                     if (metadata.url && metadata.url.startsWith('/ipfs/')) {
-                        // Get gateway from common.js or use default
-                        const gateway = (typeof window !== 'undefined' && window.gateway) || 
-                                       (typeof gateway !== 'undefined' && gateway) || 
-                                       'https://ipfs.copylaradio.com';
-                        metadata.url = gateway + metadata.url;
+                        // Get gateway from common.js (window.IPFS_GATEWAY) or use default
+                        let ipfsGateway = 'https://ipfs.copylaradio.com'; // Default fallback
+                        if (typeof window !== 'undefined' && window.IPFS_GATEWAY) {
+                            ipfsGateway = window.IPFS_GATEWAY;
+                        } else if (typeof window !== 'undefined' && window.gateway) {
+                            // Fallback to window.gateway if IPFS_GATEWAY not set
+                            ipfsGateway = window.gateway;
+                        }
+                        metadata.url = ipfsGateway + metadata.url;
                     }
                     
                     // Get sender profile
