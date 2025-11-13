@@ -853,7 +853,32 @@
                 // Fetch events from relays
                 const events = await nostrPool.list(VOCALS_READ_DEFAULT_RELAYS, [filter]);
                 
-                console.log(`✅ Fetched ${events.length} voice message events`);
+                // Also fetch deletion events (kind 5) to filter out deleted messages
+                const deletionFilter = {
+                    kinds: [5], // NIP-09 deletion events
+                    since: since,
+                    limit: 200
+                };
+                if (filter.authors) {
+                    deletionFilter.authors = filter.authors;
+                }
+                const deletionEvents = await nostrPool.list(VOCALS_READ_DEFAULT_RELAYS, [deletionFilter]);
+                
+                // Build set of deleted event IDs
+                const deletedEventIds = new Set();
+                deletionEvents.forEach(deletionEvent => {
+                    // Extract event IDs from e tags
+                    deletionEvent.tags.forEach(tag => {
+                        if (tag[0] === 'e' && tag[1]) {
+                            deletedEventIds.add(tag[1]);
+                        }
+                    });
+                });
+                
+                // Filter out deleted events
+                const nonDeletedEvents = events.filter(event => !deletedEventIds.has(event.id));
+                
+                console.log(`✅ Fetched ${events.length} voice message events (${deletionEvents.length} deletion events, ${nonDeletedEvents.length} non-deleted)`);
                 if (events.length > 0) {
                     console.log('📋 Sample event:', {
                         id: events[0].id?.substring(0, 16) + '...',
@@ -870,8 +895,8 @@
                     console.warn('  4. Relay not synced yet (try refreshing)');
                 }
                 
-                // Process events
-                const processedMessages = await processVoiceMessageEvents(events, filterType);
+                // Process events (only non-deleted ones)
+                const processedMessages = await processVoiceMessageEvents(nonDeletedEvents, filterType);
                 
                 // Store all processed messages
                 allProcessedMessages = processedMessages;
@@ -1052,11 +1077,50 @@
                         }
                     }
                     
+                    // Normalize pubkeys for comparison (convert npub to hex if needed)
+                    let normalizedEventPubkey = event.pubkey;
+                    let normalizedUserPubkey = localUserPubkey;
+                    
+                    // Helper function to normalize pubkey to hex
+                    function normalizePubkeyToHex(pubkey) {
+                        if (!pubkey) return null;
+                        // If already hex (64 chars), return as-is
+                        if (pubkey.length === 64 && /^[0-9a-fA-F]{64}$/.test(pubkey)) {
+                            return pubkey.toLowerCase();
+                        }
+                        // If npub, try to convert to hex
+                        if (pubkey.startsWith('npub1')) {
+                            try {
+                                if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                                    const decoded = NostrTools.nip19.decode(pubkey);
+                                    if (decoded.type === 'npub' && decoded.data) {
+                                        const data = decoded.data;
+                                        if (data instanceof Uint8Array) {
+                                            return Array.from(data)
+                                                .map(b => b.toString(16).padStart(2, '0'))
+                                                .join('')
+                                                .toLowerCase();
+                                        }
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('⚠️ Could not decode npub:', e);
+                            }
+                        }
+                        return pubkey.toLowerCase();
+                    }
+                    
+                    normalizedEventPubkey = normalizePubkeyToHex(event.pubkey);
+                    normalizedUserPubkey = normalizePubkeyToHex(localUserPubkey);
+                    const isOwnMessage = normalizedEventPubkey && normalizedUserPubkey && 
+                                        normalizedEventPubkey === normalizedUserPubkey;
+                    
                     processed.push({
                         event: event,
                         id: event.id,
                         kind: event.kind,
                         pubkey: event.pubkey,
+                        normalizedPubkey: normalizedEventPubkey, // For comparison
                         created_at: event.created_at,
                         content: event.content,
                         isEncrypted: isEncrypted,
@@ -1069,7 +1133,8 @@
                         isReply: isReply,
                         rootEventId: rootEventId,
                         parentEventId: parentEventId || rootEventId,
-                        replyToPubkey: replyToPubkey
+                        replyToPubkey: replyToPubkey,
+                        isOwnMessage: isOwnMessage // Flag to show delete button
                     });
                     
                 } catch (error) {
@@ -1611,6 +1676,11 @@
                             <button class="reply-button btn btn-sm" onclick="openReplyModal('${msg.id}')" title="Reply to this message">
                                 💬 Reply
                             </button>
+                            ${msg.isOwnMessage ? `
+                                <button class="btn btn-danger btn-sm" onclick="deleteVoiceMessage('${msg.id}', ${msg.kind}, this)" title="Delete this message">
+                                    🗑️ Delete
+                                </button>
+                            ` : ''}
                         </div>
                     </div>
                     ${msg.metadata.description ? `<p class="text-secondary small mb-2">${msg.metadata.description}</p>` : ''}
@@ -1686,6 +1756,11 @@
                                         ▶️ Play
                                     </button>
                                 `}
+                                ${msg.isOwnMessage ? `
+                                    <button class="btn btn-danger btn-sm" onclick="deleteVoiceMessage('${msg.id}', ${msg.kind}, this)" title="Delete this message">
+                                        🗑️ Delete
+                                    </button>
+                                ` : ''}
                             </div>
                         </div>
                         ${msg.metadata.description ? `<p class="text-secondary small mb-2">${msg.metadata.description}</p>` : ''}
@@ -2441,6 +2516,134 @@
             audioPreview.dataset.audioBlob = audioBlob; // Will be stored in closure
             window.replyAudioBlob = audioBlob; // Store globally for publish
         }
+        
+        // Delete voice message (NIP-09: kind 5)
+        async function deleteVoiceMessage(eventId, eventKind, buttonElement) {
+            if (!localUserPubkey) {
+                alert('Please connect to NOSTR first to delete messages.');
+                return;
+            }
+            
+            // Confirm deletion
+            if (!confirm('Are you sure you want to delete this voice message? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                // Disable button
+                if (buttonElement) {
+                    buttonElement.disabled = true;
+                    buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deleting...';
+                }
+                
+                // Check if NOSTR extension is available
+                if (typeof window.nostr === 'undefined' || !window.nostr) {
+                    throw new Error('NOSTR extension not available. Please install a NOSTR extension.');
+                }
+                
+                // Create deletion event (kind 5) according to NIP-09
+                const deletionEvent = {
+                    kind: 5,
+                    tags: [
+                        ['e', eventId], // Event ID to delete
+                        ['k', String(eventKind)] // Kind of event being deleted (1222 or 1244)
+                    ],
+                    content: 'Voice message deleted by author',
+                    created_at: Math.floor(Date.now() / 1000)
+                };
+                
+                // Sign event with NOSTR extension
+                console.log('🗑️ Signing deletion event for:', eventId);
+                const signedEvent = await window.nostr.signEvent(deletionEvent);
+                
+                // Publish to relays
+                console.log('📡 Publishing deletion event to relays...');
+                const relays = VOCALS_READ_DEFAULT_RELAYS || ['wss://relay.copylaradio.com'];
+                
+                // Use SimplePool if available (from NostrTools)
+                if (nostrPool && typeof nostrPool.publish === 'function') {
+                    // SimplePool.publish returns a Set of relay URLs that successfully published
+                    const publishedRelays = await nostrPool.publish(relays, signedEvent);
+                    console.log(`✅ Deletion event published via SimplePool to ${publishedRelays.size} relay(s)`);
+                } else if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                    // Create a temporary pool if not available
+                    const tempPool = new NostrTools.SimplePool();
+                    const publishedRelays = await tempPool.publish(relays, signedEvent);
+                    console.log(`✅ Deletion event published via temporary SimplePool to ${publishedRelays.size} relay(s)`);
+                    tempPool.close(relays);
+                } else {
+                    // Fallback: publish manually to each relay
+                    console.warn('⚠️ SimplePool not available, using manual WebSocket publishing');
+                    const publishPromises = relays.map(async (relayUrl) => {
+                        try {
+                            const ws = new WebSocket(relayUrl);
+                            await new Promise((resolve, reject) => {
+                                const timeout = setTimeout(() => {
+                                    ws.close();
+                                    reject(new Error('Timeout'));
+                                }, 5000);
+                                
+                                ws.onopen = () => {
+                                    ws.send(JSON.stringify(['EVENT', signedEvent]));
+                                    setTimeout(() => {
+                                        clearTimeout(timeout);
+                                        ws.close();
+                                        resolve();
+                                    }, 1000);
+                                };
+                                ws.onerror = (error) => {
+                                    clearTimeout(timeout);
+                                    reject(error);
+                                };
+                            });
+                        } catch (e) {
+                            console.warn(`⚠️ Failed to publish to ${relayUrl}:`, e);
+                        }
+                    });
+                    await Promise.all(publishPromises);
+                    console.log('✅ Deletion event published manually');
+                }
+                
+                // Show success message
+                if (buttonElement) {
+                    buttonElement.innerHTML = '✅ Deleted';
+                    buttonElement.classList.remove('btn-danger');
+                    buttonElement.classList.add('btn-secondary');
+                }
+                
+                // Hide the message card immediately
+                const messageCard = buttonElement?.closest('.voice-message-card');
+                if (messageCard) {
+                    messageCard.style.opacity = '0.5';
+                    messageCard.style.textDecoration = 'line-through';
+                    setTimeout(() => {
+                        messageCard.remove();
+                        // Reload messages to update the list
+                        loadVoiceMessages();
+                    }, 1000);
+                } else {
+                    // Reload messages if card not found
+                    setTimeout(() => {
+                        loadVoiceMessages();
+                    }, 1000);
+                }
+                
+                console.log('✅ Voice message deleted successfully');
+                
+            } catch (error) {
+                console.error('❌ Error deleting voice message:', error);
+                alert(`Failed to delete message: ${error.message}`);
+                
+                // Re-enable button
+                if (buttonElement) {
+                    buttonElement.disabled = false;
+                    buttonElement.innerHTML = '🗑️ Delete';
+                }
+            }
+        }
+        
+        // Make deleteVoiceMessage available globally
+        window.deleteVoiceMessage = deleteVoiceMessage;
         
         // Publish reply
         async function publishReply() {
