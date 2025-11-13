@@ -996,6 +996,21 @@
                         metadata.description = descriptionTag[1];
                     }
                     
+                    // Also check for url tag (if imeta doesn't have it)
+                    const urlTag = event.tags.find(tag => tag[0] === 'url');
+                    if (urlTag && urlTag[1] && !metadata.url) {
+                        metadata.url = urlTag[1];
+                    }
+                    
+                    // Convert relative IPFS URL to absolute URL with gateway
+                    if (metadata.url && metadata.url.startsWith('/ipfs/')) {
+                        // Get gateway from common.js or use default
+                        const gateway = (typeof window !== 'undefined' && window.gateway) || 
+                                       (typeof gateway !== 'undefined' && gateway) || 
+                                       'https://ipfs.copylaradio.com';
+                        metadata.url = gateway + metadata.url;
+                    }
+                    
                     // Get sender profile
                     let senderProfile = null;
                     try {
@@ -1615,7 +1630,7 @@
                         </div>
                     ` : `
                         <div class="audio-player-container">
-                            <audio id="audio-player-${msg.id}" class="audio-player" controls src="${msg.content}"></audio>
+                            <audio id="audio-player-${msg.id}" class="audio-player" controls src="${msg.metadata.url || msg.content}"></audio>
                         </div>
                     `}
                     ${msg.metadata.waveform ? `
@@ -1683,7 +1698,7 @@
                             </div>
                         ` : `
                             <div class="audio-player-container">
-                                <audio id="audio-player-${msg.id}" class="audio-player" controls src="${msg.content}"></audio>
+                                <audio id="audio-player-${msg.id}" class="audio-player" controls src="${msg.metadata.url || msg.content}"></audio>
                             </div>
                         `}
                         ${msg.metadata.waveform ? `

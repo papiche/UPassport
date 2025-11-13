@@ -973,7 +973,26 @@ elif [[ "$FILE_TYPE" == "video/"* ]]; then
  # Audio file check (using ffprobe)
 elif [[ "$FILE_TYPE" == "audio/"* ]]; then
     if command -v ffprobe &> /dev/null; then
+       # Try to get duration from format container first
        DURATION_RAW=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$FILE_PATH" 2>/dev/null)
+       
+       # If format duration is not available, try to get from audio stream
+       if [[ -z "$DURATION_RAW" ]] || ! [[ "$DURATION_RAW" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+           # Try to get duration from audio stream (for webm audio files where format duration may be missing)
+           DURATION_RAW=$(ffprobe -v error -select_streams a:0 -show_entries stream=duration -of default=noprint_wrappers=1:nokey=1 "$FILE_PATH" 2>/dev/null)
+       fi
+       
+       # If still not available, try to calculate from sample rate and frame count
+       if [[ -z "$DURATION_RAW" ]] || ! [[ "$DURATION_RAW" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+           # Get sample rate and frame count (for some audio formats)
+           SAMPLE_RATE=$(ffprobe -v error -select_streams a:0 -show_entries stream=sample_rate -of default=noprint_wrappers=1:nokey=1 "$FILE_PATH" 2>/dev/null)
+           NB_FRAMES=$(ffprobe -v error -select_streams a:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1:nokey=1 "$FILE_PATH" 2>/dev/null)
+           if [[ -n "$SAMPLE_RATE" ]] && [[ -n "$NB_FRAMES" ]] && [[ "$SAMPLE_RATE" =~ ^[0-9]+$ ]] && [[ "$NB_FRAMES" =~ ^[0-9]+$ ]]; then
+               # Calculate duration: frames / sample_rate
+               DURATION_RAW=$(echo "$NB_FRAMES $SAMPLE_RATE" | awk '{printf "%.3f", $1 / $2}')
+           fi
+       fi
+       
        # Validate DURATION is numeric, default to 0 if not
        if [[ -z "$DURATION_RAW" ]] || ! [[ "$DURATION_RAW" =~ ^[0-9]+\.?[0-9]*$ ]]; then
             DURATION="0"
