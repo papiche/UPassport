@@ -2292,9 +2292,84 @@
             showInfo('Location coordinates reset to 0.00, 0.00', 'Location Reset');
         }
 
+        // Check if secure context (HTTPS or localhost) - required for getUserMedia
+        function isSecureContext() {
+            return window.isSecureContext || 
+                   location.protocol === 'https:' || 
+                   location.hostname === 'localhost' || 
+                   location.hostname === '127.0.0.1' ||
+                   location.hostname.endsWith('.localhost');
+        }
+        
+        // Check if we're in an iframe and if it has camera permissions
+        function checkIframePermissions() {
+            const isInIframe = window.self !== window.top;
+            if (!isInIframe) return true; // Not in iframe, permissions OK
+            
+            // Check if parent iframe has allow="camera" attribute
+            // Note: We can't directly check this from inside, but we can detect common issues
+            try {
+                // Try to access parent (will fail if cross-origin without proper permissions)
+                if (window.parent === window) return true;
+                return true; // If we can access parent, assume permissions are OK
+            } catch (e) {
+                // Cross-origin iframe - permissions depend on allow attribute
+                return false;
+            }
+        }
+        
+        // Get user-friendly error message for camera access errors
+        function getCameraErrorMessage(error) {
+            const isInIframe = window.self !== window.top;
+            const errorName = error.name || '';
+            const errorMessage = error.message || '';
+            
+            // Check for specific error types
+            if (errorName === 'NotAllowedError' || errorMessage.includes('not allowed')) {
+                if (isMobile) {
+                    if (isInIframe) {
+                        return `Camera access denied. On mobile, please:\n\n1. Open this page in a new tab (not in a modal/iframe)\n2. Grant camera permissions when prompted\n3. Or use the file upload option below\n\nIf you're in a modal, try opening the page directly in your browser.`;
+                    } else {
+                        return `Camera access denied. Please:\n\n1. Check your browser settings and grant camera permissions\n2. Make sure no other app is using the camera\n3. Try refreshing the page and granting permissions again\n4. Or use the file upload option below`;
+                    }
+                } else {
+                    return `Camera access denied. Please grant camera permissions in your browser settings.`;
+                }
+            }
+            
+            if (errorName === 'NotFoundError' || errorMessage.includes('not found')) {
+                return `No camera found. Please connect a camera device or use the file upload option.`;
+            }
+            
+            if (errorName === 'NotReadableError' || errorMessage.includes('not readable')) {
+                return `Camera is already in use by another application. Please close other apps using the camera and try again.`;
+            }
+            
+            if (errorName === 'OverconstrainedError' || errorMessage.includes('constraint')) {
+                return `Camera constraints cannot be satisfied. Trying with default settings...`;
+            }
+            
+            if (errorMessage.includes('user agent') || errorMessage.includes('platform')) {
+                if (isMobile && isInIframe) {
+                    return `Camera access is not allowed in this context on mobile.\n\nSolutions:\n1. Open this page in a new tab (not in a modal/iframe)\n2. Use the file upload option instead\n3. Make sure the page is loaded over HTTPS`;
+                } else {
+                    return `Camera access is not allowed in this context. Please ensure:\n\n1. The page is loaded over HTTPS (or localhost)\n2. Camera permissions are granted\n3. You're not in a restricted iframe context`;
+                }
+            }
+            
+            // Generic error
+            return `Could not access camera: ${error.message || errorName}\n\nPlease ensure camera permissions are granted and your camera is not in use by another application.`;
+        }
+
         // Enumerate available cameras
         async function enumerateCameras() {
             try {
+                // Check secure context first
+                if (!isSecureContext()) {
+                    console.warn('⚠️ Not in secure context, camera enumeration may fail');
+                    return [];
+                }
+                
                 // Request permissions first (required on some browsers)
                 const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
                 tempStream.getTracks().forEach(track => track.stop());
@@ -2306,7 +2381,8 @@
                 return availableCameras;
             } catch (error) {
                 console.error('Error enumerating cameras:', error);
-                showError('Could not enumerate cameras. Please ensure camera permissions are granted.', 'Camera Error');
+                const errorMsg = getCameraErrorMessage(error);
+                showError(`Could not enumerate cameras.\n\n${errorMsg}`, 'Camera Error');
                 return [];
             }
         }
@@ -2375,6 +2451,19 @@
         // Start camera with selected device
         async function startCameraPreview(deviceId = null) {
             try {
+                // Check secure context first
+                if (!isSecureContext()) {
+                    const errorMsg = 'Camera access requires a secure context (HTTPS). Please access this page over HTTPS or use localhost.';
+                    showError(errorMsg, 'Security Error');
+                    return false;
+                }
+                
+                // Check iframe permissions (informational only, we'll try anyway)
+                const hasIframePermissions = checkIframePermissions();
+                if (!hasIframePermissions && isMobile) {
+                    console.warn('⚠️ May be in restricted iframe context on mobile');
+                }
+                
                 // Stop current stream if any
                 if (currentStream) {
                     currentStream.getTracks().forEach(track => track.stop());
@@ -2409,10 +2498,26 @@
                 
                 console.log(`🎥 Starting camera with ${orientation} orientation:`, videoConstraints);
                 
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: videoConstraints,
-                    audio: false // No audio for preview
-                });
+                // Try with constraints first
+                let stream;
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: videoConstraints,
+                        audio: false // No audio for preview
+                    });
+                } catch (constraintError) {
+                    // If constraints fail, try with minimal constraints (especially on mobile)
+                    console.warn('⚠️ Failed with constraints, trying minimal constraints:', constraintError);
+                    if (constraintError.name === 'OverconstrainedError') {
+                        // Try with just deviceId and basic settings
+                        const minimalConstraints = {
+                            video: deviceId ? { deviceId: { exact: deviceId } } : true
+                        };
+                        stream = await navigator.mediaDevices.getUserMedia(minimalConstraints);
+                    } else {
+                        throw constraintError; // Re-throw if it's not a constraint error
+                    }
+                }
                 
                 currentStream = stream;
                 const videoPreview = document.getElementById('video-preview');
@@ -2459,7 +2564,8 @@
                 return true;
             } catch (error) {
                 console.error('❌ Error starting camera preview:', error);
-                showError(`Could not start camera preview: ${error.message}`, 'Camera Error');
+                const errorMsg = getCameraErrorMessage(error);
+                showError(errorMsg, 'Camera Access Error');
                 return false;
             }
         }
@@ -2482,6 +2588,20 @@
             
             // Check if getUserMedia is available
             const isWebcamSupported = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+            
+            // Check secure context and warn if needed
+            if (isWebcamSupported && !isSecureContext()) {
+                console.warn('⚠️ Webcam requires HTTPS - camera access may be blocked');
+                if (isMobile) {
+                    showWarning('Camera access requires HTTPS. If you\'re having issues, please ensure you\'re accessing this page over HTTPS or use the file upload option.', 'Security Notice');
+                }
+            }
+            
+            // Check if in iframe on mobile and warn
+            if (isWebcamSupported && isMobile && window.self !== window.top) {
+                console.warn('⚠️ Running in iframe on mobile - camera access may be restricted');
+                showInfo('You\'re viewing this page in a modal/iframe. If camera access fails, try opening the page in a new tab or use the file upload option.', 'Mobile Notice');
+            }
             
             if (!isWebcamSupported) {
                 console.warn('⚠️ Webcam recording not supported - showing file upload option');
@@ -2795,7 +2915,8 @@
                     
                 } catch (error) {
                     console.error('❌ Error starting recording:', error);
-                    showError(`Could not access your camera: ${error.message}\n\nPlease ensure camera permissions are granted and your camera is not in use by another application.`, 'Camera Access Error');
+                    const errorMsg = getCameraErrorMessage(error);
+                    showError(errorMsg, 'Camera Access Error');
                 }
             });
 
