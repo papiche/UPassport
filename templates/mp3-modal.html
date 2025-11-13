@@ -1170,7 +1170,36 @@
             
             // Strategy 2: Try parent window if we're in an iframe
             if (!closed && window.parent && window.parent !== window) {
-                if (typeof window.parent.closeMP3Modal === 'function') {
+                // First, try postMessage (most reliable for iframe communication)
+                try {
+                    console.log('📤 Attempting to close via postMessage');
+                    window.parent.postMessage({ type: 'close-mp3-modal' }, '*');
+                    closed = true;
+                    // Don't return immediately, also try Bootstrap modal close
+                } catch (e) {
+                    console.warn('⚠️ PostMessage close failed:', e);
+                }
+                
+                // Also try to close Bootstrap modal in parent
+                try {
+                    if (typeof window.parent.bootstrap !== 'undefined' && window.parent.bootstrap.Modal) {
+                        const parentModal = window.parent.document.getElementById('mp3Modal');
+                        if (parentModal) {
+                            const bsModal = window.parent.bootstrap.Modal.getInstance(parentModal);
+                            if (bsModal) {
+                                console.log('📤 Closing Bootstrap modal in parent');
+                                bsModal.hide();
+                                closed = true;
+                                return;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Parent Bootstrap modal close failed:', e);
+                }
+                
+                // Try parent closeMP3Modal function as last resort
+                if (!closed && typeof window.parent.closeMP3Modal === 'function') {
                     try {
                         console.log('📤 Attempting to close via parent.closeMP3Modal');
                         window.parent.closeMP3Modal();
@@ -1181,16 +1210,8 @@
                     }
                 }
                 
-                // Try to close via postMessage as backup
-                if (!closed) {
-                    try {
-                        console.log('📤 Attempting to close via postMessage');
-                        window.parent.postMessage({ type: 'close-mp3-modal' }, '*');
-                        closed = true;
-                        return;
-                    } catch (e) {
-                        console.warn('⚠️ PostMessage close failed:', e);
-                    }
+                if (closed) {
+                    return;
                 }
             }
             
@@ -2009,21 +2030,68 @@
 
         /**
          * Load track from NOSTR event ID
-         * Uses loadTrackFromEventId from nostrify.enhancements.js which already loads .info.json
-         * Store global function reference before creating local alias
+         * Loads event directly from relay and enriches with .info.json if available
          */
-        const globalLoadTrackFromEventId = (typeof window !== 'undefined' && typeof window.loadTrackFromEventId === 'function') 
-            ? window.loadTrackFromEventId 
-            : null;
-        
         async function loadTrackFromEventId(eventId) {
-            // Use function from nostrify.enhancements.js if available
-            if (globalLoadTrackFromEventId) {
-                return await globalLoadTrackFromEventId(eventId);
+            // Load event directly from relay (avoid recursion by not calling external function)
+            if (typeof window !== 'undefined' && window.nostrRelay) {
+                const relay = window.nostrRelay;
+                return new Promise((resolve, reject) => {
+                    const sub = relay.sub([{ ids: [eventId] }]);
+                    let eventReceived = false;
+                    
+                    sub.on('event', async (event) => {
+                        if (eventReceived) return;
+                        eventReceived = true;
+                        sub.unsub();
+                        
+                        // Convert event to track format
+                        const urlTag = event.tags.find(t => t[0] === 'url');
+                        const url = urlTag ? urlTag[1] : '';
+                        
+                        const track = {
+                            eventId: event.id,
+                            authorId: event.pubkey,
+                            url: url,
+                            title: event.content || 'Unknown Title',
+                            artist: 'Unknown Artist',
+                            album: '—',
+                            description: event.content || '',
+                            createdAt: event.created_at,
+                            rawEvent: event
+                        };
+                        
+                        // Try to enrich with .info.json if enrichTrackWithInfoJson is available
+                        if (typeof enrichTrackWithInfoJson === 'function') {
+                            try {
+                                const enriched = await enrichTrackWithInfoJson(track);
+                                resolve(enriched);
+                            } catch (e) {
+                                console.warn('Could not enrich track with .info.json:', e);
+                                resolve(track);
+                            }
+                        } else {
+                            resolve(track);
+                        }
+                    });
+                    
+                    sub.on('eose', () => {
+                        if (!eventReceived) {
+                            sub.unsub();
+                            reject(new Error('Track not found'));
+                        }
+                    });
+                    
+                    setTimeout(() => {
+                        if (!eventReceived) {
+                            sub.unsub();
+                            reject(new Error('Timeout loading track'));
+                        }
+                    }, 5000);
+                });
             }
             
-            // Fallback: try to load basic track data
-            throw new Error('loadTrackFromEventId function not available from nostrify.enhancements.js');
+            throw new Error('No relay connection available to load track');
         }
 
         /**
