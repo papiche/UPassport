@@ -3569,9 +3569,12 @@
                                     console.log('⚠️ Extension does not support NIP-44 encryption - requesting private key for encryption');
                                     const userNsec = prompt(
                                         `Your NOSTR extension doesn't support ${encryptionMethod.toUpperCase()} encryption.\n\n` +
-                                        `To encrypt this message, please enter your private key (nsec) temporarily.\n` +
+                                        `To encrypt this message, you have two options:\n\n` +
+                                        `Option 1 (Recommended): Use /scan and scan your MULTIPASS SSSS QR code with PASS code "8888".\n` +
+                                        `This will automatically inject your private key for encryption.\n\n` +
+                                        `Option 2: Enter your private key (nsec) temporarily below.\n` +
                                         `The key will be used only for encryption and not stored.\n\n` +
-                                        `Enter your nsec key:`
+                                        `Enter your nsec key (or click Cancel to use /scan):`
                                     );
                                     
                                     if (!userNsec || !userNsec.trim()) {
@@ -3664,17 +3667,26 @@
                                 errorMsg += 'Private key not available for NostrTools encryption. ';
                             }
                             
+                            // Add information about MULTIPASS scan option
+                            errorMsg += '\n\n💡 Solution: Use /scan and scan your MULTIPASS SSSS QR code with PASS code "8888". ';
+                            errorMsg += 'This will automatically inject your private key for encryption.';
+                            
                             if (isInIframe) {
-                                errorMsg += 'The NOSTR extension in the parent window may not support encryption, or the proxy communication failed.';
+                                errorMsg += '\n\nThe NOSTR extension in the parent window may not support encryption, or the proxy communication failed.';
                         } else {
-                                errorMsg += 'Please ensure your NOSTR extension supports encryption (NIP-44 or NIP-04), or provide your private key for NostrTools encryption.';
+                                errorMsg += '\n\nAlternatively, ensure your NOSTR extension supports encryption (NIP-44 or NIP-04), or provide your private key manually.';
                             }
                             
                             throw new Error(errorMsg);
                         }
                     } catch (encryptError) {
                         console.error('❌ Encryption error:', encryptError);
-                        showError(`Encryption failed: ${encryptError.message}`, 'Encryption Error');
+                        // Enhance error message with MULTIPASS scan option
+                        let errorMessage = encryptError.message;
+                        if (!errorMessage.includes('/scan') && !errorMessage.includes('MULTIPASS')) {
+                            errorMessage += '\n\n💡 Tip: Use /scan and scan your MULTIPASS SSSS QR code with PASS code "8888" to automatically enable encryption.';
+                        }
+                        showError(errorMessage, 'Encryption Error');
                         return;
                     }
                 }
