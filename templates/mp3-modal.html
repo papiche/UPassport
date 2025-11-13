@@ -7,8 +7,8 @@
     
     <!-- Bootstrap 5 CSS -->
     {% if use_local_js %}
-    <link href="/static/earth/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/earth/fonts/bootstrap-icons.css">
+    <link href="/earth/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/earth/fonts/bootstrap-icons.css">
     {% else %}
     <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
@@ -16,11 +16,11 @@
         
     <!-- Nostr integration -->
     {% if use_local_js %}
-    <script src="/static/earth/nostr.bundle.js"></script>
-    <script src="/static/earth/common.js"></script>
-    <script src="/static/earth/nostrify.enhancements.js"></script>
-    <link rel="stylesheet" href="/static/earth/nostrify.enhancements.css" />
-    <script src="/static/earth/bootstrap.bundle.min.js"></script>
+    <script src="/earth/nostr.bundle.js"></script>
+    <script src="/earth/common.js"></script>
+    <script src="/earth/nostrify.enhancements.js"></script>
+    <link rel="stylesheet" href="/earth/nostrify.enhancements.css" />
+    <script src="/earth/bootstrap.bundle.min.js"></script>
     {% else %}
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
@@ -3214,6 +3214,11 @@
          */
         async function initNostrConnectionStandalone() {
             const isInIframe = window.self !== window.top;
+            
+            // Declare variables
+            let userPubkey = window.userPubkey || null;
+            let nostrRelay = window.nostrRelay || null;
+            let isNostrConnected = window.isNostrConnected || false;
             
             if (isInIframe && window.parent && window.parent !== window) {
                 try {
