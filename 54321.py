@@ -673,6 +673,39 @@ def get_authenticated_user_directory(npub: str) -> Path:
     logging.info(f"Répertoire APP utilisateur (sécurisé): {app_dir}")
     return app_dir
 
+def extract_nsec_from_keyfile(keyfile_path: str) -> str:
+    """
+    Extract NSEC key from .secret.nostr file
+    
+    Expected format: NSEC=nsec1...; NPUB=npub1...; HEX=...;
+    
+    Args:
+        keyfile_path: Path to .secret.nostr file
+        
+    Returns:
+        str: NSEC key (nsec1...)
+        
+    Raises:
+        FileNotFoundError: If keyfile doesn't exist
+        ValueError: If NSEC not found or invalid format
+    """
+    if not os.path.exists(keyfile_path):
+        raise FileNotFoundError(f"Keyfile not found: {keyfile_path}")
+    
+    with open(keyfile_path, 'r') as f:
+        content = f.read().strip()
+    
+    # Parse the keyfile format: NSEC=nsec1...; NPUB=npub1...; HEX=...;
+    for part in content.split(';'):
+        part = part.strip()
+        if part.startswith('NSEC='):
+            nsec = part[5:].strip()
+            if nsec.startswith('nsec1'):
+                return nsec
+            raise ValueError(f"Invalid NSEC format in keyfile: {nsec[:15]}...")
+    
+    raise ValueError("No NSEC key found in keyfile")
+
 def _build_hex_index() -> None:
     """
     Build the hex -> email cache by scanning ~/.zen/game/nostr/ directories.
@@ -4372,11 +4405,22 @@ async def process_vocals_message(
     
     try:
         # Get user secret file for NOSTR signing
-        user_dir = os.path.expanduser(f"~/.zen/tmp/{player}")
-        secret_file = os.path.join(user_dir, "secret.dunikey")
+        # Use the same method as webcam endpoint: get directory from npub
+        try:
+            user_dir = get_authenticated_user_directory(npub)
+            # Try .secret.dunikey first (correct location), fallback to .secret.nostr
+            secret_file = user_dir / ".secret.nostr"
+        except Exception as e:
+            logging.warning(f"Could not get user directory from npub, trying fallback: {e}")
+            # Fallback: try to find user directory by email
+            user_dir = os.path.expanduser(f"~/.zen/game/nostr/{player}")
+            secret_file = os.path.join(user_dir, ".secret.dunikey")
+            if not os.path.exists(secret_file):
+                secret_file = os.path.join(user_dir, ".secret.nostr")
         
         if not os.path.exists(secret_file):
             logging.error(f"Secret file not found: {secret_file}")
+            logging.error(f"Searched in: {user_dir}")
             return templates.TemplateResponse("vocals.html", {
                 "request": request,
                 "error": "NOSTR authentication required. Please connect with NIP-42 first.",
@@ -4443,9 +4487,12 @@ async def process_vocals_message(
             })
         
         # Build command for voice message publication
+        # Pass the keyfile path directly - publish_nostr_vocal.sh can handle both file paths and direct NSEC keys
+        secret_file_str = str(secret_file)
+        
         publish_cmd = [
             "bash", publish_script,
-            "--nsec", str(secret_file),
+            "--nsec", secret_file_str,
             "--ipfs-cid", ipfs_cid,
             "--filename", f"voice_{int(time.time())}.{mime_type.split('/')[-1] if '/' in mime_type else 'mp3'}",
             "--title", title,

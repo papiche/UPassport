@@ -5,7 +5,7 @@
 ######################################################
 ## NIP-96/NIP-94 compatibility
 ## Add https://domain.tld/.well-known/nostr/nip96.json
-## { "api_url": "https://u.domain.tld/api/upload2ipfs" }
+## { "api_url": "https://u.domain.tld/upload2ipfs" }
 ####################################################
 
 MY_PATH="`dirname \"$0\"`"              # relative
@@ -84,11 +84,46 @@ fi
 
 # Get file information
 FILE_SIZE=$(stat -c%s "$FILE_PATH")
-FILE_TYPE=$(file -b --mime-type "$FILE_PATH")
+FILE_TYPE_RAW=$(file -b --mime-type "$FILE_PATH")
 FILE_NAME=$(basename "$FILE_PATH")
 
+# Better file type detection: use ffprobe to check if it's audio-only or has video streams
+# This is important because 'file' command may misidentify audio/webm as video/webm
+FILE_TYPE="$FILE_TYPE_RAW"
+if command -v ffprobe &> /dev/null && [[ "$FILE_TYPE_RAW" == "video/"* ]] || [[ "$FILE_TYPE_RAW" == "audio/"* ]]; then
+    # Check if file has video streams
+    HAS_VIDEO_STREAMS=$(ffprobe -v error -select_streams v -show_entries stream=codec_type -of csv=p=0 "$FILE_PATH" 2>/dev/null | head -n 1)
+    HAS_AUDIO_STREAMS=$(ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "$FILE_PATH" 2>/dev/null | head -n 1)
+    
+    # If it has video streams, it's a video; if only audio streams, it's audio
+    if [[ -n "$HAS_VIDEO_STREAMS" ]]; then
+        # Has video streams - keep as video
+        FILE_TYPE="$FILE_TYPE_RAW"
+        echo "DEBUG: File has video streams, confirmed as video" >&2
+    elif [[ -n "$HAS_AUDIO_STREAMS" ]] && [[ -z "$HAS_VIDEO_STREAMS" ]]; then
+        # Only audio streams - correct to audio
+        if [[ "$FILE_TYPE_RAW" == "video/webm" ]]; then
+            FILE_TYPE="audio/webm"
+            echo "DEBUG: File has only audio streams, correcting video/webm to audio/webm" >&2
+        elif [[ "$FILE_TYPE_RAW" == "video/"* ]]; then
+            # Other video types - try to determine audio type
+            AUDIO_CODEC=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 "$FILE_PATH" 2>/dev/null | head -n 1)
+            if [[ "$AUDIO_CODEC" == "opus" ]]; then
+                FILE_TYPE="audio/webm"
+                echo "DEBUG: File has only audio streams (opus), correcting to audio/webm" >&2
+            elif [[ "$AUDIO_CODEC" == "mp3" ]] || [[ "$AUDIO_CODEC" == "mp3float" ]]; then
+                FILE_TYPE="audio/mpeg"
+                echo "DEBUG: File has only audio streams (mp3), correcting to audio/mpeg" >&2
+            else
+                # Keep original but log warning
+                echo "DEBUG: File has only audio streams but unknown codec, keeping original type: $FILE_TYPE_RAW" >&2
+            fi
+        fi
+    fi
+fi
+
 # Log file information
-echo "DEBUG: FILE_SIZE: $FILE_SIZE, FILE_TYPE: $FILE_TYPE, FILE_NAME: $FILE_NAME" >&2
+echo "DEBUG: FILE_SIZE: $FILE_SIZE, FILE_TYPE: $FILE_TYPE (detected from: $FILE_TYPE_RAW), FILE_NAME: $FILE_NAME" >&2
 
 # Check if file size exceeds 650MB (according to CD standard limits per format)
 MAX_FILE_SIZE=$((650 * 1024 * 1024)) # 650MB in bytes
@@ -204,9 +239,21 @@ if [ -n "$USER_PUBKEY_HEX" ]; then
             EXISTING_EVENTS_22=$(bash "$NOSTR_GET_EVENTS" --kind 22 --tag-x "$FILE_HASH" --limit 1 2>/dev/null || echo "")
             # Combine both results
             EXISTING_EVENTS="$EXISTING_EVENTS_21"$'\n'"$EXISTING_EVENTS_22"
+        elif [[ "$FILE_TYPE" == "audio/"* ]]; then
+            # For audio files: search in kind 1222/1244 (NIP-A0 voice messages) and kind 1063 (NIP-94)
+            echo "DEBUG: Audio file detected, searching by hash in kind 1222/1244 (voice messages) and 1063 (NIP-94)..." >&2
+            echo "DEBUG: Hash filter: #x=$FILE_HASH" >&2
+            
+            # Search in voice message kinds (NIP-A0)
+            EXISTING_EVENTS_1222=$(bash "$NOSTR_GET_EVENTS" --kind 1222 --tag-x "$FILE_HASH" --limit 1 2>/dev/null || echo "")
+            EXISTING_EVENTS_1244=$(bash "$NOSTR_GET_EVENTS" --kind 1244 --tag-x "$FILE_HASH" --limit 1 2>/dev/null || echo "")
+            # Also search in NIP-94 for general file metadata
+            EXISTING_EVENTS_1063=$(bash "$NOSTR_GET_EVENTS" --kind 1063 --tag-x "$FILE_HASH" --limit 1 2>/dev/null || echo "")
+            # Combine all results
+            EXISTING_EVENTS="$EXISTING_EVENTS_1222"$'\n'"$EXISTING_EVENTS_1244"$'\n'"$EXISTING_EVENTS_1063"
         else
             # For other files: search in kind 1063 (NIP-94 file metadata) with #x tag filter
-            echo "DEBUG: Non-video file detected, searching by hash in kind 1063 (NIP-94)..." >&2
+            echo "DEBUG: Non-video/audio file detected, searching by hash in kind 1063 (NIP-94)..." >&2
             echo "DEBUG: Hash filter: #x=$FILE_HASH" >&2
             EXISTING_EVENTS=$(bash "$NOSTR_GET_EVENTS" --kind 1063 --tag-x "$FILE_HASH" --limit 1 2>/dev/null || echo "")
         fi
