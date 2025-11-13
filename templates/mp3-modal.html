@@ -873,6 +873,9 @@
         <div class="mp3-header d-flex align-items-center justify-content-between px-3 px-md-4 px-lg-5 py-2 gap-2 gap-md-3">
             <h5 class="mb-0 text-truncate flex-grow-1 me-2 me-md-3" id="mp3Title" style="max-width: 60%;">Loading...</h5>
             <div class="d-flex gap-1 gap-sm-2 align-items-center flex-shrink-0">
+                <button class="btn btn-sm btn-outline-info" id="mp3OpenNewTabBtn" title="Open in new tab (standalone)">
+                    <i class="bi bi-box-arrow-up-right"></i> <span class="d-none d-md-inline">Open</span>
+                </button>
                 <button class="btn btn-sm btn-outline-secondary" id="mp3CloseBtn" title="Close">
                     <i class="bi bi-x-lg"></i>
                 </button>
@@ -2030,65 +2033,105 @@
 
         /**
          * Load track from NOSTR event ID
-         * Loads event directly from relay and enriches with .info.json if available
+         * Loads event directly from relay (no external function calls to avoid recursion)
          */
         async function loadTrackFromEventId(eventId) {
+            // Prevent infinite recursion by using a flag
+            if (window._loadingTrackFromEventId) {
+                throw new Error('Recursion detected in loadTrackFromEventId');
+            }
+            
             // Load event directly from relay (avoid recursion by not calling external function)
             if (typeof window !== 'undefined' && window.nostrRelay) {
-                const relay = window.nostrRelay;
-                return new Promise((resolve, reject) => {
-                    const sub = relay.sub([{ ids: [eventId] }]);
-                    let eventReceived = false;
-                    
-                    sub.on('event', async (event) => {
-                        if (eventReceived) return;
-                        eventReceived = true;
-                        sub.unsub();
+                window._loadingTrackFromEventId = true;
+                try {
+                    const relay = window.nostrRelay;
+                    return new Promise((resolve, reject) => {
+                        const sub = relay.sub([{ ids: [eventId] }]);
+                        let eventReceived = false;
                         
-                        // Convert event to track format
-                        const urlTag = event.tags.find(t => t[0] === 'url');
-                        const url = urlTag ? urlTag[1] : '';
-                        
-                        const track = {
-                            eventId: event.id,
-                            authorId: event.pubkey,
-                            url: url,
-                            title: event.content || 'Unknown Title',
-                            artist: 'Unknown Artist',
-                            album: '—',
-                            description: event.content || '',
-                            createdAt: event.created_at,
-                            rawEvent: event
-                        };
-                        
-                        // Try to enrich with .info.json if enrichTrackWithInfoJson is available
-                        if (typeof enrichTrackWithInfoJson === 'function') {
-                            try {
-                                const enriched = await enrichTrackWithInfoJson(track);
-                                resolve(enriched);
-                            } catch (e) {
-                                console.warn('Could not enrich track with .info.json:', e);
-                                resolve(track);
+                        sub.on('event', async (event) => {
+                            if (eventReceived) return;
+                            eventReceived = true;
+                            sub.unsub();
+                            
+                            // Convert event to track format
+                            const urlTag = event.tags.find(t => t[0] === 'url');
+                            const url = urlTag ? urlTag[1] : '';
+                            
+                            // Extract info CID if available
+                            const infoTag = event.tags.find(t => t[0] === 'info');
+                            const infoCid = infoTag ? infoTag[1] : null;
+                            
+                            const track = {
+                                eventId: event.id,
+                                authorId: event.pubkey,
+                                url: url,
+                                title: event.content || 'Unknown Title',
+                                artist: 'Unknown Artist',
+                                album: '—',
+                                description: event.content || '',
+                                createdAt: event.created_at,
+                                rawEvent: event,
+                                infoCid: infoCid
+                            };
+                            
+                            // Try to load .info.json directly if infoCid is available (avoid calling enrichTrackWithInfoJson to prevent recursion)
+                            if (infoCid && typeof window !== 'undefined') {
+                                try {
+                                    // Ensure IPFS_GATEWAY is set
+                                    if (!window.IPFS_GATEWAY) {
+                                        if (typeof detectIPFSGatewayGlobal === 'function') {
+                                            detectIPFSGatewayGlobal();
+                                        }
+                                        if (!window.IPFS_GATEWAY) {
+                                            window.IPFS_GATEWAY = 'https://ipfs.copylaradio.com';
+                                        }
+                                    }
+                                    
+                                    const gateway = window.IPFS_GATEWAY;
+                                    const infoUrl = `${gateway}/ipfs/${infoCid}`;
+                                    const response = await fetch(infoUrl);
+                                    if (response.ok) {
+                                        const infoJson = await response.json();
+                                        // Merge info.json data into track
+                                        Object.assign(track, {
+                                            title: infoJson.title || track.title,
+                                            artist: infoJson.artist || infoJson.uploader || track.artist,
+                                            album: infoJson.album || track.album,
+                                            thumbnail: infoJson.thumbnail || null,
+                                            duration: infoJson.duration || null,
+                                            description: infoJson.description || track.description,
+                                            // Add all other info.json fields
+                                            infoJson: infoJson
+                                        });
+                                    }
+                                } catch (e) {
+                                    console.warn('Could not load .info.json:', e);
+                                    // Continue with basic track data
+                                }
                             }
-                        } else {
+                            
                             resolve(track);
-                        }
+                        });
+                        
+                        sub.on('eose', () => {
+                            if (!eventReceived) {
+                                sub.unsub();
+                                reject(new Error('Track not found'));
+                            }
+                        });
+                        
+                        setTimeout(() => {
+                            if (!eventReceived) {
+                                sub.unsub();
+                                reject(new Error('Timeout loading track'));
+                            }
+                        }, 5000);
                     });
-                    
-                    sub.on('eose', () => {
-                        if (!eventReceived) {
-                            sub.unsub();
-                            reject(new Error('Track not found'));
-                        }
-                    });
-                    
-                    setTimeout(() => {
-                        if (!eventReceived) {
-                            sub.unsub();
-                            reject(new Error('Timeout loading track'));
-                        }
-                    }, 5000);
-                });
+                } finally {
+                    window._loadingTrackFromEventId = false;
+                }
             }
             
             throw new Error('No relay connection available to load track');
@@ -3230,6 +3273,42 @@
             });
             
             // Attach event listeners to buttons
+            const openNewTabBtn = document.getElementById('mp3OpenNewTabBtn');
+            if (openNewTabBtn) {
+                openNewTabBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🔗 Open in new tab button clicked');
+                    
+                    // Get current track ID from URL or from audio player
+                    const urlParams = new URLSearchParams(window.location.search);
+                    let trackId = urlParams.get('track');
+                    
+                    // If no track ID in URL, try to get it from the audio player
+                    if (!trackId) {
+                        const audioPlayer = document.getElementById('mp3AudioPlayer');
+                        if (audioPlayer && audioPlayer.getAttribute('data-event-id')) {
+                            trackId = audioPlayer.getAttribute('data-event-id');
+                        }
+                    }
+                    
+                    // If still no track ID, try to get it from window.trackData
+                    if (!trackId && window.trackData && window.trackData.eventId) {
+                        trackId = window.trackData.eventId;
+                    }
+                    
+                    if (trackId) {
+                        // Open in new tab with track parameter
+                        const newTabUrl = `/mp3-modal?track=${trackId}`;
+                        window.open(newTabUrl, '_blank', 'noopener,noreferrer');
+                        console.log('✅ Opened in new tab:', newTabUrl);
+                    } else {
+                        console.warn('⚠️ No track ID available to open in new tab');
+                        alert('No track ID available');
+                    }
+                });
+            }
+            
             const closeBtn = document.getElementById('mp3CloseBtn');
             if (closeBtn) {
                 closeBtn.addEventListener('click', function(e) {
