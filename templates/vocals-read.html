@@ -353,15 +353,7 @@
             <div class="card-header bg-dark border-secondary">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h5 class="mb-0">🔍 Filters & Sort</h5>
-                    <div class="d-flex align-items-center gap-3 flex-wrap">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="waveform-p5-toggle" checked onchange="toggleWaveformP5()">
-                            <label class="form-check-label small text-white" for="waveform-p5-toggle" title="Enable/disable p5.js waveform visualization">
-                                📊 Waveform
-                            </label>
-                        </div>
-                        <span id="message-count" class="badge bg-secondary message-stats">0 messages</span>
-                    </div>
+                    <span id="message-count" class="badge bg-secondary message-stats">0 messages</span>
                 </div>
             </div>
             <div class="card-body">
@@ -1722,6 +1714,14 @@
                         </div>
                     `}
                     ${msg.metadata.waveform ? `
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="waveform-toggle-${msg.id}" checked onchange="toggleWaveformForMessage('${msg.id}', this.checked)">
+                                <label class="form-check-label small text-white" for="waveform-toggle-${msg.id}" title="Toggle waveform visualization">
+                                    📊 Waveform
+                                </label>
+                            </div>
+                        </div>
                         <div class="waveform-container" id="waveform-${msg.id}" data-waveform="${msg.metadata.waveform}"></div>
                     ` : ''}
                 </div>
@@ -1795,6 +1795,14 @@
                             </div>
                         `}
                         ${msg.metadata.waveform ? `
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" id="waveform-toggle-${msg.id}" checked onchange="toggleWaveformForMessage('${msg.id}', this.checked)">
+                                    <label class="form-check-label small text-white" for="waveform-toggle-${msg.id}" title="Toggle waveform visualization">
+                                        📊 Waveform
+                                    </label>
+                                </div>
+                            </div>
                             <div class="waveform-container" id="waveform-${msg.id}" data-waveform="${msg.metadata.waveform}"></div>
                         ` : ''}
                     </div>
@@ -1805,75 +1813,60 @@
             renderWaveforms();
         }
         
-        // Toggle waveform p5.js visualization
-        function toggleWaveformP5() {
-            const toggle = document.getElementById('waveform-p5-toggle');
-            const newState = toggle ? toggle.checked : false;
+        // Toggle waveform p5.js visualization for a specific message
+        function toggleWaveformForMessage(messageId, enabled) {
+            console.log(`🔄 Toggling waveform visualization for message ${messageId}:`, enabled ? 'ON' : 'OFF');
             
-            console.log('🔄 Toggling waveform visualization:', newState ? 'ON' : 'OFF');
+            const waveformId = `waveform-${messageId}`;
+            const container = document.getElementById(waveformId);
             
-            // Clean up existing p5.js instances
-            if (window.waveformSketches) {
-                Object.keys(window.waveformSketches).forEach(waveformId => {
-                    try {
-                        if (window.waveformSketches[waveformId] && typeof window.waveformSketches[waveformId].remove === 'function') {
-                            window.waveformSketches[waveformId].remove();
-                        }
-                    } catch (e) {
-                        console.warn('⚠️ Error removing p5 sketch:', e);
-                    }
-                });
-                window.waveformSketches = {};
+            if (!container) {
+                console.warn(`⚠️ Waveform container not found for message ${messageId}`);
+                return;
             }
             
-            // Clear all waveform containers
-            const waveformContainers = document.querySelectorAll('.waveform-container[data-waveform]');
-            waveformContainers.forEach(container => {
-                // Clear container but keep the data-waveform attribute
-                container.innerHTML = '';
-            });
-            
-            // Update state
-            waveformP5Enabled = newState;
-            
-            // Re-render all waveforms with new state
-            renderWaveforms();
-        }
-        
-        // Make toggleWaveformP5 available globally
-        window.toggleWaveformP5 = toggleWaveformP5;
-        
-        // Render waveforms using p5.js (optional) or HTML5 canvas fallback
-        async function renderWaveforms() {
-            // Find all waveform containers
-            const waveformContainers = document.querySelectorAll('.waveform-container[data-waveform]');
-            
-            if (waveformContainers.length === 0) return;
-            
-            // Check if p5.js visualization is enabled
-            if (!waveformP5Enabled) {
-                // Simple text fallback - clear any existing visualizations first
-                waveformContainers.forEach(container => {
-                    // Remove any p5.js instances
-                    const waveformId = container.id;
-                    if (window.waveformSketches && window.waveformSketches[waveformId]) {
-                        try {
-                            window.waveformSketches[waveformId].remove();
-                            delete window.waveformSketches[waveformId];
-                        } catch (e) {
-                            console.warn('⚠️ Error removing p5 sketch:', e);
-                        }
+            // Clean up existing p5.js instance for this message
+            if (window.waveformSketches && window.waveformSketches[waveformId]) {
+                try {
+                    if (typeof window.waveformSketches[waveformId].remove === 'function') {
+                        window.waveformSketches[waveformId].remove();
                     }
-                    
-                    // Clear container
-                    container.innerHTML = '';
-                    
-                    const waveformData = container.getAttribute('data-waveform');
-                    if (!waveformData) return;
+                    delete window.waveformSketches[waveformId];
+                } catch (e) {
+                    console.warn('⚠️ Error removing p5 sketch:', e);
+                }
+            }
+            
+            // Clear container
+            container.innerHTML = '';
+            
+            if (!enabled) {
+                // Show text only
+                const waveformData = container.getAttribute('data-waveform');
+                if (waveformData) {
                     const waveformPoints = waveformData.split(/\s+/).filter(v => v.trim() !== '');
                     container.innerHTML = `<span class="text-secondary small">Waveform: ${waveformPoints.length} points (visualization disabled)</span>`;
-                });
-                console.log('📊 Waveform visualization disabled - showing text only');
+                }
+                return;
+            }
+            
+            // Render waveform for this specific message
+            renderWaveformForContainer(container, waveformId);
+        }
+        
+        // Make toggleWaveformForMessage available globally
+        window.toggleWaveformForMessage = toggleWaveformForMessage;
+        
+        // Render waveform for a specific container
+        async function renderWaveformForContainer(container, waveformId) {
+            const waveformData = container.getAttribute('data-waveform');
+            if (!waveformData) return;
+            
+            // Parse waveform data (space-separated values)
+            const waveformPoints = waveformData.split(/\s+/).map(v => parseFloat(v)).filter(v => !isNaN(v));
+            
+            if (waveformPoints.length === 0) {
+                container.textContent = 'No waveform data';
                 return;
             }
             
@@ -1889,91 +1882,120 @@
             if (!canUseP5 || typeof p5 === 'undefined') {
                 // Fallback to HTML5 canvas
                 console.warn('⚠️ p5.js not available, using HTML5 canvas fallback');
-                waveformContainers.forEach(container => {
-                    renderWaveformCanvas(container);
-                });
+                renderWaveformCanvas(container);
                 return;
             }
             
-            // Use p5.js for visualization
+            // Create p5 instance for this waveform
+            const sketch = function(p) {
+                p.setup = function() {
+                    const canvas = p.createCanvas(container.offsetWidth, container.offsetHeight);
+                    canvas.parent(container);
+                    p.noLoop();
+                };
+                
+                p.draw = function() {
+                    p.background(0, 0, 0, 0); // Transparent background
+                    
+                    const width = p.width;
+                    const height = p.height;
+                    const centerY = height / 2;
+                    
+                    // Normalize waveform values to fit canvas
+                    const maxValue = Math.max(...waveformPoints.map(Math.abs));
+                    if (maxValue === 0) return;
+                    
+                    // Draw waveform
+                    p.stroke(6, 95, 212); // Blue color (#065fd4)
+                    p.strokeWeight(2);
+                    p.noFill();
+                    
+                    p.beginShape();
+                    for (let i = 0; i < waveformPoints.length; i++) {
+                        const x = p.map(i, 0, waveformPoints.length - 1, 0, width);
+                        const normalizedValue = waveformPoints[i] / maxValue;
+                        const y = centerY - (normalizedValue * (height / 2 - 10)); // Leave 10px margin
+                        p.vertex(x, y);
+                    }
+                    p.endShape();
+                    
+                    // Draw center line
+                    p.stroke(63, 63, 63, 100); // Gray center line
+                    p.strokeWeight(1);
+                    p.line(0, centerY, width, centerY);
+                };
+                
+                p.windowResized = function() {
+                    p.resizeCanvas(container.offsetWidth, container.offsetHeight);
+                    p.redraw();
+                };
+            };
+            
+            // Store p5 instance to avoid conflicts
+            if (!window.waveformSketches) {
+                window.waveformSketches = {};
+            }
+            
+            // Remove existing sketch if any
+            if (window.waveformSketches[waveformId]) {
+                try {
+                    window.waveformSketches[waveformId].remove();
+                } catch (e) {
+                    console.warn('Could not remove p5 sketch:', e);
+                }
+            }
+            
+            // Create new p5 instance
+            try {
+                window.waveformSketches[waveformId] = new p5(sketch, container);
+            } catch (e) {
+                console.error('Error creating p5 sketch:', e);
+                // Fallback to canvas
+                renderWaveformCanvas(container);
+            }
+        }
+        
+        // Render waveforms using p5.js (optional) or HTML5 canvas fallback
+        // Now checks individual switches for each message
+        async function renderWaveforms() {
+            // Find all waveform containers
+            const waveformContainers = document.querySelectorAll('.waveform-container[data-waveform]');
+            
+            if (waveformContainers.length === 0) return;
+            
+            // Try to use p5.js
+            let canUseP5 = false;
+            if (typeof p5 !== 'undefined') {
+                canUseP5 = true;
+            } else {
+                // Try to load p5.js
+                canUseP5 = await loadP5JS();
+            }
+            
+            // Render each waveform based on its individual switch
             waveformContainers.forEach(container => {
-                const waveformData = container.getAttribute('data-waveform');
-                if (!waveformData) return;
+                const waveformId = container.id;
+                const messageId = waveformId.replace('waveform-', '');
+                const toggle = document.getElementById(`waveform-toggle-${messageId}`);
                 
-                // Parse waveform data (space-separated values)
-                const waveformPoints = waveformData.split(/\s+/).map(v => parseFloat(v)).filter(v => !isNaN(v));
+                // Check if toggle exists and is checked
+                const isEnabled = toggle ? toggle.checked : waveformP5Enabled;
                 
-                if (waveformPoints.length === 0) {
-                    container.textContent = 'No waveform data';
+                if (!isEnabled) {
+                    // Show text only
+                    const waveformData = container.getAttribute('data-waveform');
+                    if (waveformData) {
+                        const waveformPoints = waveformData.split(/\s+/).filter(v => v.trim() !== '');
+                        container.innerHTML = `<span class="text-secondary small">Waveform: ${waveformPoints.length} points (visualization disabled)</span>`;
+                    }
                     return;
                 }
                 
-                // Create p5 instance for this waveform
-                const waveformId = container.id;
-                const sketch = function(p) {
-                    p.setup = function() {
-                        const canvas = p.createCanvas(container.offsetWidth, container.offsetHeight);
-                        canvas.parent(container);
-                        p.noLoop();
-                    };
-                    
-                    p.draw = function() {
-                        p.background(0, 0, 0, 0); // Transparent background
-                        
-                        const width = p.width;
-                        const height = p.height;
-                        const centerY = height / 2;
-                        
-                        // Normalize waveform values to fit canvas
-                        const maxValue = Math.max(...waveformPoints.map(Math.abs));
-                        if (maxValue === 0) return;
-                        
-                        // Draw waveform
-                        p.stroke(6, 95, 212); // Blue color (#065fd4)
-                        p.strokeWeight(2);
-                        p.noFill();
-                        
-                        p.beginShape();
-                        for (let i = 0; i < waveformPoints.length; i++) {
-                            const x = p.map(i, 0, waveformPoints.length - 1, 0, width);
-                            const normalizedValue = waveformPoints[i] / maxValue;
-                            const y = centerY - (normalizedValue * (height / 2 - 10)); // Leave 10px margin
-                            p.vertex(x, y);
-                        }
-                        p.endShape();
-                        
-                        // Draw center line
-                        p.stroke(63, 63, 63, 100); // Gray center line
-                        p.strokeWeight(1);
-                        p.line(0, centerY, width, centerY);
-                    };
-                    
-                    p.windowResized = function() {
-                        p.resizeCanvas(container.offsetWidth, container.offsetHeight);
-                        p.redraw();
-                    };
-                };
-                
-                // Store p5 instance to avoid conflicts
-                if (!window.waveformSketches) {
-                    window.waveformSketches = {};
-                }
-                
-                // Remove existing sketch if any
-                if (window.waveformSketches[waveformId]) {
-                    try {
-                        window.waveformSketches[waveformId].remove();
-                    } catch (e) {
-                        console.warn('Could not remove p5 sketch:', e);
-                    }
-                }
-                
-                // Create new p5 instance
-                try {
-                    window.waveformSketches[waveformId] = new p5(sketch, container);
-                } catch (e) {
-                    console.error('Error creating p5 sketch:', e);
-                    // Fallback to canvas
+                // Render waveform for this container
+                if (canUseP5 && typeof p5 !== 'undefined') {
+                    renderWaveformForContainer(container, waveformId);
+                } else {
+                    // Fallback to HTML5 canvas
                     renderWaveformCanvas(container);
                 }
             });
