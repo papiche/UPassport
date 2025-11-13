@@ -28,6 +28,13 @@
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/nostrify.enhancements.css" />
     <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
     {% endif %}
+    
+    <!-- jsmediatags for extracting MP3 metadata (ID3 tags including thumbnails) -->
+    {% if use_local_js %}
+    <script src="/earth/jsmediatags.min.js"></script>
+    {% else %}
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/jsmediatags.min.js"></script>
+    {% endif %}
     <style>
         * {
             box-sizing: border-box;
@@ -1124,12 +1131,19 @@
                 }
             }
             
-            // Pause and cleanup audio
+            // Pause and cleanup audio (prevent "URI invalide" error)
             const audioPlayer = document.getElementById('mp3AudioPlayer');
             if (audioPlayer) {
-                audioPlayer.pause();
-                audioPlayer.src = '';
-                audioPlayer.load();
+                try {
+                    audioPlayer.pause();
+                    // Clear src only if it's not empty to avoid "URI invalide" error
+                    if (audioPlayer.src && audioPlayer.src !== '') {
+                        audioPlayer.src = '';
+                        audioPlayer.load();
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Error stopping audio player:', e);
+                }
             }
             
             // Detect context: are we in a standalone window/tab or an iframe?
@@ -1160,7 +1174,16 @@
             let closed = false;
             
             // Strategy 1: Try to use closeMP3Modal from parent or global context
-            if (typeof window.closeMP3Modal === 'function') {
+            if (window.parent && window.parent !== window && typeof window.parent.closeMP3Modal === 'function') {
+                try {
+                    console.log('📤 Attempting to close via parent.closeMP3Modal');
+                    window.parent.closeMP3Modal();
+                    closed = true;
+                    return;
+                } catch (e) {
+                    console.warn('⚠️ Parent closeMP3Modal failed:', e);
+                }
+            } else if (typeof window.closeMP3Modal === 'function') {
                 try {
                     console.log('📤 Attempting to close via window.closeMP3Modal');
                     window.closeMP3Modal();
@@ -1320,6 +1343,126 @@
         window.switchMP3Tab = switchMP3Tab;
 
         /**
+         * Set album art from multiple sources: ID3 tags (MP3 metadata), thumbnail URL, or placeholder
+         */
+        async function setAlbumArt(trackData, albumArtEl, albumArtPlaceholder) {
+            if (!albumArtEl || !albumArtPlaceholder) return;
+            
+            let thumbnailSet = false;
+            
+            // Priority 1: Try to extract thumbnail from MP3 ID3 tags
+            if (trackData.url && typeof jsmediatags !== 'undefined') {
+                try {
+                    console.log('🎨 Attempting to extract thumbnail from MP3 ID3 tags...');
+                    // Note: This may fail due to CORS if the MP3 is on a different domain
+                    // That's okay, we'll fall back to other sources
+                    const thumbnail = await extractThumbnailFromMP3(trackData.url);
+                    if (thumbnail) {
+                        albumArtEl.src = thumbnail;
+                        albumArtEl.classList.remove('d-none');
+                        albumArtPlaceholder.classList.add('d-none');
+                        thumbnailSet = true;
+                        console.log('✅ Thumbnail extracted from MP3 ID3 tags');
+                    }
+                } catch (e) {
+                    // CORS errors are expected if MP3 is on different domain
+                    // Silently fall back to other thumbnail sources
+                    if (e.message && e.message.includes('CORS')) {
+                        console.log('ℹ️ Cannot extract thumbnail from MP3 (CORS restriction), using fallback');
+                    } else {
+                        console.warn('⚠️ Could not extract thumbnail from MP3:', e.message || e);
+                    }
+                }
+            }
+            
+            // Priority 2: Use thumbnail from trackData (from .info.json or NOSTR tags)
+            if (!thumbnailSet && trackData.thumbnail) {
+                let thumbnailUrl = trackData.thumbnail;
+                if (typeof convertIPFSUrlGlobal === 'function') {
+                    thumbnailUrl = convertIPFSUrlGlobal(thumbnailUrl);
+                } else if (window.IPFS_GATEWAY && thumbnailUrl.includes('/ipfs/')) {
+                    const match = thumbnailUrl.match(/\/ipfs\/[^?"#]+/);
+                    if (match) {
+                        thumbnailUrl = window.IPFS_GATEWAY + match[0];
+                    }
+                }
+                
+                albumArtEl.src = thumbnailUrl;
+                albumArtEl.classList.remove('d-none');
+                albumArtPlaceholder.classList.add('d-none');
+                thumbnailSet = true;
+                console.log('✅ Using thumbnail from metadata');
+            }
+            
+            // Priority 3: Show placeholder if no thumbnail found
+            if (!thumbnailSet) {
+                albumArtEl.classList.add('d-none');
+                albumArtPlaceholder.classList.remove('d-none');
+            }
+        }
+        
+        /**
+         * Extract thumbnail from MP3 file using ID3 tags
+         */
+        function extractThumbnailFromMP3(mp3Url) {
+            return new Promise((resolve, reject) => {
+                if (typeof jsmediatags === 'undefined') {
+                    reject(new Error('jsmediatags library not loaded'));
+                    return;
+                }
+                
+                jsmediatags.read(mp3Url, {
+                    onSuccess: function(tag) {
+                        try {
+                            // Helper function to convert Uint8Array to base64 (handles large arrays)
+                            function uint8ArrayToBase64(uint8Array) {
+                                let binary = '';
+                                const chunkSize = 8192; // Process in chunks to avoid stack overflow
+                                for (let i = 0; i < uint8Array.length; i += chunkSize) {
+                                    const chunk = uint8Array.slice(i, i + chunkSize);
+                                    binary += String.fromCharCode.apply(null, chunk);
+                                }
+                                return btoa(binary);
+                            }
+                            
+                            // Look for picture/cover art in ID3 tags
+                            // jsmediatags returns picture data in different formats depending on ID3 version
+                            const picture = tag.tags.picture || tag.tags.APIC;
+                            if (picture) {
+                                let imageData, mimeType;
+                                
+                                // Handle different picture formats
+                                if (picture.data) {
+                                    imageData = picture.data;
+                                    mimeType = picture.format || picture.imageFormat || 'image/jpeg';
+                                } else if (picture.imageFormat) {
+                                    // Sometimes data is directly in picture
+                                    imageData = picture;
+                                    mimeType = picture.imageFormat || 'image/jpeg';
+                                } else {
+                                    reject(new Error('Picture data format not recognized'));
+                                    return;
+                                }
+                                
+                                // Convert to base64
+                                const base64String = uint8ArrayToBase64(imageData);
+                                const dataUrl = `data:${mimeType};base64,${base64String}`;
+                                resolve(dataUrl);
+                            } else {
+                                reject(new Error('No picture found in MP3 ID3 tags'));
+                            }
+                        } catch (e) {
+                            reject(e);
+                        }
+                    },
+                    onError: function(error) {
+                        reject(error);
+                    }
+                });
+            });
+        }
+
+        /**
          * Initialize MP3 modal with track data
          */
         function initializeMP3Modal(trackData) {
@@ -1387,29 +1530,8 @@
                 }
             }
             
-            // Set album art
-            if (trackData.thumbnail) {
-                let thumbnailUrl = trackData.thumbnail;
-                if (typeof convertIPFSUrlGlobal === 'function') {
-                    thumbnailUrl = convertIPFSUrlGlobal(thumbnailUrl);
-                } else if (window.IPFS_GATEWAY && thumbnailUrl.includes('/ipfs/')) {
-                    const match = thumbnailUrl.match(/\/ipfs\/[^?"#]+/);
-                    if (match) {
-                        thumbnailUrl = window.IPFS_GATEWAY + match[0];
-                    }
-                }
-                
-                if (albumArtEl) {
-                    albumArtEl.src = thumbnailUrl;
-                    albumArtEl.classList.remove('d-none');
-                    if (albumArtPlaceholder) {
-                        albumArtPlaceholder.classList.add('d-none');
-                    }
-                }
-            } else {
-                if (albumArtEl) albumArtEl.classList.add('d-none');
-                if (albumArtPlaceholder) albumArtPlaceholder.classList.remove('d-none');
-            }
+            // Set album art - try multiple sources: ID3 tags, thumbnail from metadata, then placeholder
+            setAlbumArt(trackData, albumArtEl, albumArtPlaceholder);
             
             // Setup thumbnail change button
             const changeThumbnailBtn = document.getElementById('mp3ChangeThumbnailBtn');

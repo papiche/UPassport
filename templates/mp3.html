@@ -969,41 +969,17 @@
             to { transform: rotate(360deg); }
         }
         
-        /* View toggle buttons */
-        .view-toggle {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 24px;
-        }
-        
-        .view-toggle-btn {
-            background: transparent;
-            border: 1px solid rgba(255, 255, 255, 0.3);
+        /* View toggle buttons - using Bootstrap btn-group */
+        .btn-group .btn-outline-secondary {
+            border-color: rgba(255, 255, 255, 0.3);
             color: #b3b3b3;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-size: 0.9em;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
         }
         
-        .view-toggle-btn:hover {
-            border-color: rgba(255, 255, 255, 0.5);
-            color: #ffffff;
-            background: rgba(255, 255, 255, 0.05);
-        }
-        
-        .view-toggle-btn.active {
+        .btn-group .btn-outline-secondary:hover,
+        .btn-group .btn-outline-secondary.active {
             background: rgba(255, 255, 255, 0.1);
             border-color: rgba(255, 255, 255, 0.5);
             color: #ffffff;
-        }
-        
-        .view-toggle-btn i {
-            font-size: 1em;
         }
     </style>
 </head>
@@ -1143,11 +1119,11 @@
                 <div class="section-header">
                     <h2 class="section-title">Good evening</h2>
                 </div>
-                <div class="view-toggle">
-                    <button class="view-toggle-btn active" onclick="setViewMode('grid')" id="gridViewBtn">
+                <div class="btn-group mb-3" role="group" aria-label="View mode toggle">
+                    <button type="button" class="btn btn-outline-secondary active" onclick="setViewMode('grid')" id="gridViewBtn">
                         <i class="bi bi-grid-3x3-gap"></i> <span>Grid</span>
                     </button>
-                    <button class="view-toggle-btn" onclick="setViewMode('list')" id="listViewBtn">
+                    <button type="button" class="btn btn-outline-secondary" onclick="setViewMode('list')" id="listViewBtn">
                         <i class="bi bi-list"></i> <span>List</span>
                     </button>
                 </div>
@@ -1175,11 +1151,11 @@
                     <h2 class="section-title">Your Library</h2>
                     <p class="section-subtitle">Your personal music collection</p>
                 </div>
-                <div class="view-toggle">
-                    <button class="view-toggle-btn active" onclick="setViewMode('grid')" id="libraryGridViewBtn">
+                <div class="btn-group mb-3" role="group" aria-label="View mode toggle">
+                    <button type="button" class="btn btn-outline-secondary active" onclick="setViewMode('grid')" id="libraryGridViewBtn">
                         <i class="bi bi-grid-3x3-gap"></i> <span>Grid</span>
                     </button>
-                    <button class="view-toggle-btn" onclick="setViewMode('list')" id="libraryListViewBtn">
+                    <button type="button" class="btn btn-outline-secondary" onclick="setViewMode('list')" id="libraryListViewBtn">
                         <i class="bi bi-list"></i> <span>List</span>
                     </button>
                 </div>
@@ -1484,10 +1460,24 @@
                 return;
             }
             
-            grid.innerHTML = NostrifyMP3.filteredTracks.map((track, index) => `
+            grid.innerHTML = NostrifyMP3.filteredTracks.map((track, index) => {
+                // Convert thumbnail URL if needed
+                let thumbnailUrl = track.thumbnail || null;
+                if (thumbnailUrl) {
+                    if (typeof convertIPFSUrlGlobal === 'function') {
+                        thumbnailUrl = convertIPFSUrlGlobal(thumbnailUrl);
+                    } else if (window.IPFS_GATEWAY && thumbnailUrl.includes('/ipfs/')) {
+                        const match = thumbnailUrl.match(/\/ipfs\/[^?"#]+/);
+                        if (match) {
+                            thumbnailUrl = window.IPFS_GATEWAY + match[0];
+                        }
+                    }
+                }
+                
+                return `
                 <div class="music-card">
                     <div class="music-card-image" onclick="NostrifyMP3.playTrack(${index})">
-                        ${track.thumbnail ? `<img src="${track.thumbnail}" alt="${track.title}">` : '🎵'}
+                        ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="${NostrifyMP3.escapeHtml(track.title || '')}" onerror="this.parentElement.innerHTML='🎵'">` : '🎵'}
                         <button class="music-card-play-button" onclick="event.stopPropagation(); NostrifyMP3.playTrack(${index})" title="Play">
                             <i class="bi bi-play-fill"></i>
                         </button>
@@ -1512,7 +1502,8 @@
                         </div>
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
         
         /**
@@ -1530,13 +1521,27 @@
                 return;
             }
             
-            list.innerHTML = NostrifyMP3.filteredTracks.map((track, index) => `
+            list.innerHTML = NostrifyMP3.filteredTracks.map((track, index) => {
+                // Convert thumbnail URL if needed
+                let thumbnailUrl = track.thumbnail || null;
+                if (thumbnailUrl) {
+                    if (typeof convertIPFSUrlGlobal === 'function') {
+                        thumbnailUrl = convertIPFSUrlGlobal(thumbnailUrl);
+                    } else if (window.IPFS_GATEWAY && thumbnailUrl.includes('/ipfs/')) {
+                        const match = thumbnailUrl.match(/\/ipfs\/[^?"#]+/);
+                        if (match) {
+                            thumbnailUrl = window.IPFS_GATEWAY + match[0];
+                        }
+                    }
+                }
+                
+                return `
                 <div class="music-list-item ${NostrifyMP3.currentTrackIndex === index && NostrifyMP3.isPlaying ? 'playing' : ''}" onclick="NostrifyMP3.playTrack(${index})">
                     <div class="music-list-number">${index + 1}</div>
                     <div class="music-list-play"><i class="bi bi-play-fill"></i></div>
                     <div class="music-list-info">
                         <div class="music-list-image">
-                            ${track.thumbnail ? `<img src="${track.thumbnail}" alt="${track.title}">` : '🎵'}
+                            ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="${NostrifyMP3.escapeHtml(track.title || '')}" onerror="this.parentElement.innerHTML='🎵'">` : '🎵'}
                         </div>
                         <div class="music-list-details">
                             <div class="music-list-title">${NostrifyMP3.escapeHtml(track.title || 'Unknown Title')}</div>
@@ -1572,7 +1577,8 @@
                         </button>
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
         
         /**
@@ -1622,8 +1628,8 @@
         function setViewMode(mode) {
             NostrifyMP3.currentViewMode = mode;
             
-            // Update toggle buttons
-            document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+            // Update toggle buttons (Bootstrap button group)
+            document.querySelectorAll('.btn-group button').forEach(btn => {
                 btn.classList.remove('active');
             });
             
@@ -1724,7 +1730,7 @@
         }
         
         /**
-         * Play track (opens modal by default, or uses bottom player as fallback)
+         * Play track in bottom player (Spotify-style)
          */
         NostrifyMP3.playTrack = function(index) {
             if (index < 0 || index >= NostrifyMP3.filteredTracks.length) return;
@@ -1732,68 +1738,66 @@
             NostrifyMP3.currentTrackIndex = index;
             const track = NostrifyMP3.filteredTracks[index];
             
-            // Open MP3 modal instead of just playing in bottom player (with comprehensive metadata)
-            if (typeof openMP3Modal === 'function') {
-                openMP3Modal({
-                    title: track.title || 'Unknown Title',
-                    url: track.url || '',
-                    thumbnail: track.thumbnail || null,
-                    eventId: track.eventId || '',
-                    authorId: track.authorId || '',
-                    artist: track.artist || 'Unknown Artist',
-                    album: track.album || '—',
-                    duration: track.duration || null,
-                    description: track.description || '',
-                    content: track.description || '',
-                    // Comprehensive metadata from .info.json
-                    channel: track.channel || null,
-                    channelId: track.channelId || null,
-                    channelUrl: track.channelUrl || null,
-                    youtubeUrl: track.youtubeUrl || null,
-                    viewCount: track.viewCount || track.statistics?.view_count || 0,
-                    likeCount: track.likeCount || track.statistics?.like_count || 0,
-                    commentCount: track.commentCount || track.statistics?.comment_count || 0,
-                    uploadDate: track.uploadDate || track.dates?.upload_date || null,
-                    releaseDate: track.releaseDate || track.dates?.release_date || null,
-                    language: track.language || track.contentInfo?.language || null,
-                    license: track.license || track.contentInfo?.license || null,
-                    tags: track.tags || track.contentInfo?.tags || [],
-                    categories: track.categories || track.contentInfo?.categories || [],
-                    track: track.track || track.mediaInfo?.track || null,
-                    creator: track.creator || track.mediaInfo?.creator || null,
-                    abr: track.abr || track.technicalInfo?.abr || 0,
-                    acodec: track.acodec || track.technicalInfo?.acodec || null,
-                    formatNote: track.formatNote || track.technicalInfo?.format_note || null,
-                    // Full metadata objects
-                    youtubeMetadata: track.youtubeMetadata || {},
-                    channelInfo: track.channelInfo || {},
-                    contentInfo: track.contentInfo || {},
-                    technicalInfo: track.technicalInfo || {},
-                    statistics: track.statistics || {},
-                    dates: track.dates || {},
-                    mediaInfo: track.mediaInfo || {},
-                    playlistInfo: track.playlistInfo || {},
-                    thumbnails: track.thumbnails || {},
-                    subtitlesInfo: track.subtitlesInfo || {},
-                    chapters: track.chapters || [],
-                    liveInfo: track.liveInfo || {},
-                    infoJson: track.infoJson || null
-                });
-            } else {
-                // Fallback: use bottom player if modal not available
-                // Update player UI
-                document.getElementById('playerTrackTitle').textContent = track.title || 'Unknown Title';
-                document.getElementById('playerTrackArtist').textContent = track.artist || 'Unknown Artist';
-                document.getElementById('playerTrackImage').innerHTML = track.thumbnail 
-                    ? `<img src="${track.thumbnail}" alt="${track.title}">` 
-                    : '🎵';
-                
-                // Show player
-                document.getElementById('bottomPlayer').style.display = 'flex';
-                
-                // Load and play audio
-                const audioPlayer = document.getElementById('audioPlayer');
-                audioPlayer.src = track.url;
+            // Convert thumbnail URL if needed
+            let thumbnailUrl = track.thumbnail || null;
+            if (thumbnailUrl) {
+                if (typeof convertIPFSUrlGlobal === 'function') {
+                    thumbnailUrl = convertIPFSUrlGlobal(thumbnailUrl);
+                } else if (window.IPFS_GATEWAY && thumbnailUrl.includes('/ipfs/')) {
+                    const match = thumbnailUrl.match(/\/ipfs\/[^?"#]+/);
+                    if (match) {
+                        thumbnailUrl = window.IPFS_GATEWAY + match[0];
+                    }
+                }
+            }
+            
+            // Convert audio URL if needed
+            let audioUrl = track.url || '';
+            if (audioUrl) {
+                if (typeof convertIPFSUrlGlobal === 'function') {
+                    audioUrl = convertIPFSUrlGlobal(audioUrl);
+                } else if (window.IPFS_GATEWAY && audioUrl.includes('/ipfs/')) {
+                    const match = audioUrl.match(/\/ipfs\/[^?"#]+/);
+                    if (match) {
+                        audioUrl = window.IPFS_GATEWAY + match[0];
+                    }
+                }
+            }
+            
+            // Update player UI
+            const titleEl = document.getElementById('playerTrackTitle');
+            const artistEl = document.getElementById('playerTrackArtist');
+            const imageEl = document.getElementById('playerTrackImage');
+            
+            if (titleEl) titleEl.textContent = track.title || 'Unknown Title';
+            if (artistEl) artistEl.textContent = track.artist || 'Unknown Artist';
+            if (imageEl) {
+                if (thumbnailUrl) {
+                    imageEl.innerHTML = `<img src="${thumbnailUrl}" alt="${track.title || ''}" onerror="this.parentElement.innerHTML='🎵'">`;
+                } else {
+                    imageEl.innerHTML = '🎵';
+                }
+            }
+            
+            // Update like button state
+            const likeBtn = document.getElementById('playerLikeBtn');
+            if (likeBtn) {
+                likeBtn.classList.toggle('liked', track.liked || false);
+                likeBtn.innerHTML = track.liked 
+                    ? '<i class="bi bi-heart-fill"></i>'
+                    : '<i class="bi bi-heart"></i>';
+            }
+            
+            // Show player
+            const bottomPlayer = document.getElementById('bottomPlayer');
+            if (bottomPlayer) {
+                bottomPlayer.style.display = 'flex';
+            }
+            
+            // Load and play audio
+            const audioPlayer = document.getElementById('audioPlayer');
+            if (audioPlayer && audioUrl) {
+                audioPlayer.src = audioUrl;
                 audioPlayer.load();
                 audioPlayer.play().then(() => {
                     NostrifyMP3.isPlaying = true;
@@ -2160,6 +2164,9 @@
     </div>
     
     <script>
+        // Store Bootstrap modal instance globally
+        let mp3ModalInstance = null;
+        
         /**
          * Open MP3 modal with track data
          * This function loads mp3-modal.html in an iframe
@@ -2189,11 +2196,11 @@
             iframe.src = `/mp3-modal?${params.toString()}`;
             
             // Show Bootstrap modal
-            const bsModal = new bootstrap.Modal(modal, {
+            mp3ModalInstance = new bootstrap.Modal(modal, {
                 backdrop: 'static',
                 keyboard: true
             });
-            bsModal.show();
+            mp3ModalInstance.show();
             
             // Send track data to iframe once it's loaded
             iframe.onload = function() {
@@ -2208,13 +2215,56 @@
             window.addEventListener('message', function(event) {
                 if (event.data && event.data.type === 'close-mp3-modal') {
                     console.log('📩 Received close-mp3-modal message');
-                    bsModal.hide();
+                    closeMP3Modal();
                 }
             });
         }
         
+        /**
+         * Close MP3 modal
+         */
+        function closeMP3Modal() {
+            console.log('🔴 closeMP3Modal called');
+            
+            // Stop audio in iframe before closing
+            const iframe = document.getElementById('mp3ModalIframe');
+            if (iframe && iframe.contentWindow) {
+                try {
+                    const audioPlayer = iframe.contentWindow.document.getElementById('mp3AudioPlayer');
+                    if (audioPlayer) {
+                        audioPlayer.pause();
+                        audioPlayer.src = '';
+                        audioPlayer.load();
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Could not stop audio in iframe:', e);
+                }
+            }
+            
+            // Close Bootstrap modal
+            if (mp3ModalInstance) {
+                mp3ModalInstance.hide();
+                mp3ModalInstance = null;
+            } else {
+                // Fallback: try to get instance
+                const modal = document.getElementById('mp3Modal');
+                if (modal) {
+                    const bsModal = bootstrap.Modal.getInstance(modal);
+                    if (bsModal) {
+                        bsModal.hide();
+                    }
+                }
+            }
+            
+            // Clear iframe src to stop any loading
+            if (iframe) {
+                iframe.src = 'about:blank';
+            }
+        }
+        
         // Expose globally
         window.openMP3Modal = openMP3Modal;
+        window.closeMP3Modal = closeMP3Modal;
     </script>
 </body>
 </html>
