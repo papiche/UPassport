@@ -1248,10 +1248,10 @@ async def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
             elif tag_type == "thumbnail_ipfs":
                 # Static thumbnail CID (fallback if no gifanim)
                 if not metadata["thumbnail_url"]:  # Only if gifanim not found
-                cid = tag_value
-                if not cid.startswith("/ipfs/"):
-                    cid = f"/ipfs/{cid}"
-                metadata["thumbnail_url"] = f"{ipfs_gateway}{cid}"
+                    cid = tag_value
+                    if not cid.startswith("/ipfs/"):
+                        cid = f"/ipfs/{cid}"
+                    metadata["thumbnail_url"] = f"{ipfs_gateway}{cid}"
             
             elif tag_type == "image" and ("/ipfs/" in tag_value or "ipfs://" in tag_value):
                 # Image/thumbnail from imeta or direct tag
