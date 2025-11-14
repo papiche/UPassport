@@ -160,8 +160,15 @@
             font-size: 0.875rem;
         }
         
-        /* Hide audio player, waveform, description, and other buttons in list view */
-        .list-view .audio-player-container,
+        /* Hide audio player visually but keep it in DOM for play functionality */
+        .list-view .audio-player-container {
+            display: none !important;
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        /* Hide waveform, description, and other buttons in list view */
         .list-view .waveform-container,
         .list-view .voice-message-card p,
         .list-view .reply-button,
@@ -2009,6 +2016,18 @@
                             ` : ''}
                         </div>
                     </div>
+                    ${msg.isEncrypted ? `
+                        <div id="decrypt-status-${msg.id}" class="d-none"></div>
+                        <div id="audio-container-${msg.id}" class="d-none">
+                            <div class="audio-player-container">
+                                <audio id="audio-player-${msg.id}" class="audio-player" controls></audio>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="audio-player-container" style="display: none;">
+                            <audio id="audio-player-${msg.id}" class="audio-player" controls src="${msg.metadata.url || msg.content}"></audio>
+                        </div>
+                    `}
                 </div>
             `;
             
@@ -2551,9 +2570,46 @@
         
         // Play public message
         function playMessage(messageId) {
-            const audioPlayer = document.getElementById(`audio-player-${messageId}`);
-            if (audioPlayer) {
-                audioPlayer.play();
+            let audioPlayer = document.getElementById(`audio-player-${messageId}`);
+            
+            // If audio player doesn't exist, create it
+            if (!audioPlayer) {
+                const message = voiceMessagesCache.find(msg => msg.id === messageId);
+                if (!message) {
+                    console.error('Message not found:', messageId);
+                    return;
+                }
+                
+                // Find the message card
+                const messageCard = document.querySelector(`[data-event-id="${messageId}"]`);
+                if (!messageCard) {
+                    console.error('Message card not found:', messageId);
+                    return;
+                }
+                
+                // Create audio player container
+                const audioContainer = document.createElement('div');
+                audioContainer.className = 'audio-player-container';
+                audioContainer.style.display = 'none';
+                
+                audioPlayer = document.createElement('audio');
+                audioPlayer.id = `audio-player-${messageId}`;
+                audioPlayer.className = 'audio-player';
+                audioPlayer.controls = true;
+                audioPlayer.src = message.metadata?.url || message.content;
+                
+                audioContainer.appendChild(audioPlayer);
+                messageCard.appendChild(audioContainer);
+            }
+            
+            // Play the audio
+            if (audioPlayer && audioPlayer.src) {
+                audioPlayer.play().catch(error => {
+                    console.error('Error playing audio:', error);
+                    alert('Could not play audio. Please check if the file is accessible.');
+                });
+            } else {
+                console.error('Audio player has no source:', messageId);
             }
         }
         
