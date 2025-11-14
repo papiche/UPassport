@@ -3689,133 +3689,136 @@
                 publishBtn.disabled = true;
                 publishBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Publishing...';
                 
-                // Step 0: Verify and ensure NIP-42 authentication (required for /api/fileupload)
+                // Step 0: Ensure NIP-42 authentication (required for /api/fileupload)
+                // Use connectToRelay(true) from common.js which automatically handles NIP-42 auth
                 if (!localUserPubkey) {
                     throw new Error('Not connected to NOSTR. Please connect first.');
                 }
                 
-                console.log('🔐 Verifying NIP-42 authentication before upload...');
-                let isAuthenticated = false;
+                console.log('🔐 Ensuring NIP-42 authentication before upload...');
                 
-                // Helper function to verify authentication
-                const verifyAuth = async () => {
-                if (typeof verifyAuthenticationWithAPI === 'function') {
+                // Sync pubkey to common.js scope (connectToRelay uses userPubkey from common.js)
+                syncToCommonJS();
+                
+                // Ensure userPubkey is set in common.js scope (sendNIP42Auth requires it)
+                if (typeof window !== 'undefined' && localUserPubkey) {
                     try {
-                            const result = await verifyAuthenticationWithAPI(localUserPubkey);
-                            return result === true || (result && result.auth_verified === true);
-                    } catch (authError) {
-                        console.warn('⚠️ NIP-42 verification failed:', authError);
-                            return false;
-                    }
-                } else if (typeof window !== 'undefined' && typeof window.verifyAuthenticationWithAPI === 'function') {
-                    try {
-                            const result = await window.verifyAuthenticationWithAPI(localUserPubkey);
-                            return result === true || (result && result.auth_verified === true);
-                    } catch (authError) {
-                        console.warn('⚠️ NIP-42 verification failed:', authError);
-                            return false;
-                    }
-                }
-                    return false;
-                };
-                
-                // Helper function to send NIP-42 auth
-                // IMPORTANT: Backend checks authentication on local relay (ws://127.0.0.1:7777)
-                // So we must send the NIP-42 event to the local relay, not the public relay
-                const sendAuth = async () => {
-                    // Determine the local relay URL (backend always checks ws://127.0.0.1:7777)
-                    // Use the same logic as common.js to determine relay
-                    let relayUrl = 'ws://127.0.0.1:7777'; // Default local relay
-                    
-                    // Try to get relay from common.js calculation
-                    if (typeof window !== 'undefined') {
-                        const currentUrl = new URL(window.location.href);
-                        const hostname = currentUrl.hostname;
-                        const port = currentUrl.port;
-                        
-                        // If localhost or 127.0.0.1, use local relay
-                        if (hostname === '127.0.0.1' || hostname === 'localhost' || port === '8080') {
-                            relayUrl = 'ws://127.0.0.1:7777';
-                        } else if (hostname.startsWith('ipfs.')) {
-                            // For IPFS gateways, derive relay URL
-                            const baseDomain = hostname.substring('ipfs.'.length);
-                            relayUrl = `wss://relay.${baseDomain}`;
-                        } else if (hostname.includes('copylaradio.com') || hostname.includes('u.')) {
-                            // For u.copylaradio.com, backend still checks local relay
-                            // But we should send to local relay for NIP-42 auth
-                            relayUrl = 'ws://127.0.0.1:7777';
-                        }
-                    }
-                    
-                    console.log('🔐 Sending NIP-42 authentication event to local relay:', relayUrl);
-                    
-                        if (typeof sendNIP42Auth === 'function') {
-                            await sendNIP42Auth(relayUrl, true);
-                        return true;
-                    } else if (typeof window !== 'undefined' && typeof window.sendNIP42Auth === 'function') {
-                        await window.sendNIP42Auth(relayUrl, true);
-                        return true;
-                    }
-                    return false;
-                };
-                
-                // First check
-                isAuthenticated = await verifyAuth();
-                console.log('🔐 Initial NIP-42 authentication check:', isAuthenticated ? '✅ Authenticated' : '❌ Not authenticated');
-                
-                // If not authenticated, try to authenticate automatically (up to 3 attempts)
-                if (!isAuthenticated) {
-                    console.log('🔐 Attempting automatic NIP-42 authentication...');
-                    const maxAttempts = 3;
-                    let attempt = 0;
-                    
-                    while (!isAuthenticated && attempt < maxAttempts) {
-                        attempt++;
-                        console.log(`🔐 Authentication attempt ${attempt}/${maxAttempts}...`);
-                        
-                        try {
-                            // Send auth event
-                            const authSent = await sendAuth();
-                            if (!authSent) {
-                                console.warn('⚠️ Could not send NIP-42 auth event - function not available');
-                                break;
+                        // Set userPubkey in common.js scope
+                        if (typeof setUserPubkey === 'function') {
+                            setUserPubkey(localUserPubkey);
+                        } else {
+                            window.userPubkey = localUserPubkey;
+                            // Also try to set it directly if possible
+                            try {
+                                if (typeof userPubkey !== 'undefined') {
+                                    userPubkey = localUserPubkey;
+                                }
+                            } catch (e) {
+                                // userPubkey might be const, use window only
                             }
-                            
-                            // Wait for processing (increase wait time with each attempt)
-                            const waitTime = 2000 + (attempt * 1000); // 2s, 3s, 4s
-                            console.log(`⏳ Waiting ${waitTime}ms for authentication to be processed...`);
-                            await new Promise(resolve => setTimeout(resolve, waitTime));
-                            
-                            // Verify again
-                            isAuthenticated = await verifyAuth();
-                            console.log(`🔐 Authentication attempt ${attempt} result:`, isAuthenticated ? '✅ Authenticated' : '❌ Still not authenticated');
-                            
-                        } catch (authError) {
-                            console.warn(`⚠️ Authentication attempt ${attempt} failed:`, authError);
-                            // Continue to next attempt
                         }
+                    } catch (e) {
+                        console.warn('⚠️ Could not set userPubkey in common.js scope:', e);
                     }
                 }
                 
-                // Final check - if still not authenticated, try one more time with longer wait
-                    if (!isAuthenticated) {
-                    console.log('🔐 Final authentication attempt with extended wait...');
+                // Step 1: Connect to relay with forceAuth=true (this automatically sends NIP-42 auth)
+                // connectToRelay(true) from common.js handles everything: connection + NIP-42 auth
+                let relayConnected = false;
+                try {
+                    if (typeof connectToRelay === 'function') {
+                        relayConnected = await connectToRelay(true); // Force auth = sends NIP-42 automatically
+                    } else if (typeof window !== 'undefined' && typeof window.connectToRelay === 'function') {
+                        relayConnected = await window.connectToRelay(true);
+                    } else if (typeof ensureRelayConnection === 'function') {
+                        // Fallback: ensure relay connection
+                        relayConnected = await ensureRelayConnection({ silent: true });
+                    } else if (typeof window !== 'undefined' && typeof window.ensureRelayConnection === 'function') {
+                        relayConnected = await window.ensureRelayConnection({ silent: true });
+                    }
+                } catch (relayError) {
+                    console.warn('⚠️ Relay connection error:', relayError);
+                }
+                
+                // Step 2: Verify authentication after connecting
+                let isAuthenticated = false;
+                try {
+                    // Wait a bit for auth to be processed
+                    if (relayConnected) {
+                        console.log('⏳ Waiting for NIP-42 authentication to be processed...');
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+                    
+                    // Verify authentication
+                    if (typeof verifyAuthenticationWithAPI === 'function') {
+                        const result = await verifyAuthenticationWithAPI(localUserPubkey);
+                        isAuthenticated = result === true || (result && result.auth_verified === true);
+                    } else if (typeof window !== 'undefined' && typeof window.verifyAuthenticationWithAPI === 'function') {
+                        const result = await window.verifyAuthenticationWithAPI(localUserPubkey);
+                        isAuthenticated = result === true || (result && result.auth_verified === true);
+                    }
+                } catch (authError) {
+                    console.warn('⚠️ Verification error:', authError);
+                }
+                
+                console.log('🔐 Authentication check:', isAuthenticated ? '✅ Authenticated' : '❌ Not authenticated');
+                
+                // Step 3: If still not authenticated, try sending auth manually
+                if (!isAuthenticated && relayConnected) {
+                    console.log('🔐 Attempting to send NIP-42 authentication event manually...');
                     try {
-                        await sendAuth();
+                        // Get relay URL
+                        let relayUrl = 'ws://127.0.0.1:7777';
+                        if (typeof getNostrRelay === 'function') {
+                            relayUrl = getNostrRelay();
+                        } else if (typeof window !== 'undefined' && typeof window.getNostrRelay === 'function') {
+                            relayUrl = window.getNostrRelay();
+                        } else {
+                            // Calculate from location
+                            const currentUrl = new URL(window.location.href);
+                            const hostname = currentUrl.hostname;
+                            const port = currentUrl.port;
+                            
+                            if (hostname === '127.0.0.1' || hostname === 'localhost' || port === '8080') {
+                                relayUrl = 'ws://127.0.0.1:7777';
+                            } else if (hostname.startsWith('ipfs.')) {
+                                relayUrl = `wss://relay.${hostname.substring('ipfs.'.length)}`;
+                            } else if (hostname.includes('copylaradio.com') || hostname.includes('u.')) {
+                                relayUrl = 'ws://127.0.0.1:7777';
+                            }
+                        }
+                        
+                        // Send NIP-42 auth
+                        if (typeof sendNIP42Auth === 'function') {
+                            await sendNIP42Auth(relayUrl, true); // forceSend = true
+                        } else if (typeof window !== 'undefined' && typeof window.sendNIP42Auth === 'function') {
+                            await window.sendNIP42Auth(relayUrl, true);
+                        }
+                        
+                        // Wait for processing
+                        console.log('⏳ Waiting for authentication to be processed...');
                         await new Promise(resolve => setTimeout(resolve, 3000));
-                        isAuthenticated = await verifyAuth();
-                        console.log('🔐 Final authentication result:', isAuthenticated ? '✅ Authenticated' : '❌ Not authenticated');
+                        
+                        // Verify again
+                        if (typeof verifyAuthenticationWithAPI === 'function') {
+                            const result = await verifyAuthenticationWithAPI(localUserPubkey);
+                            isAuthenticated = result === true || (result && result.auth_verified === true);
+                        } else if (typeof window !== 'undefined' && typeof window.verifyAuthenticationWithAPI === 'function') {
+                            const result = await window.verifyAuthenticationWithAPI(localUserPubkey);
+                            isAuthenticated = result === true || (result && result.auth_verified === true);
+                        }
+                        
+                        console.log('🔐 Authentication after manual send:', isAuthenticated ? '✅ Authenticated' : '❌ Still not authenticated');
                     } catch (authError) {
-                        console.warn('⚠️ Final authentication attempt failed:', authError);
+                        console.warn('⚠️ Error sending NIP-42 auth:', authError);
                     }
                 }
                 
-                // Log final status
                 if (isAuthenticated) {
                     console.log('✅ NIP-42 authentication verified - proceeding with upload');
                 } else {
                     console.warn('⚠️ NIP-42 authentication not verified - upload may fail, but attempting anyway');
-                    // Don't block the user - let the backend handle the error and return a clear message
+                    // Don't block - let backend handle the error and return clear message
                 }
                 
                 // Step 1: Upload audio to IPFS
