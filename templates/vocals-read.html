@@ -3317,10 +3317,11 @@
             previewSection.classList.remove('d-none');
             publishBtn.disabled = false;
             
-            // Store blob for publishing
+            // Store blob and filename for publishing
             audioPreview.dataset.blob = 'stored'; // Marker
             audioPreview.dataset.audioBlob = audioBlob; // Will be stored in closure
             window.replyAudioBlob = audioBlob; // Store globally for publish
+            window.replyAudioFilename = filename; // Store filename if provided
         }
         
         // Delete voice message (NIP-09: kind 5)
@@ -3596,9 +3597,46 @@
                 }
                 
                 // Step 1: Upload audio to IPFS
-                const audioFile = new File([window.replyAudioBlob], `reply_${Date.now()}.webm`, { 
-                    type: window.replyAudioBlob.type || 'audio/webm' 
+                // Determine correct filename and MIME type
+                let finalFilename = window.replyAudioFilename;
+                let correctMimeType = window.replyAudioBlob.type || 'audio/webm';
+                
+                // If no filename provided (recorded audio), use mp3 as default (backend will convert if needed)
+                if (!finalFilename) {
+                    // For recorded audio, always use mp3 extension (backend converts webm to mp3)
+                    finalFilename = `reply_${Date.now()}.mp3`;
+                    // Keep original MIME type for upload (webm if recorded, but filename will be mp3)
+                    // The backend will handle the conversion
+                } else {
+                    // Use provided filename, but ensure extension matches MIME type
+                    const fileExtension = finalFilename.split('.').pop()?.toLowerCase();
+                    
+                    // Map file extensions to correct MIME types
+                    const mimeTypeMap = {
+                        'mp3': 'audio/mpeg',
+                        'wav': 'audio/wav',
+                        'ogg': 'audio/ogg',
+                        'flac': 'audio/flac',
+                        'aac': 'audio/aac',
+                        'm4a': 'audio/mp4',
+                        'webm': 'audio/webm'
+                    };
+                    
+                    if (fileExtension && mimeTypeMap[fileExtension]) {
+                        correctMimeType = mimeTypeMap[fileExtension];
+                    }
+                }
+                
+                // If blob type is video/webm but this is an audio file, change to audio/webm
+                if (correctMimeType.startsWith('video/')) {
+                    correctMimeType = correctMimeType.replace('video/', 'audio/');
+                }
+                
+                const audioFile = new File([window.replyAudioBlob], finalFilename, { 
+                    type: correctMimeType 
                 });
+                
+                console.log('📤 Uploading reply audio file:', finalFilename, 'with MIME type:', correctMimeType);
                 
                 const uploadFormData = new FormData();
                 uploadFormData.append('file', audioFile);
