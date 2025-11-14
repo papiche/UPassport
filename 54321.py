@@ -1156,8 +1156,16 @@ async def fetch_video_event_from_nostr(event_id: str, timeout: int = 5) -> Optio
         logging.error(f"Error fetching video event: {e}")
         return None
 
-def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
+async def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
     """Parse video event tags to extract metadata for Open Graph/Twitter Cards
+    
+    This function minimizes IPFS usage by prioritizing NOSTR event tags.
+    IPFS is only used as a last resort if critical data (description) is missing.
+    
+    Strategy:
+    1. Extract all available data from NOSTR tags first (no IPFS call)
+    2. Only fetch info.json from IPFS if description is missing AND info tag exists
+    3. Follow INFO_JSON_FORMATS.md v2.0 specification when parsing info.json
     
     Args:
         event: NOSTR video event (kind 21 or 22)
@@ -1180,8 +1188,10 @@ def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
     
     tags = event.get("tags", [])
     content = event.get("content", "")
+    ipfs_gateway = get_myipfs_gateway()
     
-    # Extract title
+    # Step 1: Extract ALL available data from NOSTR tags first (NO IPFS call)
+    # Extract title from title tag
     for tag in tags:
         if isinstance(tag, list) and len(tag) >= 2:
             if tag[0] == "title":
@@ -1192,7 +1202,7 @@ def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
                 metadata["title"] = title
                 break
     
-    # Extract description from content (remove title line if present)
+    # Extract description from content
     if content:
         description = content
         if description.startswith("🎬"):
@@ -1206,9 +1216,7 @@ def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
             description = description.replace("  ", " ")
         metadata["description"] = description[:300]  # Limit to 300 chars for meta tags
     
-    # Extract IPFS URL and thumbnail
-    ipfs_gateway = get_myipfs_gateway()
-    
+    # Extract IPFS URL from tags
     for tag in tags:
         if isinstance(tag, list) and len(tag) >= 2:
             tag_type = tag[0]
@@ -1219,47 +1227,115 @@ def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
                 ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
                 if ipfs_path.startswith("/ipfs/"):
                     metadata["video_url"] = f"{ipfs_gateway}{ipfs_path}"
+                    break
+    
+    # Extract thumbnail from tags (priority order)
+    for tag in tags:
+        if isinstance(tag, list) and len(tag) >= 2:
+            tag_type = tag[0]
+            tag_value = tag[1]
             
-            elif tag_type == "thumbnail_ipfs":
+            if tag_type == "thumbnail_ipfs":
                 # Thumbnail CID
                 cid = tag_value
                 if not cid.startswith("/ipfs/"):
                     cid = f"/ipfs/{cid}"
                 metadata["thumbnail_url"] = f"{ipfs_gateway}{cid}"
+                break
             
             elif tag_type == "image" and ("/ipfs/" in tag_value or "ipfs://" in tag_value):
                 # Image/thumbnail from imeta or direct tag
-                if not metadata["thumbnail_url"]:  # Only if not already set
-                    ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
-                    if ipfs_path.startswith("/ipfs/"):
-                        metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
+                ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
+                if ipfs_path.startswith("/ipfs/"):
+                    metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
+                    break
             
             elif tag_type == "r" and len(tag) >= 3 and tag[2] == "Thumbnail":
                 # Reference tag with Thumbnail marker
-                if not metadata["thumbnail_url"]:  # Only if not already set
-                    ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
-                    if ipfs_path.startswith("/ipfs/"):
-                        metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
+                ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
+                if ipfs_path.startswith("/ipfs/"):
+                    metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
+                    break
     
-    # Parse imeta tags for additional metadata
-    for tag in tags:
-        if isinstance(tag, list) and tag[0] == "imeta":
-            for i in range(1, len(tag)):
-                prop = tag[i]
-                if prop.startswith("url ") and not metadata["video_url"]:
-                    url_value = prop[4:].strip()
-                    if "/ipfs/" in url_value or "ipfs://" in url_value:
-                        ipfs_path = url_value.replace("ipfs://", "/ipfs/")
-                        if ipfs_path.startswith("/ipfs/"):
-                            metadata["video_url"] = f"{ipfs_gateway}{ipfs_path}"
-                elif prop.startswith("image ") and not metadata["thumbnail_url"]:
-                    image_value = prop[6:].strip()
-                    if "/ipfs/" in image_value or "ipfs://" in image_value:
-                        ipfs_path = image_value.replace("ipfs://", "/ipfs/")
-                        if ipfs_path.startswith("/ipfs/"):
-                            metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
+    # Parse imeta tags for thumbnail (if not found yet)
+    if not metadata["thumbnail_url"]:
+        for tag in tags:
+            if isinstance(tag, list) and tag[0] == "imeta":
+                for i in range(1, len(tag)):
+                    prop = tag[i]
+                    if prop.startswith("image "):
+                        image_value = prop[6:].strip()
+                        if "/ipfs/" in image_value or "ipfs://" in image_value:
+                            ipfs_path = image_value.replace("ipfs://", "/ipfs/")
+                            if ipfs_path.startswith("/ipfs/"):
+                                metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
+                                break
+                if metadata["thumbnail_url"]:
+                    break
     
-    # Fallback: if no description, use title
+    # Step 2: Only fetch info.json from IPFS if critical data is missing
+    # We only fetch if description is missing (title and thumbnail are usually in tags)
+    info_cid = None
+    if not metadata["description"]:
+        # Check if info tag exists
+        for tag in tags:
+            if isinstance(tag, list) and len(tag) >= 2 and tag[0] == "info":
+                info_cid = tag[1].strip()
+                break
+        
+        # Only make IPFS call if info_cid exists and description is still missing
+        if info_cid:
+            try:
+                import httpx
+                # Remove /ipfs/ prefix if present
+                clean_cid = info_cid.replace("/ipfs/", "").replace("ipfs://", "")
+                info_url = f"{ipfs_gateway}/ipfs/{clean_cid}/info.json"
+                logging.info(f"📋 Fetching info.json from IPFS (description missing): {info_url}")
+                
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    info_response = await client.get(info_url)
+                    if info_response.status_code == 200:
+                        info_data = info_response.json()
+                        protocol_version = info_data.get("protocol", {}).get("version", "1.0.0")
+                        logging.info(f"✅ Loaded info.json (protocol version: {protocol_version})")
+                        
+                        # Extract description from metadata.description
+                        if info_data.get("metadata") and info_data["metadata"].get("description"):
+                            description = info_data["metadata"]["description"]
+                            # Clean description for meta tags: remove newlines, limit length
+                            description = description.replace("\n", " ").replace("\r", " ").strip()
+                            while "  " in description:
+                                description = description.replace("  ", " ")
+                            metadata["description"] = description[:300]  # Limit to 300 chars for meta tags
+                            logging.info(f"📝 Description extracted from info.json")
+                        
+                        # Only extract thumbnail from info.json if still missing (shouldn't happen often)
+                        if not metadata["thumbnail_url"] and info_data.get("media"):
+                            media = info_data["media"]
+                            is_v2 = protocol_version.startswith("2.")
+                            
+                            # v2.0 format: media.thumbnails.static or media.thumbnails.animated
+                            if is_v2 and media.get("thumbnails"):
+                                thumbnails = media["thumbnails"]
+                                # Prefer static thumbnail for Open Graph (animated GIF can be too large)
+                                thumbnail_cid = thumbnails.get("static") or thumbnails.get("animated")
+                                if thumbnail_cid:
+                                    clean_cid = thumbnail_cid.replace("/ipfs/", "").replace("ipfs://", "")
+                                    metadata["thumbnail_url"] = f"{ipfs_gateway}/ipfs/{clean_cid}"
+                                    logging.info(f"🖼️  Thumbnail from info.json (v2.0): {clean_cid[:16]}...")
+                            
+                            # v1.0 format fallback: media.thumbnail_ipfs or media.gifanim_ipfs
+                            elif not is_v2:
+                                thumbnail_cid = media.get("thumbnail_ipfs") or media.get("gifanim_ipfs")
+                                if thumbnail_cid:
+                                    clean_cid = thumbnail_cid.replace("/ipfs/", "").replace("ipfs://", "")
+                                    metadata["thumbnail_url"] = f"{ipfs_gateway}/ipfs/{clean_cid}"
+                                    logging.info(f"🖼️  Thumbnail from info.json (v1.0): {clean_cid[:16]}...")
+            except Exception as e:
+                logging.warning(f"⚠️ Could not fetch info.json from IPFS: {e}")
+                # Continue without info.json - we already have data from tags
+    
+    # Final fallback: if no description, use title
     if not metadata["description"]:
         metadata["description"] = metadata["title"]
     
@@ -2821,7 +2897,7 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
         try:
             video_event = await fetch_video_event_from_nostr(video, timeout=5)
             if video_event:
-                video_metadata = parse_video_metadata(video_event)
+                video_metadata = await parse_video_metadata(video_event)
                 logging.info(f"✅ Video metadata loaded for Open Graph: {video_metadata.get('title', 'Unknown')}")
         except Exception as e:
             logging.warning(f"⚠️ Could not fetch video metadata for Open Graph: {e}")
@@ -4190,7 +4266,10 @@ async def process_webcam_video(
                             upload_chain = info_data["provenance"]["upload_chain"]
                             logging.info(f"🔗 Upload chain from info.json: {upload_chain[:50]}...")
                         
-                        # Extract metadata from info.json
+                        # Extract metadata from info.json (supporting both v1.0 and v2.0 formats)
+                        protocol_version = info_data.get("protocol", {}).get("version", "1.0.0")
+                        is_v2 = protocol_version.startswith("2.")
+                        
                         if info_data.get("media"):
                             media = info_data["media"]
                             if media.get("dimensions"):
@@ -4207,13 +4286,34 @@ async def process_webcam_video(
                                     logging.info(f"📦 File size from info.json: {file_size} bytes")
                                 except (ValueError, TypeError):
                                     pass
+                            
                             # Load thumbnail and gifanim from info.json if not provided
-                            if not thumbnail_ipfs and media.get("thumbnail_ipfs"):
-                                thumbnail_ipfs_from_info = media["thumbnail_ipfs"]
-                                logging.info(f"🖼️  Thumbnail CID from info.json: {thumbnail_ipfs_from_info}")
-                            if not gifanim_ipfs and media.get("gifanim_ipfs"):
-                                gifanim_ipfs_from_info = media["gifanim_ipfs"]
-                                logging.info(f"🎬 Animated GIF CID from info.json: {gifanim_ipfs_from_info}")
+                            # Support both v2.0 (media.thumbnails.static/animated) and v1.0 (media.thumbnail_ipfs/gifanim_ipfs)
+                            if not thumbnail_ipfs:
+                                if is_v2 and media.get("thumbnails"):
+                                    # v2.0 format: media.thumbnails.static or media.thumbnails.animated
+                                    thumbnails = media["thumbnails"]
+                                    thumbnail_cid = thumbnails.get("static") or thumbnails.get("animated")
+                                    if thumbnail_cid:
+                                        thumbnail_ipfs_from_info = thumbnail_cid.replace("/ipfs/", "").replace("ipfs://", "")
+                                        logging.info(f"🖼️  Thumbnail CID from info.json (v2.0): {thumbnail_ipfs_from_info}")
+                                elif not is_v2 and media.get("thumbnail_ipfs"):
+                                    # v1.0 format: media.thumbnail_ipfs
+                                    thumbnail_ipfs_from_info = media["thumbnail_ipfs"].replace("/ipfs/", "").replace("ipfs://", "")
+                                    logging.info(f"🖼️  Thumbnail CID from info.json (v1.0): {thumbnail_ipfs_from_info}")
+                            
+                            if not gifanim_ipfs:
+                                if is_v2 and media.get("thumbnails"):
+                                    # v2.0 format: media.thumbnails.animated
+                                    thumbnails = media["thumbnails"]
+                                    gifanim_cid = thumbnails.get("animated")
+                                    if gifanim_cid:
+                                        gifanim_ipfs_from_info = gifanim_cid.replace("/ipfs/", "").replace("ipfs://", "")
+                                        logging.info(f"🎬 Animated GIF CID from info.json (v2.0): {gifanim_ipfs_from_info}")
+                                elif not is_v2 and media.get("gifanim_ipfs"):
+                                    # v1.0 format: media.gifanim_ipfs
+                                    gifanim_ipfs_from_info = media["gifanim_ipfs"].replace("/ipfs/", "").replace("ipfs://", "")
+                                    logging.info(f"🎬 Animated GIF CID from info.json (v1.0): {gifanim_ipfs_from_info}")
                         
                         # Also check root level file_size in info.json
                         if file_size == 0 and info_data.get("file_size"):
