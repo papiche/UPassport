@@ -1000,38 +1000,84 @@
                 connectBtn.disabled = true;
                 connectBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> <span class="d-none d-md-inline">Connecting...</span>';
                 
-                // Use direct extension access (avoid common.js connectNostr which may show French MULTIPASS message)
-                // Check if window.nostr is available (with better error message)
-                if (typeof window.nostr === 'undefined' || !window.nostr) {
-                    // Provide helpful error message with MULTIPASS option
-                    throw new Error(
-                        'NOSTR extension not detected.\n\n' +
-                        'Please ensure your NOSTR extension (Alby, nos2x, Flamingo, Nostr Connect, etc.) is installed and enabled.\n\n' +
-                        '💡 Alternative: Use /scan and scan your MULTIPASS SSSS QR code with PASS code "8888" to automatically enable encryption.'
-                    );
-                }
+                const isInIframe = window.self !== window.top;
                 
-                // Get public key directly from extension
-                localUserPubkey = await window.nostr.getPublicKey();
-                if (!localUserPubkey) {
-                    throw new Error('No public key returned from NOSTR extension');
-                }
-                
-                // Sync with window scope and common.js
-                syncToCommonJS();
-                
-                console.log('✅ Connected to NOSTR, pubkey:', localUserPubkey.substring(0, 8) + '...');
-                
-                // Initialize NOSTR pool
-                if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
-                    nostrPool = new NostrTools.SimplePool();
+                // Always try parent window first if in iframe
+                if (isInIframe && window.parent && window.parent.userPubkey) {
+                    console.log('✅ Using existing connection from parent window');
+                    localUserPubkey = window.parent.userPubkey;
+                    if (window.parent.nostrRelay) {
+                        localNostrRelay = window.parent.nostrRelay;
+                    }
+                    if (window.parent.isNostrConnected) {
+                        localIsNostrConnected = window.parent.isNostrConnected;
+                    }
+                    // Sync with window scope and common.js
+                    syncToCommonJS();
                 } else {
+                    // Standalone mode - connect to NOSTR + relay
+                    console.log('🔌 Connecting to NOSTR extension...');
+                    
+                    // Use common.js connectNostr function (preferred method)
+                    if (typeof connectNostr === 'function') {
+                        console.log('📌 Using common.js connectNostr...');
+                        // Don't force NIP-42 yet - it will be checked when needed
+                        localUserPubkey = await connectNostr(false);
+                        
+                        if (!localUserPubkey) {
+                            throw new Error("No public key returned from connectNostr");
+                        }
+                        
+                        // Sync with window scope and common.js
+                        syncToCommonJS();
+                        
+                        console.log('✅ Connected, pubkey:', localUserPubkey.substring(0, 8) + '...');
+                    } else {
+                        // Fallback to direct extension access
+                        console.log('⚠️ common.js not loaded, using direct extension access');
+                        
+                        if (typeof window.nostr === 'undefined' || !window.nostr) {
+                            throw new Error(
+                                'NOSTR extension not detected.\n\n' +
+                                'Please ensure your NOSTR extension (Alby, nos2x, Flamingo, Nostr Connect, etc.) is installed and enabled.\n\n' +
+                                '💡 Alternative: Use /scan and scan your MULTIPASS SSSS QR code with PASS code "8888" to automatically enable encryption.'
+                            );
+                        }
+                        
+                        // Get public key directly from extension
+                        localUserPubkey = await window.nostr.getPublicKey();
+                        if (!localUserPubkey) {
+                            throw new Error('No public key returned from NOSTR extension');
+                        }
+                        
+                        // Sync with window scope and common.js
+                        syncToCommonJS();
+                        
+                        console.log('✅ Connected to NOSTR extension, pubkey:', localUserPubkey.substring(0, 8) + '...');
+                        
+                        // Try to connect to relay
+                        if (typeof connectToRelay === 'function') {
+                            try {
+                                await connectToRelay(false); // No force NIP-42 yet
+                                // Sync relay connection state
+                                syncFromCommonJS();
+                            } catch (relayError) {
+                                console.warn('⚠️ Failed to connect to relay:', relayError);
+                            }
+                        }
+                    }
+                }
+                
+                // Initialize NOSTR pool if not already done
+                if (!nostrPool && typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                    nostrPool = new NostrTools.SimplePool();
+                    console.log('✅ Initialized NOSTR pool');
+                } else if (!nostrPool) {
                     throw new Error('NostrTools.SimplePool not available');
                 }
                 
+                // Update connection state
                 localIsNostrConnected = true;
-                
-                // Sync with window scope and common.js
                 syncToCommonJS();
                 
                 // Update UI
@@ -4172,83 +4218,88 @@
             
             if (isInIframe && window.parent && window.parent.userPubkey) {
                 // Iframe mode: use parent's connection
+                console.log('✅ Using existing connection from parent window');
                 localUserPubkey = window.parent.userPubkey;
-                if (window.parent.nostrPool) {
-                    nostrPool = window.parent.nostrPool;
-                } else if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
-                    nostrPool = new NostrTools.SimplePool();
+                if (window.parent.nostrRelay) {
+                    localNostrRelay = window.parent.nostrRelay;
                 }
-                localIsNostrConnected = true;
-                syncToCommonJS();
-                shouldAutoLoad = true;
-            } else if (localUserPubkey && localIsNostrConnected) {
-                // Standalone mode: already connected via common.js
-                console.log('✅ Already connected via common.js, pubkey:', localUserPubkey.substring(0, 8) + '...');
+                if (window.parent.isNostrConnected) {
+                    localIsNostrConnected = window.parent.isNostrConnected;
+                }
                 // Initialize pool if not already done
                 if (!nostrPool && typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
                     nostrPool = new NostrTools.SimplePool();
-                    console.log('✅ Initialized NOSTR pool');
                 }
+                syncToCommonJS();
                 shouldAutoLoad = true;
             } else {
+                // Check if already connected via common.js
+                syncFromCommonJS();
+                
+                if (localUserPubkey && localIsNostrConnected) {
+                    // Standalone mode: already connected via common.js
+                    console.log('✅ Already connected via common.js, pubkey:', localUserPubkey.substring(0, 8) + '...');
+                    // Initialize pool if not already done
+                    if (!nostrPool && typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                        nostrPool = new NostrTools.SimplePool();
+                        console.log('✅ Initialized NOSTR pool');
+                    }
+                    shouldAutoLoad = true;
+                } else {
                     // Auto-login: Try to connect automatically if extension is available (silent mode)
-                    // Strategy: Try direct extension access (with retry for extension loading delay)
-                function tryDirectExtensionConnection() {
-                    let attempts = 0;
-                        const maxAttempts = 20; // Reduced to 20 (10 seconds total) for faster UX
-                    const checkInterval = 500; // Check every 500ms
-                        const initialDelay = 1000; // Wait 1 second before first check (extensions need time to inject)
+                    console.log('🔄 Attempting auto-login...');
                     
-                    const checkExtension = () => {
+                    // Wait for extension to load (check multiple times)
+                    let attempts = 0;
+                    const maxAttempts = 30; // 30 attempts (15 seconds total)
+                    const checkInterval = 500; // Check every 500ms
+                    const initialDelay = 1500; // Wait 1.5 seconds before first check (extensions need time to inject)
+                    
+                    const tryAutoConnect = () => {
                         attempts++;
                         
                         // Multiple ways to check for NOSTR extension
                         const nostrAvailable = typeof window.nostr !== 'undefined' && window.nostr !== null;
                         const nostrGetPublicKey = nostrAvailable && typeof window.nostr.getPublicKey === 'function';
                         
-                        if (nostrGetPublicKey) {
-                                // Extension available - try to connect automatically (silently)
-                            // Try to test if extension actually works (some extensions need user interaction)
-                            try {
-                                const testPromise = window.nostr.getPublicKey();
-                                if (testPromise && typeof testPromise.then === 'function') {
-                                        // It's async, try to connect silently
-                                    handleNostrConnect().then(() => {
-                                        // Connection successful - handleNostrConnect already loads messages
-                                        const profileBtn = document.getElementById('profile-btn');
-                                        if (profileBtn && localUserPubkey) {
-                                            profileBtn.classList.remove('d-none');
-                                        }
-                                        }).catch(() => {
-                                            // Silent failure - user can click Connect button if needed
-                                    });
-                                } else {
-                                    // Synchronous, might work
-                                    handleNostrConnect().then(() => {
-                                        const profileBtn = document.getElementById('profile-btn');
-                                        if (profileBtn && localUserPubkey) {
-                                            profileBtn.classList.remove('d-none');
-                                        }
-                                        }).catch(() => {
-                                            // Silent failure
-                                    });
-                                }
-                            } catch (testError) {
-                                    // Extension exists but might need user interaction - silent
+                        // Also check for alternative extension names
+                        const nostrConnect = typeof window.nostrConnect !== 'undefined';
+                        const nostrProvider = typeof window.nostrProvider !== 'undefined';
+                        
+                        if (attempts === 1) {
+                            console.log('🔍 Checking for NOSTR extension...');
+                            console.log('   window.nostr:', nostrAvailable ? 'available' : 'not available');
+                            console.log('   window.nostrConnect:', nostrConnect ? 'available' : 'not available');
+                            console.log('   window.nostrProvider:', nostrProvider ? 'available' : 'not available');
+                            if (nostrAvailable) {
+                                console.log('   Methods:', Object.keys(window.nostr).join(', '));
                             }
-                        } else if (attempts < maxAttempts) {
-                                // Extension not ready yet, retry silently
-                            setTimeout(checkExtension, checkInterval);
                         }
-                            // If max attempts reached, just stop silently - user can click Connect button
+                        
+                        if (nostrGetPublicKey) {
+                            // Extension available - try to connect automatically
+                            console.log(`✅ NOSTR extension detected after ${attempts} attempt(s), connecting...`);
+                            setTimeout(() => {
+                                handleNostrConnect().catch((error) => {
+                                    console.log('ℹ️ Auto-login failed, user needs to click Connect button:', error.message);
+                                });
+                            }, 200);
+                        } else if (attempts < maxAttempts) {
+                            // Extension not ready yet, retry
+                            if (attempts % 4 === 0) { // Log every 2 seconds
+                                console.log(`🔄 Still waiting for NOSTR extension... (${attempts}/${maxAttempts})`);
+                            }
+                            setTimeout(tryAutoConnect, checkInterval);
+                        } else {
+                            console.log(`ℹ️ NOSTR extension not available after ${maxAttempts} attempts (${maxAttempts * checkInterval / 1000}s) - user needs to click Connect button`);
+                            console.log('💡 Tip: Make sure your NOSTR extension (Alby, nos2x, Flamingo, Nostr Connect, etc.) is installed and enabled.');
+                            console.log('💡 Tip: You can also use /scan with your MULTIPASS SSSS QR code and PASS "8888" to auto-inject your private key.');
+                        }
                     };
                     
                     // Start checking after initial delay to let extensions initialize
-                    setTimeout(checkExtension, initialDelay);
+                    setTimeout(tryAutoConnect, initialDelay);
                 }
-                
-                    // Try direct extension access first (silent mode - no logs unless successful)
-                tryDirectExtensionConnection();
             }
             
             if (shouldAutoLoad) {

@@ -1248,10 +1248,10 @@ async def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
             elif tag_type == "thumbnail_ipfs":
                 # Static thumbnail CID (fallback if no gifanim)
                 if not metadata["thumbnail_url"]:  # Only if gifanim not found
-                    cid = tag_value
-                    if not cid.startswith("/ipfs/"):
-                        cid = f"/ipfs/{cid}"
-                    metadata["thumbnail_url"] = f"{ipfs_gateway}{cid}"
+                cid = tag_value
+                if not cid.startswith("/ipfs/"):
+                    cid = f"/ipfs/{cid}"
+                metadata["thumbnail_url"] = f"{ipfs_gateway}{cid}"
             
             elif tag_type == "image" and ("/ipfs/" in tag_value or "ipfs://" in tag_value):
                 # Image/thumbnail from imeta or direct tag
@@ -1269,26 +1269,26 @@ async def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
     
     # Parse imeta tags for gifanim first, then thumbnail (if not found yet)
     if not metadata["thumbnail_url"]:
-        for tag in tags:
-            if isinstance(tag, list) and tag[0] == "imeta":
-                for i in range(1, len(tag)):
-                    prop = tag[i]
+    for tag in tags:
+        if isinstance(tag, list) and tag[0] == "imeta":
+            for i in range(1, len(tag)):
+                prop = tag[i]
                     # Check for gifanim first (preferred)
                     if prop.startswith("gifanim "):
                         gifanim_value = prop[8:].strip()
                         if "/ipfs/" in gifanim_value or "ipfs://" in gifanim_value:
                             ipfs_path = gifanim_value.replace("ipfs://", "/ipfs/")
-                            if ipfs_path.startswith("/ipfs/"):
+                        if ipfs_path.startswith("/ipfs/"):
                                 metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
                                 logging.info(f"🎬 Using animated GIF from imeta gifanim for Open Graph")
                                 break
                     # Fallback to image if no gifanim
                     elif prop.startswith("image "):
-                        image_value = prop[6:].strip()
-                        if "/ipfs/" in image_value or "ipfs://" in image_value:
-                            ipfs_path = image_value.replace("ipfs://", "/ipfs/")
-                            if ipfs_path.startswith("/ipfs/"):
-                                metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
+                    image_value = prop[6:].strip()
+                    if "/ipfs/" in image_value or "ipfs://" in image_value:
+                        ipfs_path = image_value.replace("ipfs://", "/ipfs/")
+                        if ipfs_path.startswith("/ipfs/"):
+                            metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
                                 break
                 if metadata["thumbnail_url"]:
                     break
@@ -2176,6 +2176,9 @@ async def get_wotx2(request: Request, npub: Optional[str] = None, permit_id: Opt
         # Detect if this is the primary station (ORACLE des ORACLES)
         # Same logic as ORACLE.refresh.sh - check if IPFSNODEID matches first STRAP in A_boostrap_nodes.txt
         is_primary_station = False
+        ipfs_node_id = get_env_from_mysh("IPFSNODEID", "")
+        if not ipfs_node_id:
+            # Fallback to environment variable
         ipfs_node_id = os.getenv("IPFSNODEID", "")
         if ipfs_node_id:
             strapfile = None
@@ -2210,7 +2213,7 @@ async def get_wotx2(request: Request, npub: Optional[str] = None, permit_id: Opt
             "selected_permit_id": permit_id or "PERMIT_DE_NAGER",
             "npub": npub,
             "uSPOT": os.getenv("uSPOT", "http://127.0.0.1:54321"),
-            "nostr_relay": os.getenv("NOSTR_RELAYS", "ws://127.0.0.1:7777").split()[0] if os.getenv("NOSTR_RELAYS") else "ws://127.0.0.1:7777",
+            "nostr_relay": os.getenv("myRELAY", "ws://127.0.0.1:7777").split()[0] if os.getenv("NOSTR_RELAYS") else "ws://127.0.0.1:7777",
             "IPFSNODEID": ipfs_node_id,
             "is_primary_station": is_primary_station
         })
@@ -2398,7 +2401,10 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
         logging.info(f"   Node ID: {node_id}")
         
         # Enregistrer la notification d'abonnement
-        subscription_dir = os.path.expanduser(f"~/.zen/tmp/{os.environ.get('IPFSNODEID', 'unknown')}")
+        ipfs_node_id = get_env_from_mysh("IPFSNODEID", "unknown")
+        if not ipfs_node_id or ipfs_node_id == "unknown":
+            ipfs_node_id = os.getenv("IPFSNODEID", "unknown")
+        subscription_dir = os.path.expanduser(f"~/.zen/tmp/{ipfs_node_id}")
         os.makedirs(subscription_dir, exist_ok=True)
         
         subscription_log = os.path.join(subscription_dir, "swarm_subscriptions_received.json")
@@ -5200,18 +5206,43 @@ async def get_webhook(request: Request):
             data = await request.json()  # Récupérer le corps de la requête en JSON
             referer = request.headers.get("referer")  # Récupérer l'en-tête Referer
 
-            # Get CAPTAINEMAIL from environment variable
-            captain_email = os.getenv("CAPTAINEMAIL", "")
-            if not captain_email:
-                logging.warning("⚠️ CAPTAINEMAIL environment variable not set, skipping NOSTR notification")
-                return {"received": data, "referer": referer, "note": "CAPTAINEMAIL not configured"}
+            # Get current player email from ~/.zen/game/players/.current (symbolic link)
+            current_player_link = Path.home() / ".zen" / "game" / "players" / ".current"
+            captain_email = None
             
-            # Find keyfile for captain email
+            # Try to read the symbolic link first
+            if current_player_link.exists() and current_player_link.is_symlink():
+                try:
+                    # Read the symbolic link to get the target directory path
+                    target_path = current_player_link.readlink()
+                    # Extract email from directory name (the symlink points to a directory named with the email)
+                    captain_email = target_path.name
+                    if captain_email:
+                        logging.debug(f"📧 Using current player email from .current symlink: {captain_email}")
+                except Exception as e:
+                    logging.warning(f"⚠️ Could not read .current symlink: {e}")
+            
+            # Fallback to CAPTAINEMAIL from my.sh if .current is not available
+            if not captain_email:
+                captain_email = get_env_from_mysh("CAPTAINEMAIL", "")
+                if captain_email:
+                    logging.debug(f"📧 Using CAPTAINEMAIL from my.sh: {captain_email}")
+                else:
+                    # Last fallback to environment variable
+                    captain_email = os.getenv("CAPTAINEMAIL", "")
+                    if captain_email:
+                        logging.debug(f"📧 Using CAPTAINEMAIL from environment variable: {captain_email}")
+            
+            if not captain_email:
+                logging.warning("⚠️ No current player email found (.current symlink or CAPTAINEMAIL env var), skipping NOSTR notification")
+                return {"received": data, "referer": referer, "note": "Current player email not configured"}
+            
+            # Find keyfile for current player email: ~/.zen/game/nostr/{email}/.secret.nostr
             captain_keyfile = Path.home() / ".zen" / "game" / "nostr" / captain_email / ".secret.nostr"
             
             if not captain_keyfile.exists():
-                logging.warning(f"⚠️ Keyfile not found for captain: {captain_keyfile}")
-                return {"received": data, "referer": referer, "note": "Captain keyfile not found"}
+                logging.warning(f"⚠️ Keyfile not found for current player ({captain_email}): {captain_keyfile}")
+                return {"received": data, "referer": referer, "note": f"Keyfile not found for {captain_email}"}
             
             # Format analytics data as JSON string for NOSTR message
             analytics_json = json.dumps(data, indent=2, ensure_ascii=False)
@@ -5262,7 +5293,7 @@ async def get_webhook(request: Request):
                 tags.append(["url", data.get("current_url")])
             
             # Get NOSTR relay from environment or use default
-            nostr_relay = os.getenv("NOSTR_RELAYS", "ws://127.0.0.1:7777").split()[0]
+            nostr_relay = os.getenv("myRELAY", "ws://127.0.0.1:7777").split()[0]
             
             # Call nostr_send_note.py to send the message
             nostr_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/nostr_send_note.py")
@@ -5300,7 +5331,7 @@ async def get_webhook(request: Request):
                     
             except subprocess.TimeoutExpired:
                 logging.warning("⚠️ NOSTR send timeout")
-            except Exception as e:
+        except Exception as e:
                 logging.warning(f"⚠️ NOSTR send error: {e}")
 
             return {"received": data, "referer": referer, "sent_via": "nostr"}
@@ -8015,18 +8046,26 @@ def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) ->
         logging.error(f"Erreur lors de la génération de la page HTML: {e}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de la génération HTML: {str(e)}")
 
-def get_myipfs_gateway() -> str:
-    """Récupérer l'adresse de la gateway IPFS en utilisant my.sh"""
+def get_env_from_mysh(var_name: str, default: str = "") -> str:
+    """Récupérer une variable d'environnement depuis my.sh de façon fiable
+    
+    Args:
+        var_name: Nom de la variable à récupérer (ex: "CAPTAINEMAIL", "UPLANETNAME_G1", "IPFSNODEID")
+        default: Valeur par défaut si la variable n'est pas trouvée
+    
+    Returns:
+        La valeur de la variable ou la valeur par défaut
+    """
     try:
-        # Exécuter le script my.sh pour obtenir la variable myIPFS
+        # Exécuter le script my.sh pour obtenir la variable
         my_sh_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/my.sh")
         
         if not os.path.exists(my_sh_path):
-            logging.warning(f"Script my.sh non trouvé: {my_sh_path}")
-            return "http://localhost:8080"  # Fallback
+            logging.debug(f"Script my.sh non trouvé: {my_sh_path}, using default for {var_name}")
+            return default
         
-        # Utiliser bash explicitement et sourcer my.sh pour récupérer myIPFS
-        cmd = f"bash -c 'source {my_sh_path} && echo $myIPFS'"
+        # Utiliser bash explicitement et sourcer my.sh pour récupérer la variable
+        cmd = f"bash -c 'source {my_sh_path} && echo ${var_name}'"
         
         result = subprocess.run(
             cmd,
@@ -8037,19 +8076,23 @@ def get_myipfs_gateway() -> str:
         )
         
         if result.returncode == 0 and result.stdout.strip():
-            myipfs = result.stdout.strip()
-            logging.info(f"Gateway IPFS obtenue depuis my.sh: {myipfs}")
-            return myipfs
+            value = result.stdout.strip()
+            logging.debug(f"Variable {var_name} obtenue depuis my.sh: {value}")
+            return value
         else:
-            logging.warning(f"Erreur lors de l'exécution de my.sh: {result.stderr}")
-            return "http://localhost:8080"  # Fallback
+            logging.debug(f"Variable {var_name} non trouvée dans my.sh, using default: {default}")
+            return default
             
     except subprocess.TimeoutExpired:
-        logging.error("Timeout lors de l'exécution de my.sh")
-        return "http://localhost:8080"  # Fallback
+        logging.warning(f"Timeout lors de l'exécution de my.sh pour {var_name}")
+        return default
     except Exception as e:
-        logging.error(f"Erreur lors de la récupération de myIPFS: {e}")
-        return "http://localhost:8080"  # Fallback
+        logging.warning(f"Erreur lors de la récupération de {var_name} depuis my.sh: {e}")
+        return default
+
+def get_myipfs_gateway() -> str:
+    """Récupérer l'adresse de la gateway IPFS en utilisant my.sh"""
+    return get_env_from_mysh("myIPFS", "http://localhost:8080")
 
 async def get_n1_follows(pubkey_hex: str) -> List[str]:
     """Récupérer la liste N1 (personnes suivies) d'une clé publique"""
@@ -8410,8 +8453,11 @@ async def create_permit_definition(request: PermitDefinitionCreateRequest):
                 detail=f"Permit definition {permit_req.id} already exists. Please select it from the permit list instead of creating a new one."
             )
         
+        uplanet_g1_key = get_env_from_mysh("UPLANETNAME_G1", "")
+        if not uplanet_g1_key:
+            # Fallback to environment variable
         uplanet_g1_key = os.getenv("UPLANETNAME_G1", "")
-        issuer_did = f"did:nostr:{uplanet_g1_key[:16]}"
+        issuer_did = f"did:nostr:{uplanet_g1_key[:16]}" if uplanet_g1_key else "did:nostr:unknown"
         
         # Calculate min_attestations based on number of competencies if not provided
         min_attestations = permit_req.min_attestations
