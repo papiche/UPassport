@@ -1229,41 +1229,61 @@ async def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
                     metadata["video_url"] = f"{ipfs_gateway}{ipfs_path}"
                     break
     
-    # Extract thumbnail from tags (priority order)
+    # Extract thumbnail from tags - PRIORITIZE GIFANIM (animated GIF) for Twitter/Open Graph
+    # Priority order: gifanim_ipfs > thumbnail_ipfs > image > r > imeta
     for tag in tags:
         if isinstance(tag, list) and len(tag) >= 2:
             tag_type = tag[0]
             tag_value = tag[1]
             
-            if tag_type == "thumbnail_ipfs":
-                # Thumbnail CID
+            if tag_type == "gifanim_ipfs":
+                # Animated GIF CID (preferred for Twitter/Open Graph)
                 cid = tag_value
                 if not cid.startswith("/ipfs/"):
                     cid = f"/ipfs/{cid}"
                 metadata["thumbnail_url"] = f"{ipfs_gateway}{cid}"
+                logging.info(f"🎬 Using animated GIF from gifanim_ipfs tag for Open Graph")
                 break
+            
+            elif tag_type == "thumbnail_ipfs":
+                # Static thumbnail CID (fallback if no gifanim)
+                if not metadata["thumbnail_url"]:  # Only if gifanim not found
+                    cid = tag_value
+                    if not cid.startswith("/ipfs/"):
+                        cid = f"/ipfs/{cid}"
+                    metadata["thumbnail_url"] = f"{ipfs_gateway}{cid}"
             
             elif tag_type == "image" and ("/ipfs/" in tag_value or "ipfs://" in tag_value):
                 # Image/thumbnail from imeta or direct tag
-                ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
-                if ipfs_path.startswith("/ipfs/"):
-                    metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
-                    break
+                if not metadata["thumbnail_url"]:  # Only if gifanim not found
+                    ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
+                    if ipfs_path.startswith("/ipfs/"):
+                        metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
             
             elif tag_type == "r" and len(tag) >= 3 and tag[2] == "Thumbnail":
                 # Reference tag with Thumbnail marker
-                ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
-                if ipfs_path.startswith("/ipfs/"):
-                    metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
-                    break
+                if not metadata["thumbnail_url"]:  # Only if gifanim not found
+                    ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
+                    if ipfs_path.startswith("/ipfs/"):
+                        metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
     
-    # Parse imeta tags for thumbnail (if not found yet)
+    # Parse imeta tags for gifanim first, then thumbnail (if not found yet)
     if not metadata["thumbnail_url"]:
         for tag in tags:
             if isinstance(tag, list) and tag[0] == "imeta":
                 for i in range(1, len(tag)):
                     prop = tag[i]
-                    if prop.startswith("image "):
+                    # Check for gifanim first (preferred)
+                    if prop.startswith("gifanim "):
+                        gifanim_value = prop[8:].strip()
+                        if "/ipfs/" in gifanim_value or "ipfs://" in gifanim_value:
+                            ipfs_path = gifanim_value.replace("ipfs://", "/ipfs/")
+                            if ipfs_path.startswith("/ipfs/"):
+                                metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
+                                logging.info(f"🎬 Using animated GIF from imeta gifanim for Open Graph")
+                                break
+                    # Fallback to image if no gifanim
+                    elif prop.startswith("image "):
                         image_value = prop[6:].strip()
                         if "/ipfs/" in image_value or "ipfs://" in image_value:
                             ipfs_path = image_value.replace("ipfs://", "/ipfs/")
@@ -1310,27 +1330,34 @@ async def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
                             logging.info(f"📝 Description extracted from info.json")
                         
                         # Only extract thumbnail from info.json if still missing (shouldn't happen often)
+                        # PRIORITIZE animated GIF (gifanim) for Twitter/Open Graph
                         if not metadata["thumbnail_url"] and info_data.get("media"):
                             media = info_data["media"]
                             is_v2 = protocol_version.startswith("2.")
                             
-                            # v2.0 format: media.thumbnails.static or media.thumbnails.animated
+                            # v2.0 format: Prefer animated GIF, fallback to static
                             if is_v2 and media.get("thumbnails"):
                                 thumbnails = media["thumbnails"]
-                                # Prefer static thumbnail for Open Graph (animated GIF can be too large)
-                                thumbnail_cid = thumbnails.get("static") or thumbnails.get("animated")
+                                # Prefer animated GIF for Twitter/Open Graph (more engaging)
+                                thumbnail_cid = thumbnails.get("animated") or thumbnails.get("static")
                                 if thumbnail_cid:
                                     clean_cid = thumbnail_cid.replace("/ipfs/", "").replace("ipfs://", "")
                                     metadata["thumbnail_url"] = f"{ipfs_gateway}/ipfs/{clean_cid}"
-                                    logging.info(f"🖼️  Thumbnail from info.json (v2.0): {clean_cid[:16]}...")
+                                    if thumbnails.get("animated"):
+                                        logging.info(f"🎬 Animated GIF from info.json (v2.0): {clean_cid[:16]}...")
+                                    else:
+                                        logging.info(f"🖼️  Static thumbnail from info.json (v2.0): {clean_cid[:16]}...")
                             
-                            # v1.0 format fallback: media.thumbnail_ipfs or media.gifanim_ipfs
+                            # v1.0 format fallback: Prefer gifanim_ipfs, fallback to thumbnail_ipfs
                             elif not is_v2:
-                                thumbnail_cid = media.get("thumbnail_ipfs") or media.get("gifanim_ipfs")
+                                thumbnail_cid = media.get("gifanim_ipfs") or media.get("thumbnail_ipfs")
                                 if thumbnail_cid:
                                     clean_cid = thumbnail_cid.replace("/ipfs/", "").replace("ipfs://", "")
                                     metadata["thumbnail_url"] = f"{ipfs_gateway}/ipfs/{clean_cid}"
-                                    logging.info(f"🖼️  Thumbnail from info.json (v1.0): {clean_cid[:16]}...")
+                                    if media.get("gifanim_ipfs"):
+                                        logging.info(f"🎬 Animated GIF from info.json (v1.0): {clean_cid[:16]}...")
+                                    else:
+                                        logging.info(f"🖼️  Static thumbnail from info.json (v1.0): {clean_cid[:16]}...")
             except Exception as e:
                 logging.warning(f"⚠️ Could not fetch info.json from IPFS: {e}")
                 # Continue without info.json - we already have data from tags
