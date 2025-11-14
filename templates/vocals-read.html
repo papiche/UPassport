@@ -1797,7 +1797,14 @@
                             </div>
                         </div>
                         <div class="waveform-container" id="waveform-${msg.id}" data-waveform="${msg.metadata.waveform}"></div>
-                    ` : ''}
+                    ` : `
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <button class="btn btn-outline-primary btn-sm" id="generate-waveform-btn-${msg.id}" onclick="generateWaveformFromAudio('${msg.id}', this)" title="Generate waveform visualization from audio">
+                                📊 Generate Waveform
+                            </button>
+                        </div>
+                        <div class="waveform-container d-none" id="waveform-${msg.id}"></div>
+                    `}
                 </div>
             `;
         }
@@ -1878,7 +1885,14 @@
                                 </div>
                             </div>
                             <div class="waveform-container" id="waveform-${msg.id}" data-waveform="${msg.metadata.waveform}"></div>
-                        ` : ''}
+                        ` : `
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <button class="btn btn-outline-primary btn-sm" id="generate-waveform-btn-${msg.id}" onclick="generateWaveformFromAudio('${msg.id}', this)" title="Generate waveform visualization from audio">
+                                    📊 Generate Waveform
+                                </button>
+                            </div>
+                            <div class="waveform-container d-none" id="waveform-${msg.id}"></div>
+                        `}
                     </div>
                 `;
             }).join('');
@@ -2144,6 +2158,140 @@
             }
         }
         
+        // Generate waveform from audio (lazy loading - on demand)
+        async function generateWaveformFromAudio(messageId, buttonElement) {
+            const message = voiceMessagesCache.find(msg => msg.id === messageId);
+            if (!message) {
+                console.error('Message not found:', messageId);
+                return;
+            }
+            
+            const button = buttonElement || document.getElementById(`generate-waveform-btn-${messageId}`);
+            const waveformContainer = document.getElementById(`waveform-${messageId}`);
+            const audioPlayer = document.getElementById(`audio-player-${messageId}`);
+            
+            if (!audioPlayer || !waveformContainer) {
+                console.error('Audio player or waveform container not found for message:', messageId);
+                return;
+            }
+            
+            try {
+                // Update button state
+                button.disabled = true;
+                button.textContent = '⏳ Generating...';
+                
+                // Get audio source URL
+                const audioUrl = audioPlayer.src || message.metadata?.url || message.content;
+                if (!audioUrl) {
+                    throw new Error('No audio URL found');
+                }
+                
+                console.log(`📊 Generating waveform for message ${messageId.substring(0, 8)}... from audio:`, audioUrl);
+                
+                // Load audio file
+                const response = await fetch(audioUrl);
+                if (!response.ok) {
+                    throw new Error(`Failed to load audio: ${response.statusText}`);
+                }
+                
+                const arrayBuffer = await response.arrayBuffer();
+                
+                // Create AudioContext
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                
+                // Get audio data
+                const channelData = audioBuffer.getChannelData(0); // Use first channel
+                const sampleRate = audioBuffer.sampleRate;
+                const duration = audioBuffer.duration;
+                const totalSamples = channelData.length;
+                
+                // Generate waveform points (max 100 points as per NIP-A0)
+                const maxPoints = 100;
+                const pointsPerSample = Math.max(1, Math.floor(totalSamples / maxPoints));
+                const waveformPoints = [];
+                
+                // Sample the audio data
+                for (let i = 0; i < totalSamples; i += pointsPerSample) {
+                    // Get a chunk of samples
+                    const chunk = channelData.slice(i, Math.min(i + pointsPerSample, totalSamples));
+                    
+                    // Calculate RMS (Root Mean Square) for this chunk
+                    let sumSquares = 0;
+                    for (let j = 0; j < chunk.length; j++) {
+                        sumSquares += chunk[j] * chunk[j];
+                    }
+                    const rms = Math.sqrt(sumSquares / chunk.length);
+                    
+                    // Convert to 0-100 scale (as per NIP-A0 format)
+                    const normalizedValue = Math.round(Math.abs(rms) * 100);
+                    waveformPoints.push(normalizedValue);
+                    
+                    // Stop if we have enough points
+                    if (waveformPoints.length >= maxPoints) {
+                        break;
+                    }
+                }
+                
+                // Ensure we have at least some points
+                if (waveformPoints.length === 0) {
+                    throw new Error('Failed to generate waveform points');
+                }
+                
+                // Convert to space-separated string (NIP-A0 format)
+                const waveformString = waveformPoints.join(' ');
+                
+                console.log(`✅ Generated waveform: ${waveformPoints.length} points for message ${messageId.substring(0, 8)}...`);
+                
+                // Update message metadata in cache
+                if (!message.metadata) {
+                    message.metadata = {};
+                }
+                message.metadata.waveform = waveformString;
+                
+                // Update waveform container
+                waveformContainer.setAttribute('data-waveform', waveformString);
+                waveformContainer.classList.remove('d-none');
+                
+                // Hide button and show toggle switch instead
+                button.style.display = 'none';
+                
+                // Create toggle switch (similar to existing waveform messages)
+                const buttonContainer = button.parentElement;
+                buttonContainer.innerHTML = `
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" id="waveform-toggle-${messageId}" checked onchange="toggleWaveformForMessage('${messageId}', this.checked)">
+                        <label class="form-check-label small text-white" for="waveform-toggle-${messageId}" title="Toggle waveform visualization">
+                            📊 Waveform
+                        </label>
+                    </div>
+                `;
+                
+                // Render the waveform
+                await renderWaveformForContainer(waveformContainer, `waveform-${messageId}`);
+                
+                // Clean up AudioContext
+                audioContext.close();
+                
+            } catch (error) {
+                console.error('❌ Error generating waveform:', error);
+                button.disabled = false;
+                button.textContent = '📊 Generate Waveform';
+                button.classList.add('btn-danger');
+                button.classList.remove('btn-outline-primary');
+                button.textContent = '❌ Error - Retry';
+                
+                // Show error message
+                if (waveformContainer) {
+                    waveformContainer.classList.remove('d-none');
+                    waveformContainer.innerHTML = `<span class="text-danger small">Error generating waveform: ${error.message}</span>`;
+                }
+            }
+        }
+        
+        // Make generateWaveformFromAudio available globally
+        window.generateWaveformFromAudio = generateWaveformFromAudio;
+        
         // Decrypt and play encrypted message
         async function decryptAndPlayMessage(messageId, buttonElement) {
             const message = voiceMessagesCache.find(msg => msg.id === messageId);
@@ -2309,10 +2457,58 @@
                         const waveformContainer = document.getElementById(`waveform-${messageId}`);
                         if (waveformContainer) {
                             waveformContainer.setAttribute('data-waveform', decryptedData.waveform);
+                            waveformContainer.classList.remove('d-none');
+                            
+                            // Hide generate button if it exists and show toggle switch
+                            const generateBtn = document.getElementById(`generate-waveform-btn-${messageId}`);
+                            if (generateBtn) {
+                                generateBtn.style.display = 'none';
+                                const buttonContainer = generateBtn.parentElement;
+                                buttonContainer.innerHTML = `
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" id="waveform-toggle-${messageId}" checked onchange="toggleWaveformForMessage('${messageId}', this.checked)">
+                                        <label class="form-check-label small text-white" for="waveform-toggle-${messageId}" title="Toggle waveform visualization">
+                                            📊 Waveform
+                                        </label>
+                                    </div>
+                                `;
+                            }
+                            
                             // Re-render waveform
                             setTimeout(() => {
                                 renderWaveforms();
                             }, 100);
+                        }
+                    } else {
+                        // No waveform in decrypted data - show generate button if audio is available
+                        const waveformContainer = document.getElementById(`waveform-${messageId}`);
+                        const generateBtn = document.getElementById(`generate-waveform-btn-${messageId}`);
+                        if (!waveformContainer || !generateBtn) {
+                            // Create waveform section if it doesn't exist
+                            const audioContainer = document.getElementById(`audio-container-${messageId}`);
+                            if (audioContainer && audioContainer.parentElement) {
+                                const waveformSection = document.createElement('div');
+                                waveformSection.className = 'd-flex align-items-center gap-2 mb-2';
+                                waveformSection.innerHTML = `
+                                    <button class="btn btn-outline-primary btn-sm" id="generate-waveform-btn-${messageId}" onclick="generateWaveformFromAudio('${messageId}', this)" title="Generate waveform visualization from audio">
+                                        📊 Generate Waveform
+                                    </button>
+                                `;
+                                const waveformDiv = document.createElement('div');
+                                waveformDiv.className = 'waveform-container d-none';
+                                waveformDiv.id = `waveform-${messageId}`;
+                                
+                                audioContainer.parentElement.insertBefore(waveformSection, audioContainer.nextSibling);
+                                audioContainer.parentElement.insertBefore(waveformDiv, waveformSection.nextSibling);
+                            }
+                        } else {
+                            // Show generate button if hidden
+                            if (generateBtn) {
+                                generateBtn.style.display = '';
+                            }
+                            if (waveformContainer) {
+                                waveformContainer.classList.add('d-none');
+                            }
                         }
                     }
                 }
