@@ -38,24 +38,15 @@
             overflow-x: hidden;
         }
         
+        /* Header with Bootstrap navbar */
         .header {
             background: #212121;
             backdrop-filter: blur(10px);
             border-bottom: 1px solid #3f3f3f;
-            padding: 0.75rem 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
-            position: sticky;
-            top: 0;
-            z-index: 100;
         }
         
-        .header h1 {
-            color: #ffffff;
-            margin: 0;
+        .navbar-brand {
+            color: #ffffff !important;
             font-size: 1.3em;
             font-weight: 400;
             display: flex;
@@ -63,10 +54,223 @@
             gap: 8px;
         }
         
+        .navbar-toggler {
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        .navbar-toggler-icon {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.85%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+        }
+        
         .main-container {
-            max-width: 1200px;
-            margin: 0 auto;
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Sidebar for filters (collapsible) */
+        .sidebar {
+            background: #181818;
+            border-right: 1px solid #3f3f3f;
+            min-height: calc(100vh - 56px);
+            padding: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar.collapsed {
+            width: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        /* Content area */
+        .content-area {
+            padding: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        /* View mode toggle buttons */
+        .view-mode-toggle {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        /* List view - compact cards */
+        .list-view .voice-message-card {
+            padding: 0.5rem;
+            margin-bottom: 0.25rem;
+            border-radius: 6px;
+        }
+        
+        .list-view .voice-message-header {
+            margin-bottom: 0.25rem;
+            flex-wrap: nowrap;
+        }
+        
+        .list-view .voice-message-info {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+        }
+        
+        .list-view .voice-message-title {
+            font-size: 0.9em;
+            margin-bottom: 0.125rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .list-view .voice-message-title .badge {
+            font-size: 0.65em;
+            padding: 0.125rem 0.375rem;
+            margin-left: 0.25rem;
+        }
+        
+        .list-view .voice-message-meta {
+            font-size: 0.7em;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .list-view .voice-message-meta span {
+            white-space: nowrap;
+        }
+        
+        .list-view .voice-message-actions {
+            gap: 0.25rem;
+            flex-shrink: 0;
+        }
+        
+        .list-view .voice-message-actions .btn {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+        }
+        
+        .list-view .voice-message-actions .btn i {
+            font-size: 0.875rem;
+        }
+        
+        .list-view .voice-message-actions .btn .d-none {
+            display: none !important;
+        }
+        
+        .list-view .audio-player-container {
+            margin: 0.25rem 0;
+            padding: 0.25rem;
+        }
+        
+        .list-view .audio-player {
+            height: 40px;
+        }
+        
+        .list-view .waveform-container {
+            height: 30px;
+            margin: 0.25rem 0;
+        }
+        
+        .list-view .voice-message-card p {
+            font-size: 0.75em;
+            margin-bottom: 0.25rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .list-view .badge {
+            font-size: 0.7em;
+            padding: 0.125rem 0.375rem;
+        }
+        
+        .list-view .form-check {
+            margin-bottom: 0;
+        }
+        
+        .list-view .form-check-label {
+            font-size: 0.7em;
+        }
+        
+        .list-view .form-switch .form-check-input {
+            width: 1.5em;
+            height: 0.75em;
+        }
+        
+        .list-view .btn-sm {
+            padding: 0.125rem 0.375rem;
+            font-size: 0.7rem;
+        }
+        
+        /* Detail view - full cards */
+        .detail-view .voice-message-card {
             padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        /* Nav pills dark theme */
+        .nav-pills .nav-link {
+            color: #94a3b8;
+            border-radius: 0.375rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .nav-pills .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+        
+        .nav-pills .nav-link.active {
+            background-color: #065fd4;
+            color: #ffffff;
+        }
+        
+        /* Mobile optimizations */
+        @media (max-width: 991.98px) {
+            .sidebar {
+                position: fixed;
+                top: 56px;
+                left: 0;
+                width: 280px;
+                height: calc(100vh - 56px);
+                z-index: 1040;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                overflow-y: auto;
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                top: 56px;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 1039;
+            }
+            
+            .sidebar-overlay.show {
+                display: block;
+            }
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 575.98px) {
+            .voice-message-actions {
+                flex-direction: column;
+                width: 100%;
+            }
+            
+            .voice-message-actions .btn {
+                width: 100%;
+                margin-bottom: 0.25rem;
+            }
         }
         
         .voice-message-card {
@@ -321,204 +525,255 @@
     </style>
 </head>
 <body class="bg-dark text-white">
-    <!-- Header -->
-    <header class="header bg-dark border-bottom border-secondary sticky-top">
+    <!-- Header with Bootstrap Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-secondary sticky-top">
         <div class="container-fluid">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 py-2">
-                <div class="d-flex align-items-center gap-3 flex-wrap">
-                    <h1 class="mb-0">🎧 Voice Messages Reader</h1>
-                    <a href="/vocals?html=1" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2">
-                        <span>🎤 Record Messages</span>
-                    </a>
+            <button class="navbar-toggler d-lg-none" type="button" onclick="toggleSidebar()" aria-label="Toggle filters">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-headphones"></i> Voice Messages
+            </a>
+            
+            <div class="d-flex align-items-center gap-2">
+                <!-- View Mode Toggle (List/Detail) -->
+                <div class="btn-group btn-group-sm d-none d-md-flex" role="group" aria-label="View mode">
+                    <input type="radio" class="btn-check" name="view-mode" id="view-list" autocomplete="off" checked>
+                    <label class="btn btn-outline-secondary" for="view-list" onclick="setViewMode('list')" title="List view">
+                        <i class="bi bi-list-ul"></i>
+                    </label>
+                    <input type="radio" class="btn-check" name="view-mode" id="view-detail" autocomplete="off">
+                    <label class="btn btn-outline-secondary" for="view-detail" onclick="setViewMode('detail')" title="Detail view">
+                        <i class="bi bi-card-text"></i>
+                    </label>
                 </div>
                 
                 <!-- NOSTR Connection Status -->
-                <div class="d-flex align-items-center gap-2 flex-wrap" id="nostr-header">
+                <div class="d-flex align-items-center gap-2" id="nostr-header">
                     <button id="profile-btn" class="btn btn-success btn-sm d-none" onclick="viewProfile()" title="View my profile">
-                        <i class="bi bi-person-circle"></i> Profile
+                        <i class="bi bi-person-circle"></i> <span class="d-none d-md-inline">Profile</span>
                     </button>
                     <button id="connect-btn" class="btn btn-primary btn-sm" onclick="handleNostrConnect()">
-                        🔌 Connect
+                        <i class="bi bi-plug"></i> <span class="d-none d-md-inline">Connect</span>
                     </button>
-                    <span id="connection-status" class="text-secondary small d-none">Connected</span>
                 </div>
-            </div>
-        </div>
-    </header>
-    
-    <!-- Main Container -->
-    <main class="main-container">
-        <!-- Filters and Sort Section - 100% Bootstrap -->
-        <div class="card bg-dark border-secondary mb-3">
-            <div class="card-header bg-dark border-secondary">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <h5 class="mb-0">🔍 Filters & Sort</h5>
-                    <span id="message-count" class="badge bg-secondary message-stats">0 messages</span>
-                </div>
-            </div>
-            <div class="card-body">
-                <!-- View Mode Tabs -->
-                <ul class="nav nav-tabs nav-tabs-dark mb-3" id="viewModeTabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="chronological-tab" data-bs-toggle="tab" data-bs-target="#chronological" type="button" role="tab">
-                            📅 Chronological
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="by-author-tab" data-bs-toggle="tab" data-bs-target="#by-author" type="button" role="tab">
-                            👤 By Author
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="threads-tab" data-bs-toggle="tab" data-bs-target="#threads" type="button" role="tab">
-                            💬 Threads
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="personal-tab" data-bs-toggle="tab" data-bs-target="#personal" type="button" role="tab">
-                            🔒 Personal
-                        </button>
-                    </li>
-                </ul>
                 
-                <!-- Tab Content -->
-                <div class="tab-content" id="viewModeTabContent">
-                    <!-- Chronological View -->
-                    <div class="tab-pane fade show active" id="chronological" role="tabpanel">
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-2">
-                                <label for="filter-type" class="form-label small">Type:</label>
-                                <select id="filter-type" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                    <option value="all">All Messages</option>
-                                    <option value="public">Public Only</option>
-                                    <option value="encrypted">Encrypted Only</option>
-                                    <option value="sent">Sent by Me</option>
-                                    <option value="received">Received by Me</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label for="filter-since" class="form-label small">Since:</label>
-                                <select id="filter-since" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                    <option value="1h">Last Hour</option>
-                                    <option value="24h" selected>Last 24 Hours</option>
-                                    <option value="7d">Last 7 Days</option>
-                                    <option value="30d">Last 30 Days</option>
-                                    <option value="all">All Time</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label for="sort-order" class="form-label small">Sort Order:</label>
-                                <select id="sort-order" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                    <option value="newest">Newest First</option>
-                                    <option value="oldest">Oldest First</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4 d-flex align-items-end">
+                <!-- Record Button -->
+                <a href="/vocals?html=1" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1">
+                    <i class="bi bi-mic-fill"></i> <span class="d-none d-md-inline">Record</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+    
+    <!-- Main Container with Sidebar and Content -->
+    <div class="container-fluid g-0">
+        <div class="row g-0">
+            <!-- Sidebar (Filters) - Collapsible -->
+            <aside class="col-lg-3 col-xl-2 sidebar" id="sidebar">
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-header bg-dark border-secondary d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="bi bi-funnel"></i> Filters & Sort
+                        </h6>
+                        <button class="btn btn-sm btn-outline-secondary d-lg-none" onclick="toggleSidebar()" title="Close filters">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <!-- View Mode Tabs -->
+                        <ul class="nav nav-pills nav-pills-dark flex-column mb-3" id="viewModeTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active w-100 text-start" id="chronological-tab" data-bs-toggle="tab" data-bs-target="#chronological" type="button" role="tab">
+                                    <i class="bi bi-calendar3"></i> Chronological
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link w-100 text-start" id="by-author-tab" data-bs-toggle="tab" data-bs-target="#by-author" type="button" role="tab">
+                                    <i class="bi bi-people"></i> By Author
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link w-100 text-start" id="threads-tab" data-bs-toggle="tab" data-bs-target="#threads" type="button" role="tab">
+                                    <i class="bi bi-chat-dots"></i> Threads
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link w-100 text-start" id="personal-tab" data-bs-toggle="tab" data-bs-target="#personal" type="button" role="tab">
+                                    <i class="bi bi-lock"></i> Personal
+                                </button>
+                            </li>
+                        </ul>
+                        
+                        <!-- Message Count -->
+                        <div class="mb-3">
+                            <span id="message-count" class="badge bg-secondary w-100 py-2">
+                                <i class="bi bi-envelope"></i> <span id="message-count-text">0 messages</span>
+                            </span>
+                        </div>
+                
+                        <!-- Tab Content -->
+                        <div class="tab-content" id="viewModeTabContent">
+                            <!-- Chronological View -->
+                            <div class="tab-pane fade show active" id="chronological" role="tabpanel">
+                                <div class="mb-3">
+                                    <label for="filter-type" class="form-label small">
+                                        <i class="bi bi-funnel"></i> Type:
+                                    </label>
+                                    <select id="filter-type" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                        <option value="all">All Messages</option>
+                                        <option value="public">Public Only</option>
+                                        <option value="encrypted">Encrypted Only</option>
+                                        <option value="sent">Sent by Me</option>
+                                        <option value="received">Received by Me</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="filter-since" class="form-label small">
+                                        <i class="bi bi-clock"></i> Since:
+                                    </label>
+                                    <select id="filter-since" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                        <option value="1h">Last Hour</option>
+                                        <option value="24h" selected>Last 24 Hours</option>
+                                        <option value="7d">Last 7 Days</option>
+                                        <option value="30d">Last 30 Days</option>
+                                        <option value="all">All Time</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="sort-order" class="form-label small">
+                                        <i class="bi bi-sort-down"></i> Sort:
+                                    </label>
+                                    <select id="sort-order" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                        <option value="newest">Newest First</option>
+                                        <option value="oldest">Oldest First</option>
+                                    </select>
+                                </div>
                                 <button id="refresh-btn" class="btn btn-primary btn-sm w-100" onclick="loadVoiceMessages()">
-                                    🔄 Refresh
+                                    <i class="bi bi-arrow-clockwise"></i> Refresh
                                 </button>
                             </div>
-                        </div>
-                    </div>
-                    
-                    <!-- By Author View -->
-                    <div class="tab-pane fade" id="by-author" role="tabpanel">
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-4">
-                                <label for="filter-author" class="form-label small">Author:</label>
-                                <select id="filter-author" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                    <option value="all">All Authors</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="filter-location" class="form-label small">Location (if available):</label>
-                                <select id="filter-location" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                    <option value="all">All Locations</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4 d-flex align-items-end">
+                            
+                            <!-- By Author View -->
+                            <div class="tab-pane fade" id="by-author" role="tabpanel">
+                                <div class="mb-3">
+                                    <label for="filter-author" class="form-label small">
+                                        <i class="bi bi-person"></i> Author:
+                                    </label>
+                                    <select id="filter-author" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                        <option value="all">All Authors</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="filter-location" class="form-label small">
+                                        <i class="bi bi-geo-alt"></i> Location:
+                                    </label>
+                                    <select id="filter-location" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                        <option value="all">All Locations</option>
+                                    </select>
+                                </div>
                                 <button class="btn btn-primary btn-sm w-100" onclick="applyAuthorFilter()">
-                                    🔍 Apply Filter
+                                    <i class="bi bi-funnel-fill"></i> Apply Filter
                                 </button>
                             </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Threads View -->
-                    <div class="tab-pane fade" id="threads" role="tabpanel">
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-4">
-                                <label for="filter-thread-type" class="form-label small">Thread Type:</label>
-                                <select id="filter-thread-type" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                    <option value="all">All Threads</option>
-                                    <option value="encrypted">Encrypted Conversations</option>
-                                    <option value="public">Public Threads</option>
-                                    <option value="my-threads">My Threads</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="filter-thread-participant" class="form-label small">With Participant:</label>
-                                <select id="filter-thread-participant" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                    <option value="all">All Participants</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4 d-flex align-items-end">
+                            
+                            <!-- Threads View -->
+                            <div class="tab-pane fade" id="threads" role="tabpanel">
+                                <div class="mb-3">
+                                    <label for="filter-thread-type" class="form-label small">
+                                        <i class="bi bi-chat-dots"></i> Thread Type:
+                                    </label>
+                                    <select id="filter-thread-type" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                        <option value="all">All Threads</option>
+                                        <option value="encrypted">Encrypted</option>
+                                        <option value="public">Public</option>
+                                        <option value="my-threads">My Threads</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="filter-thread-participant" class="form-label small">
+                                        <i class="bi bi-people"></i> Participant:
+                                    </label>
+                                    <select id="filter-thread-participant" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                        <option value="all">All Participants</option>
+                                    </select>
+                                </div>
                                 <button class="btn btn-primary btn-sm w-100" onclick="applyThreadFilter()">
-                                    🔍 Apply Filter
+                                    <i class="bi bi-funnel-fill"></i> Apply Filter
                                 </button>
                             </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Personal View -->
-                    <div class="tab-pane fade" id="personal" role="tabpanel">
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-6">
-                                <label for="filter-personal-type" class="form-label small">Personal Messages:</label>
-                                <select id="filter-personal-type" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                    <option value="self">Messages to Myself</option>
-                                    <option value="drafts">Drafts (Unsent)</option>
-                                    <option value="saved">Saved Messages</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6 d-flex align-items-end">
+                            
+                            <!-- Personal View -->
+                            <div class="tab-pane fade" id="personal" role="tabpanel">
+                                <div class="mb-3">
+                                    <label for="filter-personal-type" class="form-label small">
+                                        <i class="bi bi-lock"></i> Personal:
+                                    </label>
+                                    <select id="filter-personal-type" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                        <option value="self">To Myself</option>
+                                        <option value="drafts">Drafts</option>
+                                        <option value="saved">Saved</option>
+                                    </select>
+                                </div>
                                 <button class="btn btn-primary btn-sm w-100" onclick="applyPersonalFilter()">
-                                    🔍 Apply Filter
+                                    <i class="bi bi-funnel-fill"></i> Apply Filter
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            </aside>
+            
+            <!-- Main Content Area -->
+            <main class="col-lg-9 col-xl-10 content-area">
+                <!-- Pagination and View Toggle (Mobile) -->
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <!-- View Mode Toggle (Mobile) -->
+                        <div class="btn-group btn-group-sm d-md-none" role="group">
+                            <input type="radio" class="btn-check" name="view-mode-mobile" id="view-list-mobile" autocomplete="off" checked>
+                            <label class="btn btn-outline-secondary" for="view-list-mobile" onclick="setViewMode('list')" title="List view">
+                                <i class="bi bi-list-ul"></i>
+                            </label>
+                            <input type="radio" class="btn-check" name="view-mode-mobile" id="view-detail-mobile" autocomplete="off">
+                            <label class="btn btn-outline-secondary" for="view-detail-mobile" onclick="setViewMode('detail')" title="Detail view">
+                                <i class="bi bi-card-text"></i>
+                            </label>
+                        </div>
+                        <span class="text-secondary small">
+                            <i class="bi bi-envelope"></i> <span id="showing-count">0</span> / <span id="total-count">0</span>
+                        </span>
+                    </div>
+                    <nav aria-label="Messages pagination">
+                        <ul class="pagination pagination-sm mb-0" id="pagination-controls">
+                            <!-- Pagination will be generated dynamically -->
+                        </ul>
+                    </nav>
+                </div>
+                
+                <!-- Voice Messages List -->
+                <div id="voice-messages-container" class="detail-view">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎤</div>
+                        <p>Connect to NOSTR to load voice messages</p>
+                    </div>
+                </div>
+            </main>
         </div>
-        
-        <!-- Pagination Info -->
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-                <span class="text-secondary small">Showing <span id="showing-count">0</span> of <span id="total-count">0</span> messages</span>
-            </div>
-            <nav aria-label="Messages pagination">
-                <ul class="pagination pagination-sm mb-0" id="pagination-controls">
-                    <!-- Pagination will be generated dynamically -->
-                </ul>
-            </nav>
-        </div>
-        
-        <!-- Voice Messages List -->
-        <div id="voice-messages-container">
-            <div class="empty-state">
-                <div class="empty-state-icon">🎤</div>
-                <p>Connect to NOSTR to load voice messages</p>
-            </div>
-        </div>
-    </main>
+    </div>
     
     <!-- Reply Recording Modal -->
     <div class="modal fade" id="reply-modal" tabindex="-1" aria-labelledby="reply-modal-title" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content bg-dark border-secondary">
                 <div class="modal-header border-secondary">
-                    <h5 class="modal-title text-white" id="reply-modal-title">🎤 Reply with Voice Message</h5>
+                    <h5 class="modal-title text-white" id="reply-modal-title">
+                        <i class="bi bi-mic-fill"></i> Reply with Voice Message
+                    </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -537,16 +792,18 @@
                             <div id="reply-timer" class="fs-2 fw-bold text-danger mb-3">30</div>
                             <div class="d-flex gap-2 justify-content-center">
                                 <button id="reply-start-recording" class="btn btn-primary">
-                                    🎤 Start Recording
+                                    <i class="bi bi-mic-fill"></i> Start Recording
                                 </button>
                                 <button id="reply-stop-recording" class="btn btn-danger d-none">
-                                    ⏹️ Stop
+                                    <i class="bi bi-stop-fill"></i> Stop
                                 </button>
                             </div>
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label text-white small">Or upload audio file:</label>
+                            <label class="form-label text-white small">
+                                <i class="bi bi-upload"></i> Or upload audio file:
+                            </label>
                             <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" 
                                    id="reply-audio-upload" accept="audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a">
                         </div>
@@ -571,9 +828,11 @@
                     </div>
                 </div>
                 <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg"></i> Cancel
+                    </button>
                     <button type="button" class="btn btn-primary" id="reply-publish-btn" disabled>
-                        📡 Publish Reply
+                        <i class="bi bi-send"></i> Publish Reply
                     </button>
                 </div>
             </div>
@@ -708,7 +967,7 @@
                 const connectBtn = document.getElementById('connect-btn');
                 const profileBtn = document.getElementById('profile-btn');
                 connectBtn.disabled = true;
-                connectBtn.textContent = '🔄 Connecting...';
+                connectBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> <span class="d-none d-md-inline">Connecting...</span>';
                 
                 // Use direct extension access (avoid common.js connectNostr which may show French MULTIPASS message)
                 // Check if window.nostr is available (with better error message)
@@ -745,7 +1004,7 @@
                 syncToCommonJS();
                 
                 // Update UI
-                connectBtn.textContent = '✅ Connected';
+                connectBtn.innerHTML = '<i class="bi bi-check-circle"></i> <span class="d-none d-md-inline">Connected</span>';
                 connectBtn.disabled = true;
                 connectBtn.classList.remove('btn-primary');
                 connectBtn.classList.add('btn-secondary');
@@ -768,7 +1027,7 @@
                 console.error('❌ Connection error:', error);
                 const connectBtn = document.getElementById('connect-btn');
                 connectBtn.disabled = false;
-                connectBtn.textContent = '🔌 Retry';
+                connectBtn.innerHTML = '<i class="bi bi-plug"></i> <span class="d-none d-md-inline">Retry</span>';
                 
                 // Enhanced error message with diagnostic
                 let errorMessage = error.message;
@@ -809,7 +1068,7 @@
             
             try {
                 refreshBtn.disabled = true;
-                refreshBtn.innerHTML = '<span class="loading-spinner"></span> Loading...';
+                refreshBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Loading...';
                 container.innerHTML = '<div class="text-center p-4"><div class="loading-spinner"></div><p class="mt-2">Loading voice messages...</p></div>';
                 
                 // Get filter values
@@ -926,7 +1185,7 @@
                 container.innerHTML = `<div class="error-message">Error loading voice messages: ${error.message}</div>`;
             } finally {
                 refreshBtn.disabled = false;
-                refreshBtn.innerHTML = '🔄 Refresh';
+                refreshBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh';
             }
         }
         
@@ -1524,11 +1783,52 @@
         
         // Update message count
         function updateMessageCount(count) {
-            const countEl = document.getElementById('message-count');
+            const countEl = document.getElementById('message-count-text');
             if (countEl) {
                 countEl.textContent = `${count} message${count !== 1 ? 's' : ''}`;
             }
         }
+        
+        // Toggle sidebar (mobile)
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (sidebar && overlay) {
+                sidebar.classList.toggle('show');
+                overlay.classList.toggle('show');
+            }
+        }
+        
+        // Make toggleSidebar available globally
+        window.toggleSidebar = toggleSidebar;
+        
+        // Set view mode (list or detail)
+        let currentViewModeType = 'detail'; // 'list' or 'detail'
+        function setViewMode(mode) {
+            currentViewModeType = mode;
+            const container = document.getElementById('voice-messages-container');
+            if (container) {
+                container.classList.remove('list-view', 'detail-view');
+                container.classList.add(mode + '-view');
+            }
+            
+            // Update radio buttons
+            const listRadio = document.getElementById('view-list');
+            const detailRadio = document.getElementById('view-detail');
+            const listRadioMobile = document.getElementById('view-list-mobile');
+            const detailRadioMobile = document.getElementById('view-detail-mobile');
+            
+            if (mode === 'list') {
+                if (listRadio) listRadio.checked = true;
+                if (listRadioMobile) listRadioMobile.checked = true;
+            } else {
+                if (detailRadio) detailRadio.checked = true;
+                if (detailRadioMobile) detailRadioMobile.checked = true;
+            }
+        }
+        
+        // Make setViewMode available globally
+        window.setViewMode = setViewMode;
         
         // Update pagination
         function updatePagination(totalPages, totalMessages) {
@@ -1735,43 +2035,43 @@
                     <div class="voice-message-header">
                         <div class="voice-message-info">
                             <div class="voice-message-title">
-                                ${msg.metadata.title || 'Voice Message'}
-                                ${msg.isEncrypted ? '<span class="encryption-badge">🔐 Encrypted</span>' : ''}
-                                ${msg.isExpired ? '<span class="encryption-badge" style="background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #fca5a5;">⏰ Expired (NIP-40)</span>' : ''}
-                                ${msg.expirationTimestamp && !msg.isExpired ? `<span class="encryption-badge" style="background: rgba(59, 130, 246, 0.2); border-color: #3b82f6; color: #93c5fd;">⏰ Expires: ${new Date(msg.expirationTimestamp * 1000).toLocaleString()} (NIP-40)</span>` : ''}
+                                <i class="bi bi-mic"></i> ${msg.metadata.title || 'Voice Message'}
+                                ${msg.isEncrypted ? '<span class="badge bg-warning text-dark ms-2"><i class="bi bi-lock-fill"></i> Encrypted</span>' : ''}
+                                ${msg.isExpired ? '<span class="badge bg-danger ms-2"><i class="bi bi-clock-history"></i> Expired</span>' : ''}
+                                ${msg.expirationTimestamp && !msg.isExpired ? `<span class="badge bg-info ms-2"><i class="bi bi-hourglass-split"></i> Expires: ${new Date(msg.expirationTimestamp * 1000).toLocaleString()}</span>` : ''}
                             </div>
                             <div class="voice-message-meta">
-                                <span>👤 ${senderName}</span>
-                                <span>📅 ${dateStr}</span>
-                                ${msg.metadata.duration ? `<span>⏱️ ${Math.round(msg.metadata.duration)}s</span>` : ''}
-                                ${msg.isReply ? '<span class="text-secondary">↩️ Reply</span>' : ''}
+                                <span><i class="bi bi-person"></i> ${senderName}</span>
+                                <span><i class="bi bi-calendar3"></i> ${dateStr}</span>
+                                ${msg.metadata.duration ? `<span><i class="bi bi-clock"></i> ${Math.round(msg.metadata.duration)}s</span>` : ''}
+                                ${msg.isReply ? '<span class="text-secondary"><i class="bi bi-reply"></i> Reply</span>' : ''}
                             </div>
                         </div>
                         <div class="voice-message-actions">
                             ${msg.isEncrypted ? `
-                                <button class="decrypt-button btn btn-sm" onclick="decryptAndPlayMessage('${msg.id}', this)">
-                                    🔓 Decrypt & Play
+                                <button class="decrypt-button btn btn-warning btn-sm" onclick="decryptAndPlayMessage('${msg.id}', this)">
+                                    <i class="bi bi-unlock"></i> <span class="d-none d-sm-inline">Decrypt</span>
                                 </button>
                             ` : `
                                 <button class="btn btn-primary btn-sm" onclick="playMessage('${msg.id}')">
-                                    ▶️ Play
+                                    <i class="bi bi-play-fill"></i> <span class="d-none d-sm-inline">Play</span>
                                 </button>
                             `}
-                            <button class="reply-button btn btn-sm" onclick="openReplyModal('${msg.id}')" title="Reply to this message">
-                                💬 Reply
+                            <button class="reply-button btn btn-outline-secondary btn-sm" onclick="openReplyModal('${msg.id}')" title="Reply to this message">
+                                <i class="bi bi-reply"></i> <span class="d-none d-sm-inline">Reply</span>
                             </button>
                             ${msg.isOwnMessage ? `
                                 <button class="btn btn-danger btn-sm" onclick="deleteVoiceMessage('${msg.id}', ${msg.kind}, this)" title="Delete this message">
-                                    🗑️ Delete
+                                    <i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Delete</span>
                                 </button>
                             ` : ''}
                         </div>
                     </div>
-                    ${msg.metadata.description ? `<p class="text-secondary small mb-2">${msg.metadata.description}</p>` : ''}
+                    ${msg.metadata.description ? `<p class="text-secondary small mb-2"><i class="bi bi-card-text"></i> ${msg.metadata.description}</p>` : ''}
                     ${hasReplies ? `
                         <div class="mt-2">
-                            <span class="reply-count" onclick="toggleReplies('${msg.id}')" id="reply-toggle-${msg.id}">
-                                💬 ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}
+                            <span class="badge bg-primary" style="cursor: pointer;" onclick="toggleReplies('${msg.id}')" id="reply-toggle-${msg.id}">
+                                <i class="bi bi-chat-dots"></i> ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}
                             </span>
                         </div>
                     ` : ''}
@@ -1792,7 +2092,7 @@
                             <div class="form-check form-switch mb-0">
                                 <input class="form-check-input" type="checkbox" id="waveform-toggle-${msg.id}" checked onchange="toggleWaveformForMessage('${msg.id}', this.checked)">
                                 <label class="form-check-label small text-white" for="waveform-toggle-${msg.id}" title="Toggle waveform visualization">
-                                    📊 Waveform
+                                    <i class="bi bi-graph-up"></i> Waveform
                                 </label>
                             </div>
                         </div>
@@ -1800,7 +2100,7 @@
                     ` : `
                         <div class="d-flex align-items-center gap-2 mb-2">
                             <button class="btn btn-outline-primary btn-sm" id="generate-waveform-btn-${msg.id}" onclick="generateWaveformFromAudio('${msg.id}', this)" title="Generate waveform visualization from audio">
-                                📊 Generate Waveform
+                                <i class="bi bi-graph-up"></i> <span class="d-none d-sm-inline">Generate Waveform</span>
                             </button>
                         </div>
                         <div class="waveform-container d-none" id="waveform-${msg.id}"></div>
@@ -3245,152 +3545,160 @@
             }
         }
         
-        // Handle tab changes
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Initializing voice messages reader...');
-            
-            // Attach reply modal event listeners
-            attachThreadEventListeners();
-            
-            // Handle view mode tab changes
-            const viewModeTabs = document.querySelectorAll('#viewModeTabs button[data-bs-toggle="tab"]');
-            viewModeTabs.forEach(tab => {
-                tab.addEventListener('shown.bs.tab', function(event) {
-                    const targetId = event.target.getAttribute('data-bs-target');
-                    if (targetId === '#chronological') {
-                        currentViewMode = 'chronological';
-                    } else if (targetId === '#by-author') {
-                        currentViewMode = 'by-author';
-                    } else if (targetId === '#threads') {
-                        currentViewMode = 'threads';
-                    } else if (targetId === '#personal') {
-                        currentViewMode = 'personal';
-                    }
-                    currentPage = 1;
-                    applyCurrentViewMode();
-                });
-            });
-            
-            // Handle filter changes
-            const filterInputs = ['filter-type', 'filter-since', 'sort-order'];
-            filterInputs.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) {
-                    el.addEventListener('change', function() {
-                        if (currentViewMode === 'chronological') {
-                            currentPage = 1;
-                            applyCurrentViewMode();
-                        }
+            // Handle tab changes
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('🚀 Initializing voice messages reader...');
+                
+                // Close sidebar when clicking outside (mobile)
+                const sidebarOverlay = document.getElementById('sidebarOverlay');
+                if (sidebarOverlay) {
+                    sidebarOverlay.addEventListener('click', function() {
+                        toggleSidebar();
                     });
                 }
-            });
-            
-            // Sync from common.js first to get latest connection state
-            syncFromCommonJS();
-            
-            // Check if already connected (from parent window if in iframe, or from common.js in standalone)
-            const isInIframe = window.self !== window.top;
-            let shouldAutoLoad = false;
-            
-            if (isInIframe && window.parent && window.parent.userPubkey) {
-                // Iframe mode: use parent's connection
-                localUserPubkey = window.parent.userPubkey;
-                if (window.parent.nostrPool) {
-                    nostrPool = window.parent.nostrPool;
-                } else if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
-                    nostrPool = new NostrTools.SimplePool();
-                }
-                localIsNostrConnected = true;
-                syncToCommonJS();
-                shouldAutoLoad = true;
-            } else if (localUserPubkey && localIsNostrConnected) {
-                // Standalone mode: already connected via common.js
-                console.log('✅ Already connected via common.js, pubkey:', localUserPubkey.substring(0, 8) + '...');
-                // Initialize pool if not already done
-                if (!nostrPool && typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
-                    nostrPool = new NostrTools.SimplePool();
-                    console.log('✅ Initialized NOSTR pool');
-                }
-                shouldAutoLoad = true;
-            } else {
-                // Auto-login: Try to connect automatically if extension is available (silent mode)
-                // Strategy: Try direct extension access (with retry for extension loading delay)
-                function tryDirectExtensionConnection() {
-                    let attempts = 0;
-                    const maxAttempts = 20; // Reduced to 20 (10 seconds total) for faster UX
-                    const checkInterval = 500; // Check every 500ms
-                    const initialDelay = 1000; // Wait 1 second before first check (extensions need time to inject)
-                    
-                    const checkExtension = () => {
-                        attempts++;
-                        
-                        // Multiple ways to check for NOSTR extension
-                        const nostrAvailable = typeof window.nostr !== 'undefined' && window.nostr !== null;
-                        const nostrGetPublicKey = nostrAvailable && typeof window.nostr.getPublicKey === 'function';
-                        
-                        if (nostrGetPublicKey) {
-                            // Extension available - try to connect automatically (silently)
-                            // Try to test if extension actually works (some extensions need user interaction)
-                            try {
-                                const testPromise = window.nostr.getPublicKey();
-                                if (testPromise && typeof testPromise.then === 'function') {
-                                    // It's async, try to connect silently
-                                    handleNostrConnect().then(() => {
-                                        // Connection successful - handleNostrConnect already loads messages
-                                        const profileBtn = document.getElementById('profile-btn');
-                                        if (profileBtn && localUserPubkey) {
-                                            profileBtn.classList.remove('d-none');
-                                        }
-                                    }).catch(() => {
-                                        // Silent failure - user can click Connect button if needed
-                                    });
-                                } else {
-                                    // Synchronous, might work
-                                    handleNostrConnect().then(() => {
-                                        const profileBtn = document.getElementById('profile-btn');
-                                        if (profileBtn && localUserPubkey) {
-                                            profileBtn.classList.remove('d-none');
-                                        }
-                                    }).catch(() => {
-                                        // Silent failure
-                                    });
-                                }
-                            } catch (testError) {
-                                // Extension exists but might need user interaction - silent
-                            }
-                        } else if (attempts < maxAttempts) {
-                            // Extension not ready yet, retry silently
-                            setTimeout(checkExtension, checkInterval);
+                
+                // Attach reply modal event listeners
+                attachThreadEventListeners();
+                
+                // Handle view mode tab changes
+                const viewModeTabs = document.querySelectorAll('#viewModeTabs button[data-bs-toggle="tab"]');
+                viewModeTabs.forEach(tab => {
+                    tab.addEventListener('shown.bs.tab', function(event) {
+                        const targetId = event.target.getAttribute('data-bs-target');
+                        if (targetId === '#chronological') {
+                            currentViewMode = 'chronological';
+                        } else if (targetId === '#by-author') {
+                            currentViewMode = 'by-author';
+                        } else if (targetId === '#threads') {
+                            currentViewMode = 'threads';
+                        } else if (targetId === '#personal') {
+                            currentViewMode = 'personal';
                         }
-                        // If max attempts reached, just stop silently - user can click Connect button
-                    };
+                        currentPage = 1;
+                        applyCurrentViewMode();
+                    });
+                });
+                
+                // Handle filter changes
+                const filterInputs = ['filter-type', 'filter-since', 'sort-order'];
+                filterInputs.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.addEventListener('change', function() {
+                            if (currentViewMode === 'chronological') {
+                                currentPage = 1;
+                                applyCurrentViewMode();
+                            }
+                        });
+                    }
+                });
+                
+                // Sync from common.js first to get latest connection state
+                syncFromCommonJS();
+                
+                // Check if already connected (from parent window if in iframe, or from common.js in standalone)
+                const isInIframe = window.self !== window.top;
+                let shouldAutoLoad = false;
+                
+                if (isInIframe && window.parent && window.parent.userPubkey) {
+                    // Iframe mode: use parent's connection
+                    localUserPubkey = window.parent.userPubkey;
+                    if (window.parent.nostrPool) {
+                        nostrPool = window.parent.nostrPool;
+                    } else if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                        nostrPool = new NostrTools.SimplePool();
+                    }
+                    localIsNostrConnected = true;
+                    syncToCommonJS();
+                    shouldAutoLoad = true;
+                } else if (localUserPubkey && localIsNostrConnected) {
+                    // Standalone mode: already connected via common.js
+                    console.log('✅ Already connected via common.js, pubkey:', localUserPubkey.substring(0, 8) + '...');
+                    // Initialize pool if not already done
+                    if (!nostrPool && typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                        nostrPool = new NostrTools.SimplePool();
+                        console.log('✅ Initialized NOSTR pool');
+                    }
+                    shouldAutoLoad = true;
+                } else {
+                    // Auto-login: Try to connect automatically if extension is available (silent mode)
+                    // Strategy: Try direct extension access (with retry for extension loading delay)
+                    function tryDirectExtensionConnection() {
+                        let attempts = 0;
+                        const maxAttempts = 20; // Reduced to 20 (10 seconds total) for faster UX
+                        const checkInterval = 500; // Check every 500ms
+                        const initialDelay = 1000; // Wait 1 second before first check (extensions need time to inject)
+                        
+                        const checkExtension = () => {
+                            attempts++;
+                            
+                            // Multiple ways to check for NOSTR extension
+                            const nostrAvailable = typeof window.nostr !== 'undefined' && window.nostr !== null;
+                            const nostrGetPublicKey = nostrAvailable && typeof window.nostr.getPublicKey === 'function';
+                            
+                            if (nostrGetPublicKey) {
+                                // Extension available - try to connect automatically (silently)
+                                // Try to test if extension actually works (some extensions need user interaction)
+                                try {
+                                    const testPromise = window.nostr.getPublicKey();
+                                    if (testPromise && typeof testPromise.then === 'function') {
+                                        // It's async, try to connect silently
+                                        handleNostrConnect().then(() => {
+                                            // Connection successful - handleNostrConnect already loads messages
+                                            const profileBtn = document.getElementById('profile-btn');
+                                            if (profileBtn && localUserPubkey) {
+                                                profileBtn.classList.remove('d-none');
+                                            }
+                                        }).catch(() => {
+                                            // Silent failure - user can click Connect button if needed
+                                        });
+                                    } else {
+                                        // Synchronous, might work
+                                        handleNostrConnect().then(() => {
+                                            const profileBtn = document.getElementById('profile-btn');
+                                            if (profileBtn && localUserPubkey) {
+                                                profileBtn.classList.remove('d-none');
+                                            }
+                                        }).catch(() => {
+                                            // Silent failure
+                                        });
+                                    }
+                                } catch (testError) {
+                                    // Extension exists but might need user interaction - silent
+                                }
+                            } else if (attempts < maxAttempts) {
+                                // Extension not ready yet, retry silently
+                                setTimeout(checkExtension, checkInterval);
+                            }
+                            // If max attempts reached, just stop silently - user can click Connect button
+                        };
+                        
+                        // Start checking after initial delay to let extensions initialize
+                        setTimeout(checkExtension, initialDelay);
+                    }
                     
-                    // Start checking after initial delay to let extensions initialize
-                    setTimeout(checkExtension, initialDelay);
+                    // Try direct extension access first (silent mode - no logs unless successful)
+                    tryDirectExtensionConnection();
                 }
                 
-                // Try direct extension access first (silent mode - no logs unless successful)
-                tryDirectExtensionConnection();
-            }
-            
-            if (shouldAutoLoad) {
-                const connectBtn = document.getElementById('connect-btn');
-                const profileBtn = document.getElementById('profile-btn');
-                if (connectBtn) {
-                    connectBtn.textContent = '✅ Connected';
-                    connectBtn.disabled = true;
-                    connectBtn.classList.remove('btn-primary');
-                    connectBtn.classList.add('btn-secondary');
+                if (shouldAutoLoad) {
+                    const connectBtn = document.getElementById('connect-btn');
+                    const profileBtn = document.getElementById('profile-btn');
+                    if (connectBtn) {
+                        connectBtn.innerHTML = '<i class="bi bi-check-circle"></i> <span class="d-none d-md-inline">Connected</span>';
+                        connectBtn.disabled = true;
+                        connectBtn.classList.remove('btn-primary');
+                        connectBtn.classList.add('btn-secondary');
+                    }
+                    if (profileBtn && localUserPubkey) {
+                        profileBtn.classList.remove('d-none');
+                    }
+                    
+                    // Auto-load messages
+                    loadVoiceMessages();
                 }
-                if (profileBtn && localUserPubkey) {
-                    profileBtn.classList.remove('d-none');
-                }
-                
-                // Auto-load messages
-                loadVoiceMessages();
-            }
-            // If not connected, silent - user can click Connect button if needed
-        });
+                // If not connected, silent - user can click Connect button if needed
+            });
     </script>
 </body>
 </html>
