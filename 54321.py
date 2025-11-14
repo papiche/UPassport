@@ -1248,10 +1248,10 @@ async def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
             elif tag_type == "thumbnail_ipfs":
                 # Static thumbnail CID (fallback if no gifanim)
                 if not metadata["thumbnail_url"]:  # Only if gifanim not found
-                    cid = tag_value
-                    if not cid.startswith("/ipfs/"):
-                        cid = f"/ipfs/{cid}"
-                    metadata["thumbnail_url"] = f"{ipfs_gateway}{cid}"
+                cid = tag_value
+                if not cid.startswith("/ipfs/"):
+                    cid = f"/ipfs/{cid}"
+                metadata["thumbnail_url"] = f"{ipfs_gateway}{cid}"
             
             elif tag_type == "image" and ("/ipfs/" in tag_value or "ipfs://" in tag_value):
                 # Image/thumbnail from imeta or direct tag
@@ -1269,26 +1269,26 @@ async def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
     
     # Parse imeta tags for gifanim first, then thumbnail (if not found yet)
     if not metadata["thumbnail_url"]:
-        for tag in tags:
-            if isinstance(tag, list) and tag[0] == "imeta":
-                for i in range(1, len(tag)):
-                    prop = tag[i]
+    for tag in tags:
+        if isinstance(tag, list) and tag[0] == "imeta":
+            for i in range(1, len(tag)):
+                prop = tag[i]
                     # Check for gifanim first (preferred)
                     if prop.startswith("gifanim "):
                         gifanim_value = prop[8:].strip()
                         if "/ipfs/" in gifanim_value or "ipfs://" in gifanim_value:
                             ipfs_path = gifanim_value.replace("ipfs://", "/ipfs/")
-                            if ipfs_path.startswith("/ipfs/"):
+                        if ipfs_path.startswith("/ipfs/"):
                                 metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
                                 logging.info(f"🎬 Using animated GIF from imeta gifanim for Open Graph")
                                 break
                     # Fallback to image if no gifanim
                     elif prop.startswith("image "):
-                        image_value = prop[6:].strip()
-                        if "/ipfs/" in image_value or "ipfs://" in image_value:
-                            ipfs_path = image_value.replace("ipfs://", "/ipfs/")
-                            if ipfs_path.startswith("/ipfs/"):
-                                metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
+                    image_value = prop[6:].strip()
+                    if "/ipfs/" in image_value or "ipfs://" in image_value:
+                        ipfs_path = image_value.replace("ipfs://", "/ipfs/")
+                        if ipfs_path.startswith("/ipfs/"):
+                            metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
                                 break
                 if metadata["thumbnail_url"]:
                     break
@@ -5199,7 +5199,7 @@ async def get_webhook(request: Request):
             # Récupérer les données de la requête
             data = await request.json()  # Récupérer le corps de la requête en JSON
             referer = request.headers.get("referer")  # Récupérer l'en-tête Referer
-            
+
             # Get CAPTAINEMAIL from environment variable
             captain_email = os.getenv("CAPTAINEMAIL", "")
             if not captain_email:
@@ -5228,7 +5228,7 @@ async def get_webhook(request: Request):
             # Add referer if available
             if referer:
                 message_lines.append(f"Referer: {referer}")
-            
+
             # Add URL if available
             if data.get('current_url'):
                 message_lines.append(f"URL: {data.get('current_url')}")
@@ -5300,7 +5300,7 @@ async def get_webhook(request: Request):
                     
             except subprocess.TimeoutExpired:
                 logging.warning("⚠️ NOSTR send timeout")
-            except Exception as e:
+        except Exception as e:
                 logging.warning(f"⚠️ NOSTR send error: {e}")
 
             return {"received": data, "referer": referer, "sent_via": "nostr"}
