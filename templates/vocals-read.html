@@ -1356,7 +1356,10 @@
                                     if (key === 'duration') {
                                         metadata.duration = parseFloat(value);
                                     } else if (key === 'url') {
-                                        metadata.url = value;
+                                        // Store imeta url but don't overwrite if url tag exists (url tag has priority)
+                                        if (!metadata.url || !metadata.url.startsWith('http')) {
+                                            metadata.url = value;
+                                        }
                                     } else if (key === 'title') {
                                         metadata.title = value;
                                     } else if (key === 'description') {
@@ -1381,12 +1384,20 @@
                     }
                     
                     // Also check for url tag (if imeta doesn't have it)
+                    // Priority: url tag > imeta url > content
+                    // The url tag is the canonical source and should always be used if present
                     const urlTag = event.tags.find(tag => tag[0] === 'url');
-                    if (urlTag && urlTag[1] && !metadata.url) {
+                    if (urlTag && urlTag[1]) {
+                        // url tag takes priority over imeta url (it's the canonical source)
+                        // Use the URL from the tag directly - it's already the correct absolute URL
                         metadata.url = urlTag[1];
+                        console.log(`🔗 Found URL tag for event ${event.id.substring(0, 8)}... (kind ${event.kind}): ${urlTag[1]}`);
+                    } else {
+                        console.log(`⚠️ No URL tag found for event ${event.id.substring(0, 8)}... (kind ${event.kind}), using imeta URL: ${metadata.url || 'none'}`);
                     }
                     
                     // Convert relative IPFS URL to absolute URL with gateway
+                    // Only if URL is relative (starts with /ipfs/) and not already absolute
                     if (metadata.url && metadata.url.startsWith('/ipfs/')) {
                         // Get gateway from common.js (window.IPFS_GATEWAY) or use default
                         let ipfsGateway = 'https://ipfs.copylaradio.com'; // Default fallback
@@ -1397,6 +1408,31 @@
                             ipfsGateway = window.gateway;
                         }
                         metadata.url = ipfsGateway + metadata.url;
+                        console.log(`🔗 Converted relative URL to absolute: ${metadata.url}`);
+                    } else if (metadata.url && !metadata.url.startsWith('http://') && !metadata.url.startsWith('https://') && !metadata.url.startsWith('data:')) {
+                        // URL might be just a CID or path, try to construct full URL
+                        let ipfsGateway = 'https://ipfs.copylaradio.com';
+                        if (typeof window !== 'undefined' && window.IPFS_GATEWAY) {
+                            ipfsGateway = window.IPFS_GATEWAY;
+                        } else if (typeof window !== 'undefined' && window.gateway) {
+                            ipfsGateway = window.gateway;
+                        }
+                        if (metadata.url.startsWith('/')) {
+                            metadata.url = ipfsGateway + metadata.url;
+                        } else {
+                            // Might be just a CID, try to find filename from other tags
+                            const infoTag = event.tags.find(tag => tag[0] === 'info');
+                            // For now, just prepend /ipfs/
+                            metadata.url = ipfsGateway + '/ipfs/' + metadata.url;
+                        }
+                        console.log(`🔗 Constructed URL from partial: ${metadata.url}`);
+                    }
+                    
+                    // Log final URL for debugging
+                    if (metadata.url) {
+                        console.log(`✅ Final URL for event ${event.id.substring(0, 8)}...: ${metadata.url}`);
+                    } else {
+                        console.warn(`⚠️ No URL found for event ${event.id.substring(0, 8)}...`);
                     }
                     
                     // Get sender profile
