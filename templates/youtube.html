@@ -6899,8 +6899,8 @@
                 // Create uploader link if authorId is available
                 let uploaderDisplay = video.uploader || 'Auteur inconnu';
                 if (video.authorId) {
-                    const escapedUploader = escapeHtml(video.uploader || 'Auteur inconnu').replace(/'/g, "\\'");
-                    uploaderDisplay = `<a href="#" onclick="event.preventDefault(); openProfileModal('${video.authorId}', '${escapedUploader}'); return false;" style="color: #3ea6ff; text-decoration: none; cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${escapeHtml(video.uploader || 'Auteur inconnu')}</a>`;
+                    const escapedUploader = escapeJs(video.uploader || 'Auteur inconnu');
+                    uploaderDisplay = `<a href="#" onclick="event.preventDefault(); openProfileModal('${escapeJs(video.authorId)}', '${escapedUploader}'); return false;" style="color: #3ea6ff; text-decoration: none; cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${escapeHtml(video.uploader || 'Auteur inconnu')}</a>`;
                 } else {
                     uploaderDisplay = escapeHtml(uploaderDisplay);
                 }
@@ -6928,7 +6928,7 @@
                             <div class="map-popup-title">${escapeHtml(video.title)}</div>
                             <div class="map-popup-meta">${uploaderDisplay}${metaDisplay ? '<br>' + escapeHtml(metaDisplay) : ''}</div>
                             <div class="map-popup-actions">
-                                <button class="map-popup-btn" onclick="openVideoFromMap('${escapeHtml(video.title)}', '${video.ipfsUrl}', '${video.authorId || ''}', '${escapeHtml(video.uploader || '')}', '${video.channel || ''}')">▶️ ${t('watch')}</button>
+                                <button class="map-popup-btn" onclick="openVideoFromMap('${escapeJs(video.title)}', '${escapeJs(video.ipfsUrl)}', '${escapeJs(video.authorId || '')}', '${escapeJs(video.uploader || '')}', '${escapeJs(video.channel || '')}')">▶️ ${t('watch')}</button>
                             </div>
                         </div>
                     </div>
@@ -6945,7 +6945,8 @@
                                 // Create uploader link if authorId is available
                                 let uploaderDisplay = video.uploader || 'Auteur inconnu';
                                 if (video.authorId) {
-                                    uploaderDisplay = `<a href="#" onclick="event.preventDefault(); openProfileModal('${video.authorId}', '${escapeHtml(video.uploader || 'Auteur inconnu')}'); return false;" style="color: #3ea6ff; text-decoration: none; font-size: 0.7em; cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${escapeHtml(video.uploader || 'Auteur inconnu')}</a>`;
+                                    const escapedUploader = escapeJs(video.uploader || 'Auteur inconnu');
+                                    uploaderDisplay = `<a href="#" onclick="event.preventDefault(); openProfileModal('${escapeJs(video.authorId)}', '${escapedUploader}'); return false;" style="color: #3ea6ff; text-decoration: none; font-size: 0.7em; cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${escapeHtml(video.uploader || 'Auteur inconnu')}</a>`;
                                 } else {
                                     uploaderDisplay = escapeHtml(uploaderDisplay);
                                 }
@@ -6971,7 +6972,7 @@
                                         <div class="map-popup-video-item-title">${escapeHtml(video.title)}</div>
                                         <div class="map-popup-video-item-meta">${uploaderDisplay}${metaDisplay ? '<br>' + escapeHtml(metaDisplay) : ''}</div>
                                         <div class="map-popup-video-item-actions">
-                                            <button class="map-popup-btn-small" onclick="openVideoFromMap('${escapeHtml(video.title)}', '${video.ipfsUrl}', '${video.authorId || ''}', '${escapeHtml(video.uploader || '')}', '${video.channel || ''}')">▶️</button>
+                                            <button class="map-popup-btn-small" onclick="openVideoFromMap('${escapeJs(video.title)}', '${escapeJs(video.ipfsUrl)}', '${escapeJs(video.authorId || '')}', '${escapeJs(video.uploader || '')}', '${escapeJs(video.channel || '')}')">▶️</button>
                                         </div>
                                     </div>
                                 </div>
@@ -6993,6 +6994,20 @@
         
         // escapeHtml is in youtube.enhancements.js - use it directly if available
         // Note: escapeHtml is defined in youtube.enhancements.js and should be globally available
+        
+        /**
+         * Escape string for use in JavaScript string literal (single quotes)
+         * Escapes single quotes, backslashes, and newlines
+         */
+        function escapeJs(str) {
+            if (typeof str !== 'string') return '';
+            return str
+                .replace(/\\/g, '\\\\')  // Escape backslashes first
+                .replace(/'/g, "\\'")   // Escape single quotes
+                .replace(/\n/g, '\\n')  // Escape newlines
+                .replace(/\r/g, '\\r')  // Escape carriage returns
+                .replace(/\t/g, '\\t'); // Escape tabs
+        }
         
         /**
          * Open video in theater mode from map popup
