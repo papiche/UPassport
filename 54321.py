@@ -1077,6 +1077,194 @@ def get_nostr_relay_url() -> str:
     port = "7777"  # Port strfry par défaut
     return f"ws://{host}:{port}"
 
+async def fetch_video_event_from_nostr(event_id: str, timeout: int = 5) -> Optional[Dict[str, Any]]:
+    """Fetch video event (kind 21 or 22) from NOSTR relay by event ID
+    
+    Args:
+        event_id: NOSTR event ID (64 hex characters)
+        timeout: Timeout in seconds
+        
+    Returns:
+        Video event dict or None if not found
+    """
+    if not event_id or len(event_id) != 64:
+        logging.warning(f"Invalid event ID format: {event_id}")
+        return None
+    
+    relay_url = get_nostr_relay_url()
+    logging.info(f"Fetching video event {event_id[:16]}... from relay: {relay_url}")
+    
+    try:
+        async with websockets.connect(relay_url, timeout=timeout) as websocket:
+            # Create subscription for video events (kind 21 or 22)
+            subscription_id = f"video_fetch_{int(time.time())}"
+            video_filter = {
+                "kinds": [21, 22],  # Video events (normal and short)
+                "ids": [event_id],
+                "limit": 1
+            }
+            
+            req_message = json.dumps(["REQ", subscription_id, video_filter])
+            await websocket.send(req_message)
+            
+            # Wait for event or EOSE
+            event_found = None
+            end_received = False
+            
+            try:
+                while not end_received:
+                    response = await asyncio.wait_for(websocket.recv(), timeout=timeout)
+                    parsed_response = json.loads(response)
+                    
+                    if parsed_response[0] == "EVENT":
+                        if len(parsed_response) >= 3:
+                            event = parsed_response[2]
+                            if event.get("id") == event_id:
+                                event_found = event
+                                logging.info(f"✅ Video event found: {event_id[:16]}...")
+                    
+                    elif parsed_response[0] == "EOSE":
+                        if parsed_response[1] == subscription_id:
+                            end_received = True
+                    
+                    elif parsed_response[0] == "NOTICE":
+                        logging.warning(f"Relay notice: {parsed_response[1] if len(parsed_response) > 1 else 'N/A'}")
+            
+            except asyncio.TimeoutError:
+                logging.warning("Timeout waiting for video event")
+            
+            # Close subscription
+            try:
+                close_message = json.dumps(["CLOSE", subscription_id])
+                await websocket.send(close_message)
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                logging.warning(f"Error closing subscription: {e}")
+            
+            return event_found
+            
+    except websockets.exceptions.ConnectionClosed:
+        logging.error("Connection closed by relay")
+        return None
+    except websockets.exceptions.WebSocketException as e:
+        logging.error(f"WebSocket error: {e}")
+        return None
+    except json.JSONDecodeError as e:
+        logging.error(f"JSON decode error: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Error fetching video event: {e}")
+        return None
+
+def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse video event tags to extract metadata for Open Graph/Twitter Cards
+    
+    Args:
+        event: NOSTR video event (kind 21 or 22)
+        
+    Returns:
+        Dict with title, description, thumbnail_url, video_url, etc.
+    """
+    if not event or not isinstance(event, dict):
+        return {}
+    
+    metadata = {
+        "title": "Video",
+        "description": "",
+        "thumbnail_url": "",
+        "video_url": "",
+        "author_id": event.get("pubkey", ""),
+        "event_id": event.get("id", ""),
+        "kind": event.get("kind", 21)
+    }
+    
+    tags = event.get("tags", [])
+    content = event.get("content", "")
+    
+    # Extract title
+    for tag in tags:
+        if isinstance(tag, list) and len(tag) >= 2:
+            if tag[0] == "title":
+                # Clean title: remove newlines and extra spaces
+                title = tag[1].replace("\n", " ").replace("\r", " ").strip()
+                while "  " in title:
+                    title = title.replace("  ", " ")
+                metadata["title"] = title
+                break
+    
+    # Extract description from content (remove title line if present)
+    if content:
+        description = content
+        if description.startswith("🎬"):
+            lines = description.split("\n")
+            if len(lines) > 1:
+                description = "\n".join(lines[1:]).strip()
+        # Clean description for meta tags: remove newlines, limit length
+        description = description.replace("\n", " ").replace("\r", " ").strip()
+        # Remove multiple spaces
+        while "  " in description:
+            description = description.replace("  ", " ")
+        metadata["description"] = description[:300]  # Limit to 300 chars for meta tags
+    
+    # Extract IPFS URL and thumbnail
+    ipfs_gateway = get_myipfs_gateway()
+    
+    for tag in tags:
+        if isinstance(tag, list) and len(tag) >= 2:
+            tag_type = tag[0]
+            tag_value = tag[1]
+            
+            if tag_type == "url" and ("/ipfs/" in tag_value or "ipfs://" in tag_value):
+                # Convert IPFS URL to gateway URL
+                ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
+                if ipfs_path.startswith("/ipfs/"):
+                    metadata["video_url"] = f"{ipfs_gateway}{ipfs_path}"
+            
+            elif tag_type == "thumbnail_ipfs":
+                # Thumbnail CID
+                cid = tag_value
+                if not cid.startswith("/ipfs/"):
+                    cid = f"/ipfs/{cid}"
+                metadata["thumbnail_url"] = f"{ipfs_gateway}{cid}"
+            
+            elif tag_type == "image" and ("/ipfs/" in tag_value or "ipfs://" in tag_value):
+                # Image/thumbnail from imeta or direct tag
+                if not metadata["thumbnail_url"]:  # Only if not already set
+                    ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
+                    if ipfs_path.startswith("/ipfs/"):
+                        metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
+            
+            elif tag_type == "r" and len(tag) >= 3 and tag[2] == "Thumbnail":
+                # Reference tag with Thumbnail marker
+                if not metadata["thumbnail_url"]:  # Only if not already set
+                    ipfs_path = tag_value.replace("ipfs://", "/ipfs/")
+                    if ipfs_path.startswith("/ipfs/"):
+                        metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
+    
+    # Parse imeta tags for additional metadata
+    for tag in tags:
+        if isinstance(tag, list) and tag[0] == "imeta":
+            for i in range(1, len(tag)):
+                prop = tag[i]
+                if prop.startswith("url ") and not metadata["video_url"]:
+                    url_value = prop[4:].strip()
+                    if "/ipfs/" in url_value or "ipfs://" in url_value:
+                        ipfs_path = url_value.replace("ipfs://", "/ipfs/")
+                        if ipfs_path.startswith("/ipfs/"):
+                            metadata["video_url"] = f"{ipfs_gateway}{ipfs_path}"
+                elif prop.startswith("image ") and not metadata["thumbnail_url"]:
+                    image_value = prop[6:].strip()
+                    if "/ipfs/" in image_value or "ipfs://" in image_value:
+                        ipfs_path = image_value.replace("ipfs://", "/ipfs/")
+                        if ipfs_path.startswith("/ipfs/"):
+                            metadata["thumbnail_url"] = f"{ipfs_gateway}{ipfs_path}"
+    
+    # Fallback: if no description, use title
+    if not metadata["description"]:
+        metadata["description"] = metadata["title"]
+    
+    return metadata
+
 async def check_nip42_auth(npub: str, timeout: int = 5) -> bool:
     """Vérifier l'authentification NIP42 sur le relai NOSTR local"""
     if not npub:
@@ -2627,11 +2815,31 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
     # Allow local JS files for development (set to True to test modifications before IPNS publish)
     use_local_js = True  # Change to False for IPNS source
     
+    # Fetch video metadata for Open Graph/Twitter Cards if video ID is provided
+    video_metadata = None
+    if video:
+        try:
+            video_event = await fetch_video_event_from_nostr(video, timeout=5)
+            if video_event:
+                video_metadata = parse_video_metadata(video_event)
+                logging.info(f"✅ Video metadata loaded for Open Graph: {video_metadata.get('title', 'Unknown')}")
+        except Exception as e:
+            logging.warning(f"⚠️ Could not fetch video metadata for Open Graph: {e}")
+            # Continue without metadata - page will still work
+    
+    # Get base URL for Open Graph tags
+    base_url = str(request.base_url).rstrip('/')
+    theater_url = f"{base_url}/theater"
+    if video:
+        theater_url = f"{theater_url}?video={video}"
+    
     return templates.TemplateResponse("theater-modal.html", {
         "request": request,
         "myIPFS": get_myipfs_gateway() if not use_local_js else "",
         "use_local_js": use_local_js,
-        "video_id": video  # Pass video ID to template
+        "video_id": video,  # Pass video ID to template
+        "video_metadata": video_metadata,  # Pass metadata for Open Graph/Twitter Cards
+        "theater_url": theater_url  # Full URL for Open Graph og:url
     })
 
 @app.get("/mp3-modal", response_class=HTMLResponse)
@@ -5540,9 +5748,12 @@ async def upload_file_to_ipfs(
                 # This handles all file types: NIP-94 (kind 1063) for general files, delegates to video script for videos
                 file_mime = mime_type or json_output.get('mimeType', '')
                 
-                # Publish for non-video files (videos are published by /webcam endpoint)
+                # Publish for non-video and non-audio files
+                # - Videos are published by /webcam endpoint (kind 21/22)
+                # - Audio files are published by /vocals endpoint (kind 1222/1244)
+                # - Only other file types (images, documents, etc.) should get kind 1063 here
                 # Now includes RE-UPLOADS to establish provenance chain for new user
-                if not file_mime.startswith('video/') and user_pubkey_hex:
+                if not file_mime.startswith('video/') and not file_mime.startswith('audio/') and user_pubkey_hex:
                     if is_reupload:
                         logging.info(f"🔗 Re-upload detected - Publishing NOSTR event with provenance for new user: {response_fileName}")
                     else:

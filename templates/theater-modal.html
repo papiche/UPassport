@@ -6,7 +6,55 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Theater Mode - Nostr Tube</title>
+    <title>{% if video_metadata and video_metadata.title %}{{ video_metadata.title }} - Theater Mode{% else %}Theater Mode - Nostr Tube{% endif %}</title>
+    
+    <!-- Open Graph / Facebook -->
+    {% if video_metadata %}
+    <meta property="og:type" content="video.other">
+    <meta property="og:url" content="{{ theater_url }}">
+    <meta property="og:title" content="{{ video_metadata.title }}">
+    <meta property="og:description" content="{{ video_metadata.description }}">
+    {% if video_metadata.thumbnail_url %}
+    <meta property="og:image" content="{{ video_metadata.thumbnail_url }}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:type" content="image/jpeg">
+    {% endif %}
+    {% if video_metadata.video_url %}
+    <meta property="og:video" content="{{ video_metadata.video_url }}">
+    <meta property="og:video:type" content="video/mp4">
+    {% endif %}
+    <meta property="og:site_name" content="Nostr Tube">
+    {% else %}
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ theater_url }}">
+    <meta property="og:title" content="Theater Mode - Nostr Tube">
+    <meta property="og:description" content="Immersive video viewing experience on Nostr">
+    <meta property="og:site_name" content="Nostr Tube">
+    {% endif %}
+    
+    <!-- Twitter Card -->
+    {% if video_metadata %}
+    <meta name="twitter:card" content="{% if video_metadata.thumbnail_url %}summary_large_image{% else %}summary{% endif %}">
+    <meta name="twitter:url" content="{{ theater_url }}">
+    <meta name="twitter:title" content="{{ video_metadata.title }}">
+    <meta name="twitter:description" content="{{ video_metadata.description }}">
+    {% if video_metadata.thumbnail_url %}
+    <meta name="twitter:image" content="{{ video_metadata.thumbnail_url }}">
+    {% endif %}
+    {% else %}
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:url" content="{{ theater_url }}">
+    <meta name="twitter:title" content="Theater Mode - Nostr Tube">
+    <meta name="twitter:description" content="Immersive video viewing experience on Nostr">
+    {% endif %}
+    
+    <!-- Additional meta tags -->
+    {% if video_metadata %}
+    <meta name="description" content="{{ video_metadata.description }}">
+    {% else %}
+    <meta name="description" content="Immersive video viewing experience on Nostr">
+    {% endif %}
     
     <!-- Bootstrap 5 CSS -->
     {% if use_local_js %}
