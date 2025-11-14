@@ -106,7 +106,7 @@
         }
         
         .list-view .voice-message-header {
-            margin-bottom: 0;
+            margin-bottom: 0.25rem;
             flex-wrap: nowrap;
             align-items: center;
         }
@@ -160,6 +160,33 @@
             font-size: 0.875rem;
         }
         
+        /* Timeline progress bar for list view */
+        .list-view .audio-timeline {
+            height: 2px;
+            background: rgba(63, 63, 63, 0.5);
+            border-radius: 1px;
+            margin-top: 0.25rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .list-view .audio-timeline-progress {
+            height: 100%;
+            background: #065fd4;
+            border-radius: 1px;
+            transition: width 0.1s linear;
+            width: 0%;
+        }
+        
+        .list-view .audio-timeline-time {
+            position: absolute;
+            right: 0;
+            top: -1.25rem;
+            font-size: 0.65em;
+            color: #94a3b8;
+            white-space: nowrap;
+        }
+        
         /* Hide audio player visually but keep it in DOM for play functionality */
         .list-view .audio-player-container {
             display: none !important;
@@ -177,9 +204,10 @@
             display: none !important;
         }
         
-        /* Show only play/decrypt button in list view */
+        /* Show play/pause/stop buttons in list view */
         .list-view .voice-message-actions .btn-primary,
-        .list-view .voice-message-actions .btn-warning {
+        .list-view .voice-message-actions .btn-warning,
+        .list-view .voice-message-actions .btn-secondary {
             display: inline-flex !important;
         }
         
@@ -569,7 +597,7 @@
         <div class="row g-0">
             <!-- Sidebar (Filters) - Collapsible -->
             <aside class="col-lg-3 col-xl-2 sidebar" id="sidebar">
-                <div class="card bg-dark border-secondary mb-3">
+        <div class="card bg-dark border-secondary mb-3">
                     <div class="card-header bg-dark border-secondary d-flex justify-content-between align-items-center">
                         <h6 class="mb-0">
                             <i class="bi bi-funnel"></i> Filters & Sort
@@ -577,31 +605,31 @@
                         <button class="btn btn-sm btn-outline-secondary d-lg-none" onclick="toggleSidebar()" title="Close filters">
                             <i class="bi bi-x-lg"></i>
                         </button>
-                    </div>
-                    <div class="card-body">
-                        <!-- View Mode Tabs -->
+            </div>
+            <div class="card-body">
+                <!-- View Mode Tabs -->
                         <ul class="nav nav-pills nav-pills-dark flex-column mb-3" id="viewModeTabs" role="tablist">
-                            <li class="nav-item" role="presentation">
+                    <li class="nav-item" role="presentation">
                                 <button class="nav-link active w-100 text-start" id="chronological-tab" data-bs-toggle="tab" data-bs-target="#chronological" type="button" role="tab">
                                     <i class="bi bi-calendar3"></i> Chronological
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                                 <button class="nav-link w-100 text-start" id="by-author-tab" data-bs-toggle="tab" data-bs-target="#by-author" type="button" role="tab">
                                     <i class="bi bi-people"></i> By Author
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                                 <button class="nav-link w-100 text-start" id="threads-tab" data-bs-toggle="tab" data-bs-target="#threads" type="button" role="tab">
                                     <i class="bi bi-chat-dots"></i> Threads
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                                 <button class="nav-link w-100 text-start" id="personal-tab" data-bs-toggle="tab" data-bs-target="#personal" type="button" role="tab">
                                     <i class="bi bi-lock"></i> Personal
-                                </button>
-                            </li>
-                        </ul>
+                        </button>
+                    </li>
+                </ul>
                         
                         <!-- Message Count -->
                         <div class="mb-3">
@@ -610,109 +638,109 @@
                             </span>
                         </div>
                 
-                        <!-- Tab Content -->
-                        <div class="tab-content" id="viewModeTabContent">
-                            <!-- Chronological View -->
-                            <div class="tab-pane fade show active" id="chronological" role="tabpanel">
+                <!-- Tab Content -->
+                <div class="tab-content" id="viewModeTabContent">
+                    <!-- Chronological View -->
+                    <div class="tab-pane fade show active" id="chronological" role="tabpanel">
                                 <div class="mb-3">
                                     <label for="filter-type" class="form-label small">
                                         <i class="bi bi-funnel"></i> Type:
                                     </label>
-                                    <select id="filter-type" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                        <option value="all">All Messages</option>
-                                        <option value="public">Public Only</option>
-                                        <option value="encrypted">Encrypted Only</option>
-                                        <option value="sent">Sent by Me</option>
-                                        <option value="received">Received by Me</option>
-                                    </select>
-                                </div>
+                                <select id="filter-type" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="all">All Messages</option>
+                                    <option value="public">Public Only</option>
+                                    <option value="encrypted">Encrypted Only</option>
+                                    <option value="sent">Sent by Me</option>
+                                    <option value="received">Received by Me</option>
+                                </select>
+                            </div>
                                 <div class="mb-3">
                                     <label for="filter-since" class="form-label small">
                                         <i class="bi bi-clock"></i> Since:
                                     </label>
-                                    <select id="filter-since" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                        <option value="1h">Last Hour</option>
-                                        <option value="24h" selected>Last 24 Hours</option>
-                                        <option value="7d">Last 7 Days</option>
-                                        <option value="30d">Last 30 Days</option>
-                                        <option value="all">All Time</option>
-                                    </select>
-                                </div>
+                                <select id="filter-since" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="1h">Last Hour</option>
+                                    <option value="24h" selected>Last 24 Hours</option>
+                                    <option value="7d">Last 7 Days</option>
+                                    <option value="30d">Last 30 Days</option>
+                                    <option value="all">All Time</option>
+                                </select>
+                            </div>
                                 <div class="mb-3">
                                     <label for="sort-order" class="form-label small">
                                         <i class="bi bi-sort-down"></i> Sort:
                                     </label>
-                                    <select id="sort-order" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                        <option value="newest">Newest First</option>
-                                        <option value="oldest">Oldest First</option>
-                                    </select>
-                                </div>
+                                <select id="sort-order" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="newest">Newest First</option>
+                                    <option value="oldest">Oldest First</option>
+                                </select>
+                            </div>
                                 <button id="refresh-btn" class="btn btn-primary btn-sm w-100" onclick="loadVoiceMessages()">
                                     <i class="bi bi-arrow-clockwise"></i> Refresh
                                 </button>
-                            </div>
-                            
-                            <!-- By Author View -->
-                            <div class="tab-pane fade" id="by-author" role="tabpanel">
+                    </div>
+                    
+                    <!-- By Author View -->
+                    <div class="tab-pane fade" id="by-author" role="tabpanel">
                                 <div class="mb-3">
                                     <label for="filter-author" class="form-label small">
                                         <i class="bi bi-person"></i> Author:
                                     </label>
-                                    <select id="filter-author" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                        <option value="all">All Authors</option>
-                                    </select>
-                                </div>
+                                <select id="filter-author" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="all">All Authors</option>
+                                </select>
+                            </div>
                                 <div class="mb-3">
                                     <label for="filter-location" class="form-label small">
                                         <i class="bi bi-geo-alt"></i> Location:
                                     </label>
-                                    <select id="filter-location" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                        <option value="all">All Locations</option>
-                                    </select>
-                                </div>
+                                <select id="filter-location" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="all">All Locations</option>
+                                </select>
+                            </div>
                                 <button class="btn btn-primary btn-sm w-100" onclick="applyAuthorFilter()">
                                     <i class="bi bi-funnel-fill"></i> Apply Filter
                                 </button>
-                            </div>
-                            
-                            <!-- Threads View -->
-                            <div class="tab-pane fade" id="threads" role="tabpanel">
+                    </div>
+                    
+                    <!-- Threads View -->
+                    <div class="tab-pane fade" id="threads" role="tabpanel">
                                 <div class="mb-3">
                                     <label for="filter-thread-type" class="form-label small">
                                         <i class="bi bi-chat-dots"></i> Thread Type:
                                     </label>
-                                    <select id="filter-thread-type" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                        <option value="all">All Threads</option>
+                                <select id="filter-thread-type" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="all">All Threads</option>
                                         <option value="encrypted">Encrypted</option>
                                         <option value="public">Public</option>
-                                        <option value="my-threads">My Threads</option>
-                                    </select>
-                                </div>
+                                    <option value="my-threads">My Threads</option>
+                                </select>
+                            </div>
                                 <div class="mb-3">
                                     <label for="filter-thread-participant" class="form-label small">
                                         <i class="bi bi-people"></i> Participant:
                                     </label>
-                                    <select id="filter-thread-participant" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                        <option value="all">All Participants</option>
-                                    </select>
-                                </div>
+                                <select id="filter-thread-participant" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                    <option value="all">All Participants</option>
+                                </select>
+                            </div>
                                 <button class="btn btn-primary btn-sm w-100" onclick="applyThreadFilter()">
                                     <i class="bi bi-funnel-fill"></i> Apply Filter
                                 </button>
-                            </div>
-                            
-                            <!-- Personal View -->
-                            <div class="tab-pane fade" id="personal" role="tabpanel">
+                    </div>
+                    
+                    <!-- Personal View -->
+                    <div class="tab-pane fade" id="personal" role="tabpanel">
                                 <div class="mb-3">
                                     <label for="filter-personal-type" class="form-label small">
                                         <i class="bi bi-lock"></i> Personal:
                                     </label>
-                                    <select id="filter-personal-type" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                <select id="filter-personal-type" class="form-select form-select-sm bg-dark text-white border-secondary">
                                         <option value="self">To Myself</option>
                                         <option value="drafts">Drafts</option>
                                         <option value="saved">Saved</option>
-                                    </select>
-                                </div>
+                                </select>
+                            </div>
                                 <button class="btn btn-primary btn-sm w-100" onclick="applyPersonalFilter()">
                                     <i class="bi bi-funnel-fill"></i> Apply Filter
                                 </button>
@@ -741,22 +769,22 @@
                         <span class="text-secondary small">
                             <i class="bi bi-envelope"></i> <span id="showing-count">0</span> / <span id="total-count">0</span>
                         </span>
-                    </div>
-                    <nav aria-label="Messages pagination">
-                        <ul class="pagination pagination-sm mb-0" id="pagination-controls">
-                            <!-- Pagination will be generated dynamically -->
-                        </ul>
-                    </nav>
-                </div>
-                
-                <!-- Voice Messages List -->
+            </div>
+            <nav aria-label="Messages pagination">
+                <ul class="pagination pagination-sm mb-0" id="pagination-controls">
+                    <!-- Pagination will be generated dynamically -->
+                </ul>
+            </nav>
+        </div>
+        
+        <!-- Voice Messages List -->
                 <div id="voice-messages-container" class="detail-view">
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🎤</div>
-                        <p>Connect to NOSTR to load voice messages</p>
-                    </div>
-                </div>
-            </main>
+            <div class="empty-state">
+                <div class="empty-state-icon">🎤</div>
+                <p>Connect to NOSTR to load voice messages</p>
+            </div>
+        </div>
+    </main>
         </div>
     </div>
     
@@ -1981,6 +2009,7 @@
             const senderName = msg.senderProfile?.name || msg.senderProfile?.display_name || msg.pubkey.substring(0, 8) + '...';
             const hasReplies = repliesMap.has(msg.id) && repliesMap.get(msg.id).length > 0;
             const replyCount = hasReplies ? repliesMap.get(msg.id).length : 0;
+            const duration = msg.metadata.duration ? Math.round(msg.metadata.duration) : 0;
             
             // Indentation for nested replies
             const indentStyle = depth > 0 ? `margin-left: ${depth * 1.5}rem; border-left: 2px solid #3f3f3f; padding-left: 0.75rem;` : '';
@@ -1996,19 +2025,22 @@
                             <div class="voice-message-meta">
                                 <span><i class="bi bi-person"></i> ${senderName}</span>
                                 <span><i class="bi bi-calendar3"></i> ${dateStr}</span>
-                                ${msg.metadata.duration ? `<span><i class="bi bi-clock"></i> ${Math.round(msg.metadata.duration)}s</span>` : ''}
+                                ${duration ? `<span><i class="bi bi-clock"></i> ${duration}s</span>` : ''}
                             </div>
                         </div>
                         <div class="voice-message-actions">
                             ${msg.isEncrypted ? `
-                                <button class="btn btn-warning btn-sm" onclick="decryptAndPlayMessage('${msg.id}', this)" title="Decrypt & Play">
+                                <button class="btn btn-warning btn-sm" id="play-pause-btn-${msg.id}" onclick="togglePlayPauseMessage('${msg.id}', this)" title="Decrypt & Play">
                                     <i class="bi bi-unlock"></i>
                                 </button>
                             ` : `
-                                <button class="btn btn-primary btn-sm" onclick="playMessage('${msg.id}')" title="Play">
+                                <button class="btn btn-primary btn-sm" id="play-pause-btn-${msg.id}" onclick="togglePlayPauseMessage('${msg.id}', this)" title="Play">
                                     <i class="bi bi-play-fill"></i>
                                 </button>
                             `}
+                            <button class="btn btn-secondary btn-sm d-none" id="stop-btn-${msg.id}" onclick="stopMessage('${msg.id}', this)" title="Stop">
+                                <i class="bi bi-stop-fill"></i>
+                            </button>
                             ${hasReplies ? `
                                 <span class="badge bg-secondary ms-1" style="font-size: 0.65em;">
                                     <i class="bi bi-chat-dots"></i> ${replyCount}
@@ -2016,6 +2048,12 @@
                             ` : ''}
                         </div>
                     </div>
+                    ${duration ? `
+                        <div class="audio-timeline" id="timeline-${msg.id}">
+                            <div class="audio-timeline-progress" id="timeline-progress-${msg.id}"></div>
+                            <div class="audio-timeline-time" id="timeline-time-${msg.id}">0:00 / ${formatDuration(duration)}</div>
+                        </div>
+                    ` : ''}
                     ${msg.isEncrypted ? `
                         <div id="decrypt-status-${msg.id}" class="d-none"></div>
                         <div id="audio-container-${msg.id}" class="d-none">
@@ -2042,6 +2080,16 @@
             return html;
         }
         
+        // Format duration as MM:SS
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // Make formatDuration available globally
+        window.formatDuration = formatDuration;
+        
         // Render messages as flat list
         function renderMessagesList(messages) {
             const container = document.getElementById('voice-messages-container');
@@ -2063,6 +2111,15 @@
                 // Build tree and render with branches
                 const messageTree = buildMessageTree(messages);
                 container.innerHTML = renderMessageTree(messageTree);
+                
+                // Attach audio event listeners for timeline updates
+                setTimeout(() => {
+                    const audioPlayers = container.querySelectorAll('.audio-player');
+                    audioPlayers.forEach(audioPlayer => {
+                        const messageId = audioPlayer.id.replace('audio-player-', '');
+                        attachAudioEventListeners(audioPlayer, messageId);
+                    });
+                }, 100);
             } else {
                 // Detail view: render as before
                 container.innerHTML = messages.map(msg => {
@@ -2568,8 +2625,8 @@
             ctx.stroke();
         }
         
-        // Play public message
-        function playMessage(messageId) {
+        // Toggle play/pause for message (list view)
+        function togglePlayPauseMessage(messageId, buttonElement) {
             let audioPlayer = document.getElementById(`audio-player-${messageId}`);
             
             // If audio player doesn't exist, create it
@@ -2598,19 +2655,122 @@
                 audioPlayer.controls = true;
                 audioPlayer.src = message.metadata?.url || message.content;
                 
+                // Attach event listeners for timeline and button updates
+                attachAudioEventListeners(audioPlayer, messageId);
+                
                 audioContainer.appendChild(audioPlayer);
                 messageCard.appendChild(audioContainer);
             }
             
-            // Play the audio
+            // Toggle play/pause
             if (audioPlayer && audioPlayer.src) {
-                audioPlayer.play().catch(error => {
-                    console.error('Error playing audio:', error);
-                    alert('Could not play audio. Please check if the file is accessible.');
-                });
+                if (audioPlayer.paused) {
+                    audioPlayer.play().catch(error => {
+                        console.error('Error playing audio:', error);
+                        alert('Could not play audio. Please check if the file is accessible.');
+                    });
+                } else {
+                    audioPlayer.pause();
+                }
             } else {
                 console.error('Audio player has no source:', messageId);
             }
+        }
+        
+        // Stop message playback
+        function stopMessage(messageId, buttonElement) {
+            const audioPlayer = document.getElementById(`audio-player-${messageId}`);
+            if (audioPlayer) {
+                audioPlayer.pause();
+                audioPlayer.currentTime = 0;
+                updatePlayPauseButton(messageId, false);
+                updateTimeline(messageId, 0, audioPlayer.duration || 0);
+            }
+        }
+        
+        // Attach event listeners to audio player for timeline and button updates
+        function attachAudioEventListeners(audioPlayer, messageId) {
+            // Only attach if not already attached
+            if (audioPlayer.dataset.listenersAttached === 'true') {
+                return;
+            }
+            
+            audioPlayer.addEventListener('play', () => {
+                updatePlayPauseButton(messageId, true);
+            });
+            
+            audioPlayer.addEventListener('pause', () => {
+                updatePlayPauseButton(messageId, false);
+            });
+            
+            audioPlayer.addEventListener('ended', () => {
+                updatePlayPauseButton(messageId, false);
+                const stopBtn = document.getElementById(`stop-btn-${messageId}`);
+                if (stopBtn) {
+                    stopBtn.classList.add('d-none');
+                }
+                updateTimeline(messageId, 0, audioPlayer.duration || 0);
+            });
+            
+            audioPlayer.addEventListener('timeupdate', () => {
+                updateTimeline(messageId, audioPlayer.currentTime, audioPlayer.duration || 0);
+            });
+            
+            audioPlayer.addEventListener('loadedmetadata', () => {
+                updateTimeline(messageId, 0, audioPlayer.duration || 0);
+            });
+            
+            audioPlayer.dataset.listenersAttached = 'true';
+        }
+        
+        // Update play/pause button state
+        function updatePlayPauseButton(messageId, isPlaying) {
+            const playPauseBtn = document.getElementById(`play-pause-btn-${messageId}`);
+            const stopBtn = document.getElementById(`stop-btn-${messageId}`);
+            
+            if (!playPauseBtn) return;
+            
+            if (isPlaying) {
+                // Show pause icon
+                playPauseBtn.innerHTML = '<i class="bi bi-pause-fill"></i>';
+                playPauseBtn.title = 'Pause';
+                if (stopBtn) {
+                    stopBtn.classList.remove('d-none');
+                }
+            } else {
+                // Show play icon
+                playPauseBtn.innerHTML = '<i class="bi bi-play-fill"></i>';
+                playPauseBtn.title = 'Play';
+                if (stopBtn) {
+                    stopBtn.classList.add('d-none');
+                }
+            }
+        }
+        
+        // Update timeline progress
+        function updateTimeline(messageId, currentTime, duration) {
+            const progressBar = document.getElementById(`timeline-progress-${messageId}`);
+            const timeDisplay = document.getElementById(`timeline-time-${messageId}`);
+            
+            if (progressBar && duration > 0) {
+                const percentage = (currentTime / duration) * 100;
+                progressBar.style.width = `${percentage}%`;
+            }
+            
+            if (timeDisplay && duration > 0) {
+                const message = voiceMessagesCache.find(msg => msg.id === messageId);
+                const totalDuration = message?.metadata?.duration || duration;
+                timeDisplay.textContent = `${formatDuration(currentTime)} / ${formatDuration(totalDuration)}`;
+            }
+        }
+        
+        // Make functions available globally
+        window.togglePlayPauseMessage = togglePlayPauseMessage;
+        window.stopMessage = stopMessage;
+        
+        // Play public message (legacy function for compatibility)
+        function playMessage(messageId) {
+            togglePlayPauseMessage(messageId);
         }
         
         // Generate waveform from audio (lazy loading - on demand)
@@ -2970,9 +3130,69 @@
                 
                 // Show audio player with decrypted URL
                 audioContainer.classList.remove('d-none');
-                const audioPlayer = document.getElementById(`audio-player-${messageId}`);
+                let audioPlayer = document.getElementById(`audio-player-${messageId}`);
+                
+                // If audio player doesn't exist, create it
+                if (!audioPlayer) {
+                    const messageCard = document.querySelector(`[data-event-id="${messageId}"]`);
+                    if (messageCard) {
+                        const audioContainerDiv = document.createElement('div');
+                        audioContainerDiv.className = 'audio-player-container';
+                        audioContainerDiv.style.display = 'none';
+                        
+                        audioPlayer = document.createElement('audio');
+                        audioPlayer.id = `audio-player-${messageId}`;
+                        audioPlayer.className = 'audio-player';
+                        audioPlayer.controls = true;
+                        
+                        audioContainerDiv.appendChild(audioPlayer);
+                        messageCard.appendChild(audioContainerDiv);
+                    }
+                }
+                
                 if (audioPlayer && decryptedData.url) {
                     audioPlayer.src = decryptedData.url;
+                    
+                    // Attach event listeners for timeline and button updates (list view)
+                    attachAudioEventListeners(audioPlayer, messageId);
+                    
+                    // Update button to play/pause button in list view
+                    const isListView = document.getElementById('voice-messages-container')?.classList.contains('list-view');
+                    if (isListView && decryptBtn) {
+                        decryptBtn.id = `play-pause-btn-${messageId}`;
+                        decryptBtn.className = 'btn btn-warning btn-sm';
+                        decryptBtn.innerHTML = '<i class="bi bi-pause-fill"></i>';
+                        decryptBtn.onclick = () => togglePlayPauseMessage(messageId, decryptBtn);
+                        
+                        // Show stop button
+                        const stopBtn = document.getElementById(`stop-btn-${messageId}`);
+                        if (stopBtn) {
+                            stopBtn.classList.remove('d-none');
+                        }
+                        
+                        // Create timeline if it doesn't exist and we have duration
+                        const messageCard = document.querySelector(`[data-event-id="${messageId}"]`);
+                        if (messageCard && !document.getElementById(`timeline-${messageId}`)) {
+                            const duration = decryptedData.duration || message.metadata?.duration || 0;
+                            if (duration > 0) {
+                                const timelineDiv = document.createElement('div');
+                                timelineDiv.className = 'audio-timeline';
+                                timelineDiv.id = `timeline-${messageId}`;
+                                timelineDiv.innerHTML = `
+                                    <div class="audio-timeline-progress" id="timeline-progress-${messageId}"></div>
+                                    <div class="audio-timeline-time" id="timeline-time-${messageId}">0:00 / ${formatDuration(duration)}</div>
+                                `;
+                                // Insert after header
+                                const header = messageCard.querySelector('.voice-message-header');
+                                if (header && header.nextSibling) {
+                                    messageCard.insertBefore(timelineDiv, header.nextSibling);
+                                } else {
+                                    messageCard.appendChild(timelineDiv);
+                                }
+                            }
+                        }
+                    }
+                    
                     audioPlayer.play();
                 } else {
                     throw new Error('No audio URL found in decrypted data');
@@ -2980,7 +3200,9 @@
                 
                 // Update status
                 statusDiv.innerHTML = '<span class="text-success">✅ Decrypted successfully</span>';
-                decryptBtn.textContent = '✅ Decrypted';
+                if (!isListView) {
+                    decryptBtn.textContent = '✅ Decrypted';
+                }
                 
                 // Update UI with decrypted metadata
                 const cardEl = document.querySelector(`[data-event-id="${messageId}"]`);
@@ -3477,23 +3699,23 @@
                 
                 // Helper function to verify authentication
                 const verifyAuth = async () => {
-                    if (typeof verifyAuthenticationWithAPI === 'function') {
-                        try {
+                if (typeof verifyAuthenticationWithAPI === 'function') {
+                    try {
                             const result = await verifyAuthenticationWithAPI(localUserPubkey);
                             return result === true || (result && result.auth_verified === true);
-                        } catch (authError) {
-                            console.warn('⚠️ NIP-42 verification failed:', authError);
+                    } catch (authError) {
+                        console.warn('⚠️ NIP-42 verification failed:', authError);
                             return false;
-                        }
-                    } else if (typeof window !== 'undefined' && typeof window.verifyAuthenticationWithAPI === 'function') {
-                        try {
+                    }
+                } else if (typeof window !== 'undefined' && typeof window.verifyAuthenticationWithAPI === 'function') {
+                    try {
                             const result = await window.verifyAuthenticationWithAPI(localUserPubkey);
                             return result === true || (result && result.auth_verified === true);
-                        } catch (authError) {
-                            console.warn('⚠️ NIP-42 verification failed:', authError);
+                    } catch (authError) {
+                        console.warn('⚠️ NIP-42 verification failed:', authError);
                             return false;
-                        }
                     }
+                }
                     return false;
                 };
                 
@@ -3527,8 +3749,8 @@
                     
                     console.log('🔐 Sending NIP-42 authentication event to local relay:', relayUrl);
                     
-                    if (typeof sendNIP42Auth === 'function') {
-                        await sendNIP42Auth(relayUrl, true);
+                        if (typeof sendNIP42Auth === 'function') {
+                            await sendNIP42Auth(relayUrl, true);
                         return true;
                     } else if (typeof window !== 'undefined' && typeof window.sendNIP42Auth === 'function') {
                         await window.sendNIP42Auth(relayUrl, true);
@@ -3576,7 +3798,7 @@
                 }
                 
                 // Final check - if still not authenticated, try one more time with longer wait
-                if (!isAuthenticated) {
+                    if (!isAuthenticated) {
                     console.log('🔐 Final authentication attempt with extended wait...');
                     try {
                         await sendAuth();
@@ -3738,9 +3960,9 @@
             }
         }
         
-            // Handle tab changes
-            document.addEventListener('DOMContentLoaded', function() {
-                console.log('🚀 Initializing voice messages reader...');
+        // Handle tab changes
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Initializing voice messages reader...');
                 
                 // Close sidebar when clicking outside (mobile)
                 const sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -3749,149 +3971,149 @@
                         toggleSidebar();
                     });
                 }
-                
-                // Attach reply modal event listeners
-                attachThreadEventListeners();
-                
-                // Handle view mode tab changes
-                const viewModeTabs = document.querySelectorAll('#viewModeTabs button[data-bs-toggle="tab"]');
-                viewModeTabs.forEach(tab => {
-                    tab.addEventListener('shown.bs.tab', function(event) {
-                        const targetId = event.target.getAttribute('data-bs-target');
-                        if (targetId === '#chronological') {
-                            currentViewMode = 'chronological';
-                        } else if (targetId === '#by-author') {
-                            currentViewMode = 'by-author';
-                        } else if (targetId === '#threads') {
-                            currentViewMode = 'threads';
-                        } else if (targetId === '#personal') {
-                            currentViewMode = 'personal';
+            
+            // Attach reply modal event listeners
+            attachThreadEventListeners();
+            
+            // Handle view mode tab changes
+            const viewModeTabs = document.querySelectorAll('#viewModeTabs button[data-bs-toggle="tab"]');
+            viewModeTabs.forEach(tab => {
+                tab.addEventListener('shown.bs.tab', function(event) {
+                    const targetId = event.target.getAttribute('data-bs-target');
+                    if (targetId === '#chronological') {
+                        currentViewMode = 'chronological';
+                    } else if (targetId === '#by-author') {
+                        currentViewMode = 'by-author';
+                    } else if (targetId === '#threads') {
+                        currentViewMode = 'threads';
+                    } else if (targetId === '#personal') {
+                        currentViewMode = 'personal';
+                    }
+                    currentPage = 1;
+                    applyCurrentViewMode();
+                });
+            });
+            
+            // Handle filter changes
+            const filterInputs = ['filter-type', 'filter-since', 'sort-order'];
+            filterInputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('change', function() {
+                        if (currentViewMode === 'chronological') {
+                            currentPage = 1;
+                            applyCurrentViewMode();
                         }
-                        currentPage = 1;
-                        applyCurrentViewMode();
                     });
-                });
-                
-                // Handle filter changes
-                const filterInputs = ['filter-type', 'filter-since', 'sort-order'];
-                filterInputs.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) {
-                        el.addEventListener('change', function() {
-                            if (currentViewMode === 'chronological') {
-                                currentPage = 1;
-                                applyCurrentViewMode();
-                            }
-                        });
-                    }
-                });
-                
-                // Sync from common.js first to get latest connection state
-                syncFromCommonJS();
-                
-                // Check if already connected (from parent window if in iframe, or from common.js in standalone)
-                const isInIframe = window.self !== window.top;
-                let shouldAutoLoad = false;
-                
-                if (isInIframe && window.parent && window.parent.userPubkey) {
-                    // Iframe mode: use parent's connection
-                    localUserPubkey = window.parent.userPubkey;
-                    if (window.parent.nostrPool) {
-                        nostrPool = window.parent.nostrPool;
-                    } else if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
-                        nostrPool = new NostrTools.SimplePool();
-                    }
-                    localIsNostrConnected = true;
-                    syncToCommonJS();
-                    shouldAutoLoad = true;
-                } else if (localUserPubkey && localIsNostrConnected) {
-                    // Standalone mode: already connected via common.js
-                    console.log('✅ Already connected via common.js, pubkey:', localUserPubkey.substring(0, 8) + '...');
-                    // Initialize pool if not already done
-                    if (!nostrPool && typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
-                        nostrPool = new NostrTools.SimplePool();
-                        console.log('✅ Initialized NOSTR pool');
-                    }
-                    shouldAutoLoad = true;
-                } else {
+                }
+            });
+            
+            // Sync from common.js first to get latest connection state
+            syncFromCommonJS();
+            
+            // Check if already connected (from parent window if in iframe, or from common.js in standalone)
+            const isInIframe = window.self !== window.top;
+            let shouldAutoLoad = false;
+            
+            if (isInIframe && window.parent && window.parent.userPubkey) {
+                // Iframe mode: use parent's connection
+                localUserPubkey = window.parent.userPubkey;
+                if (window.parent.nostrPool) {
+                    nostrPool = window.parent.nostrPool;
+                } else if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                    nostrPool = new NostrTools.SimplePool();
+                }
+                localIsNostrConnected = true;
+                syncToCommonJS();
+                shouldAutoLoad = true;
+            } else if (localUserPubkey && localIsNostrConnected) {
+                // Standalone mode: already connected via common.js
+                console.log('✅ Already connected via common.js, pubkey:', localUserPubkey.substring(0, 8) + '...');
+                // Initialize pool if not already done
+                if (!nostrPool && typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                    nostrPool = new NostrTools.SimplePool();
+                    console.log('✅ Initialized NOSTR pool');
+                }
+                shouldAutoLoad = true;
+            } else {
                     // Auto-login: Try to connect automatically if extension is available (silent mode)
                     // Strategy: Try direct extension access (with retry for extension loading delay)
-                    function tryDirectExtensionConnection() {
-                        let attempts = 0;
+                function tryDirectExtensionConnection() {
+                    let attempts = 0;
                         const maxAttempts = 20; // Reduced to 20 (10 seconds total) for faster UX
-                        const checkInterval = 500; // Check every 500ms
+                    const checkInterval = 500; // Check every 500ms
                         const initialDelay = 1000; // Wait 1 second before first check (extensions need time to inject)
+                    
+                    const checkExtension = () => {
+                        attempts++;
                         
-                        const checkExtension = () => {
-                            attempts++;
-                            
-                            // Multiple ways to check for NOSTR extension
-                            const nostrAvailable = typeof window.nostr !== 'undefined' && window.nostr !== null;
-                            const nostrGetPublicKey = nostrAvailable && typeof window.nostr.getPublicKey === 'function';
-                            
-                            if (nostrGetPublicKey) {
+                        // Multiple ways to check for NOSTR extension
+                        const nostrAvailable = typeof window.nostr !== 'undefined' && window.nostr !== null;
+                        const nostrGetPublicKey = nostrAvailable && typeof window.nostr.getPublicKey === 'function';
+                        
+                        if (nostrGetPublicKey) {
                                 // Extension available - try to connect automatically (silently)
-                                // Try to test if extension actually works (some extensions need user interaction)
-                                try {
-                                    const testPromise = window.nostr.getPublicKey();
-                                    if (testPromise && typeof testPromise.then === 'function') {
+                            // Try to test if extension actually works (some extensions need user interaction)
+                            try {
+                                const testPromise = window.nostr.getPublicKey();
+                                if (testPromise && typeof testPromise.then === 'function') {
                                         // It's async, try to connect silently
-                                        handleNostrConnect().then(() => {
-                                            // Connection successful - handleNostrConnect already loads messages
-                                            const profileBtn = document.getElementById('profile-btn');
-                                            if (profileBtn && localUserPubkey) {
-                                                profileBtn.classList.remove('d-none');
-                                            }
+                                    handleNostrConnect().then(() => {
+                                        // Connection successful - handleNostrConnect already loads messages
+                                        const profileBtn = document.getElementById('profile-btn');
+                                        if (profileBtn && localUserPubkey) {
+                                            profileBtn.classList.remove('d-none');
+                                        }
                                         }).catch(() => {
                                             // Silent failure - user can click Connect button if needed
-                                        });
-                                    } else {
-                                        // Synchronous, might work
-                                        handleNostrConnect().then(() => {
-                                            const profileBtn = document.getElementById('profile-btn');
-                                            if (profileBtn && localUserPubkey) {
-                                                profileBtn.classList.remove('d-none');
-                                            }
+                                    });
+                                } else {
+                                    // Synchronous, might work
+                                    handleNostrConnect().then(() => {
+                                        const profileBtn = document.getElementById('profile-btn');
+                                        if (profileBtn && localUserPubkey) {
+                                            profileBtn.classList.remove('d-none');
+                                        }
                                         }).catch(() => {
                                             // Silent failure
-                                        });
-                                    }
-                                } catch (testError) {
-                                    // Extension exists but might need user interaction - silent
+                                    });
                                 }
-                            } else if (attempts < maxAttempts) {
-                                // Extension not ready yet, retry silently
-                                setTimeout(checkExtension, checkInterval);
+                            } catch (testError) {
+                                    // Extension exists but might need user interaction - silent
                             }
+                        } else if (attempts < maxAttempts) {
+                                // Extension not ready yet, retry silently
+                            setTimeout(checkExtension, checkInterval);
+                        }
                             // If max attempts reached, just stop silently - user can click Connect button
-                        };
-                        
-                        // Start checking after initial delay to let extensions initialize
-                        setTimeout(checkExtension, initialDelay);
-                    }
+                    };
                     
-                    // Try direct extension access first (silent mode - no logs unless successful)
-                    tryDirectExtensionConnection();
+                    // Start checking after initial delay to let extensions initialize
+                    setTimeout(checkExtension, initialDelay);
                 }
                 
-                if (shouldAutoLoad) {
-                    const connectBtn = document.getElementById('connect-btn');
-                    const profileBtn = document.getElementById('profile-btn');
-                    if (connectBtn) {
+                    // Try direct extension access first (silent mode - no logs unless successful)
+                tryDirectExtensionConnection();
+            }
+            
+            if (shouldAutoLoad) {
+                const connectBtn = document.getElementById('connect-btn');
+                const profileBtn = document.getElementById('profile-btn');
+                if (connectBtn) {
                         connectBtn.innerHTML = '<i class="bi bi-check-circle"></i> <span class="d-none d-md-inline">Connected</span>';
-                        connectBtn.disabled = true;
-                        connectBtn.classList.remove('btn-primary');
-                        connectBtn.classList.add('btn-secondary');
-                    }
-                    if (profileBtn && localUserPubkey) {
-                        profileBtn.classList.remove('d-none');
-                    }
-                    
-                    // Auto-load messages
-                    loadVoiceMessages();
+                    connectBtn.disabled = true;
+                    connectBtn.classList.remove('btn-primary');
+                    connectBtn.classList.add('btn-secondary');
                 }
+                if (profileBtn && localUserPubkey) {
+                    profileBtn.classList.remove('d-none');
+                }
+                
+                // Auto-load messages
+                loadVoiceMessages();
+            }
                 // If not connected, silent - user can click Connect button if needed
-            });
+        });
     </script>
 </body>
 </html>
