@@ -15,6 +15,28 @@ ME="${0##*/}"
 [[ -s "${HOME}/.zen/Astroport.ONE/tools/my.sh" ]] \
     && source "${HOME}/.zen/Astroport.ONE/tools/my.sh"
 
+################################################################################
+# Helper function: Calculate Greatest Common Divisor (GCD) using Euclidean algorithm
+################################################################################
+gcd() {
+    local a=$1
+    local b=$2
+    
+    # Handle edge cases
+    [[ -z "$a" ]] || [[ -z "$b" ]] && echo "1" && return
+    [[ "$a" -eq 0 ]] && echo "$b" && return
+    [[ "$b" -eq 0 ]] && echo "$a" && return
+    
+    # Euclidean algorithm
+    while [[ "$b" -ne 0 ]]; do
+        local temp=$b
+        b=$((a % b))
+        a=$temp
+    done
+    
+    echo "$a"
+}
+
 # Parse arguments
 YOUTUBE_METADATA_FILE=""
 FILE_PATH=""
@@ -1047,19 +1069,96 @@ elif [[ -n "$IMAGE_EXIF_JSON" ]]; then
   }"
 fi
 
-# Build media section if available
+# Build media section if available (v2.0 format)
 MEDIA_SECTION=""
 if [[ "$FILE_TYPE" == "video/"* ]] || [[ "$FILE_TYPE" == "audio/"* ]]; then
+    # Determine media type
+    if [[ "$FILE_TYPE" == "video/"* ]]; then
+        MEDIA_TYPE="video"
+    else
+        MEDIA_TYPE="audio"
+    fi
+    
+    # Parse dimensions if available (convert "1920x1080" to object)
+    DIMENSIONS_OBJ=""
+    if [[ -n "$VIDEO_DIMENSIONS" ]]; then
+        WIDTH=$(echo "$VIDEO_DIMENSIONS" | cut -d'x' -f1)
+        HEIGHT=$(echo "$VIDEO_DIMENSIONS" | cut -d'x' -f2)
+        # Calculate aspect ratio (16:9, 4:3, etc.)
+        if [[ -n "$WIDTH" ]] && [[ -n "$HEIGHT" ]] && [[ "$HEIGHT" -gt 0 ]]; then
+            GCD=$(gcd "$WIDTH" "$HEIGHT")
+            ASPECT_W=$((WIDTH / GCD))
+            ASPECT_H=$((HEIGHT / GCD))
+            ASPECT_RATIO="${ASPECT_W}:${ASPECT_H}"
+        else
+            ASPECT_RATIO="16:9"
+        fi
+        DIMENSIONS_OBJ=",
+    \"dimensions\": {
+      \"width\": $WIDTH,
+      \"height\": $HEIGHT,
+      \"aspectRatio\": \"$ASPECT_RATIO\"
+    }"
+    fi
+    
+    # Build codecs object
+    CODECS_OBJ=""
+    if [[ -n "$VIDEO_CODECS" ]] || [[ -n "$AUDIO_CODECS" ]]; then
+        CODECS_OBJ=",
+    \"codecs\": {"
+        if [[ -n "$VIDEO_CODECS" ]]; then
+            CODECS_OBJ="$CODECS_OBJ
+      \"video\": \"$VIDEO_CODECS\""
+            if [[ -n "$AUDIO_CODECS" ]]; then
+                CODECS_OBJ="$CODECS_OBJ,"
+            fi
+        fi
+        if [[ -n "$AUDIO_CODECS" ]]; then
+            CODECS_OBJ="$CODECS_OBJ
+      \"audio\": \"$AUDIO_CODECS\""
+        fi
+        CODECS_OBJ="$CODECS_OBJ
+    }"
+    fi
+    
+    # Build thumbnails object (only for video)
+    THUMBNAILS_OBJ=""
+    if [[ "$MEDIA_TYPE" == "video" ]] && { [[ -n "$THUMBNAIL_CID" ]] || [[ -n "$GIFANIM_CID" ]]; }; then
+        THUMBNAILS_OBJ=",
+    \"thumbnails\": {"
+        if [[ -n "$THUMBNAIL_CID" ]]; then
+            THUMBNAILS_OBJ="$THUMBNAILS_OBJ
+      \"static\": \"$THUMBNAIL_CID\""
+            if [[ -n "$GIFANIM_CID" ]]; then
+                THUMBNAILS_OBJ="$THUMBNAILS_OBJ,"
+            fi
+        fi
+        if [[ -n "$GIFANIM_CID" ]]; then
+            THUMBNAILS_OBJ="$THUMBNAILS_OBJ
+      \"animated\": \"$GIFANIM_CID\""
+        fi
+        THUMBNAILS_OBJ="$THUMBNAILS_OBJ
+    }"
+    fi
+    
     MEDIA_SECTION=",
   \"media\": {
-    \"duration\": ${DURATION:-0}$(if [[ -n "$VIDEO_CODECS" ]]; then echo ",
-    \"video_codecs\": \"$VIDEO_CODECS\""; fi)$(if [[ -n "$AUDIO_CODECS" ]]; then echo ",
-    \"audio_codecs\": \"$AUDIO_CODECS\""; fi)$(if [[ -n "$VIDEO_DIMENSIONS" ]]; then echo ",
-    \"dimensions\": \"$VIDEO_DIMENSIONS\""; fi)$(if [[ -n "$THUMBNAIL_CID" ]]; then echo ",
-    \"thumbnail_ipfs\": \"$THUMBNAIL_CID\""; fi)$(if [[ -n "$GIFANIM_CID" ]]; then echo ",
-    \"gifanim_ipfs\": \"$GIFANIM_CID\""; fi)
+    \"type\": \"$MEDIA_TYPE\",
+    \"duration\": ${DURATION:-0}$DIMENSIONS_OBJ$CODECS_OBJ$THUMBNAILS_OBJ
   }"
 fi
+
+# GCD function for aspect ratio calculation
+gcd() {
+    local a=$1
+    local b=$2
+    while [ $b -ne 0 ]; do
+        local t=$b
+        b=$((a % b))
+        a=$t
+    done
+    echo $a
+}
 
 # Initialize UPLOAD_CHAIN_ARRAY if not set (should be set by provenance tracking)
 if [ -z "$UPLOAD_CHAIN_ARRAY" ]; then
@@ -1071,7 +1170,7 @@ if [ -z "$UPLOAD_CHAIN_ARRAY" ]; then
     fi
 fi
 
-# Build provenance section
+# Build provenance section (v2.0 format with camelCase)
 # Always include provenance if we have upload_chain_array (even for first upload)
 PROVENANCE_SECTION=""
 if [ -n "$UPLOAD_CHAIN_ARRAY" ] && [ "$UPLOAD_CHAIN_ARRAY" != "[]" ]; then
@@ -1079,126 +1178,155 @@ if [ -n "$UPLOAD_CHAIN_ARRAY" ] && [ "$UPLOAD_CHAIN_ARRAY" != "[]" ]; then
         # Re-upload: include original event info
         PROVENANCE_SECTION=",
   \"provenance\": {
-    \"original_event_id\": \"$ORIGINAL_EVENT_ID\",
-    \"original_author\": \"$ORIGINAL_AUTHOR\",
-    \"upload_chain\": $UPLOAD_CHAIN_ARRAY,
-    \"is_reupload\": true
+    \"originalEventId\": \"$ORIGINAL_EVENT_ID\",
+    \"originalAuthor\": \"$ORIGINAL_AUTHOR\",
+    \"uploadChain\": $UPLOAD_CHAIN_ARRAY,
+    \"isReupload\": true
   }"
     else
-        # First upload: just include upload_chain
+        # First upload: just include uploadChain
         PROVENANCE_SECTION=",
   \"provenance\": {
-    \"upload_chain\": $UPLOAD_CHAIN_ARRAY,
-    \"is_reupload\": false
+    \"uploadChain\": $UPLOAD_CHAIN_ARRAY,
+    \"isReupload\": false
   }"
     fi
 fi
 
-# Build YouTube or TMDB metadata section if available
-YOUTUBE_SECTION=""
-TMDB_SECTION=""
+# Build source section for YouTube or TMDB metadata (v2.0 format)
+SOURCE_SECTION=""
 
 if [ -n "$YOUTUBE_METADATA_JSON" ] && command -v jq &> /dev/null; then
     # Check if it's TMDB metadata (has tmdb_id) or YouTube metadata
     TMDB_ID=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.tmdb_id // empty' 2>/dev/null)
     
     if [[ -n "$TMDB_ID" ]]; then
-        # This is TMDB metadata - extract ALL fields from scraper.TMDB.py output
-        echo "DEBUG: Extracting comprehensive TMDB metadata for info.json..." >&2
+        # This is TMDB metadata - extract ALL fields and convert to camelCase
+        echo "DEBUG: Extracting comprehensive TMDB metadata for info.json v2.0..." >&2
         
         # Extract all TMDB metadata fields (preserve complete structure from scraper.TMDB.py)
-        # Use jq to merge the entire TMDB metadata object into info.json
-        # This preserves all fields: genres, director, creator, runtime, vote_average, etc.
+        # Convert snake_case to camelCase for v2.0
         TMDB_FULL_JSON=$(echo "$YOUTUBE_METADATA_JSON" | jq -c '. | select(.tmdb_id != null)' 2>/dev/null)
         
         if [[ -n "$TMDB_FULL_JSON" ]]; then
-            # Build TMDB section by including the entire metadata object
-            # This ensures all fields from scraper.TMDB.py are preserved
-            TMDB_JSON_STR=$(echo "$TMDB_FULL_JSON" | jq -c '.' 2>/dev/null | sed 's/^{//' | sed 's/}$//')
+            # Convert snake_case to camelCase
+            TMDB_CAMEL_JSON=$(echo "$TMDB_FULL_JSON" | jq '{
+                id: .tmdb_id,
+                mediaType: .media_type,
+                title: .title,
+                year: (.year | tonumber? // .year),
+                url: .tmdb_url,
+                genres: .genres,
+                director: .director,
+                creator: .creator,
+                runtime: (.runtime | tonumber? // .runtime),
+                voteAverage: (.vote_average | tonumber? // .vote_average),
+                voteCount: (.vote_count | tonumber? // .vote_count),
+                tagline: .tagline,
+                overview: .overview,
+                productionCompanies: .production_companies,
+                countries: .countries,
+                languages: .languages,
+                certification: .certification,
+                posterPath: .poster_path,
+                backdropPath: .backdrop_path,
+                seriesName: .series_name,
+                episodeName: .episode_name,
+                seasonNumber: (.season_number | tonumber? // .season_number),
+                episodeNumber: (.episode_number | tonumber? // .episode_number),
+                network: .network,
+                status: .status,
+                numberOfSeasons: (.number_of_seasons | tonumber? // .number_of_seasons),
+                numberOfEpisodes: (.number_of_episodes | tonumber? // .number_of_episodes)
+            } | with_entries(select(.value != null and .value != ""))' 2>/dev/null)
             
-            if [[ -n "$TMDB_JSON_STR" ]]; then
-                TMDB_SECTION=",
-  \"tmdb\": {
-    $TMDB_JSON_STR
+            if [[ -n "$TMDB_CAMEL_JSON" ]] && [[ "$TMDB_CAMEL_JSON" != "{}" ]]; then
+                SOURCE_SECTION=",
+  \"source\": {
+    \"type\": \"tmdb\",
+    \"tmdb\": $TMDB_CAMEL_JSON
   }"
-                echo "DEBUG: ✅ Comprehensive TMDB metadata section created (includes all scraper fields)" >&2
-            fi
-        else
-            # Fallback: extract basic fields if full JSON merge fails
-            echo "DEBUG: ⚠️ Full TMDB JSON merge failed, using basic fields..." >&2
-            TMDB_MEDIA_TYPE=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.media_type // empty' 2>/dev/null)
-            TMDB_TITLE=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.title // empty' 2>/dev/null)
-            TMDB_YEAR=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.year // empty' 2>/dev/null)
-            TMDB_URL=$(echo "$YOUTUBE_METADATA_JSON" | jq -r '.tmdb_url // empty' 2>/dev/null)
-            
-            # Build TMDB section JSON using jq for proper escaping
-            TMDB_OBJ="{}"
-            if [[ -n "$TMDB_ID" ]]; then
-                TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --argjson id "$TMDB_ID" '. + {tmdb_id: $id}' 2>/dev/null || echo "$TMDB_OBJ")
-            fi
-            if [[ -n "$TMDB_MEDIA_TYPE" ]]; then
-                TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg type "$TMDB_MEDIA_TYPE" '. + {media_type: $type}' 2>/dev/null || echo "$TMDB_OBJ")
-            fi
-            if [[ -n "$TMDB_TITLE" ]]; then
-                TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg title "$TMDB_TITLE" '. + {title: $title}' 2>/dev/null || echo "$TMDB_OBJ")
-            fi
-            if [[ -n "$TMDB_YEAR" ]]; then
-                TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg year "$TMDB_YEAR" '. + {year: $year}' 2>/dev/null || echo "$TMDB_OBJ")
-            fi
-            if [[ -n "$TMDB_URL" ]]; then
-                TMDB_OBJ=$(echo "$TMDB_OBJ" | jq --arg url "$TMDB_URL" '. + {tmdb_url: $url}' 2>/dev/null || echo "$TMDB_OBJ")
-            fi
-            
-            # Convert to string and format for insertion
-            if [[ "$TMDB_OBJ" != "{}" ]]; then
-                TMDB_JSON_STR=$(echo "$TMDB_OBJ" | jq -c '.' 2>/dev/null | sed 's/^{//' | sed 's/}$//')
-                if [[ -n "$TMDB_JSON_STR" ]]; then
-                    TMDB_SECTION=",
-  \"tmdb\": {
-    $TMDB_JSON_STR
-  }"
-                    echo "DEBUG: ✅ Basic TMDB metadata section created" >&2
-                fi
+                echo "DEBUG: ✅ Comprehensive TMDB metadata in source.tmdb (v2.0 camelCase)" >&2
             fi
         fi
     else
         # This is YouTube metadata
-        echo "DEBUG: Extracting comprehensive YouTube metadata for info.json..." >&2
+        echo "DEBUG: Extracting comprehensive YouTube metadata for info.json v2.0..." >&2
         
-        # The metadata is already structured by transform_youtube_metadata_to_structured() in 54321.py
-        # It contains: channel_info, content_info, technical_info, statistics, dates, media_info, 
-        # playlist_info, thumbnails, etc. at the root level (not nested in "youtube" section)
+        # The metadata is structured by transform_youtube_metadata_to_structured() in 54321.py
+        # Convert to v2.0 format with nested structure in source.youtube
         YOUTUBE_FULL_JSON=$(echo "$YOUTUBE_METADATA_JSON" | jq -c '.' 2>/dev/null)
         
         if [[ -n "$YOUTUBE_FULL_JSON" ]] && [[ "$YOUTUBE_FULL_JSON" != "{}" ]]; then
-            # Metadata is structured - place it at root level of info.json
-            # This format is compatible with both enrichTrackWithInfoJson (nostrify.enhancements.js) 
-            # and loadInfoJsonMetadata (youtube.enhancements.js)
-            echo "DEBUG: ✅ YouTube metadata is structured (from transform_youtube_metadata_to_structured)" >&2
+            # Convert v1.0 structured format to v2.0 nested format
+            YOUTUBE_V2_JSON=$(echo "$YOUTUBE_FULL_JSON" | jq '{
+                id: .youtube_id,
+                url: .youtube_url,
+                shortUrl: .youtube_short_url,
+                title: .title,
+                description: .description,
+                uploader: .uploader,
+                uploaderId: .uploader_id,
+                uploaderUrl: .uploader_url,
+                channel: {
+                    name: (.channel_info.display_name // .channel),
+                    id: (.channel_info.channel_id // .channel_id),
+                    url: (.channel_info.channel_url // .channel_url),
+                    followerCount: (.channel_info.follower_count | tonumber? // null)
+                },
+                stats: {
+                    viewCount: (.statistics.view_count | tonumber? // .view_count | tonumber? // null),
+                    likeCount: (.statistics.like_count | tonumber? // .like_count | tonumber? // null),
+                    commentCount: (.statistics.comment_count | tonumber? // .comment_count | tonumber? // null),
+                    averageRating: (.statistics.average_rating | tonumber? // .average_rating | tonumber? // null)
+                },
+                uploadDate: (.dates.upload_date // .upload_date),
+                releaseDate: (.dates.release_date // .release_date),
+                timestamp: (.timestamp | tonumber? // null),
+                ageLimit: (.age_limit | tonumber? // 0),
+                availability: .availability,
+                liveStatus: .live_status,
+                wasLive: .was_live,
+                categories: .categories,
+                tags: .tags,
+                language: (.content_info.language // .language),
+                languages: .languages,
+                location: .location,
+                license: (.content_info.license // .license),
+                format: {
+                    id: (.technical_info.format_id // .format_id),
+                    note: (.technical_info.format_note // .format_note),
+                    ext: .ext
+                },
+                artist: (.media_info.artist // .artist),
+                album: (.media_info.album // .album),
+                track: (.media_info.track // .track),
+                creator: .creator,
+                chapters: .chapters,
+                subtitles: .subtitles,
+                automaticCaptions: .automatic_captions,
+                thumbnailUrl: (.thumbnails.thumbnail // .thumbnail)
+            } | with_entries(select(.value != null and .value != "" and .value != {}))' 2>/dev/null)
             
-            # Extract structured fields to place at root level
-            YOUTUBE_ROOT_JSON_STR=$(echo "$YOUTUBE_FULL_JSON" | jq -c '.' 2>/dev/null | sed 's/^{//' | sed 's/}$//')
-            
-            if [[ -n "$YOUTUBE_ROOT_JSON_STR" ]]; then
-                # Place structured metadata at root level (not in "youtube" section)
-                # This allows both mp3.html and youtube.html to use the same structure
-                YOUTUBE_SECTION=",
-    $YOUTUBE_ROOT_JSON_STR"
-                echo "DEBUG: ✅ Structured YouTube metadata placed at root level (compatible with mp3.html and youtube.html)" >&2
+            if [[ -n "$YOUTUBE_V2_JSON" ]] && [[ "$YOUTUBE_V2_JSON" != "{}" ]]; then
+                SOURCE_SECTION=",
+  \"source\": {
+    \"type\": \"youtube\",
+    \"youtube\": $YOUTUBE_V2_JSON
+  }"
+                echo "DEBUG: ✅ YouTube metadata in source.youtube (v2.0 nested format)" >&2
             fi
-        else
-            echo "WARNING: Empty or invalid YouTube metadata JSON" >&2
         fi
     fi
 fi
 
-# Construct info.json content
+# Construct info.json content (v2.0 format)
 # CRITICAL: Add protocol version for compatibility tracking
 # Protocol version follows semantic versioning: MAJOR.MINOR.PATCH
 # - MAJOR: Breaking changes to structure
 # - MINOR: New fields added (backward compatible)
 # - PATCH: Bug fixes
-PROTOCOL_VERSION="1.0.0"
+PROTOCOL_VERSION="2.0.0"
 
 INFO_JSON_CONTENT="{
   \"protocol\": {
@@ -1215,9 +1343,10 @@ INFO_JSON_CONTENT="{
   \"ipfs\": {
     \"cid\": \"$CID\",
     \"url\": \"/ipfs/$CID/$FILE_NAME\",
+    \"gateway\": \"$myIPFS\",
     \"date\": \"$DATE\"$(if [ -n "$IPFSNODEID" ]; then echo ",
     \"node_id\": \"$IPFSNODEID\""; fi)
-  }$IMAGE_SECTION$MEDIA_SECTION$PROVENANCE_SECTION$YOUTUBE_SECTION$TMDB_SECTION,
+  }$IMAGE_SECTION$MEDIA_SECTION$SOURCE_SECTION$PROVENANCE_SECTION,
   \"metadata\": {
     \"description\": \"$DESCRIPTION\",
     \"type\": \"$IDISK\",
