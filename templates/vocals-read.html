@@ -96,16 +96,19 @@
             margin-bottom: 1rem;
         }
         
-        /* List view - compact cards */
+        /* List view - compact cards with branches */
         .list-view .voice-message-card {
             padding: 0.5rem;
             margin-bottom: 0.25rem;
             border-radius: 6px;
+            background: #181818;
+            border: 1px solid #3f3f3f;
         }
         
         .list-view .voice-message-header {
-            margin-bottom: 0.25rem;
+            margin-bottom: 0;
             flex-wrap: nowrap;
+            align-items: center;
         }
         
         .list-view .voice-message-info {
@@ -115,17 +118,19 @@
         }
         
         .list-view .voice-message-title {
-            font-size: 0.9em;
+            font-size: 0.85em;
             margin-bottom: 0.125rem;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
         }
         
         .list-view .voice-message-title .badge {
-            font-size: 0.65em;
-            padding: 0.125rem 0.375rem;
-            margin-left: 0.25rem;
+            font-size: 0.6em;
+            padding: 0.125rem 0.25rem;
         }
         
         .list-view .voice-message-meta {
@@ -141,66 +146,48 @@
         .list-view .voice-message-actions {
             gap: 0.25rem;
             flex-shrink: 0;
+            display: flex;
+            align-items: center;
         }
         
         .list-view .voice-message-actions .btn {
             padding: 0.25rem 0.5rem;
             font-size: 0.75rem;
+            min-width: auto;
         }
         
         .list-view .voice-message-actions .btn i {
             font-size: 0.875rem;
         }
         
-        .list-view .voice-message-actions .btn .d-none {
+        /* Hide audio player, waveform, description, and other buttons in list view */
+        .list-view .audio-player-container,
+        .list-view .waveform-container,
+        .list-view .voice-message-card p,
+        .list-view .reply-button,
+        .list-view .decrypt-button:not(.btn-warning),
+        .list-view .btn-danger {
             display: none !important;
         }
         
-        .list-view .audio-player-container {
-            margin: 0.25rem 0;
-            padding: 0.25rem;
+        /* Show only play/decrypt button in list view */
+        .list-view .voice-message-actions .btn-primary,
+        .list-view .voice-message-actions .btn-warning {
+            display: inline-flex !important;
         }
         
-        .list-view .audio-player {
-            height: 40px;
+        /* Branch styling for nested replies */
+        .list-view .voice-message-card[style*="margin-left"] {
+            background: rgba(63, 63, 63, 0.2);
+            border-left: 2px solid #3f3f3f;
         }
         
-        .list-view .waveform-container {
-            height: 30px;
-            margin: 0.25rem 0;
+        .list-view .voice-message-card[style*="margin-left"] .voice-message-title {
+            font-size: 0.8em;
         }
         
-        .list-view .voice-message-card p {
-            font-size: 0.75em;
-            margin-bottom: 0.25rem;
-            display: -webkit-box;
-            -webkit-line-clamp: 1;
-            line-clamp: 1;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-        
-        .list-view .badge {
-            font-size: 0.7em;
-            padding: 0.125rem 0.375rem;
-        }
-        
-        .list-view .form-check {
-            margin-bottom: 0;
-        }
-        
-        .list-view .form-check-label {
-            font-size: 0.7em;
-        }
-        
-        .list-view .form-switch .form-check-input {
-            width: 1.5em;
-            height: 0.75em;
-        }
-        
-        .list-view .btn-sm {
-            padding: 0.125rem 0.375rem;
-            font-size: 0.7rem;
+        .list-view .voice-message-card[style*="margin-left"] .voice-message-meta {
+            font-size: 0.65em;
         }
         
         /* Detail view - full cards */
@@ -1825,6 +1812,9 @@
                 if (detailRadio) detailRadio.checked = true;
                 if (detailRadioMobile) detailRadioMobile.checked = true;
             }
+            
+            // Re-render messages with new view mode
+            applyCurrentViewMode();
         }
         
         // Make setViewMode available globally
@@ -1936,6 +1926,103 @@
         // Make applyPersonalFilter available globally
         window.applyPersonalFilter = applyPersonalFilter;
         
+        // Build message tree (branches of replies) - similar to theater-modal.html
+        function buildMessageTree(messages) {
+            const topLevel = [];
+            const replies = new Map(); // parentId -> [message, message, ...]
+            
+            messages.forEach(msg => {
+                // Check if this is a reply (kind 1244)
+                if (msg.isReply && msg.parentEventId) {
+                    // This is a reply to another message
+                    if (!replies.has(msg.parentEventId)) {
+                        replies.set(msg.parentEventId, []);
+                    }
+                    replies.get(msg.parentEventId).push(msg);
+                } else {
+                    // Top-level message (kind 1222 or orphan reply)
+                    topLevel.push(msg);
+                }
+            });
+            
+            // Sort top-level messages by date (newest first)
+            topLevel.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+            
+            // Sort replies by date (oldest first for chronological reading)
+            replies.forEach(replyList => {
+                replyList.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+            });
+            
+            return { topLevel, replies };
+        }
+        
+        // Render message tree recursively (for list view)
+        function renderMessageTree(tree, depth = 0) {
+            let html = '';
+            
+            tree.topLevel.forEach(msg => {
+                html += renderMessageCardCompact(msg, tree.replies, depth);
+            });
+            
+            return html;
+        }
+        
+        // Render compact message card for list view (with branches)
+        function renderMessageCardCompact(msg, repliesMap, depth = 0) {
+            const date = new Date(msg.created_at * 1000);
+            const dateStr = date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const senderName = msg.senderProfile?.name || msg.senderProfile?.display_name || msg.pubkey.substring(0, 8) + '...';
+            const hasReplies = repliesMap.has(msg.id) && repliesMap.get(msg.id).length > 0;
+            const replyCount = hasReplies ? repliesMap.get(msg.id).length : 0;
+            
+            // Indentation for nested replies
+            const indentStyle = depth > 0 ? `margin-left: ${depth * 1.5}rem; border-left: 2px solid #3f3f3f; padding-left: 0.75rem;` : '';
+            
+            let html = `
+                <div class="voice-message-card" data-event-id="${msg.id}" data-kind="${msg.kind}" style="${indentStyle}">
+                    <div class="voice-message-header">
+                        <div class="voice-message-info flex-grow-1">
+                            <div class="voice-message-title">
+                                <i class="bi bi-mic"></i> ${msg.metadata.title || 'Voice Message'}
+                                ${msg.isEncrypted ? '<span class="badge bg-warning text-dark ms-1" style="font-size: 0.6em;"><i class="bi bi-lock-fill"></i></span>' : ''}
+                            </div>
+                            <div class="voice-message-meta">
+                                <span><i class="bi bi-person"></i> ${senderName}</span>
+                                <span><i class="bi bi-calendar3"></i> ${dateStr}</span>
+                                ${msg.metadata.duration ? `<span><i class="bi bi-clock"></i> ${Math.round(msg.metadata.duration)}s</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="voice-message-actions">
+                            ${msg.isEncrypted ? `
+                                <button class="btn btn-warning btn-sm" onclick="decryptAndPlayMessage('${msg.id}', this)" title="Decrypt & Play">
+                                    <i class="bi bi-unlock"></i>
+                                </button>
+                            ` : `
+                                <button class="btn btn-primary btn-sm" onclick="playMessage('${msg.id}')" title="Play">
+                                    <i class="bi bi-play-fill"></i>
+                                </button>
+                            `}
+                            ${hasReplies ? `
+                                <span class="badge bg-secondary ms-1" style="font-size: 0.65em;">
+                                    <i class="bi bi-chat-dots"></i> ${replyCount}
+                                </span>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Render replies recursively
+            if (hasReplies) {
+                const replies = repliesMap.get(msg.id);
+                replies.forEach(reply => {
+                    html += renderMessageCardCompact(reply, repliesMap, depth + 1);
+                });
+            }
+            
+            return html;
+        }
+        
         // Render messages as flat list
         function renderMessagesList(messages) {
             const container = document.getElementById('voice-messages-container');
@@ -1950,15 +2037,27 @@
                 return;
             }
             
-            container.innerHTML = messages.map(msg => {
-                return renderMessageCard(msg, 'message', false, 0);
-            }).join('');
+            // Check if we're in list view mode
+            const isListView = container.classList.contains('list-view');
+            
+            if (isListView) {
+                // Build tree and render with branches
+                const messageTree = buildMessageTree(messages);
+                container.innerHTML = renderMessageTree(messageTree);
+            } else {
+                // Detail view: render as before
+                container.innerHTML = messages.map(msg => {
+                    return renderMessageCard(msg, 'message', false, 0);
+                }).join('');
+            }
             
             // Attach event listeners
             attachThreadEventListeners();
             
-            // Render waveforms
-            renderWaveforms();
+            // Render waveforms (only in detail view)
+            if (!isListView) {
+                renderWaveforms();
+            }
         }
         
         // Render threads
