@@ -3011,67 +3011,109 @@
                 publishBtn.disabled = true;
                 publishBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Publishing...';
                 
-                // Step 0: Verify NIP-42 authentication (required for /api/fileupload)
+                // Step 0: Verify and ensure NIP-42 authentication (required for /api/fileupload)
                 if (!localUserPubkey) {
                     throw new Error('Not connected to NOSTR. Please connect first.');
                 }
                 
                 console.log('🔐 Verifying NIP-42 authentication before upload...');
                 let isAuthenticated = false;
-                if (typeof verifyAuthenticationWithAPI === 'function') {
-                    try {
-                        isAuthenticated = await verifyAuthenticationWithAPI(localUserPubkey);
-                        console.log('🔐 NIP-42 authentication result:', isAuthenticated);
-                    } catch (authError) {
-                        console.warn('⚠️ NIP-42 verification failed:', authError);
-                        // Continue anyway - backend will check
+                
+                // Helper function to verify authentication
+                const verifyAuth = async () => {
+                    if (typeof verifyAuthenticationWithAPI === 'function') {
+                        try {
+                            const result = await verifyAuthenticationWithAPI(localUserPubkey);
+                            return result === true || (result && result.auth_verified === true);
+                        } catch (authError) {
+                            console.warn('⚠️ NIP-42 verification failed:', authError);
+                            return false;
+                        }
+                    } else if (typeof window !== 'undefined' && typeof window.verifyAuthenticationWithAPI === 'function') {
+                        try {
+                            const result = await window.verifyAuthenticationWithAPI(localUserPubkey);
+                            return result === true || (result && result.auth_verified === true);
+                        } catch (authError) {
+                            console.warn('⚠️ NIP-42 verification failed:', authError);
+                            return false;
+                        }
                     }
-                } else if (typeof window !== 'undefined' && typeof window.verifyAuthenticationWithAPI === 'function') {
-                    try {
-                        isAuthenticated = await window.verifyAuthenticationWithAPI(localUserPubkey);
-                        console.log('🔐 NIP-42 authentication result:', isAuthenticated);
-                    } catch (authError) {
-                        console.warn('⚠️ NIP-42 verification failed:', authError);
+                    return false;
+                };
+                
+                // Helper function to send NIP-42 auth
+                const sendAuth = async () => {
+                    if (typeof sendNIP42Auth === 'function') {
+                        const relayUrl = localNostrRelay?.url || VOCALS_READ_DEFAULT_RELAYS[0] || 'wss://relay.copylaradio.com';
+                        console.log('🔐 Sending NIP-42 authentication event...');
+                        await sendNIP42Auth(relayUrl, true);
+                        return true;
+                    } else if (typeof window !== 'undefined' && typeof window.sendNIP42Auth === 'function') {
+                        const relayUrl = localNostrRelay?.url || VOCALS_READ_DEFAULT_RELAYS[0] || 'wss://relay.copylaradio.com';
+                        console.log('🔐 Sending NIP-42 authentication event...');
+                        await window.sendNIP42Auth(relayUrl, true);
+                        return true;
+                    }
+                    return false;
+                };
+                
+                // First check
+                isAuthenticated = await verifyAuth();
+                console.log('🔐 Initial NIP-42 authentication check:', isAuthenticated ? '✅ Authenticated' : '❌ Not authenticated');
+                
+                // If not authenticated, try to authenticate automatically (up to 3 attempts)
+                if (!isAuthenticated) {
+                    console.log('🔐 Attempting automatic NIP-42 authentication...');
+                    const maxAttempts = 3;
+                    let attempt = 0;
+                    
+                    while (!isAuthenticated && attempt < maxAttempts) {
+                        attempt++;
+                        console.log(`🔐 Authentication attempt ${attempt}/${maxAttempts}...`);
+                        
+                        try {
+                            // Send auth event
+                            const authSent = await sendAuth();
+                            if (!authSent) {
+                                console.warn('⚠️ Could not send NIP-42 auth event - function not available');
+                                break;
+                            }
+                            
+                            // Wait for processing (increase wait time with each attempt)
+                            const waitTime = 2000 + (attempt * 1000); // 2s, 3s, 4s
+                            console.log(`⏳ Waiting ${waitTime}ms for authentication to be processed...`);
+                            await new Promise(resolve => setTimeout(resolve, waitTime));
+                            
+                            // Verify again
+                            isAuthenticated = await verifyAuth();
+                            console.log(`🔐 Authentication attempt ${attempt} result:`, isAuthenticated ? '✅ Authenticated' : '❌ Still not authenticated');
+                            
+                        } catch (authError) {
+                            console.warn(`⚠️ Authentication attempt ${attempt} failed:`, authError);
+                            // Continue to next attempt
+                        }
                     }
                 }
                 
+                // Final check - if still not authenticated, try one more time with longer wait
                 if (!isAuthenticated) {
-                    console.warn('⚠️ NIP-42 not authenticated - upload may fail. Attempting to authenticate...');
-                    
-                    // Try to send NIP-42 auth event
+                    console.log('🔐 Final authentication attempt with extended wait...');
                     try {
-                        if (typeof sendNIP42Auth === 'function') {
-                            const relayUrl = localNostrRelay?.url || VOCALS_READ_DEFAULT_RELAYS[0] || 'wss://relay.copylaradio.com';
-                            console.log('🔐 Sending NIP-42 authentication event...');
-                            await sendNIP42Auth(relayUrl, true);
-                            
-                            // Wait for the event to be processed
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-                            
-                            // Verify again
-                            if (typeof verifyAuthenticationWithAPI === 'function') {
-                                const authResult = await verifyAuthenticationWithAPI(localUserPubkey);
-                                isAuthenticated = authResult && (authResult === true || authResult.auth_verified === true);
-                                console.log('🔐 NIP-42 authentication after sending event:', isAuthenticated);
-                            } else if (typeof window !== 'undefined' && typeof window.verifyAuthenticationWithAPI === 'function') {
-                                const authResult = await window.verifyAuthenticationWithAPI(localUserPubkey);
-                                isAuthenticated = authResult && (authResult === true || authResult.auth_verified === true);
-                                console.log('🔐 NIP-42 authentication after sending event:', isAuthenticated);
-                            }
-                        }
+                        await sendAuth();
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                        isAuthenticated = await verifyAuth();
+                        console.log('🔐 Final authentication result:', isAuthenticated ? '✅ Authenticated' : '❌ Not authenticated');
                     } catch (authError) {
-                        console.warn('⚠️ Failed to send NIP-42 auth event:', authError);
+                        console.warn('⚠️ Final authentication attempt failed:', authError);
                     }
-                    
-                    if (!isAuthenticated) {
-                        // Still not authenticated, warn user
-                        const shouldContinue = confirm('NIP-42 authentication not verified. Upload may fail. Do you want to continue?\n\nTip: Use "Auth for Upload" button in vocals.html to authenticate first.');
-                        if (!shouldContinue) {
-                            publishBtn.disabled = false;
-                            publishBtn.innerHTML = '📡 Publish Reply';
-                            return;
-                        }
-                    }
+                }
+                
+                // Log final status
+                if (isAuthenticated) {
+                    console.log('✅ NIP-42 authentication verified - proceeding with upload');
+                } else {
+                    console.warn('⚠️ NIP-42 authentication not verified - upload may fail, but attempting anyway');
+                    // Don't block the user - let the backend handle the error and return a clear message
                 }
                 
                 // Step 1: Upload audio to IPFS
@@ -3247,15 +3289,13 @@
                 }
                 shouldAutoLoad = true;
             } else {
-                // Auto-login: Try to connect automatically if extension is available
-                console.log('🔄 Attempting auto-login...');
-                
-                // Strategy 2: Try direct extension access (with retry for extension loading delay)
+                // Auto-login: Try to connect automatically if extension is available (silent mode)
+                // Strategy: Try direct extension access (with retry for extension loading delay)
                 function tryDirectExtensionConnection() {
                     let attempts = 0;
-                    const maxAttempts = 30; // Increased to 30 (15 seconds total)
+                    const maxAttempts = 20; // Reduced to 20 (10 seconds total) for faster UX
                     const checkInterval = 500; // Check every 500ms
-                    const initialDelay = 1500; // Wait 1.5 seconds before first check (extensions need time to inject)
+                    const initialDelay = 1000; // Wait 1 second before first check (extensions need time to inject)
                     
                     const checkExtension = () => {
                         attempts++;
@@ -3263,39 +3303,22 @@
                         // Multiple ways to check for NOSTR extension
                         const nostrAvailable = typeof window.nostr !== 'undefined' && window.nostr !== null;
                         const nostrGetPublicKey = nostrAvailable && typeof window.nostr.getPublicKey === 'function';
-                        const nostrSignEvent = nostrAvailable && typeof window.nostr.signEvent === 'function';
-                        
-                        // Also check for alternative extension names (some extensions use different APIs)
-                        const nostrConnect = typeof window.nostrConnect !== 'undefined';
-                        const nostrProvider = typeof window.nostrProvider !== 'undefined';
-                        
-                        if (attempts === 1) {
-                            console.log('🔍 Checking for NOSTR extension...');
-                            console.log('   window.nostr:', nostrAvailable ? 'available' : 'not available');
-                            console.log('   window.nostrConnect:', nostrConnect ? 'available' : 'not available');
-                            console.log('   window.nostrProvider:', nostrProvider ? 'available' : 'not available');
-                            if (nostrAvailable) {
-                                console.log('   Methods:', Object.keys(window.nostr).join(', '));
-                            }
-                        }
                         
                         if (nostrGetPublicKey) {
-                            // Extension available - try to connect automatically
-                            console.log(`✅ NOSTR extension detected after ${attempts} attempt(s), connecting...`);
+                            // Extension available - try to connect automatically (silently)
                             // Try to test if extension actually works (some extensions need user interaction)
                             try {
                                 const testPromise = window.nostr.getPublicKey();
                                 if (testPromise && typeof testPromise.then === 'function') {
-                                    // It's async, try to connect
+                                    // It's async, try to connect silently
                                     handleNostrConnect().then(() => {
                                         // Connection successful - handleNostrConnect already loads messages
                                         const profileBtn = document.getElementById('profile-btn');
                                         if (profileBtn && localUserPubkey) {
                                             profileBtn.classList.remove('d-none');
                                         }
-                                    }).catch((error) => {
-                                        console.log('ℹ️ Auto-login failed, user needs to click Connect button:', error.message);
-                                        // Don't show alert for auto-login failures, just log
+                                    }).catch(() => {
+                                        // Silent failure - user can click Connect button if needed
                                     });
                                 } else {
                                     // Synchronous, might work
@@ -3304,37 +3327,26 @@
                                         if (profileBtn && localUserPubkey) {
                                             profileBtn.classList.remove('d-none');
                                         }
-                                    }).catch((error) => {
-                                        console.log('ℹ️ Auto-login failed, user needs to click Connect button:', error.message);
+                                    }).catch(() => {
+                                        // Silent failure
                                     });
                                 }
                             } catch (testError) {
-                                // Extension exists but might need user interaction
-                                console.log('ℹ️ Extension detected but may require user interaction. User should click Connect button.');
+                                // Extension exists but might need user interaction - silent
                             }
                         } else if (attempts < maxAttempts) {
-                            // Extension not ready yet, retry
-                            if (attempts % 4 === 0) { // Log every 2 seconds
-                                console.log(`🔄 Still waiting for NOSTR extension... (${attempts}/${maxAttempts})`);
-                            }
+                            // Extension not ready yet, retry silently
                             setTimeout(checkExtension, checkInterval);
-                        } else {
-                            console.log(`ℹ️ NOSTR extension not available after ${maxAttempts} attempts (${maxAttempts * checkInterval / 1000}s) - user needs to click Connect button`);
-                            console.log('💡 Tip: Make sure your NOSTR extension (Alby, nos2x, Flamingo, etc.) is installed and enabled.');
-                            console.log('💡 Tip: You can also use /scan with your MULTIPASS SSSS QR code and PASS "8888" to auto-inject your private key.');
                         }
+                        // If max attempts reached, just stop silently - user can click Connect button
                     };
                     
                     // Start checking after initial delay to let extensions initialize
                     setTimeout(checkExtension, initialDelay);
                 }
                 
-                // Strategy 1: Try direct extension access first (avoid common.js connectNostr which may show French MULTIPASS message)
-                // We'll use connectNostr only if direct access fails
+                // Try direct extension access first (silent mode - no logs unless successful)
                 tryDirectExtensionConnection();
-                
-                // Note: We skip using common.js connectNostr for auto-login to avoid the French MULTIPASS error message
-                // Users can still click "Connect" button which will use handleNostrConnect() that may use connectNostr
             }
             
             if (shouldAutoLoad) {
@@ -3351,11 +3363,9 @@
                 }
                 
                 // Auto-load messages
-                console.log('🔄 Auto-loading voice messages...');
                 loadVoiceMessages();
-            } else {
-                console.log('ℹ️ Not connected yet - user needs to click Connect button');
             }
+            // If not connected, silent - user can click Connect button if needed
         });
     </script>
 </body>
