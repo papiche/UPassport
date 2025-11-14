@@ -198,9 +198,18 @@
         /* Hide waveform, description, and other buttons in list view */
         .list-view .waveform-container,
         .list-view .voice-message-card p,
-        .list-view .reply-button,
         .list-view .decrypt-button:not(.btn-warning),
         .list-view .btn-danger {
+            display: none !important;
+        }
+        
+        /* Show reply button in list view but make it compact */
+        .list-view .reply-button {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+        }
+        
+        .list-view .reply-button .d-none {
             display: none !important;
         }
         
@@ -778,7 +787,7 @@
         </div>
         
         <!-- Voice Messages List -->
-                <div id="voice-messages-container" class="detail-view">
+                <div id="voice-messages-container" class="list-view">
             <div class="empty-state">
                 <div class="empty-state-icon">🎤</div>
                 <p>Connect to NOSTR to load voice messages</p>
@@ -1825,7 +1834,7 @@
         window.toggleSidebar = toggleSidebar;
         
         // Set view mode (list or detail)
-        let currentViewModeType = 'detail'; // 'list' or 'detail'
+        let currentViewModeType = 'list'; // 'list' or 'detail' - default to list
         function setViewMode(mode) {
             currentViewModeType = mode;
             const container = document.getElementById('voice-messages-container');
@@ -1834,7 +1843,7 @@
                 container.classList.add(mode + '-view');
             }
             
-            // Update radio buttons
+            // Update radio buttons to reflect current mode
             const listRadio = document.getElementById('view-list');
             const detailRadio = document.getElementById('view-detail');
             const listRadioMobile = document.getElementById('view-list-mobile');
@@ -2041,6 +2050,9 @@
                             <button class="btn btn-secondary btn-sm d-none" id="stop-btn-${msg.id}" onclick="stopMessage('${msg.id}', this)" title="Stop">
                                 <i class="bi bi-stop-fill"></i>
                             </button>
+                            <button class="btn btn-outline-secondary btn-sm reply-button" onclick="openReplyModal('${msg.id}')" title="Reply to this message">
+                                <i class="bi bi-reply"></i>
+                            </button>
                             ${hasReplies ? `
                                 <span class="badge bg-secondary ms-1" style="font-size: 0.65em;">
                                     <i class="bi bi-chat-dots"></i> ${replyCount}
@@ -2063,7 +2075,7 @@
                         </div>
                     ` : `
                         <div class="audio-player-container" style="display: none;">
-                            <audio id="audio-player-${msg.id}" class="audio-player" controls src="${msg.metadata.url || msg.content}"></audio>
+                            <audio id="audio-player-${msg.id}" class="audio-player" controls></audio>
                         </div>
                     `}
                 </div>
@@ -2112,19 +2124,59 @@
                 const messageTree = buildMessageTree(messages);
                 container.innerHTML = renderMessageTree(messageTree);
                 
-                // Attach audio event listeners for timeline updates
+                // Attach audio event listeners for timeline updates and set audio sources
                 setTimeout(() => {
                     const audioPlayers = container.querySelectorAll('.audio-player');
                     audioPlayers.forEach(audioPlayer => {
                         const messageId = audioPlayer.id.replace('audio-player-', '');
+                        const message = voiceMessagesCache.find(msg => msg.id === messageId);
+                        
+                        if (message && !audioPlayer.src && !message.isEncrypted) {
+                            // Set audio source if not already set (for non-encrypted messages)
+                            let audioUrl = message.metadata?.url || message.content;
+                            
+                            // Convert relative IPFS URL to absolute URL
+                            if (audioUrl) {
+                                if (audioUrl.startsWith('/ipfs/')) {
+                                    let ipfsGateway = 'https://ipfs.copylaradio.com';
+                                    if (typeof window !== 'undefined' && window.IPFS_GATEWAY) {
+                                        ipfsGateway = window.IPFS_GATEWAY;
+                                    }
+                                    audioUrl = ipfsGateway + audioUrl;
+                                } else if (!audioUrl.startsWith('http://') && !audioUrl.startsWith('https://') && !audioUrl.startsWith('data:')) {
+                                    let ipfsGateway = 'https://ipfs.copylaradio.com';
+                                    if (typeof window !== 'undefined' && window.IPFS_GATEWAY) {
+                                        ipfsGateway = window.IPFS_GATEWAY;
+                                    }
+                                    if (audioUrl.startsWith('/')) {
+                                        audioUrl = ipfsGateway + audioUrl;
+                                    } else {
+                                        audioUrl = ipfsGateway + '/ipfs/' + audioUrl;
+                                    }
+                                }
+                                
+                                if (audioUrl) {
+                                    console.log('🎵 Setting audio source for message', messageId.substring(0, 8) + '...:', audioUrl);
+                                    audioPlayer.src = audioUrl;
+                                    
+                                    // Add error handler
+                                    audioPlayer.addEventListener('error', (e) => {
+                                        console.error('Audio loading error for message', messageId, ':', e);
+                                        console.error('Audio URL:', audioUrl);
+                                        console.error('Audio error details:', audioPlayer.error);
+                                    }, { once: true });
+                                }
+                            }
+                        }
+                        
                         attachAudioEventListeners(audioPlayer, messageId);
                     });
                 }, 100);
             } else {
                 // Detail view: render as before
-                container.innerHTML = messages.map(msg => {
-                    return renderMessageCard(msg, 'message', false, 0);
-                }).join('');
+            container.innerHTML = messages.map(msg => {
+                return renderMessageCard(msg, 'message', false, 0);
+            }).join('');
             }
             
             // Attach event listeners
@@ -2132,7 +2184,7 @@
             
             // Render waveforms (only in detail view)
             if (!isListView) {
-                renderWaveforms();
+            renderWaveforms();
             }
         }
         
@@ -2653,7 +2705,49 @@
                 audioPlayer.id = `audio-player-${messageId}`;
                 audioPlayer.className = 'audio-player';
                 audioPlayer.controls = true;
-                audioPlayer.src = message.metadata?.url || message.content;
+                
+                // Get audio URL - ensure it's valid
+                let audioUrl = message.metadata?.url || message.content;
+                
+                // If URL is relative or starts with /ipfs/, construct full URL
+                if (audioUrl) {
+                    if (audioUrl.startsWith('/ipfs/')) {
+                        // Get gateway from common.js or use default
+                        let ipfsGateway = 'https://ipfs.copylaradio.com';
+                        if (typeof window !== 'undefined' && window.IPFS_GATEWAY) {
+                            ipfsGateway = window.IPFS_GATEWAY;
+                        }
+                        audioUrl = ipfsGateway + audioUrl;
+                    } else if (!audioUrl.startsWith('http://') && !audioUrl.startsWith('https://') && !audioUrl.startsWith('data:')) {
+                        // Relative URL - try to construct full URL
+                        let ipfsGateway = 'https://ipfs.copylaradio.com';
+                        if (typeof window !== 'undefined' && window.IPFS_GATEWAY) {
+                            ipfsGateway = window.IPFS_GATEWAY;
+                        }
+                        if (audioUrl.startsWith('/')) {
+                            audioUrl = ipfsGateway + audioUrl;
+                        } else {
+                            audioUrl = ipfsGateway + '/ipfs/' + audioUrl;
+                        }
+                    }
+                }
+                
+                if (!audioUrl) {
+                    console.error('No audio URL found for message:', messageId);
+                    alert('No audio URL found for this message.');
+                    return;
+                }
+                
+                console.log('🎵 Setting audio source for message', messageId.substring(0, 8) + '...:', audioUrl);
+                audioPlayer.src = audioUrl;
+                
+                // Add error handler to catch loading issues
+                audioPlayer.addEventListener('error', (e) => {
+                    console.error('Audio loading error for message', messageId, ':', e);
+                    console.error('Audio URL:', audioUrl);
+                    console.error('Audio error details:', audioPlayer.error);
+                    alert(`Could not load audio: ${audioPlayer.error?.message || 'Unknown error'}. URL: ${audioUrl}`);
+                });
                 
                 // Attach event listeners for timeline and button updates
                 attachAudioEventListeners(audioPlayer, messageId);
@@ -2664,16 +2758,38 @@
             
             // Toggle play/pause
             if (audioPlayer && audioPlayer.src) {
-                if (audioPlayer.paused) {
-                    audioPlayer.play().catch(error => {
-                        console.error('Error playing audio:', error);
-                        alert('Could not play audio. Please check if the file is accessible.');
-                    });
+                // Check if audio is ready
+                if (audioPlayer.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+                    if (audioPlayer.paused) {
+                        audioPlayer.play().catch(error => {
+                            console.error('Error playing audio:', error);
+                            console.error('Audio URL:', audioPlayer.src);
+                            console.error('Audio readyState:', audioPlayer.readyState);
+                            alert(`Could not play audio: ${error.message || 'Unknown error'}. Please check if the file is accessible.`);
+                        });
+                    } else {
+                        audioPlayer.pause();
+                    }
                 } else {
-                    audioPlayer.pause();
+                    // Wait for audio to load
+                    audioPlayer.addEventListener('loadeddata', () => {
+                        audioPlayer.play().catch(error => {
+                            console.error('Error playing audio after load:', error);
+                            alert(`Could not play audio: ${error.message || 'Unknown error'}.`);
+                        });
+                    }, { once: true });
+                    
+                    audioPlayer.addEventListener('error', (e) => {
+                        console.error('Audio loading error:', e);
+                        alert(`Could not load audio: ${audioPlayer.error?.message || 'Unknown error'}.`);
+                    }, { once: true });
+                    
+                    // Trigger load
+                    audioPlayer.load();
                 }
             } else {
                 console.error('Audio player has no source:', messageId);
+                alert('No audio source available for this message.');
             }
         }
         
@@ -3201,7 +3317,7 @@
                 // Update status
                 statusDiv.innerHTML = '<span class="text-success">✅ Decrypted successfully</span>';
                 if (!isListView) {
-                    decryptBtn.textContent = '✅ Decrypted';
+                decryptBtn.textContent = '✅ Decrypted';
                 }
                 
                 // Update UI with decrypted metadata
@@ -3753,11 +3869,11 @@
                     if (typeof verifyAuthenticationWithAPI === 'function') {
                         const result = await verifyAuthenticationWithAPI(localUserPubkey);
                         isAuthenticated = result === true || (result && result.auth_verified === true);
-                    } else if (typeof window !== 'undefined' && typeof window.verifyAuthenticationWithAPI === 'function') {
+                } else if (typeof window !== 'undefined' && typeof window.verifyAuthenticationWithAPI === 'function') {
                         const result = await window.verifyAuthenticationWithAPI(localUserPubkey);
                         isAuthenticated = result === true || (result && result.auth_verified === true);
                     }
-                } catch (authError) {
+                    } catch (authError) {
                     console.warn('⚠️ Verification error:', authError);
                 }
                 
@@ -3798,15 +3914,15 @@
                         // Wait for processing
                         console.log('⏳ Waiting for authentication to be processed...');
                         await new Promise(resolve => setTimeout(resolve, 3000));
-                        
-                        // Verify again
-                        if (typeof verifyAuthenticationWithAPI === 'function') {
+                            
+                            // Verify again
+                            if (typeof verifyAuthenticationWithAPI === 'function') {
                             const result = await verifyAuthenticationWithAPI(localUserPubkey);
                             isAuthenticated = result === true || (result && result.auth_verified === true);
-                        } else if (typeof window !== 'undefined' && typeof window.verifyAuthenticationWithAPI === 'function') {
+                            } else if (typeof window !== 'undefined' && typeof window.verifyAuthenticationWithAPI === 'function') {
                             const result = await window.verifyAuthenticationWithAPI(localUserPubkey);
                             isAuthenticated = result === true || (result && result.auth_verified === true);
-                        }
+                            }
                         
                         console.log('🔐 Authentication after manual send:', isAuthenticated ? '✅ Authenticated' : '❌ Still not authenticated');
                     } catch (authError) {
