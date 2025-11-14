@@ -3123,20 +3123,20 @@ async def youtube_route(
                 logging.warning(f"   - Available channels: {list(channels.keys())}")
             
             # Check if video exists in playlists (after playlist creation)
-        found_in_playlists = False
-        for channel_name, playlist in channel_playlists.items():
-            for video in playlist.get('videos', []):
-                if video.get('message_id') == target_video_id:
-                    found_in_playlists = True
+            found_in_playlists = False
+            for channel_name, playlist in channel_playlists.items():
+                for video in playlist.get('videos', []):
+                    if video.get('message_id') == target_video_id:
+                        found_in_playlists = True
                         logging.info(f"✅ DEBUG: Target video '{video.get('title', 'N/A')}' found in channel '{channel_name}' playlist with {len(playlist.get('videos', []))} videos")
+                        break
+                if found_in_playlists:
                     break
-            if found_in_playlists:
-                break
             
-        if not found_in_playlists:
-            logging.warning(f"⚠️ DEBUG: Target video {target_video_id[:16]}... NOT found in any channel playlist")
-            logging.warning(f"⚠️ DEBUG: Available channels: {list(channel_playlists.keys())}")
-            logging.warning(f"⚠️ DEBUG: Total videos in all channels: {sum(len(p.get('videos', [])) for p in channel_playlists.values())}")
+            if not found_in_playlists:
+                logging.warning(f"⚠️ DEBUG: Target video {target_video_id[:16]}... NOT found in any channel playlist")
+                logging.warning(f"⚠️ DEBUG: Available channels: {list(channel_playlists.keys())}")
+                logging.warning(f"⚠️ DEBUG: Total videos in all channels: {sum(len(p.get('videos', [])) for p in channel_playlists.values())}")
                 
                 # If video was in channels but not in playlists, it was filtered out by create_channel_playlist
                 if target_video_in_channels:
