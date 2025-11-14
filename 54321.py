@@ -2908,6 +2908,50 @@ async def check_impots_route(request: Request, html: Optional[str] = None):
         logging.error(f"Error in check_impots_route: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+async def send_server_side_analytics(analytics_data: Dict[str, Any], request: Request) -> None:
+    """Send analytics data server-side (for clients without JavaScript)
+    
+    This function sends analytics to the /ping endpoint asynchronously
+    without blocking the main request.
+    
+    Args:
+        analytics_data: Analytics data dictionary
+        request: FastAPI Request object for context
+    """
+    try:
+        # Add server-side context
+        analytics_data.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
+        analytics_data.setdefault("source", "server")
+        analytics_data.setdefault("current_url", str(request.url))
+        analytics_data.setdefault("referer", request.headers.get("referer", ""))
+        analytics_data.setdefault("user_agent", request.headers.get("user-agent", ""))
+        
+        # Get client IP
+        client_ip = get_client_ip(request)
+        if client_ip:
+            analytics_data["client_ip"] = client_ip
+        
+        # Send to /ping endpoint asynchronously (non-blocking)
+        import httpx
+        base_url = str(request.base_url).rstrip('/')
+        ping_url = f"{base_url}/ping"
+        
+        # Use asyncio.create_task to send in background (non-blocking)
+        async def send_ping():
+            try:
+                async with httpx.AsyncClient(timeout=2.0) as client:
+                    await client.post(ping_url, json=analytics_data)
+                    logging.debug(f"📊 Server-side analytics sent: {analytics_data.get('type', 'unknown')}")
+            except Exception as e:
+                logging.debug(f"Analytics ping failed (non-blocking): {e}")
+        
+        # Fire and forget - don't await
+        asyncio.create_task(send_ping())
+        
+    except Exception as e:
+        # Never block on analytics errors
+        logging.debug(f"Server-side analytics error (non-blocking): {e}")
+
 @app.get("/theater", response_class=HTMLResponse)
 async def theater_modal_route(request: Request, video: Optional[str] = None):
     """Theater mode modal for immersive video viewing
@@ -2920,15 +2964,49 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
     
     # Fetch video metadata for Open Graph/Twitter Cards if video ID is provided
     video_metadata = None
+    video_title = "Unknown"
+    video_author = None
+    video_kind = None
+    video_duration = 0
+    video_channel = ""
+    video_source_type = ""
+    
     if video:
         try:
             video_event = await fetch_video_event_from_nostr(video, timeout=5)
             if video_event:
                 video_metadata = await parse_video_metadata(video_event)
-                logging.info(f"✅ Video metadata loaded for Open Graph: {video_metadata.get('title', 'Unknown')}")
+                video_title = video_metadata.get('title', 'Unknown')
+                video_author = video_metadata.get('author_id', '')
+                video_kind = video_metadata.get('kind', 21)
+                logging.info(f"✅ Video metadata loaded for Open Graph: {video_title}")
+                
+                # Extract additional metadata from event tags if available
+                tags = video_event.get("tags", [])
+                for tag in tags:
+                    if isinstance(tag, list) and len(tag) >= 2:
+                        if tag[0] == "t" and tag[1] not in ["analytics", "encrypted", "ipfs"]:
+                            video_channel = tag[1]
+                        elif tag[0] == "source":
+                            video_source_type = tag[1]
         except Exception as e:
             logging.warning(f"⚠️ Could not fetch video metadata for Open Graph: {e}")
             # Continue without metadata - page will still work
+    
+    # Send server-side analytics for clients without JavaScript
+    # This tracks the page view even if JavaScript is disabled
+    analytics_data = {
+        "type": "theater_page_view",
+        "video_event_id": video or "",
+        "video_title": video_title,
+        "video_author": video_author or "",
+        "video_kind": video_kind or 21,
+        "video_duration": video_duration,
+        "video_channel": video_channel,
+        "video_source_type": video_source_type,
+        "has_javascript": True  # Will be overridden by client-side if JS is enabled
+    }
+    await send_server_side_analytics(analytics_data, request)
     
     # Get base URL for Open Graph tags
     base_url = str(request.base_url).rstrip('/')
@@ -5111,36 +5189,124 @@ async def welcomeuplanet(request: Request):
 
 @app.post('/ping')
 async def get_webhook(request: Request):
+    """Receive analytics data and send as NOSTR message to CAPTAINEMAIL
+    
+    This endpoint receives analytics data and sends it as a NOSTR event (kind 10000)
+    to the captain email using nostr_send_note.py instead of mailjet.sh.
+    """
     if request.method == 'POST':
         try:
-            # Générer un nom de fichier avec un timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_filename = f"/tmp/ping_{timestamp}.log"
-
             # Récupérer les données de la requête
             data = await request.json()  # Récupérer le corps de la requête en JSON
             referer = request.headers.get("referer")  # Récupérer l'en-tête Referer
-
-            # Écrire les données dans le fichier
-            with open(log_filename, "w") as log_file:
-                log_file.write(f"Received PING: {data}, Referer: {referer}\n")
-
-            # Appeler le script mailjet.sh avec les arguments appropriés
-            subprocess.run([
-                os.path.expanduser("~/.zen/Astroport.ONE/tools/mailjet.sh"),
-                "sagittarius@g1sms.fr",
-                log_filename,
-                "PING RECEIVED"
+            
+            # Get CAPTAINEMAIL from environment variable
+            captain_email = os.getenv("CAPTAINEMAIL", "")
+            if not captain_email:
+                logging.warning("⚠️ CAPTAINEMAIL environment variable not set, skipping NOSTR notification")
+                return {"received": data, "referer": referer, "note": "CAPTAINEMAIL not configured"}
+            
+            # Find keyfile for captain email
+            captain_keyfile = Path.home() / ".zen" / "game" / "nostr" / captain_email / ".secret.nostr"
+            
+            if not captain_keyfile.exists():
+                logging.warning(f"⚠️ Keyfile not found for captain: {captain_keyfile}")
+                return {"received": data, "referer": referer, "note": "Captain keyfile not found"}
+            
+            # Format analytics data as JSON string for NOSTR message
+            analytics_json = json.dumps(data, indent=2, ensure_ascii=False)
+            
+            # Build message content
+            message_lines = [
+                "📊 Analytics Data Received",
+                "",
+                f"Type: {data.get('type', 'unknown')}",
+                f"Source: {data.get('source', 'unknown')}",
+                f"Timestamp: {data.get('timestamp', datetime.now(timezone.utc).isoformat())}",
+            ]
+            
+            # Add referer if available
+            if referer:
+                message_lines.append(f"Referer: {referer}")
+            
+            # Add URL if available
+            if data.get('current_url'):
+                message_lines.append(f"URL: {data.get('current_url')}")
+            
+            # Add video-specific data if present
+            if data.get('video_event_id'):
+                message_lines.append(f"Video Event ID: {data.get('video_event_id')}")
+            if data.get('video_title'):
+                message_lines.append(f"Video Title: {data.get('video_title')}")
+            
+            message_lines.extend([
+                "",
+                "--- Full Data ---",
+                analytics_json
             ])
+            
+            message_content = "\n".join(message_lines)
+            
+            # Build tags for NOSTR event (kind 10000 - Analytics)
+            tags = [
+                ["t", "analytics"],
+                ["t", data.get("type", "unknown")]
+            ]
+            
+            # Add source tag if available
+            if data.get("source"):
+                tags.append(["source", data.get("source")])
+            
+            # Add URL tag if available
+            if data.get("current_url"):
+                tags.append(["url", data.get("current_url")])
+            
+            # Get NOSTR relay from environment or use default
+            nostr_relay = os.getenv("NOSTR_RELAYS", "ws://127.0.0.1:7777").split()[0]
+            
+            # Call nostr_send_note.py to send the message
+            nostr_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/nostr_send_note.py")
+            
+            if not os.path.exists(nostr_script):
+                logging.error(f"❌ nostr_send_note.py not found at: {nostr_script}")
+                return {"received": data, "referer": referer, "note": "nostr_send_note.py not found"}
+            
+            # Prepare command
+            tags_json = json.dumps(tags)
+            cmd = [
+                "python3",
+                nostr_script,
+                "--keyfile", str(captain_keyfile),
+                "--content", message_content,
+                "--kind", "10000",  # Analytics event kind
+                "--tags", tags_json,
+                "--relays", nostr_relay,
+                "--json"  # JSON output mode
+            ]
+            
+            # Execute command (non-blocking, fire and forget)
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                
+                if result.returncode == 0:
+                    logging.info(f"✅ Analytics sent to captain via NOSTR: {data.get('type', 'unknown')}")
+                else:
+                    logging.warning(f"⚠️ NOSTR send failed: {result.stderr}")
+                    
+            except subprocess.TimeoutExpired:
+                logging.warning("⚠️ NOSTR send timeout")
+            except Exception as e:
+                logging.warning(f"⚠️ NOSTR send error: {e}")
 
-            # Supprimer le fichier après l'appel
-            os.remove(log_filename)
-
-            return {"received": data, "referer": referer}
+            return {"received": data, "referer": referer, "sent_via": "nostr"}
+            
         except Exception as e:
-            # Supprimer le fichier en cas d'erreur (s'il existe)
-            if os.path.exists(log_filename):
-                os.remove(log_filename)
+            logging.error(f"❌ Error in /ping endpoint: {e}", exc_info=True)
             raise HTTPException(status_code=400, detail=f"Invalid request data: {e}")
 
     else:

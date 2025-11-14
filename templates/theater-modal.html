@@ -79,6 +79,12 @@
     {% else %}
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     {% endif %}
+    <!-- UPlanet Analytics (astro.js) -->
+    {% if use_local_js %}
+    <script src="/earth/astro.js"></script>
+    {% else %}
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/astro.js"></script>
+    {% endif %}
     <!-- Define showAlert function for common.js compatibility -->
     <script>
         // Define showAlert function if not already defined (for common.js compatibility)
@@ -4935,6 +4941,26 @@
                 }
                 // Also call local initialization to ensure everything is loaded
                 initializeTheaterModeLocal(videoData);
+                
+                // Track video view with UPlanet Analytics
+                if (typeof uPlanetAnalytics !== 'undefined') {
+                    try {
+                        uPlanetAnalytics.smartSend({
+                            type: 'theater_video_view',
+                            source: 'web',
+                            video_event_id: event.id,
+                            video_title: title || 'Unknown',
+                            video_author: event.pubkey,
+                            video_kind: event.kind,
+                            video_duration: duration || 0,
+                            video_channel: channel || '',
+                            video_source_type: sourceType || ''
+                        }, true); // includeContext=true
+                        console.log('📊 Analytics: Theater video view tracked');
+                    } catch (analyticsError) {
+                        console.debug('Analytics tracking error (non-blocking):', analyticsError);
+                    }
+                }
                 
             } catch (error) {
                 console.error('❌ Error loading video:', error);
