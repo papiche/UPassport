@@ -3083,21 +3083,67 @@ async def youtube_route(
                 for v in playlist_videos:
                     logging.info(f"  - {v.get('title', 'N/A')} (id: {v.get('message_id', 'N/A')[:16]}...)")
         
-        # Debug: Check if target video is in playlists
-        target_video_id = "6bc3180a0dd41d532c523b6b07055ead5a97f5485ceacd7fcabcc079ab268658"
+        # Debug: Check if target video is in playlists (only if DEBUG_VIDEO_ID env var is set)
+        target_video_id = os.getenv("DEBUG_VIDEO_ID")
+        
+        if target_video_id:
+            # First check if video exists in raw video_messages
+            target_video_in_raw = None
+            for video in video_messages:
+                if video.get('message_id') == target_video_id:
+                    target_video_in_raw = video
+                    break
+            
+            if target_video_in_raw:
+                logging.info(f"✅ DEBUG: Target video found in raw video_messages: '{target_video_in_raw.get('title', 'N/A')}'")
+                logging.info(f"   - Channel: '{target_video_in_raw.get('channel_name', 'N/A')}'")
+                logging.info(f"   - Has title: {bool(target_video_in_raw.get('title'))}")
+                logging.info(f"   - Has ipfs_url: {bool(target_video_in_raw.get('ipfs_url'))}")
+                logging.info(f"   - IPFS URL: {target_video_in_raw.get('ipfs_url', 'N/A')[:50]}...")
+            else:
+                logging.warning(f"⚠️ DEBUG: Target video {target_video_id[:16]}... NOT found in raw video_messages")
+                logging.warning(f"   - Total videos in video_messages: {len(video_messages)}")
+            
+            # Check if video exists in channels dict (before playlist creation)
+            target_video_in_channels = None
+            target_channel_name = None
+            for channel_name, videos in channels.items():
+                for video in videos:
+                    if video.get('message_id') == target_video_id:
+                        target_video_in_channels = video
+                        target_channel_name = channel_name
+                        break
+                if target_video_in_channels:
+                    break
+            
+            if target_video_in_channels:
+                logging.info(f"✅ DEBUG: Target video found in channels dict: channel '{target_channel_name}' with {len(channels.get(target_channel_name, []))} videos")
+            else:
+                logging.warning(f"⚠️ DEBUG: Target video NOT found in channels dict")
+                logging.warning(f"   - Available channels: {list(channels.keys())}")
+            
+            # Check if video exists in playlists (after playlist creation)
         found_in_playlists = False
         for channel_name, playlist in channel_playlists.items():
             for video in playlist.get('videos', []):
                 if video.get('message_id') == target_video_id:
                     found_in_playlists = True
-                    logging.info(f"✅ DEBUG: Target video '{video.get('title', 'N/A')}' found in channel '{channel_name}' with {len(playlist.get('videos', []))} videos")
+                        logging.info(f"✅ DEBUG: Target video '{video.get('title', 'N/A')}' found in channel '{channel_name}' playlist with {len(playlist.get('videos', []))} videos")
                     break
             if found_in_playlists:
                 break
+            
         if not found_in_playlists:
             logging.warning(f"⚠️ DEBUG: Target video {target_video_id[:16]}... NOT found in any channel playlist")
             logging.warning(f"⚠️ DEBUG: Available channels: {list(channel_playlists.keys())}")
             logging.warning(f"⚠️ DEBUG: Total videos in all channels: {sum(len(p.get('videos', [])) for p in channel_playlists.values())}")
+                
+                # If video was in channels but not in playlists, it was filtered out by create_channel_playlist
+                if target_video_in_channels:
+                    logging.warning(f"⚠️ DEBUG: Video was in channels dict but filtered out during playlist creation")
+                    logging.warning(f"   - Likely missing 'title' or 'ipfs_url' field")
+                    logging.warning(f"   - Title: '{target_video_in_channels.get('title', 'MISSING')}'")
+                    logging.warning(f"   - IPFS URL: '{target_video_in_channels.get('ipfs_url', 'MISSING')}'")
         
         # Prepare response data
         response_data = {
