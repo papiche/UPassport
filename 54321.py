@@ -4216,9 +4216,23 @@ async def process_webcam_video(
                         upload_chain_str = str(upload_chain)
                     publish_cmd.extend(["--upload-chain", upload_chain_str])
                 
+                # Convert video_dimensions to string format expected by script
+                # Format: "WIDTHxHEIGHT" or JSON string if dict
+                if isinstance(video_dimensions, dict):
+                    # Extract width and height from dict
+                    width = video_dimensions.get('width', '')
+                    height = video_dimensions.get('height', '')
+                    if width and height:
+                        dimensions_str = f"{width}x{height}"
+                    else:
+                        # Fallback: convert to JSON string
+                        dimensions_str = json.dumps(video_dimensions)
+                else:
+                    dimensions_str = str(video_dimensions)
+                
                 publish_cmd.extend([
                     "--duration", str(duration),
-                    "--dimensions", video_dimensions,
+                    "--dimensions", dimensions_str,
                     "--file-size", str(file_size),
                     "--latitude", str(lat),
                     "--longitude", str(lon),
