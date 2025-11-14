@@ -3042,15 +3042,39 @@
                 };
                 
                 // Helper function to send NIP-42 auth
+                // IMPORTANT: Backend checks authentication on local relay (ws://127.0.0.1:7777)
+                // So we must send the NIP-42 event to the local relay, not the public relay
                 const sendAuth = async () => {
+                    // Determine the local relay URL (backend always checks ws://127.0.0.1:7777)
+                    // Use the same logic as common.js to determine relay
+                    let relayUrl = 'ws://127.0.0.1:7777'; // Default local relay
+                    
+                    // Try to get relay from common.js calculation
+                    if (typeof window !== 'undefined') {
+                        const currentUrl = new URL(window.location.href);
+                        const hostname = currentUrl.hostname;
+                        const port = currentUrl.port;
+                        
+                        // If localhost or 127.0.0.1, use local relay
+                        if (hostname === '127.0.0.1' || hostname === 'localhost' || port === '8080') {
+                            relayUrl = 'ws://127.0.0.1:7777';
+                        } else if (hostname.startsWith('ipfs.')) {
+                            // For IPFS gateways, derive relay URL
+                            const baseDomain = hostname.substring('ipfs.'.length);
+                            relayUrl = `wss://relay.${baseDomain}`;
+                        } else if (hostname.includes('copylaradio.com') || hostname.includes('u.')) {
+                            // For u.copylaradio.com, backend still checks local relay
+                            // But we should send to local relay for NIP-42 auth
+                            relayUrl = 'ws://127.0.0.1:7777';
+                        }
+                    }
+                    
+                    console.log('🔐 Sending NIP-42 authentication event to local relay:', relayUrl);
+                    
                     if (typeof sendNIP42Auth === 'function') {
-                        const relayUrl = localNostrRelay?.url || VOCALS_READ_DEFAULT_RELAYS[0] || 'wss://relay.copylaradio.com';
-                        console.log('🔐 Sending NIP-42 authentication event...');
                         await sendNIP42Auth(relayUrl, true);
                         return true;
                     } else if (typeof window !== 'undefined' && typeof window.sendNIP42Auth === 'function') {
-                        const relayUrl = localNostrRelay?.url || VOCALS_READ_DEFAULT_RELAYS[0] || 'wss://relay.copylaradio.com';
-                        console.log('🔐 Sending NIP-42 authentication event...');
                         await window.sendNIP42Auth(relayUrl, true);
                         return true;
                     }
