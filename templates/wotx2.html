@@ -679,6 +679,22 @@
                 </div>
             </div>
             
+            <!-- Delete Permit Button (only if creator and no 30503) -->
+            <div id="deletePermitSection" style="display: none;" class="mt-3">
+                <div class="alert alert-warning">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            <strong>Vous êtes le créateur de cette maîtrise</strong>
+                            <p class="mb-0 small mt-1">Vous pouvez supprimer ce permit et tous ses événements (30500, 30501, 30502) tant qu'aucun credential 30503 n'a été émis.</p>
+                        </div>
+                        <button class="btn btn-danger" id="deletePermitBtn">
+                            <i class="bi bi-trash"></i> Supprimer ce Permit
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Mastery Levels Navigation & Progress -->
             <div id="masteryLevelsSection" style="display: none;" class="mt-4">
                 <div class="card" style="background: rgba(255, 255, 255, 0.95);">
@@ -1102,20 +1118,39 @@
         // Wait for NOSTR functions to load from common.js
         async function waitForNostrFunctions() {
             return new Promise((resolve) => {
+                // Check if functions are already available
+                if (typeof connectToRelay === 'function' && typeof connectNostr === 'function') {
+                    console.log('[WoTx2] ✅ NOSTR functions already loaded from common.js');
+                    resolve();
+                    return;
+                }
+                
                 const checkInterval = setInterval(() => {
-                    if (typeof connectToRelay === 'function' && typeof connectNostr === 'function') {
+                    // Check both window and global scope
+                    const hasConnectToRelay = typeof connectToRelay === 'function' || typeof window.connectToRelay === 'function';
+                    const hasConnectNostr = typeof connectNostr === 'function' || typeof window.connectNostr === 'function';
+                    
+                    if (hasConnectToRelay && hasConnectNostr) {
                         clearInterval(checkInterval);
                         console.log('[WoTx2] ✅ NOSTR functions loaded from common.js');
                         resolve();
                     }
                 }, 100);
                 
-                // Timeout after 10 seconds
+                // Timeout after 15 seconds (increased from 10)
                 setTimeout(() => {
                     clearInterval(checkInterval);
-                    console.warn('[WoTx2] ⚠️ Timeout waiting for NOSTR functions');
+                    // Check one more time before warning
+                    const hasConnectToRelay = typeof connectToRelay === 'function' || typeof window.connectToRelay === 'function';
+                    const hasConnectNostr = typeof connectNostr === 'function' || typeof window.connectNostr === 'function';
+                    
+                    if (hasConnectToRelay && hasConnectNostr) {
+                        console.log('[WoTx2] ✅ NOSTR functions loaded (after timeout check)');
+                    } else {
+                        console.warn('[WoTx2] ⚠️ Timeout waiting for NOSTR functions - continuing anyway');
+                    }
                     resolve();
-                }, 10000);
+                }, 15000);
             });
         }
         
@@ -1371,6 +1406,7 @@
                 if (permitData && permitData.id) {
                     updateMasteryLevelsNavigation({ id: permitData.id });
                     updateUserProgressIndicator({ id: permitData.id });
+                    updateDeletePermitButton(permitData.id);
                 }
             } catch (e) {
                 console.error('[WoTx2] Error loading Nostr data:', e);
@@ -2729,6 +2765,15 @@
                 return;
             }
             
+            // Find the 30501 request event to get its event ID (required for tag 'e')
+            const requestEvent = permitRequests.find(r => r.id === requestId);
+            if (!requestEvent || !requestEvent.event_id) {
+                console.error('[WoTx2] Request event not found or missing event_id:', requestId);
+                alert('Erreur : Impossible de trouver l\'événement 30501 correspondant. Veuillez actualiser la page.');
+                return;
+            }
+            const requestEventId = requestEvent.event_id; // This is the Nostr event ID (64-char hex)
+            
             // Collect competencies to transfer (if user has 30503)
             const competenciesToTransfer = [];
             document.querySelectorAll('.competency-checkbox:checked').forEach(checkbox => {
@@ -2768,9 +2813,10 @@
                     })
                 };
                 
+                // CRITICAL: Tag 'e' must reference the 30501 event ID (64-char hex), not the request_id
                 const eventTags = [
                     ['d', attestationId],
-                    ['e', requestId],
+                    ['e', requestEventId], // Use the 30501 event ID, not requestId
                     ['p', userHEX],
                     ['t', 'permit'],
                     ['t', 'attestation']
@@ -3169,6 +3215,7 @@
         }
         
         // Delete permit (kind 5) - only if creator and no 30503 exists
+        // Deletes all related events: 30500, 30501, and 30502
         async function deletePermit(permitId) {
             if (!userHEX || !window.nostr) {
                 alert('Veuillez vous connecter avec votre MULTIPASS pour supprimer un permis.');
@@ -3202,19 +3249,114 @@
                 return;
             }
             
-            // Confirm deletion
-            if (!confirm(`Êtes-vous sûr de vouloir supprimer le permis "${permitId}" ?\n\nCette action est irréversible et enverra un événement kind 5 (delete) sur Nostr.`)) {
+            // Find all related events (30501 and 30502) created by the user
+            console.log('[WoTx2] 🔍 Searching for related events to delete...');
+            
+            // Find 30501 events for this permit created by the user
+            const filters30501 = {
+                '#l': [permitId, 'permit_type']
+            };
+            if (viewMode === 'local' && IPFSNODEID) {
+                filters30501['#ipfs_node'] = [IPFSNODEID];
+            }
+            const events30501 = await fetchNostrEvents(30501, filters30501);
+            const user30501Events = events30501.filter(e => e.pubkey === userPubkeyHex);
+            
+            // Find 30502 events for this permit created by the user
+            // We need to find attestations that reference the 30501 events OR are tagged with bootstrap
+            const events30502 = [];
+            
+            // Method 1: Find attestations that reference the 30501 events
+            for (const reqEvent of user30501Events) {
+                const filters30502 = {
+                    '#e': [reqEvent.id]
+                };
+                if (viewMode === 'local' && IPFSNODEID) {
+                    filters30502['#ipfs_node'] = [IPFSNODEID];
+                }
+                const attestations = await fetchNostrEvents(30502, filters30502);
+                const userAttestations = attestations.filter(e => e.pubkey === userPubkeyHex);
+                events30502.push(...userAttestations);
+            }
+            
+            // Method 2: Also find bootstrap attestations (self-attestations) for this permit
+            // These might not have the 'e' tag pointing to a 30501, but have the bootstrap tag
+            const filters30502Bootstrap = {
+                '#t': ['bootstrap']
+            };
+            if (viewMode === 'local' && IPFSNODEID) {
+                filters30502Bootstrap['#ipfs_node'] = [IPFSNODEID];
+            }
+            const bootstrapAttestations = await fetchNostrEvents(30502, filters30502Bootstrap);
+            const userBootstrapAttestations = bootstrapAttestations.filter(e => {
+                // Check if this attestation is for this permit (check content or tags)
+                try {
+                    const content = JSON.parse(e.content);
+                    if (content.request_id && user30501Events.some(req => {
+                        const reqContent = JSON.parse(req.content);
+                        return reqContent.request_id === content.request_id;
+                    })) {
+                        return e.pubkey === userPubkeyHex;
+                    }
+                } catch (err) {
+                    // Ignore parse errors
+                }
+                return false;
+            });
+            
+            // Add bootstrap attestations that aren't already in the list
+            userBootstrapAttestations.forEach(att => {
+                if (!events30502.some(e => e.id === att.id)) {
+                    events30502.push(att);
+                }
+            });
+            
+            // Count events to delete
+            const eventCount = 1 + user30501Events.length + events30502.length; // 30500 + 30501s + 30502s
+            
+            // Confirm deletion with details
+            const confirmMessage = `Êtes-vous sûr de vouloir supprimer le permis "${permitId}" ?\n\n` +
+                `Cette action est irréversible et supprimera :\n` +
+                `• 1 événement 30500 (définition)\n` +
+                `• ${user30501Events.length} événement(s) 30501 (demande(s))\n` +
+                `• ${events30502.length} événement(s) 30502 (attestation(s))\n\n` +
+                `Total : ${eventCount} événement(s) seront supprimés via un événement kind 5.`;
+            
+            if (!confirm(confirmMessage)) {
                 return;
             }
             
             try {
+                // Build tags for kind 5 delete event (NIP-09)
+                const deleteTags = [];
+                
+                // Add 30500 event
+                deleteTags.push(['e', permit30500.id]);
+                
+                // Add 30501 events
+                user30501Events.forEach(event => {
+                    deleteTags.push(['e', event.id]);
+                });
+                
+                // Add 30502 events
+                events30502.forEach(event => {
+                    deleteTags.push(['e', event.id]);
+                });
+                
+                // Add kind tags (NIP-09 requirement)
+                deleteTags.push(['k', '30500']);
+                if (user30501Events.length > 0) {
+                    deleteTags.push(['k', '30501']);
+                }
+                if (events30502.length > 0) {
+                    deleteTags.push(['k', '30502']);
+                }
+                
                 // Create kind 5 delete event
                 const deleteEvent = {
                     kind: 5,
-                    content: '',
-                    tags: [
-                        ['e', permit30500.id] // Reference to the 30500 event to delete
-                    ],
+                    content: `Suppression du permit ${permitId} et de tous ses événements associés (30500, 30501, 30502)`,
+                    tags: deleteTags,
                     created_at: Math.floor(Date.now() / 1000)
                 };
                 
@@ -3222,6 +3364,12 @@
                 if (IPFSNODEID) {
                     deleteEvent.tags.push(['ipfs_node', IPFSNODEID]);
                 }
+                
+                console.log('[WoTx2] 📝 Creating delete event for', eventCount, 'events:', {
+                    '30500': 1,
+                    '30501': user30501Events.length,
+                    '30502': events30502.length
+                });
                 
                 // Sign and publish event
                 const signedEvent = await window.nostr.signEvent(deleteEvent);
@@ -3270,7 +3418,16 @@
                     return;
                 }
                 
-                alert(`✅ Événement de suppression (kind 5) publié avec succès !\n\nEvent ID: ${signedEvent.id}\n\nLe permis sera supprimé une fois l'événement propagé sur les relays.`);
+                let successMessage = `✅ Événement de suppression (kind 5) publié avec succès !\n\n`;
+                successMessage += `Event ID: ${signedEvent.id.substring(0, 16)}...\n\n`;
+                successMessage += `Événements supprimés :\n`;
+                successMessage += `• 1 événement 30500 (définition)\n`;
+                successMessage += `• ${user30501Events.length} événement(s) 30501 (demande(s))\n`;
+                successMessage += `• ${events30502.length} événement(s) 30502 (attestation(s))\n\n`;
+                successMessage += `Total : ${eventCount} événement(s)\n\n`;
+                successMessage += `Les événements seront supprimés une fois l'événement propagé sur les relays.`;
+                
+                alert(successMessage);
                 
                 // Reload page after a short delay
                 setTimeout(() => {
@@ -3326,6 +3483,9 @@
                 
                 // Update user progress indicator
                 updateUserProgressIndicator(selectedPermit);
+                
+                // Update delete permit button
+                updateDeletePermitButton(selectedPermit.id);
             }
         }
         
@@ -3376,6 +3536,48 @@
                 
                 nav.innerHTML = html;
             } else {
+                section.style.display = 'none';
+            }
+        }
+        
+        // Update delete permit button visibility
+        async function updateDeletePermitButton(permitId) {
+            const section = document.getElementById('deletePermitSection');
+            const button = document.getElementById('deletePermitBtn');
+            
+            if (!section || !userHEX) {
+                if (section) section.style.display = 'none';
+                return;
+            }
+            
+            try {
+                // Check if user is creator
+                const permit30500 = await fetchPermitDefinition(permitId);
+                if (!permit30500) {
+                    section.style.display = 'none';
+                    return;
+                }
+                
+                const userPubkeyHex = npubToHex(userHEX);
+                if (!userPubkeyHex || permit30500.pubkey !== userPubkeyHex) {
+                    section.style.display = 'none';
+                    return;
+                }
+                
+                // Check if any 30503 credentials exist
+                const has30503 = await checkHas30503Credentials(permitId);
+                if (has30503) {
+                    section.style.display = 'none';
+                    return;
+                }
+                
+                // Show delete button
+                section.style.display = 'block';
+                if (button) {
+                    button.onclick = () => deletePermit(permitId);
+                }
+            } catch (e) {
+                console.error('[WoTx2] Error checking delete permission:', e);
                 section.style.display = 'none';
             }
         }
@@ -3695,21 +3897,41 @@
                         const defaultCompetency = permitName;
                         const defaultStatement = `Je souhaite apprendre ${permitName} et devenir maître dans cette maîtrise.`;
                         
-                        // Get geolocation if available
+                        // Get geolocation if available (with better error handling)
                         let location = null;
                         if (navigator.geolocation) {
                             try {
                                 const position = await new Promise((resolve, reject) => {
-                                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
+                                    navigator.geolocation.getCurrentPosition(
+                                        resolve, 
+                                        reject, 
+                                        { 
+                                            timeout: 5000, // Increased timeout
+                                            enableHighAccuracy: false, // Don't require high accuracy
+                                            maximumAge: 60000 // Accept cached position up to 1 minute old
+                                        }
+                                    );
                                 });
                                 location = {
                                     latitude: position.coords.latitude,
                                     longitude: position.coords.longitude,
                                     timestamp: new Date().toISOString()
                                 };
+                                console.log('[WoTx2] ✅ Geolocation obtained:', location);
                             } catch (e) {
-                                console.log('[WoTx2] Geolocation not available:', e);
+                                // Silently fail - geolocation is optional
+                                if (e.code === 1) {
+                                    console.log('[WoTx2] Geolocation permission denied');
+                                } else if (e.code === 2) {
+                                    console.log('[WoTx2] Geolocation position unavailable');
+                                } else if (e.code === 3) {
+                                    console.log('[WoTx2] Geolocation timeout - continuing without location');
+                                } else {
+                                    console.log('[WoTx2] Geolocation error:', e.message);
+                                }
                             }
+                        } else {
+                            console.log('[WoTx2] Geolocation not supported by browser');
                         }
                         
                         // Create permit request event (kind 30501)
@@ -3818,9 +4040,11 @@
                                 })
                             };
                             
+                            // CRITICAL: Tag 'e' must reference the 30501 event ID (64-char hex), not the request_id
+                            // The request_id is stored in the content, but the tag 'e' needs the Nostr event ID
                             const attestationTags = [
                                 ['d', attestationId],
-                                ['e', requestId],
+                                ['e', signedRequestEvent.id], // Use the 30501 event ID, not requestId
                                 ['p', userHEX],
                                 ['t', 'permit'],
                                 ['t', 'attestation'],
@@ -3894,8 +4118,8 @@
                             message += `📝 Attestations requises: 1\n\n`;
                             message += `✅ Événements créés automatiquement :\n`;
                             message += `   • 30500 : Définition du permit\n`;
-                            message += `   • 30501 : Demande d'apprentissage (ID: ${requestId})\n`;
-                            message += `   • 30502 : Auto-attestation bootstrap (ID: ${attestationId})\n`;
+                            message += `   • 30501 : Demande d'apprentissage (Event ID: ${signedRequestEvent.id.substring(0, 16)}...)\n`;
+                            message += `   • 30502 : Auto-attestation bootstrap (Event ID: ${signedAttestationEvent.id.substring(0, 16)}...)\n`;
                             message += `   • Compétence révélée: ${defaultCompetency}\n\n`;
                             message += `🔄 Prochaines étapes :\n`;
                             message += `   • ORACLE.refresh.sh détectera le seuil atteint (1/1)\n`;
