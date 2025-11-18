@@ -677,13 +677,9 @@
     </div>
 
     <script>
-        // Global variables
+        // Global variables - check if already declared by common.js to avoid redeclaration errors
+        // Oracle-specific variables
         let USPOT_API_BASE = '';
-        let DEFAULT_RELAYS = [];
-        let nostrRelay = null;
-        let isNostrConnected = false;
-        let userPubkey = null;
-        let userNpub = null;
         let isCaptain = false;
         
         let permitChart = null;
@@ -693,6 +689,24 @@
         let allRequests = [];
         let myCredentials = [];
         let allOREContracts = [];
+        
+        // Use variables from common.js if available, otherwise declare them
+        // These are shared with common.js, so we check if they exist first
+        if (typeof DEFAULT_RELAYS === 'undefined') {
+            var DEFAULT_RELAYS = [];
+        }
+        if (typeof nostrRelay === 'undefined') {
+            var nostrRelay = null;
+        }
+        if (typeof isNostrConnected === 'undefined') {
+            var isNostrConnected = false;
+        }
+        if (typeof userPubkey === 'undefined') {
+            var userPubkey = null;
+        }
+        if (typeof userNpub === 'undefined') {
+            var userNpub = null;
+        }
 
         // Detect uSPOT API
         function detectUSPOTAPI() {
