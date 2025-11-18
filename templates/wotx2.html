@@ -830,7 +830,7 @@
                                 <li>ORACLE.refresh.sh valide et émet votre credential (30503)</li>
                                 <li>Votre demande disparaît et vous apparaissez dans "Maîtres Certifiés"</li>
                             </ol>
-                            <p class="mb-0 mt-2"><strong>Note :</strong> Pour les professions auto-proclamées (PERMIT_PROFESSION_X1), le système créera automatiquement le niveau X2 après validation du X1.</p>
+                            <p class="mb-0 mt-2"><strong>Note :</strong> Pour les professions auto-proclamées (PERMIT_X1), le système créera automatiquement le niveau X2 après validation du X1.</p>
                             <p class="mb-0 mt-2"><small><strong>Géolocalisation :</strong> Votre position sera enregistrée pour que les maîtres près de vous puissent vous trouver.</small></p>
                         </div>
                     </form>
@@ -870,7 +870,7 @@
                                 <strong>Profession Auto-Proclamée</strong> (ID généré automatiquement)
                             </label>
                             <small class="text-muted d-block mt-1">
-                                L'ID sera calculé automatiquement : <code id="autoPermitIdPreview">PERMIT_PROFESSION_X1</code>
+                                L'ID sera calculé automatiquement : <code id="autoPermitIdPreview">PERMIT_X1</code>
                             </small>
                         </div>
                         
@@ -2124,7 +2124,7 @@
                                         <i class="bi bi-check-circle"></i> 
                                         ${holder.attestations_count || 0} attestation(s)
                                     </small>
-                                    ${permit && permit.id.match(/^PERMIT_PROFESSION_/) ? `
+                                    ${permit && permit.id.match(/^PERMIT_/) ? `
                                         <div class="mt-2">
                                             <small class="text-muted">
                                                 <i class="bi bi-info-circle"></i> 
@@ -3194,7 +3194,7 @@
                 }
                 
                 // Show progression workflow for auto-proclaimed professions
-                if (selectedPermit.id.match(/^PERMIT_PROFESSION_/) && progressionWorkflow) {
+                if (selectedPermit.id.match(/^PERMIT_/) && progressionWorkflow) {
                     progressionWorkflow.style.display = 'block';
                 } else if (progressionWorkflow) {
                     progressionWorkflow.style.display = 'none';
@@ -3258,9 +3258,9 @@
                     .replace(/\s+/g, '_')
                     .substring(0, 50); // Limit length
                 
-                // Ensure it starts with PERMIT_PROFESSION_
-                if (!permitId.startsWith('PERMIT_PROFESSION_')) {
-                    permitId = 'PERMIT_PROFESSION_' + permitId;
+                // Ensure it starts with PERMIT_
+                if (!permitId.startsWith('PERMIT_')) {
+                    permitId = 'PERMIT_' + permitId;
                 }
                 
                 // Add _X1 suffix
@@ -3270,7 +3270,7 @@
                 
                 preview.textContent = permitId;
             } else {
-                preview.textContent = 'PERMIT_PROFESSION_X1';
+                preview.textContent = 'PERMIT_X1';
             }
         }
 
@@ -3375,8 +3375,8 @@
                     .replace(/\s+/g, '_')
                     .substring(0, 50);
                 
-                if (!permitId.startsWith('PERMIT_PROFESSION_')) {
-                    permitId = 'PERMIT_PROFESSION_' + permitId;
+                if (!permitId.startsWith('PERMIT_')) {
+                    permitId = 'PERMIT_' + permitId;
                 }
                 
                 if (!permitId.endsWith('_X1')) {
