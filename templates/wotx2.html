@@ -488,7 +488,7 @@
 </head>
 <body>
     <!-- Connection Badge (MULTIPASS) -->
-    <div id="connectionBadge" class="connection-badge disconnected" onclick="toggleConnectionPanel()" style="position: relative;">
+    <div id="connectionBadge" class="connection-badge disconnected" onclick="toggleConnectionPanel()">
         <div id="connection-badge-content">
             <span class="status-text">⚫ Non connecté</span>
         </div>
@@ -1239,6 +1239,12 @@
             }
             
             try {
+                console.log('[WoTx2] Loading Nostr data for permit:', permitData.id);
+                
+                // Show loading indicators
+                showLoadingIndicator('instructorsList', 'Chargement des maîtres certifiés...');
+                showLoadingIndicator('pendingRequestsList', 'Chargement des demandes...');
+                
                 // Build filters - only filter by IPFSNODEID in local mode
                 const requestFilters = {
                     '#l': [permitData.id, 'permit_type']
@@ -1249,8 +1255,16 @@
                 // In global mode, don't filter by IPFSNODEID (get all events from constellation)
                 
                 // Load permit requests (kind 30501) for selected permit
-                const requests = await fetchNostrEvents(30501, requestFilters);
-                permitRequests = requests.map(parsePermitRequest).filter(r => r !== null);
+                let requests = [];
+                try {
+                    const requestsRaw = await fetchNostrEvents(30501, requestFilters);
+                    permitRequests = requestsRaw.map(parsePermitRequest).filter(r => r !== null);
+                    requests = permitRequests;
+                } catch (error) {
+                    console.error('[WoTx2] Error loading requests:', error);
+                    permitRequests = [];
+                    // Continue with empty requests
+                }
                 
                 // Build filters for credentials
                 const credentialFilters = {
@@ -1262,22 +1276,39 @@
                 // In global mode, don't filter by IPFSNODEID
                 
                 // Load permit credentials (kind 30503) for selected permit
-                const credentials = await fetchNostrEvents(30503, credentialFilters);
-                permitCredentials = credentials.map(parsePermitCredential).filter(c => c !== null);
+                let credentials = [];
+                try {
+                    const credentialsRaw = await fetchNostrEvents(30503, credentialFilters);
+                    permitCredentials = credentialsRaw.map(parsePermitCredential).filter(c => c !== null);
+                    credentials = permitCredentials;
+                } catch (error) {
+                    console.error('[WoTx2] Error loading credentials:', error);
+                    permitCredentials = [];
+                    // Continue with empty credentials
+                }
                 
                 // Calculate required attestations
                 const requiredAttestations = permitData.min_attestations || 1;
+                
+                console.log(`[WoTx2] Loaded ${requests.length} requests and ${credentials.length} credentials`);
                 
                 // Update UI
                 loadInstructors();
                 loadPendingRequests(requiredAttestations);
             } catch (e) {
-                console.error('Error loading Nostr data:', e);
-                // Even on error, show empty state
+                console.error('[WoTx2] Error loading Nostr data:', e);
+                // Show error messages
+                showError('instructorsList',
+                    'Impossible de charger les maîtres certifiés. Vérifiez votre connexion au relay NOSTR.',
+                    '() => loadNostrData()'
+                );
+                showError('pendingRequestsList',
+                    'Impossible de charger les demandes. Vérifiez votre connexion au relay NOSTR.',
+                    '() => loadNostrData()'
+                );
+                // Even on error, initialize empty arrays
                 permitRequests = [];
                 permitCredentials = [];
-                loadInstructors();
-                loadPendingRequests(permitData?.min_attestations || 1);
             }
         }
         
@@ -1285,7 +1316,7 @@
         async function fetchNostrEvents(kind, filters = {}) {
             // Use nostrRelay from common.js if available
             if (typeof nostrRelay !== 'undefined' && nostrRelay && isNostrConnected) {
-                return new Promise((resolve) => {
+                return new Promise((resolve, reject) => {
                     const events = [];
                     let resolved = false;
                     let sub = null;
@@ -1299,27 +1330,51 @@
                                     sub.close();
                                 }
                             } catch (e) {
-                                console.warn('Error closing subscription:', e);
+                                console.warn('[WoTx2] Error closing subscription:', e);
                             }
                         }
                     };
+                    
+                    // Timeout handler
+                    const timeoutId = setTimeout(() => {
+                        if (!resolved) {
+                            resolved = true;
+                            closeSubscription();
+                            // Return what we have so far (might be empty, but better than error)
+                            console.log(`[WoTx2] Timeout fetching kind ${kind}, returning ${events.length} events`);
+                            resolve(events);
+                        }
+                    }, 1500);
                     
                     try {
                         // Try with callbacks first (if supported)
                         if (typeof nostrRelay.sub === 'function') {
                             try {
                                 sub = nostrRelay.sub([{ kind, ...filters }], {
-                            onevent: (event) => {
-                                events.push(event);
-                            },
-                            oneose: () => {
+                                    onevent: (event) => {
+                                        if (event && event.id) {
+                                            events.push(event);
+                                        }
+                                    },
+                                    oneose: () => {
                                         if (!resolved) {
                                             resolved = true;
+                                            clearTimeout(timeoutId);
                                             closeSubscription();
-                                resolve(events);
-                            }
+                                            resolve(events);
+                                        }
+                                    },
+                                    onerror: (error) => {
+                                        console.error(`[WoTx2] Relay error for kind ${kind}:`, error);
+                                        if (!resolved) {
+                                            resolved = true;
+                                            clearTimeout(timeoutId);
+                                            closeSubscription();
+                                            // Return what we have so far
+                                            resolve(events);
+                                        }
                                     }
-                        });
+                                });
                             } catch (e) {
                                 // If callback syntax fails, try without callbacks and use .on()
                                 console.log('[WoTx2] Callback syntax not supported, trying .on() syntax');
@@ -1327,12 +1382,25 @@
                                 
                                 if (sub && typeof sub.on === 'function') {
                                     sub.on('event', (event) => {
-                                        events.push(event);
+                                        if (event && event.id) {
+                                            events.push(event);
+                                        }
                                     });
                                     
                                     sub.on('eose', () => {
                                         if (!resolved) {
                                             resolved = true;
+                                            clearTimeout(timeoutId);
+                                            closeSubscription();
+                                            resolve(events);
+                                        }
+                                    });
+                                    
+                                    sub.on('error', (error) => {
+                                        console.error(`[WoTx2] Relay subscription error for kind ${kind}:`, error);
+                                        if (!resolved) {
+                                            resolved = true;
+                                            clearTimeout(timeoutId);
                                             closeSubscription();
                                             resolve(events);
                                         }
@@ -1342,22 +1410,19 @@
                                     console.warn('[WoTx2] Subscription object does not support .on() method');
                                 }
                             }
+                        } else {
+                            console.warn('[WoTx2] nostrRelay.sub is not a function');
+                            clearTimeout(timeoutId);
+                            resolve([]);
                         }
-                        
-                        // Timeout after 3 seconds
-                        setTimeout(() => {
-                            if (!resolved) {
-                                resolved = true;
-                                closeSubscription();
-                            resolve(events);
-                            }
-                        }, 3000);
                     } catch (e) {
-                        console.error('Error fetching events:', e);
+                        console.error(`[WoTx2] Error fetching events kind ${kind}:`, e);
+                        clearTimeout(timeoutId);
                         if (!resolved) {
                             resolved = true;
                             closeSubscription();
-                        resolve(events);
+                            // Return empty array on error rather than rejecting
+                            resolve([]);
                         }
                     }
                 });
@@ -1368,7 +1433,7 @@
                     const relayUrls = Object.keys(relays);
                     
                     if (relayUrls.length === 0) {
-                        console.warn('No relays configured, cannot fetch events');
+                        console.warn('[WoTx2] No relays configured, cannot fetch events');
                         return [];
                     }
                     
@@ -1378,22 +1443,31 @@
                             const relay = new Relay(relayUrl);
                             await relay.connect();
                             const sub = relay.subscribe([{ kind, ...filters }], {
-                                onevent: (event) => events.push(event),
-                                oneose: () => relay.close()
+                                onevent: (event) => {
+                                    if (event && event.id) {
+                                        events.push(event);
+                                    }
+                                },
+                                oneose: () => relay.close(),
+                                onerror: (error) => {
+                                    console.warn(`[WoTx2] Error from ${relayUrl}:`, error);
+                                }
                             });
                             await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s for events
                             relay.close();
                         } catch (e) {
-                            console.warn(`Failed to fetch from ${relayUrl}:`, e);
+                            console.warn(`[WoTx2] Failed to fetch from ${relayUrl}:`, e);
                         }
                     }
                     return events;
                 } catch (e) {
-                    console.error('Error fetching from user relays:', e);
+                    console.error('[WoTx2] Error fetching from user relays:', e);
                     return [];
                 }
+            } else {
+                console.warn('[WoTx2] No relay connection available');
+                return [];
             }
-            return [];
         }
         
         // Parse permit request event (kind 30501)
@@ -1448,6 +1522,94 @@
             }
             const attestations = await fetchNostrEvents(30502, filters);
             return attestations.length;
+        }
+        
+        // Count attestations for multiple requests in batch (optimized)
+        async function countAttestationsBatch(requestIds) {
+            if (!requestIds || requestIds.length === 0) return {};
+            
+            try {
+                const filters = {
+                    '#e': requestIds
+                };
+                // Only filter by IPFSNODEID in local mode
+                if (viewMode === 'local' && IPFSNODEID) {
+                    filters['#ipfs_node'] = [IPFSNODEID];
+                }
+                
+                // Fetch all attestations at once
+                const attestations = await fetchNostrEvents(30502, filters);
+                
+                // Group by request ID
+                const counts = {};
+                requestIds.forEach(id => counts[id] = 0);
+                
+                if (attestations && Array.isArray(attestations)) {
+                    attestations.forEach(attestation => {
+                        // Find which request this attestation references
+                        const eTag = attestation.tags?.find(t => t[0] === 'e');
+                        if (eTag && eTag[1]) {
+                            const requestId = eTag[1];
+                            if (counts.hasOwnProperty(requestId)) {
+                                counts[requestId]++;
+                            }
+                        }
+                    });
+                }
+                
+                return counts;
+            } catch (error) {
+                console.error('[WoTx2] Error counting attestations batch:', error);
+                // Return empty counts on error (better than crashing)
+                const counts = {};
+                requestIds.forEach(id => counts[id] = 0);
+                return counts;
+            }
+        }
+        
+        // Utility: Show loading indicator
+        function showLoadingIndicator(containerId, message = 'Chargement...') {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            container.innerHTML = `
+                <div class="col-12 text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">${message}</span>
+                    </div>
+                    <p class="mt-2 text-muted">${message}</p>
+                </div>
+            `;
+        }
+        
+        // Utility: Show error message
+        function showError(containerId, message, retryCallback = null) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            let retryButton = '';
+            if (retryCallback) {
+                // Escape the callback to prevent XSS and ensure proper function call
+                const escapedCallback = retryCallback.replace(/"/g, '&quot;');
+                retryButton = `
+                    <button class="btn btn-primary btn-sm mt-2" onclick="try { ${escapedCallback}(); } catch(e) { console.error('Retry error:', e); }">
+                        <i class="bi bi-arrow-clockwise"></i> Réessayer
+                    </button>
+                `;
+            }
+            
+            // Escape message to prevent XSS
+            const escapedMessage = message.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            
+            container.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Erreur :</strong> ${escapedMessage}
+                        ${retryButton}
+                    </div>
+                </div>
+            `;
         }
 
         // MULTIPASS Connection using common.js (similar to youtube.html)
@@ -1991,46 +2153,65 @@
             const listEl = document.getElementById('pendingRequestsList');
             if (!listEl) return;
             
-            // Ensure permitRequests is initialized
-            if (!permitRequests) {
-                permitRequests = [];
-            }
-            
-            // Filter requests: only show those without 30503 credentials (still apprentices)
-            const pendingRequests = [];
-            for (const request of permitRequests) {
-                // Check if this applicant already has a 30503 credential for this permit
-                const hasCredential = permitCredentials.some(cred => 
-                    cred.holder_npub === request.applicant_npub && 
-                    cred.permit_definition_id === request.permit_definition_id
-                );
+            try {
+                // Show loading indicator
+                showLoadingIndicator('pendingRequestsList', 'Chargement des demandes d\'apprentissage...');
                 
-                // Only include requests without credentials (still apprentices)
-                if (!hasCredential) {
-                    pendingRequests.push(request);
+                // Ensure permitRequests is initialized
+                if (!permitRequests) {
+                    permitRequests = [];
                 }
-            }
-            
-            // Use requests from Nostr (30501) - only those without 30503
-            if (pendingRequests.length === 0) {
-                listEl.innerHTML = `
-                    <div class="empty-state">
-                        <i class="bi bi-inbox"></i>
-                        <p><strong>0</strong> demande en attente.</p>
-                        <p class="text-muted">Aucun apprenti ne cherche de maître pour le moment.</p>
-                        <p class="text-muted small">Les demandes validées (avec 30503) apparaissent dans "Maîtres Certifiés".</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            // Use provided requiredAttestations or fallback to min_attestations
-            const reqAttest = requiredAttestations || permitData.min_attestations || 1;
+                
+                // Filter requests: only show those without 30503 credentials (still apprentices)
+                const pendingRequests = [];
+                for (const request of permitRequests) {
+                    // Check if this applicant already has a 30503 credential for this permit
+                    const hasCredential = permitCredentials.some(cred => 
+                        cred.holder_npub === request.applicant_npub && 
+                        cred.permit_definition_id === request.permit_definition_id
+                    );
+                    
+                    // Only include requests without credentials (still apprentices)
+                    if (!hasCredential) {
+                        pendingRequests.push(request);
+                    }
+                }
+                
+                // Use requests from Nostr (30501) - only those without 30503
+                if (pendingRequests.length === 0) {
+                    listEl.innerHTML = `
+                        <div class="empty-state">
+                            <i class="bi bi-inbox"></i>
+                            <p><strong>0</strong> demande en attente.</p>
+                            <p class="text-muted">Aucun apprenti ne cherche de maître pour le moment.</p>
+                            <p class="text-muted small">Les demandes validées (avec 30503) apparaissent dans "Maîtres Certifiés".</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Use provided requiredAttestations or fallback to min_attestations
+                const reqAttest = requiredAttestations || permitData.min_attestations || 1;
+                
+                // Show progress: counting attestations
+                showLoadingIndicator('pendingRequestsList', `Comptage des attestations (${pendingRequests.length} demande(s))...`);
+                
+                // Optimize: Count all attestations in batch instead of one by one
+                const requestIds = pendingRequests.map(r => r.id);
+                let attestationCounts = {};
+                
+                try {
+                    attestationCounts = await countAttestationsBatch(requestIds);
+                } catch (error) {
+                    console.error('[WoTx2] Error counting attestations:', error);
+                    // Continue with empty counts rather than failing completely
+                    requestIds.forEach(id => attestationCounts[id] = 0);
+                }
             
             let html = '';
             for (const request of pendingRequests) {
-                // Count attestations for this request
-                const attestCount = await countAttestations(request.id);
+                // Get attestation count from batch result
+                const attestCount = attestationCounts[request.id] || 0;
                 request.attestations_count = attestCount;
                 const progress = (request.attestations_count / reqAttest) * 100;
                 const isMyRequest = userHEX && userHEX === request.applicant_npub;
@@ -2114,6 +2295,14 @@
             }
             
             listEl.innerHTML = html;
+            } catch (error) {
+                console.error('[WoTx2] Error loading pending requests:', error);
+                const reqAttest = requiredAttestations || 1;
+                showError('pendingRequestsList', 
+                    'Impossible de charger les demandes d\'apprentissage. Vérifiez votre connexion au relay NOSTR.',
+                    `() => loadPendingRequests(${reqAttest})`
+                );
+            }
         }
 
         function showRequestModal() {
@@ -2650,28 +2839,71 @@
             const container = document.getElementById('all-permits-list');
             if (!container) return;
             
-            if (allPermits.length === 0) {
-                container.innerHTML = `
-                    <div class="col-12">
-                        <div class="alert alert-info text-center">
-                            <i class="bi bi-info-circle"></i> Aucun permis disponible pour le moment.
+            try {
+                if (allPermits.length === 0) {
+                    container.innerHTML = `
+                        <div class="col-12">
+                            <div class="alert alert-info text-center">
+                                <i class="bi bi-info-circle"></i> Aucun permis disponible pour le moment.
+                            </div>
                         </div>
-                    </div>
-                `;
-                return;
-            }
-            
-            // For each permit, check if user is creator and if 30503 exists
-            let html = '';
-            const userPubkeyHex = userHEX ? npubToHex(userHEX) : null;
+                    `;
+                    return;
+                }
+                
+                // Show loading indicator
+                showLoadingIndicator('all-permits-list', `Chargement des ${allPermits.length} permis...`);
+                
+                // For each permit, check if user is creator and if 30503 exists
+                let html = '';
+                const userPubkeyHex = userHEX ? npubToHex(userHEX) : null;
+                
+                // Optimize: Pre-fetch all permit definitions in batch
+                const permitIds = allPermits.map(p => p.id);
+                const permitDefinitionsMap = {};
+                const has30503Map = {};
+                
+                // Fetch all permit definitions in parallel (limit to 5 concurrent requests)
+                let batchNumber = 0;
+                const totalBatches = Math.ceil(permitIds.length / 5);
+                
+                for (let i = 0; i < permitIds.length; i += 5) {
+                    batchNumber++;
+                    const batch = permitIds.slice(i, i + 5);
+                    
+                    // Update loading message with progress
+                    if (container) {
+                        showLoadingIndicator('all-permits-list', 
+                            `Chargement des permis... (${batchNumber}/${totalBatches})`
+                        );
+                    }
+                    
+                    const batchPromises = batch.map(async (permitId) => {
+                        try {
+                            const def = await fetchPermitDefinition(permitId);
+                            if (def) {
+                                permitDefinitionsMap[permitId] = def;
+                            }
+                            // Also check for 30503 in parallel
+                            const has30503 = allPermits.find(p => p.id === permitId)?.holders_count > 0 || 
+                                            (await checkHas30503Credentials(permitId));
+                            has30503Map[permitId] = has30503;
+                        } catch (error) {
+                            console.error(`[WoTx2] Error fetching permit ${permitId}:`, error);
+                            // Continue with defaults on error
+                            has30503Map[permitId] = allPermits.find(p => p.id === permitId)?.holders_count > 0 || false;
+                        }
+                    });
+                    
+                    // Wait for this batch before starting next batch
+                    await Promise.all(batchPromises);
+                }
             
             for (const permit of allPermits) {
-                // Check if user is the creator (need to fetch the 30500 event)
-                const permit30500 = await fetchPermitDefinition(permit.id);
+                // Use pre-fetched data
+                const permit30500 = permitDefinitionsMap[permit.id];
                 const isCreator = permit30500 && userPubkeyHex && permit30500.pubkey === userPubkeyHex;
-                
-                // Check if any 30503 credentials exist
-                const has30503 = permit.holders_count > 0 || (await checkHas30503Credentials(permit.id));
+                const has30503 = has30503Map[permit.id] || false;
                 
                 // Can delete only if creator and no 30503 exists
                 const canDelete = isCreator && !has30503;
@@ -2750,6 +2982,13 @@
             }
             
             container.innerHTML = html;
+            } catch (error) {
+                console.error('[WoTx2] Error rendering permits list:', error);
+                showError('all-permits-list',
+                    'Impossible de charger la liste des permis. Vérifiez votre connexion au relay NOSTR.',
+                    '() => renderAllPermitsList()'
+                );
+            }
         }
         
         // Fetch permit definition (kind 30500) from Nostr
