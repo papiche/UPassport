@@ -1002,6 +1002,9 @@
         <div class="theater-header">
             <h5 class="mb-0 text-truncate flex-grow-1" id="theaterTitle" style="max-width: 60%;">Loading...</h5>
             <div class="d-flex gap-1 gap-sm-2 align-items-center flex-shrink-0">
+                <a href="/youtube?html=1" class="btn btn-sm btn-outline-secondary" title="Retour à NostrTube">
+                    <i class="bi bi-house"></i> <span class="d-none d-sm-inline">NostrTube</span>
+                </a>
                 <button class="btn btn-sm btn-outline-info" id="theaterFollowBtn" title="Follow" style="display: none;">
                     <i class="bi bi-person-plus"></i> <span id="theaterFollowText" class="d-none d-sm-inline">Follow</span>
                 </button>
@@ -1016,6 +1019,9 @@
                 </button>
                 <button class="btn btn-sm btn-outline-info" id="theaterTagsBtn" title="Tags" onclick="openTagsPage()">
                     <i class="bi bi-tags"></i> <span class="d-none d-sm-inline">Tags</span>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" id="closeTheaterBtn" title="Fermer">
+                    <i class="bi bi-x-lg"></i>
                 </button>
             </div>
         </div>
@@ -3545,15 +3551,41 @@
         function initializeTheaterModeLocal(videoData) {
             if (!videoData) return;
             
+            // Store videoData globally for use in other functions
+            window.currentVideoData = videoData;
+            
             const videoPlayer = document.getElementById('theaterVideoPlayer');
             const titleEl = document.getElementById('theaterTitle');
             const durationEl = document.getElementById('theaterDuration');
             const descriptionEl = document.getElementById('theaterDescription');
             
-            // Set title in the page and in the <title> tag
+            // Set title in the page and in the <title> tag (enriched with source and year)
             if (titleEl && videoData.title) {
-                titleEl.textContent = videoData.title;
-                // Update browser tab title
+                // Build enriched title with source and year
+                let enrichedTitle = videoData.title;
+                const titleParts = [];
+                
+                // Add source type if available
+                if (videoData.source_type) {
+                    const sourceLabels = {
+                        'film': 'Film',
+                        'serie': 'Série',
+                        'youtube': 'YouTube',
+                        'webcam': 'Webcam'
+                    };
+                    const sourceLabel = sourceLabels[videoData.source_type.toLowerCase()] || videoData.source_type;
+                    titleParts.push(sourceLabel);
+                }
+                
+                // Add year from TMDB metadata if available (will be updated when TMDB metadata loads)
+                // For now, we'll set the base title and update it later when TMDB metadata is loaded
+                if (titleParts.length > 0) {
+                    enrichedTitle = `${videoData.title} - ${titleParts.join(' - ')}`;
+                }
+                
+                titleEl.textContent = enrichedTitle;
+                
+                // Update browser tab title (simpler version for tab)
                 document.title = `${videoData.title} - Theater Mode`;
             }
             
@@ -4129,9 +4161,53 @@
                     tmdbSection.style.display = 'none';
                 }
                 
+                // Update title with year if available
+                updateTitleWithYear(tmdb);
+                
             } catch (error) {
                 console.error('Error loading TMDB metadata:', error);
                 tmdbSection.style.display = 'none';
+            }
+        }
+        
+        /**
+         * Update theater title with year and source information
+         */
+        function updateTitleWithYear(tmdb) {
+            const titleEl = document.getElementById('theaterTitle');
+            if (!titleEl) return;
+            
+            // Get base title (remove any existing enrichment)
+            let baseTitle = titleEl.textContent;
+            const parts = baseTitle.split(' - ');
+            // Keep only the first part (original title) if there are multiple parts
+            if (parts.length > 1) {
+                baseTitle = parts[0];
+            }
+            
+            // Build enriched title
+            const titleParts = [baseTitle];
+            
+            // Add source type from videoData if available
+            if (window.currentVideoData && window.currentVideoData.source_type) {
+                const sourceLabels = {
+                    'film': 'Film',
+                    'serie': 'Série',
+                    'youtube': 'YouTube',
+                    'webcam': 'Webcam'
+                };
+                const sourceLabel = sourceLabels[window.currentVideoData.source_type.toLowerCase()] || window.currentVideoData.source_type;
+                titleParts.push(sourceLabel);
+            }
+            
+            // Add year from TMDB if available
+            if (tmdb && tmdb.year) {
+                titleParts.push(tmdb.year);
+            }
+            
+            // Update title
+            if (titleParts.length > 1) {
+                titleEl.textContent = titleParts.join(' - ');
             }
         }
         
@@ -4871,6 +4947,24 @@
                         title = titleMatch[1].trim();
                     } else {
                         title = 'Sans titre';
+                    }
+                }
+                
+                // Enrich title with source type if available
+                // Remove any existing source suffix first
+                const sourcePattern = /\s*-\s*(Film|Série|YouTube|Webcam)$/;
+                title = title.replace(sourcePattern, '');
+                
+                if (sourceType) {
+                    const sourceLabels = {
+                        'film': 'Film',
+                        'serie': 'Série',
+                        'youtube': 'YouTube',
+                        'webcam': 'Webcam'
+                    };
+                    const sourceLabel = sourceLabels[sourceType.toLowerCase()] || sourceType;
+                    if (sourceLabel && !title.includes(` - ${sourceLabel}`)) {
+                        title = `${title} - ${sourceLabel}`;
                     }
                 }
                 
