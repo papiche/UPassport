@@ -621,9 +621,9 @@
                 <span id="permitLevelBadge" class="badge bg-primary ms-2" style="display: none;"></span>
             </h1>
             <p class="lead" id="permitDescription">
-                <strong>L'apprentissage décentralisé par la pratique</strong> - Créez des maîtrises, trouvez des maîtres près de vous, 
-                transférez vos compétences aux apprentis, et découvrez de nouveaux talents. 
-                Un système de certification par les pairs qui remplace écoles et syndicats traditionnels.
+                <strong>Apprenez et enseignez librement, sans écoles ni diplômes</strong><br>
+                Créez votre maîtrise, trouvez des maîtres près de chez vous, partagez vos savoir-faire, 
+                et construisez ensemble une communauté de compétences validées par vos pairs.
             </p>
             <div id="progressionWorkflow" style="display: none;" class="mt-3">
                 <div class="alert alert-info">
@@ -686,7 +686,7 @@
                         <div>
                             <i class="bi bi-exclamation-triangle"></i> 
                             <strong>Vous êtes le créateur de cette maîtrise</strong>
-                            <p class="mb-0 small mt-1">Vous pouvez supprimer ce permit et tous ses événements (30500, 30501, 30502) tant qu'aucun credential 30503 n'a été émis.</p>
+                            <p class="mb-0 small mt-1">Vous pouvez supprimer cette maîtrise et toutes les demandes associées tant qu'aucun certificat n'a encore été délivré.</p>
                         </div>
                         <button class="btn btn-danger" id="deletePermitBtn">
                             <i class="bi bi-trash"></i> Supprimer ce Permit
@@ -730,53 +730,63 @@
         <!-- Bootstrap Instructions -->
         <div class="card mb-4" id="bootstrapInstructions" style="display: none;">
             <div class="card-header bg-warning text-dark">
-                <i class="bi bi-seed"></i> Initialisation d'une Nouvelle Maîtrise - Mode Bootstrap
+                <i class="bi bi-seed"></i> 🚀 Démarrer une Nouvelle Maîtrise
             </div>
             <div class="card-body">
-                <h5>Comment démarrer une nouvelle maîtrise :</h5>
-                <ol>
-                    <li><strong>2 personnes</strong> se connectent avec leur <strong>MULTIPASS</strong> (sur 2 navigateurs différents)</li>
-                    <li>Chacun crée sa <strong>demande d'apprentissage</strong> (kind 30501)</li>
-                    <li>Chacun <strong>devient maître de l'autre</strong> en créant une <strong>attestation</strong> (kind 30502)</li>
-                    <li>Par cette <strong>attestation réciproque</strong>, le système valide les compétences</li>
-                    <li>Les <strong>certificats de maîtrise</strong> (kind 30503) sont émis automatiquement</li>
-                    <li>La maîtrise est maintenant <strong>ouverte à tous</strong> - d'autres peuvent rejoindre comme apprentis ou maîtres</li>
-                </ol>
-                <div class="alert alert-info mt-3">
-                    <i class="bi bi-lightbulb"></i> <strong>Astuce :</strong> C'est le "Block 0" de votre maîtrise - seulement 2 maîtres suffisent pour démarrer, puis le système évolue naturellement !
+                <h5>💡 Comment créer votre première maîtrise :</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="alert alert-success">
+                            <strong>✅ Option Simple (Recommandée) :</strong>
+                            <p class="mb-0 mt-2">Créez votre maîtrise ci-dessus → Le système crée automatiquement votre demande et votre auto-attestation. Vous êtes prêt !</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-info">
+                            <strong>👥 Option avec Partenaire :</strong>
+                            <ol class="mb-0 mt-2" style="padding-left: 1.2rem;">
+                                <li>2 personnes se connectent avec leur MULTIPASS</li>
+                                <li>Chacun crée sa demande d'apprentissage</li>
+                                <li>Chacun atteste l'autre → Certificats automatiques !</li>
+                                <li>La maîtrise est ouverte à tous</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-warning mt-3">
+                    <i class="bi bi-star"></i> <strong>Avantage :</strong> Dès que 2 maîtres sont certifiés, votre maîtrise devient visible et accessible à toute la communauté UPlanet !
                 </div>
             </div>
         </div>
 
-        <!-- Virtuous Circle Explanation -->
+        <!-- Benefits Section -->
         <div class="virtuous-circle">
             <h3 class="mb-4">
-                <i class="bi bi-arrow-repeat"></i> Le Cercle Vertueux de l'Apprentissage
+                <i class="bi bi-heart"></i> Pourquoi utiliser WoTx2 ?
             </h3>
             <div class="circle-step">
                 <i class="bi bi-person-check"></i>
                 <div>
-                    <strong>L'Apprenti</strong>
-                    <p class="mb-0">Cherche un maître, apprend par la pratique, et peut devenir maître à son tour</p>
+                    <strong>🎓 Pour Vous : Apprenez Librement</strong>
+                    <p class="mb-0">Trouvez des maîtres près de chez vous, apprenez par la pratique, et obtenez une certification reconnue par la communauté. Plus besoin d'écoles coûteuses !</p>
                 </div>
             </div>
             <div class="circle-step">
                 <i class="bi bi-person-badge"></i>
                 <div>
-                    <strong>Le Maître</strong>
-                    <p class="mb-0">Transfère ses compétences, découvre de nouveaux talents, et enrichit la maîtrise</p>
+                    <strong>👨‍🏫 Pour Vous : Partagez vos Talents</strong>
+                    <p class="mb-0">Enseignez ce que vous savez, découvrez de nouveaux talents, et construisez votre réputation de maître. Votre savoir-faire devient votre capital social.</p>
                 </div>
             </div>
             <div class="circle-step">
-                <i class="bi bi-stars"></i>
+                <i class="bi bi-globe"></i>
                 <div>
-                    <strong>Compétences Révélées</strong>
-                    <p class="mb-0">Nouvelles compétences découvertes lors des attestations qui enrichissent la maîtrise</p>
+                    <strong>🌍 Pour la Communauté UPlanet</strong>
+                    <p class="mb-0">Créez des réseaux locaux d'apprentissage, décentralisez l'éducation, et construisez ensemble une économie basée sur les compétences réelles plutôt que les diplômes.</p>
                 </div>
             </div>
             <div class="alert alert-success mt-3">
-                <i class="bi bi-geo-alt"></i> <strong>Géolocalisation :</strong> Trouvez des maîtres près de vous, créez des réseaux locaux d'apprentissage, 
-                et décentralisez l'éducation sans écoles ni syndicats centralisés.
+                <i class="bi bi-geo-alt"></i> <strong>📍 Géolocalisation :</strong> Trouvez des maîtres dans votre région, créez des rencontres locales, et construisez des communautés d'apprentissage près de chez vous.
             </div>
         </div>
 
@@ -786,20 +796,20 @@
                 <div class="row align-items-center">
                     <div class="col-md-8">
                         <h6 class="mb-2">
-                            <i class="bi bi-question-circle-fill text-warning"></i> 
-                            <strong>Comment progresser dans cette maîtrise ?</strong>
+                            <i class="bi bi-rocket-takeoff-fill text-warning"></i> 
+                            <strong>Comment obtenir votre certification ?</strong>
                         </h6>
                         <ol class="mb-0 small" style="padding-left: 1.2rem;">
-                            <li><strong>Créez votre demande</strong> (bouton "Devenir Apprenti") avec la compétence que vous souhaitez acquérir</li>
-                            <li><strong>Trouvez un maître</strong> qui vous atteste (30502) - vous avez besoin de <span id="helpRequiredAttestations">1</span> attestation(s)</li>
-                            <li><strong>Obtenez votre credential</strong> (30503) automatiquement via ORACLE.refresh.sh</li>
-                            <li><strong>Progressez vers X2, X3, X4</strong> en accumulant compétences et signatures</li>
+                            <li><strong>Créez votre demande</strong> avec la compétence que vous souhaitez apprendre</li>
+                            <li><strong>Trouvez un maître</strong> qui valide vos compétences - il vous faut <span id="helpRequiredAttestations">1</span> validation(s)</li>
+                            <li><strong>Recevez votre certificat</strong> automatiquement - vous devenez maître certifié !</li>
+                            <li><strong>Progressez vers les niveaux supérieurs</strong> (X2, X3, X4...) en accumulant compétences et validations</li>
                         </ol>
                     </div>
                     <div class="col-md-4 text-center">
                         <div class="alert alert-info mb-0" style="font-size: 0.85rem;">
-                            <i class="bi bi-lightbulb"></i> <strong>Astuce</strong><br>
-                            <small>Les compétences révélées lors des attestations enrichissent automatiquement la maîtrise</small>
+                            <i class="bi bi-star-fill"></i> <strong>Avantage</strong><br>
+                            <small>Chaque validation révèle de nouvelles compétences qui enrichissent automatiquement la maîtrise pour tous</small>
                         </div>
                     </div>
                 </div>
@@ -816,7 +826,7 @@
                     <i class="bi bi-person-plus"></i> Devenir Apprenti
                 </button>
                 <small class="text-muted d-block mt-2 text-center">
-                    <i class="bi bi-info-circle"></i> Créer ma demande d'apprentissage (30501)
+                    <i class="bi bi-info-circle"></i> Démarrez votre apprentissage
                 </small>
             </div>
             <div class="col-md-4">
@@ -824,7 +834,7 @@
                     <i class="bi bi-search"></i> Trouver un Maître
                 </button>
                 <small class="text-muted d-block mt-2 text-center">
-                    <i class="bi bi-people"></i> Voir les maîtres certifiés (30503)
+                    <i class="bi bi-people"></i> Découvrir les maîtres certifiés
                 </small>
             </div>
             <div class="col-md-4">
@@ -902,16 +912,16 @@
                         </div>
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i> 
-                            <strong>Workflow de validation :</strong>
+                            <strong>Comment ça se passe ?</strong>
                             <ol class="mb-0 mt-2">
-                                <li>Vous créez cette demande (30501) avec votre compétence réclamée</li>
+                                <li>Vous créez votre demande avec la compétence que vous voulez apprendre</li>
                                 <li>Votre demande apparaît dans "Apprentis Cherchant un Maître"</li>
-                                <li>Un maître certifié vous atteste (30502) - <strong id="requestRequiredAttestations">1</strong> attestation(s) requise(s)</li>
-                                <li>ORACLE.refresh.sh valide et émet votre credential (30503)</li>
-                                <li>Votre demande disparaît et vous apparaissez dans "Maîtres Certifiés"</li>
+                                <li>Un maître certifié valide vos compétences - il vous faut <strong id="requestRequiredAttestations">1</strong> validation(s)</li>
+                                <li>Vous recevez automatiquement votre certificat de maîtrise</li>
+                                <li>Vous apparaissez dans "Maîtres Certifiés" et pouvez à votre tour enseigner</li>
                             </ol>
-                            <p class="mb-0 mt-2"><strong>Note :</strong> Pour les maîtrises auto-proclamées (PERMIT_X1), le système créera automatiquement le niveau X2 après validation du X1.</p>
-                            <p class="mb-0 mt-2"><small><strong>Géolocalisation :</strong> Votre position sera enregistrée pour que les maîtres près de vous puissent vous trouver.</small></p>
+                            <p class="mb-0 mt-2"><strong>💡 Progression automatique :</strong> Une fois certifié niveau X1, le système crée automatiquement le niveau X2, puis X3, X4... Vous progressez naturellement !</p>
+                            <p class="mb-0 mt-2"><small><strong>📍 Géolocalisation :</strong> Votre position permet aux maîtres près de chez vous de vous trouver et de créer des rencontres locales.</small></p>
                         </div>
                     </form>
                 </div>
@@ -968,20 +978,21 @@
                         </div>
                         
                         <div class="alert alert-success">
-                            <i class="bi bi-lightbulb"></i> 
-                            <strong>Niveau X1 - Démarrage :</strong> 
+                            <i class="bi bi-star"></i> 
+                            <strong>🎯 Niveau X1 - Votre Point de Départ :</strong> 
                             <ul class="mb-0 mt-2">
-                                <li>1 signature requise pour valider le niveau X1</li>
-                                <li>Après validation, le système créera automatiquement le niveau X2 (2 compétences, 2 signatures)</li>
-                                <li>Puis X3, X4... avec progression automatique</li>
+                                <li><strong>1 validation</strong> suffit pour obtenir votre certificat X1</li>
+                                <li><strong>Progression automatique :</strong> Après X1, le système crée X2 (2 compétences), puis X3, X4...</li>
+                                <li><strong>Illimité :</strong> Vous pouvez progresser jusqu'au niveau maître (X4) et au-delà</li>
                             </ul>
+                            <p class="mb-0 mt-2"><strong>💡 Avantage :</strong> Plus vous progressez, plus votre maîtrise devient riche en compétences et reconnue par la communauté !</p>
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                     <button type="button" class="btn btn-success" onclick="submitNewPermit()">
-                        <i class="bi bi-check-circle"></i> Créer le Permit (30500)
+                        <i class="bi bi-check-circle"></i> Créer ma Maîtrise
                     </button>
                 </div>
             </div>
@@ -1013,8 +1024,8 @@
                             </label>
                             <div class="alert alert-info">
                                 <i class="bi bi-info-circle"></i> 
-                                Sélectionnez les compétences que vous souhaitez transférer à cet apprenti. 
-                                Ces compétences seront ajoutées à son credential 30503.
+                                Sélectionnez les compétences que vous souhaitez transmettre à cet apprenti. 
+                                Ces compétences seront ajoutées à son certificat de maîtrise.
                             </div>
                             <div id="competenciesCheckboxes" class="mb-3">
                                 <!-- Will be populated dynamically -->
@@ -2377,8 +2388,8 @@
                                     <i class="bi bi-info-circle"></i> 
                                     <strong>Votre demande</strong> - Vous êtes apprenti, cherchez un maître !
                                     ${request.attestations_count >= reqAttest ? 
-                                        ' <strong>Seuil atteint !</strong> Le credential 30503 sera émis par ORACLE.refresh.sh' : 
-                                        ' Il vous faut encore ' + (reqAttest - request.attestations_count) + ' maître(s) pour vous attester (30502).'
+                                        ' <strong>✅ Seuil atteint !</strong> Votre certificat sera délivré automatiquement dans les prochaines heures.' : 
+                                        ' Il vous reste ' + (reqAttest - request.attestations_count) + ' validation(s) à obtenir pour recevoir votre certificat.'
                                     }
                                 </div>
                             ` : ''}
@@ -2390,13 +2401,13 @@
                                             title="En tant que maître certifié, vous pouvez attester cet apprenti et transférer vos compétences">
                                         <i class="bi bi-check-circle"></i> 
                                         ${request.attestations_count < reqAttest ? 
-                                            '👨‍🏫 Devenir Maître (Attester)' : 
-                                            'Attester cette demande (30502)'}
+                                            '👨‍🏫 Valider cet Apprenti' : 
+                                            'Valider cette Demande'}
                                     </button>
                                     <small class="text-muted d-block mt-1">
                                         ${request.attestations_count < reqAttest ? 
-                                            '💡 <strong>Apprenti cherche maître</strong> - Transférez vos compétences en l\'attestant. Vous pouvez révéler de nouvelles compétences observées.' : 
-                                            'En attestant, vous créez un kind 30502 qui permettra à ORACLE.refresh.sh de valider cette demande et d\'émettre le credential 30503.'}
+                                            '💡 <strong>Apprenti cherche maître</strong> - Validez ses compétences et révélez de nouveaux talents que vous avez observés. Vous enrichissez la maîtrise pour toute la communauté !' : 
+                                            'En validant cet apprenti, vous lui permettez d\'obtenir son certificat automatiquement. Vous contribuez à construire une communauté de compétences reconnues.'}
                                     </small>
                                 </div>
                             ` : ''}
@@ -2645,16 +2656,14 @@
                 // Determine required attestations
                 const reqAttest = selectedPermit.min_attestations || 1;
                 
-                const message = `✅ Demande 30501 créée avec succès !\n\n` +
-                    `Maîtrise: ${selectedPermit.name}\n` +
-                    `ID de demande: ${requestId}\n` +
-                    `Event ID: ${signedEvent.id}\n\n` +
+                const message = `✅ Votre demande d'apprentissage a été créée !\n\n` +
+                    `🎯 Maîtrise : ${selectedPermit.name}\n\n` +
                     `📋 Prochaines étapes :\n` +
-                    `1. Votre demande apparaît maintenant dans la liste\n` +
-                    `2. Une autre personne doit vous attester (kind 30502)\n` +
-                    `3. Vous devez obtenir ${reqAttest} attestation(s)\n` +
-                    `4. ORACLE.refresh.sh validera et émettra le credential 30503\n\n` +
-                    `💡 Astuce : Ouvrez cette page dans un autre navigateur avec un autre MULTIPASS pour tester l'attestation réciproque !`;
+                    `1. Votre demande apparaît dans "Apprentis Cherchant un Maître"\n` +
+                    `2. Un maître certifié validera vos compétences\n` +
+                    `3. Vous devez obtenir ${reqAttest} validation(s)\n` +
+                    `4. Votre certificat sera délivré automatiquement\n\n` +
+                    `💡 Avantage : Une fois certifié, vous pourrez à votre tour enseigner et valider d'autres apprentis !`;
                 
                 alert(message);
                 bootstrap.Modal.getInstance(document.getElementById('requestModal')).hide();
@@ -2893,31 +2902,30 @@
                 // Count attestations
                 const attestationsCount = await countAttestations(requestId);
                 
-                let message = `✅ Attestation 30502 soumise avec succès !\n\n` +
-                    `ID d'attestation: ${attestationId}\n` +
-                    `Event ID: ${signedEvent.id}\n` +
-                    `Attestations totales: ${attestationsCount}\n\n`;
+                let message = `✅ Validation envoyée avec succès !\n\n` +
+                    `📊 Validations totales : ${attestationsCount}\n\n`;
                 
                 if (competenciesToTransfer.length > 0) {
-                    message += `📚 Compétences transférées : ${competenciesToTransfer.join(', ')}\n` +
-                        `Ces compétences seront ajoutées au credential 30503 de l'apprenti.\n\n`;
+                    message += `📚 Compétences transmises : ${competenciesToTransfer.join(', ')}\n` +
+                        `Ces compétences seront ajoutées au certificat de l'apprenti.\n\n`;
                 }
                 
                 if (revealedCompetencies) {
                     message += `🌟 Nouvelles compétences révélées : ${revealedCompetencies}\n` +
-                        `Ces compétences seront ajoutées au système WoTx2.\n\n`;
+                        `Ces compétences enrichissent la maîtrise pour toute la communauté !\n\n`;
                 }
                 
                 if (latitude && longitude) {
-                    message += `📍 Géolocalisation : ${latitude}, ${longitude}\n` +
-                        `Permet de trouver des maîtres près de vous.\n\n`;
+                    message += `📍 Géolocalisation enregistrée\n` +
+                        `Permet aux autres de trouver des maîtres près de chez eux.\n\n`;
                 }
                 
                 message += `📋 Prochaines étapes :\n` +
-                    `1. L'attestation est maintenant visible sur la demande\n` +
-                    `2. ORACLE.refresh.sh vérifiera le seuil d'attestations\n` +
-                    `3. Si le seuil est atteint, le credential 30503 sera émis automatiquement\n` +
-                    `4. Actualisez la page pour voir les mises à jour`;
+                    `1. Votre validation est maintenant visible\n` +
+                    `2. Si le seuil est atteint, le certificat sera délivré automatiquement\n` +
+                    `3. L'apprenti apparaîtra dans "Maîtres Certifiés"\n` +
+                    `4. Actualisez la page pour voir les mises à jour\n\n` +
+                    `💡 Merci de contribuer à construire une communauté de compétences reconnues !`;
                 
                 alert(message);
                 bootstrap.Modal.getInstance(document.getElementById('attestModal')).hide();
@@ -3315,12 +3323,13 @@
             const eventCount = 1 + user30501Events.length + events30502.length; // 30500 + 30501s + 30502s
             
             // Confirm deletion with details
-            const confirmMessage = `Êtes-vous sûr de vouloir supprimer le permis "${permitId}" ?\n\n` +
+            const confirmMessage = `Êtes-vous sûr de vouloir supprimer la maîtrise "${permitId}" ?\n\n` +
                 `Cette action est irréversible et supprimera :\n` +
-                `• 1 événement 30500 (définition)\n` +
-                `• ${user30501Events.length} événement(s) 30501 (demande(s))\n` +
-                `• ${events30502.length} événement(s) 30502 (attestation(s))\n\n` +
-                `Total : ${eventCount} événement(s) seront supprimés via un événement kind 5.`;
+                `• La définition de la maîtrise\n` +
+                `• ${user30501Events.length} demande(s) d'apprentissage\n` +
+                `• ${events30502.length} validation(s)\n\n` +
+                `Total : ${eventCount} élément(s) seront supprimés.\n\n` +
+                `⚠️ Cette maîtrise disparaîtra pour toute la communauté UPlanet.`;
             
             if (!confirm(confirmMessage)) {
                 return;
@@ -3418,14 +3427,13 @@
                     return;
                 }
                 
-                let successMessage = `✅ Événement de suppression (kind 5) publié avec succès !\n\n`;
-                successMessage += `Event ID: ${signedEvent.id.substring(0, 16)}...\n\n`;
-                successMessage += `Événements supprimés :\n`;
-                successMessage += `• 1 événement 30500 (définition)\n`;
-                successMessage += `• ${user30501Events.length} événement(s) 30501 (demande(s))\n`;
-                successMessage += `• ${events30502.length} événement(s) 30502 (attestation(s))\n\n`;
-                successMessage += `Total : ${eventCount} événement(s)\n\n`;
-                successMessage += `Les événements seront supprimés une fois l'événement propagé sur les relays.`;
+                let successMessage = `✅ Suppression effectuée avec succès !\n\n`;
+                successMessage += `📊 Éléments supprimés :\n`;
+                successMessage += `• La définition de la maîtrise\n`;
+                successMessage += `• ${user30501Events.length} demande(s) d'apprentissage\n`;
+                successMessage += `• ${events30502.length} validation(s)\n\n`;
+                successMessage += `Total : ${eventCount} élément(s)\n\n`;
+                successMessage += `Cette maîtrise disparaîtra de la communauté UPlanet dans les prochaines heures.`;
                 
                 alert(successMessage);
                 
@@ -4113,51 +4121,43 @@
                             
                             console.log('[WoTx2] ✅ Attestation 30502 (bootstrap) created automatically');
                             
-                            let message = `✅ Permit ${permitId} créé avec succès !\n\n`;
-                            message += `📋 Niveau X1 - Démarrage (Mode Bootstrap)\n`;
-                            message += `📝 Attestations requises: 1\n\n`;
-                            message += `✅ Événements créés automatiquement :\n`;
-                            message += `   • 30500 : Définition du permit\n`;
-                            message += `   • 30501 : Demande d'apprentissage (Event ID: ${signedRequestEvent.id.substring(0, 16)}...)\n`;
-                            message += `   • 30502 : Auto-attestation bootstrap (Event ID: ${signedAttestationEvent.id.substring(0, 16)}...)\n`;
-                            message += `   • Compétence révélée: ${defaultCompetency}\n\n`;
-                            message += `🔄 Prochaines étapes :\n`;
-                            message += `   • ORACLE.refresh.sh détectera le seuil atteint (1/1)\n`;
-                            message += `   • Émission automatique du credential 30503\n`;
-                            message += `   • Création automatique du niveau X2\n\n`;
-                            message += `🔄 Progression automatique activée :\n`;
-                            message += `   • X1 → X2 : Après validation (2 compétences, 2 signatures)\n`;
-                            message += `   • X2 → X3 : Après validation (3 compétences, 3 signatures)\n`;
-                            message += `   • X3 → X4 : Après validation (4 compétences, 4 signatures)\n\n`;
-                            message += `💡 Le système est maintenant prêt ! L'Oracle émettra votre credential lors de la prochaine exécution.`;
-                            alert(message);
+                let message = `✅ Maîtrise "${permitName}" créée avec succès !\n\n`;
+                message += `🎯 Niveau X1 - Votre Point de Départ\n`;
+                message += `📝 1 validation requise pour obtenir votre certificat\n\n`;
+                message += `✅ Tout est prêt !\n`;
+                message += `   • Votre demande d'apprentissage a été créée\n`;
+                message += `   • Votre auto-validation a été enregistrée\n`;
+                message += `   • Compétence révélée : ${defaultCompetency}\n\n`;
+                message += `🔄 Prochaines étapes automatiques :\n`;
+                message += `   • Votre certificat X1 sera délivré dans les prochaines heures\n`;
+                message += `   • Le niveau X2 sera créé automatiquement\n`;
+                message += `   • Vous pourrez progresser vers X3, X4...\n\n`;
+                message += `💡 Avantage : Votre maîtrise est maintenant visible par toute la communauté UPlanet !`;
+                alert(message);
                             
                         } catch (e) {
                             console.error('[WoTx2] Error creating automatic 30502:', e);
                             // Still show success message even if 30502 creation failed
-                            let message = `✅ Permit ${permitId} créé avec succès !\n\n`;
+                            let message = `✅ Maîtrise "${permitName}" créée avec succès !\n\n`;
                             message += `📋 Niveau X1 - Démarrage\n`;
-                            message += `📝 Attestations requises: 1\n\n`;
-                            message += `✅ Demande d'apprentissage (30501) créée automatiquement !\n`;
-                            message += `   • Compétence réclamée: ${defaultCompetency}\n`;
-                            message += `   • ID de demande: ${requestId}\n\n`;
-                            message += `⚠️ L'auto-attestation bootstrap (30502) n'a pas pu être créée.\n`;
-                            message += `   Vous pouvez créer une attestation manuellement ou attendre qu'un autre maître vous atteste.\n\n`;
-                            message += `🔄 Progression automatique activée :\n`;
-                            message += `   • X1 → X2 : Après validation (2 compétences, 2 signatures)\n`;
-                            message += `   • X2 → X3 : Après validation (3 compétences, 3 signatures)\n`;
-                            message += `   • X3 → X4 : Après validation (4 compétences, 4 signatures)`;
+                            message += `📝 1 validation requise pour votre certificat\n\n`;
+                            message += `✅ Votre demande d'apprentissage a été créée !\n`;
+                            message += `   • Compétence : ${defaultCompetency}\n\n`;
+                            message += `💡 Prochaine étape : Trouvez un maître qui validera vos compétences, ou créez une validation manuellement.\n\n`;
+                            message += `🔄 Progression automatique :\n`;
+                            message += `   • X1 → X2 : Après validation (2 compétences)\n`;
+                            message += `   • X2 → X3 : Après validation (3 compétences)\n`;
+                            message += `   • X3 → X4 : Niveau maître atteint`;
                             alert(message);
                         }
                         
                     } catch (e) {
                         console.error('[WoTx2] Error creating automatic 30501:', e);
                         // Still show success message even if 30501 creation failed
-                        let message = `✅ Permit ${permitId} créé avec succès !\n\n`;
-                        message += `⚠️ La demande d'apprentissage (30501) n'a pas pu être créée automatiquement.\n`;
-                        message += `   Vous pouvez la créer manuellement depuis la page du permit.\n\n`;
+                        let message = `✅ Maîtrise "${permitName}" créée avec succès !\n\n`;
+                        message += `💡 Vous pouvez maintenant créer votre demande d'apprentissage depuis cette page.\n\n`;
                         message += `📋 Niveau X1 - Démarrage\n`;
-                        message += `📝 Attestations requises: 1`;
+                        message += `📝 1 validation requise pour obtenir votre certificat`;
                         alert(message);
                     }
                     
