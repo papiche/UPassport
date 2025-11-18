@@ -677,8 +677,9 @@
     </div>
 
     <script>
-        // Global variables - check if already declared by common.js to avoid redeclaration errors
-        // Oracle-specific variables
+        // Global variables - Oracle-specific only
+        // Note: DEFAULT_RELAYS, nostrRelay, isNostrConnected, userPubkey, userNpub
+        // are declared in common.js - we use them directly without redeclaring
         let USPOT_API_BASE = '';
         let isCaptain = false;
         
@@ -690,22 +691,23 @@
         let myCredentials = [];
         let allOREContracts = [];
         
-        // Use variables from common.js if available, otherwise declare them
-        // These are shared with common.js, so we check if they exist first
-        if (typeof DEFAULT_RELAYS === 'undefined') {
-            var DEFAULT_RELAYS = [];
+        // Use variables from common.js directly via window object
+        // We don't redeclare them to avoid "redeclaration" errors
+        // Just ensure they exist on window object if common.js hasn't loaded yet
+        if (typeof window.DEFAULT_RELAYS === 'undefined') {
+            window.DEFAULT_RELAYS = [];
         }
-        if (typeof nostrRelay === 'undefined') {
-            var nostrRelay = null;
+        if (typeof window.nostrRelay === 'undefined') {
+            window.nostrRelay = null;
         }
-        if (typeof isNostrConnected === 'undefined') {
-            var isNostrConnected = false;
+        if (typeof window.isNostrConnected === 'undefined') {
+            window.isNostrConnected = false;
         }
-        if (typeof userPubkey === 'undefined') {
-            var userPubkey = null;
+        if (typeof window.userPubkey === 'undefined') {
+            window.userPubkey = null;
         }
-        if (typeof userNpub === 'undefined') {
-            var userNpub = null;
+        if (typeof window.userNpub === 'undefined') {
+            window.userNpub = null;
         }
 
         // Detect uSPOT API
@@ -715,18 +717,18 @@
 
             if (hostname === "127.0.0.1" || hostname === "localhost") {
                 USPOT_API_BASE = `http://127.0.0.1:54321`;
-                DEFAULT_RELAYS = [`ws://127.0.0.1:7777`];
+                window.DEFAULT_RELAYS = [`ws://127.0.0.1:7777`];
             } else if (hostname.startsWith("ipfs.")) {
                 const base = hostname.substring(5);
                 USPOT_API_BASE = `https://u.${base}`;
-                DEFAULT_RELAYS = [`wss://relay.${base}`];
+                window.DEFAULT_RELAYS = [`wss://relay.${base}`];
             } else if (hostname.startsWith("u.")) {
                 const base = hostname.substring(2);
                 USPOT_API_BASE = `https://u.${base}`;
-                DEFAULT_RELAYS = [`wss://relay.${base}`];
+                window.DEFAULT_RELAYS = [`wss://relay.${base}`];
             } else {
                 USPOT_API_BASE = `https://u.copylaradio.com`;
-                DEFAULT_RELAYS = [`wss://relay.copylaradio.com`];
+                window.DEFAULT_RELAYS = [`wss://relay.copylaradio.com`];
             }
 
             console.log('API Base:', USPOT_API_BASE);
@@ -746,39 +748,34 @@
                 // Use common.js connectNostr function if available (like webcam.html)
                 if (typeof connectNostr === 'function') {
                     console.log('📌 Using common.js connectNostr...');
-                    userPubkey = await connectNostr(false); // Don't force NIP-42 yet
+                    window.userPubkey = await connectNostr(false); // Don't force NIP-42 yet
                     
-                    if (!userPubkey) {
+                    if (!window.userPubkey) {
                         throw new Error("No public key returned from connectNostr");
                     }
                     
-                    console.log('✅ Connected, pubkey:', userPubkey.substring(0, 8) + '...');
+                    console.log('✅ Connected, pubkey:', window.userPubkey.substring(0, 8) + '...');
                 } else if (window.nostr && typeof window.nostr.getPublicKey === 'function') {
                     // Fallback to direct extension access
                     console.log('⚠️ common.js not loaded, using direct extension access');
-                    userPubkey = await window.nostr.getPublicKey();
+                    window.userPubkey = await window.nostr.getPublicKey();
                 } else {
                     throw new Error('Extension NOSTR non trouvée. Installez une extension NOSTR (Alby, nos2x, etc.) pour vous connecter.');
                 }
 
                 // Encode to npub if NostrTools is available
                 if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
-                    userNpub = NostrTools.nip19.npubEncode(userPubkey);
+                    window.userNpub = NostrTools.nip19.npubEncode(window.userPubkey);
                 } else {
-                    userNpub = userPubkey; // Fallback
+                    window.userNpub = window.userPubkey; // Fallback
                 }
 
-                isNostrConnected = true;
-                
-                // Set in window for easier access
-                if (typeof window !== 'undefined') {
-                    window.userPubkey = userPubkey;
-                }
+                window.isNostrConnected = true;
 
                 if (status) {
                     status.innerHTML = `
                         <div class="alert alert-success">
-                            <i class="bi bi-check-circle-fill"></i> Connecté en tant que ${userNpub.substring(0, 12)}...
+                            <i class="bi bi-check-circle-fill"></i> Connecté en tant que ${window.userNpub.substring(0, 12)}...
                         </div>
                     `;
                 }
@@ -798,7 +795,7 @@
                 const navUserNpub = document.getElementById('nav-user-npub');
                 if (navUserStatus && navUserNpub) {
                     navUserStatus.style.display = 'inline';
-                    navUserNpub.textContent = userNpub.substring(0, 12) + '...';
+                    navUserNpub.textContent = window.userNpub.substring(0, 12) + '...';
                 }
 
                 // Show authenticated features
@@ -878,13 +875,13 @@
         
         // Load authenticated data (requires NOSTR)
         async function loadData() {
-            if (!isNostrConnected) {
+            if (!window.isNostrConnected) {
                 return;
             }
             
             try {
                 // Load user-specific data
-                const response = await fetch(`${USPOT_API_BASE}/api/permit/list?type=credentials&npub=${userNpub}`);
+                const response = await fetch(`${USPOT_API_BASE}/api/permit/list?type=credentials&npub=${window.userNpub || window.userPubkey}`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -1135,7 +1132,7 @@
                                 <a href="/wotx2?permit_id=${permit.id}" class="btn btn-primary btn-sm">
                                     <i class="bi bi-eye"></i> Voir les détails
                                 </a>
-                                ${!isNostrConnected ? `
+                                ${!window.isNostrConnected ? `
                                 <button class="btn btn-outline-primary btn-sm" onclick="connectToNOSTR()">
                                     <i class="bi bi-key"></i> Connecter pour demander
                                 </button>
@@ -1228,6 +1225,9 @@
             }
         }
 
+        // Expose connectToNOSTR globally for onclick handlers
+        window.connectToNOSTR = connectToNOSTR;
+        
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             detectUSPOTAPI();
