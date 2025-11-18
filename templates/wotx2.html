@@ -554,14 +554,14 @@
             <div class="card-body">
                 <div class="row align-items-center">
                     <div class="col-md-8">
-                        <label class="form-label"><strong>Choisir une profession :</strong></label>
+                        <label class="form-label"><strong>Choisir une maîtrise :</strong></label>
                         <select class="form-select" id="permitSelector" onchange="switchPermit()">
                             <option value="">Chargement...</option>
                         </select>
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-success btn-lg w-100" onclick="showNewPermitModal()">
-                            <i class="bi bi-plus-circle"></i> Créer une Nouvelle Profession
+                            <i class="bi bi-plus-circle"></i> Créer une Nouvelle Maîtrise
                         </button>
                     </div>
                 </div>
@@ -621,7 +621,7 @@
                 <span id="permitLevelBadge" class="badge bg-primary ms-2" style="display: none;"></span>
             </h1>
             <p class="lead" id="permitDescription">
-                <strong>L'apprentissage décentralisé par la pratique</strong> - Créez des professions, trouvez des maîtres près de vous, 
+                <strong>L'apprentissage décentralisé par la pratique</strong> - Créez des maîtrises, trouvez des maîtres près de vous, 
                 transférez vos compétences aux apprentis, et découvrez de nouveaux talents. 
                 Un système de certification par les pairs qui remplace écoles et syndicats traditionnels.
             </p>
@@ -662,7 +662,7 @@
                 <div class="col-md-4">
                     <div class="stats-card">
                         <div class="number" id="totalHolders">0</div>
-                        <div class="label">Professionnels Certifiés</div>
+                        <div class="label">Maîtres Certifiés</div>
                     </div>
                 </div>
                 <div class="col-md-4">
@@ -683,20 +683,20 @@
         <!-- Bootstrap Instructions -->
         <div class="card mb-4" id="bootstrapInstructions" style="display: none;">
             <div class="card-header bg-warning text-dark">
-                <i class="bi bi-seed"></i> Initialisation d'une Nouvelle Profession - Mode Bootstrap
+                <i class="bi bi-seed"></i> Initialisation d'une Nouvelle Maîtrise - Mode Bootstrap
             </div>
             <div class="card-body">
-                <h5>Comment démarrer une nouvelle profession :</h5>
+                <h5>Comment démarrer une nouvelle maîtrise :</h5>
                 <ol>
                     <li><strong>2 personnes</strong> se connectent avec leur <strong>MULTIPASS</strong> (sur 2 navigateurs différents)</li>
                     <li>Chacun crée sa <strong>demande d'apprentissage</strong> (kind 30501)</li>
                     <li>Chacun <strong>devient maître de l'autre</strong> en créant une <strong>attestation</strong> (kind 30502)</li>
                     <li>Par cette <strong>attestation réciproque</strong>, le système valide les compétences</li>
-                    <li>Les <strong>certificats professionnels</strong> (kind 30503) sont émis automatiquement</li>
-                    <li>La profession est maintenant <strong>ouverte à tous</strong> - d'autres peuvent rejoindre comme apprentis ou maîtres</li>
+                    <li>Les <strong>certificats de maîtrise</strong> (kind 30503) sont émis automatiquement</li>
+                    <li>La maîtrise est maintenant <strong>ouverte à tous</strong> - d'autres peuvent rejoindre comme apprentis ou maîtres</li>
                 </ol>
                 <div class="alert alert-info mt-3">
-                    <i class="bi bi-lightbulb"></i> <strong>Astuce :</strong> C'est le "Block 0" de votre profession - seulement 2 maîtres suffisent pour démarrer, puis le système évolue naturellement !
+                    <i class="bi bi-lightbulb"></i> <strong>Astuce :</strong> C'est le "Block 0" de votre maîtrise - seulement 2 maîtres suffisent pour démarrer, puis le système évolue naturellement !
                 </div>
             </div>
         </div>
@@ -717,14 +717,14 @@
                 <i class="bi bi-person-badge"></i>
                 <div>
                     <strong>Le Maître</strong>
-                    <p class="mb-0">Transfère ses compétences, découvre de nouveaux talents, et enrichit la profession</p>
+                    <p class="mb-0">Transfère ses compétences, découvre de nouveaux talents, et enrichit la maîtrise</p>
                 </div>
             </div>
             <div class="circle-step">
                 <i class="bi bi-stars"></i>
                 <div>
                     <strong>Compétences Révélées</strong>
-                    <p class="mb-0">Nouvelles compétences découvertes lors des attestations qui enrichissent la profession</p>
+                    <p class="mb-0">Nouvelles compétences découvertes lors des attestations qui enrichissent la maîtrise</p>
                 </div>
             </div>
             <div class="alert alert-success mt-3">
@@ -747,7 +747,7 @@
                 <button class="btn btn-success btn-lg w-100" onclick="loadInstructors()">
                     <i class="bi bi-search"></i> Trouver un Maître
                 </button>
-                <small class="text-muted d-block mt-2 text-center">Voir les professionnels certifiés</small>
+                <small class="text-muted d-block mt-2 text-center">Voir les maîtres certifiés</small>
             </div>
             <div class="col-md-4">
                 <button class="btn btn-warning btn-lg w-100" onclick="location.reload()">
@@ -797,22 +797,22 @@
                 <div class="modal-body">
                     <form id="requestForm">
                         <div class="mb-3">
-                            <label class="form-label"><strong>Choisir la profession :</strong> <span class="text-danger">*</span></label>
+                            <label class="form-label"><strong>Choisir la maîtrise :</strong> <span class="text-danger">*</span></label>
                             <select class="form-select" id="requestPermitSelect" required onchange="updateRequestAttestationsInfo(this.value)">
-                                <option value="">-- Sélectionner une profession --</option>
+                                <option value="">-- Sélectionner une maîtrise --</option>
                             </select>
-                            <small class="text-muted">Sélectionnez la profession pour laquelle vous souhaitez créer une demande d'apprentissage</small>
+                            <small class="text-muted">Sélectionnez la maîtrise pour laquelle vous souhaitez créer une demande d'apprentissage</small>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Votre déclaration d'apprentissage <span class="text-danger">*</span></label>
                             <textarea class="form-control" id="statement" rows="4" 
-                                placeholder="Décrivez pourquoi vous souhaitez apprendre cette profession, votre motivation, et ce que vous apporterez à la communauté..." required></textarea>
+                                placeholder="Décrivez pourquoi vous souhaitez apprendre cette maîtrise, votre motivation, et ce que vous apporterez à la communauté..." required></textarea>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Compétence réclamée <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="requestedCompetency" 
                                 placeholder="Ex: Natation, Sauvetage, Aqua-fitness..." required>
-                            <small class="text-muted">Indiquez la compétence principale que vous souhaitez acquérir dans cette profession</small>
+                            <small class="text-muted">Indiquez la compétence principale que vous souhaitez acquérir dans cette maîtrise</small>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Preuves de motivation (liens IPFS, photos, réalisations)</label>
@@ -830,7 +830,7 @@
                                 <li>ORACLE.refresh.sh valide et émet votre credential (30503)</li>
                                 <li>Votre demande disparaît et vous apparaissez dans "Maîtres Certifiés"</li>
                             </ol>
-                            <p class="mb-0 mt-2"><strong>Note :</strong> Pour les professions auto-proclamées (PERMIT_X1), le système créera automatiquement le niveau X2 après validation du X1.</p>
+                            <p class="mb-0 mt-2"><strong>Note :</strong> Pour les maîtrises auto-proclamées (PERMIT_X1), le système créera automatiquement le niveau X2 après validation du X1.</p>
                             <p class="mb-0 mt-2"><small><strong>Géolocalisation :</strong> Votre position sera enregistrée pour que les maîtres près de vous puissent vous trouver.</small></p>
                         </div>
                     </form>
@@ -851,15 +851,15 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">
-                        <i class="bi bi-plus-circle"></i> Créer une Nouvelle Profession WoTx2
+                        <i class="bi bi-plus-circle"></i> Créer une Nouvelle Maîtrise WoTx2
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-warning mb-3">
                         <i class="bi bi-info-circle"></i> 
-                        <strong>Profession Auto-Proclamée :</strong> Si aucun permit n'existe pour votre profession, 
-                        vous pouvez créer une profession auto-proclamée qui démarrera au niveau X1 (1 signature requise).
+                        <strong>Maîtrise Auto-Proclamée :</strong> Si aucun permit n'existe pour votre maîtrise, 
+                        vous pouvez créer une maîtrise auto-proclamée qui démarrera au niveau X1 (1 signature requise).
                         Le système évoluera automatiquement vers X2, X3, etc. au fur et à mesure des validations.
                     </div>
                     
@@ -867,7 +867,7 @@
                         <div class="mb-3">
                             <label class="form-label">
                                 <input type="checkbox" id="autoProclaimedPermit" checked onchange="togglePermitType()">
-                                <strong>Profession Auto-Proclamée</strong> (ID généré automatiquement)
+                                <strong>Maîtrise Auto-Proclamée</strong> (ID généré automatiquement)
                             </label>
                             <small class="text-muted d-block mt-1">
                                 L'ID sera calculé automatiquement : <code id="autoPermitIdPreview">PERMIT_X1</code>
@@ -884,17 +884,17 @@
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">Nom de la Profession <span class="text-danger">*</span></label>
+                            <label class="form-label">Nom de la Maîtrise <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="newPermitName" 
                                 placeholder="Ex: Maître Nageur" required
                                 oninput="updateAutoPermitId()">
-                            <small class="text-muted">Ce nom sera utilisé pour générer l'ID si "Profession Auto-Proclamée" est coché</small>
+                            <small class="text-muted">Ce nom sera utilisé pour générer l'ID si "Maîtrise Auto-Proclamée" est coché</small>
                         </div>
                         
                         <div class="mb-3">
                             <label class="form-label">Description <span class="text-danger">*</span></label>
                             <textarea class="form-control" id="newPermitDescription" rows="3" 
-                                placeholder="Décrivez cette profession en quelques mots..." required></textarea>
+                                placeholder="Décrivez cette maîtrise en quelques mots..." required></textarea>
                         </div>
                         
                         <div class="alert alert-success">
@@ -2093,7 +2093,7 @@
                 listEl.innerHTML = `
                     <div class="empty-state">
                         <i class="bi bi-people"></i>
-                        <p><strong>0</strong> professionnel certifié pour le moment.</p>
+                        <p><strong>0</strong> maître certifié pour le moment.</p>
                         <p class="text-muted">Soyez le premier à obtenir le permis !</p>
                     </div>
                 `;
@@ -2114,7 +2114,7 @@
                                 <div>
                                     <h5 class="mb-2">
                                         <i class="bi bi-person-badge text-primary"></i>
-                                        Professionnel Certifié
+                                        Maître Certifié
                                         ${levelBadge}
                                     </h5>
                                     <p class="text-muted mb-1">
@@ -2128,7 +2128,7 @@
                                         <div class="mt-2">
                                             <small class="text-muted">
                                                 <i class="bi bi-info-circle"></i> 
-                                                Profession auto-proclamée - Peut attester d'autres apprentis
+                                                Maîtrise auto-proclamée - Peut attester d'autres apprentis
                                     </small>
                                         </div>
                                     ` : ''}
@@ -2328,11 +2328,11 @@
             // Populate permit selector
             const permitSelect = document.getElementById('requestPermitSelect');
             if (permitSelect && allPermits && allPermits.length > 0) {
-                permitSelect.innerHTML = '<option value="">-- Sélectionner une profession --</option>';
+                permitSelect.innerHTML = '<option value="">-- Sélectionner une maîtrise --</option>';
                 allPermits.forEach(permit => {
                     const option = document.createElement('option');
                     option.value = permit.id;
-                    // Show level if it's an auto-proclaimed profession
+                    // Show level if it's an auto-proclaimed maîtrise
                     const levelMatch = permit.id.match(/_X(\d+)$/);
                     const levelBadge = levelMatch ? ` [Niveau ${levelMatch[1]}]` : '';
                     option.textContent = `${permit.name}${levelBadge} (${permit.min_attestations || 1} attestation(s) requise(s))`;
@@ -2390,7 +2390,7 @@
             const selectedPermitId = permitSelect ? permitSelect.value : null;
             
             if (!selectedPermitId) {
-                alert('Veuillez sélectionner une profession.');
+                alert('Veuillez sélectionner une maîtrise.');
                 permitSelect?.focus();
                 return;
             }
@@ -2398,7 +2398,7 @@
             // Find permit data
             const selectedPermit = allPermits.find(p => p.id === selectedPermitId);
             if (!selectedPermit) {
-                alert('Erreur: Profession non trouvée.');
+                alert('Erreur: Maîtrise non trouvée.');
                 return;
             }
             
@@ -2528,7 +2528,7 @@
                 const reqAttest = selectedPermit.min_attestations || 1;
                 
                 const message = `✅ Demande 30501 créée avec succès !\n\n` +
-                    `Profession: ${selectedPermit.name}\n` +
+                    `Maîtrise: ${selectedPermit.name}\n` +
                     `ID de demande: ${requestId}\n` +
                     `Event ID: ${signedEvent.id}\n\n` +
                     `📋 Prochaines étapes :\n` +
@@ -3184,7 +3184,7 @@
                     titleEl.textContent = selectedPermit.name + ' - WoTx2';
                 }
                 
-                // Show level badge if it's an auto-proclaimed profession
+                // Show level badge if it's an auto-proclaimed maîtrise
                 const levelMatch = selectedPermit.id.match(/_X(\d+)$/);
                 if (levelMatch && levelBadge) {
                     levelBadge.textContent = `Niveau ${levelMatch[1]}`;
@@ -3193,7 +3193,7 @@
                     levelBadge.style.display = 'none';
                 }
                 
-                // Show progression workflow for auto-proclaimed professions
+                // Show progression workflow for auto-proclaimed maîtrises
                 if (selectedPermit.id.match(/^PERMIT_/) && progressionWorkflow) {
                     progressionWorkflow.style.display = 'block';
                 } else if (progressionWorkflow) {
@@ -3369,7 +3369,7 @@
             // Generate or get permit ID
             let permitId;
             if (isAutoProclaimed) {
-                // Auto-generate ID from profession name
+                // Auto-generate ID from maîtrise name
                 permitId = permitName.toUpperCase()
                     .replace(/[^A-Z0-9\s]/g, '')
                     .replace(/\s+/g, '_')
@@ -3385,7 +3385,7 @@
             } else {
                 permitId = document.getElementById('newPermitId').value.trim();
                 if (!permitId) {
-                    alert('Veuillez saisir un ID de permit ou cocher "Profession Auto-Proclamée".');
+                    alert('Veuillez saisir un ID de permit ou cocher "Maîtrise Auto-Proclamée".');
                     return;
                 }
                 
@@ -3403,12 +3403,12 @@
                 }
             }
 
-            // WoTx2: Auto-proclaimed professions start at X1 with 1 attestation
+            // WoTx2: Auto-proclaimed maîtrises start at X1 with 1 attestation
             // System will auto-create X2, X3, X4 as permits are validated
             const minAttestations = 1; // X1 requires 1 signature
             const level = isAutoProclaimed ? 'X1' : 'X1'; // Always start at X1 for auto-proclaimed
 
-            // Build metadata for auto-proclaimed profession
+            // Build metadata for auto-proclaimed maîtrise
             const metadata = {
                 category: "auto_proclaimed",
                 competencies: [], // Will be added progressively via 30502 attestations
@@ -3417,7 +3417,7 @@
                 level: level,
                 evolving_system: {
                     type: "WoTx2_AutoProclaimed",
-                    description: "Auto-proclaimed profession that evolves automatically: X1 (1 signature) → X2 (2 competencies, 2 signatures) → X3 → X4...",
+                    description: "Auto-proclaimed maîtrise that evolves automatically: X1 (1 signature) → X2 (2 competencies, 2 signatures) → X3 → X4...",
                     discovery_mechanism: "attestation_revealed_competencies",
                     auto_progression: true,
                     progression_rules: {
