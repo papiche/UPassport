@@ -1127,6 +1127,18 @@
                                 <i class="bi bi-stars"></i> <strong>Maîtrise Auto-Proclamée</strong> - 
                                 Progression automatique X1→X2→X3→X4
                             </div>
+                            ${(() => {
+                                // Extract base permit name and current level
+                                const basePermitId = permit.id.replace(/_X\d+$/, '');
+                                const currentLevel = permit.id.match(/_X(\d+)$/)?.[1] || '1';
+                                
+                                // Find related levels (would need to be passed from server or fetched)
+                                // For now, show a hint about progression
+                                if (currentLevel === '1') {
+                                    return '<small class="text-muted d-block mt-1"><i class="bi bi-info-circle"></i> Niveau de départ - Le système créera automatiquement X2, X3, X4...</small>';
+                                }
+                                return '';
+                            })()}
                             ` : ''}
                             <div class="d-grid gap-2">
                                 <a href="/wotx2?permit_id=${permit.id}" class="btn btn-primary btn-sm">

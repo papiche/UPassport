@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>École de la Vie - WoTx2 | UPlanet</title>
+    <title>Validaton du Savoir Faire - WoTx2 | UPlanet</title>
     
     <!-- Bootstrap 5 CSS -->
     <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
@@ -617,7 +617,7 @@
         <div class="hero" id="permitHero">
             <h1>
                 <i class="bi bi-mortarboard"></i>
-                <span id="permitTitle">École de la Vie - WoTx2</span>
+                <span id="permitTitle">Savoir Faire - WoTx2</span>
                 <span id="permitLevelBadge" class="badge bg-primary ms-2" style="display: none;"></span>
             </h1>
             <p class="lead" id="permitDescription">
@@ -678,6 +678,37 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Mastery Levels Navigation & Progress -->
+            <div id="masteryLevelsSection" style="display: none;" class="mt-4">
+                <div class="card" style="background: rgba(255, 255, 255, 0.95);">
+                    <div class="card-header" style="background: linear-gradient(135deg, var(--water-blue), var(--water-dark)); color: white;">
+                        <h5 class="mb-0">
+                            <i class="bi bi-diagram-3"></i> Niveaux de Maîtrise Disponibles
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="masteryLevelsNav" class="d-flex flex-wrap gap-2 justify-content-center mb-3">
+                            <!-- Will be populated dynamically -->
+                        </div>
+                        <div id="userProgressIndicator" style="display: none;" class="mt-3">
+                            <div class="alert alert-info mb-2">
+                                <i class="bi bi-person-check"></i> <strong>Votre progression :</strong>
+                                <span id="userCurrentLevel">-</span>
+                            </div>
+                            <div class="progress" style="height: 30px;">
+                                <div id="userProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%">
+                                    <span id="userProgressText">0%</span>
+                                </div>
+                            </div>
+                            <small class="text-muted d-block mt-2 text-center" id="userProgressDetails">
+                                Connectez-vous pour voir votre progression
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Bootstrap Instructions -->
@@ -733,27 +764,60 @@
             </div>
         </div>
 
+        <!-- Quick Help Card -->
+        <div class="card mb-4" style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.05)); border: 2px solid rgba(251, 191, 36, 0.3);">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h6 class="mb-2">
+                            <i class="bi bi-question-circle-fill text-warning"></i> 
+                            <strong>Comment progresser dans cette maîtrise ?</strong>
+                        </h6>
+                        <ol class="mb-0 small" style="padding-left: 1.2rem;">
+                            <li><strong>Créez votre demande</strong> (bouton "Devenir Apprenti") avec la compétence que vous souhaitez acquérir</li>
+                            <li><strong>Trouvez un maître</strong> qui vous atteste (30502) - vous avez besoin de <span id="helpRequiredAttestations">1</span> attestation(s)</li>
+                            <li><strong>Obtenez votre credential</strong> (30503) automatiquement via ORACLE.refresh.sh</li>
+                            <li><strong>Progressez vers X2, X3, X4</strong> en accumulant compétences et signatures</li>
+                        </ol>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="alert alert-info mb-0" style="font-size: 0.85rem;">
+                            <i class="bi bi-lightbulb"></i> <strong>Astuce</strong><br>
+                            <small>Les compétences révélées lors des attestations enrichissent automatiquement la maîtrise</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Action Buttons -->
         <div class="row mb-4">
             <div class="col-md-4">
                 <button class="btn btn-primary btn-lg w-100" onclick="showRequestModal()" 
                     data-bs-toggle="tooltip" data-bs-placement="top" 
-                    title="L'extension Nostr avec la clé de votre MULTIPASS est requise pour la connexion.">
+                    title="L'extension Nostr avec la clé de votre MULTIPASS est requise pour la connexion."
+                    id="btnBecomeApprentice">
                     <i class="bi bi-person-plus"></i> Devenir Apprenti
                 </button>
-                <small class="text-muted d-block mt-2 text-center">Créer ma demande d'apprentissage</small>
+                <small class="text-muted d-block mt-2 text-center">
+                    <i class="bi bi-info-circle"></i> Créer ma demande d'apprentissage (30501)
+                </small>
             </div>
             <div class="col-md-4">
-                <button class="btn btn-success btn-lg w-100" onclick="loadInstructors()">
+                <button class="btn btn-success btn-lg w-100" onclick="loadInstructors()" id="btnFindMaster">
                     <i class="bi bi-search"></i> Trouver un Maître
                 </button>
-                <small class="text-muted d-block mt-2 text-center">Voir les maîtres certifiés</small>
+                <small class="text-muted d-block mt-2 text-center">
+                    <i class="bi bi-people"></i> Voir les maîtres certifiés (30503)
+                </small>
             </div>
             <div class="col-md-4">
-                <button class="btn btn-warning btn-lg w-100" onclick="location.reload()">
+                <button class="btn btn-warning btn-lg w-100" onclick="location.reload()" id="btnRefresh">
                     <i class="bi bi-arrow-clockwise"></i> Actualiser
                 </button>
-                <small class="text-muted d-block mt-2 text-center">Recharger les données</small>
+                <small class="text-muted d-block mt-2 text-center">
+                    <i class="bi bi-arrow-repeat"></i> Recharger les données depuis Nostr
+                </small>
             </div>
         </div>
 
@@ -866,7 +930,6 @@
                     <form id="newPermitForm">
                         <div class="mb-3">
                             <label class="form-label">
-                                <input type="checkbox" id="autoProclaimedPermit" checked onchange="togglePermitType()">
                                 <strong>Maîtrise Auto-Proclamée</strong> (ID généré automatiquement)
                             </label>
                             <small class="text-muted d-block mt-1">
@@ -874,21 +937,12 @@
                             </small>
                         </div>
                         
-                        <div class="mb-3" id="manualPermitIdSection" style="display: none;">
-                            <label class="form-label">ID du Permit <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="newPermitId" 
-                                placeholder="PERMIT_EXAMPLE"
-                                pattern="^PERMIT_[A-Z0-9_]+$"
-                                title="Format: PERMIT_MAJUSCULES_UNDERSCORES">
-                            <small class="text-muted">Format: PERMIT_MAJUSCULES_UNDERSCORES (ex: PERMIT_DE_NAGER)</small>
-                        </div>
-                        
                         <div class="mb-3">
                             <label class="form-label">Nom de la Maîtrise <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="newPermitName" 
                                 placeholder="Ex: Maître Nageur" required
                                 oninput="updateAutoPermitId()">
-                            <small class="text-muted">Ce nom sera utilisé pour générer l'ID si "Maîtrise Auto-Proclamée" est coché</small>
+                            <small class="text-muted">Ce nom sera utilisé pour générer l'ID automatiquement</small>
                         </div>
                         
                         <div class="mb-3">
@@ -1005,7 +1059,8 @@
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     
     <script>
-        const uSPOT = "{{ uSPOT }}";
+        // Use getAPIBaseUrl() from common.js instead of template variable
+        // const uSPOT = "{{ uSPOT }}";  // Replaced by getAPIBaseUrl() from common.js
         const myIPFS = "{{ myIPFS }}";
         const IPFSNODEID = "{{ IPFSNODEID }}";  // IPFS Node ID for filtering events by Astroport
         const isPrimaryStation = {{ is_primary_station | tojson }};  // True if this is the primary station (ORACLE des ORACLES)
@@ -1013,6 +1068,22 @@
         // We use local aliases for compatibility
         let userHEX = null;  // Will be set from userPubkey (common.js)
         let relay = null;     // Will be set from nostrRelay (common.js)
+        
+        // Helper function to get API base URL (uses common.js detection)
+        function getWoTx2APIBaseUrl() {
+            // Use getAPIBaseUrl() from common.js if available (detects API URL automatically)
+            if (typeof window.getAPIBaseUrl === 'function') {
+                try {
+                    return window.getAPIBaseUrl();
+                } catch (e) {
+                    console.warn('[WoTx2] Error calling getAPIBaseUrl():', e);
+                }
+            }
+            // Fallback to template variable or current origin if common.js not loaded
+            const fallbackUrl = "{{ uSPOT }}" || window.location.origin;
+            console.log('[WoTx2] Using fallback API URL:', fallbackUrl);
+            return fallbackUrl;
+        }
         // Permit data from server (only 30500 definitions)
         const permitDataRaw = {{ permit_data | tojson }};
         let permitData = permitDataRaw || {};
@@ -1295,6 +1366,12 @@
                 // Update UI
                 loadInstructors();
                 loadPendingRequests(requiredAttestations);
+                
+                // Update mastery levels navigation and user progress
+                if (permitData && permitData.id) {
+                    updateMasteryLevelsNavigation({ id: permitData.id });
+                    updateUserProgressIndicator({ id: permitData.id });
+                }
             } catch (e) {
                 console.error('[WoTx2] Error loading Nostr data:', e);
                 // Show error messages
@@ -2045,11 +2122,13 @@
                 const totalRequestsEl = document.getElementById('totalRequests');
                 const minAttestationsEl = document.getElementById('minAttestations');
                 const requiredAttestationsEl = document.getElementById('requiredAttestations');
+                const helpRequiredAttestations = document.getElementById('helpRequiredAttestations');
                 
                 if (totalHoldersEl) totalHoldersEl.textContent = permitCredentials?.length || 0;
                 if (totalRequestsEl) totalRequestsEl.textContent = permitRequests?.length || 0;
                 if (minAttestationsEl) minAttestationsEl.textContent = requiredAttestations;
                 if (requiredAttestationsEl) requiredAttestationsEl.textContent = requiredAttestations;
+                if (helpRequiredAttestations) helpRequiredAttestations.textContent = requiredAttestations;
                 
                 // Show bootstrap indicator if applicable
                 if (isBootstrap) {
@@ -2269,7 +2348,10 @@
                             ` : ''}
                             ${canAttest ? `
                                 <div class="mt-3">
-                                    <button class="btn btn-sm btn-success" onclick="showAttestModal('${request.applicant_npub}', '${request.id}')">
+                                    <button class="btn btn-sm btn-success" onclick="showAttestModal('${request.applicant_npub}', '${request.id}')"
+                                            data-bs-toggle="tooltip" 
+                                            data-bs-placement="top"
+                                            title="En tant que maître certifié, vous pouvez attester cet apprenti et transférer vos compétences">
                                         <i class="bi bi-check-circle"></i> 
                                         ${request.attestations_count < reqAttest ? 
                                             '👨‍🏫 Devenir Maître (Attester)' : 
@@ -2277,8 +2359,8 @@
                                     </button>
                                     <small class="text-muted d-block mt-1">
                                         ${request.attestations_count < reqAttest ? 
-                                            '💡 <strong>Apprenti cherche maître</strong> - Transférez vos compétences en l\'attestant' : 
-                                            'En attestant, vous créez un kind 30502 qui permettra à ORACLE.refresh.sh de valider cette demande'}
+                                            '💡 <strong>Apprenti cherche maître</strong> - Transférez vos compétences en l\'attestant. Vous pouvez révéler de nouvelles compétences observées.' : 
+                                            'En attestant, vous créez un kind 30502 qui permettra à ORACLE.refresh.sh de valider cette demande et d\'émettre le credential 30503.'}
                                     </small>
                                 </div>
                             ` : ''}
@@ -2947,6 +3029,45 @@
                                         ${permit.id.endsWith('_X3') ? '3 signatures + 3 compétences → X4 (4 compétences, 4 signatures)' : ''}
                                         ${permit.id.endsWith('_X4') ? 'Niveau maître atteint' : ''}
                                     </div>
+                                    ${(() => {
+                                        // Extract base permit name (without _X1, _X2, etc.)
+                                        const basePermitId = permit.id.replace(/_X\d+$/, '');
+                                        const currentLevel = permit.id.match(/_X(\d+)$/)?.[1] || '1';
+                                        const nextLevel = parseInt(currentLevel) + 1;
+                                        const prevLevel = parseInt(currentLevel) - 1;
+                                        
+                                        // Find related levels
+                                        const relatedLevels = allPermits.filter(p => 
+                                            p.id.startsWith(basePermitId + '_X') && p.id !== permit.id
+                                        ).sort((a, b) => {
+                                            const aLevel = parseInt(a.id.match(/_X(\d+)$/)?.[1] || '0');
+                                            const bLevel = parseInt(b.id.match(/_X(\d+)$/)?.[1] || '0');
+                                            return aLevel - bLevel;
+                                        });
+                                        
+                                        if (relatedLevels.length > 0) {
+                                            let navHtml = '<div class="mb-3"><div class="d-flex flex-wrap gap-2 align-items-center">';
+                                            navHtml += '<small class="text-muted me-2"><i class="bi bi-layers"></i> Autres niveaux :</small>';
+                                            
+                                            relatedLevels.forEach(relatedPermit => {
+                                                const relatedLevel = relatedPermit.id.match(/_X(\d+)$/)?.[1] || '?';
+                                                const isNext = parseInt(relatedLevel) === nextLevel;
+                                                const isPrev = parseInt(relatedLevel) === prevLevel;
+                                                const badgeClass = isNext ? 'bg-success' : isPrev ? 'bg-info' : 'bg-secondary';
+                                                const icon = isNext ? 'bi-arrow-up-circle' : isPrev ? 'bi-arrow-down-circle' : 'bi-circle';
+                                                
+                                                navHtml += `<a href="/wotx2?permit_id=${relatedPermit.id}" 
+                                                    class="badge ${badgeClass} text-decoration-none" 
+                                                    title="${relatedPermit.name}">
+                                                    <i class="bi ${icon}"></i> X${relatedLevel}
+                                                </a>`;
+                                            });
+                                            
+                                            navHtml += '</div></div>';
+                                            return navHtml;
+                                        }
+                                        return '';
+                                    })()}
                                 ` : ''}
                                 
                                 <div class="mb-3">
@@ -3199,6 +3320,146 @@
                 } else if (progressionWorkflow) {
                     progressionWorkflow.style.display = 'none';
                 }
+                
+                // Show mastery levels navigation if this is part of a multi-level maîtrise
+                updateMasteryLevelsNavigation(selectedPermit);
+                
+                // Update user progress indicator
+                updateUserProgressIndicator(selectedPermit);
+            }
+        }
+        
+        // Update mastery levels navigation
+        function updateMasteryLevelsNavigation(permit) {
+            const section = document.getElementById('masteryLevelsSection');
+            const nav = document.getElementById('masteryLevelsNav');
+            
+            if (!section || !nav) return;
+            
+            // Extract base permit name (without _X1, _X2, etc.)
+            const basePermitId = permit.id.replace(/_X\d+$/, '');
+            
+            // Find all related levels
+            const relatedLevels = allPermits.filter(p => 
+                p.id.startsWith(basePermitId + '_X') || 
+                (p.id === basePermitId && !p.id.match(/_X\d+$/))
+            ).sort((a, b) => {
+                const aLevel = parseInt(a.id.match(/_X(\d+)$/)?.[1] || '0');
+                const bLevel = parseInt(b.id.match(/_X(\d+)$/)?.[1] || '0');
+                return aLevel - bLevel;
+            });
+            
+            if (relatedLevels.length > 1) {
+                section.style.display = 'block';
+                
+                let html = '';
+                relatedLevels.forEach((levelPermit, index) => {
+                    const level = levelPermit.id.match(/_X(\d+)$/)?.[1] || '0';
+                    const isCurrent = levelPermit.id === permit.id;
+                    const badgeClass = isCurrent ? 'bg-primary' : 
+                                      parseInt(level) < parseInt(permit.id.match(/_X(\d+)$/)?.[1] || '0') ? 'bg-success' : 
+                                      'bg-secondary';
+                    const icon = isCurrent ? 'bi-check-circle-fill' : 
+                                parseInt(level) < parseInt(permit.id.match(/_X(\d+)$/)?.[1] || '0') ? 'bi-check-circle' : 
+                                'bi-circle';
+                    
+                    html += `
+                        <a href="/wotx2?permit_id=${levelPermit.id}" 
+                           class="btn ${isCurrent ? 'btn-primary' : 'btn-outline-primary'} position-relative"
+                           style="min-width: 80px; ${isCurrent ? 'font-weight: bold;' : ''}"
+                           title="${levelPermit.name} - ${levelPermit.min_attestations || 1} attestation(s) requise(s)">
+                            <i class="bi ${icon}"></i> X${level}
+                            ${isCurrent ? '<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">Actuel</span>' : ''}
+                        </a>
+                    `;
+                });
+                
+                nav.innerHTML = html;
+            } else {
+                section.style.display = 'none';
+            }
+        }
+        
+        // Update user progress indicator
+        function updateUserProgressIndicator(permit) {
+            const indicator = document.getElementById('userProgressIndicator');
+            const currentLevelEl = document.getElementById('userCurrentLevel');
+            const progressBar = document.getElementById('userProgressBar');
+            const progressText = document.getElementById('userProgressText');
+            const progressDetails = document.getElementById('userProgressDetails');
+            
+            if (!indicator || !userHEX) {
+                if (indicator) indicator.style.display = 'none';
+                return;
+            }
+            
+            // Check if user has credentials for this permit or related levels
+            const basePermitId = permit.id.replace(/_X\d+$/, '');
+            const userCredentials = permitCredentials.filter(c => 
+                c.holder_npub === userHEX && 
+                c.permit_definition_id.startsWith(basePermitId)
+            );
+            
+            if (userCredentials.length === 0) {
+                // Check if user has pending requests
+                const userRequests = permitRequests.filter(r => 
+                    r.applicant_npub === userHEX && 
+                    r.permit_definition_id.startsWith(basePermitId)
+                );
+                
+                if (userRequests.length > 0) {
+                    indicator.style.display = 'block';
+                    const request = userRequests[0];
+                    const requiredAttestations = permit.min_attestations || 1;
+                    const progress = Math.min((request.attestations_count / requiredAttestations) * 100, 100);
+                    
+                    if (currentLevelEl) {
+                        currentLevelEl.textContent = `En cours d'apprentissage (${request.attestations_count}/${requiredAttestations} attestations)`;
+                    }
+                    if (progressBar) {
+                        progressBar.style.width = progress + '%';
+                        progressBar.className = `progress-bar progress-bar-striped ${progress >= 100 ? 'bg-success' : 'bg-warning'}`;
+                    }
+                    if (progressText) {
+                        progressText.textContent = Math.round(progress) + '%';
+                    }
+                    if (progressDetails) {
+                        progressDetails.textContent = `Il vous reste ${requiredAttestations - request.attestations_count} attestation(s) pour obtenir votre credential X1`;
+                    }
+                } else {
+                    indicator.style.display = 'none';
+                }
+            } else {
+                // User has credentials - show highest level
+                indicator.style.display = 'block';
+                const highestCredential = userCredentials.sort((a, b) => {
+                    const aLevel = parseInt(a.permit_definition_id.match(/_X(\d+)$/)?.[1] || '0');
+                    const bLevel = parseInt(b.permit_definition_id.match(/_X(\d+)$/)?.[1] || '0');
+                    return bLevel - aLevel;
+                })[0];
+                
+                const level = highestCredential.permit_definition_id.match(/_X(\d+)$/)?.[1] || '1';
+                const maxLevel = 4; // Assuming max level is X4
+                const progress = (parseInt(level) / maxLevel) * 100;
+                
+                if (currentLevelEl) {
+                    currentLevelEl.textContent = `Maître certifié niveau X${level}`;
+                }
+                if (progressBar) {
+                    progressBar.style.width = progress + '%';
+                    progressBar.className = 'progress-bar progress-bar-striped bg-success';
+                }
+                if (progressText) {
+                    progressText.textContent = `X${level}/X${maxLevel}`;
+                }
+                if (progressDetails) {
+                    if (parseInt(level) < maxLevel) {
+                        const nextLevel = parseInt(level) + 1;
+                        progressDetails.textContent = `Prochain objectif : Niveau X${nextLevel} (${nextLevel} compétences, ${nextLevel} signatures requises)`;
+                    } else {
+                        progressDetails.textContent = `🎉 Félicitations ! Vous avez atteint le niveau maître (X${maxLevel})`;
+                    }
+                }
             }
         }
 
@@ -3219,35 +3480,14 @@
             
             // Reset form
             document.getElementById('newPermitForm').reset();
-            document.getElementById('autoProclaimedPermit').checked = true;
-            togglePermitType();
             updateAutoPermitId();
             
             const modal = new bootstrap.Modal(document.getElementById('newPermitModal'));
             modal.show();
         }
         
-        // Toggle between auto-proclaimed and manual permit ID
-        function togglePermitType() {
-            const isAuto = document.getElementById('autoProclaimedPermit').checked;
-            const manualSection = document.getElementById('manualPermitIdSection');
-            const permitIdInput = document.getElementById('newPermitId');
-            
-            if (isAuto) {
-                manualSection.style.display = 'none';
-                permitIdInput.removeAttribute('required');
-                updateAutoPermitId();
-            } else {
-                manualSection.style.display = 'block';
-                permitIdInput.setAttribute('required', 'required');
-            }
-        }
-        
         // Update auto-generated permit ID preview
         function updateAutoPermitId() {
-            const isAuto = document.getElementById('autoProclaimedPermit').checked;
-            if (!isAuto) return;
-            
             const permitName = document.getElementById('newPermitName').value.trim();
             const preview = document.getElementById('autoPermitIdPreview');
             
@@ -3358,7 +3598,6 @@
 
             const permitName = document.getElementById('newPermitName').value.trim();
             const permitDescription = document.getElementById('newPermitDescription').value.trim();
-            const isAutoProclaimed = document.getElementById('autoProclaimedPermit').checked;
 
             // Validate required fields
             if (!permitName || !permitDescription) {
@@ -3366,54 +3605,31 @@
                 return;
             }
 
-            // Generate or get permit ID
-            let permitId;
-            if (isAutoProclaimed) {
-                // Auto-generate ID from maîtrise name
-                permitId = permitName.toUpperCase()
-                    .replace(/[^A-Z0-9\s]/g, '')
-                    .replace(/\s+/g, '_')
-                    .substring(0, 50);
-                
-                if (!permitId.startsWith('PERMIT_')) {
-                    permitId = 'PERMIT_' + permitId;
-                }
-                
-                if (!permitId.endsWith('_X1')) {
-                    permitId = permitId.replace(/_X\d+$/, '') + '_X1';
-                }
-            } else {
-                permitId = document.getElementById('newPermitId').value.trim();
-                if (!permitId) {
-                    alert('Veuillez saisir un ID de permit ou cocher "Maîtrise Auto-Proclamée".');
-                    return;
-                }
-                
-                // Validate permit ID format
-            if (!/^[A-Z0-9_]+$/.test(permitId)) {
-                alert('L\'ID du permit doit contenir uniquement des majuscules, chiffres et underscores');
-                return;
+            // Auto-generate ID from maîtrise name (always auto-proclaimed)
+            let permitId = permitName.toUpperCase()
+                .replace(/[^A-Z0-9\s]/g, '')
+                .replace(/\s+/g, '_')
+                .substring(0, 50);
+            
+            if (!permitId.startsWith('PERMIT_')) {
+                permitId = 'PERMIT_' + permitId;
             }
             
-            // Warn if doesn't start with PERMIT_ (but allow it)
-            if (!permitId.startsWith('PERMIT_')) {
-                if (!confirm(`L'ID "${permitId}" ne commence pas par "PERMIT_". Voulez-vous continuer ?`)) {
-                    return;
-                }
-                }
+            if (!permitId.endsWith('_X1')) {
+                permitId = permitId.replace(/_X\d+$/, '') + '_X1';
             }
 
             // WoTx2: Auto-proclaimed maîtrises start at X1 with 1 attestation
             // System will auto-create X2, X3, X4 as permits are validated
             const minAttestations = 1; // X1 requires 1 signature
-            const level = isAutoProclaimed ? 'X1' : 'X1'; // Always start at X1 for auto-proclaimed
+            const level = 'X1'; // Always start at X1
 
             // Build metadata for auto-proclaimed maîtrise
             const metadata = {
                 category: "auto_proclaimed",
                 competencies: [], // Will be added progressively via 30502 attestations
                 responsible_for: [], // Will be added progressively via 30502 attestations
-                auto_proclaimed: isAutoProclaimed,
+                auto_proclaimed: true,
                 level: level,
                 evolving_system: {
                     type: "WoTx2_AutoProclaimed",
@@ -3452,7 +3668,9 @@
             };
 
             try {
-                const response = await fetch(`${uSPOT}/api/permit/define`, {
+                // Use getAPIBaseUrl() from common.js to detect correct API URL
+                const apiBaseUrl = getWoTx2APIBaseUrl();
+                const response = await fetch(`${apiBaseUrl}/api/permit/define`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -3463,21 +3681,265 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    let message = `✅ Permit ${permitId} créé avec succès !\n\n`;
-                    message += `📋 Niveau X1 - Démarrage\n`;
-                    message += `📝 Attestations requises: 1\n\n`;
-                    if (isAutoProclaimed) {
-                        message += `🔄 Progression automatique activée :\n`;
-                        message += `   • X1 → X2 : Après validation (2 compétences, 2 signatures)\n`;
-                        message += `   • X2 → X3 : Après validation (3 compétences, 3 signatures)\n`;
-                        message += `   • X3 → X4 : Après validation (4 compétences, 4 signatures)\n\n`;
+                    console.log('[WoTx2] ✅ Permit 30500 créé:', permitId);
+                    
+                    // Automatically create a 30501 request for the creator
+                    // This makes the permit immediately usable and visible in "Apprentis Cherchant un Maître"
+                    try {
+                        // Generate request ID
+                        const requestId = await window.nostr.getPublicKey().then(pubkey => {
+                            return btoa(pubkey + ':' + permitId + ':' + Date.now()).substring(0, 16);
+                        });
+                        
+                        // Use permit name as default competency (can be refined later)
+                        const defaultCompetency = permitName;
+                        const defaultStatement = `Je souhaite apprendre ${permitName} et devenir maître dans cette maîtrise.`;
+                        
+                        // Get geolocation if available
+                        let location = null;
+                        if (navigator.geolocation) {
+                            try {
+                                const position = await new Promise((resolve, reject) => {
+                                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
+                                });
+                                location = {
+                                    latitude: position.coords.latitude,
+                                    longitude: position.coords.longitude,
+                                    timestamp: new Date().toISOString()
+                                };
+                            } catch (e) {
+                                console.log('[WoTx2] Geolocation not available:', e);
+                            }
+                        }
+                        
+                        // Create permit request event (kind 30501)
+                        const requestContent = {
+                            request_id: requestId,
+                            permit_definition_id: permitId,
+                            applicant_did: `did:nostr:${userHEX}`,
+                            statement: defaultStatement,
+                            requested_competency: defaultCompetency,
+                            evidence: [],
+                            status: 'pending',
+                            location: location
+                        };
+                        
+                        const eventTags = [
+                            ['d', requestId],
+                            ['l', permitId, 'permit_type'],
+                            ['p', userHEX],
+                            ['t', 'permit'],
+                            ['t', 'request']
+                        ];
+                        
+                        // Add IPFSNODEID tag to filter events by Astroport
+                        if (IPFSNODEID) {
+                            eventTags.push(['ipfs_node', IPFSNODEID]);
+                        }
+                        
+                        // Add geolocation tags if available
+                        if (location) {
+                            eventTags.push(['g', location.latitude.toString(), location.longitude.toString()]);
+                        }
+                        
+                        const requestEvent = {
+                            kind: 30501,
+                            content: JSON.stringify(requestContent),
+                            tags: eventTags,
+                            created_at: Math.floor(Date.now() / 1000)
+                        };
+                        
+                        // Sign and publish 30501 event
+                        const signedRequestEvent = await window.nostr.signEvent(requestEvent);
+                        
+                        // Publish to relays (use common.js nostrRelay if available)
+                        if (typeof nostrRelay !== 'undefined' && nostrRelay && isNostrConnected) {
+                            try {
+                                await nostrRelay.publish(signedRequestEvent);
+                                console.log('[WoTx2] ✅ Event 30501 published to relay');
+                            } catch (e) {
+                                console.error('[WoTx2] Error publishing 30501 to relay:', e);
+                                // Fallback to user's relays
+                                if (window.nostr && typeof window.nostr.getRelays === 'function') {
+                                    const relays = await window.nostr.getRelays();
+                                    const relayUrls = Object.keys(relays);
+                                    for (const relayUrl of relayUrls) {
+                                        try {
+                                            const relay = new Relay(relayUrl);
+                                            await relay.connect();
+                                            await relay.publish(signedRequestEvent);
+                                            relay.close();
+                                        } catch (err) {
+                                            console.warn(`[WoTx2] Failed to publish 30501 to ${relayUrl}:`, err);
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (window.nostr && typeof window.nostr.getRelays === 'function') {
+                            // Use user's configured relays
+                            const relays = await window.nostr.getRelays();
+                            const relayUrls = Object.keys(relays);
+                            
+                            for (const relayUrl of relayUrls) {
+                                try {
+                                    const relay = new Relay(relayUrl);
+                                    await relay.connect();
+                                    await relay.publish(signedRequestEvent);
+                                    relay.close();
+                                } catch (e) {
+                                    console.warn(`[WoTx2] Failed to publish 30501 to ${relayUrl}:`, e);
+                                }
+                            }
+                        }
+                        
+                        console.log('[WoTx2] ✅ Request 30501 created automatically');
+                        
+                        // For X1 bootstrap: Create automatic self-attestation (30502)
+                        // Oracle allows creator to attest for X1 in bootstrap mode (ORACLE.refresh.sh line 294-309)
+                        try {
+                            // Generate attestation ID
+                            const attestationId = await window.nostr.getPublicKey().then(pubkey => {
+                                return btoa(pubkey + ':' + requestId + ':' + Date.now() + '_bootstrap').substring(0, 16);
+                            });
+                            
+                            const bootstrapStatement = `Auto-attestation bootstrap X1 : En tant que créateur de cette maîtrise ${permitName}, je m'atteste pour démarrer le système. Cette attestation est valide uniquement pour le niveau X1 en mode bootstrap.`;
+                            
+                            // Create permit attestation event (kind 30502) - self-attestation for bootstrap
+                            const attestationContent = {
+                                attestation_id: attestationId,
+                                request_id: requestId,
+                                attester_did: `did:nostr:${userHEX}`,
+                                statement: bootstrapStatement,
+                                competencies_transferred: [],
+                                revealed_competencies: [defaultCompetency], // Reveal the competency from the request
+                                location: location,
+                                signature: await window.nostr.getPublicKey().then(pubkey => {
+                                    return btoa(pubkey + ':' + bootstrapStatement + ':' + Date.now()).substring(0, 32);
+                                })
+                            };
+                            
+                            const attestationTags = [
+                                ['d', attestationId],
+                                ['e', requestId],
+                                ['p', userHEX],
+                                ['t', 'permit'],
+                                ['t', 'attestation'],
+                                ['t', 'bootstrap'] // Tag to indicate bootstrap mode
+                            ];
+                            
+                            // Add IPFSNODEID tag
+                            if (IPFSNODEID) {
+                                attestationTags.push(['ipfs_node', IPFSNODEID]);
+                            }
+                            
+                            // Add geolocation tags if available
+                            if (location) {
+                                attestationTags.push(['g', location.latitude.toString(), location.longitude.toString()]);
+                            }
+                            
+                            const attestationEvent = {
+                                kind: 30502,
+                                content: JSON.stringify(attestationContent),
+                                tags: attestationTags,
+                                created_at: Math.floor(Date.now() / 1000)
+                            };
+                            
+                            // Sign and publish 30502 event (self-attestation for bootstrap)
+                            const signedAttestationEvent = await window.nostr.signEvent(attestationEvent);
+                            
+                            // Publish to relays
+                            if (typeof nostrRelay !== 'undefined' && nostrRelay && isNostrConnected) {
+                                try {
+                                    await nostrRelay.publish(signedAttestationEvent);
+                                    console.log('[WoTx2] ✅ Event 30502 (bootstrap) published to relay');
+                                } catch (e) {
+                                    console.error('[WoTx2] Error publishing 30502 to relay:', e);
+                                    // Fallback to user's relays
+                                    if (window.nostr && typeof window.nostr.getRelays === 'function') {
+                                        const relays = await window.nostr.getRelays();
+                                        const relayUrls = Object.keys(relays);
+                                        for (const relayUrl of relayUrls) {
+                                            try {
+                                                const relay = new Relay(relayUrl);
+                                                await relay.connect();
+                                                await relay.publish(signedAttestationEvent);
+                                                relay.close();
+                                            } catch (err) {
+                                                console.warn(`[WoTx2] Failed to publish 30502 to ${relayUrl}:`, err);
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if (window.nostr && typeof window.nostr.getRelays === 'function') {
+                                // Use user's configured relays
+                                const relays = await window.nostr.getRelays();
+                                const relayUrls = Object.keys(relays);
+                                
+                                for (const relayUrl of relayUrls) {
+                                    try {
+                                        const relay = new Relay(relayUrl);
+                                        await relay.connect();
+                                        await relay.publish(signedAttestationEvent);
+                                        relay.close();
+                                    } catch (e) {
+                                        console.warn(`[WoTx2] Failed to publish 30502 to ${relayUrl}:`, e);
+                                    }
+                                }
+                            }
+                            
+                            console.log('[WoTx2] ✅ Attestation 30502 (bootstrap) created automatically');
+                            
+                            let message = `✅ Permit ${permitId} créé avec succès !\n\n`;
+                            message += `📋 Niveau X1 - Démarrage (Mode Bootstrap)\n`;
+                            message += `📝 Attestations requises: 1\n\n`;
+                            message += `✅ Événements créés automatiquement :\n`;
+                            message += `   • 30500 : Définition du permit\n`;
+                            message += `   • 30501 : Demande d'apprentissage (ID: ${requestId})\n`;
+                            message += `   • 30502 : Auto-attestation bootstrap (ID: ${attestationId})\n`;
+                            message += `   • Compétence révélée: ${defaultCompetency}\n\n`;
+                            message += `🔄 Prochaines étapes :\n`;
+                            message += `   • ORACLE.refresh.sh détectera le seuil atteint (1/1)\n`;
+                            message += `   • Émission automatique du credential 30503\n`;
+                            message += `   • Création automatique du niveau X2\n\n`;
+                            message += `🔄 Progression automatique activée :\n`;
+                            message += `   • X1 → X2 : Après validation (2 compétences, 2 signatures)\n`;
+                            message += `   • X2 → X3 : Après validation (3 compétences, 3 signatures)\n`;
+                            message += `   • X3 → X4 : Après validation (4 compétences, 4 signatures)\n\n`;
+                            message += `💡 Le système est maintenant prêt ! L'Oracle émettra votre credential lors de la prochaine exécution.`;
+                            alert(message);
+                            
+                        } catch (e) {
+                            console.error('[WoTx2] Error creating automatic 30502:', e);
+                            // Still show success message even if 30502 creation failed
+                            let message = `✅ Permit ${permitId} créé avec succès !\n\n`;
+                            message += `📋 Niveau X1 - Démarrage\n`;
+                            message += `📝 Attestations requises: 1\n\n`;
+                            message += `✅ Demande d'apprentissage (30501) créée automatiquement !\n`;
+                            message += `   • Compétence réclamée: ${defaultCompetency}\n`;
+                            message += `   • ID de demande: ${requestId}\n\n`;
+                            message += `⚠️ L'auto-attestation bootstrap (30502) n'a pas pu être créée.\n`;
+                            message += `   Vous pouvez créer une attestation manuellement ou attendre qu'un autre maître vous atteste.\n\n`;
+                            message += `🔄 Progression automatique activée :\n`;
+                            message += `   • X1 → X2 : Après validation (2 compétences, 2 signatures)\n`;
+                            message += `   • X2 → X3 : Après validation (3 compétences, 3 signatures)\n`;
+                            message += `   • X3 → X4 : Après validation (4 compétences, 4 signatures)`;
+                            alert(message);
+                        }
+                        
+                    } catch (e) {
+                        console.error('[WoTx2] Error creating automatic 30501:', e);
+                        // Still show success message even if 30501 creation failed
+                        let message = `✅ Permit ${permitId} créé avec succès !\n\n`;
+                        message += `⚠️ La demande d'apprentissage (30501) n'a pas pu être créée automatiquement.\n`;
+                        message += `   Vous pouvez la créer manuellement depuis la page du permit.\n\n`;
+                        message += `📋 Niveau X1 - Démarrage\n`;
+                        message += `📝 Attestations requises: 1`;
+                        alert(message);
                     }
-                    message += `💡 Vous pouvez maintenant créer une demande d'apprentissage (30501) pour ce permit.`;
-                    alert(message);
                     
                     bootstrap.Modal.getInstance(document.getElementById('newPermitModal')).hide();
                     
-                    // Reload page to show new permit
+                    // Reload page to show new permit and request
                     setTimeout(() => {
                         window.location.href = `/wotx2?permit_id=${encodeURIComponent(permitId)}`;
                     }, 1000);
