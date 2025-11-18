@@ -4171,7 +4171,7 @@
         }
         
         /**
-         * Update theater title with year and source information
+         * Update theater title with year, source information, and season/episode for series
          */
         function updateTitleWithYear(tmdb) {
             const titleEl = document.getElementById('theaterTitle');
@@ -4203,6 +4203,24 @@
             // Add year from TMDB if available
             if (tmdb && tmdb.year) {
                 titleParts.push(tmdb.year);
+            }
+            
+            // Add season and episode for series (format: S01E05)
+            if (tmdb && tmdb.media_type === 'tv' && (tmdb.season_number || tmdb.episode_number)) {
+                let seasonEpisode = '';
+                if (tmdb.season_number) {
+                    // Format season as S01, S02, etc. (zero-padded)
+                    const seasonNum = parseInt(tmdb.season_number);
+                    seasonEpisode = `S${String(seasonNum).padStart(2, '0')}`;
+                }
+                if (tmdb.episode_number) {
+                    // Format episode as E05, E10, etc. (zero-padded)
+                    const episodeNum = parseInt(tmdb.episode_number);
+                    seasonEpisode += `E${String(episodeNum).padStart(2, '0')}`;
+                }
+                if (seasonEpisode) {
+                    titleParts.push(seasonEpisode);
+                }
             }
             
             // Update title
