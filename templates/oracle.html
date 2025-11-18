@@ -19,6 +19,8 @@
     
     <!-- NOSTR integration -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    <!-- Common.js with enhanced UPlanet NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     <!-- Leaflet JavaScript -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/leaflet.js"></script>
     
@@ -720,16 +722,32 @@
         async function connectToNOSTR() {
             const btn = document.getElementById('connect-btn');
             const status = document.getElementById('auth-status');
+            const navConnectBtn = document.getElementById('nav-menu-connect');
             
             if (btn) btn.disabled = true;
+            if (navConnectBtn) navConnectBtn.disabled = true;
             if (status) status.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Connexion...</div>';
 
             try {
-                if (!window.nostr) {
+                // Use common.js connectNostr function if available (like webcam.html)
+                if (typeof connectNostr === 'function') {
+                    console.log('📌 Using common.js connectNostr...');
+                    userPubkey = await connectNostr(false); // Don't force NIP-42 yet
+                    
+                    if (!userPubkey) {
+                        throw new Error("No public key returned from connectNostr");
+                    }
+                    
+                    console.log('✅ Connected, pubkey:', userPubkey.substring(0, 8) + '...');
+                } else if (window.nostr && typeof window.nostr.getPublicKey === 'function') {
+                    // Fallback to direct extension access
+                    console.log('⚠️ common.js not loaded, using direct extension access');
+                    userPubkey = await window.nostr.getPublicKey();
+                } else {
                     throw new Error('Extension NOSTR non trouvée. Installez une extension NOSTR (Alby, nos2x, etc.) pour vous connecter.');
                 }
 
-                userPubkey = await window.nostr.getPublicKey();
+                // Encode to npub if NostrTools is available
                 if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
                     userNpub = NostrTools.nip19.npubEncode(userPubkey);
                 } else {
@@ -737,6 +755,11 @@
                 }
 
                 isNostrConnected = true;
+                
+                // Set in window for easier access
+                if (typeof window !== 'undefined') {
+                    window.userPubkey = userPubkey;
+                }
 
                 if (status) {
                     status.innerHTML = `
@@ -745,7 +768,24 @@
                         </div>
                     `;
                 }
-                if (btn) btn.textContent = '✅ Connecté';
+                if (btn) {
+                    btn.textContent = '✅ Connecté';
+                    btn.disabled = true;
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-secondary');
+                }
+                if (navConnectBtn) {
+                    navConnectBtn.textContent = '✅ Connecté';
+                    navConnectBtn.disabled = true;
+                }
+                
+                // Update nav user status
+                const navUserStatus = document.getElementById('nav-user-status');
+                const navUserNpub = document.getElementById('nav-user-npub');
+                if (navUserStatus && navUserNpub) {
+                    navUserStatus.style.display = 'inline';
+                    navUserNpub.textContent = userNpub.substring(0, 12) + '...';
+                }
 
                 // Show authenticated features
                 if (document.getElementById('main-content')) {
@@ -769,10 +809,17 @@
                 }
 
             } catch (error) {
+                console.error('❌ Connection error:', error);
                 if (status) {
                     status.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle-fill"></i> ${error.message}</div>`;
                 }
-                if (btn) btn.disabled = false;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '🔌 Connect';
+                }
+                if (navConnectBtn) {
+                    navConnectBtn.disabled = false;
+                }
                 alert('Erreur de connexion: ' + error.message);
             }
         }
@@ -844,6 +891,16 @@
 
         // Initialize charts
         function initCharts() {
+            // Destroy existing charts before creating new ones
+            if (permitChart) {
+                permitChart.destroy();
+                permitChart = null;
+            }
+            if (statusChart) {
+                statusChart.destroy();
+                statusChart = null;
+            }
+            
             // Permit Distribution Pie Chart
             const permitCtx = document.getElementById('permitChart');
             if (permitCtx) {
@@ -1110,11 +1167,18 @@
         }
         
         // Initialize public charts
+        let publicPermitChart = null;
         function initPublicCharts() {
+            // Destroy existing chart before creating new one
+            if (publicPermitChart) {
+                publicPermitChart.destroy();
+                publicPermitChart = null;
+            }
+            
             // Permit Distribution Chart
             const permitCtx = document.getElementById('public-permit-chart');
             if (permitCtx && allPermits.length > 0) {
-                new Chart(permitCtx, {
+                publicPermitChart = new Chart(permitCtx, {
                     type: 'doughnut',
                     data: {
                         labels: allPermits.map(p => p.name),
