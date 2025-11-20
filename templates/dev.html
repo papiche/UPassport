@@ -1201,6 +1201,69 @@ const videoEvent = {
                     <h3><i class="bi bi-code-slash"></i> Practical Examples</h3>
                     <p class="lead">Real-world code examples you can use in your applications</p>
                     
+                    <!-- NOSTR Console Section -->
+                    <div class="card mt-4 border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="bi bi-terminal"></i> NOSTR Console - Real-time Event Monitor</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Access:</strong> <a href="/dev?console=1" class="btn btn-sm btn-primary" target="_blank">
+                                <i class="bi bi-terminal"></i> Open NOSTR Console
+                            </a></p>
+                            
+                            <h6 class="mt-3"><i class="bi bi-info-circle"></i> What is it?</h6>
+                            <p>The NOSTR Console is a powerful real-time event monitoring tool that displays all NOSTR events from the last 48 hours, similar to a browser's network console. It's perfect for debugging, monitoring, and understanding NOSTR event flows.</p>
+                            
+                            <h6 class="mt-3"><i class="bi bi-list-check"></i> Features</h6>
+                            <ul>
+                                <li><strong>Real-time Monitoring:</strong> Automatically connects to the relay and displays events as they arrive</li>
+                                <li><strong>All Event Kinds:</strong> Monitors all NOSTR event kinds (0, 1, 3, 4, 5, 6, 7, and more)</li>
+                                <li><strong>Powerful Filtering:</strong>
+                                    <ul>
+                                        <li>Filter by <code>kind</code> (0=Metadata, 1=Text Note, 3=Contacts, etc.)</li>
+                                        <li>Filter by <code>pubkey</code> (hex or npub format)</li>
+                                        <li>Filter by tags (<code>#e</code>, <code>#p</code>, <code>#t</code>, <code>#g</code>, etc.)</li>
+                                        <li>Filter by geohash</li>
+                                        <li>Isolate your own events</li>
+                                    </ul>
+                                </li>
+                                <li><strong>Event Inspection:</strong> Click any event to see detailed JSON view with signature, tags, and content</li>
+                                <li><strong>Quick Actions:</strong> Copy event ID, follow pubkey, or filter replies</li>
+                                <li><strong>Connection Status:</strong> Detailed connection information with relay URL and authentication status</li>
+                            </ul>
+                            
+                            <h6 class="mt-3"><i class="bi bi-gear"></i> How it Works</h6>
+                            <p>The console uses <code>common.js</code> to connect to the relay and subscribes to events from the last 48 hours using multiple filters:</p>
+                            <pre class="bg-dark text-light p-3 rounded mt-2"><code>// The console automatically subscribes to:
+- Regular events (kinds 0-7)
+- Parameterized replaceable events (kinds 10000-10009)
+- Other common event types
+- All within the last 48 hours
+
+// Uses window.nostrRelay from common.js
+const subscription = window.nostrRelay.sub(filters);
+subscription.on('event', (event) => {
+    // Events are displayed in real-time
+});
+subscription.on('eose', () => {
+    // End of stored events
+});</code></pre>
+                            
+                            <h6 class="mt-3"><i class="bi bi-lightbulb"></i> Use Cases</h6>
+                            <ul>
+                                <li><strong>Debugging:</strong> See what events your application is publishing</li>
+                                <li><strong>Monitoring:</strong> Track events from specific users or tags</li>
+                                <li><strong>Learning:</strong> Understand NOSTR event structure and content</li>
+                                <li><strong>Testing:</strong> Verify that your events are being published correctly</li>
+                                <li><strong>Discovery:</strong> Find interesting events and users on the relay</li>
+                            </ul>
+                            
+                            <div class="alert alert-info mt-3">
+                                <i class="bi bi-info-circle"></i> <strong>Tip:</strong> The console automatically connects when <code>common.js</code> is loaded. Click the status indicator to see detailed connection information.
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- Example 1: Authentication -->
                     <div class="card mt-4">
                         <div class="card-header">
