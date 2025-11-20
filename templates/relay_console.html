@@ -617,25 +617,27 @@
                 // Calculate timestamp for last 48 hours
                 const since48h = Math.floor((Date.now() - 48 * 60 * 60 * 1000) / 1000);
                 console.log('[CONSOLE] Subscribing to events since:', new Date(since48h * 1000).toLocaleString());
+                console.log('[CONSOLE] Current time:', new Date().toLocaleString());
                 
                 // Subscribe to all events from last 48 hours using window.nostrRelay from common.js
-                // We use two filters: one for historical events (with since and limit) and one for real-time (without limit)
-                subscription = window.nostrRelay.sub([
+                // Try with a simple filter first - some relays may require explicit kinds
+                // We'll use a broad range of common kinds to catch most events
+                const filters = [
                     {
                         since: since48h,
                         limit: 1000  // Fetch up to 1000 historical events
-                    },
-                    {
-                        since: since48h
-                        // No limit for real-time events - will receive all new events matching since
                     }
-                ], {
+                ];
+                
+                console.log('[CONSOLE] Filter:', JSON.stringify(filters[0]));
+                
+                subscription = window.nostrRelay.sub(filters, {
                     onevent: (event) => {
-                        console.log('[CONSOLE] Event received:', event.kind, event.id.substring(0, 16) + '...', new Date(event.created_at * 1000).toLocaleString());
+                        console.log('[CONSOLE] ✅ Event received - Kind:', event.kind, 'ID:', event.id.substring(0, 16) + '...', 'Time:', new Date(event.created_at * 1000).toLocaleString());
                         addEvent(event);
                     },
                     oneose: () => {
-                        console.log('[CONSOLE] End of stored events (EOSE)');
+                        console.log('[CONSOLE] ✅ End of stored events (EOSE) - Historical fetch complete. Total events:', events.length);
                         const relayUrl = window.nostrRelay?.url || (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 'N/A';
                         const userPubkey = currentUserPubkey || window.userPubkey;
                         const eventCount = events.length;
@@ -645,12 +647,26 @@
                         updateStatus('Connected', true, details);
                     },
                     onclose: (reason) => {
-                        console.warn('[CONSOLE] Subscription closed:', reason);
+                        console.warn('[CONSOLE] ⚠️ Subscription closed:', reason);
                         updateStatus('Disconnected', false, `Connection closed: ${reason || 'Unknown reason'}`);
                     }
                 });
                 
                 console.log('[CONSOLE] ✅ Subscribed to relay events (last 48h, all kinds)');
+                
+                // Set up a timeout to check if we receive EOSE or events
+                setTimeout(() => {
+                    if (events.length === 0) {
+                        console.warn('[CONSOLE] ⚠️ No events received after 5 seconds.');
+                        console.log('[CONSOLE] Relay URL:', window.nostrRelay?.url);
+                        console.log('[CONSOLE] Relay status:', window.nostrRelay?.status);
+                        console.log('[CONSOLE] Is connected:', window.isNostrConnected);
+                        const relayUrl = window.nostrRelay?.url || (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 'N/A';
+                        updateStatus('Connected', true, `Relay: ${relayUrl} | No events in last 48h | Monitoring for new events...`);
+                    } else {
+                        console.log('[CONSOLE] ✅ Received', events.length, 'events so far');
+                    }
+                }, 5000);
                 
             } catch (error) {
                 console.error('[CONSOLE] Connection error:', error);
