@@ -10,9 +10,6 @@
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
     
-    <!-- NOSTR Tools -->
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
-    
     <style>
         :root {
             --primary: #059669;
@@ -484,11 +481,13 @@
     
     <!-- Bootstrap JS -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    <!-- NostrTools Bundle (required for common.js) -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    <!-- Common.js for NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     
     <script>
         // Global state
-        let pool = null;
-        let relayUrl = 'wss://relay.damus.io';
         let subscription = null;
         let events = [];
         let filteredEvents = [];
@@ -517,31 +516,95 @@
             document.getElementById('filterGeohash').addEventListener('input', debounce(applyFilters, 300));
             document.getElementById('filterMyEvents').addEventListener('change', applyFilters);
             
-            // Connect to relay
-            connectToRelay();
+            // Wait for common.js to load, then connect to relay
+            waitForCommonJS();
         });
         
-        // Connect to NOSTR relay
-        async function connectToRelay() {
+        // Wait for common.js functions to be available
+        async function waitForCommonJS() {
+            let retries = 0;
+            const maxRetries = 50; // 5 seconds max
+            
+            while (retries < maxRetries) {
+                if (typeof connectToRelay === 'function') {
+                    console.log('[CONSOLE] common.js loaded, connecting to relay...');
+                    await connectToRelayConsole();
+                    return;
+                }
+                await new Promise(resolve => setTimeout(resolve, 100));
+                retries++;
+            }
+            
+            console.error('[CONSOLE] common.js not loaded after timeout');
+            updateStatus('common.js not loaded', false);
+        }
+        
+        // Connect to NOSTR relay using common.js
+        async function connectToRelayConsole() {
             try {
                 updateStatus('Connecting...', false);
                 
-                if (!pool) {
-                    pool = new NostrTools.SimplePool();
+                // Close previous subscription if exists
+                if (subscription) {
+                    subscription.close();
+                    subscription = null;
                 }
                 
-                // Subscribe to all events
-                subscription = pool.subscribe([relayUrl], [{}], {
+                // Use connectToRelay from common.js
+                const connected = await connectToRelay();
+                
+                if (!connected) {
+                    throw new Error('Failed to connect to relay');
+                }
+                
+                // Wait for window.nostrRelay to be available
+                let retries = 0;
+                while (!window.nostrRelay && retries < 30) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    retries++;
+                }
+                
+                if (!window.nostrRelay) {
+                    throw new Error('Relay not available after connection');
+                }
+                
+                // Wait for connection to be established
+                if (!window.isNostrConnected) {
+                    // Wait for connection event
+                    await new Promise((resolve) => {
+                        const checkConnection = setInterval(() => {
+                            if (window.isNostrConnected) {
+                                clearInterval(checkConnection);
+                                resolve();
+                            }
+                        }, 100);
+                        
+                        // Timeout after 5 seconds
+                        setTimeout(() => {
+                            clearInterval(checkConnection);
+                            resolve();
+                        }, 5000);
+                    });
+                }
+                
+                // Subscribe to all events using window.nostrRelay from common.js
+                subscription = window.nostrRelay.sub([{}], {
                     onevent: (event) => {
                         addEvent(event);
                     },
                     oneose: () => {
                         updateStatus('Connected', true);
+                    },
+                    onclose: (reason) => {
+                        console.warn('Subscription closed:', reason);
+                        updateStatus('Disconnected', false);
                     }
                 });
                 
+                console.log('[CONSOLE] ✅ Subscribed to relay events');
+                
             } catch (error) {
-                console.error('Connection error:', error);
+                console.error('[CONSOLE] Connection error:', error);
                 updateStatus('Connection failed', false);
             }
         }
