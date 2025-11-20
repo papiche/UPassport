@@ -616,31 +616,41 @@
                 
                 // Calculate timestamp for last 48 hours
                 const since48h = Math.floor((Date.now() - 48 * 60 * 60 * 1000) / 1000);
+                console.log('[CONSOLE] Subscribing to events since:', new Date(since48h * 1000).toLocaleString());
                 
                 // Subscribe to all events from last 48 hours using window.nostrRelay from common.js
-                // Empty filter {} means all kinds, but we add 'since' to limit to last 48h
-                subscription = window.nostrRelay.sub([{
-                    since: since48h,
-                    limit: 500  // Limit initial fetch to 500 events
-                }], {
+                // We use two filters: one for historical events (with since and limit) and one for real-time (without limit)
+                subscription = window.nostrRelay.sub([
+                    {
+                        since: since48h,
+                        limit: 1000  // Fetch up to 1000 historical events
+                    },
+                    {
+                        since: since48h
+                        // No limit for real-time events - will receive all new events matching since
+                    }
+                ], {
                     onevent: (event) => {
+                        console.log('[CONSOLE] Event received:', event.kind, event.id.substring(0, 16) + '...', new Date(event.created_at * 1000).toLocaleString());
                         addEvent(event);
                     },
                     oneose: () => {
+                        console.log('[CONSOLE] End of stored events (EOSE)');
                         const relayUrl = window.nostrRelay?.url || (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 'N/A';
                         const userPubkey = currentUserPubkey || window.userPubkey;
+                        const eventCount = events.length;
                         const details = userPubkey ? 
-                            `Relay: ${relayUrl} | User: ${hexToNpub(userPubkey).substring(0, 20)}... | Last 48h` :
-                            `Relay: ${relayUrl} | Public read | Last 48h`;
+                            `Relay: ${relayUrl} | User: ${hexToNpub(userPubkey).substring(0, 20)}... | Last 48h | ${eventCount} events` :
+                            `Relay: ${relayUrl} | Public read | Last 48h | ${eventCount} events`;
                         updateStatus('Connected', true, details);
                     },
                     onclose: (reason) => {
-                        console.warn('Subscription closed:', reason);
+                        console.warn('[CONSOLE] Subscription closed:', reason);
                         updateStatus('Disconnected', false, `Connection closed: ${reason || 'Unknown reason'}`);
                     }
                 });
                 
-                console.log('[CONSOLE] ✅ Subscribed to relay events');
+                console.log('[CONSOLE] ✅ Subscribed to relay events (last 48h, all kinds)');
                 
             } catch (error) {
                 console.error('[CONSOLE] Connection error:', error);
@@ -650,14 +660,40 @@
         
         // Add event to list
         function addEvent(event) {
+            // Validate event
+            if (!event || !event.id) {
+                console.warn('[CONSOLE] Invalid event received:', event);
+                return;
+            }
+            
             // Check if event already exists
             if (events.some(e => e.id === event.id)) {
+                console.log('[CONSOLE] Duplicate event ignored:', event.id.substring(0, 16) + '...');
+                return;
+            }
+            
+            // Check if event is within last 48 hours (safety check)
+            const eventTime = event.created_at * 1000;
+            const since48h = Date.now() - 48 * 60 * 60 * 1000;
+            if (eventTime < since48h) {
+                console.log('[CONSOLE] Event too old, ignoring:', new Date(eventTime).toLocaleString());
                 return;
             }
             
             events.unshift(event); // Add to beginning
+            console.log('[CONSOLE] Event added. Total:', events.length);
             applyFilters();
             updateStats();
+            
+            // Update status with event count
+            if (window.isNostrConnected) {
+                const relayUrl = window.nostrRelay?.url || (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 'N/A';
+                const userPubkey = currentUserPubkey || window.userPubkey;
+                const details = userPubkey ? 
+                    `Relay: ${relayUrl} | User: ${hexToNpub(userPubkey).substring(0, 20)}... | Last 48h | ${events.length} events` :
+                    `Relay: ${relayUrl} | Public read | Last 48h | ${events.length} events`;
+                updateStatus('Connected', true, details);
+            }
         }
         
         // Apply filters
