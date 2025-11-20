@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOSTR Console - Real-time Event Monitor</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    
+    <!-- NOSTR Tools -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    
+    <style>
+        :root {
+            --primary: #059669;
+            --secondary: #10b981;
+            --dark: #1a202c;
+            --light: #f7fafc;
+            --code-bg: #2d3748;
+            --console-bg: #0d1117;
+            --console-text: #c9d1d9;
+            --console-border: #30363d;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .console-container {
+            background: var(--console-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            margin: 20px;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 40px);
+            overflow: hidden;
+        }
+        
+        .console-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .console-header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #cbd5e0;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.connected {
+            background: #48bb78;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .filter-panel {
+            background: #161b22;
+            border-bottom: 1px solid var(--console-border);
+            padding: 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .filter-group label {
+            color: var(--console-text);
+            font-size: 0.85rem;
+            margin: 0;
+            white-space: nowrap;
+        }
+        
+        .filter-group input,
+        .filter-group select {
+            background: #0d1117;
+            border: 1px solid var(--console-border);
+            color: var(--console-text);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+        
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2);
+        }
+        
+        .events-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+            margin: 0;
+            background: var(--console-bg);
+        }
+        
+        .event-item {
+            border-bottom: 1px solid var(--console-border);
+            padding: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .event-item:hover {
+            background: #161b22;
+        }
+        
+        .event-item.selected {
+            background: rgba(5, 150, 105, 0.1);
+            border-left: 3px solid var(--primary);
+        }
+        
+        .event-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        
+        .event-icon.kind-1 { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+        .event-icon.kind-0 { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .event-icon.kind-3 { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
+        .event-icon.kind-4 { background: rgba(236, 72, 153, 0.2); color: #ec4899; }
+        .event-icon.kind-5 { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+        .event-icon.kind-6 { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        .event-icon.kind-default { background: rgba(107, 114, 128, 0.2); color: #6b7280; }
+        
+        .event-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .event-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .event-kind {
+            background: rgba(5, 150, 105, 0.2);
+            color: var(--primary);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .event-pubkey {
+            color: #58a6ff;
+            font-size: 0.85rem;
+            font-family: 'Monaco', 'Menlo', monospace;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+            max-width: 200px;
+        }
+        
+        .event-time {
+            color: #8b949e;
+            font-size: 0.8rem;
+        }
+        
+        .event-preview {
+            color: var(--console-text);
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .event-tags {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .event-tag {
+            background: rgba(88, 166, 255, 0.1);
+            color: #58a6ff;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+        
+        .event-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-shrink: 0;
+        }
+        
+        .btn-action {
+            background: transparent;
+            border: 1px solid var(--console-border);
+            color: var(--console-text);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-action:hover {
+            background: rgba(5, 150, 105, 0.2);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #8b949e;
+            padding: 2rem;
+        }
+        
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        /* Modal Styles */
+        .modal-content {
+            background: var(--console-bg);
+            color: var(--console-text);
+            border: 1px solid var(--console-border);
+        }
+        
+        .modal-header {
+            border-bottom: 1px solid var(--console-border);
+            background: #161b22;
+        }
+        
+        .modal-body {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        
+        .json-viewer {
+            background: #0d1117;
+            border: 1px solid var(--console-border);
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85rem;
+            color: var(--console-text);
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .json-key { color: #79c0ff; }
+        .json-string { color: #a5d6ff; }
+        .json-number { color: #79c0ff; }
+        .json-boolean { color: #ff7b72; }
+        .json-null { color: #8b949e; }
+        
+        .quick-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .btn-quick-action {
+            background: rgba(5, 150, 105, 0.2);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-quick-action:hover {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .stats-bar {
+            background: #161b22;
+            border-top: 1px solid var(--console-border);
+            padding: 0.75rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--console-text);
+        }
+        
+        .stats-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .clear-btn {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .clear-btn:hover {
+            background: #ef4444;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="console-container">
+        <!-- Header -->
+        <div class="console-header">
+            <div>
+                <h1><i class="bi bi-terminal"></i> NOSTR Console</h1>
+                <small style="opacity: 0.9;">Real-time event monitoring and inspection</small>
+            </div>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <a href="/dev" class="btn btn-sm btn-light" style="text-decoration: none;">
+                    <i class="bi bi-code-square"></i> Developer Guide
+                </a>
+                <div class="status-indicator">
+                    <span class="status-dot" id="statusDot"></span>
+                    <span id="statusText">Disconnected</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Filter Panel -->
+        <div class="filter-panel">
+            <div class="filter-group">
+                <label><i class="bi bi-funnel"></i> Kind:</label>
+                <select id="filterKind" class="form-select form-select-sm" style="width: auto;">
+                    <option value="">All</option>
+                    <option value="0">0 - Metadata</option>
+                    <option value="1">1 - Text Note</option>
+                    <option value="3">3 - Contacts</option>
+                    <option value="4">4 - Encrypted DM</option>
+                    <option value="5">5 - Deletion</option>
+                    <option value="6">6 - Repost</option>
+                    <option value="7">7 - Reaction</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label><i class="bi bi-person"></i> Pubkey:</label>
+                <input type="text" id="filterPubkey" class="form-control form-control-sm" placeholder="npub1..." style="width: 250px;">
+            </div>
+            
+            <div class="filter-group">
+                <label><i class="bi bi-tag"></i> Tag:</label>
+                <input type="text" id="filterTag" class="form-control form-control-sm" placeholder="#e, #p, #t, #g..." style="width: 150px;">
+            </div>
+            
+            <div class="filter-group">
+                <label><i class="bi bi-geo-alt"></i> Geohash:</label>
+                <input type="text" id="filterGeohash" class="form-control form-control-sm" placeholder="u09..." style="width: 150px;">
+            </div>
+            
+            <div class="filter-group">
+                <label><i class="bi bi-funnel-fill"></i> My Events:</label>
+                <input type="checkbox" id="filterMyEvents" class="form-check-input">
+            </div>
+            
+            <div class="filter-group ms-auto">
+                <button class="btn btn-sm btn-outline-light" onclick="clearFilters()">
+                    <i class="bi bi-x-circle"></i> Clear
+                </button>
+            </div>
+        </div>
+        
+        <!-- Events List -->
+        <div class="events-list" id="eventsList">
+            <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <p>No events yet. Connect to a relay to start monitoring.</p>
+            </div>
+        </div>
+        
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stats-item">
+                <span><i class="bi bi-list-ul"></i> Total: <strong id="totalEvents">0</strong></span>
+                <span style="margin-left: 1rem;"><i class="bi bi-funnel"></i> Filtered: <strong id="filteredEvents">0</strong></span>
+            </div>
+            <div>
+                <button class="clear-btn" onclick="clearEvents()">
+                    <i class="bi bi-trash"></i> Clear Events
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Event Detail Modal -->
+    <div class="modal fade" id="eventModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-file-text"></i> Event Details
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="eventDetailContent"></div>
+                </div>
+                <div class="modal-footer">
+                    <div class="quick-actions">
+                        <button class="btn-quick-action" onclick="copyEventId()">
+                            <i class="bi bi-clipboard"></i> Copy ID
+                        </button>
+                        <button class="btn-quick-action" onclick="followPubkey()">
+                            <i class="bi bi-person-plus"></i> Follow Pubkey
+                        </button>
+                        <button class="btn-quick-action" onclick="replyToEvent()">
+                            <i class="bi bi-reply"></i> Reply
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Global state
+        let pool = null;
+        let relayUrl = 'wss://relay.damus.io';
+        let subscription = null;
+        let events = [];
+        let filteredEvents = [];
+        let currentUserPubkey = null;
+        let selectedEvent = null;
+        let eventModal = null;
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            eventModal = new bootstrap.Modal(document.getElementById('eventModal'));
+            
+            // Try to get user pubkey from extension
+            if (window.nostr) {
+                window.nostr.getPublicKey().then(pubkey => {
+                    currentUserPubkey = pubkey;
+                    updateStatus('Ready to connect', false);
+                }).catch(() => {
+                    updateStatus('Extension not available', false);
+                });
+            }
+            
+            // Setup filter listeners
+            document.getElementById('filterKind').addEventListener('change', applyFilters);
+            document.getElementById('filterPubkey').addEventListener('input', debounce(applyFilters, 300));
+            document.getElementById('filterTag').addEventListener('input', debounce(applyFilters, 300));
+            document.getElementById('filterGeohash').addEventListener('input', debounce(applyFilters, 300));
+            document.getElementById('filterMyEvents').addEventListener('change', applyFilters);
+            
+            // Connect to relay
+            connectToRelay();
+        });
+        
+        // Connect to NOSTR relay
+        async function connectToRelay() {
+            try {
+                updateStatus('Connecting...', false);
+                
+                if (!pool) {
+                    pool = new NostrTools.SimplePool();
+                }
+                
+                // Subscribe to all events
+                subscription = pool.subscribe([relayUrl], [{}], {
+                    onevent: (event) => {
+                        addEvent(event);
+                    },
+                    oneose: () => {
+                        updateStatus('Connected', true);
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Connection error:', error);
+                updateStatus('Connection failed', false);
+            }
+        }
+        
+        // Add event to list
+        function addEvent(event) {
+            // Check if event already exists
+            if (events.some(e => e.id === event.id)) {
+                return;
+            }
+            
+            events.unshift(event); // Add to beginning
+            applyFilters();
+            updateStats();
+        }
+        
+        // Apply filters
+        function applyFilters() {
+            const kindFilter = document.getElementById('filterKind').value;
+            const pubkeyFilter = document.getElementById('filterPubkey').value.toLowerCase();
+            const tagFilter = document.getElementById('filterTag').value.toLowerCase();
+            const geohashFilter = document.getElementById('filterGeohash').value.toLowerCase();
+            const myEventsOnly = document.getElementById('filterMyEvents').checked;
+            
+            filteredEvents = events.filter(event => {
+                // Kind filter
+                if (kindFilter && event.kind !== parseInt(kindFilter)) {
+                    return false;
+                }
+                
+                // Pubkey filter
+                if (pubkeyFilter) {
+                    const eventPubkey = event.pubkey.toLowerCase();
+                    if (!eventPubkey.includes(pubkeyFilter) && 
+                        !hexToNpub(eventPubkey).toLowerCase().includes(pubkeyFilter)) {
+                        return false;
+                    }
+                }
+                
+                // Tag filter
+                if (tagFilter) {
+                    const tagPrefix = tagFilter.startsWith('#') ? tagFilter.substring(1) : tagFilter;
+                    const hasTag = event.tags.some(tag => {
+                        if (tag.length < 2) return false;
+                        const tagName = tag[0].toLowerCase();
+                        const tagValue = tag[1]?.toLowerCase() || '';
+                        return tagName === tagPrefix || tagValue.includes(tagPrefix);
+                    });
+                    if (!hasTag) return false;
+                }
+                
+                // Geohash filter
+                if (geohashFilter) {
+                    const hasGeohash = event.tags.some(tag => {
+                        if (tag[0] === 'g' && tag.length >= 2) {
+                            return tag[1].toLowerCase().includes(geohashFilter);
+                        }
+                        return false;
+                    });
+                    if (!hasGeohash) return false;
+                }
+                
+                // My events only
+                if (myEventsOnly && currentUserPubkey) {
+                    if (event.pubkey.toLowerCase() !== currentUserPubkey.toLowerCase()) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
+            
+            renderEvents();
+            updateStats();
+        }
+        
+        // Render events
+        function renderEvents() {
+            const listContainer = document.getElementById('eventsList');
+            
+            if (filteredEvents.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="empty-state">
+                        <i class="bi bi-inbox"></i>
+                        <p>No events match the current filters.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            listContainer.innerHTML = filteredEvents.map((event, index) => {
+                const kind = event.kind || 0;
+                const pubkey = event.pubkey;
+                const npub = hexToNpub(pubkey);
+                const time = new Date(event.created_at * 1000).toLocaleString();
+                const preview = event.content ? event.content.substring(0, 100) : '';
+                const tags = event.tags.slice(0, 5).map(tag => {
+                    if (tag.length >= 2) {
+                        return `<span class="event-tag">#${tag[0]} ${tag[1].substring(0, 20)}</span>`;
+                    }
+                    return '';
+                }).join('');
+                
+                const kindClass = `kind-${kind}`;
+                const kindLabel = getKindLabel(kind);
+                
+                return `
+                    <div class="event-item" onclick="selectEvent(${index})" data-event-id="${event.id}">
+                        <div class="event-icon ${kindClass}">
+                            <i class="bi ${getKindIcon(kind)}"></i>
+                        </div>
+                        <div class="event-content">
+                            <div class="event-header">
+                                <span class="event-kind">${kindLabel}</span>
+                                <span class="event-pubkey" title="${npub}">${npub.substring(0, 20)}...</span>
+                                <span class="event-time">${time}</span>
+                            </div>
+                            ${preview ? `<div class="event-preview">${escapeHtml(preview)}</div>` : ''}
+                            ${tags ? `<div class="event-tags">${tags}</div>` : ''}
+                        </div>
+                        <div class="event-actions">
+                            <button class="btn-action" onclick="event.stopPropagation(); inspectEvent(${index})">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Select event
+        function selectEvent(index) {
+            selectedEvent = filteredEvents[index];
+            
+            // Update UI
+            document.querySelectorAll('.event-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            document.querySelector(`[data-event-id="${selectedEvent.id}"]`)?.classList.add('selected');
+        }
+        
+        // Inspect event
+        function inspectEvent(index) {
+            selectedEvent = filteredEvents[index];
+            showEventModal(selectedEvent);
+        }
+        
+        // Show event modal
+        function showEventModal(event) {
+            const content = document.getElementById('eventDetailContent');
+            
+            // Format JSON
+            const formattedJson = formatJson(event);
+            
+            content.innerHTML = `
+                <div class="mb-3">
+                    <h6><i class="bi bi-info-circle"></i> Event Information</h6>
+                    <div class="d-flex flex-wrap gap-2 mb-2">
+                        <span class="badge bg-primary">Kind: ${event.kind}</span>
+                        <span class="badge bg-success">ID: ${event.id.substring(0, 16)}...</span>
+                        <span class="badge bg-info">Created: ${new Date(event.created_at * 1000).toLocaleString()}</span>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <h6><i class="bi bi-person"></i> Pubkey</h6>
+                    <code style="background: #0d1117; padding: 0.5rem; border-radius: 4px; display: block; word-break: break-all;">
+                        ${hexToNpub(event.pubkey)}
+                    </code>
+                </div>
+                
+                ${event.content ? `
+                <div class="mb-3">
+                    <h6><i class="bi bi-file-text"></i> Content</h6>
+                    <div style="background: #0d1117; padding: 1rem; border-radius: 8px; border: 1px solid var(--console-border);">
+                        ${escapeHtml(event.content)}
+                    </div>
+                </div>
+                ` : ''}
+                
+                <div class="mb-3">
+                    <h6><i class="bi bi-tags"></i> Tags (${event.tags.length})</h6>
+                    <div class="json-viewer">${formatTags(event.tags)}</div>
+                </div>
+                
+                <div class="mb-3">
+                    <h6><i class="bi bi-code-square"></i> Signature</h6>
+                    <code style="background: #0d1117; padding: 0.5rem; border-radius: 4px; display: block; word-break: break-all; font-size: 0.8rem;">
+                        ${event.sig}
+                    </code>
+                </div>
+                
+                <div class="mb-3">
+                    <h6><i class="bi bi-file-code"></i> Full JSON</h6>
+                    <div class="json-viewer">${formattedJson}</div>
+                </div>
+            `;
+            
+            eventModal.show();
+        }
+        
+        // Format JSON with syntax highlighting
+        function formatJson(obj) {
+            const json = JSON.stringify(obj, null, 2);
+            return json
+                .replace(/(".*?"):/g, '<span class="json-key">$1</span>:')
+                .replace(/:\s*(".*?")/g, ': <span class="json-string">$1</span>')
+                .replace(/:\s*(\d+)/g, ': <span class="json-number">$1</span>')
+                .replace(/:\s*(true|false)/g, ': <span class="json-boolean">$1</span>')
+                .replace(/:\s*(null)/g, ': <span class="json-null">$1</span>');
+        }
+        
+        // Format tags
+        function formatTags(tags) {
+            return tags.map(tag => {
+                return `[${tag.map(t => `"${escapeHtml(String(t))}"`).join(', ')}]`;
+            }).join('\n');
+        }
+        
+        // Quick actions
+        function copyEventId() {
+            if (selectedEvent) {
+                navigator.clipboard.writeText(selectedEvent.id).then(() => {
+                    alert('Event ID copied to clipboard!');
+                });
+            }
+        }
+        
+        function followPubkey() {
+            if (selectedEvent) {
+                const npub = hexToNpub(selectedEvent.pubkey);
+                document.getElementById('filterPubkey').value = npub;
+                applyFilters();
+                eventModal.hide();
+            }
+        }
+        
+        function replyToEvent() {
+            if (selectedEvent) {
+                // Add reply tag filter
+                document.getElementById('filterTag').value = 'e';
+                applyFilters();
+                eventModal.hide();
+                alert('Filter set to show replies. Look for events with #e tag matching this event ID.');
+            }
+        }
+        
+        // Clear filters
+        function clearFilters() {
+            document.getElementById('filterKind').value = '';
+            document.getElementById('filterPubkey').value = '';
+            document.getElementById('filterTag').value = '';
+            document.getElementById('filterGeohash').value = '';
+            document.getElementById('filterMyEvents').checked = false;
+            applyFilters();
+        }
+        
+        // Clear events
+        function clearEvents() {
+            if (confirm('Clear all events?')) {
+                events = [];
+                filteredEvents = [];
+                renderEvents();
+                updateStats();
+            }
+        }
+        
+        // Update stats
+        function updateStats() {
+            document.getElementById('totalEvents').textContent = events.length;
+            document.getElementById('filteredEvents').textContent = filteredEvents.length;
+        }
+        
+        // Update status
+        function updateStatus(text, connected) {
+            document.getElementById('statusText').textContent = text;
+            const dot = document.getElementById('statusDot');
+            if (connected) {
+                dot.classList.add('connected');
+            } else {
+                dot.classList.remove('connected');
+            }
+        }
+        
+        // Utility functions
+        function getKindLabel(kind) {
+            const labels = {
+                0: 'Metadata',
+                1: 'Text Note',
+                3: 'Contacts',
+                4: 'DM',
+                5: 'Deletion',
+                6: 'Repost',
+                7: 'Reaction'
+            };
+            return labels[kind] || `Kind ${kind}`;
+        }
+        
+        function getKindIcon(kind) {
+            const icons = {
+                0: 'bi-person-badge',
+                1: 'bi-chat-text',
+                3: 'bi-people',
+                4: 'bi-envelope',
+                5: 'bi-trash',
+                6: 'bi-repeat',
+                7: 'bi-heart'
+            };
+            return icons[kind] || 'bi-file';
+        }
+        
+        function hexToNpub(hex) {
+            try {
+                return NostrTools.nip19.npubEncode(hex);
+            } catch {
+                return hex.substring(0, 16) + '...';
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+    </script>
+</body>
+</html>
+

@@ -5226,7 +5226,12 @@ async def rate_limit_status(request: Request):
     }
 
 @app.get("/dev", response_class=HTMLResponse)
-async def welcomeuplanet(request: Request):
+async def welcomeuplanet(request: Request, console: Optional[str] = None):
+    if console:
+        return templates.TemplateResponse("relay_console.html", {
+            "request": request,
+            "myIPFS": get_myipfs_gateway()
+        })
     return templates.TemplateResponse("dev.html", {
         "request": request,
         "myIPFS": get_myipfs_gateway()
