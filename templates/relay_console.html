@@ -635,25 +635,23 @@
                 
                 console.log('[CONSOLE] Filters:', filters.length, 'filter groups');
                 
-                subscription = window.nostrRelay.sub(filters, {
-                    onevent: (event) => {
-                        console.log('[CONSOLE] ✅ Event received - Kind:', event.kind, 'ID:', event.id.substring(0, 16) + '...', 'Time:', new Date(event.created_at * 1000).toLocaleString());
-                        addEvent(event);
-                    },
-                    oneose: () => {
-                        console.log('[CONSOLE] ✅ End of stored events (EOSE) - Historical fetch complete. Total events:', events.length);
-                        const relayUrl = window.nostrRelay?.url || (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 'N/A';
-                        const userPubkey = currentUserPubkey || window.userPubkey;
-                        const eventCount = events.length;
-                        const details = userPubkey ? 
-                            `Relay: ${relayUrl} | User: ${hexToNpub(userPubkey).substring(0, 20)}... | Last 48h | ${eventCount} events` :
-                            `Relay: ${relayUrl} | Public read | Last 48h | ${eventCount} events`;
-                        updateStatus('Connected', true, details);
-                    },
-                    onclose: (reason) => {
-                        console.warn('[CONSOLE] ⚠️ Subscription closed:', reason);
-                        updateStatus('Disconnected', false, `Connection closed: ${reason || 'Unknown reason'}`);
-                    }
+                // Use .sub() then .on() pattern (like in common.js and nostr_console.html)
+                subscription = window.nostrRelay.sub(filters);
+                
+                subscription.on('event', (event) => {
+                    console.log('[CONSOLE] ✅ Event received - Kind:', event.kind, 'ID:', event.id.substring(0, 16) + '...', 'Time:', new Date(event.created_at * 1000).toLocaleString());
+                    addEvent(event);
+                });
+                
+                subscription.on('eose', () => {
+                    console.log('[CONSOLE] ✅ End of stored events (EOSE) - Historical fetch complete. Total events:', events.length);
+                    const relayUrl = window.nostrRelay?.url || (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 'N/A';
+                    const userPubkey = currentUserPubkey || window.userPubkey;
+                    const eventCount = events.length;
+                    const details = userPubkey ? 
+                        `Relay: ${relayUrl} | User: ${hexToNpub(userPubkey).substring(0, 20)}... | Last 48h | ${eventCount} events` :
+                        `Relay: ${relayUrl} | Public read | Last 48h | ${eventCount} events`;
+                    updateStatus('Connected', true, details);
                 });
                 
                 console.log('[CONSOLE] ✅ Subscribed to relay events (last 48h, multiple kind ranges)');
@@ -668,25 +666,26 @@
                         try {
                             const fallbackSub = window.nostrRelay.sub([
                                 { kinds: [0, 1, 3, 4, 5, 6, 7], limit: 50 }
-                            ], {
-                                onevent: (event) => {
-                                    console.log('[CONSOLE] 🔄 Fallback event received - Kind:', event.kind);
-                                    // Check if event is within 48h
-                                    const eventTime = event.created_at * 1000;
-                                    const since48h = Date.now() - 48 * 60 * 60 * 1000;
-                                    if (eventTime >= since48h) {
-                                        addEvent(event);
-                                    }
-                                },
-                                oneose: () => {
-                                    console.log('[CONSOLE] 🔄 Fallback EOSE received');
-                                    if (events.length === 0) {
-                                        console.warn('[CONSOLE] ⚠️ No events found even with fallback subscription. Relay may be empty or filter incompatible.');
-                                        const relayUrl = window.nostrRelay?.url || (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 'N/A';
-                                        updateStatus('Connected', true, `Relay: ${relayUrl} | No events found | Monitoring...`);
-                                    }
-                                    fallbackSub.close();
+                            ]);
+                            
+                            fallbackSub.on('event', (event) => {
+                                console.log('[CONSOLE] 🔄 Fallback event received - Kind:', event.kind);
+                                // Check if event is within 48h
+                                const eventTime = event.created_at * 1000;
+                                const since48h = Date.now() - 48 * 60 * 60 * 1000;
+                                if (eventTime >= since48h) {
+                                    addEvent(event);
                                 }
+                            });
+                            
+                            fallbackSub.on('eose', () => {
+                                console.log('[CONSOLE] 🔄 Fallback EOSE received');
+                                if (events.length === 0) {
+                                    console.warn('[CONSOLE] ⚠️ No events found even with fallback subscription. Relay may be empty or filter incompatible.');
+                                    const relayUrl = window.nostrRelay?.url || (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 'N/A';
+                                    updateStatus('Connected', true, `Relay: ${relayUrl} | No events found | Monitoring...`);
+                                }
+                                fallbackSub.unsub();
                             });
                             
                             // Close fallback after 5 seconds
