@@ -539,6 +539,60 @@
         .collapse {
             transition: height 0.3s ease;
         }
+        
+        /* Tab Styles */
+        .nav-tabs {
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .nav-tabs .nav-link {
+            color: #64748b;
+            border: none;
+            border-bottom: 3px solid transparent;
+            padding: 0.75rem 1.5rem;
+            transition: all 0.3s;
+        }
+        
+        .nav-tabs .nav-link:hover {
+            color: var(--primary);
+            border-bottom-color: rgba(5, 150, 105, 0.3);
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: var(--primary);
+            background: transparent;
+            border-bottom-color: var(--primary);
+            font-weight: 600;
+        }
+        
+        .tab-content {
+            padding: 2rem 0;
+        }
+        
+        .tab-pane {
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Code block improvements */
+        pre code {
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        
+        /* Card improvements */
+        .card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -605,6 +659,682 @@
     </div>
 
     <div class="container">
+        <!-- Main Content with Tabs -->
+        <div class="module-card">
+            <div class="mb-4">
+                <h2 class="mb-3"><i class="bi bi-book"></i> Developer Guide</h2>
+                <p class="lead text-muted">Learn how to build decentralized applications with Astroport.ONE step by step</p>
+            </div>
+            
+            <!-- Bootstrap Tabs -->
+            <ul class="nav nav-tabs mb-4" id="devTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="intro-tab" data-bs-toggle="tab" data-bs-target="#intro" type="button" role="tab">
+                        <i class="bi bi-house-door"></i> Introduction
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="libraries-tab" data-bs-toggle="tab" data-bs-target="#libraries" type="button" role="tab">
+                        <i class="bi bi-box-seam"></i> Libraries
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="architecture-tab" data-bs-toggle="tab" data-bs-target="#architecture" type="button" role="tab">
+                        <i class="bi bi-diagram-3"></i> Event Architecture
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="smartcontracts-tab" data-bs-toggle="tab" data-bs-target="#smartcontracts" type="button" role="tab">
+                        <i class="bi bi-cpu"></i> Smart Contracts
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="examples-tab" data-bs-toggle="tab" data-bs-target="#examples" type="button" role="tab">
+                        <i class="bi bi-code-slash"></i> Examples
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="api-tab" data-bs-toggle="tab" data-bs-target="#api" type="button" role="tab">
+                        <i class="bi bi-file-text"></i> API Reference
+                    </button>
+                </li>
+            </ul>
+            
+            <!-- Tab Content -->
+            <div class="tab-content" id="devTabsContent">
+                <!-- Tab 1: Introduction -->
+                <div class="tab-pane fade show active" id="intro" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <h3><i class="bi bi-rocket-takeoff"></i> Welcome to Astroport.ONE</h3>
+                            <p class="lead">Build decentralized applications 10x faster with NOSTR, IPFS, and Web3 technologies.</p>
+                            
+                            <div class="alert alert-info">
+                                <h5><i class="bi bi-lightbulb"></i> Why Astroport.ONE?</h5>
+                                <p class="mb-0">Traditional web development requires months to build authentication, file storage, and social features. With Astroport.ONE, you get all of this in <strong>days</strong> instead of months.</p>
+                            </div>
+                            
+                            <h4 class="mt-4"><i class="bi bi-list-check"></i> What You'll Learn</h4>
+                            <ul class="list-unstyled">
+                                <li class="mb-2"><i class="bi bi-check-circle text-success"></i> <strong>Libraries:</strong> Understand common.js, nostr.private.js and their specific use cases</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success"></i> <strong>Event Architecture:</strong> Learn to separate events from their processing (CSS revolution analogy)</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success"></i> <strong>Smart Contracts:</strong> How Astroport stations execute your events automatically</li>
+                                <li class="mb-2"><i class="bi bi-check-circle text-success"></i> <strong>Best Practices:</strong> Build scalable, maintainable decentralized applications</li>
+                            </ul>
+                            
+                            <h4 class="mt-4"><i class="bi bi-speedometer2"></i> Quick Start (3 Steps)</h4>
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h5 class="card-title">Step 1: Include Libraries</h5>
+                                    <pre class="bg-dark text-light p-3 rounded"><code>&lt;script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"&gt;&lt;/script&gt;
+&lt;script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"&gt;&lt;/script&gt;</code></pre>
+                                </div>
+                            </div>
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h5 class="card-title">Step 2: Connect User</h5>
+                                    <pre class="bg-dark text-light p-3 rounded"><code>const pubkey = await connectNostr();</code></pre>
+                                </div>
+                            </div>
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h5 class="card-title">Step 3: Publish Events</h5>
+                                    <pre class="bg-dark text-light p-3 rounded"><code>await publishNote('Hello Web3!');</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card border-primary">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Key Concepts</h5>
+                                </div>
+                                <div class="card-body">
+                                    <h6><i class="bi bi-shield-check"></i> MULTIPASS</h6>
+                                    <p class="small">Decentralized identity with NOSTR keys. No passwords, no central database.</p>
+                                    
+                                    <h6 class="mt-3"><i class="bi bi-cloud"></i> IPFS Storage</h6>
+                                    <p class="small">Files stored on IPFS with automatic metadata tracking (SHA256).</p>
+                                    
+                                    <h6 class="mt-3"><i class="bi bi-broadcast"></i> NOSTR Events</h6>
+                                    <p class="small">Cryptographically signed events published to decentralized relays.</p>
+                                    
+                                    <h6 class="mt-3"><i class="bi bi-cpu"></i> Smart Contracts</h6>
+                                    <p class="small">Astroport stations automatically process your events according to predefined rules.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab 2: Libraries -->
+                <div class="tab-pane fade" id="libraries" role="tabpanel">
+                    <h3><i class="bi bi-box-seam"></i> Core Libraries</h3>
+                    <p class="lead">Understanding which library to use and when</p>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6 mb-4">
+                            <div class="card h-100 border-success">
+                                <div class="card-header bg-success text-white">
+                                    <h5 class="mb-0"><i class="bi bi-file-code"></i> common.js</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Purpose:</strong> Public NOSTR operations and client-side utilities</p>
+                                    <p><strong>When to use:</strong> For all public-facing features in your application</p>
+                                    
+                                    <h6 class="mt-3">Key Functions:</h6>
+                                    <ul class="small">
+                                        <li><code>connectNostr()</code> - Connect to NOSTR wallet</li>
+                                        <li><code>publishNote()</code> - Publish public notes (kind 1)</li>
+                                        <li><code>uploadPhotoToIPFS()</code> - Upload files to IPFS</li>
+                                        <li><code>sendLike()</code> - Send reactions (kind 7)</li>
+                                        <li><code>hexToNpub()</code> / <code>npubToHex()</code> - Format conversion</li>
+                                        <li><code>fetchUserFollowsWithMetadata()</code> - Get user network</li>
+                                    </ul>
+                                    
+                                    <div class="alert alert-info mt-3 mb-0 small">
+                                        <strong>💡 Tip:</strong> Use common.js for everything users can see or interact with publicly.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-4">
+                            <div class="card h-100 border-warning">
+                                <div class="card-header bg-warning text-dark">
+                                    <h5 class="mb-0"><i class="bi bi-lock"></i> nostr.private.js</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Purpose:</strong> Private/encrypted operations and sensitive data</p>
+                                    <p><strong>When to use:</strong> For encrypted messages, private keys, sensitive operations</p>
+                                    
+                                    <h6 class="mt-3">Key Functions:</h6>
+                                    <ul class="small">
+                                        <li><code>encryptDM()</code> - Encrypt direct messages (NIP-04)</li>
+                                        <li><code>decryptDM()</code> - Decrypt received messages</li>
+                                        <li><code>signEvent()</code> - Sign events with private key</li>
+                                        <li><code>generateKeys()</code> - Generate new keypairs</li>
+                                    </ul>
+                                    
+                                    <div class="alert alert-warning mt-3 mb-0 small">
+                                        <strong>⚠️ Security:</strong> Only use nostr.private.js when you need encryption or private key operations. Never expose private keys in client code.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4 border-info">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="bi bi-question-circle"></i> Which Library Should I Use?</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>Use Case</th>
+                                            <th>Library</th>
+                                            <th>Reason</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>User authentication</td>
+                                            <td><code>common.js</code></td>
+                                            <td>Public operation, uses NIP-07 extension</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Publishing posts</td>
+                                            <td><code>common.js</code></td>
+                                            <td>Public content, no encryption needed</td>
+                                        </tr>
+                                        <tr>
+                                            <td>File uploads</td>
+                                            <td><code>common.js</code></td>
+                                            <td>Public IPFS storage with metadata</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Direct messages</td>
+                                            <td><code>nostr.private.js</code></td>
+                                            <td>Requires encryption (NIP-04)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Private keys</td>
+                                            <td><code>nostr.private.js</code></td>
+                                            <td>Sensitive operations only</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab 3: Event Architecture -->
+                <div class="tab-pane fade" id="architecture" role="tabpanel">
+                    <h3><i class="bi bi-diagram-3"></i> Event-Driven Architecture</h3>
+                    <p class="lead">The CSS Revolution: Separating Events from Processing</p>
+                    
+                    <div class="alert alert-primary">
+                        <h5><i class="bi bi-lightbulb"></i> The Core Principle</h5>
+                        <p class="mb-0">Just like CSS separated style from content in 1996, Astroport.ONE separates <strong>events</strong> from their <strong>processing</strong>. This allows your events to be processed by any Astroport station according to smart contract rules.</p>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card border-danger">
+                                <div class="card-header bg-danger text-white">
+                                    <h5 class="mb-0">❌ Traditional Approach</h5>
+                                </div>
+                                <div class="card-body">
+                                    <pre class="bg-dark text-light p-3 rounded small"><code>// Everything coupled together
+app.post('/upload', 
+  authenticate(),
+  validate(),
+  saveToDB(),
+  processFile(),
+  notifyUsers()
+);</code></pre>
+                                    <p class="mt-3 small"><strong>Problem:</strong> 6 months of infrastructure development, hard to scale, vendor lock-in</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card border-success">
+                                <div class="card-header bg-success text-white">
+                                    <h5 class="mb-0">✅ Astroport.ONE Approach</h5>
+                                </div>
+                                <div class="card-body">
+                                    <pre class="bg-dark text-light p-3 rounded small"><code>// Event separated from processing
+const event = {
+  kind: 21,  // Video upload
+  content: videoData,
+  tags: [['url', ipfsUrl]]
+};
+
+await publishToNostr(event);
+// Smart contracts handle the rest</code></pre>
+                                    <p class="mt-3 small"><strong>Result:</strong> 1 week of development, scalable, interoperable</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-diagram-3"></i> Event Flow Architecture</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-md-3">
+                                    <div class="p-3 bg-light rounded">
+                                        <i class="bi bi-code-square" style="font-size: 2rem; color: var(--primary);"></i>
+                                        <h6 class="mt-2">1. Your App</h6>
+                                        <p class="small">Creates NOSTR events</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-1 text-center align-self-center">
+                                    <i class="bi bi-arrow-right" style="font-size: 1.5rem;"></i>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="p-3 bg-light rounded">
+                                        <i class="bi bi-broadcast" style="font-size: 2rem; color: var(--primary);"></i>
+                                        <h6 class="mt-2">2. NOSTR Relay</h6>
+                                        <p class="small">Stores events</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-1 text-center align-self-center">
+                                    <i class="bi bi-arrow-right" style="font-size: 1.5rem;"></i>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="p-3 bg-light rounded">
+                                        <i class="bi bi-cpu" style="font-size: 2rem; color: var(--primary);"></i>
+                                        <h6 class="mt-2">3. Astroport Station</h6>
+                                        <p class="small">Smart contracts process events</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4 border-info">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="bi bi-list-check"></i> Why Separate Events from Processing?</h5>
+                        </div>
+                        <div class="card-body">
+                            <ul>
+                                <li><strong>Interoperability:</strong> Your events work with any Astroport-compatible application</li>
+                                <li><strong>Scalability:</strong> Multiple stations can process the same events in parallel</li>
+                                <li><strong>Maintainability:</strong> Update processing logic without changing event structure</li>
+                                <li><strong>Flexibility:</strong> Different stations can apply different rules to the same events</li>
+                                <li><strong>Future-proof:</strong> New features can be added via smart contracts without app changes</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-code-square"></i> Identifying Your Events</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>To enable smart contract processing, you need to identify different event types in your application:</p>
+                            
+                            <h6 class="mt-3">Event Kinds (NOSTR Standard)</h6>
+                            <ul class="small">
+                                <li><code>kind: 1</code> - Text notes (posts, comments)</li>
+                                <li><code>kind: 7</code> - Reactions (likes, emojis)</li>
+                                <li><code>kind: 21</code> - Short videos (NIP-71)</li>
+                                <li><code>kind: 22</code> - Long videos (NIP-71)</li>
+                                <li><code>kind: 1063</code> - File uploads (NIP-94)</li>
+                                <li><code>kind: 42</code> - Channel messages (NIP-28)</li>
+                                <li><code>kind: 1111</code> - Comments on URLs (NIP-22)</li>
+                            </ul>
+                            
+                            <h6 class="mt-3">Custom Event Tags</h6>
+                            <p class="small">Use tags to add context that smart contracts can use:</p>
+                            <pre class="bg-dark text-light p-3 rounded small"><code>const event = {
+  kind: 1,
+  content: "My post",
+  tags: [
+    ['t', 'myapp'],           // Topic/category
+    ['g', '48.86,2.35'],     // Geolocation
+    ['r', 'https://...'],     // Reference URL
+    ['p', 'pubkey'],          // Reference pubkey
+    ['custom', 'value']       // Custom data
+  ]
+};</code></pre>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab 4: Smart Contracts -->
+                <div class="tab-pane fade" id="smartcontracts" role="tabpanel">
+                    <h3><i class="bi bi-cpu"></i> Astroport Smart Contracts</h3>
+                    <p class="lead">How Astroport stations automatically process your events</p>
+                    
+                    <div class="alert alert-success">
+                        <h5><i class="bi bi-check-circle"></i> What Are Smart Contracts?</h5>
+                        <p class="mb-0">Smart contracts are executable rules that run on Astroport stations. They automatically process NOSTR events according to predefined logic, without requiring manual intervention.</p>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="mb-0"><i class="bi bi-play-circle"></i> How It Works</h5>
+                                </div>
+                                <div class="card-body">
+                                    <ol>
+                                        <li class="mb-2"><strong>Your app publishes an event</strong> to a NOSTR relay</li>
+                                        <li class="mb-2"><strong>Astroport station subscribes</strong> to events matching certain criteria</li>
+                                        <li class="mb-2"><strong>Smart contract executes</strong> when matching event is found</li>
+                                        <li class="mb-2"><strong>Result is published</strong> as a new event or stored in database</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-info text-white">
+                                    <h5 class="mb-0"><i class="bi bi-list-ul"></i> Example Use Cases</h5>
+                                </div>
+                                <div class="card-body">
+                                    <ul>
+                                        <li><strong>File Processing:</strong> Automatically generate thumbnails for uploaded images</li>
+                                        <li><strong>Notifications:</strong> Send alerts when users are mentioned</li>
+                                        <li><strong>Analytics:</strong> Track engagement metrics automatically</li>
+                                        <li><strong>Moderation:</strong> Filter content based on rules</li>
+                                        <li><strong>Payments:</strong> Process Ẑen transactions</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-code-square"></i> Example: Video Upload Smart Contract</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>When you publish a video upload event (kind 21), a smart contract automatically:</p>
+                            
+                            <pre class="bg-dark text-light p-3 rounded"><code>// Your app publishes this event
+const videoEvent = {
+  kind: 21,
+  content: "My video",
+  tags: [
+    ['url', '/ipfs/QmXXX'],
+    ['title', 'My Video Title'],
+    ['thumbnail', '/ipfs/QmYYY']
+  ]
+};
+
+// Smart contract on Astroport station automatically:
+// 1. Validates the event structure
+// 2. Checks IPFS file exists
+// 3. Generates additional thumbnails if needed
+// 4. Updates video database
+// 5. Notifies subscribers
+// 6. Processes payment if required</code></pre>
+                            
+                            <div class="alert alert-info mt-3">
+                                <strong>💡 Key Point:</strong> You don't need to write the smart contract yourself. Astroport stations come with pre-built smart contracts for common operations. You just need to publish the right event structure.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4 border-warning">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Important: Event Structure Matters</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>Smart contracts rely on event structure to know how to process them. Make sure your events follow NOSTR standards:</p>
+                            
+                            <ul>
+                                <li><strong>Use correct event kinds:</strong> Follow NIP standards (NIP-94 for files, NIP-71 for videos, etc.)</li>
+                                <li><strong>Include required tags:</strong> Smart contracts look for specific tags to extract data</li>
+                                <li><strong>Validate before publishing:</strong> Use <code>hexToNpub()</code> and validation functions from common.js</li>
+                                <li><strong>Document your custom tags:</strong> If you add custom tags, document them for other developers</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab 5: Examples -->
+                <div class="tab-pane fade" id="examples" role="tabpanel">
+                    <h3><i class="bi bi-code-slash"></i> Practical Examples</h3>
+                    <p class="lead">Real-world code examples you can use in your applications</p>
+                    
+                    <!-- Example 1: Authentication -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-shield-check"></i> Example 1: User Authentication</h5>
+                        </div>
+                        <div class="card-body">
+                            <pre class="bg-dark text-light p-3 rounded"><code>// Include libraries
+&lt;script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"&gt;&lt;/script&gt;
+&lt;script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"&gt;&lt;/script&gt;
+
+// Connect user
+async function login() {
+  try {
+    const pubkey = await connectNostr(true); // true = force NIP-42 auth
+    console.log('User connected:', pubkey);
+    
+    // Convert to npub for display
+    const npub = hexToNpub(pubkey);
+    console.log('User npub:', npub);
+    
+    return pubkey;
+  } catch (error) {
+    console.error('Login failed:', error);
+  }
+}</code></pre>
+                        </div>
+                    </div>
+                    
+                    <!-- Example 2: Publishing Events -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-send"></i> Example 2: Publishing a Post</h5>
+                        </div>
+                        <div class="card-body">
+                            <pre class="bg-dark text-light p-3 rounded"><code>// Publish a simple text post
+async function publishPost(content) {
+  const event = await publishNote(content);
+  console.log('Post published:', event.id);
+  return event;
+}
+
+// Publish a post with tags (for smart contract processing)
+async function publishPostWithTags(content, tags) {
+  const event = await publishNote(content, tags);
+  console.log('Post with tags published:', event.id);
+  return event;
+}
+
+// Example: Post with geolocation
+await publishPostWithTags('Hello from Paris!', [
+  ['g', '48.86,2.35'],  // Geolocation tag
+  ['t', 'travel']        // Topic tag
+]);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <!-- Example 3: File Upload -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-cloud-upload"></i> Example 3: File Upload</h5>
+                        </div>
+                        <div class="card-body">
+                            <pre class="bg-dark text-light p-3 rounded"><code>// Upload a file to IPFS
+async function uploadFile(file) {
+  // Upload to IPFS (automatically creates metadata)
+  const result = await uploadPhotoToIPFS(file);
+  
+  console.log('File uploaded:', result.cid);
+  console.log('IPFS URL:', result.ipfs_url);
+  console.log('Metadata:', result.info);
+  
+  // The event is automatically published to NOSTR
+  // Smart contracts will process it automatically
+  
+  return result;
+}
+
+// Handle file input
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    const result = await uploadFile(file);
+    console.log('Upload complete:', result);
+  }
+});</code></pre>
+                        </div>
+                    </div>
+                    
+                    <!-- Example 4: Event Subscription -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-broadcast"></i> Example 4: Subscribing to Events</h5>
+                        </div>
+                        <div class="card-body">
+                            <pre class="bg-dark text-light p-3 rounded"><code>// Subscribe to events from a specific user
+async function subscribeToUser(pubkey) {
+  // Connect to relay first
+  await connectToRelay();
+  
+  // Subscribe to user's posts
+  const sub = window.nostrRelay.sub([{
+    kinds: [1],  // Text notes
+    authors: [pubkey],
+    limit: 10
+  }]);
+  
+  sub.on('event', (event) => {
+    console.log('New post:', event.content);
+    // Process the event in your app
+    displayPost(event);
+  });
+  
+  return sub;
+}
+
+// Subscribe to events with specific tags (for smart contract results)
+async function subscribeToTaggedEvents(tag) {
+  await connectToRelay();
+  
+  const sub = window.nostrRelay.sub([{
+    kinds: [1],
+    '#t': [tag],  // Events with this tag
+    limit: 50
+  }]);
+  
+  sub.on('event', (event) => {
+    // Smart contract may have added additional tags
+    console.log('Event with tag:', event);
+  });
+  
+  return sub;
+}</code></pre>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab 6: API Reference -->
+                <div class="tab-pane fade" id="api" role="tabpanel">
+                    <h3><i class="bi bi-file-text"></i> API Reference</h3>
+                    <p class="lead">Complete reference for common.js functions</p>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><code>connectNostr(forceAuth = false)</code></h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Description:</strong> Connect to NOSTR wallet and optionally authenticate with NIP-42</p>
+                            <p><strong>Parameters:</strong></p>
+                            <ul>
+                                <li><code>forceAuth</code> (boolean, optional): If true, forces NIP-42 authentication</li>
+                            </ul>
+                            <p><strong>Returns:</strong> Promise resolving to user's hex pubkey</p>
+                            <pre class="bg-dark text-light p-3 rounded mt-3"><code>const pubkey = await connectNostr(true);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><code>publishNote(content, additionalTags = [], kind = 1, options = {})</code></h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Description:</strong> Publish a NOSTR note event</p>
+                            <p><strong>Parameters:</strong></p>
+                            <ul>
+                                <li><code>content</code> (string): Note content</li>
+                                <li><code>additionalTags</code> (array, optional): Additional tags for the event</li>
+                                <li><code>kind</code> (number, optional): Event kind (default: 1)</li>
+                                <li><code>options</code> (object, optional): Additional options</li>
+                            </ul>
+                            <p><strong>Returns:</strong> Promise resolving to published event</p>
+                            <pre class="bg-dark text-light p-3 rounded mt-3"><code>const event = await publishNote('Hello!', [['t', 'greeting']]);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><code>uploadPhotoToIPFS(file)</code></h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Description:</strong> Upload a file to IPFS and publish metadata to NOSTR</p>
+                            <p><strong>Parameters:</strong></p>
+                            <ul>
+                                <li><code>file</code> (File): File object from input</li>
+                            </ul>
+                            <p><strong>Returns:</strong> Promise resolving to upload result with CID, IPFS URL, and metadata</p>
+                            <pre class="bg-dark text-light p-3 rounded mt-3"><code>const result = await uploadPhotoToIPFS(file);
+console.log(result.cid, result.ipfs_url, result.info);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><code>hexToNpub(hex)</code> / <code>npubToHex(npub)</code></h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Description:</strong> Convert between hex and npub (bech32) formats</p>
+                            <p><strong>Parameters:</strong></p>
+                            <ul>
+                                <li><code>hex</code> (string): 64-character hex pubkey</li>
+                                <li><code>npub</code> (string): bech32-encoded npub</li>
+                            </ul>
+                            <p><strong>Returns:</strong> Converted string or null if invalid</p>
+                            <pre class="bg-dark text-light p-3 rounded mt-3"><code>const npub = hexToNpub('60c1133d148ae0d2c4b42506fb4abacac903032680b178010c942bd538643f78');
+const hex = npubToHex(npub);</code></pre>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><code>sendLike(eventId, authorPubkey, content = "+")</code></h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Description:</strong> Send a reaction (like) to an event (NIP-25)</p>
+                            <p><strong>Parameters:</strong></p>
+                            <ul>
+                                <li><code>eventId</code> (string): ID of the event to react to</li>
+                                <li><code>authorPubkey</code> (string): Author's pubkey</li>
+                                <li><code>content</code> (string, optional): Reaction content (default: "+")</li>
+                            </ul>
+                            <p><strong>Returns:</strong> Promise resolving to published reaction event</p>
+                            <pre class="bg-dark text-light p-3 rounded mt-3"><code>await sendLike(eventId, authorPubkey, '❤️');</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Keep existing test modules below tabs -->
         <!-- Module 1: MULTIPASS Authentication -->
         <div class="module-card">
             <div class="module-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#module1Content" aria-expanded="true">
