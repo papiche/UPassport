@@ -2610,23 +2610,39 @@
                 
                 let userHex = null;
                 
+                // Check if it's already hex (64 hex characters)
                 if (userPubkey && userPubkey.length === 64 && /^[0-9a-fA-F]{64}$/.test(userPubkey)) {
                     userHex = userPubkey.toLowerCase();
+                    console.log('✅ userPubkey is already in hex format');
                 } else if (userPubkey && userPubkey.startsWith('npub1')) {
-                    if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
-                        const decoded = NostrTools.nip19.decode(userPubkey);
-                        if (decoded.type === 'npub') {
-                            const data = decoded.data;
-                            if (data instanceof Uint8Array) {
-                                userHex = Array.from(data)
-                                    .map(b => b.toString(16).padStart(2, '0'))
-                                    .join('');
-                            } else if (typeof data === 'string') {
-                                userHex = data;
+                    // It's a npub, need to convert to hex
+                    if (typeof npubToHex === 'function') {
+                        userHex = npubToHex(userPubkey);
+                    } else if (typeof window !== 'undefined' && typeof window.npubToHex === 'function') {
+                        userHex = window.npubToHex(userPubkey);
+                    } else {
+                        // Fallback: try to decode npub manually using NostrTools
+                        try {
+                            if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                                const decoded = NostrTools.nip19.decode(userPubkey);
+                                if (decoded.type === 'npub') {
+                                    // decoded.data is a Uint8Array, convert to hex string
+                                    const data = decoded.data;
+                                    if (data instanceof Uint8Array) {
+                                        userHex = Array.from(data)
+                                            .map(b => b.toString(16).padStart(2, '0'))
+                                            .join('');
+                                    } else if (typeof data === 'string') {
+                                        userHex = data;
+                                    }
+                                }
                             }
+                        } catch (e) {
+                            console.warn('⚠️ Could not decode npub:', e);
                         }
                     }
                 } else {
+                    // Try to use as-is (might be hex already)
                     userHex = userPubkey;
                 }
                 
@@ -2646,15 +2662,48 @@
                     throw new Error('Invalid network data received');
                 }
                 
+                // Helper function to convert hex pubkey to npub if needed
+                const getNpubFromNode = (node) => {
+                    // If npub already exists, use it
+                    if (node.npub && node.npub !== 'missing' && node.npub.startsWith('npub1')) {
+                        return node.npub;
+                    }
+                    
+                    // If we have a pubkey in hex format, convert it to npub
+                    if (node.pubkey && node.pubkey.length === 64 && /^[0-9a-fA-F]{64}$/.test(node.pubkey)) {
+                        // Try to use hexToNpub from common.js
+                        if (typeof hexToNpub === 'function') {
+                            const npub = hexToNpub(node.pubkey);
+                            if (npub) return npub;
+                        } else if (typeof window !== 'undefined' && typeof window.hexToNpub === 'function') {
+                            const npub = window.hexToNpub(node.pubkey);
+                            if (npub) return npub;
+                        } else if (typeof NostrTools !== 'undefined' && NostrTools.nip19 && NostrTools.nip19.npubEncode) {
+                            // Fallback: use NostrTools directly
+                            try {
+                                return NostrTools.nip19.npubEncode(node.pubkey);
+                            } catch (e) {
+                                console.warn('⚠️ Error converting pubkey to npub:', e);
+                            }
+                        }
+                    }
+                    
+                    return null;
+                };
+                
                 const contactsList = network.nodes
-                    .filter(node => node.npub && (node.mutual || node.is_follower || node.is_followed))
-                    .map(node => ({
-                        npub: node.npub,
-                        name: node.display_name || node.name || 'Unknown',
-                        email: node.email || '',
-                        picture: node.picture || '',
-                        mutual: node.mutual || false
-                    }))
+                    .filter(node => (node.mutual || node.is_follower || node.is_followed))
+                    .map(node => {
+                        const npub = getNpubFromNode(node);
+                        return {
+                            npub: npub,
+                            name: node.display_name || node.name || 'Unknown',
+                            email: node.email || '',
+                            picture: node.picture || '',
+                            mutual: node.mutual || false
+                        };
+                    })
+                    .filter(contact => contact.npub !== null) // Only keep contacts with valid npub
                     .sort((a, b) => {
                         if (a.mutual && !b.mutual) return -1;
                         if (!a.mutual && b.mutual) return 1;
@@ -3062,24 +3111,54 @@
                     });
                 });
                 
-                // Filter contacts that have npub and are mutual connections
-                const nodesWithNpub = network.nodes.filter(node => node.npub);
-                console.log('📡 Nodes with npub:', nodesWithNpub.length);
+                // Helper function to convert hex pubkey to npub if needed
+                const getNpubFromNode = (node) => {
+                    // If npub already exists, use it
+                    if (node.npub && node.npub !== 'missing' && node.npub.startsWith('npub1')) {
+                        return node.npub;
+                    }
+                    
+                    // If we have a pubkey in hex format, convert it to npub
+                    if (node.pubkey && node.pubkey.length === 64 && /^[0-9a-fA-F]{64}$/.test(node.pubkey)) {
+                        // Try to use hexToNpub from common.js
+                        if (typeof hexToNpub === 'function') {
+                            const npub = hexToNpub(node.pubkey);
+                            if (npub) return npub;
+                        } else if (typeof window !== 'undefined' && typeof window.hexToNpub === 'function') {
+                            const npub = window.hexToNpub(node.pubkey);
+                            if (npub) return npub;
+                        } else if (typeof NostrTools !== 'undefined' && NostrTools.nip19 && NostrTools.nip19.npubEncode) {
+                            // Fallback: use NostrTools directly
+                            try {
+                                return NostrTools.nip19.npubEncode(node.pubkey);
+                            } catch (e) {
+                                console.warn('⚠️ Error converting pubkey to npub:', e);
+                            }
+                        }
+                    }
+                    
+                    return null;
+                };
                 
+                // Filter contacts that have connection (mutual/follower/followed) and convert pubkey to npub
                 const nodesWithConnection = network.nodes.filter(node => 
-                    node.npub && (node.mutual || node.is_follower || node.is_followed)
+                    (node.mutual || node.is_follower || node.is_followed)
                 );
-                console.log('📡 Nodes with npub AND connection (mutual/follower/followed):', nodesWithConnection.length);
+                console.log('📡 Nodes with connection (mutual/follower/followed):', nodesWithConnection.length);
                 
                 contactsList = network.nodes
-                    .filter(node => node.npub && (node.mutual || node.is_follower || node.is_followed))
-                    .map(node => ({
-                        npub: node.npub,
-                        name: node.display_name || node.name || 'Unknown',
-                        email: node.email || '',
-                        picture: node.picture || '',
-                        mutual: node.mutual || false
-                    }))
+                    .filter(node => (node.mutual || node.is_follower || node.is_followed))
+                    .map(node => {
+                        const npub = getNpubFromNode(node);
+                        return {
+                            npub: npub,
+                            name: node.display_name || node.name || 'Unknown',
+                            email: node.email || '',
+                            picture: node.picture || '',
+                            mutual: node.mutual || false
+                        };
+                    })
+                    .filter(contact => contact.npub !== null) // Only keep contacts with valid npub
                     .sort((a, b) => {
                         // Sort by mutual first, then by name
                         if (a.mutual && !b.mutual) return -1;
