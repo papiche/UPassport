@@ -59,12 +59,25 @@
         
         .status-indicator {
             display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.25rem;
             padding: 0.5rem 1rem;
             background: rgba(255, 255, 255, 0.2);
             border-radius: 20px;
             font-size: 0.9rem;
+            min-width: 150px;
+            transition: background 0.2s;
+        }
+        
+        .status-indicator:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .status-indicator > div:first-child {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
         
         .status-dot {
@@ -373,13 +386,16 @@
                 <h1><i class="bi bi-terminal"></i> NOSTR Console</h1>
                 <small style="opacity: 0.9;">Real-time event monitoring and inspection</small>
             </div>
-            <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
                 <a href="/dev" class="btn btn-sm btn-light" style="text-decoration: none;">
                     <i class="bi bi-code-square"></i> Developer Guide
                 </a>
-                <div class="status-indicator">
-                    <span class="status-dot" id="statusDot"></span>
-                    <span id="statusText">Disconnected</span>
+                <div class="status-indicator" id="statusIndicator" style="cursor: pointer;" onclick="showConnectionDetails()" title="Click for connection details">
+                    <div>
+                        <span class="status-dot" id="statusDot"></span>
+                        <span id="statusText">Disconnected</span>
+                    </div>
+                    <small id="statusDetails" style="display: block; font-size: 0.75rem; opacity: 0.8;">Not connected</small>
                 </div>
             </div>
         </div>
@@ -387,9 +403,16 @@
         <!-- Filter Panel -->
         <div class="filter-panel">
             <div class="filter-group">
+                <label><i class="bi bi-clock-history"></i> Time Range:</label>
+                <span class="badge bg-info" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;">
+                    Last 48 hours
+                </span>
+            </div>
+            
+            <div class="filter-group">
                 <label><i class="bi bi-funnel"></i> Kind:</label>
                 <select id="filterKind" class="form-select form-select-sm" style="width: auto;">
-                    <option value="">All</option>
+                    <option value="">All Kinds</option>
                     <option value="0">0 - Metadata</option>
                     <option value="1">1 - Text Note</option>
                     <option value="3">3 - Contacts</option>
@@ -432,6 +455,8 @@
             <div class="empty-state">
                 <i class="bi bi-inbox"></i>
                 <p>No events yet. Connect to a relay to start monitoring.</p>
+                <small style="opacity: 0.7;">The console will automatically connect when common.js is loaded.</small>
+                <small style="opacity: 0.6; display: block; margin-top: 0.5rem;">Monitoring events from last 48 hours (all kinds)</small>
             </div>
         </div>
         
@@ -503,10 +528,12 @@
             if (window.nostr) {
                 window.nostr.getPublicKey().then(pubkey => {
                     currentUserPubkey = pubkey;
-                    updateStatus('Ready to connect', false);
+                    updateStatus('Ready to connect', false, 'NOSTR extension detected');
                 }).catch(() => {
-                    updateStatus('Extension not available', false);
+                    updateStatus('Extension not available', false, 'No NOSTR extension found');
                 });
+            } else {
+                updateStatus('Initializing...', false, 'Loading common.js...');
             }
             
             // Setup filter listeners
@@ -536,7 +563,7 @@
             }
             
             console.error('[CONSOLE] common.js not loaded after timeout');
-            updateStatus('common.js not loaded', false);
+            updateStatus('common.js not loaded', false, 'Failed to load common.js after 5 seconds');
         }
         
         // Connect to NOSTR relay using common.js
@@ -587,17 +614,29 @@
                     });
                 }
                 
-                // Subscribe to all events using window.nostrRelay from common.js
-                subscription = window.nostrRelay.sub([{}], {
+                // Calculate timestamp for last 48 hours
+                const since48h = Math.floor((Date.now() - 48 * 60 * 60 * 1000) / 1000);
+                
+                // Subscribe to all events from last 48 hours using window.nostrRelay from common.js
+                // Empty filter {} means all kinds, but we add 'since' to limit to last 48h
+                subscription = window.nostrRelay.sub([{
+                    since: since48h,
+                    limit: 500  // Limit initial fetch to 500 events
+                }], {
                     onevent: (event) => {
                         addEvent(event);
                     },
                     oneose: () => {
-                        updateStatus('Connected', true);
+                        const relayUrl = window.nostrRelay?.url || (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 'N/A';
+                        const userPubkey = currentUserPubkey || window.userPubkey;
+                        const details = userPubkey ? 
+                            `Relay: ${relayUrl} | User: ${hexToNpub(userPubkey).substring(0, 20)}... | Last 48h` :
+                            `Relay: ${relayUrl} | Public read | Last 48h`;
+                        updateStatus('Connected', true, details);
                     },
                     onclose: (reason) => {
                         console.warn('Subscription closed:', reason);
-                        updateStatus('Disconnected', false);
+                        updateStatus('Disconnected', false, `Connection closed: ${reason || 'Unknown reason'}`);
                     }
                 });
                 
@@ -605,7 +644,7 @@
                 
             } catch (error) {
                 console.error('[CONSOLE] Connection error:', error);
-                updateStatus('Connection failed', false);
+                updateStatus('Connection failed', false, `Error: ${error.message || 'Unknown error'}`);
             }
         }
         
@@ -686,10 +725,46 @@
             const listContainer = document.getElementById('eventsList');
             
             if (filteredEvents.length === 0) {
+                // Determine connection level for empty state message
+                let connectionLevel = 'disconnected';
+                if (window.isNostrConnected) {
+                    connectionLevel = window.userPubkey || currentUserPubkey ? 'authenticated' : 'connected';
+                }
+                
+                let message = '';
+                let icon = 'bi-inbox';
+                
+                if (events.length === 0) {
+                    // No events at all
+                    if (connectionLevel === 'disconnected') {
+                        message = 'Not connected to relay. Waiting for connection...';
+                        icon = 'bi-wifi-off';
+                    } else if (connectionLevel === 'connected') {
+                        message = 'Connected to relay. Monitoring events from last 48 hours...';
+                        icon = 'bi-hourglass-split';
+                    } else if (connectionLevel === 'authenticated') {
+                        message = 'Connected and authenticated. Monitoring events from last 48 hours (all kinds)...';
+                        icon = 'bi-broadcast';
+                    } else {
+                        message = 'No events yet. Connect to a relay to start monitoring.';
+                        icon = 'bi-inbox';
+                    }
+                } else {
+                    // Events exist but filtered out
+                    message = `No events match the current filters. (${events.length} total events)`;
+                    icon = 'bi-funnel';
+                }
+                
                 listContainer.innerHTML = `
                     <div class="empty-state">
-                        <i class="bi bi-inbox"></i>
-                        <p>No events match the current filters.</p>
+                        <i class="bi ${icon}"></i>
+                        <p>${message}</p>
+                        ${events.length === 0 && connectionLevel === 'disconnected' ? 
+                            '<small style="opacity: 0.7;">The console will automatically connect when common.js is loaded.</small>' : 
+                            events.length > 0 ? 
+                            '<small style="opacity: 0.7;">Try adjusting your filters to see more events.</small>' : 
+                            ''
+                        }
                     </div>
                 `;
                 return;
@@ -878,15 +953,167 @@
             document.getElementById('filteredEvents').textContent = filteredEvents.length;
         }
         
-        // Update status
-        function updateStatus(text, connected) {
-            document.getElementById('statusText').textContent = text;
-            const dot = document.getElementById('statusDot');
-            if (connected) {
-                dot.classList.add('connected');
-            } else {
-                dot.classList.remove('connected');
+        // Update status with detailed connection level
+        function updateStatus(text, connected, details = null) {
+            const statusText = document.getElementById('statusText');
+            const statusDetails = document.getElementById('statusDetails');
+            const statusDot = document.getElementById('statusDot');
+            const statusIndicator = document.getElementById('statusIndicator');
+            
+            statusText.textContent = text;
+            
+            // Determine connection level and details
+            let connectionLevel = 'disconnected';
+            let relayUrl = 'N/A';
+            let userPubkey = null;
+            let authStatus = null;
+            
+            if (window.nostrRelay) {
+                // Try to get relay URL
+                if (window.nostrRelay.url) {
+                    relayUrl = window.nostrRelay.url;
+                } else if (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) {
+                    relayUrl = window.DEFAULT_RELAYS[0];
+                }
             }
+            
+            if (currentUserPubkey) {
+                userPubkey = currentUserPubkey.substring(0, 16) + '...';
+            }
+            
+            if (connected && window.isNostrConnected) {
+                connectionLevel = 'connected';
+                if (window.userPubkey) {
+                    connectionLevel = 'authenticated';
+                }
+            }
+            
+            // Update dot color based on connection level
+            statusDot.classList.remove('connected', 'warning', 'error');
+            if (connectionLevel === 'authenticated') {
+                statusDot.classList.add('connected');
+                statusDetails.textContent = details || `Relay: ${relayUrl} | User: ${userPubkey || 'Anonymous'}`;
+            } else if (connectionLevel === 'connected') {
+                statusDot.classList.add('connected');
+                statusDetails.textContent = details || `Relay: ${relayUrl} | Public read only`;
+            } else {
+                statusDot.classList.remove('connected');
+                statusDetails.textContent = details || 'Not connected to relay';
+            }
+            
+            // Update empty state message based on connection
+            updateEmptyState(connectionLevel);
+        }
+        
+        // Update empty state message based on connection level
+        function updateEmptyState(connectionLevel) {
+            const listContainer = document.getElementById('eventsList');
+            
+            // Only update if empty state is shown
+            if (listContainer.querySelector('.empty-state')) {
+                let message = '';
+                let icon = 'bi-inbox';
+                
+                if (connectionLevel === 'disconnected') {
+                    message = 'Not connected to relay. Waiting for connection...';
+                    icon = 'bi-wifi-off';
+                } else if (connectionLevel === 'connected') {
+                    message = 'Connected to relay. Waiting for events...';
+                    icon = 'bi-hourglass-split';
+                } else if (connectionLevel === 'authenticated') {
+                    message = 'Connected and authenticated. Monitoring events...';
+                    icon = 'bi-broadcast';
+                } else {
+                    message = 'No events yet. Connect to a relay to start monitoring.';
+                    icon = 'bi-inbox';
+                }
+                
+                const emptyState = listContainer.querySelector('.empty-state');
+                if (emptyState) {
+                    emptyState.innerHTML = `
+                        <i class="bi ${icon}"></i>
+                        <p>${message}</p>
+                        ${connectionLevel === 'disconnected' ? '<small style="opacity: 0.7;">The console will automatically connect when common.js is loaded.</small>' : ''}
+                    `;
+                }
+            }
+        }
+        
+        // Show connection details modal
+        function showConnectionDetails() {
+            const relayUrl = window.nostrRelay?.url || (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 'N/A';
+            const isConnected = window.isNostrConnected || false;
+            const userPubkey = currentUserPubkey || window.userPubkey || null;
+            const userNpub = userPubkey ? hexToNpub(userPubkey) : null;
+            const eventsCount = events.length;
+            const subscriptionActive = subscription !== null;
+            
+            let details = `
+                <div style="font-family: monospace; font-size: 0.9rem;">
+                    <div class="mb-2"><strong>Connection Status:</strong></div>
+                    <div class="mb-3">
+                        <span class="badge ${isConnected ? 'bg-success' : 'bg-secondary'}">
+                            ${isConnected ? 'Connected' : 'Disconnected'}
+                        </span>
+                    </div>
+                    
+                    <div class="mb-2"><strong>Relay URL:</strong></div>
+                    <div class="mb-3"><code>${relayUrl}</code></div>
+                    
+                    ${userPubkey ? `
+                        <div class="mb-2"><strong>User Pubkey:</strong></div>
+                        <div class="mb-3"><code>${userNpub || userPubkey.substring(0, 32) + '...'}</code></div>
+                    ` : '<div class="mb-3 text-muted">No user connected</div>'}
+                    
+                    <div class="mb-2"><strong>Subscription:</strong></div>
+                    <div class="mb-3">
+                        <span class="badge ${subscriptionActive ? 'bg-success' : 'bg-secondary'}">
+                            ${subscriptionActive ? 'Active' : 'Inactive'}
+                        </span>
+                    </div>
+                    
+                    <div class="mb-2"><strong>Events Received:</strong></div>
+                    <div class="mb-3"><strong>${eventsCount}</strong> total events</div>
+                    
+                    <div class="mb-2"><strong>Connection Level:</strong></div>
+                    <div class="mb-3">
+                        ${isConnected && userPubkey ? 
+                            '<span class="badge bg-success">🟢 Full Access (Authenticated)</span>' :
+                            isConnected ? 
+                            '<span class="badge bg-info">🔵 Public Read Only</span>' :
+                            '<span class="badge bg-secondary">⚫ Disconnected</span>'
+                        }
+                    </div>
+                </div>
+            `;
+            
+            // Create or update modal
+            let modal = document.getElementById('connectionDetailsModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'connectionDetailsModal';
+                modal.className = 'modal fade';
+                modal.innerHTML = `
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title"><i class="bi bi-info-circle"></i> Connection Details</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body" id="connectionDetailsContent">
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+            
+            document.getElementById('connectionDetailsContent').innerHTML = details;
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
         }
         
         // Utility functions
