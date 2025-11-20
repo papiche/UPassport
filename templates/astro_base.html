@@ -6,6 +6,10 @@
     <title>🌍 UPlanet Messenger - Nostr + IPFS</title>
     <!-- Nostr integration -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    <!-- Common.js with enhanced UPlanet NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    <!-- Nostr Private Messaging - Functions for encrypted direct and group messages -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.private.js"></script>
     <!-- Markdown parser for Kind 30023 -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/marked.min.js"></script>
     <!-- Leaflet CSS -->
@@ -739,6 +743,45 @@
                 </div>
             </div>
             
+            <!-- Encryption Options -->
+            <div class="nostr-section" style="margin: 15px 0; padding: 15px;">
+                <div style="margin-bottom: 10px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="encrypt-message" style="width: auto;">
+                        <span>🔐 Send as Private Message (Encrypted)</span>
+                    </label>
+                </div>
+                <div id="encryption-options" style="display: none; margin-top: 15px;">
+                    <div style="margin-bottom: 10px;">
+                        <label class="form-label" style="font-size: 0.9em;">Recipients (select from your follows):</label>
+                        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                            <button type="button" class="map-button" id="load-follows-btn" style="width: auto; padding: 8px 16px;">
+                                👥 Load Follows
+                            </button>
+                            <button type="button" class="map-button secondary" id="add-myself-btn" style="width: auto; padding: 8px 16px;">
+                                📝 Add Myself
+                            </button>
+                        </div>
+                        <div id="contacts-list-container" style="display: none; margin-bottom: 10px;">
+                            <select id="contacts-select" size="5" style="width: 100%; max-height: 150px; padding: 8px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.05); color: #e2e8f0;">
+                                <option value="" disabled selected>Click "Load Follows" to fetch your NOSTR follows (kind 3)</option>
+                            </select>
+                            <button type="button" class="map-button" id="add-selected-contact-btn" style="width: 100%; margin-top: 10px; padding: 8px 16px;" disabled>
+                                ➕ Add Selected Contact
+                            </button>
+                        </div>
+                        <textarea id="recipients-list" rows="3" placeholder="npub1...&#10;npub1...&#10;(One recipient per line)" style="width: 100%; padding: 8px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.05); color: #e2e8f0; font-family: monospace; font-size: 0.85em;"></textarea>
+                        <small style="color: #94a3b8; font-size: 0.85em; display: block; margin-top: 5px;">
+                            Enter recipient public keys (npub format). Each recipient will be able to decrypt the message.
+                        </small>
+                        <div id="selected-recipients" style="display: none; margin-top: 10px;">
+                            <label style="font-size: 0.9em; margin-bottom: 5px; display: block;">Selected recipients:</label>
+                            <div id="selected-recipients-list" style="display: flex; flex-wrap: wrap; gap: 5px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Kind Selection -->
             <div class="kind-selection">
                 <label>Event Kind:</label>
@@ -966,6 +1009,24 @@
             });
             
             document.getElementById('get-location').addEventListener('click', getCurrentLocationForMap);
+            
+            // Initialize recipient selection
+            initializeRecipientSelection();
+            
+            // Encryption checkbox handler
+            const encryptCheckbox = document.getElementById('encrypt-message');
+            const encryptionOptions = document.getElementById('encryption-options');
+            if (encryptCheckbox && encryptionOptions) {
+                encryptCheckbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        encryptionOptions.style.display = 'block';
+                    } else {
+                        encryptionOptions.style.display = 'none';
+                        selectedRecipients.clear();
+                        updateSelectedRecipientsDisplay();
+                    }
+                });
+            }
             
             // Sync display inputs
             document.getElementById('lat-display').addEventListener('change', function() {
@@ -1265,6 +1326,10 @@
             sendBtn.textContent = "Sending...";
             
             try {
+                // Check if encryption is enabled
+                const isEncrypted = document.getElementById('encrypt-message')?.checked || false;
+                const recipientsText = document.getElementById('recipients-list')?.value || '';
+                
                 // Get message content
                 let content = document.getElementById('messageContent').value.trim();
                 
@@ -1296,36 +1361,75 @@
                     tags.push(['g', `${lat},${lon}`]);
                 }
                 
-                // Get event kind
-                const kind = parseInt(document.querySelector('input[name="event-kind"]:checked').value);
-                
-                // Create event
-                const eventTemplate = {
-                    kind: kind,
-                    created_at: Math.floor(Date.now() / 1000),
-                    tags: tags,
-                    content: content
-                };
-                
-                // For kind 30023, add required tags
-                if (kind === 30023) {
-                    eventTemplate.tags.push(['d', Date.now().toString()]);
-                    eventTemplate.tags.push(['title', content.substring(0, 50)]);
-                }
-                
-                // Sign event
-                let signedEvent;
-                if (authMode === 'extension') {
-                    signedEvent = await window.nostr.signEvent(eventTemplate);
+                // If encryption is enabled, send as private message
+                if (isEncrypted) {
+                    // Parse recipients
+                    const recipientsList = recipientsText.split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line && line.startsWith('npub'));
+                    
+                    if (recipientsList.length === 0) {
+                        throw new Error('At least one recipient is required for encrypted messages');
+                    }
+                    
+                    // Check if NostrPrivate is available
+                    if (typeof window.NostrPrivate === 'undefined' || !window.NostrPrivate.sendEncryptedDirectMessage) {
+                        throw new Error('NostrPrivate library not loaded. Please refresh the page.');
+                    }
+                    
+                    // Send encrypted message to each recipient
+                    const results = [];
+                    for (const recipient of recipientsList) {
+                        try {
+                            const result = await window.NostrPrivate.sendEncryptedDirectMessage(recipient, content, {
+                                useGiftWrap: false
+                            });
+                            results.push(result);
+                            console.log('✅ Encrypted message sent to:', recipient.substring(0, 8) + '...');
+                        } catch (error) {
+                            console.error(`❌ Error sending to ${recipient}:`, error);
+                            // Continue with other recipients
+                        }
+                    }
+                    
+                    if (results.length === 0) {
+                        throw new Error('Failed to send encrypted message to any recipient');
+                    }
+                    
+                    alert(`✅ Encrypted message sent successfully to ${results.length} recipient(s)!`);
                 } else {
-                    signedEvent = NostrTools.finishEvent(eventTemplate, userPrivkey);
+                    // Send as public message (original behavior)
+                    // Get event kind
+                    const kind = parseInt(document.querySelector('input[name="event-kind"]:checked').value);
+                    
+                    // Create event
+                    const eventTemplate = {
+                        kind: kind,
+                        created_at: Math.floor(Date.now() / 1000),
+                        tags: tags,
+                        content: content
+                    };
+                    
+                    // For kind 30023, add required tags
+                    if (kind === 30023) {
+                        eventTemplate.tags.push(['d', Date.now().toString()]);
+                        eventTemplate.tags.push(['title', content.substring(0, 50)]);
+                    }
+                    
+                    // Sign event
+                    let signedEvent;
+                    if (authMode === 'extension') {
+                        signedEvent = await window.nostr.signEvent(eventTemplate);
+                    } else {
+                        signedEvent = NostrTools.finishEvent(eventTemplate, userPrivkey);
+                    }
+                    
+                    // Publish event
+                    console.log("Publishing event:", signedEvent);
+                    await nostrRelay.publish(signedEvent);
+                    
+                    alert("✅ Message sent successfully!");
                 }
-                
-                // Publish event
-                console.log("Publishing event:", signedEvent);
-                await nostrRelay.publish(signedEvent);
-                
-                alert("✅ Message sent successfully!");
                 
                 // Reset form
                 document.getElementById('messageContent').value = '';
@@ -1337,6 +1441,15 @@
                 selectedFile = null;
                 uploadedFileUrl = null;
                 userHasInteractedWithMap = false;
+                
+                // Reset encryption
+                if (isEncrypted) {
+                    document.getElementById('encrypt-message').checked = false;
+                    document.getElementById('encryption-options').style.display = 'none';
+                    document.getElementById('recipients-list').value = '';
+                    selectedRecipients.clear();
+                    updateSelectedRecipientsDisplay();
+                }
                 
                 // Uncheck all tags except #BRO
                 document.querySelectorAll('.tag-checkbox input[type="checkbox"]').forEach(cb => {
@@ -1730,6 +1843,237 @@
                 }
             }
         });
+        
+        // Initialize recipient selection
+        function initializeRecipientSelection() {
+            const loadFollowsBtn = document.getElementById('load-follows-btn');
+            const addMyselfBtn = document.getElementById('add-myself-btn');
+            const contactsSelect = document.getElementById('contacts-select');
+            const addSelectedBtn = document.getElementById('add-selected-contact-btn');
+            const contactsContainer = document.getElementById('contacts-list-container');
+            
+            if (!loadFollowsBtn || !contactsSelect || !addSelectedBtn) {
+                console.warn('⚠️ Recipient selection UI elements not found');
+                return;
+            }
+            
+            // Load follows button
+            loadFollowsBtn.addEventListener('click', async () => {
+                await loadNostrFollows();
+            });
+            
+            // Add myself button
+            if (addMyselfBtn) {
+                addMyselfBtn.addEventListener('click', () => {
+                    addMyselfAsRecipient();
+                });
+            }
+            
+            // Contact selection
+            contactsSelect.addEventListener('change', (e) => {
+                addSelectedBtn.disabled = !e.target.value;
+            });
+            
+            // Add selected contact
+            addSelectedBtn.addEventListener('click', () => {
+                const selectedOption = contactsSelect.options[contactsSelect.selectedIndex];
+                if (selectedOption && selectedOption.value) {
+                    const npub = selectedOption.value;
+                    const name = selectedOption.text;
+                    addRecipient(npub, name);
+                }
+            });
+            
+            // Double-click to add contact
+            contactsSelect.addEventListener('dblclick', () => {
+                if (!addSelectedBtn.disabled) {
+                    addSelectedBtn.click();
+                }
+            });
+        }
+        
+        // Load NOSTR follows
+        async function loadNostrFollows() {
+            const loadBtn = document.getElementById('load-follows-btn');
+            const contactsSelect = document.getElementById('contacts-select');
+            const contactsContainer = document.getElementById('contacts-list-container');
+            
+            if (!userPubkey) {
+                alert('Please connect to NOSTR first to load your follows.');
+                return;
+            }
+            
+            try {
+                loadBtn.disabled = true;
+                loadBtn.textContent = '🔄 Loading...';
+                
+                // Ensure NOSTR connection
+                if (typeof ensureNostrConnection === 'function') {
+                    await ensureNostrConnection();
+                }
+                
+                // Check if fetchUserFollowsWithMetadata is available
+                if (typeof fetchUserFollowsWithMetadata !== 'function') {
+                    throw new Error('fetchUserFollowsWithMetadata function not available. Make sure common.js is loaded.');
+                }
+                
+                console.log('📡 Fetching NOSTR follows (kind 3) for:', userPubkey.substring(0, 16) + '...');
+                
+                // Fetch follows with metadata
+                const follows = await fetchUserFollowsWithMetadata(userPubkey, {
+                    timeout: 5000,
+                    includeProfiles: true
+                });
+                
+                console.log('✅ Loaded', follows.length, 'follows');
+                
+                if (follows.length === 0) {
+                    alert('No follows found. You can follow users on NOSTR to see them here.');
+                    contactsSelect.innerHTML = '<option value="" disabled>No follows found</option>';
+                    contactsContainer.style.display = 'block';
+                    loadBtn.disabled = false;
+                    loadBtn.textContent = '👥 Load Follows';
+                    return;
+                }
+                
+                // Populate contacts list
+                contactsList = follows.map(follow => ({
+                    npub: follow.npub,
+                    name: follow.name || follow.display_name || 'Unknown',
+                    email: follow.email || '',
+                    picture: follow.picture || '',
+                    mutual: false
+                }));
+                
+                // Update select dropdown
+                contactsSelect.innerHTML = '';
+                contactsList.forEach(contact => {
+                    const option = document.createElement('option');
+                    option.value = contact.npub;
+                    const displayName = contact.name || contact.email || contact.npub.substring(0, 16) + '...';
+                    option.textContent = `${displayName}${contact.email ? ` (${contact.email})` : ''}`;
+                    option.dataset.name = contact.name || '';
+                    option.dataset.email = contact.email || '';
+                    contactsSelect.appendChild(option);
+                });
+                
+                // Show container
+                contactsContainer.style.display = 'block';
+                
+                console.log(`✅ Loaded ${follows.length} follow${follows.length !== 1 ? 's' : ''} from your NOSTR follow list (kind 3)`);
+                
+            } catch (error) {
+                console.error('❌ Error loading NOSTR follows:', error);
+                alert(`Failed to load follows: ${error.message}`);
+                contactsSelect.innerHTML = '<option value="" disabled>Error loading follows</option>';
+            } finally {
+                loadBtn.disabled = false;
+                loadBtn.textContent = '👥 Load Follows';
+            }
+        }
+        
+        // Add myself as recipient
+        function addMyselfAsRecipient() {
+            if (!userPubkey) {
+                alert('Please connect to NOSTR first to add yourself as recipient.');
+                return;
+            }
+            
+            // Convert hex to npub if needed
+            let myNpub = userPubkey;
+            if (userPubkey.length === 64 && /^[0-9a-fA-F]{64}$/.test(userPubkey)) {
+                // It's hex, need to convert to npub
+                if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                    try {
+                        myNpub = NostrTools.nip19.npubEncode(userPubkey);
+                    } catch (e) {
+                        console.error('❌ Error converting hex to npub:', e);
+                        alert('Could not convert your pubkey to npub format. Please enter it manually.');
+                        return;
+                    }
+                } else {
+                    alert('NostrTools not available. Please enter your npub manually.');
+                    return;
+                }
+            } else if (!userPubkey.startsWith('npub1')) {
+                alert('Invalid pubkey format. Expected hex or npub.');
+                return;
+            }
+            
+            // Add to recipients list
+            addRecipient(myNpub, 'Myself');
+        }
+        
+        // Add recipient
+        function addRecipient(npub, name) {
+            if (selectedRecipients.has(npub)) {
+                alert('This recipient is already added.');
+                return;
+            }
+            
+            selectedRecipients.add(npub);
+            
+            // Add to textarea
+            const recipientsTextarea = document.getElementById('recipients-list');
+            if (recipientsTextarea) {
+                const currentValue = recipientsTextarea.value.trim();
+                const newValue = currentValue ? `${currentValue}\n${npub}` : npub;
+                recipientsTextarea.value = newValue;
+            }
+            
+            // Update display
+            updateSelectedRecipientsDisplay();
+            
+            console.log('✅ Added recipient:', name || npub.substring(0, 8) + '...');
+        }
+        
+        // Remove recipient
+        function removeRecipient(npub) {
+            selectedRecipients.delete(npub);
+            
+            // Remove from textarea
+            const recipientsTextarea = document.getElementById('recipients-list');
+            if (recipientsTextarea) {
+                const lines = recipientsTextarea.value.split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line && line !== npub);
+                recipientsTextarea.value = lines.join('\n');
+            }
+            
+            // Update display
+            updateSelectedRecipientsDisplay();
+        }
+        
+        // Update selected recipients display
+        function updateSelectedRecipientsDisplay() {
+            const selectedContainer = document.getElementById('selected-recipients');
+            const selectedList = document.getElementById('selected-recipients-list');
+            
+            if (selectedContainer && selectedList) {
+                selectedList.innerHTML = '';
+                
+                if (selectedRecipients.size === 0) {
+                    selectedContainer.style.display = 'none';
+                    return;
+                }
+                
+                selectedContainer.style.display = 'block';
+                
+                selectedRecipients.forEach(npub => {
+                    const badge = document.createElement('span');
+                    badge.style.cssText = 'display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; background: rgba(74, 222, 128, 0.2); border: 1px solid rgba(74, 222, 128, 0.4); border-radius: 12px; font-size: 0.85em;';
+                    badge.innerHTML = `
+                        ${npub.substring(0, 8)}...
+                        <span style="cursor: pointer; color: #ef4444; font-weight: bold;" onclick="removeRecipient('${npub}')">×</span>
+                    `;
+                    badge.dataset.npub = npub;
+                    selectedList.appendChild(badge);
+                });
+            }
+        }
+        
+        // Make removeRecipient available globally
+        window.removeRecipient = removeRecipient;
     </script>
 </body>
 </html>

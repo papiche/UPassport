@@ -19,6 +19,9 @@
 
     <!-- Common.js with enhanced UPlanet NOSTR functions -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    
+    <!-- Nostr Private Messaging - Functions for encrypted direct and group messages -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.private.js"></script>
     <!-- Define showAlert function for common.js compatibility -->
     <script>
         // Define showAlert function if not already defined (for common.js compatibility)
@@ -1302,6 +1305,10 @@
                     <a href="/vocals-read?html=1" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2">
                         <span>🎧 Read Messages</span>
                     </a>
+                    <button type="button" class="btn btn-outline-info btn-sm d-flex align-items-center gap-2" 
+                            onclick="openVoiceRoomManager()" title="Manage voice rooms">
+                        <span>🎤 Voice Rooms</span>
+                    </button>
                 </div>
                 
                 <!-- NOSTR Connection Status -->
@@ -1435,6 +1442,33 @@
                                       placeholder="Describe your voice message..." rows="3"></textarea>
                         </div>
                         
+                        <!-- Voice Room Options -->
+                        <div class="mb-3">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="use-voice-room" name="use_voice_room">
+                                <label class="form-check-label text-white" for="use-voice-room">
+                                    🎤 Send to Voice Room (Group Chat)
+                                </label>
+                            </div>
+                            <div id="voice-room-options" class="d-none ms-4">
+                                <div class="mb-2">
+                                    <label class="form-label text-white small">Select Room:</label>
+                                    <div class="d-flex gap-2 mb-2">
+                                        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="voice-room-select">
+                                            <option value="">-- Select or Create Room --</option>
+                                        </select>
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="refresh-rooms-btn" title="Refresh rooms list">
+                                            🔄
+                                        </button>
+                                        <button type="button" class="btn btn-outline-success btn-sm" id="create-room-btn" title="Create new room">
+                                            ➕ New Room
+                                        </button>
+                                    </div>
+                                    <small class="text-secondary">Send this voice message to all members of the selected room.</small>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <!-- Encryption Options -->
                         <div class="mb-3">
                             <div class="form-check mb-2">
@@ -1460,20 +1494,23 @@
                                         <div class="input-group input-group-sm mb-2">
                                             <input type="text" class="form-control bg-dark text-white border-secondary" 
                                                    id="recipient-search" placeholder="Type name or email to search...">
+                                            <button class="btn btn-outline-primary" type="button" id="load-follows-btn" title="Load your NOSTR follows (kind 3)">
+                                                👥 Load Follows
+                                            </button>
                                             <button class="btn btn-outline-secondary" type="button" id="load-contacts-btn" title="Load contacts from network">
-                                                📋 Load Contacts
+                                                📋 Load Network
                                             </button>
                                         </div>
                                         <div id="contacts-list-container" class="d-none">
                                             <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" 
                                                     id="contacts-select" size="5" style="max-height: 150px;">
-                                                <option value="" disabled selected>No contacts loaded. Click "Load Contacts" to fetch your network.</option>
+                                                <option value="" disabled selected>Click "Load Follows" or "Load Network" to fetch contacts.</option>
                                             </select>
                                             <button class="btn btn-primary btn-sm w-100" type="button" id="add-selected-contact-btn" disabled>
                                                 ➕ Add Selected Contact
                                             </button>
                                         </div>
-                                        <small class="text-secondary d-block mt-1">Select from your network or enter npub manually below.</small>
+                                        <small class="text-secondary d-block mt-1">Select from your NOSTR follows (kind 3) or network contacts, or enter npub manually below.</small>
                                     </div>
                                     
                                     <!-- Manual Recipients Input -->
@@ -1554,6 +1591,117 @@
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Voice Room Management Modal -->
+    <div class="modal fade" id="voice-room-modal" tabindex="-1" aria-labelledby="voice-room-modal-title" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-white" id="voice-room-modal-title">🎤 Voice Room Management</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Room List Tab -->
+                    <ul class="nav nav-tabs mb-3" id="room-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="rooms-list-tab" data-bs-toggle="tab" data-bs-target="#rooms-list" type="button" role="tab">
+                                📋 My Rooms
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="create-room-tab" data-bs-toggle="tab" data-bs-target="#create-room" type="button" role="tab">
+                                ➕ Create Room
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content" id="room-tabs-content">
+                        <!-- Rooms List -->
+                        <div class="tab-pane fade show active" id="rooms-list" role="tabpanel">
+                            <div id="rooms-list-container">
+                                <div class="text-center text-secondary py-4">
+                                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                    Loading rooms...
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Create Room -->
+                        <div class="tab-pane fade" id="create-room" role="tabpanel">
+                            <form id="create-room-form">
+                                <div class="mb-3">
+                                    <label for="new-room-name" class="form-label text-white">Room Name:</label>
+                                    <input type="text" class="form-control bg-dark text-white border-secondary" id="new-room-name" 
+                                           placeholder="Enter room name..." required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="new-room-description" class="form-label text-white">Description (optional):</label>
+                                    <textarea class="form-control bg-dark text-white border-secondary" id="new-room-description" 
+                                              rows="2" placeholder="Describe the room..."></textarea>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label text-white">Initial Members:</label>
+                                    
+                                    <!-- Contact Search for Room Creation -->
+                                    <div class="mb-2 p-2 bg-dark border border-secondary rounded">
+                                        <label class="form-label text-white small mb-1">🔍 Search contacts:</label>
+                                        <div class="input-group input-group-sm mb-2">
+                                            <input type="text" class="form-control bg-dark text-white border-secondary" 
+                                                   id="room-recipient-search" placeholder="Type name or email to search...">
+                                            <button class="btn btn-outline-secondary" type="button" id="load-contacts-room-btn" title="Load contacts from network">
+                                                📋 Load Contacts
+                                            </button>
+                                        </div>
+                                        <div id="contacts-list-room-container" class="d-none">
+                                            <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" 
+                                                    id="contacts-select-room" size="5" style="max-height: 150px;">
+                                                <option value="" disabled selected>No contacts loaded. Click "Load Contacts" to fetch your network.</option>
+                                            </select>
+                                            <button class="btn btn-primary btn-sm w-100" type="button" id="add-selected-contact-room-btn" disabled>
+                                                ➕ Add Selected Contact
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Manual Recipients Input -->
+                                    <div class="mb-2">
+                                        <textarea class="form-control form-control-sm bg-dark text-white border-secondary" 
+                                                  id="new-room-members" rows="3" 
+                                                  placeholder="npub1...&#10;npub1...&#10;(One per line)"></textarea>
+                                    </div>
+                                    <small class="text-secondary">Enter member public keys (npub format), one per line. Leave empty to create room with just yourself.</small>
+                                    
+                                    <!-- Selected Members Display -->
+                                    <div id="selected-room-members" class="mt-2 d-none">
+                                        <label class="form-label text-white small mb-1">Selected members:</label>
+                                        <div id="selected-room-members-list" class="d-flex flex-wrap gap-1"></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="allow-member-invites" checked>
+                                        <label class="form-check-label text-white" for="allow-member-invites">
+                                            Allow members to invite others
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex gap-2 justify-content-end">
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-primary" id="create-room-submit-btn">
+                                        ➕ Create Room
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2077,7 +2225,570 @@
             
             // Initialize recipient selection UI
             initializeRecipientSelection();
+            
+            // Initialize voice room UI
+            initializeVoiceRoomUI();
         }
+        
+        // Voice Room Management
+        let voiceRoomsList = [];
+        let selectedRoomMembers = new Set();
+        
+        async function initializeVoiceRoomUI() {
+            // Voice room checkbox handler
+            const useVoiceRoomCheckbox = document.getElementById('use-voice-room');
+            const voiceRoomOptions = document.getElementById('voice-room-options');
+            const encryptCheckbox = document.getElementById('encrypt-message');
+            
+            if (useVoiceRoomCheckbox && voiceRoomOptions) {
+                useVoiceRoomCheckbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        voiceRoomOptions.classList.remove('d-none');
+                        // Auto-enable encryption for room messages
+                        if (encryptCheckbox) {
+                            encryptCheckbox.checked = true;
+                            encryptCheckbox.disabled = true;
+                            const encryptionOptions = document.getElementById('encryption-options');
+                            if (encryptionOptions) {
+                                encryptionOptions.classList.remove('d-none');
+                            }
+                        }
+                        loadVoiceRooms();
+                    } else {
+                        voiceRoomOptions.classList.add('d-none');
+                        if (encryptCheckbox) {
+                            encryptCheckbox.disabled = false;
+                        }
+                    }
+                });
+            }
+            
+            // Refresh rooms button
+            const refreshRoomsBtn = document.getElementById('refresh-rooms-btn');
+            if (refreshRoomsBtn) {
+                refreshRoomsBtn.addEventListener('click', loadVoiceRooms);
+            }
+            
+            // Create room button
+            const createRoomBtn = document.getElementById('create-room-btn');
+            if (createRoomBtn) {
+                createRoomBtn.addEventListener('click', () => {
+                    const roomModal = new bootstrap.Modal(document.getElementById('voice-room-modal'));
+                    // Switch to create room tab
+                    const createTab = document.getElementById('create-room-tab');
+                    if (createTab) {
+                        createTab.click();
+                    }
+                    roomModal.show();
+                });
+            }
+            
+            // Room select change handler
+            const roomSelect = document.getElementById('voice-room-select');
+            if (roomSelect) {
+                roomSelect.addEventListener('change', function() {
+                    const selectedRoomId = this.value;
+                    if (selectedRoomId) {
+                        updateRoomMembersDisplay(selectedRoomId);
+                    }
+                });
+            }
+            
+            // Create room form handler
+            const createRoomForm = document.getElementById('create-room-form');
+            if (createRoomForm) {
+                createRoomForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    await handleCreateRoom();
+                });
+            }
+            
+            // Initialize room recipient selection
+            initializeRoomRecipientSelection();
+        }
+        
+        async function loadVoiceRooms() {
+            const roomSelect = document.getElementById('voice-room-select');
+            const roomsListContainer = document.getElementById('rooms-list-container');
+            
+            if (!roomSelect) return;
+            
+            try {
+                roomSelect.disabled = true;
+                roomSelect.innerHTML = '<option value="">Loading rooms...</option>';
+                
+                if (typeof window.NostrPrivate === 'undefined' || !window.NostrPrivate.listMyVoiceRooms) {
+                    throw new Error('NostrPrivate library not loaded');
+                }
+                
+                const rooms = await window.NostrPrivate.listMyVoiceRooms();
+                voiceRoomsList = rooms;
+                
+                roomSelect.innerHTML = '<option value="">-- Select or Create Room --</option>';
+                
+                if (rooms.length === 0) {
+                    roomSelect.innerHTML += '<option value="" disabled>No rooms found. Create one!</option>';
+                } else {
+                    rooms.forEach(room => {
+                        const option = document.createElement('option');
+                        option.value = room.roomId;
+                        option.textContent = `${room.name} (${room.roomId.substring(0, 8)}...)`;
+                        option.dataset.roomInfo = JSON.stringify(room);
+                        roomSelect.appendChild(option);
+                    });
+                }
+                
+                // Update rooms list in modal
+                if (roomsListContainer) {
+                    updateRoomsListDisplay(rooms);
+                }
+                
+            } catch (error) {
+                console.error('Error loading voice rooms:', error);
+                roomSelect.innerHTML = '<option value="">Error loading rooms</option>';
+                showError('Failed to load voice rooms: ' + error.message, 'Error');
+            } finally {
+                roomSelect.disabled = false;
+            }
+        }
+        
+        function updateRoomsListDisplay(rooms) {
+            const container = document.getElementById('rooms-list-container');
+            if (!container) return;
+            
+            if (rooms.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-secondary py-4">
+                        <p>No voice rooms yet.</p>
+                        <p>Create your first room using the "Create Room" tab!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = rooms.map(room => `
+                <div class="card bg-dark border-secondary mb-2">
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h6 class="text-white mb-1">${room.name || 'Unnamed Room'}</h6>
+                                <small class="text-secondary">ID: ${room.roomId}</small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="selectRoomForMessage('${room.roomId}')">
+                                📤 Use This Room
+                            </button>
+                        </div>
+                        ${room.description ? `<p class="text-secondary small mb-2">${room.description}</p>` : ''}
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-sm btn-outline-info" onclick="viewRoomMembers('${room.roomId}')">
+                                👥 Members
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="inviteToRoom('${room.roomId}')">
+                                ➕ Invite
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function selectRoomForMessage(roomId) {
+            const roomSelect = document.getElementById('voice-room-select');
+            const useVoiceRoomCheckbox = document.getElementById('use-voice-room');
+            
+            if (roomSelect) {
+                roomSelect.value = roomId;
+                roomSelect.dispatchEvent(new Event('change'));
+            }
+            
+            if (useVoiceRoomCheckbox) {
+                useVoiceRoomCheckbox.checked = true;
+                useVoiceRoomCheckbox.dispatchEvent(new Event('change'));
+            }
+            
+            // Close modal if open
+            const roomModal = bootstrap.Modal.getInstance(document.getElementById('voice-room-modal'));
+            if (roomModal) {
+                roomModal.hide();
+            }
+        }
+        
+        window.selectRoomForMessage = selectRoomForMessage;
+        
+        async function updateRoomMembersDisplay(roomId) {
+            try {
+                if (typeof window.NostrPrivate === 'undefined' || !window.NostrPrivate.getRoomMembers) {
+                    return;
+                }
+                
+                const members = await window.NostrPrivate.getRoomMembers(roomId);
+                console.log(`Room ${roomId} has ${members.length} members`);
+                
+                // Could display member count in UI
+            } catch (error) {
+                console.error('Error fetching room members:', error);
+            }
+        }
+        
+        async function handleCreateRoom() {
+            const submitBtn = document.getElementById('create-room-submit-btn');
+            const roomName = document.getElementById('new-room-name')?.value.trim();
+            const roomDescription = document.getElementById('new-room-description')?.value.trim();
+            const membersText = document.getElementById('new-room-members')?.value.trim();
+            const allowInvites = document.getElementById('allow-member-invites')?.checked ?? true;
+            
+            if (!roomName) {
+                showError('Room name is required', 'Validation Error');
+                return;
+            }
+            
+            try {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Creating...';
+                
+                // Parse members
+                const members = [];
+                if (membersText) {
+                    members.push(...membersText.split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line.length > 0 && line.startsWith('npub')));
+                }
+                
+                // Add selected members from contact list
+                selectedRoomMembers.forEach(npub => {
+                    if (!members.includes(npub)) {
+                        members.push(npub);
+                    }
+                });
+                
+                if (typeof window.NostrPrivate === 'undefined' || !window.NostrPrivate.createVoiceRoom) {
+                    throw new Error('NostrPrivate library not loaded');
+                }
+                
+                const room = await window.NostrPrivate.createVoiceRoom(
+                    roomName,
+                    roomDescription,
+                    members,
+                    { allowMemberInvites: allowInvites }
+                );
+                
+                showSuccess(`Room "${roomName}" created successfully!`, 'Room Created', () => {
+                    // Reset form
+                    document.getElementById('create-room-form')?.reset();
+                    selectedRoomMembers.clear();
+                    updateSelectedRoomMembersDisplay();
+                    
+                    // Reload rooms list
+                    loadVoiceRooms();
+                    
+                    // Select the new room
+                    setTimeout(() => {
+                        const roomSelect = document.getElementById('voice-room-select');
+                        if (roomSelect) {
+                            roomSelect.value = room.roomId;
+                            roomSelect.dispatchEvent(new Event('change'));
+                        }
+                    }, 500);
+                    
+                    // Close modal
+                    const roomModal = bootstrap.Modal.getInstance(document.getElementById('voice-room-modal'));
+                    if (roomModal) {
+                        roomModal.hide();
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Error creating room:', error);
+                showError('Failed to create room: ' + error.message, 'Error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '➕ Create Room';
+            }
+        }
+        
+        async function viewRoomMembers(roomId) {
+            try {
+                if (typeof window.NostrPrivate === 'undefined' || !window.NostrPrivate.getRoomMembers) {
+                    throw new Error('NostrPrivate library not loaded');
+                }
+                
+                const members = await window.NostrPrivate.getRoomMembers(roomId);
+                const roomInfo = await window.NostrPrivate.getRoomInfo(roomId);
+                
+                let membersList = 'Members:\n\n';
+                members.forEach((member, index) => {
+                    membersList += `${index + 1}. ${member.substring(0, 16)}...\n`;
+                });
+                
+                showInfo(membersList, `Room: ${roomInfo?.name || roomId}`);
+            } catch (error) {
+                console.error('Error viewing room members:', error);
+                showError('Failed to load room members: ' + error.message, 'Error');
+            }
+        }
+        
+        window.viewRoomMembers = viewRoomMembers;
+        
+        async function inviteToRoom(roomId) {
+            const inviteeNpub = prompt('Enter the npub of the user to invite:');
+            if (!inviteeNpub || !inviteeNpub.trim()) {
+                return;
+            }
+            
+            try {
+                if (typeof window.NostrPrivate === 'undefined' || !window.NostrPrivate.inviteToVoiceRoom) {
+                    throw new Error('NostrPrivate library not loaded');
+                }
+                
+                await window.NostrPrivate.inviteToVoiceRoom(roomId, inviteeNpub.trim(), null, {
+                    message: 'You have been invited to join a voice room!'
+                });
+                
+                showSuccess('Invitation sent successfully!', 'Invitation Sent');
+            } catch (error) {
+                console.error('Error inviting to room:', error);
+                showError('Failed to send invitation: ' + error.message, 'Error');
+            }
+        }
+        
+        window.inviteToRoom = inviteToRoom;
+        
+        // Room recipient selection (similar to regular recipient selection)
+        function initializeRoomRecipientSelection() {
+            const loadContactsBtn = document.getElementById('load-contacts-room-btn');
+            const recipientSearch = document.getElementById('room-recipient-search');
+            const contactsSelect = document.getElementById('contacts-select-room');
+            const addSelectedBtn = document.getElementById('add-selected-contact-room-btn');
+            const contactsContainer = document.getElementById('contacts-list-room-container');
+            
+            if (!loadContactsBtn || !recipientSearch || !contactsSelect || !addSelectedBtn) {
+                return;
+            }
+            
+            // Reuse the same contacts list from main recipient selection
+            loadContactsBtn.addEventListener('click', async () => {
+                await loadContactsFromNetworkForRoom();
+            });
+            
+            recipientSearch.addEventListener('input', (e) => {
+                filterContactsForRoom(e.target.value);
+            });
+            
+            contactsSelect.addEventListener('change', (e) => {
+                addSelectedBtn.disabled = !e.target.value;
+            });
+            
+            addSelectedBtn.addEventListener('click', () => {
+                const selectedOption = contactsSelect.options[contactsSelect.selectedIndex];
+                if (selectedOption && selectedOption.value) {
+                    const npub = selectedOption.value;
+                    const name = selectedOption.text;
+                    addRoomMember(npub, name);
+                }
+            });
+            
+            contactsSelect.addEventListener('dblclick', () => {
+                if (!addSelectedBtn.disabled) {
+                    addSelectedBtn.click();
+                }
+            });
+        }
+        
+        async function loadContactsFromNetworkForRoom() {
+            const loadBtn = document.getElementById('load-contacts-room-btn');
+            const contactsSelect = document.getElementById('contacts-select-room');
+            const contactsContainer = document.getElementById('contacts-list-room-container');
+            
+            if (!userPubkey) {
+                showError('Please connect to NOSTR first to load contacts.', 'Not Connected');
+                return;
+            }
+            
+            try {
+                loadBtn.disabled = true;
+                loadBtn.textContent = '🔄 Loading...';
+                
+                let userHex = null;
+                
+                if (userPubkey && userPubkey.length === 64 && /^[0-9a-fA-F]{64}$/.test(userPubkey)) {
+                    userHex = userPubkey.toLowerCase();
+                } else if (userPubkey && userPubkey.startsWith('npub1')) {
+                    if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                        const decoded = NostrTools.nip19.decode(userPubkey);
+                        if (decoded.type === 'npub') {
+                            const data = decoded.data;
+                            if (data instanceof Uint8Array) {
+                                userHex = Array.from(data)
+                                    .map(b => b.toString(16).padStart(2, '0'))
+                                    .join('');
+                            } else if (typeof data === 'string') {
+                                userHex = data;
+                            }
+                        }
+                    }
+                } else {
+                    userHex = userPubkey;
+                }
+                
+                if (!userHex || userHex.length !== 64) {
+                    throw new Error(`Invalid userPubkey format`);
+                }
+                
+                const response = await fetch(`/api/getN2?hex=${userHex}&range=default&output=json`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch contacts: ${response.statusText}`);
+                }
+                
+                const network = await response.json();
+                
+                if (!network.nodes || !Array.isArray(network.nodes)) {
+                    throw new Error('Invalid network data received');
+                }
+                
+                const contactsList = network.nodes
+                    .filter(node => node.npub && (node.mutual || node.is_follower || node.is_followed))
+                    .map(node => ({
+                        npub: node.npub,
+                        name: node.display_name || node.name || 'Unknown',
+                        email: node.email || '',
+                        picture: node.picture || '',
+                        mutual: node.mutual || false
+                    }))
+                    .sort((a, b) => {
+                        if (a.mutual && !b.mutual) return -1;
+                        if (!a.mutual && b.mutual) return 1;
+                        return a.name.localeCompare(b.name);
+                    });
+                
+                contactsSelect.innerHTML = '';
+                if (contactsList.length === 0) {
+                    contactsSelect.innerHTML = '<option value="" disabled>No contacts found in your network.</option>';
+                } else {
+                    contactsList.forEach(contact => {
+                        const option = document.createElement('option');
+                        option.value = contact.npub;
+                        option.textContent = `${contact.mutual ? '🤝 ' : ''}${contact.name}${contact.email ? ` (${contact.email})` : ''}`;
+                        option.dataset.name = contact.name;
+                        option.dataset.email = contact.email;
+                        contactsSelect.appendChild(option);
+                    });
+                }
+                
+                contactsContainer.classList.remove('d-none');
+                
+                const searchValue = document.getElementById('room-recipient-search')?.value;
+                if (searchValue) {
+                    filterContactsForRoom(searchValue);
+                }
+                
+                showSuccess(`Loaded ${contactsList.length} contact(s) from your network`, 'Contacts Loaded');
+                
+            } catch (error) {
+                console.error('❌ Error loading contacts:', error);
+                showError(`Failed to load contacts: ${error.message}`, 'Error');
+            } finally {
+                loadBtn.disabled = false;
+                loadBtn.textContent = '📋 Load Contacts';
+            }
+        }
+        
+        function filterContactsForRoom(searchTerm) {
+            const contactsSelect = document.getElementById('contacts-select-room');
+            if (!contactsSelect || !searchTerm) {
+                Array.from(contactsSelect.options).forEach(option => {
+                    option.style.display = '';
+                });
+                return;
+            }
+            
+            const lowerSearch = searchTerm.toLowerCase();
+            Array.from(contactsSelect.options).forEach(option => {
+                if (!option.value) {
+                    option.style.display = '';
+                    return;
+                }
+                
+                const name = (option.dataset.name || '').toLowerCase();
+                const email = (option.dataset.email || '').toLowerCase();
+                const npub = option.value.toLowerCase();
+                
+                const matches = name.includes(lowerSearch) || 
+                               email.includes(lowerSearch) || 
+                               npub.includes(lowerSearch);
+                
+                option.style.display = matches ? '' : 'none';
+            });
+        }
+        
+        function addRoomMember(npub, name) {
+            if (selectedRoomMembers.has(npub)) {
+                showInfo('This member is already added.', 'Duplicate');
+                return;
+            }
+            
+            selectedRoomMembers.add(npub);
+            
+            const membersTextarea = document.getElementById('new-room-members');
+            if (membersTextarea) {
+                const currentValue = membersTextarea.value.trim();
+                const newValue = currentValue ? `${currentValue}\n${npub}` : npub;
+                membersTextarea.value = newValue;
+            }
+            
+            updateSelectedRoomMembersDisplay();
+        }
+        
+        function updateSelectedRoomMembersDisplay() {
+            const selectedContainer = document.getElementById('selected-room-members');
+            const selectedList = document.getElementById('selected-room-members-list');
+            
+            if (selectedContainer && selectedList) {
+                selectedList.innerHTML = '';
+                
+                if (selectedRoomMembers.size === 0) {
+                    selectedContainer.classList.add('d-none');
+                    return;
+                }
+                
+                selectedContainer.classList.remove('d-none');
+                
+                selectedRoomMembers.forEach(npub => {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-primary d-inline-flex align-items-center gap-1';
+                    badge.innerHTML = `
+                        ${npub.substring(0, 8)}...
+                        <button type="button" class="btn-close btn-close-white" style="font-size: 0.65em;" 
+                                onclick="removeRoomMember('${npub}', this)" aria-label="Remove"></button>
+                    `;
+                    badge.dataset.npub = npub;
+                    selectedList.appendChild(badge);
+                });
+            }
+        }
+        
+        function removeRoomMember(npub, buttonElement) {
+            selectedRoomMembers.delete(npub);
+            
+            const membersTextarea = document.getElementById('new-room-members');
+            if (membersTextarea) {
+                const lines = membersTextarea.value.split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line && line !== npub);
+                membersTextarea.value = lines.join('\n');
+            }
+            
+            if (buttonElement) {
+                const badge = buttonElement.closest('.badge');
+                if (badge) {
+                    badge.remove();
+                }
+            }
+            
+            updateSelectedRoomMembersDisplay();
+        }
+        
+        window.removeRoomMember = removeRoomMember;
         
         // Recipient selection functionality
         let contactsList = [];
@@ -2085,6 +2796,7 @@
         
         async function initializeRecipientSelection() {
             const loadContactsBtn = document.getElementById('load-contacts-btn');
+            const loadFollowsBtn = document.getElementById('load-follows-btn');
             const recipientSearch = document.getElementById('recipient-search');
             const contactsSelect = document.getElementById('contacts-select');
             const addSelectedBtn = document.getElementById('add-selected-contact-btn');
@@ -2095,7 +2807,14 @@
                 return;
             }
             
-            // Load contacts button
+            // Load follows button (NOSTR kind 3)
+            if (loadFollowsBtn) {
+                loadFollowsBtn.addEventListener('click', async () => {
+                    await loadNostrFollows();
+                });
+            }
+            
+            // Load contacts button (Network N2)
             loadContactsBtn.addEventListener('click', async () => {
                 await loadContactsFromNetwork();
             });
@@ -2163,6 +2882,86 @@
         
         // Make addMyselfAsRecipient available globally
         window.addMyselfAsRecipient = addMyselfAsRecipient;
+        
+        async function loadNostrFollows() {
+            const loadBtn = document.getElementById('load-follows-btn');
+            const contactsSelect = document.getElementById('contacts-select');
+            const contactsContainer = document.getElementById('contacts-list-container');
+            
+            if (!userPubkey) {
+                showError('Please connect to NOSTR first to load your follows.', 'Not Connected');
+                return;
+            }
+            
+            try {
+                loadBtn.disabled = true;
+                loadBtn.textContent = '🔄 Loading...';
+                
+                // Ensure NOSTR connection
+                await ensureNostrConnection();
+                
+                // Check if fetchUserFollowsWithMetadata is available
+                if (typeof fetchUserFollowsWithMetadata !== 'function') {
+                    throw new Error('fetchUserFollowsWithMetadata function not available. Make sure common.js is loaded.');
+                }
+                
+                console.log('📡 Fetching NOSTR follows (kind 3) for:', userPubkey.substring(0, 16) + '...');
+                
+                // Fetch follows with metadata
+                const follows = await fetchUserFollowsWithMetadata(userPubkey, {
+                    timeout: 5000,
+                    includeProfiles: true
+                });
+                
+                console.log('✅ Loaded', follows.length, 'follows');
+                
+                if (follows.length === 0) {
+                    showInfo('No follows found. You can follow users on NOSTR to see them here.', 'No Follows');
+                    contactsSelect.innerHTML = '<option value="" disabled>No follows found</option>';
+                    contactsContainer.classList.remove('d-none');
+                    loadBtn.disabled = false;
+                    loadBtn.textContent = '👥 Load Follows';
+                    return;
+                }
+                
+                // Populate contacts list
+                contactsList = follows.map(follow => ({
+                    npub: follow.npub,
+                    name: follow.name || follow.display_name || 'Unknown',
+                    email: follow.email || '',
+                    picture: follow.picture || '',
+                    mutual: false // Follows are not necessarily mutual
+                }));
+                
+                // Update select dropdown
+                contactsSelect.innerHTML = '';
+                contactsList.forEach(contact => {
+                    const option = document.createElement('option');
+                    option.value = contact.npub;
+                    const displayName = contact.name || contact.email || contact.npub.substring(0, 16) + '...';
+                    option.textContent = `${displayName}${contact.email ? ` (${contact.email})` : ''}`;
+                    option.dataset.name = contact.name || '';
+                    option.dataset.email = contact.email || '';
+                    contactsSelect.appendChild(option);
+                });
+                
+                // Show container
+                contactsContainer.classList.remove('d-none');
+                
+                // Update search filter
+                filterContacts('');
+                
+                showSuccess(`Loaded ${follows.length} follow${follows.length !== 1 ? 's' : ''} from your NOSTR follow list (kind 3)`, 'Follows Loaded');
+                
+            } catch (error) {
+                console.error('❌ Error loading NOSTR follows:', error);
+                showError(`Failed to load follows: ${error.message}`, 'Load Error');
+                contactsSelect.innerHTML = '<option value="" disabled>Error loading follows</option>';
+            } finally {
+                loadBtn.disabled = false;
+                loadBtn.textContent = '👥 Load Follows';
+            }
+        }
         
         async function loadContactsFromNetwork() {
             const loadBtn = document.getElementById('load-contacts-btn');
@@ -2435,6 +3234,23 @@
         
         // Make removeRecipient available globally for onclick handlers
         window.removeRecipient = removeRecipient;
+        
+        // Open voice room manager modal
+        function openVoiceRoomManager() {
+            const roomModal = new bootstrap.Modal(document.getElementById('voice-room-modal'));
+            // Switch to rooms list tab
+            const roomsTab = document.getElementById('rooms-list-tab');
+            if (roomsTab) {
+                roomsTab.click();
+            }
+            // Load rooms when modal opens
+            roomModal.show();
+            setTimeout(() => {
+                loadVoiceRooms();
+            }, 300);
+        }
+        
+        window.openVoiceRoomManager = openVoiceRoomManager;
         
         // Initialize modal map
         function initializeModalMap() {
@@ -3233,18 +4049,93 @@
                 formData.append('title', document.getElementById('voice-title').value);
                 formData.append('description', document.getElementById('voice-description').value);
                 
+                // Check if voice room is enabled
+                const useVoiceRoom = document.getElementById('use-voice-room')?.checked || false;
+                const selectedRoomId = document.getElementById('voice-room-select')?.value || '';
+                
                 // Check if encryption is enabled (MUST be before using isEncrypted)
                 const isEncrypted = document.getElementById('encrypt-message')?.checked || false;
                 const encryptionMethod = document.getElementById('encryption-method')?.value || 'nip44';
                 const recipientsText = document.getElementById('recipients-list')?.value || '';
                 
-                // If encrypted, encrypt the content before sending
+                // If voice room is selected, send to room members
+                if (useVoiceRoom && selectedRoomId) {
+                    try {
+                        publishBtn.textContent = 'Sending to room...';
+                        
+                        if (typeof window.NostrPrivate === 'undefined' || !window.NostrPrivate.sendEncryptedRoomMessage) {
+                            throw new Error('NostrPrivate library not loaded');
+                        }
+                        
+                        // Get gateway URL
+                        const gatewayUrl = (typeof gateway !== 'undefined' && gateway) 
+                            ? gateway 
+                            : (typeof window !== 'undefined' && window.gateway) 
+                                ? window.gateway 
+                                : 'https://ipfs.io';
+                        
+                        // Prepare voice metadata
+                        const voiceMetadata = {
+                            url: uploadResult.new_cid ? `${gatewayUrl}/ipfs/${uploadResult.new_cid}` : '',
+                            duration: uploadResult.duration || 0,
+                            title: document.getElementById('voice-title').value,
+                            description: document.getElementById('voice-description').value
+                        };
+                        
+                        // Get location if provided
+                        const lat = parseFloat(document.getElementById('modal-lat').value) || 0.00;
+                        const lon = parseFloat(document.getElementById('modal-lon').value) || 0.00;
+                        if (lat !== 0.00 || lon !== 0.00) {
+                            voiceMetadata.latitude = lat;
+                            voiceMetadata.longitude = lon;
+                        }
+                        
+                        // Send to room (this will encrypt for all members automatically)
+                        const roomEvents = await window.NostrPrivate.sendEncryptedRoomMessage(
+                            selectedRoomId,
+                            JSON.stringify(voiceMetadata),
+                            {
+                                useGiftWrap: false
+                            }
+                        );
+                        
+                        console.log(`✅ Voice message sent to room ${selectedRoomId}, ${roomEvents.length} events published`);
+                        
+                        // Show success and close modal
+                        showSuccess(
+                            `Voice message sent to room successfully!\n\n${roomEvents.length} encrypted message(s) sent to room members.`,
+                            'Message Sent! 🎉',
+                            () => {
+                                isPublishing = false;
+                                closeModal();
+                                // Reset form
+                                document.getElementById('publish-form').reset();
+                                document.getElementById('use-voice-room').checked = false;
+                                document.getElementById('voice-room-options').classList.add('d-none');
+                                const encryptCheckbox = document.getElementById('encrypt-message');
+                                if (encryptCheckbox) {
+                                    encryptCheckbox.disabled = false;
+                                }
+                            }
+                        );
+                        
+                        // Don't continue with normal publication - room message is complete
+                        return;
+                    } catch (roomError) {
+                        console.error('Error sending to room:', roomError);
+                        showError('Failed to send to room: ' + roomError.message, 'Room Error');
+                        // Continue with normal publication as fallback
+                        publishBtn.textContent = 'Uploading to IPFS...';
+                    }
+                }
+                
+                // If encrypted (and not using room), encrypt the content before sending
                 let encryptedContent = null;
                 let recipientsList = [];
                 
                 // Add encryption parameters
                 formData.append('encrypted', isEncrypted ? 'true' : 'false');
-                if (isEncrypted) {
+                if (isEncrypted && !useVoiceRoom) {
                     formData.append('encryption_method', encryptionMethod);
                     formData.append('recipients', JSON.stringify(recipientsList));
                     // If encrypted, use encrypted content instead of direct URL
@@ -4645,6 +5536,15 @@
                     modalMap = null;
                     modalMarker = null;
                 }
+            });
+        }
+        
+        // Voice room modal event listeners
+        const voiceRoomModalElement = document.getElementById('voice-room-modal');
+        if (voiceRoomModalElement) {
+            voiceRoomModalElement.addEventListener('shown.bs.modal', function () {
+                // Load rooms when modal opens
+                loadVoiceRooms();
             });
         }
     </script>
