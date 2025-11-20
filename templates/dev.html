@@ -728,6 +728,17 @@
                                     <h5 class="card-title">Step 1: Include Libraries</h5>
                                     <pre class="bg-dark text-light p-3 rounded"><code>&lt;script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"&gt;&lt;/script&gt;
 &lt;script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"&gt;&lt;/script&gt;</code></pre>
+                                    <div class="mt-2">
+                                        <a href="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-download"></i> nostr.bundle.js
+                                        </a>
+                                        <a href="{{ myIPFS }}/ipns/copylaradio.com/common.js" target="_blank" class="btn btn-sm btn-outline-success ms-2">
+                                            <i class="bi bi-download"></i> common.js
+                                        </a>
+                                        <a href="{{ myIPFS }}/ipns/copylaradio.com/@common.js" target="_blank" class="btn btn-sm btn-outline-secondary ms-2">
+                                            <i class="bi bi-code-square"></i> View Source
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                             <div class="card mb-3">
@@ -781,6 +792,20 @@
                                     <p><strong>Purpose:</strong> Public NOSTR operations and client-side utilities</p>
                                     <p><strong>When to use:</strong> For all public-facing features in your application</p>
                                     
+                                    <div class="mb-3">
+                                        <strong>📦 Library Links:</strong>
+                                        <ul class="list-unstyled mt-2">
+                                            <li>
+                                                <a href="{{ myIPFS }}/ipns/copylaradio.com/common.js" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-download"></i> common.js
+                                                </a>
+                                                <a href="{{ myIPFS }}/ipns/copylaradio.com/@common.js" target="_blank" class="btn btn-sm btn-outline-secondary ms-2">
+                                                    <i class="bi bi-link-45deg"></i> View Source
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    
                                     <h6 class="mt-3">Key Functions:</h6>
                                     <ul class="small">
                                         <li><code>connectNostr()</code> - Connect to NOSTR wallet</li>
@@ -806,6 +831,20 @@
                                 <div class="card-body">
                                     <p><strong>Purpose:</strong> Private/encrypted operations and sensitive data</p>
                                     <p><strong>When to use:</strong> For encrypted messages, private keys, sensitive operations</p>
+                                    
+                                    <div class="mb-3">
+                                        <strong>📦 Library Links:</strong>
+                                        <ul class="list-unstyled mt-2">
+                                            <li>
+                                                <a href="{{ myIPFS }}/ipns/copylaradio.com/nostr.private.js" target="_blank" class="btn btn-sm btn-outline-warning">
+                                                    <i class="bi bi-download"></i> nostr.private.js
+                                                </a>
+                                                <a href="{{ myIPFS }}/ipns/copylaradio.com/@nostr.private.js" target="_blank" class="btn btn-sm btn-outline-secondary ms-2">
+                                                    <i class="bi bi-link-45deg"></i> View Source
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
                                     
                                     <h6 class="mt-3">Key Functions:</h6>
                                     <ul class="small">
@@ -866,6 +905,56 @@
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4 border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="bi bi-download"></i> Download & Include Libraries</h5>
+                        </div>
+                        <div class="card-body">
+                            <h6>Required Dependencies:</h6>
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <strong>NostrTools Bundle:</strong>
+                                    <a href="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
+                                        <i class="bi bi-download"></i> nostr.bundle.js
+                                    </a>
+                                    <span class="text-muted small ms-2">(Required for common.js)</span>
+                                </li>
+                            </ul>
+                            
+                            <h6 class="mt-3">Core Libraries:</h6>
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <strong>common.js:</strong>
+                                    <a href="{{ myIPFS }}/ipns/copylaradio.com/common.js" target="_blank" class="btn btn-sm btn-outline-success ms-2">
+                                        <i class="bi bi-download"></i> Download
+                                    </a>
+                                    <a href="{{ myIPFS }}/ipns/copylaradio.com/@common.js" target="_blank" class="btn btn-sm btn-outline-secondary ms-2">
+                                        <i class="bi bi-code-square"></i> View Source
+                                    </a>
+                                </li>
+                                <li class="mb-2">
+                                    <strong>nostr.private.js:</strong>
+                                    <a href="{{ myIPFS }}/ipns/copylaradio.com/nostr.private.js" target="_blank" class="btn btn-sm btn-outline-warning ms-2">
+                                        <i class="bi bi-download"></i> Download
+                                    </a>
+                                    <a href="{{ myIPFS }}/ipns/copylaradio.com/@nostr.private.js" target="_blank" class="btn btn-sm btn-outline-secondary ms-2">
+                                        <i class="bi bi-code-square"></i> View Source
+                                    </a>
+                                </li>
+                            </ul>
+                            
+                            <h6 class="mt-3">Include in Your HTML:</h6>
+                            <pre class="bg-dark text-light p-3 rounded"><code>&lt;!-- Required: NostrTools Bundle --&gt;
+&lt;script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"&gt;&lt;/script&gt;
+
+&lt;!-- Core Library: Public Operations --&gt;
+&lt;script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"&gt;&lt;/script&gt;
+
+&lt;!-- Optional: Private/Encrypted Operations --&gt;
+&lt;script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.private.js"&gt;&lt;/script&gt;</code></pre>
                         </div>
                     </div>
                 </div>
