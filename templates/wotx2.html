@@ -2386,7 +2386,7 @@
                     <div class="instructor-card card mb-3">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-start">
-                                <div>
+                                <div style="flex: 1;">
                                     <h5 class="mb-2">
                                         <i class="bi bi-person-badge text-primary"></i>
                                         Maître Certifié
@@ -2407,6 +2407,18 @@
                                     </small>
                                         </div>
                                     ` : ''}
+                                    
+                                    <!-- Badge NIP-58 -->
+                                    <div class="mt-3">
+                                        <small class="d-block mb-2" style="color: #6b7280;">
+                                            <i class="bi bi-award-fill"></i> Badge :
+                                        </small>
+                                        <div id="badge-${holder.holder_npub}-${holder.permit_definition_id}" class="instructor-badge-container" style="min-height: 64px;">
+                                            <div style="text-align: center; color: #94a3b8; font-size: 0.85rem;">
+                                                <i class="bi bi-hourglass-split"></i> Chargement...
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="text-end">
                                     ${userHEX && userHEX !== holder.holder_npub ? `
@@ -2422,6 +2434,77 @@
             });
             
             listEl.innerHTML = html;
+            
+            // Load badges for each instructor after rendering
+            permitCredentials.forEach(holder => {
+                loadInstructorBadge(holder.holder_npub, holder.permit_definition_id);
+            });
+        }
+        
+        // Load badge for a specific instructor
+        async function loadInstructorBadge(holderNpub, permitId) {
+            const container = document.getElementById(`badge-${holderNpub}-${permitId}`);
+            if (!container) return;
+            
+            try {
+                // Fetch user badges
+                if (typeof window.fetchUserBadges === 'function') {
+                    const badges = await window.fetchUserBadges(holderNpub, window.DEFAULT_RELAYS);
+                    
+                    // Find badge for this permit
+                    const permitBadge = badges.find(badge => {
+                        const badgePermitId = badge.metadata?.permitId;
+                        return badgePermitId === permitId;
+                    });
+                    
+                    if (permitBadge && permitBadge.metadata) {
+                        const badgeHtml = window.renderBadge(permitBadge, { 
+                            size: 'medium', 
+                            showName: true, 
+                            showTooltip: true 
+                        });
+                        container.innerHTML = badgeHtml;
+                    } else {
+                        // Try to load badge definition directly
+                        const badgeId = permitId.toLowerCase().replace('permit_', '').replace(/_/g, '_');
+                        const officialBadges = {
+                            'ore_v1': 'ore_verifier',
+                            'driver': 'driver_license',
+                            'medical_first_aid': 'first_aid_provider',
+                            'building_artisan': 'building_artisan',
+                            'wot_dragon': 'wot_dragon'
+                        };
+                        const finalBadgeId = officialBadges[badgeId] || `permit_${badgeId}`;
+                        
+                        if (typeof window.fetchBadgeDefinition === 'function') {
+                            const badgeDef = await window.fetchBadgeDefinition(finalBadgeId, null, window.DEFAULT_RELAYS);
+                            if (badgeDef) {
+                                const metadata = window.parseBadgeDefinition(badgeDef);
+                                if (metadata && metadata.image) {
+                                    const badgeHtml = window.renderBadge({
+                                        awardEvent: null,
+                                        definitionEvent: badgeDef,
+                                        metadata: metadata,
+                                        badgeId: finalBadgeId
+                                    }, { size: 'medium', showName: true, showTooltip: true });
+                                    container.innerHTML = badgeHtml;
+                                } else {
+                                    container.innerHTML = '<div style="text-align: center; color: #94a3b8; font-size: 0.85rem;">Badge non disponible</div>';
+                                }
+                            } else {
+                                container.innerHTML = '<div style="text-align: center; color: #94a3b8; font-size: 0.85rem;">Badge à venir</div>';
+                            }
+                        } else {
+                            container.innerHTML = '<div style="text-align: center; color: #94a3b8; font-size: 0.85rem;">Fonctions badges non chargées</div>';
+                        }
+                    }
+                } else {
+                    container.innerHTML = '<div style="text-align: center; color: #94a3b8; font-size: 0.85rem;">Fonctions badges non chargées</div>';
+                }
+            } catch (error) {
+                console.error(`Error loading badge for ${holderNpub}:`, error);
+                container.innerHTML = '<div style="text-align: center; color: #ef4444; font-size: 0.85rem;">Erreur chargement badge</div>';
+            }
         }
 
         async function loadPendingRequests(requiredAttestations) {

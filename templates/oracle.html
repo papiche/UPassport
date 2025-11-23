@@ -637,6 +637,23 @@
                                 <i class="bi bi-plus-circle"></i> Request New Permit
                             </button>
                         </div>
+                        
+                        <!-- User Badges Section -->
+                        ${window.isNostrConnected && window.userNpub ? `
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <i class="bi bi-award-fill"></i> Mes Badges NIP-58
+                            </div>
+                            <div class="card-body">
+                                <div id="user-badges-container" style="min-height: 100px;">
+                                    <div style="text-align: center; color: #94a3b8;">
+                                        <i class="bi bi-hourglass-split"></i> Chargement des badges...
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                        
                         <div id="my-permits-list" class="row g-4"></div>
                     </div>
 
@@ -818,6 +835,16 @@
                 await loadData();
                 if (typeof Chart !== 'undefined') {
                     initCharts();
+                }
+                
+                // Load user badges if authenticated
+                if (window.userNpub && typeof window.displayUserBadges === 'function') {
+                    window.displayUserBadges('user-badges-container', window.userNpub, {
+                        size: 'medium',
+                        showName: true,
+                        showTooltip: true,
+                        emptyMessage: 'Aucun badge pour le moment'
+                    });
                 }
 
             } catch (error) {
@@ -1141,6 +1168,17 @@
                                 return '';
                             })()}
                             ` : ''}
+                            <div class="mb-3">
+                                <small class="d-block mb-2" style="color: #94a3b8;">
+                                    <i class="bi bi-award-fill"></i> Badge NIP-58 :
+                                </small>
+                                <div id="badge-${permit.id}" class="permit-badge-container" style="min-height: 64px;">
+                                    <div style="text-align: center; color: #94a3b8; font-size: 0.85rem;">
+                                        <i class="bi bi-hourglass-split"></i> Chargement...
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div class="d-grid gap-2">
                                 <a href="/wotx2?permit_id=${permit.id}" class="btn btn-primary btn-sm">
                                     <i class="bi bi-eye"></i> Voir les détails
@@ -1159,6 +1197,57 @@
                     </div>
                 `;
             }).join('');
+            
+            // Load badges for each permit after rendering
+            allPermits.forEach(permit => {
+                loadPermitBadge(permit.id);
+            });
+        }
+        
+        // Load badge for a specific permit
+        async function loadPermitBadge(permitId) {
+            const container = document.getElementById(`badge-${permitId}`);
+            if (!container) return;
+            
+            try {
+                // Get badge ID from permit ID
+                const badgeId = permitId.toLowerCase().replace('permit_', '').replace(/_/g, '_');
+                const officialBadges = {
+                    'ore_v1': 'ore_verifier',
+                    'driver': 'driver_license',
+                    'medical_first_aid': 'first_aid_provider',
+                    'building_artisan': 'building_artisan',
+                    'wot_dragon': 'wot_dragon'
+                };
+                
+                let finalBadgeId = officialBadges[badgeId] || `permit_${badgeId}`;
+                
+                // Fetch badge definition
+                if (typeof window.fetchBadgeDefinition === 'function') {
+                    const badgeDef = await window.fetchBadgeDefinition(finalBadgeId, null, window.DEFAULT_RELAYS);
+                    if (badgeDef) {
+                        const metadata = window.parseBadgeDefinition(badgeDef);
+                        if (metadata && metadata.image) {
+                            const badgeHtml = window.renderBadge({
+                                awardEvent: null,
+                                definitionEvent: badgeDef,
+                                metadata: metadata,
+                                badgeId: finalBadgeId
+                            }, { size: 'medium', showName: true, showTooltip: true });
+                            container.innerHTML = badgeHtml;
+                        } else {
+                            container.innerHTML = '<div style="text-align: center; color: #94a3b8; font-size: 0.85rem;">Badge non disponible</div>';
+                        }
+                    } else {
+                        container.innerHTML = '<div style="text-align: center; color: #94a3b8; font-size: 0.85rem;">Badge à venir</div>';
+                    }
+                } else {
+                    container.innerHTML = '<div style="text-align: center; color: #94a3b8; font-size: 0.85rem;">Fonctions badges non chargées</div>';
+                }
+            } catch (error) {
+                console.error(`Error loading badge for ${permitId}:`, error);
+                container.innerHTML = '<div style="text-align: center; color: #ef4444; font-size: 0.85rem;">Erreur chargement badge</div>';
+            }
         }
         
         // Get level badge

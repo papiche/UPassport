@@ -410,6 +410,9 @@ class OracleSystem:
         # Publish to NOSTR
         self.publish_permit_credential(credential)
         
+        # Emit NIP-58 badge for this credential
+        self.emit_badge_for_credential(credential, definition)
+        
         # Update holder's DID document
         self.update_holder_did(credential)
         
@@ -472,6 +475,28 @@ class OracleSystem:
             return myswarm_secret
         
         return None
+    
+    def _get_oracle_pubkey(self) -> str:
+        """Get the oracle pubkey (HEX format) for DID issuer
+        
+        Returns:
+            HEX pubkey string, or empty string if not found
+        """
+        # Primary station uses UPLANETNAME_G1
+        if self._is_primary_station():
+            g1_hex = os.getenv("UPLANETNAME_G1", "")
+            if g1_hex:
+                return g1_hex
+        
+        # Other stations use myswarm_secret.nostr
+        oracle_keyfile = self._get_oracle_keyfile()
+        if oracle_keyfile:
+            pubkey = self._get_pubkey_from_keyfile(oracle_keyfile)
+            if pubkey:
+                return pubkey
+        
+        # Fallback: try to get from environment
+        return os.getenv("UPLANETNAME_G1", "")
     
     def sign_credential(self, request: PermitRequest, definition: PermitDefinition) -> Dict[str, Any]:
         """Sign a credential with oracle authority key (myswarm_secret.nostr or UPLANETNAME_G1 for primary)"""
@@ -809,6 +834,265 @@ class OracleSystem:
         
         except Exception as e:
             print(f"⚠️  Error publishing to NOSTR: {e}")
+    
+    def emit_badge_for_credential(self, credential: PermitCredential, definition: PermitDefinition):
+        """Emit NIP-58 badge for a credential (kind 30503)
+        
+        This function:
+        1. Creates badge definition (kind 30009) if it doesn't exist
+        2. Emits badge award (kind 8) for the credential holder
+        
+        Args:
+            credential: The PermitCredential that was just issued
+            definition: The PermitDefinition for this credential
+        """
+        try:
+            # Generate badge ID from permit ID
+            badge_id = self._get_badge_id_from_permit(definition.id)
+            
+            # Get oracle pubkey for badge issuer
+            oracle_keyfile = self._get_oracle_keyfile()
+            if not oracle_keyfile:
+                print("⚠️  Cannot emit badge: Oracle keyfile not found")
+                return
+            
+            # Read oracle pubkey from keyfile
+            oracle_pubkey = self._get_pubkey_from_keyfile(oracle_keyfile)
+            if not oracle_pubkey:
+                print("⚠️  Cannot emit badge: Could not read oracle pubkey")
+                return
+            
+            # 1. Create badge definition (kind 30009) if it doesn't exist
+            self._ensure_badge_definition(badge_id, definition, oracle_pubkey, oracle_keyfile)
+            
+            # 2. Emit badge award (kind 8)
+            self._emit_badge_award(badge_id, credential, oracle_pubkey, oracle_keyfile)
+            
+            print(f"✅ Badge {badge_id} emitted for credential {credential.credential_id}")
+            
+        except Exception as e:
+            print(f"⚠️  Error emitting badge: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _get_badge_id_from_permit(self, permit_id: str) -> str:
+        """Convert permit ID to badge ID
+        
+        Examples:
+            PERMIT_ORE_V1 -> ore_verifier
+            PERMIT_MAITRE_NAGEUR_X5 -> permit_maitre_nageur_x5
+        """
+        # Convert to lowercase and replace special chars
+        badge_id = permit_id.lower().replace("PERMIT_", "").replace("_", "_")
+        
+        # For official permits, use friendly names
+        official_badges = {
+            "ore_v1": "ore_verifier",
+            "driver": "driver_license",
+            "medical_first_aid": "first_aid_provider",
+            "building_artisan": "building_artisan",
+            "wot_dragon": "wot_dragon"
+        }
+        
+        # Check if it's an official permit
+        for key, value in official_badges.items():
+            if badge_id.startswith(key):
+                return value
+        
+        # For WoTx2 permits, keep the full name with level
+        return f"permit_{badge_id}"
+    
+    def _get_pubkey_from_keyfile(self, keyfile: Path) -> Optional[str]:
+        """Extract pubkey (HEX) from keyfile"""
+        try:
+            content = keyfile.read_text()
+            for line in content.split('\n'):
+                if line.startswith('HEX='):
+                    hex_key = line.split('HEX=')[1].split(';')[0].strip()
+                    return hex_key
+                elif line.startswith('NPUB='):
+                    # If only NPUB is available, we'd need to decode it
+                    # For now, try to find HEX
+                    continue
+        except Exception as e:
+            print(f"⚠️  Error reading keyfile: {e}")
+        return None
+    
+    def _ensure_badge_definition(self, badge_id: str, definition: PermitDefinition, oracle_pubkey: str, oracle_keyfile: Path):
+        """Create badge definition (kind 30009) if it doesn't exist"""
+        # Check if badge definition already exists (query Nostr)
+        # For now, we'll create it anyway (replaceable event)
+        
+        # Generate badge name and description
+        badge_name = definition.name
+        level = definition.metadata.get("level", "")
+        label = ""
+        if level:
+            label = self._get_level_label(level)
+            badge_name = f"{definition.name} - Niveau {level} ({label})"
+        
+        badge_description = definition.description
+        if definition.metadata.get("auto_proclaimed"):
+            badge_description += " Auto-proclaimed mastery with progressive validation."
+        
+        # Generate badge images automatically using AI
+        badge_image_url, badge_thumb_256, badge_thumb_64 = self._generate_badge_images(
+            badge_id, definition.name, badge_description, level, label
+        )
+        
+        # Prepare tags for badge definition
+        tags = [
+            ["d", badge_id],
+            ["name", badge_name],
+            ["description", badge_description],
+            ["image", badge_image_url, "1024x1024"],
+            ["thumb", badge_thumb_256, "256x256"],
+            ["thumb", badge_thumb_64, "64x64"],
+            ["permit_id", definition.id],
+            ["t", "uplanet"],
+            ["t", "oracle"],
+            ["t", "badge"]
+        ]
+        
+        # Add level info for WoTx2
+        if definition.metadata.get("level"):
+            tags.append(["level", definition.metadata.get("level")])
+            tags.append(["label", self._get_level_label(definition.metadata.get("level"))])
+            tags.append(["t", "wotx2"])
+        
+        # Publish badge definition
+        event_data = {
+            "kind": 30009,  # Badge Definition
+            "content": "",
+            "tags": tags
+        }
+        
+        self._publish_to_nostr(event_data, None, use_oracle_key=True)
+        print(f"📜 Badge definition {badge_id} created/updated")
+    
+    def _generate_badge_images(self, badge_id: str, permit_name: str, permit_description: str, 
+                               level: str = "", label: str = "") -> tuple:
+        """Generate badge images automatically using AI and ComfyUI
+        
+        Returns:
+            tuple: (badge_image_url, badge_thumb_256, badge_thumb_64)
+        """
+        try:
+            # Path to badge generation script
+            script_path = Path.home() / ".zen" / "Astroport.ONE" / "IA" / "generate_badge_image.sh"
+            
+            if not script_path.exists():
+                print(f"⚠️  Badge generation script not found: {script_path}")
+                print("   Using fallback static URLs")
+                return self._get_fallback_badge_urls(badge_id)
+            
+            # Prepare arguments for the script
+            import subprocess
+            import json
+            
+            # Escape arguments for shell
+            import shlex
+            args = [
+                str(script_path),
+                badge_id,
+                permit_name,
+                permit_description
+            ]
+            
+            if level:
+                args.append(level)
+            if label:
+                args.append(label)
+            
+            print(f"🎨 Generating badge images for: {badge_id}")
+            print(f"   Calling: {script_path}")
+            
+            # Execute the script
+            result = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minutes max
+            )
+            
+            if result.returncode == 0:
+                # Parse JSON response
+                try:
+                    badge_data = json.loads(result.stdout)
+                    if badge_data.get("success") and badge_data.get("badge_image_url"):
+                        print(f"✅ Badge images generated successfully")
+                        return (
+                            badge_data.get("badge_image_url", ""),
+                            badge_data.get("badge_thumb_256", ""),
+                            badge_data.get("badge_thumb_64", "")
+                        )
+                except json.JSONDecodeError:
+                    print(f"⚠️  Failed to parse badge generation JSON")
+                    print(f"   Output: {result.stdout[:200]}")
+            
+            print(f"⚠️  Badge generation failed (exit code: {result.returncode})")
+            if result.stderr:
+                print(f"   Error: {result.stderr[:200]}")
+            
+        except subprocess.TimeoutExpired:
+            print(f"⚠️  Badge generation timed out after 5 minutes")
+        except Exception as e:
+            print(f"⚠️  Error generating badge images: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Fallback to static URLs if generation fails
+        return self._get_fallback_badge_urls(badge_id)
+    
+    def _get_fallback_badge_urls(self, badge_id: str) -> tuple[str, str, str]:
+        """Get fallback badge URLs (static IPFS paths)"""
+        myipfs = os.getenv("myIPFS", "https://ipfs.copylaradio.com")
+        badge_image_url = f"{myipfs}/ipns/copylaradio.com/badges/{badge_id}.png"
+        badge_thumb_256 = f"{myipfs}/ipns/copylaradio.com/badges/{badge_id}_256x256.png"
+        badge_thumb_64 = f"{myipfs}/ipns/copylaradio.com/badges/{badge_id}_64x64.png"
+        return (badge_image_url, badge_thumb_256, badge_thumb_64)
+    
+    def _get_level_label(self, level: str) -> str:
+        """Get label for WoTx2 level"""
+        try:
+            level_num = int(level.replace("X", ""))
+            if level_num <= 4:
+                return "Débutant"
+            elif level_num <= 10:
+                return "Expert"
+            elif level_num <= 50:
+                return "Maître"
+            elif level_num <= 100:
+                return "Grand Maître"
+            else:
+                return "Maître Absolu"
+        except:
+            return "Niveau"
+    
+    def _emit_badge_award(self, badge_id: str, credential: PermitCredential, oracle_pubkey: str, oracle_keyfile: Path):
+        """Emit badge award (kind 8) for credential holder"""
+        # Get relay URL
+        relay_url = NOSTR_RELAYS[0] if NOSTR_RELAYS else "wss://relay.copylaradio.com"
+        
+        # Prepare tags for badge award
+        tags = [
+            ["a", f"30009:{oracle_pubkey}:{badge_id}"],
+            ["p", credential.holder_npub, relay_url],
+            ["credential_id", credential.credential_id],
+            ["permit_id", credential.permit_definition_id],
+            ["t", "uplanet"],
+            ["t", "oracle"]
+        ]
+        
+        # Publish badge award
+        event_data = {
+            "kind": 8,  # Badge Award
+            "content": f"Credential issued: {credential.permit_definition_id}",
+            "tags": tags
+        }
+        
+        self._publish_to_nostr(event_data, None, use_oracle_key=True)
+        print(f"🏅 Badge award emitted for {credential.holder_npub}")
     
     def get_request_status(self, request_id: str) -> Optional[Dict[str, Any]]:
         """Get the status of a permit request"""

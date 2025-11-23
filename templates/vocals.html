@@ -2321,7 +2321,31 @@
                     throw new Error('NostrPrivate library not loaded');
                 }
                 
-                const rooms = await window.NostrPrivate.listMyVoiceRooms();
+                // Ensure userPubkey is in hex format for listMyVoiceRooms
+                let currentPubkey = userPubkey || window.userPubkey;
+                if (currentPubkey && currentPubkey.startsWith('npub')) {
+                    // Convert npub to hex if needed
+                    if (typeof npubToHex === 'function') {
+                        currentPubkey = npubToHex(currentPubkey);
+                    } else if (typeof window.npubToHex === 'function') {
+                        currentPubkey = window.npubToHex(currentPubkey);
+                    } else if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                        try {
+                            const decoded = NostrTools.nip19.decode(currentPubkey);
+                            if (decoded.type === 'npub' && decoded.data instanceof Uint8Array) {
+                                currentPubkey = Array.from(decoded.data)
+                                    .map(b => b.toString(16).padStart(2, '0'))
+                                    .join('');
+                            }
+                        } catch (e) {
+                            console.warn('Could not convert npub to hex:', e);
+                        }
+                    }
+                }
+                
+                console.log('📋 Loading voice rooms for pubkey:', currentPubkey ? currentPubkey.substring(0, 8) + '...' : 'none');
+                const rooms = await window.NostrPrivate.listMyVoiceRooms(currentPubkey);
+                console.log('✅ Loaded', rooms.length, 'voice room(s)');
                 voiceRoomsList = rooms;
                 
                 roomSelect.innerHTML = '<option value="">-- Select or Create Room --</option>';
@@ -2332,7 +2356,7 @@
                     rooms.forEach(room => {
                         const option = document.createElement('option');
                         option.value = room.roomId;
-                        option.textContent = `${room.name} (${room.roomId.substring(0, 8)}...)`;
+                        option.textContent = `${room.name || 'Unnamed Room'} (${room.roomId.substring(0, 8)}...)`;
                         option.dataset.roomInfo = JSON.stringify(room);
                         roomSelect.appendChild(option);
                     });
@@ -2349,6 +2373,41 @@
                 showError('Failed to load voice rooms: ' + error.message, 'Error');
             } finally {
                 roomSelect.disabled = false;
+            }
+        }
+        
+        // Load voice rooms with retry (useful after creating a new room)
+        async function loadVoiceRoomsWithRetry(expectedRoomId = null, retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                await loadVoiceRooms();
+                
+                // Check if expected room is now in the list
+                if (expectedRoomId) {
+                    const roomSelect = document.getElementById('voice-room-select');
+                    if (roomSelect) {
+                        const found = Array.from(roomSelect.options).some(opt => opt.value === expectedRoomId);
+                        if (found) {
+                            console.log('✅ Expected room found after', i + 1, 'attempt(s)');
+                            // Select the new room
+                            roomSelect.value = expectedRoomId;
+                            roomSelect.dispatchEvent(new Event('change'));
+                            return;
+                        }
+                    }
+                } else {
+                    // No expected room, just return after first load
+                    return;
+                }
+                
+                // Wait before retry (only if not found and not last attempt)
+                if (i < retries - 1) {
+                    console.log('⏳ Room not found yet, retrying in 2 seconds...');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            }
+            
+            if (expectedRoomId) {
+                console.warn('⚠️ Expected room not found after', retries, 'attempts. It may take longer to propagate on the relay.');
             }
         }
         
@@ -2472,23 +2531,19 @@
                     { allowMemberInvites: allowInvites }
                 );
                 
+                console.log('✅ Room created:', room.roomId, 'Event ID:', room.event?.id?.substring(0, 16) + '...');
+                
+                // Wait a bit for the event to propagate on the relay before reloading
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
                 showSuccess(`Room "${roomName}" created successfully!`, 'Room Created', () => {
                     // Reset form
                     document.getElementById('create-room-form')?.reset();
                     selectedRoomMembers.clear();
                     updateSelectedRoomMembersDisplay();
                     
-                    // Reload rooms list
-                    loadVoiceRooms();
-                    
-                    // Select the new room
-                    setTimeout(() => {
-                        const roomSelect = document.getElementById('voice-room-select');
-                        if (roomSelect) {
-                            roomSelect.value = room.roomId;
-                            roomSelect.dispatchEvent(new Event('change'));
-                        }
-                    }, 500);
+                    // Reload rooms list (with retry if needed)
+                    loadVoiceRoomsWithRetry(room.roomId);
                     
                     // Close modal
                     const roomModal = bootstrap.Modal.getInstance(document.getElementById('voice-room-modal'));
@@ -2974,22 +3029,28 @@
                 }
                 
                 // Populate contacts list
-                contactsList = follows.map(follow => ({
-                    npub: follow.npub,
-                    name: follow.name || follow.display_name || 'Unknown',
-                    email: follow.email || '',
-                    picture: follow.picture || '',
-                    mutual: false // Follows are not necessarily mutual
-                }));
+                contactsList = follows.map(follow => {
+                    // Use npub as fallback if name/display_name are null
+                    const displayName = follow.name || follow.display_name || follow.npub?.substring(0, 16) + '...' || 'Unknown';
+                    return {
+                        npub: follow.npub,
+                        name: follow.name || follow.display_name || null,
+                        display_name: follow.display_name || follow.name || null,
+                        email: follow.email || '',
+                        picture: follow.picture || '',
+                        mutual: false // Follows are not necessarily mutual
+                    };
+                });
                 
                 // Update select dropdown
                 contactsSelect.innerHTML = '';
                 contactsList.forEach(contact => {
                     const option = document.createElement('option');
                     option.value = contact.npub;
-                    const displayName = contact.name || contact.email || contact.npub.substring(0, 16) + '...';
-                    option.textContent = `${displayName}${contact.email ? ` (${contact.email})` : ''}`;
-                    option.dataset.name = contact.name || '';
+                    // Use name, display_name, email, or npub as fallback
+                    const displayName = contact.name || contact.display_name || contact.email || (contact.npub ? contact.npub.substring(0, 16) + '...' : 'Unknown');
+                    option.textContent = `${displayName}${contact.email && !contact.name && !contact.display_name ? ` (${contact.email})` : ''}`;
+                    option.dataset.name = contact.name || contact.display_name || '';
                     option.dataset.email = contact.email || '';
                     contactsSelect.appendChild(option);
                 });
