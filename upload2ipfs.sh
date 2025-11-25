@@ -309,6 +309,8 @@ if [ -n "$USER_PUBKEY_HEX" ]; then
                             
                             # Reuse the existing CID instead of uploading again
                             CID="$ORIGINAL_CID"
+                            # CIDIRECT is not available when reusing existing CID
+                            CIDIRECT=""
                             
                             # Try to retrieve existing metadata from original event
                             # Check if there's an 'info' tag with info.json CID
@@ -510,7 +512,11 @@ if [ "$SKIP_IPFS_UPLOAD" != "true" ]; then
 CID_OUTPUT=$(ipfs add -wq "$FILE_PATH" 2>&1)
 
 # Extract the CID
+CIDIRECT=$(echo "$CID_OUTPUT" | head -n 1)
 CID=$(echo "$CID_OUTPUT" | tail -n 1)
+
+# Log the CIDIRECT (noname file CID)
+echo "DEBUG: CIDIRECT: $CIDIRECT" >&2
 
 # Check if ipfs command worked
 if [ -z "$CID" ]; then
@@ -1326,7 +1332,7 @@ fi
 # - MAJOR: Breaking changes to structure
 # - MINOR: New fields added (backward compatible)
 # - PATCH: Bug fixes
-PROTOCOL_VERSION="2.0.0"
+PROTOCOL_VERSION="2.1.0"
 
 INFO_JSON_CONTENT="{
   \"protocol\": {
@@ -1342,6 +1348,7 @@ INFO_JSON_CONTENT="{
   },
   \"ipfs\": {
     \"cid\": \"$CID\",
+    \"cidirect\": \"${CIDIRECT:-}\",
     \"url\": \"/ipfs/$CID/$FILE_NAME\",
     \"gateway\": \"$myIPFS\",
     \"date\": \"$DATE\"$(if [ -n "$IPFSNODEID" ]; then echo ",
@@ -1441,6 +1448,7 @@ JSON_OUTPUT="{
   \"nip94_event\": $NIP94_JSON,
   \"created\": \"$(date -u +"%Y%m%d%H%M%S%4N")\",
   \"cid\": \"$CID\",
+  \"cidirect\": \"${CIDIRECT:-}\",
   \"mimeType\": \"$FILE_TYPE\",
   \"duration\": $(echo "$DURATION" | awk '{print int($1)}'),
   \"fileSize\": ${FILE_SIZE:-0},
