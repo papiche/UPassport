@@ -694,6 +694,11 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="cookies-tab" data-bs-toggle="tab" data-bs-target="#cookies" type="button" role="tab">
+                        <i class="bi bi-cookie"></i> Cookie System
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="examples-tab" data-bs-toggle="tab" data-bs-target="#examples" type="button" role="tab">
                         <i class="bi bi-code-slash"></i> Examples
                     </button>
@@ -1196,7 +1201,255 @@ const videoEvent = {
                     </div>
                 </div>
                 
-                <!-- Tab 5: Examples -->
+                <!-- Tab 5: Cookie System -->
+                <div class="tab-pane fade" id="cookies" role="tabpanel">
+                    <h3><i class="bi bi-cookie"></i> Universal Cookie Management System</h3>
+                    <p class="lead">Upload cookies to enable automated scraping and data synchronization with external services</p>
+                    
+                    <div class="alert alert-success">
+                        <h5><i class="bi bi-check-circle"></i> What is the Cookie System?</h5>
+                        <p class="mb-0">The Cookie System allows you to upload browser cookies (Netscape format) for specific domains. These cookies enable automated scrapers to authenticate and sync data from external websites like YouTube, Leboncoin, and more.</p>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card h-100 border-primary">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="mb-0"><i class="bi bi-upload"></i> Upload Cookies</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Quick Start:</strong></p>
+                                    <ol>
+                                        <li>Export cookies from your browser (Netscape format)</li>
+                                        <li>Upload via the Cookie Management interface</li>
+                                        <li>System automatically detects domain and stores cookie</li>
+                                        <li>Scrapers run automatically during daily refresh</li>
+                                    </ol>
+                                    <a href="/cookie" class="btn btn-primary w-100 mt-3" target="_blank">
+                                        <i class="bi bi-cookie"></i> Open Cookie Manager
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card h-100 border-info">
+                                <div class="card-header bg-info text-white">
+                                    <h5 class="mb-0"><i class="bi bi-shield-check"></i> Security Features</h5>
+                                </div>
+                                <div class="card-body">
+                                    <ul>
+                                        <li><strong>Hidden Files:</strong> Cookies stored as <code>.DOMAIN.cookie</code> (leading dot)</li>
+                                        <li><strong>Private Storage:</strong> Cookies stored in your MULTIPASS directory, not on IPFS</li>
+                                        <li><strong>NIP-42 Auth:</strong> Authentication required to upload cookies</li>
+                                        <li><strong>Single Domain:</strong> Each cookie file must contain cookies for one domain only</li>
+                                        <li><strong>File Permissions:</strong> 600 (read/write owner only)</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4 border-success">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0"><i class="bi bi-play-circle"></i> Working Example: YouTube</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>✅ Currently Functional:</strong> YouTube cookie system is fully operational.</p>
+                            
+                            <h6 class="mt-3">How It Works:</h6>
+                            <ol>
+                                <li>Upload <code>.youtube.com.cookie</code> via <a href="/cookie" target="_blank">Cookie Manager</a></li>
+                                <li>System stores cookie in your MULTIPASS directory: <code>~/.zen/game/nostr/EMAIL/.youtube.com.cookie</code></li>
+                                <li>During daily refresh, <code>youtube.com.sh</code> automatically runs</li>
+                                <li>Scraper syncs your liked videos and publishes them to NOSTR</li>
+                                <li>Videos appear in <a href="/youtube?html=1" target="_blank">YouTube interface</a></li>
+                            </ol>
+                            
+                            <div class="alert alert-info mt-3 mb-0">
+                                <strong>📁 Files:</strong>
+                                <ul class="mb-0 small">
+                                    <li><code>Astroport.ONE/IA/youtube.com.sh</code> - Bash scraper script</li>
+                                    <li><code>UPassport/templates/youtube.html</code> - Video display interface</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4 border-warning">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0"><i class="bi bi-code-slash"></i> Create Your Own Scraper</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>🚀 Extensible System:</strong> You can create scrapers for any domain following the same pattern as YouTube and Leboncoin.</p>
+                            
+                            <h6 class="mt-3"><i class="bi bi-list-check"></i> Example: Leboncoin Scraper</h6>
+                            <p>The Leboncoin scraper demonstrates a more complex implementation with Python backend:</p>
+                            
+                            <div class="code-example mt-3">
+<span class="comment"># Leboncoin scraper structure</span>
+<span class="keyword"># 1. Bash script:</span> leboncoin.fr.sh
+<span class="comment">#    - Called automatically during NOSTRCARD.refresh.sh</span>
+<span class="comment">#    - Receives: PLAYER_EMAIL as argument</span>
+<span class="comment">#    - Finds cookie: ~/.zen/game/nostr/EMAIL/.leboncoin.fr.cookie</span>
+<span class="comment">#    - Calls Python backend if needed</span>
+
+<span class="keyword"># 2. Python backend (optional):</span> scraper_leboncoin.py
+<span class="comment">#    - Complex scraping logic</span>
+<span class="comment">#    - Uses cookie for authentication</span>
+<span class="comment">#    - Publishes results to NOSTR</span>
+                            </div>
+                            
+                            <h6 class="mt-4"><i class="bi bi-gear"></i> Steps to Create a New Scraper:</h6>
+                            <ol>
+                                <li><strong>Upload Cookie:</strong> Upload <code>.DOMAIN.cookie</code> via <a href="/cookie" target="_blank">Cookie Manager</a></li>
+                                <li><strong>Create Bash Script:</strong> Create <code>DOMAIN.sh</code> in <code>Astroport.ONE/IA/</code>
+                                    <pre class="bg-dark text-light p-3 rounded mt-2 small"><code>#!/bin/bash
+# DOMAIN.sh - Auto-scraper for DOMAIN
+PLAYER=$1
+COOKIE_FILE="$HOME/.zen/game/nostr/$PLAYER/.DOMAIN.cookie"
+
+if [ ! -f "$COOKIE_FILE" ]; then
+    echo "Cookie not found: $COOKIE_FILE"
+    exit 1
+fi
+
+# Your scraping logic here
+python3 scraper_DOMAIN.py "$COOKIE_FILE" [...args]</code></pre>
+                                </li>
+                                <li><strong>Create Python Backend (optional):</strong> Create <code>scraper_DOMAIN.py</code> for complex logic
+                                    <pre class="bg-dark text-light p-3 rounded mt-2 small"><code>#!/usr/bin/env python3
+# scraper_DOMAIN.py - Python backend for DOMAIN scraper
+import sys
+from get_cookie import read_cookie_from_file
+
+cookie_file = sys.argv[1]
+cookie = read_cookie_from_file(cookie_file)
+
+# Your scraping logic here
+# Use cookie for authentication
+# Publish results to NOSTR</code></pre>
+                                </li>
+                                <li><strong>Test Locally:</strong> Run your scraper manually to verify it works
+                                    <pre class="bg-dark text-light p-3 rounded mt-2 small"><code>bash Astroport.ONE/IA/DOMAIN.sh user@email.com</code></pre>
+                                </li>
+                                <li><strong>Automatic Execution:</strong> System will run your scraper automatically during daily refresh</li>
+                            </ol>
+                            
+                            <div class="alert alert-info mt-3">
+                                <h6><i class="bi bi-book"></i> Reference Implementation</h6>
+                                <ul class="mb-0 small">
+                                    <li><strong>YouTube (Simple):</strong> <code>Astroport.ONE/IA/youtube.com.sh</code> - Uses yt-dlp</li>
+                                    <li><strong>Leboncoin (Complex):</strong> 
+                                        <ul>
+                                            <li><code>Astroport.ONE/IA/leboncoin.fr.sh</code> - Bash wrapper</li>
+                                            <li><code>Astroport.ONE/IA/scraper_leboncoin.py</code> - Python backend</li>
+                                        </ul>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-file-text"></i> Cookie File Format</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Required Format:</strong> Netscape HTTP Cookie File format (exported from browser extensions)</p>
+                            
+                            <h6 class="mt-3">Single-Domain Only</h6>
+                            <p>Each cookie file must contain cookies for <strong>one domain only</strong> (and its subdomains).</p>
+                            
+                            <div class="alert alert-warning">
+                                <strong>❌ Multi-Domain Files Rejected:</strong> Files containing cookies for multiple different domains will be rejected with an error message.
+                            </div>
+                            
+                            <h6 class="mt-3">Example Cookie File:</h6>
+                            <pre class="bg-dark text-light p-3 rounded"><code># Netscape HTTP Cookie File
+# https://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file! Do not edit.
+
+.youtube.com	TRUE	/	TRUE	1796910450	__Secure-Install	uuid-value
+.youtube.com	TRUE	/	TRUE	1796910450	VISITOR_INFO1_LIVE	visitor-id
+.youtube.com	TRUE	/	TRUE	1793886482	PREF	preference-value</code></pre>
+                            
+                            <h6 class="mt-3">Storage Location:</h6>
+                            <p>Cookies are stored in your MULTIPASS directory:</p>
+                            <pre class="bg-dark text-light p-3 rounded"><code>~/.zen/game/nostr/EMAIL/
+├── .youtube.com.cookie      # YouTube cookies (single-domain)
+├── .leboncoin.fr.cookie     # Leboncoin cookies (single-domain)
+├── .DOMAIN.cookie           # Any domain cookie (single-domain)
+└── APP/
+    └── uDRIVE/              # Scraped content (videos, music, etc.)</code></pre>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4 border-info">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="bi bi-question-circle"></i> How to Export Cookies</h5>
+                        </div>
+                        <div class="card-body">
+                            <h6>Browser Extensions:</h6>
+                            <ul>
+                                <li><strong>Chrome/Edge:</strong> "Get cookies.txt LOCALLY" extension</li>
+                                <li><strong>Firefox:</strong> "cookies.txt" extension</li>
+                            </ul>
+                            
+                            <h6 class="mt-3">Steps:</h6>
+                            <ol>
+                                <li>Open the website you want to export cookies for</li>
+                                <li>Click the extension icon</li>
+                                <li>Filter by current site (usually automatic)</li>
+                                <li>Select <strong>Netscape format</strong></li>
+                                <li>Export - this creates a single-domain cookie file</li>
+                                <li>Upload to UPlanet via <a href="/cookie" target="_blank">Cookie Manager</a></li>
+                            </ol>
+                            
+                            <div class="alert alert-warning mt-3 mb-0">
+                                <strong>⚠️ Important:</strong> Export cookies separately for each domain. Don't export all browser cookies at once - the system will reject multi-domain files.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-link-45deg"></i> Resources</h5>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <a href="/cookie" target="_blank" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-cookie"></i> Cookie Manager Interface
+                                    </a>
+                                    <span class="ms-2">Upload and manage your cookies</span>
+                                </li>
+                                <li class="mb-2">
+                                    <a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/COOKIE_SYSTEM.md" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-file-text"></i> Full Documentation
+                                    </a>
+                                    <span class="ms-2">Complete cookie system documentation</span>
+                                </li>
+                                <li class="mb-2">
+                                    <a href="/youtube?html=1" target="_blank" class="btn btn-sm btn-outline-success">
+                                        <i class="bi bi-youtube"></i> YouTube Interface
+                                    </a>
+                                    <span class="ms-2">See YouTube scraper in action</span>
+                                </li>
+                                <li class="mb-2">
+                                    <strong>Example Scrapers:</strong>
+                                    <ul class="mt-2">
+                                        <li><code>Astroport.ONE/IA/youtube.com.sh</code> - YouTube video sync</li>
+                                        <li><code>Astroport.ONE/IA/leboncoin.fr.sh</code> - Leboncoin ad scraper</li>
+                                        <li><code>Astroport.ONE/IA/scraper_leboncoin.py</code> - Python backend example</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab 6: Examples -->
                 <div class="tab-pane fade" id="examples" role="tabpanel">
                     <h3><i class="bi bi-code-slash"></i> Practical Examples</h3>
                     <p class="lead">Real-world code examples you can use in your applications</p>
@@ -1400,7 +1653,7 @@ async function subscribeToTaggedEvents(tag) {
                     </div>
                 </div>
                 
-                <!-- Tab 6: API Reference -->
+                <!-- Tab 7: API Reference -->
                 <div class="tab-pane fade" id="api" role="tabpanel">
                     <h3><i class="bi bi-file-text"></i> API Reference</h3>
                     <p class="lead">Complete reference for common.js functions</p>
