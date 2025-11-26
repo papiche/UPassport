@@ -791,7 +791,7 @@
                                             <i class="bi bi-clipboard"></i> Copy
                                         </button>
                                     </div>
-                                    <pre class="bg-dark text-light p-3 rounded"><code>await publishNote('Hello Web3!');</code></pre>
+                                    <pre class="bg-dark text-light p-3 rounded"><code>await publishNote('Hello Web3! ' + window.location.href, [['r', window.location.href]]);</code></pre>
                                     <div class="mt-2">
                                         <button class="btn btn-sm btn-success" onclick="testPublishNote()">
                                             <i class="bi bi-play-circle"></i> Try This Now
@@ -1589,22 +1589,29 @@ async function login() {
                         <div class="card-body">
                             <pre class="bg-dark text-light p-3 rounded"><code>// Publish a simple text post
 async function publishPost(content) {
-  const event = await publishNote(content);
-  console.log('Post published:', event.id);
-  return event;
+  const result = await publishNote(content);
+  if (result.success && result.eventId) {
+    console.log('Post published:', result.eventId);
+    return result.event;
+  }
+  throw new Error('Failed to publish: ' + result.errors.join(', '));
 }
 
 // Publish a post with tags (for smart contract processing)
 async function publishPostWithTags(content, tags) {
-  const event = await publishNote(content, tags);
-  console.log('Post with tags published:', event.id);
-  return event;
+  const result = await publishNote(content, tags);
+  if (result.success && result.eventId) {
+    console.log('Post with tags published:', result.eventId);
+    return result.event;
+  }
+  throw new Error('Failed to publish: ' + result.errors.join(', '));
 }
 
-// Example: Post with geolocation
-await publishPostWithTags('Hello from Paris!', [
+// Example: Post with geolocation and URL
+await publishPostWithTags('Hello from Paris! ' + window.location.href, [
   ['g', '48.86,2.35'],  // Geolocation tag
-  ['t', 'travel']        // Topic tag
+  ['t', 'travel'],       // Topic tag
+  ['r', window.location.href]  // Reference URL
 ]);</code></pre>
                         </div>
                     </div>
@@ -1722,8 +1729,11 @@ async function subscribeToTaggedEvents(tag) {
                                 <li><code>kind</code> (number, optional): Event kind (default: 1)</li>
                                 <li><code>options</code> (object, optional): Additional options</li>
                             </ul>
-                            <p><strong>Returns:</strong> Promise resolving to published event</p>
-                            <pre class="bg-dark text-light p-3 rounded mt-3"><code>const event = await publishNote('Hello!', [['t', 'greeting']]);</code></pre>
+                            <p><strong>Returns:</strong> Promise resolving to result object with <code>success</code>, <code>event</code>, <code>eventId</code>, etc.</p>
+                            <pre class="bg-dark text-light p-3 rounded mt-3"><code>const result = await publishNote('Hello!', [['t', 'greeting']]);
+if (result.success) {
+  console.log('Event ID:', result.eventId);
+}</code></pre>
                         </div>
                     </div>
                     
@@ -3755,7 +3765,7 @@ const hex = npubToHex(npub);</code></pre>
                 console.log('[SHARE] Sharing page...');
                 resultEl.textContent = '🔄 Sharing to your feed...\n\n';
                 
-                const shareMessage = 'Check out this Astroport.ONE developer platform! ' + window.location.href;
+                const shareMessage = 'Check out this Astroport developer platform! ' + window.location.href;
                 
                 // Share using common.js - post as note with URL reference
                 if (typeof publishNote === 'function') {
@@ -4937,9 +4947,23 @@ const hex = npubToHex(npub);</code></pre>
             }
             
             try {
-                const result = await publishNote('Hello from Astroport.ONE Developer Platform! 🚀');
-                alert('✅ Note published successfully!\n\nEvent ID: ' + result.id.substring(0, 16) + '...');
-                console.log('Published event:', result);
+                // Include page URL in the message
+                const pageUrl = window.location.href;
+                const message = `Check out this Astroport Developer Platform! 🚀\n\n${pageUrl}`;
+                
+                const result = await publishNote(message, [['r', pageUrl]]);
+                
+                if (result.success && result.eventId) {
+                    alert('✅ Note published successfully!\n\nEvent ID: ' + result.eventId.substring(0, 16) + '...');
+                    console.log('Published event:', result.event);
+                } else if (result.success && result.event && result.event.id) {
+                    alert('✅ Note published successfully!\n\nEvent ID: ' + result.event.id.substring(0, 16) + '...');
+                    console.log('Published event:', result.event);
+                } else {
+                    const errorMsg = result.errors.join('\n') || 'Unknown error';
+                    alert('⚠️ Note may have been published but verification failed:\n\n' + errorMsg);
+                    console.warn('Publish result:', result);
+                }
             } catch (error) {
                 alert('❌ Failed to publish note: ' + error.message);
                 console.error('Publish error:', error);
