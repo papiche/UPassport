@@ -869,7 +869,6 @@
 
     <script>
         // Global variables (use common.js for: DEFAULT_RELAYS, IPFS_GATEWAY, nostrRelay, isNostrConnected, userPubkey, userNpub)
-        let USPOT_API_BASE = '';
         let userPrivkey = null;
         let authMode = 'extension';
         let currentLocation = null;
@@ -879,51 +878,32 @@
         let miniMarker = null;
         let latestMessageEvent = null;
         let userHasInteractedWithMap = false;
+        let selectedRecipients = new Set();
+        let contactsList = [];
         
         // Auto-connect nsec (injected by upassport.sh when scanning SSSS with code 1111)
         const AUTO_CONNECT_NSEC = null;
 
-        // Detect uSPOT API (simplified - uses common.js for relay/gateway)
-        function detectUSPOTAPI() {
-            const currentURL = new URL(window.location.href);
-            const hostname = currentURL.hostname;
-
-            let apiBase = '';
-
-            // page can be served through ipfs () or astroport (UPassport API)
-            if (hostname === "127.0.0.1") {
-                apiBase = `http://127.0.0.1:54321`;
-            } else if (hostname.startsWith("ipfs.")) {
-                const baseDomain = hostname.substring("ipfs.".length);
-                apiBase = `https://u.${baseDomain}`;
-            } else if (hostname.startsWith("u.")) {
-                const baseDomain = hostname.substring("u.".length);
-                apiBase = `https://u.${baseDomain}`;
-            } else {
-                // Fallback
-                apiBase = `https://u.copylaradio.com`;
-            }
-
-            USPOT_API_BASE = apiBase;
-
-            // Ensure common.js variables are initialized (detectUSPOTAPI from common.js should handle this)
-            if (typeof window.detectUSPOTAPI === 'function') {
+        // Initialize API configuration using common.js
+        function initializeAPIConfig() {
+            // Use common.js detectUSPOTAPI (only call once, no recursion)
+            if (typeof detectUSPOTAPI === 'function' && typeof window.detectUSPOTAPI === 'undefined') {
+                // Call the function directly (not via window to avoid recursion)
+                detectUSPOTAPI();
+            } else if (typeof window.detectUSPOTAPI === 'function') {
+                // If already on window, use it directly
                 window.detectUSPOTAPI();
-            } else {
-                // Fallback initialization
-                if (typeof window.DEFAULT_RELAYS === 'undefined') {
-                    window.DEFAULT_RELAYS = [];
-                }
-                if (typeof window.IPFS_GATEWAY === 'undefined') {
-                    window.IPFS_GATEWAY = '';
-                }
             }
 
-            // Get values from common.js or window scope
+            // Get API base URL from common.js
+            const apiBase = typeof getAPIBaseUrl === 'function' ? getAPIBaseUrl() : 
+                          (window.upassportUrl || 'https://u.copylaradio.com');
+            
+            // Get values from common.js
             const determinedRelay = (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 'wss://relay.copylaradio.com';
             const ipfsGateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
 
-            console.log(`uSPOT API Base: ${USPOT_API_BASE}`);
+            console.log(`uSPOT API Base: ${apiBase}`);
             console.log(`Default Relay: ${determinedRelay}`);
             console.log(`IPFS Gateway: ${ipfsGateway}`);
             
@@ -938,6 +918,14 @@
                 `;
                 apiInfo.style.display = 'block';
             }
+            
+            return apiBase;
+        }
+        
+        // Get API base URL (uses common.js)
+        function getUSPOTAPIBase() {
+            return typeof getAPIBaseUrl === 'function' ? getAPIBaseUrl() : 
+                   (window.upassportUrl || 'https://u.copylaradio.com');
         }
 
         // Configure marked.js for security (if available)
@@ -956,7 +944,7 @@
 
         // Handle auth mode change
         document.addEventListener('DOMContentLoaded', function() {
-            detectUSPOTAPI();
+            initializeAPIConfig();
             
             // Auto-connect with nsec if provided (MULTIPASS SSSS scan with code 1111)
             if (AUTO_CONNECT_NSEC && AUTO_CONNECT_NSEC !== null && AUTO_CONNECT_NSEC.trim() !== '') {
@@ -1052,7 +1040,7 @@
             });
         });
 
-        // Connect to Nostr (using common.js functions when possible)
+        // Connect to Nostr (using common.js functions)
         async function handleNostrConnect() {
             const statusDiv = document.getElementById('auth-status');
             const connectBtn = document.getElementById('nostr-connect-btn');
@@ -1064,7 +1052,7 @@
                 let pubkey = null;
                 
                 if (authMode === 'extension') {
-                    // Use common.js connectNostr function (preferred method)
+                    // Use common.js connectNostr function
                     if (typeof connectNostr === 'function') {
                         console.log('📌 Using common.js connectNostr...');
                         pubkey = await connectNostr(true); // Force NIP-42 auth
@@ -1072,23 +1060,8 @@
                         if (!pubkey) {
                             throw new Error("No public key returned from connectNostr");
                         }
-                        
-                        // Connect to relay using common.js
-                        if (typeof connectToRelay === 'function') {
-                            await connectToRelay(true); // Force NIP-42 auth
-                        }
                     } else {
-                        // Fallback to direct extension access
-                        if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
-                            throw new Error("Nostr extension not found. Please install a Nostr extension (nos2x, Alby, etc.)");
-                        }
-                        pubkey = await window.nostr.getPublicKey();
-                        console.log("Public key from extension:", pubkey);
-                        
-                        // Try to connect to relay using common.js
-                        if (typeof connectToRelay === 'function') {
-                            await connectToRelay(true);
-                        }
+                        throw new Error("common.js not loaded. Please refresh the page.");
                     }
                 } else if (authMode === 'nsec') {
                     // Use private key (not supported by common.js, use direct method)
@@ -1103,18 +1076,50 @@
                         pubkey = NostrTools.getPublicKey(userPrivkey);
                         console.log("Public key from nsec:", pubkey);
                         
-                        // Connect to relay manually for nsec mode
-                        await connectToNostrRelayForNsec();
-                        await sendNIP42AuthForNsec();
+                        // Update NostrState for nsec mode
+                        if (window.NostrState) {
+                            window.NostrState.userPubkey = pubkey;
+                            window.NostrState.userPrivateKey = userPrivkey;
+                            if (window.syncLegacyVariables) {
+                                window.syncLegacyVariables();
+                            }
+                        }
+                        
+                        // Connect to relay using RelayManager
+                        if (window.RelayManager) {
+                            const relayUrl = window.RelayManager.getPrimaryRelay();
+                            const relay = window.RelayManager.init(relayUrl);
+                            window.RelayManager.setupHandlers(
+                                relay,
+                                relayUrl,
+                                () => {
+                                    console.log('✅ Connected to relay for nsec mode');
+                                    if (window.NostrState) {
+                                        window.NostrState.isNostrConnected = true;
+                                        if (window.syncLegacyVariables) {
+                                            window.syncLegacyVariables();
+                                        }
+                                    }
+                                },
+                                (error) => {
+                                    console.error('❌ Relay error:', error);
+                                },
+                                () => {
+                                    console.log('🔌 Relay disconnected');
+                                }
+                            );
+                            await relay.connect();
+                            
+                            // Send NIP-42 auth for nsec mode
+                            await sendNIP42AuthForNsec();
+                        } else {
+                            // Fallback to direct connection
+                            await connectToNostrRelayForNsec();
+                            await sendNIP42AuthForNsec();
+                        }
                     } catch (e) {
                         throw new Error("Invalid nsec format. Please check your private key.");
                     }
-                }
-                
-                // Update window scope for compatibility
-                window.userPubkey = pubkey;
-                if (typeof userPubkey !== 'undefined') {
-                    userPubkey = pubkey;
                 }
                 
                 // Show success
@@ -1136,13 +1141,11 @@
             }
         }
 
-        // Connect to Nostr relay (for nsec mode only - common.js handles extension mode)
+        // Connect to Nostr relay (for nsec mode only - fallback if RelayManager not available)
         async function connectToNostrRelayForNsec() {
             const relayUrl = (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 'wss://relay.copylaradio.com';
-            const relay = window.nostrRelay || (typeof nostrRelay !== 'undefined' ? nostrRelay : null);
-            const connected = window.isNostrConnected || (typeof isNostrConnected !== 'undefined' ? isNostrConnected : false);
             
-            if (relay && connected) {
+            if (window.RelayManager && window.RelayManager.isConnected()) {
                 console.log('✅ Reusing existing relay connection');
                 return;
             }
@@ -1150,55 +1153,66 @@
             console.log('Connecting to relay:', relayUrl);
 
             try {
-                if (relay) {
-                    try {
-                        relay.close();
-                    } catch (e) {
-                        console.warn('Error closing existing relay:', e);
-                    }
+                if (window.RelayManager) {
+                    window.RelayManager.close();
                 }
 
                 const newRelay = NostrTools.relayInit(relayUrl);
-                window.nostrRelay = newRelay;
-                if (typeof nostrRelay !== 'undefined') {
-                    nostrRelay = newRelay;
+                
+                // Update NostrState
+                if (window.NostrState) {
+                    window.NostrState.nostrRelay = newRelay;
+                    if (window.syncLegacyVariables) {
+                        window.syncLegacyVariables();
+                    }
                 }
 
                 newRelay.on('connect', () => {
                     console.log('✅ Connected to NOSTR relay:', relayUrl);
-                    window.isNostrConnected = true;
-                    if (typeof isNostrConnected !== 'undefined') {
-                        isNostrConnected = true;
+                    if (window.NostrState) {
+                        window.NostrState.isNostrConnected = true;
+                        if (window.syncLegacyVariables) {
+                            window.syncLegacyVariables();
+                        }
                     }
                 });
 
                 newRelay.on('error', (error) => {
                     console.error('❌ Relay connection error:', error);
-                    window.isNostrConnected = false;
-                    if (typeof isNostrConnected !== 'undefined') {
-                        isNostrConnected = false;
+                    if (window.NostrState) {
+                        window.NostrState.isNostrConnected = false;
+                        if (window.syncLegacyVariables) {
+                            window.syncLegacyVariables();
+                        }
                     }
                 });
 
                 newRelay.on('disconnect', () => {
                     console.log('🔌 Relay disconnected');
-                    window.isNostrConnected = false;
-                    if (typeof isNostrConnected !== 'undefined') {
-                        isNostrConnected = false;
+                    if (window.NostrState) {
+                        window.NostrState.isNostrConnected = false;
+                        if (window.syncLegacyVariables) {
+                            window.syncLegacyVariables();
+                        }
                     }
                 });
 
                 await newRelay.connect();
-                window.isNostrConnected = true;
-                if (typeof isNostrConnected !== 'undefined') {
-                    isNostrConnected = true;
+                
+                if (window.NostrState) {
+                    window.NostrState.isNostrConnected = true;
+                    if (window.syncLegacyVariables) {
+                        window.syncLegacyVariables();
+                    }
                 }
 
             } catch (error) {
                 console.error('Failed to connect to relay:', error);
-                window.isNostrConnected = false;
-                if (typeof isNostrConnected !== 'undefined') {
-                    isNostrConnected = false;
+                if (window.NostrState) {
+                    window.NostrState.isNostrConnected = false;
+                    if (window.syncLegacyVariables) {
+                        window.syncLegacyVariables();
+                    }
                 }
                 throw error;
             }
@@ -1206,19 +1220,21 @@
 
         // Send NIP-42 authentication event (for nsec mode only)
         async function sendNIP42AuthForNsec() {
-            const pubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
-            const relay = window.nostrRelay || (typeof nostrRelay !== 'undefined' ? nostrRelay : null);
-            const connected = window.isNostrConnected || (typeof isNostrConnected !== 'undefined' ? isNostrConnected : false);
+            const pubkey = window.NostrState?.userPubkey || window.userPubkey;
+            const relay = window.NostrState?.nostrRelay || window.nostrRelay;
+            const connected = window.NostrState?.isNostrConnected || window.isNostrConnected;
             
-            if (!pubkey || !relay || !connected) {
+            if (!pubkey || !relay || !connected || !userPrivkey) {
                 console.warn('Cannot send NIP-42 auth: missing requirements');
                 return;
             }
             
             try {
-                console.log('📝 Sending NIP-42 authentication event...');
+                console.log('📝 Sending NIP-42 authentication event (nsec mode)...');
                 
-                const relayUrl = (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 'wss://relay.copylaradio.com';
+                const relayUrl = window.RelayManager?.getPrimaryRelay() || 
+                               (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 
+                               'wss://relay.copylaradio.com';
                 
                 const authEvent = {
                     kind: 22242,
@@ -1245,7 +1261,7 @@
                 
                 // Also send AUTH message
                 try {
-                    let ws = relay._ws || relay.ws || relay.socket;
+                    const ws = relay._ws || relay.ws || relay.socket;
                     if (ws && ws.readyState === WebSocket.OPEN) {
                         const authMessage = JSON.stringify(['AUTH', signedEvent]);
                         ws.send(authMessage);
@@ -1288,7 +1304,7 @@
             }
         }
 
-        // Upload file to IPFS
+        // Upload file to IPFS (using common.js uploadPhotoToIPFS if available)
         async function uploadFileToIPFS(file) {
             const uploadStatus = document.getElementById('uploadStatus');
             const uploadText = document.getElementById('uploadText');
@@ -1297,15 +1313,30 @@
             uploadText.textContent = '📤 Uploading...';
             
             try {
+                // Use common.js uploadPhotoToIPFS if available
+                if (typeof uploadPhotoToIPFS === 'function') {
+                    console.log('📤 Using common.js uploadPhotoToIPFS...');
+                    const result = await uploadPhotoToIPFS(file);
+                    
+                    if (result && result.url) {
+                        uploadedFileUrl = result.url;
+                        uploadStatus.style.background = 'rgba(74, 222, 128, 0.1)';
+                        uploadText.innerHTML = `✅ Uploaded: <a href="${result.url}" target="_blank" style="color: #4ade80;">${result.url.substring(0, 50)}...</a>`;
+                        console.log('✅ File uploaded via common.js:', result.url);
+                        return;
+                    }
+                }
+                
+                // Fallback to direct API upload
                 const formData = new FormData();
                 formData.append('file', file);
                 
-                const pubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
+                const pubkey = window.NostrState?.userPubkey || window.userPubkey;
                 if (pubkey) {
                     formData.append('npub', pubkey);
                 }
                 
-                const uploadUrl = `${USPOT_API_BASE}/api/fileupload`;
+                const uploadUrl = `${getUSPOTAPIBase()}/api/fileupload`;
                 console.log(`Uploading to: ${uploadUrl}`);
                 
                 const response = await fetch(uploadUrl, {
@@ -1322,7 +1353,7 @@
                 console.log('Upload result:', result);
                 
                 // Construct IPFS URL using the correct IPFS gateway
-                const ipfsGateway = window.IPFS_GATEWAY || (typeof IPFS_GATEWAY !== 'undefined' ? IPFS_GATEWAY : 'https://ipfs.copylaradio.com');
+                const ipfsGateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
                 let fileUrl = null;
                 if (result.success && result.new_cid && result.file_path) {
                     const fileName = result.file_path.split('/').pop();
@@ -1362,9 +1393,9 @@
 
         // Send Nostr message
         async function sendNostrMessage() {
-            const pubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
-            const relay = window.nostrRelay || (typeof nostrRelay !== 'undefined' ? nostrRelay : null);
-            const connected = window.isNostrConnected || (typeof isNostrConnected !== 'undefined' ? isNostrConnected : false);
+            const pubkey = window.NostrState?.userPubkey || window.userPubkey;
+            const relay = window.NostrState?.nostrRelay || window.nostrRelay;
+            const connected = window.NostrState?.isNostrConnected || window.isNostrConnected;
             
             if (!pubkey || !relay || !connected) {
                 alert("Please connect to Nostr first");
@@ -1469,18 +1500,37 @@
                     // Sign event
                     let signedEvent;
                     if (authMode === 'extension') {
-                        signedEvent = await window.nostr.signEvent(eventTemplate);
+                        // Use ExtensionWrapper from common.js
+                        if (window.ExtensionWrapper && window.ExtensionWrapper.signEvent) {
+                            signedEvent = await window.ExtensionWrapper.signEvent(eventTemplate);
+                        } else if (window.nostr && typeof window.nostr.signEvent === 'function') {
+                            signedEvent = await window.nostr.signEvent(eventTemplate);
+                        } else {
+                            throw new Error('Nostr extension not available');
+                        }
                     } else {
                         signedEvent = NostrTools.finishEvent(eventTemplate, userPrivkey);
                     }
                     
-                    // Publish event
-                    console.log("Publishing event:", signedEvent);
-                    const relay = window.nostrRelay || (typeof nostrRelay !== 'undefined' ? nostrRelay : null);
-                    if (relay) {
-                        await relay.publish(signedEvent);
+                    // Publish event using common.js publishNote if available
+                    if (authMode === 'extension' && typeof publishNote === 'function') {
+                        console.log("Publishing event using common.js publishNote...");
+                        const result = await publishNote(content, tags, kind, {
+                            silent: false,
+                            timeout: 10000
+                        });
+                        if (!result.success) {
+                            throw new Error(result.errors.join(', ') || 'Failed to publish');
+                        }
                     } else {
-                        throw new Error('Relay not connected');
+                        // Fallback to direct publish
+                        console.log("Publishing event directly...");
+                        const currentRelay = window.NostrState?.nostrRelay || window.nostrRelay;
+                        if (currentRelay) {
+                            await currentRelay.publish(signedEvent);
+                        } else {
+                            throw new Error('Relay not connected');
+                        }
                     }
                     
                     alert("✅ Message sent successfully!");
@@ -1525,9 +1575,9 @@
 
         // Load latest message from user
         async function loadLatestMessage() {
-            const pubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
-            const relay = window.nostrRelay || (typeof nostrRelay !== 'undefined' ? nostrRelay : null);
-            const connected = window.isNostrConnected || (typeof isNostrConnected !== 'undefined' ? isNostrConnected : false);
+            const pubkey = window.NostrState?.userPubkey || window.userPubkey;
+            const relay = window.NostrState?.nostrRelay || window.nostrRelay;
+            const connected = window.NostrState?.isNostrConnected || window.isNostrConnected;
             
             if (!pubkey || !relay || !connected) {
                 console.warn('Cannot load messages: not connected');
@@ -1631,8 +1681,8 @@
 
         // Load replies to latest message
         async function loadReplies() {
-            const relay = window.nostrRelay || (typeof nostrRelay !== 'undefined' ? nostrRelay : null);
-            const connected = window.isNostrConnected || (typeof isNostrConnected !== 'undefined' ? isNostrConnected : false);
+            const relay = window.NostrState?.nostrRelay || window.nostrRelay;
+            const connected = window.NostrState?.isNostrConnected || window.isNostrConnected;
             
             if (!latestMessageEvent || !relay || !connected) {
                 alert('No message loaded to fetch replies for');
@@ -1862,14 +1912,14 @@
         
         // Open Nostr Profile Modal
         function openNostrProfile() {
-            const pubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
+            const pubkey = window.NostrState?.userPubkey || window.userPubkey;
             if (!pubkey) {
                 alert("Please connect to Nostr first");
                 return;
             }
             
             // Build profile URL with hex pubkey using detected IPFS gateway
-            const ipfsGateway = window.IPFS_GATEWAY || (typeof IPFS_GATEWAY !== 'undefined' ? IPFS_GATEWAY : 'https://ipfs.copylaradio.com');
+            const ipfsGateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
             const profileURL = `${ipfsGateway}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${pubkey}`;
             
             console.log("Opening profile:", profileURL);
@@ -1962,7 +2012,7 @@
             const contactsSelect = document.getElementById('contacts-select');
             const contactsContainer = document.getElementById('contacts-list-container');
             
-            const pubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
+            const pubkey = window.NostrState?.userPubkey || window.userPubkey;
             if (!pubkey) {
                 alert('Please connect to NOSTR first to load your follows.');
                 return;
@@ -1972,7 +2022,7 @@
                 loadBtn.disabled = true;
                 loadBtn.textContent = '🔄 Loading...';
                 
-                // Ensure NOSTR connection
+                // Ensure NOSTR connection using common.js
                 if (typeof ensureNostrConnection === 'function') {
                     await ensureNostrConnection();
                 }
@@ -1984,7 +2034,7 @@
                 
                 console.log('📡 Fetching NOSTR follows (kind 3) for:', pubkey.substring(0, 16) + '...');
                 
-                // Fetch follows with metadata
+                // Fetch follows with metadata using common.js
                 const follows = await fetchUserFollowsWithMetadata(pubkey, {
                     timeout: 5000,
                     includeProfiles: true
@@ -2039,17 +2089,25 @@
         
         // Add myself as recipient
         function addMyselfAsRecipient() {
-            const pubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
+            const pubkey = window.NostrState?.userPubkey || window.userPubkey;
             if (!pubkey) {
                 alert('Please connect to NOSTR first to add yourself as recipient.');
                 return;
             }
             
-            // Convert hex to npub if needed
+            // Convert hex to npub using common.js function
             let myNpub = pubkey;
             if (pubkey.length === 64 && /^[0-9a-fA-F]{64}$/.test(pubkey)) {
                 // It's hex, need to convert to npub
-                if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                if (typeof hexToNpub === 'function') {
+                    try {
+                        myNpub = hexToNpub(pubkey);
+                    } catch (e) {
+                        console.error('❌ Error converting hex to npub:', e);
+                        alert('Could not convert your pubkey to npub format. Please enter it manually.');
+                        return;
+                    }
+                } else if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
                     try {
                         myNpub = NostrTools.nip19.npubEncode(pubkey);
                     } catch (e) {
@@ -2058,7 +2116,7 @@
                         return;
                     }
                 } else {
-                    alert('NostrTools not available. Please enter your npub manually.');
+                    alert('hexToNpub function not available. Please enter your npub manually.');
                     return;
                 }
             } else if (!pubkey.startsWith('npub1')) {
