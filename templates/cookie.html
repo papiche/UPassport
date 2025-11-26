@@ -11,6 +11,8 @@
     
     <!-- Nostr integration (same as astro_base.html) -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    <!-- Common.js for NOSTR functions -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     
     <!-- i18n Library -->
     <script src="/static/js/simpl-i18n.js"></script>
@@ -594,6 +596,7 @@
         let userPubkey = null;
         let userNpub = null;
         let userEmail = null;
+        let ipnsVault = null;
 
         // Detect uSPOT API (same as astro_base.html)
         function detectUSPOTAPI() {
@@ -687,6 +690,9 @@
                 if (navStatus) {
                     navStatus.innerHTML = `<span class="status-connected">● ${npubShort}</span>`;
                 }
+
+                // Fetch user profile to get uDRIVE link
+                await fetchUserProfileAndUpdateUDriveLink();
 
             } catch (error) {
                 console.error('Connection error:', error);
@@ -790,6 +796,127 @@
                 
             } catch (error) {
                 console.error('❌ Failed to send NIP-42 auth:', error);
+            }
+        }
+
+        // Fetch user profile to get uDRIVE link and email (using common.js functions)
+        async function fetchUserProfileAndUpdateUDriveLink() {
+            if (!userPubkey) {
+                console.warn('Cannot fetch profile: user not connected');
+                return;
+            }
+
+            try {
+                console.log('📁 Fetching user uDRIVE info using common.js...');
+                
+                // Use common.js function to fetch uDRIVE info
+                if (typeof window.fetchUserUDriveInfo === 'function') {
+                    const udriveInfo = await window.fetchUserUDriveInfo(userPubkey);
+                    
+                    if (udriveInfo.ipnsVault) {
+                        ipnsVault = udriveInfo.ipnsVault;
+                        console.log('✅ Found uDRIVE IPNS vault:', ipnsVault);
+                    }
+                    
+                    if (udriveInfo.email) {
+                        userEmail = udriveInfo.email;
+                        console.log('✅ Found email:', userEmail);
+                    }
+                    
+                    // Update uDRIVE link in navigation
+                    updateUDriveLink();
+                } else {
+                    console.warn('⚠️ fetchUserUDriveInfo not available, common.js may not be loaded');
+                }
+                
+            } catch (error) {
+                console.warn('Could not fetch uDRIVE info:', error);
+            }
+        }
+
+        // Update uDRIVE link in navigation (using common.js buildUDriveUrl)
+        function updateUDriveLink() {
+            // Find uDRIVE link in navigation (look for link containing "uDRIVE" text)
+            const navLinks = document.querySelectorAll('.nav-links a');
+            let udriveLink = null;
+            
+            navLinks.forEach(link => {
+                if (link.textContent.includes('uDRIVE') || link.getAttribute('data-i18n') === 'nav_udrive') {
+                    udriveLink = link;
+                }
+            });
+            
+            // Fallback: try href="/astro"
+            if (!udriveLink) {
+                udriveLink = document.querySelector('a[href="/astro"]');
+            }
+            
+            if (!udriveLink) {
+                console.warn('uDRIVE link not found in navigation');
+                return;
+            }
+            
+            if (!ipnsVault) {
+                console.warn('IPNS vault not available yet');
+                return;
+            }
+            
+            // If we have both ipnsVault and email, make link functional
+            if (ipnsVault && userEmail && userEmail.includes('@')) {
+                try {
+                    // Use common.js function to build URL
+                    const udriveUrl = typeof window.buildUDriveUrl === 'function' 
+                        ? window.buildUDriveUrl(ipnsVault, userEmail, IPFS_GATEWAY)
+                        : `${IPFS_GATEWAY || 'https://ipfs.copylaradio.com'}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
+                    
+                    udriveLink.href = udriveUrl;
+                    udriveLink.onclick = function(e) {
+                        e.preventDefault();
+                        console.log('📁 Opening uDRIVE:', udriveUrl);
+                        window.open(udriveUrl, '_blank');
+                    };
+                    
+                    console.log('✅ uDRIVE link updated:', udriveUrl);
+                } catch (error) {
+                    console.error('Error building uDRIVE URL:', error);
+                }
+            } else {
+                // If we only have ipnsVault, make link open a function that fetches email
+                udriveLink.onclick = async function(e) {
+                    e.preventDefault();
+                    
+                    if (!userEmail || !userEmail.includes('@')) {
+                        // Try to fetch email using common.js
+                        if (typeof window.fetchUserEmailWithFallback === 'function') {
+                            try {
+                                const email = await window.fetchUserEmailWithFallback(userPubkey);
+                                if (email && email.includes('@')) {
+                                    userEmail = email;
+                                }
+                            } catch (error) {
+                                console.error('Error fetching email:', error);
+                            }
+                        }
+                    }
+                    
+                    if (ipnsVault && userEmail && userEmail.includes('@')) {
+                        try {
+                            // Use common.js function to build URL
+                            const udriveUrl = typeof window.buildUDriveUrl === 'function' 
+                                ? window.buildUDriveUrl(ipnsVault, userEmail, IPFS_GATEWAY)
+                                : `${IPFS_GATEWAY || 'https://ipfs.copylaradio.com'}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
+                            
+                            console.log('📁 Opening uDRIVE:', udriveUrl);
+                            window.open(udriveUrl, '_blank');
+                        } catch (error) {
+                            alert('❌ Error building uDRIVE URL: ' + error.message);
+                        }
+                    } else {
+                        alert('❌ uDRIVE not available. Email or IPNS vault missing.');
+                    }
+                };
+                
+                console.log('⚠️ uDRIVE link set to fetch email on click');
             }
         }
 
