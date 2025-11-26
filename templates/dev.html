@@ -655,11 +655,19 @@
                 <span class="status-indicator" id="nostrStatus"></span>
                 <span id="connectionStatus">Checking connection...</span>
             </p>
-            <p class="mt-3">
-                <a href="/dev?console=1" class="btn btn-light btn-sm">
+            <div class="mt-4 d-flex gap-2 justify-content-center flex-wrap">
+                <button class="btn btn-light btn-lg" onclick="testMultipassLogin()" id="heroConnectBtn">
+                    <i class="bi bi-lightning-charge"></i> Try It Now - Connect with MULTIPASS
+                </button>
+                <a href="/dev?console=1" class="btn btn-outline-light btn-lg">
                     <i class="bi bi-terminal"></i> Open NOSTR Console
                 </a>
-            </p>
+            </div>
+            <div class="mt-3">
+                <p class="small text-white-50">
+                    <i class="bi bi-info-circle"></i> <strong>Quick Start:</strong> Include <code>common.js</code>, call <code>connectNostr()</code>, then use <code>publishNote()</code> or <code>uploadPhotoToIPFS()</code>
+                </p>
+            </div>
         </div>
     </div>
 
@@ -733,10 +741,18 @@
                             </ul>
                             
                             <h4 class="mt-4"><i class="bi bi-speedometer2"></i> Quick Start (3 Steps)</h4>
+                            <div class="alert alert-success">
+                                <i class="bi bi-lightning-charge"></i> <strong>Ready to test?</strong> Click the "Try It Now" button above or scroll down to the interactive examples!
+                            </div>
                             <div class="card mb-3">
                                 <div class="card-body">
-                                    <h5 class="card-title">Step 1: Include Libraries</h5>
-                                    <pre class="bg-dark text-light p-3 rounded"><code>&lt;script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"&gt;&lt;/script&gt;
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h5 class="card-title mb-0">Step 1: Include Libraries</h5>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="copyToClipboard('&lt;script src=&quot;{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js&quot;&gt;&lt;/script&gt;\n&lt;script src=&quot;{{ myIPFS }}/ipns/copylaradio.com/common.js&quot;&gt;&lt;/script&gt;')">
+                                            <i class="bi bi-clipboard"></i> Copy
+                                        </button>
+                                    </div>
+                                    <pre class="bg-dark text-light p-3 rounded" id="step1-code"><code>&lt;script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"&gt;&lt;/script&gt;
 &lt;script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"&gt;&lt;/script&gt;</code></pre>
                                     <div class="mt-2">
                                         <a href="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js" target="_blank" class="btn btn-sm btn-outline-primary">
@@ -753,14 +769,34 @@
                             </div>
                             <div class="card mb-3">
                                 <div class="card-body">
-                                    <h5 class="card-title">Step 2: Connect User</h5>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h5 class="card-title mb-0">Step 2: Connect User</h5>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="copyToClipboard('const pubkey = await connectNostr();')">
+                                            <i class="bi bi-clipboard"></i> Copy
+                                        </button>
+                                    </div>
                                     <pre class="bg-dark text-light p-3 rounded"><code>const pubkey = await connectNostr();</code></pre>
+                                    <div class="mt-2">
+                                        <button class="btn btn-sm btn-success" onclick="testMultipassLogin()">
+                                            <i class="bi bi-play-circle"></i> Try This Now
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             <div class="card mb-3">
                                 <div class="card-body">
-                                    <h5 class="card-title">Step 3: Publish Events</h5>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h5 class="card-title mb-0">Step 3: Publish Events</h5>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="copyToClipboard('await publishNote(\'Hello Web3!\');')">
+                                            <i class="bi bi-clipboard"></i> Copy
+                                        </button>
+                                    </div>
                                     <pre class="bg-dark text-light p-3 rounded"><code>await publishNote('Hello Web3!');</code></pre>
+                                    <div class="mt-2">
+                                        <button class="btn btn-sm btn-success" onclick="testPublishNote()">
+                                            <i class="bi bi-play-circle"></i> Try This Now
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -4873,6 +4909,43 @@ const hex = npubToHex(npub);</code></pre>
             window.open(urls[template], '_blank');
         }
         
+        // Copy to clipboard helper
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Show temporary success message
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+                btn.classList.add('btn-success');
+                btn.classList.remove('btn-outline-secondary');
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-secondary');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                alert('Failed to copy to clipboard');
+            });
+        }
+        
+        // Test publish note function
+        async function testPublishNote() {
+            if (!AstroportDemo.userPubkey) {
+                alert('Please connect first using the "Try It Now" button above');
+                return;
+            }
+            
+            try {
+                const result = await publishNote('Hello from Astroport.ONE Developer Platform! 🚀');
+                alert('✅ Note published successfully!\n\nEvent ID: ' + result.id.substring(0, 16) + '...');
+                console.log('Published event:', result);
+            } catch (error) {
+                alert('❌ Failed to publish note: ' + error.message);
+                console.error('Publish error:', error);
+            }
+        }
+        
         // Expose functions to global scope for onclick attributes
         window.testMultipassLogin = testMultipassLogin;
         window.viewProfile = viewProfile;
@@ -4881,6 +4954,8 @@ const hex = npubToHex(npub);</code></pre>
         window.testComment = testComment;
         window.showCommentModal = showCommentModal;
         window.closeCommentModal = closeCommentModal;
+        window.copyToClipboard = copyToClipboard;
+        window.testPublishNote = testPublishNote;
         window.submitComment = submitComment;
         window.testShare = testShare;
         window.sendChatMessage = sendChatMessage;

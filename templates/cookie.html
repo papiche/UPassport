@@ -578,6 +578,22 @@
             // Initialize i18n
             await i18n.init();
             
+            // Setup language tab switching
+            const languageTabs = document.querySelectorAll('.language-tab');
+            languageTabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const lang = this.getAttribute('data-lang');
+                    if (lang) {
+                        // Update active tab
+                        languageTabs.forEach(t => t.classList.remove('active'));
+                        this.classList.add('active');
+                        
+                        // Change language
+                        i18n.setLanguage(lang);
+                    }
+                });
+            });
+            
             // Initialize other components
             detectUSPOTAPI();
             setupDragAndDrop();
@@ -586,57 +602,46 @@
         // ========================================
         // NOSTR & UPLOAD LOGIC
         // ========================================
-        // Global variables (same pattern as astro_base.html)
+        // Use variables from common.js (avoid redeclaration)
+        // common.js provides: DEFAULT_RELAYS, IPFS_GATEWAY, userPubkey, userNpub, nostrRelay, isNostrConnected
         let USPOT_API_BASE = '';
-        let USPOT_RELAY = '';
-        let IPFS_GATEWAY = '';
-        let DEFAULT_RELAYS = [];
-        let nostrRelay = null;
-        let isNostrConnected = false;
-        let userPubkey = null;
-        let userNpub = null;
         let userEmail = null;
         let ipnsVault = null;
 
-        // Detect uSPOT API (same as astro_base.html)
+        // Detect uSPOT API (simplified - uses common.js for relay/gateway)
         function detectUSPOTAPI() {
             const currentURL = new URL(window.location.href);
             const hostname = currentURL.hostname;
 
-            let determinedRelay = '';
             let apiBase = '';
-            let ipfsGateway = '';
 
             if (hostname === "127.0.0.1" || hostname === "localhost") {
-                determinedRelay = `ws://127.0.0.1:7777`;
                 apiBase = `http://127.0.0.1:54321`;
-                ipfsGateway = `http://127.0.0.1:8080`;
             } else if (hostname.startsWith("ipfs.")) {
                 const baseDomain = hostname.substring("ipfs.".length);
-                determinedRelay = `wss://relay.${baseDomain}`;
                 apiBase = `https://u.${baseDomain}`;
-                ipfsGateway = `https://ipfs.${baseDomain}`;
             } else if (hostname.startsWith("u.")) {
                 const baseDomain = hostname.substring("u.".length);
-                determinedRelay = `wss://relay.${baseDomain}`;
                 apiBase = `https://u.${baseDomain}`;
-                ipfsGateway = `https://ipfs.${baseDomain}`;
             } else {
-                determinedRelay = `wss://relay.copylaradio.com`;
                 apiBase = `https://u.copylaradio.com`;
-                ipfsGateway = `https://ipfs.copylaradio.com`;
             }
 
-            DEFAULT_RELAYS = [determinedRelay];
             USPOT_API_BASE = apiBase;
-            USPOT_RELAY = determinedRelay;
-            IPFS_GATEWAY = ipfsGateway;
+
+            // Ensure common.js variables are initialized
+            if (typeof window.DEFAULT_RELAYS === 'undefined') {
+                window.DEFAULT_RELAYS = [];
+            }
+            if (typeof window.IPFS_GATEWAY === 'undefined') {
+                window.IPFS_GATEWAY = '';
+            }
 
             console.log(`🔗 API Base: ${USPOT_API_BASE}`);
-            console.log(`🔗 Relay: ${USPOT_RELAY}`);
+            console.log(`🔗 Using common.js for relay and IPFS gateway`);
         }
 
-        // Connect to NOSTR (adapted from astro_base.html)
+        // Connect to NOSTR (using common.js functions)
         async function connectToNOSTR() {
             const btn = document.getElementById('connect-btn');
             const status = document.getElementById('auth-status');
@@ -645,54 +650,99 @@
             status.innerHTML = `<div class="alert alert-info">⏳ ${i18n.t('auth_connecting')}</div>`;
 
             try {
-                // Check for NOSTR extension
-                if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
-                    throw new Error(i18n.t('auth_error_extension'));
-                }
+                // Use common.js connectNostr function (preferred method)
+                if (typeof connectNostr === 'function') {
+                    console.log('📌 Using common.js connectNostr...');
+                    const pubkey = await connectNostr(true); // Force NIP-42 auth
+                    
+                    if (!pubkey) {
+                        throw new Error("No public key returned from connectNostr");
+                    }
+                    
+                    // Get npub from common.js or encode it
+                    let npub = window.userNpub;
+                    if (!npub && typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                        npub = NostrTools.nip19.npubEncode(pubkey);
+                    } else if (!npub) {
+                        npub = pubkey;
+                    }
+                    
+                    // Connect to relay using common.js
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay(true); // Force NIP-42 auth
+                    }
+                    
+                    // Update UI
+                    const npubShort = npub.substring(0, 12) + '...' + npub.substring(npub.length - 4);
+                    status.innerHTML = `
+                        <div class="alert alert-success">
+                            ✅ ${i18n.t('auth_connected')} ${npubShort}
+                        </div>
+                    `;
+                    
+                    btn.textContent = '✅ CONNECTED';
+                    btn.style.borderColor = 'var(--terminal-green)';
+                    btn.style.color = 'var(--terminal-green)';
 
-                // Get public key from extension
-                userPubkey = await window.nostr.getPublicKey();
-                console.log('✅ Public key:', userPubkey.substring(0, 8) + '...');
+                    document.getElementById('main-content').style.display = 'block';
+                    document.getElementById('auth-section').style.display = 'none';
+                    
+                    // Re-apply translations to the now-visible main content
+                    i18n.applyTranslations();
+                    
+                    // Update nav status
+                    const navStatus = document.getElementById('nav-status');
+                    if (navStatus) {
+                        navStatus.innerHTML = `<span class="status-connected">● ${npubShort}</span>`;
+                    }
 
-                // Encode to npub
-                if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
-                    userNpub = NostrTools.nip19.npubEncode(userPubkey);
+                    // Fetch user profile to get uDRIVE link
+                    await fetchUserProfileAndUpdateUDriveLink();
+                    
                 } else {
-                    userNpub = userPubkey;
+                    // Fallback to direct extension access (if common.js not loaded)
+                    console.warn('⚠️ common.js not loaded, using direct extension access');
+                    
+                    if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
+                        throw new Error(i18n.t('auth_error_extension'));
+                    }
+
+                    const pubkey = await window.nostr.getPublicKey();
+                    console.log('✅ Public key:', pubkey.substring(0, 8) + '...');
+
+                    // Encode to npub
+                    let npub = pubkey;
+                    if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                        npub = NostrTools.nip19.npubEncode(pubkey);
+                    }
+
+                    // Update UI
+                    const npubShort = npub.substring(0, 12) + '...' + npub.substring(npub.length - 4);
+                    status.innerHTML = `
+                        <div class="alert alert-success">
+                            ✅ ${i18n.t('auth_connected')} ${npubShort}
+                        </div>
+                    `;
+                    
+                    btn.textContent = '✅ CONNECTED';
+                    btn.style.borderColor = 'var(--terminal-green)';
+                    btn.style.color = 'var(--terminal-green)';
+
+                    document.getElementById('main-content').style.display = 'block';
+                    document.getElementById('auth-section').style.display = 'none';
+                    
+                    // Re-apply translations to the now-visible main content
+                    i18n.applyTranslations();
+                    
+                    // Update nav status
+                    const navStatus = document.getElementById('nav-status');
+                    if (navStatus) {
+                        navStatus.innerHTML = `<span class="status-connected">● ${npubShort}</span>`;
+                    }
+
+                    // Fetch user profile to get uDRIVE link
+                    await fetchUserProfileAndUpdateUDriveLink();
                 }
-
-                // Connect to relay
-                await connectToNostrRelay();
-
-                // Send NIP-42 auth
-                await sendNIP42Auth();
-
-                // Update UI
-                const npubShort = userNpub.substring(0, 12) + '...' + userNpub.substring(userNpub.length - 4);
-                status.innerHTML = `
-                    <div class="alert alert-success">
-                        ✅ ${i18n.t('auth_connected')} ${npubShort}
-                    </div>
-                `;
-                
-                btn.textContent = '✅ CONNECTED';
-                btn.style.borderColor = 'var(--terminal-green)';
-                btn.style.color = 'var(--terminal-green)';
-
-                document.getElementById('main-content').style.display = 'block';
-                document.getElementById('auth-section').style.display = 'none';
-                
-                // Re-apply translations to the now-visible main content
-                i18n.applyTranslations();
-                
-                // Update nav status
-                const navStatus = document.getElementById('nav-status');
-                if (navStatus) {
-                    navStatus.innerHTML = `<span class="status-connected">● ${npubShort}</span>`;
-                }
-
-                // Fetch user profile to get uDRIVE link
-                await fetchUserProfileAndUpdateUDriveLink();
 
             } catch (error) {
                 console.error('Connection error:', error);
@@ -701,107 +751,12 @@
             }
         }
 
-        // Connect to Nostr relay (from astro_base.html)
-        async function connectToNostrRelay() {
-            const relayUrl = DEFAULT_RELAYS[0];
-            
-            if (nostrRelay && isNostrConnected) {
-                console.log('✅ Reusing existing relay connection');
-                return;
-            }
-
-            console.log('🔌 Connecting to relay:', relayUrl);
-
-            try {
-                if (nostrRelay) {
-                    try {
-                        nostrRelay.close();
-                    } catch (e) {
-                        console.warn('Error closing existing relay:', e);
-                    }
-                }
-
-                nostrRelay = NostrTools.relayInit(relayUrl);
-
-                nostrRelay.on('connect', () => {
-                    console.log('✅ Connected to NOSTR relay:', relayUrl);
-                    isNostrConnected = true;
-                });
-
-                nostrRelay.on('error', (error) => {
-                    console.error('❌ Relay connection error:', error);
-                    isNostrConnected = false;
-                });
-
-                nostrRelay.on('disconnect', () => {
-                    console.log('🔌 Relay disconnected');
-                    isNostrConnected = false;
-                });
-
-                await nostrRelay.connect();
-                isNostrConnected = true;
-
-            } catch (error) {
-                console.error('Failed to connect to relay:', error);
-                isNostrConnected = false;
-                throw error;
-            }
-        }
-
-        // Send NIP-42 authentication event (from astro_base.html)
-        async function sendNIP42Auth() {
-            if (!userPubkey || !nostrRelay || !isNostrConnected) {
-                console.warn('Cannot send NIP-42 auth: missing requirements');
-                return;
-            }
-            
-            try {
-                console.log('📝 Sending NIP-42 authentication event...');
-                
-                const authEvent = {
-                    kind: 22242,
-                    created_at: Math.floor(Date.now() / 1000),
-                    tags: [
-                        ['relay', DEFAULT_RELAYS[0]],
-                        ['challenge', 'auth-' + Date.now()]
-                    ],
-                    content: '',
-                    pubkey: userPubkey
-                };
-                
-                // Sign with extension
-                const signedEvent = await window.nostr.signEvent(authEvent);
-                
-                if (!signedEvent || !signedEvent.id) {
-                    console.error('❌ Failed to sign NIP-42 event');
-                    return;
-                }
-                
-                console.log('✅ NIP-42 event signed:', signedEvent.id);
-                
-                await nostrRelay.publish(signedEvent);
-                console.log('✅ NIP-42 event published');
-                
-                // Also send AUTH message
-                try {
-                    let ws = nostrRelay._ws || nostrRelay.ws || nostrRelay.socket;
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        const authMessage = JSON.stringify(['AUTH', signedEvent]);
-                        ws.send(authMessage);
-                        console.log('✅ NIP-42 AUTH message sent');
-                    }
-                } catch (authError) {
-                    console.warn('⚠️ Could not send AUTH message:', authError);
-                }
-                
-            } catch (error) {
-                console.error('❌ Failed to send NIP-42 auth:', error);
-            }
-        }
-
         // Fetch user profile to get uDRIVE link and email (using common.js functions)
         async function fetchUserProfileAndUpdateUDriveLink() {
-            if (!userPubkey) {
+            // Get userPubkey from common.js or window scope
+            const pubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
+            
+            if (!pubkey) {
                 console.warn('Cannot fetch profile: user not connected');
                 return;
             }
@@ -811,7 +766,7 @@
                 
                 // Use common.js function to fetch uDRIVE info
                 if (typeof window.fetchUserUDriveInfo === 'function') {
-                    const udriveInfo = await window.fetchUserUDriveInfo(userPubkey);
+                    const udriveInfo = await window.fetchUserUDriveInfo(pubkey);
                     
                     if (udriveInfo.ipnsVault) {
                         ipnsVault = udriveInfo.ipnsVault;
@@ -861,13 +816,16 @@
                 return;
             }
             
+            // Get IPFS_GATEWAY from common.js
+            const ipfsGateway = window.IPFS_GATEWAY || (typeof IPFS_GATEWAY !== 'undefined' ? IPFS_GATEWAY : 'https://ipfs.copylaradio.com');
+            
             // If we have both ipnsVault and email, make link functional
             if (ipnsVault && userEmail && userEmail.includes('@')) {
                 try {
                     // Use common.js function to build URL
                     const udriveUrl = typeof window.buildUDriveUrl === 'function' 
-                        ? window.buildUDriveUrl(ipnsVault, userEmail, IPFS_GATEWAY)
-                        : `${IPFS_GATEWAY || 'https://ipfs.copylaradio.com'}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
+                        ? window.buildUDriveUrl(ipnsVault, userEmail, ipfsGateway)
+                        : `${ipfsGateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
                     
                     udriveLink.href = udriveUrl;
                     udriveLink.onclick = function(e) {
@@ -889,9 +847,12 @@
                         // Try to fetch email using common.js
                         if (typeof window.fetchUserEmailWithFallback === 'function') {
                             try {
-                                const email = await window.fetchUserEmailWithFallback(userPubkey);
-                                if (email && email.includes('@')) {
-                                    userEmail = email;
+                                const pubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
+                                if (pubkey) {
+                                    const email = await window.fetchUserEmailWithFallback(pubkey);
+                                    if (email && email.includes('@')) {
+                                        userEmail = email;
+                                    }
                                 }
                             } catch (error) {
                                 console.error('Error fetching email:', error);
@@ -903,8 +864,8 @@
                         try {
                             // Use common.js function to build URL
                             const udriveUrl = typeof window.buildUDriveUrl === 'function' 
-                                ? window.buildUDriveUrl(ipnsVault, userEmail, IPFS_GATEWAY)
-                                : `${IPFS_GATEWAY || 'https://ipfs.copylaradio.com'}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
+                                ? window.buildUDriveUrl(ipnsVault, userEmail, ipfsGateway)
+                                : `${ipfsGateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
                             
                             console.log('📁 Opening uDRIVE:', udriveUrl);
                             window.open(udriveUrl, '_blank');
@@ -925,7 +886,10 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            if (!userNpub) {
+            // Get userNpub from common.js or window scope
+            const npub = window.userNpub || (typeof userNpub !== 'undefined' ? userNpub : null);
+            
+            if (!npub) {
                 alert(i18n.t('upload_connecting_first'));
                 return;
             }
@@ -938,7 +902,7 @@
             try {
                 const formData = new FormData();
                 formData.append('file', file);
-                formData.append('npub', userNpub);
+                formData.append('npub', npub);
 
                 const response = await fetch(`${USPOT_API_BASE}/api/fileupload`, {
                     method: 'POST',
@@ -1011,13 +975,6 @@
                 }
             }, false);
         }
-
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('🍪 Cookie Manager initialized');
-            detectUSPOTAPI();
-            setupDragAndDrop();
-        });
     </script>
 </body>
 </html>

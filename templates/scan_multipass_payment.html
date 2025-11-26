@@ -414,10 +414,8 @@
     </div>
 
     <script>
-    // Global variables for NOSTR authentication
-    let userPubkey = null;
-    let userPrivkey = null;
-    let isNostrConnected = false;
+    // Use common.js variables (userPubkey, isNostrConnected, etc. are provided by common.js)
+    // Access via window.userPubkey, window.isNostrConnected, etc.
 
     $(document).ready(function() {
         // Initialize NOSTR authentication
@@ -485,8 +483,11 @@
         $('#qr-form').submit(async function(e) {
             e.preventDefault();
             
-            // Check NOSTR authentication
-            if (!isNostrConnected || !userPubkey) {
+            // Check NOSTR authentication (use common.js variables)
+            const pubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
+            const connected = window.isNostrConnected || (typeof isNostrConnected !== 'undefined' ? isNostrConnected : false);
+            
+            if (!connected || !pubkey) {
                 alert('⚠️ Please connect to NOSTR first to enable payments');
                 return;
             }
@@ -583,14 +584,57 @@
             connectBtn.prop('disabled', true).text('🔄 Connecting...');
             statusDiv.html('<span style="color: #4fc3f7;">🔄 Connecting to NOSTR...</span>');
             
-            // Use common.js payment authentication
-            const authResult = await multipassPayment.connectNostr();
+            // Use common.js connectNostr function (preferred method)
+            let pubkey = null;
             
-            if (authResult.success) {
-                userPubkey = authResult.pubkey;
-                isNostrConnected = true;
+            if (typeof connectNostr === 'function') {
+                console.log('📌 Using common.js connectNostr...');
+                pubkey = await connectNostr(true); // Force NIP-42 auth
                 
-                statusDiv.html(`<span style="color: #4ade80;">✅ Connected as ${userPubkey.substring(0, 8)}...${userPubkey.substring(userPubkey.length - 4)}</span>`);
+                if (!pubkey) {
+                    throw new Error("No public key returned from connectNostr");
+                }
+                
+                // Update window scope
+                window.userPubkey = pubkey;
+                if (typeof userPubkey !== 'undefined') {
+                    userPubkey = pubkey;
+                }
+                
+                // Connect to relay using common.js
+                if (typeof connectToRelay === 'function') {
+                    await connectToRelay(true); // Force NIP-42 auth
+                }
+                
+                window.isNostrConnected = true;
+                if (typeof isNostrConnected !== 'undefined') {
+                    isNostrConnected = true;
+                }
+            } else {
+                // Fallback to multipassPayment if available
+                if (multipassPayment && typeof multipassPayment.connectNostr === 'function') {
+                    const authResult = await multipassPayment.connectNostr();
+                    
+                    if (authResult.success) {
+                        pubkey = authResult.pubkey;
+                        window.userPubkey = pubkey;
+                        if (typeof userPubkey !== 'undefined') {
+                            userPubkey = pubkey;
+                        }
+                        window.isNostrConnected = true;
+                        if (typeof isNostrConnected !== 'undefined') {
+                            isNostrConnected = true;
+                        }
+                    } else {
+                        throw new Error(authResult.error || 'Authentication failed');
+                    }
+                } else {
+                    throw new Error('NOSTR connection not available. Please ensure common.js is loaded.');
+                }
+            }
+            
+            if (pubkey) {
+                statusDiv.html(`<span style="color: #4ade80;">✅ Connected as ${pubkey.substring(0, 8)}...${pubkey.substring(pubkey.length - 4)}</span>`);
                 connectBtn.text('✅ Connected').css('background', 'linear-gradient(135deg, #4ade80, #22c55e)');
                 
                 // Hide auth section and show payment form
@@ -598,8 +642,6 @@
                 $('.scanner-keypad-container').show();
                 
                 console.log('✅ NOSTR payment authentication successful');
-            } else {
-                throw new Error(authResult.error || 'Authentication failed');
             }
             
         } catch (error) {

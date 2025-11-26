@@ -446,14 +446,8 @@
         // ========================================
         // GLOBAL VARIABLES
         // ========================================
+        // Global variables (use common.js for: DEFAULT_RELAYS, IPFS_GATEWAY, nostrRelay, isNostrConnected, userPubkey, userNpub)
         let USPOT_API_BASE = '';
-        let USPOT_RELAY = '';
-        let IPFS_GATEWAY = '';
-        let DEFAULT_RELAYS = [];
-        let nostrRelay = null;
-        let isNostrConnected = false;
-        let userPubkey = null;
-        let userNpub = null;
         let userEmail = null;
         
         let currentWorkflow = {
@@ -479,37 +473,36 @@
             const currentURL = new URL(window.location.href);
             const hostname = currentURL.hostname;
             
-            let determinedRelay = '';
             let apiBase = '';
-            let ipfsGateway = '';
             
             if (hostname === "127.0.0.1" || hostname === "localhost") {
-                determinedRelay = `ws://127.0.0.1:7777`;
                 apiBase = `http://127.0.0.1:54321`;
-                ipfsGateway = `http://127.0.0.1:8080`;
             } else if (hostname.startsWith("ipfs.")) {
                 const baseDomain = hostname.substring("ipfs.".length);
-                determinedRelay = `wss://relay.${baseDomain}`;
                 apiBase = `https://u.${baseDomain}`;
-                ipfsGateway = `https://ipfs.${baseDomain}`;
             } else if (hostname.startsWith("u.")) {
                 const baseDomain = hostname.substring("u.".length);
-                determinedRelay = `wss://relay.${baseDomain}`;
                 apiBase = `https://u.${baseDomain}`;
-                ipfsGateway = `https://ipfs.${baseDomain}`;
             } else {
-                determinedRelay = `wss://relay.copylaradio.com`;
                 apiBase = `https://u.copylaradio.com`;
-                ipfsGateway = `https://ipfs.copylaradio.com`;
             }
             
-            DEFAULT_RELAYS = [determinedRelay];
             USPOT_API_BASE = apiBase;
-            USPOT_RELAY = determinedRelay;
-            IPFS_GATEWAY = ipfsGateway;
+            
+            // Ensure common.js variables are initialized
+            if (typeof window.detectUSPOTAPI === 'function') {
+                window.detectUSPOTAPI();
+            } else {
+                if (typeof window.DEFAULT_RELAYS === 'undefined') {
+                    window.DEFAULT_RELAYS = [];
+                }
+                if (typeof window.IPFS_GATEWAY === 'undefined') {
+                    window.IPFS_GATEWAY = '';
+                }
+            }
             
             console.log(`🔗 API Base: ${USPOT_API_BASE}`);
-            console.log(`🔗 Relay: ${USPOT_RELAY}`);
+            console.log(`🔗 Using common.js for relay and IPFS gateway`);
         }
         
         async function connectToNOSTR() {
@@ -518,28 +511,79 @@
             btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Connecting...';
             
             try {
-                if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
-                    throw new Error('NOSTR extension not found. Please install a NOSTR extension.');
-                }
-                
-                userPubkey = await window.nostr.getPublicKey();
-                console.log('✅ Public key:', userPubkey.substring(0, 8) + '...');
-                
-                if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
-                    userNpub = NostrTools.nip19.npubEncode(userPubkey);
+                // Use common.js connectNostr function (preferred method)
+                if (typeof connectNostr === 'function') {
+                    console.log('📌 Using common.js connectNostr...');
+                    const pubkey = await connectNostr(true); // Force NIP-42 auth
+                    
+                    if (!pubkey) {
+                        throw new Error("No public key returned from connectNostr");
+                    }
+                    
+                    // Update window scope
+                    window.userPubkey = pubkey;
+                    if (typeof userPubkey !== 'undefined') {
+                        userPubkey = pubkey;
+                    }
+                    
+                    // Get npub from common.js or encode it
+                    let npub = window.userNpub;
+                    if (!npub && typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                        npub = NostrTools.nip19.npubEncode(pubkey);
+                    } else if (!npub) {
+                        npub = pubkey;
+                    }
+                    window.userNpub = npub;
+                    if (typeof userNpub !== 'undefined') {
+                        userNpub = npub;
+                    }
+                    
+                    // Connect to relay using common.js
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay(true); // Force NIP-42 auth
+                    }
+                    
+                    btn.innerHTML = '<i class="bi bi-check-circle"></i> Connected';
+                    btn.classList.remove('btn-outline-light');
+                    btn.classList.add('btn-success');
+                    
+                    // Load user workflows
+                    await loadWorkflows();
                 } else {
-                    userNpub = userPubkey;
+                    // Fallback to direct extension access
+                    if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
+                        throw new Error('NOSTR extension not found. Please install a NOSTR extension.');
+                    }
+                    
+                    const pubkey = await window.nostr.getPublicKey();
+                    console.log('✅ Public key:', pubkey.substring(0, 8) + '...');
+                    
+                    window.userPubkey = pubkey;
+                    if (typeof userPubkey !== 'undefined') {
+                        userPubkey = pubkey;
+                    }
+                    
+                    let npub = pubkey;
+                    if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                        npub = NostrTools.nip19.npubEncode(pubkey);
+                    }
+                    window.userNpub = npub;
+                    if (typeof userNpub !== 'undefined') {
+                        userNpub = npub;
+                    }
+                    
+                    // Try to connect to relay using common.js
+                    if (typeof connectToRelay === 'function') {
+                        await connectToRelay(true);
+                    }
+                    
+                    btn.innerHTML = '<i class="bi bi-check-circle"></i> Connected';
+                    btn.classList.remove('btn-outline-light');
+                    btn.classList.add('btn-success');
+                    
+                    // Load user workflows
+                    await loadWorkflows();
                 }
-                
-                await connectToNostrRelay();
-                await sendNIP42Auth();
-                
-                btn.innerHTML = '<i class="bi bi-check-circle"></i> Connected';
-                btn.classList.remove('btn-outline-light');
-                btn.classList.add('btn-success');
-                
-                // Load user workflows
-                await loadWorkflows();
                 
             } catch (error) {
                 console.error('Connection error:', error);
@@ -549,88 +593,16 @@
             }
         }
         
-        async function connectToNostrRelay() {
-            const relayUrl = DEFAULT_RELAYS[0];
-            
-            if (nostrRelay && isNostrConnected) {
-                console.log('✅ Reusing existing relay connection');
-                return;
-            }
-            
-            console.log('🔌 Connecting to relay:', relayUrl);
-            
-            try {
-                if (nostrRelay) {
-                    try {
-                        nostrRelay.close();
-                    } catch (e) {
-                        console.warn('Error closing existing relay:', e);
-                    }
-                }
-                
-                nostrRelay = NostrTools.relayInit(relayUrl);
-                
-                nostrRelay.on('connect', () => {
-                    console.log('✅ Connected to NOSTR relay:', relayUrl);
-                    isNostrConnected = true;
-                });
-                
-                nostrRelay.on('error', (error) => {
-                    console.error('❌ Relay connection error:', error);
-                    isNostrConnected = false;
-                });
-                
-                await nostrRelay.connect();
-                isNostrConnected = true;
-                
-            } catch (error) {
-                console.error('Failed to connect to relay:', error);
-                isNostrConnected = false;
-                throw error;
-            }
-        }
-        
-        async function sendNIP42Auth() {
-            if (!userPubkey || !nostrRelay || !isNostrConnected) {
-                console.warn('Cannot send NIP-42 auth: missing requirements');
-                return;
-            }
-            
-            try {
-                console.log('📝 Sending NIP-42 authentication event...');
-                
-                const authEvent = {
-                    kind: 22242,
-                    created_at: Math.floor(Date.now() / 1000),
-                    tags: [
-                        ['relay', DEFAULT_RELAYS[0]],
-                        ['challenge', 'auth-' + Date.now()]
-                    ],
-                    content: '',
-                    pubkey: userPubkey
-                };
-                
-                const signedEvent = await window.nostr.signEvent(authEvent);
-                
-                if (!signedEvent || !signedEvent.id) {
-                    console.error('❌ Failed to sign NIP-42 event');
-                    return;
-                }
-                
-                console.log('✅ NIP-42 event signed:', signedEvent.id);
-                await nostrRelay.publish(signedEvent);
-                console.log('✅ NIP-42 event published');
-                
-            } catch (error) {
-                console.error('❌ Failed to send NIP-42 auth:', error);
-            }
-        }
+        // connectToNostrRelay and sendNIP42Auth are now handled by common.js
         
         // ========================================
         // WORKFLOW MANAGEMENT
         // ========================================
         async function loadWorkflows() {
-            if (!userPubkey || !nostrRelay) {
+            const pubkey = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
+            const relay = window.nostrRelay || (typeof nostrRelay !== 'undefined' ? nostrRelay : null);
+            
+            if (!pubkey || !relay) {
                 console.warn('Cannot load workflows: not connected');
                 return;
             }
@@ -639,10 +611,10 @@
                 console.log('📋 Loading workflows from NOSTR...');
                 
                 const workflows = [];
-                const sub = nostrRelay.sub([
+                const sub = relay.sub([
                     {
                         kinds: [31900],
-                        authors: [userPubkey],
+                        authors: [pubkey],
                         '#t': ['cookie-workflow']
                     }
                 ]);
