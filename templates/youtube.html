@@ -5616,123 +5616,49 @@
                 umapKey: null
             };
             
-            // Fetch user email first (needed for uDRIVE path)
+            // Fetch uDRIVE info using common.js function (includes email and IPNS vault)
             try {
-                console.log('[YOUTUBE] 📧 Fetching user email...');
-                if (typeof fetchUserEmailWithFallback === 'function') {
-                    const userEmail = await fetchUserEmailWithFallback(userPubkey);
-                    if (userEmail && userEmail.includes('@')) {
-                        window.userServices.email = userEmail;
-                        console.log('[YOUTUBE] ✅ Found user email:', userEmail);
-                    } else {
-                        console.warn('[YOUTUBE] ⚠️ No valid email found, will use fallback');
-                    }
-                }
-            } catch (error) {
-                console.warn('[YOUTUBE] Could not fetch email:', error);
-            }
-            
-            // Fetch uDRIVE link from profile tags (i tags)
-            try {
-                console.log('[YOUTUBE] 📁 Checking for uDRIVE in profile tags...');
+                console.log('[YOUTUBE] 📁 Fetching uDRIVE info using common.js...');
                 
-                // Try to fetch user metadata from relay
-                if (typeof nostrRelay !== 'undefined' && nostrRelay) {
-                    const sub = nostrRelay.sub([{
-                        kinds: [0],
-                        authors: [userPubkey],
-                        limit: 1
-                    }]);
+                if (typeof window.fetchUserUDriveInfo === 'function') {
+                    const udriveInfo = await window.fetchUserUDriveInfo(userPubkey);
                     
-                    sub.on('event', event => {
-                        try {
-                            const profile = JSON.parse(event.content);
-                            console.log('[YOUTUBE] 📇 Profile event received:', event);
-                            
-                            // Extract tags with identity information (like index.html)
-                            const tags = event.tags || [];
-                            const identities = {};
-                            
-                            tags.forEach(tag => {
-                                if (tag[0] === 'i' && tag[1]) {
-                                    // Split only on the FIRST colon to handle URLs correctly
-                                    const colonIndex = tag[1].indexOf(':');
-                                    if (colonIndex > 0) {
-                                        const key = tag[1].substring(0, colonIndex);
-                                        const value = tag[1].substring(colonIndex + 1);
-                                        identities[key] = value;
-                                    }
-                                }
-                            });
-                            
-                            console.log('[YOUTUBE] Identities found in tags:', identities);
-                            
-                            // Look for IPNS vault in identities (from i tags)
-                            let ipnsVault = identities.ipns_vault;
-                            
-                            // Also check nip05 field as fallback
-                            if (!ipnsVault && profile.nip05) {
-                                const vaultMatch = profile.nip05.match(/ipns\/([A-Za-z0-9]+)/);
-                                if (vaultMatch) {
-                                    ipnsVault = vaultMatch[1];
-                                }
-                            }
-                            
-                            if (ipnsVault) {
-                                // Clean up ipnsVault - remove leading /ipns/ if present
-                                if (ipnsVault.startsWith('/ipns/')) {
-                                    ipnsVault = ipnsVault.substring(6);
-                                }
-                                
-                                console.log('[YOUTUBE] ✅ Found uDRIVE:', ipnsVault);
-                                
-                                // Store globally
-                                window.userServices.udrive = ipnsVault;
-                                
-                                // Also store email if found in identities
-                                if (identities.email && !window.userServices.email) {
-                                    window.userServices.email = identities.email;
-                                    console.log('[YOUTUBE] ✅ Found email in profile tags:', identities.email);
-                                }
-                                
-                                // Show uDRIVE in connection panel
-                                const udriveRow = document.getElementById('udrive-row');
-                                if (udriveRow) {
-                                    udriveRow.style.display = 'flex';
-                                    udriveRow.dataset.ipnsVault = ipnsVault;
-                                }
-                                
-                                // Show GPS Chat link if GPS is available
-                                const gpsChatRow = document.getElementById('gps-chat-row');
-                                const umapKey = window.userServices?.umapKey || window.userServices?.gps?.umapKey;
-                                if (gpsChatRow && umapKey) {
-                                    gpsChatRow.style.display = 'flex';
-                                }
-                                
-                                // Show uDRIVE in sidebar
-                                showUDriveInSidebar(ipnsVault);
-                            } else {
-                                console.log('[YOUTUBE] ⚠️ No uDRIVE found in profile');
-                            }
-                        } catch (e) {
-                            console.warn('[YOUTUBE] Could not parse profile:', e);
+                    if (udriveInfo.ipnsVault) {
+                        console.log('[YOUTUBE] ✅ Found uDRIVE IPNS vault:', udriveInfo.ipnsVault);
+                        
+                        // Store globally
+                        window.userServices.udrive = udriveInfo.ipnsVault;
+                        
+                        // Store email if found
+                        if (udriveInfo.email) {
+                            window.userServices.email = udriveInfo.email;
+                            console.log('[YOUTUBE] ✅ Found email:', udriveInfo.email);
                         }
-                        sub.unsub();
-                    });
-                    
-                    sub.on('eose', () => {
-                        sub.unsub();
-                    });
-                    
-                    // Timeout after 5 seconds
-                    setTimeout(() => {
-                        sub.unsub();
-                    }, 5000);
+                        
+                        // Show uDRIVE in connection panel
+                        const udriveRow = document.getElementById('udrive-row');
+                        if (udriveRow) {
+                            udriveRow.style.display = 'flex';
+                            udriveRow.dataset.ipnsVault = udriveInfo.ipnsVault;
+                        }
+                        
+                        // Show GPS Chat link if GPS is available
+                        const gpsChatRow = document.getElementById('gps-chat-row');
+                        const umapKey = window.userServices?.umapKey || window.userServices?.gps?.umapKey;
+                        if (gpsChatRow && umapKey) {
+                            gpsChatRow.style.display = 'flex';
+                        }
+                        
+                        // Show uDRIVE in sidebar
+                        showUDriveInSidebar(udriveInfo.ipnsVault);
+                    } else {
+                        console.log('[YOUTUBE] ⚠️ No uDRIVE found in profile');
+                    }
                 } else {
-                    console.warn('[YOUTUBE] ⚠️ Relay not available for profile fetch');
+                    console.warn('[YOUTUBE] ⚠️ fetchUserUDriveInfo not available, common.js may not be loaded');
                 }
             } catch (error) {
-                console.warn('[YOUTUBE] Could not fetch uDRIVE:', error);
+                console.warn('[YOUTUBE] Could not fetch uDRIVE info:', error);
             }
             
         }
@@ -5951,7 +5877,7 @@
         }
         
         /**
-         * Open uDRIVE from sidebar
+         * Open uDRIVE from sidebar (using common.js buildUDriveUrl)
          */
         async function openUserDriveFromSidebar() {
             const udriveItem = document.getElementById('udrive-sidebar-item');
@@ -5970,9 +5896,9 @@
             if (!userEmail || !userEmail.includes('@')) {
                 // Try to fetch email if not cached
                 console.log('[YOUTUBE] 📧 Email not cached, fetching...');
-                if (typeof fetchUserEmailWithFallback === 'function' && userPubkey) {
+                if (typeof window.fetchUserEmailWithFallback === 'function' && userPubkey) {
                     try {
-                        userEmail = await fetchUserEmailWithFallback(userPubkey);
+                        userEmail = await window.fetchUserEmailWithFallback(userPubkey);
                         if (userEmail && userEmail.includes('@')) {
                             window.userServices.email = userEmail;
                             console.log('[YOUTUBE] ✅ Email fetched:', userEmail);
@@ -5992,12 +5918,19 @@
                 }
             }
             
-            // Open uDRIVE at /{email}/APP/uDRIVE path
-            const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
-            const udriveUrl = `${gateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
-            
-            console.log('[YOUTUBE] 📁 Opening uDRIVE:', udriveUrl);
-            window.open(udriveUrl, '_blank');
+            // Use common.js function to build URL
+            try {
+                const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+                const udriveUrl = typeof window.buildUDriveUrl === 'function'
+                    ? window.buildUDriveUrl(ipnsVault, userEmail, gateway)
+                    : `${gateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
+                
+                console.log('[YOUTUBE] 📁 Opening uDRIVE:', udriveUrl);
+                window.open(udriveUrl, '_blank');
+            } catch (error) {
+                console.error('[YOUTUBE] ❌ Error building uDRIVE URL:', error);
+                alert('❌ Error building uDRIVE URL: ' + error.message);
+            }
         }
         
         /**
@@ -6088,7 +6021,7 @@
         }
         
         /**
-         * Open user's uDRIVE
+         * Open user's uDRIVE (using common.js buildUDriveUrl)
          */
         async function openUserDrive() {
             const udriveRow = document.getElementById('udrive-row');
@@ -6105,9 +6038,9 @@
             if (!userEmail || !userEmail.includes('@')) {
                 // Try to fetch email if not cached
                 console.log('[YOUTUBE] 📧 Email not cached, fetching...');
-                if (typeof fetchUserEmailWithFallback === 'function' && userPubkey) {
+                if (typeof window.fetchUserEmailWithFallback === 'function' && userPubkey) {
                     try {
-                        userEmail = await fetchUserEmailWithFallback(userPubkey);
+                        userEmail = await window.fetchUserEmailWithFallback(userPubkey);
                         if (userEmail && userEmail.includes('@')) {
                             window.userServices.email = userEmail;
                             console.log('[YOUTUBE] ✅ Email fetched:', userEmail);
@@ -6127,12 +6060,19 @@
                 }
             }
             
-            const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
-            // Open uDRIVE at /{email}/APP/uDRIVE path
-            const udriveUrl = `${gateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
-            
-            console.log('[YOUTUBE] 📁 Opening uDRIVE:', udriveUrl);
-            window.open(udriveUrl, '_blank');
+            // Use common.js function to build URL
+            try {
+                const gateway = window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+                const udriveUrl = typeof window.buildUDriveUrl === 'function'
+                    ? window.buildUDriveUrl(ipnsVault, userEmail, gateway)
+                    : `${gateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
+                
+                console.log('[YOUTUBE] 📁 Opening uDRIVE:', udriveUrl);
+                window.open(udriveUrl, '_blank');
+            } catch (error) {
+                console.error('[YOUTUBE] ❌ Error building uDRIVE URL:', error);
+                alert('❌ Error building uDRIVE URL: ' + error.message);
+            }
         }
         
         /**
@@ -6214,9 +6154,9 @@
                     
                     // If email not available, try to fetch it
                     if (!userEmail || !userEmail.includes('@')) {
-                        if (typeof fetchUserEmailWithFallback === 'function' && fullPubkey) {
+                        if (typeof window.fetchUserEmailWithFallback === 'function' && fullPubkey) {
                             try {
-                                userEmail = await fetchUserEmailWithFallback(fullPubkey);
+                                userEmail = await window.fetchUserEmailWithFallback(fullPubkey);
                                 if (userEmail && userEmail.includes('@')) {
                                     window.userServices = window.userServices || {};
                                     window.userServices.email = userEmail;
