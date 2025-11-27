@@ -4627,13 +4627,18 @@
             if (nostrState && nostrState.connectingRelay) {
                 console.log('[THEATER] ⏳ Connection in progress, waiting...');
                 if (typeof RelayManager !== 'undefined' && RelayManager.waitForConnection) {
-                    const waited = await RelayManager.waitForConnection(10);
-                    if (waited) {
+                    await RelayManager.waitForConnection(10);
+                    // After waitForConnection, poll for WebSocket to be attached
+                    let waitAttempts = 0;
+                    const maxWaitAttempts = 50; // 5 seconds
+                    while (waitAttempts < maxWaitAttempts) {
                         currentRelay = getRelayFromNostrState();
                         if (currentRelay && isRelayValid(currentRelay)) {
                             console.log('[THEATER] ✅ Relay connected after waiting');
                             return currentRelay;
                         }
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        waitAttempts++;
                     }
                 }
             }
@@ -4672,9 +4677,11 @@
                     await RelayManager.waitForConnection(10);
                 }
                 
-                // Step 6: Poll for relay with WebSocket attached (up to 5 seconds)
+                // Step 6: Poll for relay with WebSocket attached (up to 10 seconds)
+                // This is critical because the WebSocket might not be attached immediately
+                // even after waitForConnection returns true
                 let attempts = 0;
-                const maxAttempts = 50; // 50 * 100ms = 5 seconds
+                const maxAttempts = 100; // 100 * 100ms = 10 seconds
                 
                 while (attempts < maxAttempts) {
                     currentRelay = getRelayFromNostrState();
@@ -4693,17 +4700,23 @@
                         return currentRelay;
                     }
                     
+                    // Log progress every 2 seconds
+                    if (attempts > 0 && attempts % 20 === 0) {
+                        console.log(`[THEATER] ⏳ Waiting for WebSocket to attach... (${attempts * 100}ms)`);
+                    }
+                    
                     await new Promise(resolve => setTimeout(resolve, 100));
                     attempts++;
                 }
                 
-                // Last check: verify with RelayManager.isConnected
+                // Last check: verify with RelayManager.isConnected and WebSocket
                 if (typeof RelayManager !== 'undefined' && typeof RelayManager.isConnected === 'function') {
                     try {
                         if (RelayManager.isConnected()) {
                             currentRelay = getRelayFromNostrState();
-                            if (currentRelay && typeof currentRelay.sub === 'function') {
-                                console.log('[THEATER] ✅ Relay connected (via RelayManager check)');
+                            // Verify WebSocket is attached and open
+                            if (currentRelay && isRelayValid(currentRelay)) {
+                                console.log('[THEATER] ✅ Relay connected (via RelayManager check with WebSocket)');
                                 window.nostrRelay = currentRelay;
                                 if (typeof nostrRelay !== 'undefined') {
                                     nostrRelay = currentRelay;
@@ -4713,6 +4726,24 @@
                                     isNostrConnected = true;
                                 }
                                 return currentRelay;
+                            } else if (currentRelay && typeof currentRelay.sub === 'function') {
+                                // Relay exists but WebSocket not attached - wait a bit more
+                                console.log('[THEATER] ⏳ Relay exists but WebSocket not attached, waiting...');
+                                for (let i = 0; i < 20; i++) {
+                                    await new Promise(resolve => setTimeout(resolve, 100));
+                                    if (isRelayValid(currentRelay)) {
+                                        console.log('[THEATER] ✅ Relay WebSocket attached after additional wait');
+                                        window.nostrRelay = currentRelay;
+                                        if (typeof nostrRelay !== 'undefined') {
+                                            nostrRelay = currentRelay;
+                                        }
+                                        window.isNostrConnected = true;
+                                        if (typeof isNostrConnected !== 'undefined') {
+                                            isNostrConnected = true;
+                                        }
+                                        return currentRelay;
+                                    }
+                                }
                             }
                         }
                     } catch (e) {
