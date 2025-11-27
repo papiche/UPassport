@@ -4625,9 +4625,15 @@
             let currentRelay = getRelayFromSources();
             if (currentRelay && typeof currentRelay.sub === 'function') {
                 // Verify connection status using RelayManager if available
-                if (typeof RelayManager !== 'undefined' && RelayManager.isConnected && RelayManager.isConnected()) {
-                    console.log('[THEATER] ✅ Using existing connected relay');
-                    return currentRelay;
+                if (typeof RelayManager !== 'undefined' && typeof RelayManager.isConnected === 'function') {
+                    try {
+                        if (RelayManager.isConnected()) {
+                            console.log('[THEATER] ✅ Using existing connected relay (via RelayManager)');
+                            return currentRelay;
+                        }
+                    } catch (e) {
+                        console.warn('[THEATER] ⚠️ Error calling RelayManager.isConnected():', e);
+                    }
                 }
                 
                 // Fallback: verify WebSocket directly
@@ -4649,6 +4655,9 @@
                         }
                     }
                     console.warn('[THEATER] ⚠️ Relay WebSocket still not OPEN after waiting');
+                } else if (!ws) {
+                    // No WebSocket found - relay might not be fully initialized
+                    console.warn('[THEATER] ⚠️ Relay object exists but no WebSocket found, will reconnect');
                 }
             }
             
@@ -4734,28 +4743,44 @@
                     // IMPORTANT: connectToRelay() returns boolean, not the relay object
                     // We must get the relay from NostrState or window.nostrRelay
                     // Try multiple times with small delays if not found immediately
+                    // Also wait for WebSocket to be attached to the relay
                     let attempts = 0;
-                    const maxAttempts = 10;
-                    while (attempts < maxAttempts && !currentRelay) {
+                    const maxAttempts = 20; // Increased to 20 attempts (2 seconds)
+                    while (attempts < maxAttempts) {
                         currentRelay = getRelayFromSources();
-                        if (!currentRelay) {
-                            await new Promise(resolve => setTimeout(resolve, 100));
-                            attempts++;
-                        } else {
-                            break;
+                        if (currentRelay && typeof currentRelay.sub === 'function') {
+                            // Check if WebSocket is attached and open
+                            const ws = currentRelay._ws || currentRelay.ws || currentRelay.socket;
+                            if (ws && ws.readyState === WebSocket.OPEN) {
+                                // Relay is ready!
+                                break;
+                            } else if (ws && ws.readyState === WebSocket.CONNECTING) {
+                                // WebSocket is connecting, wait a bit more
+                                await new Promise(resolve => setTimeout(resolve, 200));
+                                attempts++;
+                                continue;
+                            }
                         }
+                        // Wait a bit before retrying
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        attempts++;
                     }
                     
-                    // Verify relay is valid
+                    // Verify relay is valid and has WebSocket
                     if (currentRelay && typeof currentRelay.sub === 'function') {
-                        // Check connection status using RelayManager if available
+                        // Check WebSocket directly (most reliable)
+                        const ws = currentRelay._ws || currentRelay.ws || currentRelay.socket;
                         let isConnected = false;
-                        if (typeof RelayManager !== 'undefined' && RelayManager.isConnected && RelayManager.isConnected()) {
+                        
+                        if (ws && ws.readyState === WebSocket.OPEN) {
                             isConnected = true;
-                        } else {
-                            // Fallback: check WebSocket directly
-                            const ws = currentRelay._ws || currentRelay.ws || currentRelay.socket;
-                            isConnected = ws && ws.readyState === WebSocket.OPEN;
+                        } else if (typeof RelayManager !== 'undefined' && typeof RelayManager.isConnected === 'function') {
+                            // Fallback: use RelayManager if WebSocket check fails
+                            try {
+                                isConnected = RelayManager.isConnected();
+                            } catch (e) {
+                                console.warn('[THEATER] ⚠️ Error calling RelayManager.isConnected():', e);
+                            }
                         }
                         
                         if (isConnected) {
@@ -4773,8 +4798,11 @@
                         } else {
                             console.warn('[THEATER] ⚠️ Relay object exists but not connected', {
                                 hasRelay: !!currentRelay,
-                                wsState: currentRelay._ws ? currentRelay._ws.readyState : 'no ws',
-                                relayManagerConnected: typeof RelayManager !== 'undefined' && RelayManager.isConnected ? RelayManager.isConnected() : 'N/A'
+                                hasWs: !!(currentRelay._ws || currentRelay.ws || currentRelay.socket),
+                                wsState: ws ? ws.readyState : 'no ws',
+                                wsReadyState: ws ? `WebSocket.${['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][ws.readyState]}` : 'N/A',
+                                relayManagerAvailable: typeof RelayManager !== 'undefined',
+                                relayManagerIsConnectedType: typeof RelayManager !== 'undefined' ? typeof RelayManager.isConnected : 'N/A'
                             });
                         }
                     } else {
