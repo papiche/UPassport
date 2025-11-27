@@ -4626,13 +4626,51 @@
             if (currentRelay && typeof currentRelay.sub === 'function') {
                 // Verify connection status using RelayManager if available
                 if (typeof RelayManager !== 'undefined' && RelayManager.isConnected && RelayManager.isConnected()) {
+                    console.log('[THEATER] ✅ Using existing connected relay');
                     return currentRelay;
                 }
                 
                 // Fallback: verify WebSocket directly
                 const ws = currentRelay._ws || currentRelay.ws || currentRelay.socket;
                 if (ws && ws.readyState === WebSocket.OPEN) {
+                    console.log('[THEATER] ✅ Using existing relay (WebSocket OPEN)');
                     return currentRelay;
+                }
+                
+                // WebSocket might be CONNECTING - wait a bit
+                if (ws && ws.readyState === WebSocket.CONNECTING) {
+                    console.log('[THEATER] ⏳ Relay WebSocket is CONNECTING, waiting...');
+                    // Wait up to 3 seconds for connection
+                    for (let i = 0; i < 15; i++) {
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                        if (ws.readyState === WebSocket.OPEN) {
+                            console.log('[THEATER] ✅ Relay WebSocket is now OPEN');
+                            return currentRelay;
+                        }
+                    }
+                    console.warn('[THEATER] ⚠️ Relay WebSocket still not OPEN after waiting');
+                }
+            }
+            
+            // Check if connection is in progress (avoid multiple simultaneous connections)
+            const nostrState = window.NostrState || (typeof NostrState !== 'undefined' ? NostrState : null);
+            if (typeof RelayManager !== 'undefined' && nostrState) {
+                if (nostrState.connectingRelay) {
+                    console.log('[THEATER] ⏳ Connection already in progress, waiting...');
+                    // Wait for connection to complete
+                    if (typeof RelayManager.waitForConnection === 'function') {
+                        const waited = await RelayManager.waitForConnection(10);
+                        if (waited) {
+                            currentRelay = getRelayFromSources();
+                            if (currentRelay && typeof currentRelay.sub === 'function') {
+                                const ws = currentRelay._ws || currentRelay.ws || currentRelay.socket;
+                                if (ws && ws.readyState === WebSocket.OPEN) {
+                                    console.log('[THEATER] ✅ Relay connected after waiting');
+                                    return currentRelay;
+                                }
+                            }
+                        }
+                    }
                 }
             }
             
@@ -4668,23 +4706,45 @@
                     // connectToRelay returns true/false, not the relay object
                     const connected = await connectToRelay(false); // false = no force auth
                     
-                    if (!connected) {
-                        // Try waiting for connection using RelayManager
-                        if (typeof RelayManager !== 'undefined' && RelayManager.waitForConnection) {
-                            const waited = await RelayManager.waitForConnection(5);
-                            if (!waited) {
-                                console.warn('[THEATER] ⚠️ Connection timeout');
-                                return null;
+                    // Always wait for connection to be fully established
+                    // Use RelayManager.waitForConnection if available, otherwise poll
+                    if (typeof RelayManager !== 'undefined' && RelayManager.waitForConnection) {
+                        const waited = await RelayManager.waitForConnection(10); // Wait up to 10 seconds
+                        if (!waited) {
+                            console.warn('[THEATER] ⚠️ Connection timeout after waiting');
+                            // Still try to get relay - it might be connected even if waitForConnection timed out
+                        }
+                    } else {
+                        // Poll for connection: wait up to 5 seconds, checking every 200ms
+                        let attempts = 0;
+                        const maxAttempts = 25; // 25 * 200ms = 5 seconds
+                        while (attempts < maxAttempts) {
+                            await new Promise(resolve => setTimeout(resolve, 200));
+                            currentRelay = getRelayFromSources();
+                            if (currentRelay && typeof currentRelay.sub === 'function') {
+                                const ws = currentRelay._ws || currentRelay.ws || currentRelay.socket;
+                                if (ws && ws.readyState === WebSocket.OPEN) {
+                                    break; // Connection is ready
+                                }
                             }
-                        } else {
-                            // Wait a bit for connection to stabilize
-                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            attempts++;
                         }
                     }
                     
                     // IMPORTANT: connectToRelay() returns boolean, not the relay object
                     // We must get the relay from NostrState or window.nostrRelay
-                    currentRelay = getRelayFromSources();
+                    // Try multiple times with small delays if not found immediately
+                    let attempts = 0;
+                    const maxAttempts = 10;
+                    while (attempts < maxAttempts && !currentRelay) {
+                        currentRelay = getRelayFromSources();
+                        if (!currentRelay) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                            attempts++;
+                        } else {
+                            break;
+                        }
+                    }
                     
                     // Verify relay is valid
                     if (currentRelay && typeof currentRelay.sub === 'function') {
@@ -4711,13 +4771,19 @@
                             console.log('[THEATER] ✅ Relay connected and validated');
                             return currentRelay;
                         } else {
-                            console.warn('[THEATER] ⚠️ Relay object exists but not connected');
+                            console.warn('[THEATER] ⚠️ Relay object exists but not connected', {
+                                hasRelay: !!currentRelay,
+                                wsState: currentRelay._ws ? currentRelay._ws.readyState : 'no ws',
+                                relayManagerConnected: typeof RelayManager !== 'undefined' && RelayManager.isConnected ? RelayManager.isConnected() : 'N/A'
+                            });
                         }
                     } else {
                         console.warn('[THEATER] ⚠️ Relay object invalid or missing sub() method', {
                             hasRelay: !!currentRelay,
                             hasSub: currentRelay ? typeof currentRelay.sub : 'N/A',
-                            relayType: typeof currentRelay
+                            relayType: typeof currentRelay,
+                            nostrStateRelay: typeof window.NostrState !== 'undefined' ? !!window.NostrState.nostrRelay : 'NostrState not available',
+                            windowNostrRelay: !!window.nostrRelay
                         });
                     }
                 } catch (error) {
