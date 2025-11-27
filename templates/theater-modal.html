@@ -4649,7 +4649,13 @@
                 }
             }
             
-            console.warn('[THEATER] ⚠️ Relay not connected');
+            console.warn('[THEATER] ⚠️ Relay not connected', {
+                ensureRelayConnectionAvailable: typeof ensureRelayConnection !== 'undefined',
+                connected: typeof ensureRelayConnection !== 'undefined' ? 'checking...' : 'N/A',
+                hasNostrState: typeof window.NostrState !== 'undefined',
+                hasRelay: typeof window.NostrState !== 'undefined' ? !!window.NostrState.nostrRelay : false,
+                relayManagerConnected: typeof RelayManager !== 'undefined' && typeof RelayManager.isConnected === 'function' ? RelayManager.isConnected() : 'N/A'
+            });
             return null;
         }
         
