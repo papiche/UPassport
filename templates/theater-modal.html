@@ -2259,6 +2259,24 @@
                     });
                 }
                 
+                // Verify relay is still connected before subscribing
+                if (!currentRelay || typeof currentRelay.sub !== 'function') {
+                    throw new Error('Relay not connected or invalid');
+                }
+                
+                // Check WebSocket state
+                const ws = currentRelay._ws || currentRelay.ws || currentRelay.socket;
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    // Wait a bit and retry
+                    console.warn('[THEATER] ⚠️ Relay WebSocket not open, waiting...');
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    const retryRelay = await ensureRelayConnected();
+                    if (!retryRelay || !retryRelay.sub) {
+                        throw new Error('Relay not connected after retry');
+                    }
+                    currentRelay = retryRelay;
+                }
+                
                 // Fetch comments from NOSTR (kind 1111 - NIP-22 comments)
                 // IMPORTANT: Keep subscription active for real-time comments!
                 // Note: We use limit for initial load, but subscription stays active for new events
@@ -3710,23 +3728,53 @@
                 loadVideoAuthor(videoData.authorId, videoData.uploader);
             }
             
-            // Load tags (10 max)
-            loadVideoTagsPreview(videoData.eventId);
-            
-            // Load provenance info
+            // Load provenance info (doesn't require relay)
             loadProvenanceInfo(videoData);
             
-            // Load TMDB metadata from info.json if available
+            // Load TMDB metadata from info.json if available (doesn't require relay)
             if (videoData.info_cid) {
                 loadTMDBMetadata(videoData.info_cid, videoData.eventId, videoData.kind, videoData.authorId);
             }
             
-            // Load comments (ensure relay is connected first)
+            // Load tags and comments (require relay connection)
+            // Ensure relay is connected first, then load both
             if (videoData.eventId) {
-                // Wait a bit to ensure relay is ready
-                setTimeout(() => {
-                    loadVideoComments(videoData.eventId, videoData.authorId, videoData.content || videoData.description);
-                }, 500);
+                // Wait for relay to be ready, then load tags and comments
+                (async () => {
+                    try {
+                        // Ensure relay is connected
+                        const relay = await ensureRelayConnected();
+                        if (relay) {
+                            console.log('[THEATER] ✅ Relay ready, loading tags and comments...');
+                            
+                            // Load tags (10 max)
+                            loadVideoTagsPreview(videoData.eventId).catch(err => {
+                                console.warn('[THEATER] ⚠️ Error loading tags:', err);
+                            });
+                            
+                            // Load comments
+                            loadVideoComments(videoData.eventId, videoData.authorId, videoData.content || videoData.description).catch(err => {
+                                console.warn('[THEATER] ⚠️ Error loading comments:', err);
+                            });
+                        } else {
+                            console.warn('[THEATER] ⚠️ Relay not connected, retrying in 2 seconds...');
+                            // Retry after 2 seconds
+                            setTimeout(async () => {
+                                const retryRelay = await ensureRelayConnected();
+                                if (retryRelay) {
+                                    loadVideoTagsPreview(videoData.eventId).catch(err => {
+                                        console.warn('[THEATER] ⚠️ Error loading tags (retry):', err);
+                                    });
+                                    loadVideoComments(videoData.eventId, videoData.authorId, videoData.content || videoData.description).catch(err => {
+                                        console.warn('[THEATER] ⚠️ Error loading comments (retry):', err);
+                                    });
+                                }
+                            }, 2000);
+                        }
+                    } catch (error) {
+                        console.error('[THEATER] ❌ Error ensuring relay connection:', error);
+                    }
+                })();
             }
             
         }
@@ -3741,6 +3789,15 @@
             if (!tagsSection || !tagsCloud || !eventId) return;
             
             try {
+                // Ensure relay is connected first
+                const relay = await ensureRelayConnected();
+                if (!relay) {
+                    console.warn('[THEATER] ⚠️ Relay not connected for tags, retrying...');
+                    // Retry after 1 second
+                    setTimeout(() => loadVideoTagsPreview(eventId), 1000);
+                    return;
+                }
+                
                 // Check if fetchVideoTags function is available
                 if (typeof fetchVideoTags !== 'function') {
                     // Wait a bit for youtube.enhancements.js to load
@@ -4597,11 +4654,57 @@
          * Returns the relay if valid, null otherwise
          */
         async function ensureRelayConnected() {
-            // Check if relay is already valid
+            // Use RelayManager if available (preferred method)
+            if (window.RelayManager && typeof window.RelayManager.isConnected === 'function') {
+                // Check if already connected
+                if (window.RelayManager.isConnected()) {
+                    const currentRelay = window.NostrState?.nostrRelay || window.nostrRelay || nostrRelay;
+                    if (currentRelay && typeof currentRelay.sub === 'function') {
+                        return currentRelay;
+                    }
+                }
+                
+                // Wait for connection if it's connecting
+                if (window.NostrState?.connectingRelay) {
+                    console.log('[THEATER] ⏳ Waiting for relay connection...');
+                    const connected = await window.RelayManager.waitForConnection(5);
+                    if (connected) {
+                        const currentRelay = window.NostrState?.nostrRelay || window.nostrRelay || nostrRelay;
+                        if (currentRelay && typeof currentRelay.sub === 'function') {
+                            return currentRelay;
+                        }
+                    }
+                }
+                
+                // Try to connect if not connected
+                if (!window.RelayManager.isConnected()) {
+                    if (typeof connectToRelay === 'function') {
+                        try {
+                            console.log('[THEATER] 🔌 Connecting to relay...');
+                            await connectToRelay(false); // false = no force auth
+                            
+                            // Wait for connection with RelayManager
+                            const connected = await window.RelayManager.waitForConnection(5);
+                            if (connected) {
+                                const currentRelay = window.NostrState?.nostrRelay || window.nostrRelay || nostrRelay;
+                                if (currentRelay && typeof currentRelay.sub === 'function') {
+                                    console.log('[THEATER] ✅ Relay connected and validated');
+                                    return currentRelay;
+                                }
+                            }
+                        } catch (error) {
+                            console.error('[THEATER] ❌ Error connecting to relay:', error);
+                        }
+                    }
+                }
+            }
+            
+            // Fallback: Check if relay is already valid (legacy method)
             let currentRelay = window.nostrRelay || nostrRelay;
             if (currentRelay && typeof currentRelay.sub === 'function') {
                 // Verify connection status
-                if (currentRelay.status === 1 || (currentRelay._ws && currentRelay._ws.readyState === WebSocket.OPEN)) {
+                const ws = currentRelay._ws || currentRelay.ws || currentRelay.socket;
+                if (ws && ws.readyState === WebSocket.OPEN) {
                     return currentRelay;
                 }
             }
@@ -4613,7 +4716,8 @@
                     const parentRelay = window.parent.nostrRelay || window.parent.window?.nostrRelay;
                     if (parentRelay && typeof parentRelay.sub === 'function') {
                         // Verify parent relay connection
-                        if (parentRelay.status === 1 || (parentRelay._ws && parentRelay._ws.readyState === WebSocket.OPEN)) {
+                        const ws = parentRelay._ws || parentRelay.ws || parentRelay.socket;
+                        if (ws && ws.readyState === WebSocket.OPEN) {
                             window.nostrRelay = parentRelay;
                             nostrRelay = parentRelay;
                             window.isNostrConnected = true;
@@ -4626,30 +4730,26 @@
                 }
             }
             
-            // Connect to relay if not connected
+            // Connect to relay if not connected (fallback)
             if (typeof connectToRelay === 'function') {
                 try {
-                    console.log('[THEATER] 🔌 Connecting to relay...');
-                    const relay = await connectToRelay(false); // false = no force auth
-                    
-                    // connectToRelay may return the relay or set window.nostrRelay
-                    currentRelay = relay || window.nostrRelay || nostrRelay;
+                    console.log('[THEATER] 🔌 Connecting to relay (fallback)...');
+                    await connectToRelay(false); // false = no force auth
                     
                     // Wait a bit for connection to stabilize
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                     
                     // Verify relay is valid
+                    currentRelay = window.nostrRelay || nostrRelay;
                     if (currentRelay && typeof currentRelay.sub === 'function') {
                         // Check connection status
-                        const isConnected = currentRelay.status === 1 || 
-                                           (currentRelay._ws && currentRelay._ws.readyState === WebSocket.OPEN);
+                        const ws = currentRelay._ws || currentRelay.ws || currentRelay.socket;
+                        const isConnected = ws && ws.readyState === WebSocket.OPEN;
                         
                         if (isConnected) {
-                            window.nostrRelay = currentRelay;
-                            nostrRelay = currentRelay;
                             window.isNostrConnected = true;
                             isNostrConnected = true;
-                            console.log('[THEATER] ✅ Relay connected and validated');
+                            console.log('[THEATER] ✅ Relay connected and validated (fallback)');
                             return currentRelay;
                         } else {
                             console.warn('[THEATER] ⚠️ Relay object exists but not connected');
