@@ -3564,9 +3564,6 @@ async def youtube_route(
         
         # Return HTML page if requested
         if html is not None:
-            # Allow local JS files for development (set to True to test modifications before IPNS publish)
-            use_local_js = True  # Change to False for IPNS source
-            
             # Calculate IPFS gateway from request hostname
             hostname = request.headers.get("host", "u.copylaradio.com")
             if hostname.startswith("u."):
@@ -3664,8 +3661,7 @@ async def youtube_route(
             return templates.TemplateResponse("youtube.html", {
                 "request": request,
                 "youtube_data": response_data,
-                "myIPFS": ipfs_gateway if not use_local_js else "",
-                "use_local_js": use_local_js,
+                "myIPFS": ipfs_gateway,
                 "auto_open_video": auto_open_video,
                 "user_pubkey": user_pubkey  # Pass user pubkey to template for delete button
             })
