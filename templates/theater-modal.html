@@ -4597,11 +4597,41 @@
          * Returns the relay if valid, null otherwise
          */
         async function ensureRelayConnected() {
+            // Helper to get relay from various sources (doesn't check connection status)
+            const getRelayFromSources = () => {
+                // Try to get relay from NostrState (via window.NostrState) - most reliable source
+                if (typeof window.NostrState !== 'undefined' && window.NostrState.nostrRelay) {
+                    return window.NostrState.nostrRelay;
+                }
+                // Also try NostrState directly (in case it's not on window)
+                if (typeof NostrState !== 'undefined' && NostrState.nostrRelay) {
+                    return NostrState.nostrRelay;
+                }
+                
+                // Try window.nostrRelay
+                if (window.nostrRelay && typeof window.nostrRelay.sub === 'function') {
+                    return window.nostrRelay;
+                }
+                
+                // Try global nostrRelay
+                if (typeof nostrRelay !== 'undefined' && nostrRelay && typeof nostrRelay.sub === 'function') {
+                    return nostrRelay;
+                }
+                
+                return null;
+            };
+            
             // Check if relay is already valid
-            let currentRelay = window.nostrRelay || nostrRelay;
+            let currentRelay = getRelayFromSources();
             if (currentRelay && typeof currentRelay.sub === 'function') {
-                // Verify connection status
-                if (currentRelay.status === 1 || (currentRelay._ws && currentRelay._ws.readyState === WebSocket.OPEN)) {
+                // Verify connection status using RelayManager if available
+                if (typeof RelayManager !== 'undefined' && RelayManager.isConnected && RelayManager.isConnected()) {
+                    return currentRelay;
+                }
+                
+                // Fallback: verify WebSocket directly
+                const ws = currentRelay._ws || currentRelay.ws || currentRelay.socket;
+                if (ws && ws.readyState === WebSocket.OPEN) {
                     return currentRelay;
                 }
             }
@@ -4613,11 +4643,16 @@
                     const parentRelay = window.parent.nostrRelay || window.parent.window?.nostrRelay;
                     if (parentRelay && typeof parentRelay.sub === 'function') {
                         // Verify parent relay connection
-                        if (parentRelay.status === 1 || (parentRelay._ws && parentRelay._ws.readyState === WebSocket.OPEN)) {
+                        const parentWs = parentRelay._ws || parentRelay.ws || parentRelay.socket;
+                        if (parentWs && parentWs.readyState === WebSocket.OPEN) {
                             window.nostrRelay = parentRelay;
-                            nostrRelay = parentRelay;
+                            if (typeof nostrRelay !== 'undefined') {
+                                nostrRelay = parentRelay;
+                            }
                             window.isNostrConnected = true;
-                            isNostrConnected = true;
+                            if (typeof isNostrConnected !== 'undefined') {
+                                isNostrConnected = true;
+                            }
                             return parentRelay;
                         }
                     }
@@ -4630,32 +4665,60 @@
             if (typeof connectToRelay === 'function') {
                 try {
                     console.log('[THEATER] 🔌 Connecting to relay...');
-                    const relay = await connectToRelay(false); // false = no force auth
+                    // connectToRelay returns true/false, not the relay object
+                    const connected = await connectToRelay(false); // false = no force auth
                     
-                    // connectToRelay may return the relay or set window.nostrRelay
-                    currentRelay = relay || window.nostrRelay || nostrRelay;
+                    if (!connected) {
+                        // Try waiting for connection using RelayManager
+                        if (typeof RelayManager !== 'undefined' && RelayManager.waitForConnection) {
+                            const waited = await RelayManager.waitForConnection(5);
+                            if (!waited) {
+                                console.warn('[THEATER] ⚠️ Connection timeout');
+                                return null;
+                            }
+                        } else {
+                            // Wait a bit for connection to stabilize
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                        }
+                    }
                     
-                    // Wait a bit for connection to stabilize
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                    // IMPORTANT: connectToRelay() returns boolean, not the relay object
+                    // We must get the relay from NostrState or window.nostrRelay
+                    currentRelay = getRelayFromSources();
                     
                     // Verify relay is valid
                     if (currentRelay && typeof currentRelay.sub === 'function') {
-                        // Check connection status
-                        const isConnected = currentRelay.status === 1 || 
-                                           (currentRelay._ws && currentRelay._ws.readyState === WebSocket.OPEN);
+                        // Check connection status using RelayManager if available
+                        let isConnected = false;
+                        if (typeof RelayManager !== 'undefined' && RelayManager.isConnected && RelayManager.isConnected()) {
+                            isConnected = true;
+                        } else {
+                            // Fallback: check WebSocket directly
+                            const ws = currentRelay._ws || currentRelay.ws || currentRelay.socket;
+                            isConnected = ws && ws.readyState === WebSocket.OPEN;
+                        }
                         
                         if (isConnected) {
+                            // Ensure variables are synced
                             window.nostrRelay = currentRelay;
-                            nostrRelay = currentRelay;
+                            if (typeof nostrRelay !== 'undefined') {
+                                nostrRelay = currentRelay;
+                            }
                             window.isNostrConnected = true;
-                            isNostrConnected = true;
+                            if (typeof isNostrConnected !== 'undefined') {
+                                isNostrConnected = true;
+                            }
                             console.log('[THEATER] ✅ Relay connected and validated');
                             return currentRelay;
                         } else {
                             console.warn('[THEATER] ⚠️ Relay object exists but not connected');
                         }
                     } else {
-                        console.warn('[THEATER] ⚠️ Relay object invalid or missing sub() method');
+                        console.warn('[THEATER] ⚠️ Relay object invalid or missing sub() method', {
+                            hasRelay: !!currentRelay,
+                            hasSub: currentRelay ? typeof currentRelay.sub : 'N/A',
+                            relayType: typeof currentRelay
+                        });
                     }
                 } catch (error) {
                     console.error('[THEATER] ❌ Error connecting to relay:', error);
@@ -4742,19 +4805,8 @@
          */
         async function loadVideoFromEventIdStandalone(eventId) {
             try {
-                // Connect to NOSTR relay (anonymously, no user connection required for viewing)
-                if (typeof nostrRelay === 'undefined' || !nostrRelay) {
-                    if (typeof connectToRelay === 'function') {
-                        console.log('🔌 Connecting to NOSTR relay (anonymous)...');
-                        await connectToRelay();
-                        // Wait a bit for connection to stabilize
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                    } else {
-                        throw new Error('NOSTR connection not available');
-                    }
-                }
-                
-                // Ensure relay is connected and valid
+                // Ensure relay is connected and valid (this will connect if needed)
+                console.log('🔌 Ensuring NOSTR relay connection (anonymous)...');
                 const currentRelay = await ensureRelayConnected();
                 if (!currentRelay) {
                     throw new Error('NOSTR relay not connected or invalid');
