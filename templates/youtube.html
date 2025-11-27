@@ -6,23 +6,53 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>🎬 YouTube - NOSTR Video Library</title>
-    <!-- Nostr integration -->
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
-    <!-- Common.js with NOSTR functions -->
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
-    <!-- NOSTR Tube functions -->
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.js"></script>
-    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.css" />
-    <!-- Leaflet for map view -->
-    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/leaflet.css" />
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/leaflet.js"></script>
     
     <!-- Bootstrap 5 CSS -->
+    {% if use_local_js %}
+    <link href="/earth/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="/earth/fonts/bootstrap-icons.min.css">
+    {% else %}
     <link href="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/fonts/bootstrap-icons.css">
+    {% endif %}
+    
+    <!-- Nostr integration -->
+    {% if use_local_js %}
+    <script src="/earth/nostr.bundle.js"></script>
+    {% else %}
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
+    {% endif %}
+    <!-- Common.js with NOSTR functions -->
+    {% if use_local_js %}
+    <script src="/earth/common.js"></script>
+    {% else %}
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    {% endif %}
+    <!-- NOSTR Tube functions -->
+    {% if use_local_js %}
+    <script src="/earth/youtube.enhancements.js"></script>
+    <link rel="stylesheet" href="/earth/youtube.enhancements.css" />
+    {% else %}
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.js"></script>
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/youtube.enhancements.css" />
+    {% endif %}
+    <!-- Leaflet for map view -->
+    {% if use_local_js %}
+    <link rel="stylesheet" href="/earth/leaflet.css" />
+    <script src="/earth/leaflet.js"></script>
+    {% else %}
+    <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/leaflet.css" />
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/leaflet.js"></script>
+    {% endif %}
+    
     <!-- Bootstrap 5 JS Bundle -->
+    {% if use_local_js %}
+    <script src="/earth/bootstrap.bundle.min.js"></script>
+    {% else %}
     <script src="{{ myIPFS }}/ipns/copylaradio.com/bootstrap.bundle.min.js"></script>
+    {% endif %}
     
     <style>
         * {
