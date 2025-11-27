@@ -4656,7 +4656,30 @@
                 }
             }
             
-            // Step 4: Connect to relay
+            // Step 4: Check if RelayManager says we're connected (even if WebSocket not visible)
+            if (typeof RelayManager !== 'undefined' && typeof RelayManager.isConnected === 'function') {
+                try {
+                    if (RelayManager.isConnected()) {
+                        currentRelay = getRelayFromNostrState();
+                        if (currentRelay && typeof currentRelay.sub === 'function') {
+                            console.log('[THEATER] ✅ RelayManager confirms connection, using relay');
+                            window.nostrRelay = currentRelay;
+                            if (typeof nostrRelay !== 'undefined') {
+                                nostrRelay = currentRelay;
+                            }
+                            window.isNostrConnected = true;
+                            if (typeof isNostrConnected !== 'undefined') {
+                                isNostrConnected = true;
+                            }
+                            return currentRelay;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[THEATER] ⚠️ Error checking RelayManager.isConnected():', e);
+                }
+            }
+            
+            // Step 5: Connect to relay only if not already connected
             if (typeof connectToRelay !== 'function') {
                 console.warn('[THEATER] ⚠️ connectToRelay function not available');
                 return null;
@@ -4671,13 +4694,13 @@
                     return null;
                 }
                 
-                // Step 5: Wait for connection and WebSocket to be attached
+                // Step 6: Wait for connection and WebSocket to be attached
                 // Use RelayManager.waitForConnection first
                 if (typeof RelayManager !== 'undefined' && RelayManager.waitForConnection) {
                     await RelayManager.waitForConnection(10);
                 }
                 
-                // Step 6: Poll for relay with WebSocket attached (up to 10 seconds)
+                // Step 7: Poll for relay with WebSocket attached (up to 10 seconds)
                 // This is critical because the WebSocket might not be attached immediately
                 // even after waitForConnection returns true
                 let attempts = 0;
@@ -4727,23 +4750,18 @@
                                 }
                                 return currentRelay;
                             } else if (currentRelay && typeof currentRelay.sub === 'function') {
-                                // Relay exists but WebSocket not attached - wait a bit more
-                                console.log('[THEATER] ⏳ Relay exists but WebSocket not attached, waiting...');
-                                for (let i = 0; i < 20; i++) {
-                                    await new Promise(resolve => setTimeout(resolve, 100));
-                                    if (isRelayValid(currentRelay)) {
-                                        console.log('[THEATER] ✅ Relay WebSocket attached after additional wait');
-                                        window.nostrRelay = currentRelay;
-                                        if (typeof nostrRelay !== 'undefined') {
-                                            nostrRelay = currentRelay;
-                                        }
-                                        window.isNostrConnected = true;
-                                        if (typeof isNostrConnected !== 'undefined') {
-                                            isNostrConnected = true;
-                                        }
-                                        return currentRelay;
-                                    }
+                                // Relay exists and RelayManager says connected, but WebSocket not visible
+                                // Accept it anyway - the relay should work
+                                console.log('[THEATER] ✅ RelayManager confirms connection, using relay (WebSocket may not be visible)');
+                                window.nostrRelay = currentRelay;
+                                if (typeof nostrRelay !== 'undefined') {
+                                    nostrRelay = currentRelay;
                                 }
+                                window.isNostrConnected = true;
+                                if (typeof isNostrConnected !== 'undefined') {
+                                    isNostrConnected = true;
+                                }
+                                return currentRelay;
                             }
                         }
                     } catch (e) {
