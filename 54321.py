@@ -4242,15 +4242,6 @@ async def zen_send(request: Request):
             "type": "execution_error"
         })
 
-###################################################
-######### REC / STOP - NODE OBS STUDIO -
-# Store the OBS Studio recording process object
-recording_process = None
-current_player = None # Pour stocker l'email
-@app.get("/rec", response_class=HTMLResponse)
-async def rec_form(request: Request):
-    return templates.TemplateResponse("rec_form.html", {"request": request, "recording": False})
-
 ### UPlanet Media Recorder
 @app.get("/webcam", response_class=HTMLResponse)
 async def rec_form(request: Request):
@@ -5115,6 +5106,15 @@ async def process_vocals_message(
         })
 
 #### USING OBS Studio recording... deprecated ---
+###################################################
+######### REC / STOP - NODE OBS STUDIO -
+# Store the OBS Studio recording process object
+recording_process = None
+current_player = None # Pour stocker l'email
+@app.get("/rec", response_class=HTMLResponse)
+async def rec_form(request: Request):
+    return templates.TemplateResponse("rec_form.html", {"request": request, "recording": False})
+
 @app.post("/rec", response_class=HTMLResponse)
 async def start_recording(request: Request, player: str = Form(...), link: str = Form(default=""), file: UploadFile = File(None)):
     global recording_process, current_player
