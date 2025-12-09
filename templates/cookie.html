@@ -422,10 +422,8 @@
             <div id="auth-status"></div>
         </div>
 
-        <!-- Main Content (hidden until authenticated) -->
-        <div id="main-content" style="display: none;">
-            
-            <!-- Upload Section -->
+        <!-- Upload Section (hidden until authenticated) -->
+        <div id="upload-section" style="display: none;">
             <div class="section">
                 <h2 data-i18n="upload_title">📤 UPLOAD COOKIE FILE</h2>
                 <div class="upload-zone" id="upload-area" onclick="document.getElementById('cookie-file').click()">
@@ -437,7 +435,10 @@
                 </div>
                 <div id="upload-status"></div>
             </div>
+        </div>
 
+        <!-- Explanatory Sections (always visible) -->
+        <div id="main-content">
             <!-- What Cookies Do -->
             <div class="section">
                 <h2 data-i18n="what_cookies_title">💡 WHAT ARE COOKIES USED FOR?</h2>
@@ -533,7 +534,7 @@
                             ✅ <strong>Automatic:</strong> The system will detect the domain and securely store your cookies in your MULTIPASS.
                         </div>
                         <div style="text-align: center; margin-top: 20px;">
-                            <button class="button" onclick="document.getElementById('upload-area').scrollIntoView({behavior: 'smooth'})">
+                            <button class="button" onclick="scrollToUploadOrAuth()">
                                 <span data-i18n="step5_button">↑ Go to Upload Zone</span>
                             </button>
                         </div>
@@ -561,7 +562,6 @@
                 <p data-i18n="faq_a5">Your AI uses your cookies to access content as if it were you</p>
 
             </div>
-
         </div>
     </div>
 
@@ -684,10 +684,10 @@
                     btn.style.borderColor = 'var(--terminal-green)';
                     btn.style.color = 'var(--terminal-green)';
 
-                    document.getElementById('main-content').style.display = 'block';
+                    document.getElementById('upload-section').style.display = 'block';
                     document.getElementById('auth-section').style.display = 'none';
                     
-                    // Re-apply translations to the now-visible main content
+                    // Re-apply translations to the now-visible upload section
                     i18n.applyTranslations();
                     
                     // Update nav status
@@ -728,10 +728,10 @@
                     btn.style.borderColor = 'var(--terminal-green)';
                     btn.style.color = 'var(--terminal-green)';
 
-                    document.getElementById('main-content').style.display = 'block';
+                    document.getElementById('upload-section').style.display = 'block';
                     document.getElementById('auth-section').style.display = 'none';
                     
-                    // Re-apply translations to the now-visible main content
+                    // Re-apply translations to the now-visible upload section
                     i18n.applyTranslations();
                     
                     // Update nav status
@@ -936,6 +936,17 @@
                         ⚠️ ${i18n.t('upload_failed')}: ${error.message}
                     </div>
                 `;
+            }
+        }
+
+        // Scroll to upload zone or auth section
+        function scrollToUploadOrAuth() {
+            const uploadSection = document.getElementById('upload-section');
+            if (uploadSection && uploadSection.style.display !== 'none') {
+                document.getElementById('upload-area').scrollIntoView({behavior: 'smooth'});
+            } else {
+                // Not connected yet, scroll to auth section
+                document.getElementById('auth-section').scrollIntoView({behavior: 'smooth'});
             }
         }
 
