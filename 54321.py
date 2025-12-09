@@ -3264,6 +3264,9 @@ async def youtube_route(
         lon: Longitude for geographic filtering (decimal degrees)
         radius: Radius in kilometers for geographic filtering (default: 2.0km if lat/lon provided)
     """
+    # Allow local JS files for development (set to True to test modifications before IPNS publish)
+    use_local_js = True  # Change to False for IPNS source
+    
     try:
         # Import the video channel functions
         import sys
@@ -3663,7 +3666,8 @@ async def youtube_route(
                 "youtube_data": response_data,
                 "myIPFS": ipfs_gateway,
                 "auto_open_video": auto_open_video,
-                "user_pubkey": user_pubkey  # Pass user pubkey to template for delete button
+                "user_pubkey": user_pubkey,  # Pass user pubkey to template for delete button
+                "use_local_js": use_local_js  # Allow local JS files for development
             })
         
         # Send server-side analytics for JSON requests
