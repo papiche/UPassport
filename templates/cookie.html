@@ -401,7 +401,8 @@
         <div class="nav-bar">
             <div class="nav-links">
                 <a href="/">🏠 <span data-i18n="nav_home">Home</span></a>
-                <a href="/astro">☁️ <span data-i18n="nav_udrive">uDRIVE</span></a>
+                <a href="/youtube?html=1" target="_new">📺 NostrTube</a>
+                <a href="#" id="udrive-link" style="display: none;">☁️ <span data-i18n="nav_udrive">uDRIVE</span></a>
             </div>
             <div id="nav-status"></div>
         </div>
@@ -607,24 +608,30 @@
         let USPOT_API_BASE = '';
         let userEmail = null;
         let ipnsVault = null;
+        let userIpfsGw = null;
 
-        // Detect uSPOT API (simplified - uses common.js for relay/gateway)
+        // Detect uSPOT API and IPFS gateway
         function detectUSPOTAPI() {
             const currentURL = new URL(window.location.href);
             const hostname = currentURL.hostname;
 
             let apiBase = '';
+            let ipfsGateway = '';
 
             if (hostname === "127.0.0.1" || hostname === "localhost") {
                 apiBase = `http://127.0.0.1:54321`;
+                ipfsGateway = 'http://127.0.0.1:8080';
             } else if (hostname.startsWith("ipfs.")) {
                 const baseDomain = hostname.substring("ipfs.".length);
                 apiBase = `https://u.${baseDomain}`;
+                ipfsGateway = `${currentURL.protocol}//ipfs.${baseDomain}`;
             } else if (hostname.startsWith("u.")) {
                 const baseDomain = hostname.substring("u.".length);
                 apiBase = `https://u.${baseDomain}`;
+                ipfsGateway = `${currentURL.protocol}//ipfs.${baseDomain}`;
             } else {
                 apiBase = `https://u.copylaradio.com`;
+                ipfsGateway = 'https://ipfs.copylaradio.com';
             }
 
             USPOT_API_BASE = apiBase;
@@ -633,12 +640,13 @@
             if (typeof window.DEFAULT_RELAYS === 'undefined') {
                 window.DEFAULT_RELAYS = [];
             }
-            if (typeof window.IPFS_GATEWAY === 'undefined') {
-                window.IPFS_GATEWAY = '';
+            // Set IPFS gateway if not already set
+            if (!window.IPFS_GATEWAY) {
+                window.IPFS_GATEWAY = ipfsGateway;
             }
 
             console.log(`🔗 API Base: ${USPOT_API_BASE}`);
-            console.log(`🔗 Using common.js for relay and IPFS gateway`);
+            console.log(`🔗 IPFS Gateway: ${window.IPFS_GATEWAY}`);
         }
 
         // Connect to NOSTR (using common.js functions)
@@ -778,6 +786,32 @@
                         console.log('✅ Found email:', userEmail);
                     }
                     
+                    // Get IPFS gateway from udriveInfo (ipfs_gw identity)
+                    // Check multiple possible property names
+                    if (udriveInfo.ipfsGw) {
+                        userIpfsGw = udriveInfo.ipfsGw;
+                        console.log('✅ Found IPFS gateway (ipfsGw):', userIpfsGw);
+                    } else if (udriveInfo.ipfs_gw) {
+                        userIpfsGw = udriveInfo.ipfs_gw;
+                        console.log('✅ Found IPFS gateway (ipfs_gw):', userIpfsGw);
+                    } else if (udriveInfo.ipfsGateway) {
+                        userIpfsGw = udriveInfo.ipfsGateway;
+                        console.log('✅ Found IPFS gateway (ipfsGateway):', userIpfsGw);
+                    }
+                    
+                    // If no gateway found, try to fetch it from user identities
+                    if (!userIpfsGw && typeof window.fetchUserIdentities === 'function') {
+                        try {
+                            const identities = await window.fetchUserIdentities(pubkey);
+                            if (identities && identities.ipfs_gw) {
+                                userIpfsGw = identities.ipfs_gw;
+                                console.log('✅ Found IPFS gateway from identities:', userIpfsGw);
+                            }
+                        } catch (err) {
+                            console.warn('Could not fetch user identities:', err);
+                        }
+                    }
+                    
                     // Update uDRIVE link in navigation
                     updateUDriveLink();
                 } else {
@@ -789,22 +823,9 @@
             }
         }
 
-        // Update uDRIVE link in navigation (using common.js buildUDriveUrl)
+        // Update uDRIVE link in navigation (using user's ipfs_gw)
         function updateUDriveLink() {
-            // Find uDRIVE link in navigation (look for link containing "uDRIVE" text)
-            const navLinks = document.querySelectorAll('.nav-links a');
-            let udriveLink = null;
-            
-            navLinks.forEach(link => {
-                if (link.textContent.includes('uDRIVE') || link.getAttribute('data-i18n') === 'nav_udrive') {
-                    udriveLink = link;
-                }
-            });
-            
-            // Fallback: try href="/astro"
-            if (!udriveLink) {
-                udriveLink = document.querySelector('a[href="/astro"]');
-            }
+            const udriveLink = document.getElementById('udrive-link');
             
             if (!udriveLink) {
                 console.warn('uDRIVE link not found in navigation');
@@ -816,30 +837,26 @@
                 return;
             }
             
-            // Get IPFS_GATEWAY from common.js
-            const ipfsGateway = window.IPFS_GATEWAY || (typeof IPFS_GATEWAY !== 'undefined' ? IPFS_GATEWAY : 'https://ipfs.copylaradio.com');
+            // Use user's IPFS gateway (ipfs_gw identity) or fallback
+            const ipfsGateway = userIpfsGw || window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
             
-            // If we have both ipnsVault and email, make link functional
+            // If we have both ipnsVault and email, make link functional and visible
             if (ipnsVault && userEmail && userEmail.includes('@')) {
                 try {
-                    // Use common.js function to build URL
-                    const udriveUrl = typeof window.buildUDriveUrl === 'function' 
-                        ? window.buildUDriveUrl(ipnsVault, userEmail, ipfsGateway)
-                        : `${ipfsGateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
+                    // Build URL with user's IPFS gateway
+                    const udriveUrl = `${ipfsGateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
                     
                     udriveLink.href = udriveUrl;
-                    udriveLink.onclick = function(e) {
-                        e.preventDefault();
-                        console.log('📁 Opening uDRIVE:', udriveUrl);
-                        window.open(udriveUrl, '_blank');
-                    };
+                    udriveLink.target = '_blank';
+                    udriveLink.style.display = 'inline';
                     
                     console.log('✅ uDRIVE link updated:', udriveUrl);
                 } catch (error) {
                     console.error('Error building uDRIVE URL:', error);
                 }
-            } else {
-                // If we only have ipnsVault, make link open a function that fetches email
+            } else if (ipnsVault) {
+                // If we only have ipnsVault, show link that fetches email on click
+                udriveLink.style.display = 'inline';
                 udriveLink.onclick = async function(e) {
                     e.preventDefault();
                     
@@ -862,10 +879,9 @@
                     
                     if (ipnsVault && userEmail && userEmail.includes('@')) {
                         try {
-                            // Use common.js function to build URL
-                            const udriveUrl = typeof window.buildUDriveUrl === 'function' 
-                                ? window.buildUDriveUrl(ipnsVault, userEmail, ipfsGateway)
-                                : `${ipfsGateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
+                            // Build URL with user's IPFS gateway
+                            const gateway = userIpfsGw || window.IPFS_GATEWAY || 'https://ipfs.copylaradio.com';
+                            const udriveUrl = `${gateway}/ipns/${ipnsVault}/${userEmail}/APP/uDRIVE`;
                             
                             console.log('📁 Opening uDRIVE:', udriveUrl);
                             window.open(udriveUrl, '_blank');
