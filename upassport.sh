@@ -328,12 +328,12 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
 fi
 
 get_NOSTRNS_directory() {
-    local pubkey="$1"
+    local ipnskey="$1"
     local key_file
     local found_dir=""
 
     while IFS= read -r -d $'\0' key_file; do
-        if [[ "/ipns/$pubkey" == "$(cat "$key_file")" ]]; then
+        if [[ "/ipns/$ipnskey" == "$(cat "$key_file")" ]]; then
             # Extraire le dernier répertoire du chemin
             KNAME=$(basename "$(dirname "$key_file")")
             echo $KNAME
