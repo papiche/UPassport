@@ -675,6 +675,9 @@
                         npub = pubkey;
                     }
                     
+                    // Store npub globally for later use (e.g., handleCookieUpload)
+                    window.userNpub = npub;
+                    
                     // Connect to relay using common.js
                     if (typeof connectToRelay === 'function') {
                         await connectToRelay(true); // Force NIP-42 auth
@@ -723,6 +726,9 @@
                     if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
                         npub = NostrTools.nip19.npubEncode(pubkey);
                     }
+                    
+                    // Store npub globally for later use (e.g., handleCookieUpload)
+                    window.userNpub = npub;
 
                     // Update UI
                     const npubShort = npub.substring(0, 12) + '...' + npub.substring(npub.length - 4);
