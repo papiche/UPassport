@@ -564,6 +564,168 @@
             transform: translateY(-5px);
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
         }
+        
+        /* Gaming UI Styles */
+        .gaming-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .gaming-section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid rgba(14, 165, 233, 0.2);
+        }
+        
+        .gaming-section-header h5 {
+            margin: 0;
+            color: var(--water-dark);
+            font-weight: 700;
+        }
+        
+        .gaming-section-header i {
+            font-size: 1.5rem;
+            color: var(--water-blue);
+        }
+        
+        /* Quick Action Buttons (RPG style) */
+        .quick-action-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+        }
+        
+        .quick-action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1.25rem 1rem;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 2px solid rgba(14, 165, 233, 0.3);
+            border-radius: 15px;
+            color: white;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .quick-action-btn:hover {
+            transform: translateY(-3px);
+            border-color: var(--water-blue);
+            box-shadow: 0 10px 30px rgba(14, 165, 233, 0.3);
+            color: white;
+        }
+        
+        .quick-action-btn i {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            color: var(--water-blue);
+        }
+        
+        .quick-action-btn span {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .quick-action-btn.primary {
+            background: linear-gradient(135deg, var(--water-blue), var(--water-dark));
+            border-color: transparent;
+        }
+        
+        .quick-action-btn.primary i {
+            color: white;
+        }
+        
+        /* Level Badge (Game style) */
+        .level-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+            color: #1a1a2e;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+        }
+        
+        .level-badge i {
+            font-size: 1.1rem;
+        }
+        
+        /* Progress Ring */
+        .progress-ring {
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+        
+        .progress-ring-circle {
+            fill: none;
+            stroke-width: 8;
+            stroke-linecap: round;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+        
+        .progress-ring-bg {
+            stroke: rgba(14, 165, 233, 0.2);
+        }
+        
+        .progress-ring-progress {
+            stroke: var(--water-blue);
+            transition: stroke-dashoffset 0.5s ease;
+        }
+        
+        .progress-ring-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--water-dark);
+        }
+        
+        /* Category Pills */
+        .category-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .category-pill {
+            padding: 0.4rem 1rem;
+            border: 2px solid rgba(14, 165, 233, 0.3);
+            border-radius: 20px;
+            background: white;
+            color: var(--water-dark);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .category-pill:hover,
+        .category-pill.active {
+            background: var(--water-blue);
+            border-color: var(--water-blue);
+            color: white;
+        }
+        
+        .category-pill i {
+            margin-right: 0.25rem;
+        }
     </style>
 </head>
 <body>
@@ -645,6 +807,153 @@
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions Grid (RPG style) -->
+        <div class="gaming-section" id="quickActionsSection">
+            <div class="gaming-section-header">
+                <i class="bi bi-joystick"></i>
+                <h5>Actions Rapides</h5>
+                <span class="badge bg-info ms-auto" id="userLevelBadge" style="display: none;">
+                    <i class="bi bi-star-fill"></i> <span id="userLevelText">Débutant</span>
+                </span>
+            </div>
+            
+            <div class="quick-action-grid">
+                <div class="quick-action-btn primary" onclick="showNewPermitModal()">
+                    <i class="bi bi-plus-circle-fill"></i>
+                    <span>Créer Maîtrise</span>
+                </div>
+                <div class="quick-action-btn" onclick="showRequestModal()">
+                    <i class="bi bi-mortarboard-fill"></i>
+                    <span>Devenir Apprenti</span>
+                </div>
+                <div class="quick-action-btn" onclick="loadInstructors()">
+                    <i class="bi bi-people-fill"></i>
+                    <span>Trouver Maître</span>
+                </div>
+                <div class="quick-action-btn" onclick="toggleQuestBoard()">
+                    <i class="bi bi-list-task"></i>
+                    <span>Mes Quêtes</span>
+                </div>
+                <div class="quick-action-btn" onclick="toggleProfileCard()">
+                    <i class="bi bi-person-badge-fill"></i>
+                    <span>Mon Profil</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Discovery Center (Search & Filter) -->
+        <div class="gaming-section" id="discoverySection">
+            <div class="gaming-section-header">
+                <i class="bi bi-compass-fill"></i>
+                <h5>Découvrir les Maîtrises</h5>
+                <small class="text-muted ms-auto" id="discoveryCount">0 maîtrises disponibles</small>
+            </div>
+            
+            <!-- Search Bar -->
+            <div class="row mb-3">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+                        <input type="text" class="form-control border-start-0" id="discoverySearch"
+                            placeholder="Rechercher une maîtrise (natation, poterie, menuiserie...)"
+                            oninput="filterDiscovery(this.value)">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <select class="form-select" id="discoverySort" onchange="sortDiscovery(this.value)">
+                        <option value="popular">🔥 Plus populaires</option>
+                        <option value="newest">✨ Plus récentes</option>
+                        <option value="name">📝 Alphabétique</option>
+                        <option value="level">📊 Par niveau</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Category Pills (Chambre des Métiers + Extensions) -->
+            <div class="category-pills" id="categoryPills">
+                <span class="category-pill active" data-category="all" onclick="filterByCategory('all')">
+                    <i class="bi bi-grid-fill"></i> Toutes
+                </span>
+                <!-- Chambre des Métiers - 4 grandes familles -->
+                <span class="category-pill" data-category="alimentation" onclick="filterByCategory('alimentation')" 
+                    title="Boulanger, Pâtissier, Boucher, Charcutier, Traiteur, Chocolatier, Glacier, Poissonnier...">
+                    <i class="bi bi-egg-fried"></i> Alimentation
+                </span>
+                <span class="category-pill" data-category="batiment" onclick="filterByCategory('batiment')"
+                    title="Maçon, Plombier, Électricien, Menuisier, Charpentier, Couvreur, Peintre, Carreleur, Plâtrier...">
+                    <i class="bi bi-building"></i> Bâtiment
+                </span>
+                <span class="category-pill" data-category="fabrication" onclick="filterByCategory('fabrication')"
+                    title="Ébéniste, Bijoutier, Horloger, Tapissier, Forgeron, Potier, Céramiste, Verrier, Relieur...">
+                    <i class="bi bi-tools"></i> Fabrication
+                </span>
+                <span class="category-pill" data-category="services" onclick="filterByCategory('services')"
+                    title="Coiffeur, Esthéticien, Fleuriste, Photographe, Pressing, Cordonnier, Taxi, Ambulancier...">
+                    <i class="bi bi-scissors"></i> Services
+                </span>
+                <!-- Extensions UPlanet -->
+                <span class="category-pill" data-category="numerique" onclick="filterByCategory('numerique')"
+                    title="Développeur, Designer Web, Administrateur Système, Cybersécurité, IA, Blockchain...">
+                    <i class="bi bi-laptop"></i> Numérique
+                </span>
+                <span class="category-pill" data-category="nature" onclick="filterByCategory('nature')"
+                    title="Permaculture, Apiculture, Maraîchage, Sylviculture, Herboristerie, Élevage...">
+                    <i class="bi bi-tree-fill"></i> Nature
+                </span>
+                <span class="category-pill" data-category="art" onclick="filterByCategory('art')"
+                    title="Peinture, Sculpture, Musique, Danse, Théâtre, Cirque, Illustration, Calligraphie...">
+                    <i class="bi bi-palette-fill"></i> Art
+                </span>
+                <span class="category-pill" data-category="sport" onclick="filterByCategory('sport')"
+                    title="Natation, Escalade, Arts martiaux, Yoga, Fitness, Sports nautiques, Équitation...">
+                    <i class="bi bi-trophy-fill"></i> Sport
+                </span>
+                <span class="category-pill" data-category="sante" onclick="filterByCategory('sante')"
+                    title="Premiers secours, Massage, Naturopathie, Médecine traditionnelle, Aromathérapie...">
+                    <i class="bi bi-heart-pulse-fill"></i> Santé
+                </span>
+                <span class="category-pill" data-category="education" onclick="filterByCategory('education')"
+                    title="Langues, Pédagogie, Animation, Médiation, Accompagnement, Formation...">
+                    <i class="bi bi-mortarboard-fill"></i> Éducation
+                </span>
+            </div>
+            
+            <!-- Discovery Results Grid -->
+            <div id="discovery-results" class="row g-3">
+                <!-- Will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <!-- Quest Board (Collapsible) -->
+        <div class="gaming-section" id="questBoardSection" style="display: none;">
+            <div class="gaming-section-header">
+                <i class="bi bi-journal-text"></i>
+                <h5>Tableau des Quêtes</h5>
+                <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="toggleQuestBoard()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div id="quest-board">
+                <!-- Will be populated by gamification library -->
+            </div>
+        </div>
+        
+        <!-- Profile Card (Collapsible) -->
+        <div class="gaming-section" id="profileCardSection" style="display: none;">
+            <div class="gaming-section-header">
+                <i class="bi bi-person-vcard-fill"></i>
+                <h5>Carte de Voyageur</h5>
+                <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="toggleProfileCard()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div id="profile-card">
+                <!-- Will be populated by gamification library -->
             </div>
         </div>
 
@@ -1180,6 +1489,9 @@
     
     <!-- Common.js - UPlanet NOSTR utilities -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    
+    <!-- UPlanet Gamification Library (reusable for all apps) -->
+    <script src="/static/js/uplanet-gamification.js"></script>
     
     <script>
         // Use getAPIBaseUrl() from common.js instead of template variable
@@ -5001,6 +5313,827 @@
                 alert('Erreur lors de la création: ' + e.message);
             }
         }
+        // ============================================
+        // GAMIFICATION INTEGRATION
+        // ============================================
+        
+        // Initialize gamification components after DOM and data loaded
+        function initializeGamification() {
+            if (typeof uplanetGamification === 'undefined') {
+                console.warn('[WoTx2] Gamification library not loaded');
+                return;
+            }
+            
+            console.log('[WoTx2] 🎮 Initializing gamification...');
+            
+            // 1. Initialize Onboarding Tutorial
+            initOnboarding();
+            
+            // 2. Initialize Quest Board
+            initQuestBoard();
+            
+            // 3. Initialize Profile Card
+            initProfileCard();
+            
+            // 4. Initialize Discovery Center
+            initDiscoveryCenter();
+            
+            // 5. Initialize Notifications
+            initNotifications();
+            
+            console.log('[WoTx2] 🎮 Gamification initialized');
+        }
+        
+        // Onboarding Tutorial for newcomers
+        function initOnboarding() {
+            const onboardingSteps = [
+                {
+                    title: '🎉 Bienvenue sur WoTx2!',
+                    icon: 'bi-compass',
+                    content: `
+                        <p><strong>WoTx2</strong> est un système décentralisé de <strong>toiles de confiance</strong> pour partager et certifier des savoir-faire.</p>
+                        <p>Imaginez un monde où vos compétences sont validées par vos pairs, pas par des diplômes!</p>
+                        <div class="alert alert-info mt-3">
+                            <i class="bi bi-lightbulb"></i> <strong>Objectif :</strong> Apprendre, enseigner, et construire ensemble une communauté de compétences reconnues.
+                        </div>
+                    `
+                },
+                {
+                    title: '🔍 Explorer les Maîtrises',
+                    icon: 'bi-search',
+                    content: `
+                        <p>Des centaines de <strong>maîtrises</strong> vous attendent :</p>
+                        <ul>
+                            <li><strong>Sport</strong> : Natation, Escalade, Arts martiaux...</li>
+                            <li><strong>Artisanat</strong> : Menuiserie, Poterie, Couture...</li>
+                            <li><strong>Tech</strong> : Programmation, Électronique...</li>
+                            <li><strong>Art</strong> : Peinture, Musique, Photographie...</li>
+                        </ul>
+                        <p>Utilisez la <strong>barre de recherche</strong> et les <strong>filtres</strong> pour trouver ce qui vous passionne!</p>
+                    `
+                },
+                {
+                    title: '📚 Devenir Apprenti',
+                    icon: 'bi-mortarboard',
+                    content: `
+                        <p>Pour apprendre une maîtrise :</p>
+                        <ol>
+                            <li>Choisissez une maîtrise qui vous intéresse</li>
+                            <li>Cliquez sur <strong>"Devenir Apprenti"</strong></li>
+                            <li>Indiquez la compétence que vous souhaitez acquérir</li>
+                            <li>Un maître certifié validera vos compétences</li>
+                        </ol>
+                        <div class="alert alert-success mt-3">
+                            <i class="bi bi-check-circle"></i> Une fois validé, vous recevez automatiquement votre certificat!
+                        </div>
+                    `
+                },
+                {
+                    title: '🏅 Progresser et Enseigner',
+                    icon: 'bi-graph-up-arrow',
+                    content: `
+                        <p>Le système WoTx2 vous permet de <strong>progresser infiniment</strong> :</p>
+                        <div class="d-flex justify-content-center gap-3 my-3">
+                            <span class="badge bg-secondary">X1</span>
+                            <i class="bi bi-arrow-right"></i>
+                            <span class="badge bg-info">X2</span>
+                            <i class="bi bi-arrow-right"></i>
+                            <span class="badge bg-success">X3</span>
+                            <i class="bi bi-arrow-right"></i>
+                            <span class="badge bg-warning">Expert</span>
+                            <i class="bi bi-arrow-right"></i>
+                            <span class="badge bg-danger">Maître</span>
+                        </div>
+                        <p>Plus vous progressez, plus vous pouvez <strong>enseigner</strong> et <strong>valider</strong> d'autres apprentis!</p>
+                    `
+                },
+                {
+                    title: '🌟 Créer votre Maîtrise',
+                    icon: 'bi-plus-circle',
+                    content: `
+                        <p>Vous avez un talent unique? <strong>Créez votre propre maîtrise!</strong></p>
+                        <ol>
+                            <li>Cliquez sur <strong>"Créer Maîtrise"</strong></li>
+                            <li>Nommez votre savoir-faire</li>
+                            <li>Le système crée automatiquement le niveau X1</li>
+                            <li>Partagez votre expertise avec la communauté!</li>
+                        </ol>
+                        <div class="alert alert-warning mt-3">
+                            <i class="bi bi-lightbulb"></i> <strong>Astuce :</strong> Votre maîtrise évoluera automatiquement vers X2, X3... au fur et à mesure des validations!
+                        </div>
+                    `
+                }
+            ];
+            
+            uplanetGamification.onboarding = new uplanetGamification.OnboardingTutorial({
+                steps: onboardingSteps,
+                containerId: 'onboarding-container',
+                storageKey: 'wotx2_onboarding_completed',
+                onComplete: () => {
+                    console.log('[WoTx2] Onboarding completed');
+                    // Show welcome notification
+                    if (uplanetGamification.notifications) {
+                        uplanetGamification.notifications.add({
+                            type: 'success',
+                            title: 'Bienvenue!',
+                            message: 'Vous êtes prêt à explorer les maîtrises WoTx2!'
+                        });
+                    }
+                }
+            });
+            
+            // Auto-start if not completed
+            if (uplanetGamification.onboarding.shouldShow()) {
+                setTimeout(() => {
+                    uplanetGamification.onboarding.start();
+                }, 1000);
+            }
+        }
+        
+        // Quest Board initialization
+        function initQuestBoard() {
+            const quests = generateUserQuests();
+            
+            uplanetGamification.questBoard = new uplanetGamification.QuestBoard({
+                containerId: 'quest-board',
+                quests: quests,
+                userProgress: calculateQuestProgress(),
+                onQuestClick: (questId) => {
+                    console.log('[WoTx2] Quest clicked:', questId);
+                    handleQuestAction(questId);
+                }
+            });
+            
+            uplanetGamification.questBoard.render();
+        }
+        
+        // Generate quests based on user state
+        function generateUserQuests() {
+            const quests = [];
+            
+            // Main quest: Get first certification
+            if (!userHEX || permitCredentials.filter(c => c.holder_npub === userHEX).length === 0) {
+                quests.push({
+                    id: 'first_certification',
+                    type: 'main',
+                    title: 'Obtenir votre premier certificat',
+                    description: 'Créez une demande d\'apprentissage et faites-vous valider par un maître',
+                    target: 1,
+                    reward: 'Badge "Premier Pas"'
+                });
+            } else {
+                // Main quest: Progress to next level
+                const userCredentials = permitCredentials.filter(c => c.holder_npub === userHEX);
+                const maxLevel = Math.max(...userCredentials.map(c => {
+                    const match = c.permit_definition_id?.match(/_X(\d+)$/);
+                    return match ? parseInt(match[1]) : 1;
+                }));
+                
+                quests.push({
+                    id: 'next_level',
+                    type: 'main',
+                    title: `Atteindre le niveau X${maxLevel + 1}`,
+                    description: 'Continuez à apprendre et à vous faire valider',
+                    target: maxLevel + 1,
+                    reward: `Badge "Niveau X${maxLevel + 1}"`
+                });
+            }
+            
+            // Side quests
+            quests.push({
+                id: 'attest_apprentices',
+                type: 'side',
+                title: 'Valider des apprentis',
+                description: 'Partagez votre expertise en validant d\'autres apprentis',
+                target: 3,
+                reward: 'Badge "Mentor"'
+            });
+            
+            quests.push({
+                id: 'reveal_competencies',
+                type: 'side',
+                title: 'Révéler des compétences',
+                description: 'Découvrez et ajoutez de nouvelles compétences lors des attestations',
+                target: 5,
+                reward: 'Badge "Explorateur"'
+            });
+            
+            // Daily quests
+            quests.push({
+                id: 'daily_login',
+                type: 'daily',
+                title: 'Connexion quotidienne',
+                description: 'Connectez-vous avec votre MULTIPASS',
+                target: 1,
+                reward: '+10 XP'
+            });
+            
+            if (userHEX) {
+                quests.push({
+                    id: 'daily_attest',
+                    type: 'daily',
+                    title: 'Validation du jour',
+                    description: 'Validez au moins un apprenti aujourd\'hui',
+                    target: 1,
+                    reward: '+25 XP'
+                });
+            }
+            
+            return quests;
+        }
+        
+        // Calculate quest progress from user data
+        function calculateQuestProgress() {
+            const progress = {};
+            
+            if (!userHEX) {
+                progress.daily_login = 0;
+                progress.first_certification = 0;
+            } else {
+                progress.daily_login = 1;
+                
+                // Count user certifications
+                const userCerts = permitCredentials.filter(c => c.holder_npub === userHEX);
+                progress.first_certification = userCerts.length > 0 ? 1 : 0;
+                
+                // Count attestations given
+                const userAttestations = permitAttestations.filter(a => a.attester_npub === userHEX);
+                progress.attest_apprentices = userAttestations.length;
+                progress.daily_attest = userAttestations.filter(a => {
+                    const today = new Date().toDateString();
+                    return new Date(a.created_at).toDateString() === today;
+                }).length;
+                
+                // Count revealed competencies (from attestation content)
+                let revealedCount = 0;
+                userAttestations.forEach(a => {
+                    if (a.revealed_competencies && a.revealed_competencies.length > 0) {
+                        revealedCount += a.revealed_competencies.length;
+                    }
+                });
+                progress.reveal_competencies = revealedCount;
+                
+                // Calculate max level
+                const maxLevel = Math.max(1, ...userCerts.map(c => {
+                    const match = c.permit_definition_id?.match(/_X(\d+)$/);
+                    return match ? parseInt(match[1]) : 1;
+                }));
+                progress.next_level = maxLevel;
+            }
+            
+            return progress;
+        }
+        
+        // Handle quest action
+        function handleQuestAction(questId) {
+            switch(questId) {
+                case 'first_certification':
+                case 'next_level':
+                    showRequestModal();
+                    break;
+                case 'attest_apprentices':
+                case 'daily_attest':
+                    document.getElementById('pendingRequestsList')?.scrollIntoView({ behavior: 'smooth' });
+                    break;
+                case 'reveal_competencies':
+                    // Scroll to attestation info
+                    break;
+                case 'daily_login':
+                    if (!userHEX) connectMULTIPASS();
+                    break;
+            }
+        }
+        
+        // Profile Card initialization
+        function initProfileCard() {
+            uplanetGamification.profileCard = new uplanetGamification.ProfileCard({
+                containerId: 'profile-card',
+                userData: buildUserProfileData(),
+                onAvatarClick: () => {
+                    openUserProfile();
+                }
+            });
+            
+            uplanetGamification.profileCard.render();
+        }
+        
+        // Build user profile data
+        function buildUserProfileData() {
+            if (!userHEX) {
+                return {
+                    name: 'Voyageur Anonyme',
+                    npub: null,
+                    level: 0,
+                    masteries: 0,
+                    attestationsGiven: 0,
+                    attestationsReceived: 0,
+                    competencies: [],
+                    xp: 0,
+                    xpToNextLevel: 100
+                };
+            }
+            
+            // Count masteries (unique permits with credentials)
+            const userCerts = permitCredentials.filter(c => c.holder_npub === userHEX);
+            const uniqueMasteries = new Set(userCerts.map(c => c.permit_definition_id.replace(/_X\d+$/, ''))).size;
+            
+            // Calculate level
+            const maxLevel = Math.max(1, ...userCerts.map(c => {
+                const match = c.permit_definition_id?.match(/_X(\d+)$/);
+                return match ? parseInt(match[1]) : 1;
+            }));
+            
+            // Count attestations
+            const attestationsGiven = permitAttestations.filter(a => a.attester_npub === userHEX).length;
+            const attestationsReceived = permitAttestations.filter(a => {
+                // Find requests from this user
+                const userRequests = permitRequests.filter(r => r.applicant_npub === userHEX);
+                return userRequests.some(r => r.event_id === a.request_event_id);
+            }).length;
+            
+            // Collect competencies
+            const competencies = new Set();
+            userCerts.forEach(cert => {
+                try {
+                    const content = typeof cert.content === 'string' ? JSON.parse(cert.content) : cert.content;
+                    const creds = content?.credentialSubject?.competencies || [];
+                    creds.forEach(c => competencies.add(c));
+                } catch (e) { /* ignore */ }
+            });
+            
+            // Calculate XP (simple formula)
+            const xp = (userCerts.length * 50) + (attestationsGiven * 25) + (attestationsReceived * 10);
+            const xpToNextLevel = 100 * Math.pow(2, maxLevel - 1);
+            
+            return {
+                name: 'Voyageur',
+                npub: userHEX,
+                level: maxLevel,
+                masteries: uniqueMasteries,
+                attestationsGiven: attestationsGiven,
+                attestationsReceived: attestationsReceived,
+                competencies: Array.from(competencies),
+                xp: xp % xpToNextLevel,
+                xpToNextLevel: xpToNextLevel
+            };
+        }
+        
+        // Discovery Center initialization
+        function initDiscoveryCenter() {
+            renderDiscoveryResults();
+            updateDiscoveryCount();
+        }
+        
+        // Discovery: Filter by search
+        let discoverySearchTimeout = null;
+        function filterDiscovery(query) {
+            clearTimeout(discoverySearchTimeout);
+            discoverySearchTimeout = setTimeout(() => {
+                renderDiscoveryResults(query);
+            }, 300);
+        }
+        
+        // Discovery: Sort
+        function sortDiscovery(sortBy) {
+            renderDiscoveryResults(document.getElementById('discoverySearch')?.value || '', sortBy);
+        }
+        
+        // Discovery: Filter by category
+        let selectedCategory = 'all';
+        function filterByCategory(category) {
+            selectedCategory = category;
+            
+            // Update pills UI
+            document.querySelectorAll('.category-pill').forEach(pill => {
+                pill.classList.toggle('active', pill.dataset.category === category);
+            });
+            
+            renderDiscoveryResults(document.getElementById('discoverySearch')?.value || '');
+        }
+        
+        // Render discovery results
+        function renderDiscoveryResults(searchQuery = '', sortBy = 'popular') {
+            const container = document.getElementById('discovery-results');
+            if (!container) return;
+            
+            let filtered = [...allPermits];
+            
+            // Filter by search
+            if (searchQuery) {
+                const query = searchQuery.toLowerCase();
+                filtered = filtered.filter(p => 
+                    p.name?.toLowerCase().includes(query) ||
+                    p.description?.toLowerCase().includes(query) ||
+                    p.id?.toLowerCase().includes(query)
+                );
+            }
+            
+            // Filter by category
+            if (selectedCategory !== 'all') {
+                filtered = filtered.filter(p => {
+                    const cat = guessCategory(p);
+                    return cat === selectedCategory;
+                });
+            }
+            
+            // Sort
+            switch(sortBy) {
+                case 'popular':
+                    filtered.sort((a, b) => (b.holders_count || 0) - (a.holders_count || 0));
+                    break;
+                case 'newest':
+                    filtered.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+                    break;
+                case 'name':
+                    filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    break;
+                case 'level':
+                    filtered.sort((a, b) => {
+                        const aLevel = (a.id?.match(/_X(\d+)$/) || [, '0'])[1];
+                        const bLevel = (b.id?.match(/_X(\d+)$/) || [, '0'])[1];
+                        return parseInt(bLevel) - parseInt(aLevel);
+                    });
+                    break;
+            }
+            
+            // Limit to 12 for display
+            const displayed = filtered.slice(0, 12);
+            
+            if (displayed.length === 0) {
+                container.innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <i class="bi bi-search" style="font-size: 4rem; color: #cbd5e1;"></i>
+                        <h5 class="mt-3 text-muted">Aucune maîtrise trouvée</h5>
+                        <p class="text-muted">Essayez une autre recherche ou créez votre propre maîtrise!</p>
+                        <button class="btn btn-primary" onclick="showNewPermitModal()">
+                            <i class="bi bi-plus-circle"></i> Créer une Maîtrise
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = displayed.map(permit => renderDiscoveryCard(permit)).join('');
+            
+            // Show "View All" if more results
+            if (filtered.length > 12) {
+                container.innerHTML += `
+                    <div class="col-12 text-center mt-3">
+                        <button class="btn btn-outline-primary" onclick="scrollToAllPermits()">
+                            Voir les ${filtered.length - 12} autres maîtrises <i class="bi bi-arrow-down"></i>
+                        </button>
+                    </div>
+                `;
+            }
+        }
+        
+        // Render a discovery card
+        function renderDiscoveryCard(permit) {
+            const levelMatch = permit.id?.match(/_X(\d+)$/);
+            const level = levelMatch ? parseInt(levelMatch[1]) : null;
+            const category = guessCategory(permit);
+            const categoryInfo = getCategoryInfo(category);
+            
+            const isUserMastery = userHEX && permitCredentials.some(c => 
+                c.holder_npub === userHEX && c.permit_definition_id === permit.id
+            );
+            
+            // Check if user has a pending request
+            const hasPendingRequest = userHEX && permitRequests.some(r => 
+                r.applicant_npub === userHEX && r.permit_definition_id === permit.id
+            );
+            
+            return `
+                <div class="col-md-6 col-lg-4 col-xl-3">
+                    <div class="card h-100" style="
+                        border-radius: 15px;
+                        border-left: 4px solid ${categoryInfo.color};
+                        border-top: ${isUserMastery ? '2px solid #10b981' : 'none'};
+                        border-right: ${isUserMastery ? '2px solid #10b981' : 'none'};
+                        border-bottom: ${isUserMastery ? '2px solid #10b981' : 'none'};
+                        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+                        transition: all 0.3s ease;
+                        cursor: pointer;
+                        overflow: hidden;
+                    " onclick="window.location.href='/wotx2?permit_id=${encodeURIComponent(permit.id)}'"
+                    onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 10px 30px rgba(0, 0, 0, 0.15)';"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(0, 0, 0, 0.08)';">
+                        
+                        <!-- Category Badge -->
+                        <div class="position-absolute top-0 end-0 m-2">
+                            <span class="badge" style="background: ${categoryInfo.color}20; color: ${categoryInfo.color};" 
+                                title="${categoryInfo.description}">
+                                <i class="bi ${categoryInfo.icon}"></i> ${categoryInfo.name}
+                            </span>
+                        </div>
+                        
+                        ${isUserMastery ? `
+                            <div class="position-absolute top-0 start-0 m-2">
+                                <span class="badge bg-success">
+                                    <i class="bi bi-check-circle-fill"></i> Certifié
+                                </span>
+                            </div>
+                        ` : hasPendingRequest ? `
+                            <div class="position-absolute top-0 start-0 m-2">
+                                <span class="badge bg-warning text-dark">
+                                    <i class="bi bi-hourglass-split"></i> En cours
+                                </span>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="card-body pt-4">
+                            <div class="d-flex align-items-start gap-2 mb-2">
+                                <h6 class="mb-0 flex-grow-1" style="font-weight: 600; color: #1a1a2e;">
+                                    ${permit.name}
+                                </h6>
+                                ${level ? `
+                                    <span class="badge" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">
+                                        X${level}
+                                    </span>
+                                ` : ''}
+                            </div>
+                            
+                            <p class="text-muted small mb-3" style="
+                                display: -webkit-box;
+                                -webkit-line-clamp: 2;
+                                -webkit-box-orient: vertical;
+                                overflow: hidden;
+                                min-height: 40px;
+                            ">${permit.description || 'Maîtrise disponible pour apprentissage'}</p>
+                            
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex gap-3">
+                                    <span class="small" title="${permit.holders_count || 0} maîtres certifiés" style="color: #10b981;">
+                                        <i class="bi bi-person-check-fill"></i> ${permit.holders_count || 0}
+                                    </span>
+                                    <span class="small" title="${permit.pending_count || 0} apprentis en attente" style="color: #f59e0b;">
+                                        <i class="bi bi-person-plus-fill"></i> ${permit.pending_count || 0}
+                                    </span>
+                                </div>
+                                <span class="badge" style="background: ${categoryInfo.color}15; color: ${categoryInfo.color};">
+                                    <i class="bi bi-pen"></i> ${permit.min_attestations || 1}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Guess category from permit name/description
+        // Based on Chambre des Métiers et de l'Artisanat (CMA) + UPlanet extensions
+        function guessCategory(permit) {
+            const text = ((permit.name || '') + ' ' + (permit.description || '') + ' ' + (permit.id || '')).toLowerCase();
+            
+            // ========================================
+            // CHAMBRE DES MÉTIERS - 4 GRANDES FAMILLES
+            // ========================================
+            
+            // 1. ALIMENTATION - Métiers de bouche
+            if (/boulang|patissi|boucher|charcuti|traiteur|chocolat|glacier|poisson|fromag|brasseu|torrefact|confiseu|cuisine|cuisinier|cook|chef|restau|cafe|bar|sommelier|oenolog|viticult|caviste/.test(text)) {
+                return 'alimentation';
+            }
+            
+            // 2. BÂTIMENT - Construction et aménagement
+            if (/macon|maçon|plombi|electrici|menuisi|charpent|couvreur|peintre|carrel|platri|plâtri|chauffag|climatisa|isol|echafaud|géni|civil|btp|construct|renov|façad|ravalement|ferronnier|serrurier|vitr|etancheit|terrassier|démol/.test(text)) {
+                return 'batiment';
+            }
+            
+            // 3. FABRICATION - Production artisanale
+            if (/ebenist|ébénist|bijout|horlog|tapiss|forgeron|forge|potier|poterie|ceramist|céramist|verrier|relieur|imprimeur|typograph|lithograph|serigraph|graveur|doreur|mosaist|mosaïst|luthier|facteur.*instrument|coutelier|armurier|vannier|tourneur|meulier|cristall|faïenc|emailleur|émailleur|dinandier|ferblantier|chaudronnerie|fondeur/.test(text)) {
+                return 'fabrication';
+            }
+            
+            // 4. SERVICES - Services à la personne et entreprises
+            if (/coiffeur|coiffure|esthetic|esthétici|fleurist|photograph|pressing|nettoy|cordonnerie|cordonnier|taxi|ambulanci|demenag|déménag|ramoneur|répar|reparat|véhicule|auto|moto|cycle|mécani|carrossi|horticult|paysagist|entretien|jardinier|toilett|animalier|veterina|funéraire|thanato/.test(text)) {
+                return 'services';
+            }
+            
+            // ========================================
+            // EXTENSIONS UPLANET - Savoir-faire modernes
+            // ========================================
+            
+            // NUMÉRIQUE - Technologies de l'information
+            if (/program|develop|dév|code|coding|web|design|ux|ui|admin.*syst|devops|cloud|cybers|hacking|ia|intelligence.*artif|machine.*learn|data|blockchain|crypto|smart.*contract|nft|bitcoin|ethereum|linux|serveur|réseau|network|robot|iot|drone|impress.*3d|print.*3d|réalité.*virtuel|vr|ar/.test(text)) {
+                return 'numerique';
+            }
+            
+            // NATURE - Agriculture et environnement
+            if (/permacultur|apicult|maraich|maraîch|sylvicult|herborist|elevage|élevage|berger|vigneron|oléicult|agricult|paysan|fermier|compost|aquapon|hydropon|biodynami|agro.*écol|agroforest|conserv.*nature|ecolog|botani|mycolog|ornitholog/.test(text)) {
+                return 'nature';
+            }
+            
+            // ART - Arts visuels et spectacle vivant
+            if (/peinture|peintre|dessin|illustrat|bande.*dessin|bd|comics|manga|sculpt|musique|musicien|instrument|chant|chanteur|danse|danseur|chorégraph|théâtre|theatre|comédi|acteur|actrice|cirque|marionnett|magie|magicien|calligraph|graffiti|street.*art|tattoo|tatouage|céramique.*art|souffl.*verre|vitrail/.test(text)) {
+                return 'art';
+            }
+            
+            // SPORT - Activités physiques et bien-être
+            if (/natation|nager|nageur|sport|fitness|escalade|grimpe|martial|boxe|judo|karate|aikido|taekwondo|yoga|pilates|course|running|marathon|triathlon|cyclisme|vélo|vtt|surf|voile|plongée|ski|snowboard|equitation|cavalier|musculation|crossfit|coaching.*sport|prépar.*physi/.test(text)) {
+                return 'sport';
+            }
+            
+            // SANTÉ - Bien-être et soins
+            if (/secour|premier.*soin|first.*aid|massage|masseur|kiné|ostéo|naturo|naturopath|aromathérap|phytothérap|acupunct|réflex|shiatsu|reiki|médecine.*trad|ayurveda|méditation|sophrolog|hypno|relaxation|diétét|nutritio|herbal|plantes.*médic/.test(text)) {
+                return 'sante';
+            }
+            
+            // ÉDUCATION - Transmission et accompagnement
+            if (/langue|english|français|spanish|german|chinese|japonais|pédagog|enseignant|professeur|formateur|formation|animation|animateur|médiat|accompagn|coach|mentor|tuteur|éducat|alphabét|soutien.*scol|aide.*devoirs|orthophon|sign|braille/.test(text)) {
+                return 'education';
+            }
+            
+            // Mode et textile (rattaché à Fabrication ou Services selon métier)
+            if (/coutur|tailleur|modiste|chapeli|styliste|mode|fashion|tricot|broderie|tapisserie|textile|tissage|dentell|passement/.test(text)) {
+                return 'fabrication';
+            }
+            
+            return 'other';
+        }
+        
+        // Get category info with icon and color
+        function getCategoryInfo(categoryId) {
+            const categories = {
+                // Chambre des Métiers
+                alimentation: { 
+                    name: 'Alimentation', 
+                    icon: 'bi-egg-fried', 
+                    color: '#f59e0b',
+                    description: 'Métiers de bouche : boulanger, pâtissier, boucher, chocolatier...'
+                },
+                batiment: { 
+                    name: 'Bâtiment', 
+                    icon: 'bi-building', 
+                    color: '#6b7280',
+                    description: 'Construction : maçon, plombier, électricien, menuisier...'
+                },
+                fabrication: { 
+                    name: 'Fabrication', 
+                    icon: 'bi-tools', 
+                    color: '#8b5cf6',
+                    description: 'Production artisanale : ébéniste, bijoutier, potier, forgeron...'
+                },
+                services: { 
+                    name: 'Services', 
+                    icon: 'bi-scissors', 
+                    color: '#ec4899',
+                    description: 'Services : coiffeur, esthéticien, fleuriste, photographe...'
+                },
+                // Extensions UPlanet
+                numerique: { 
+                    name: 'Numérique', 
+                    icon: 'bi-laptop', 
+                    color: '#3b82f6',
+                    description: 'Technologies : développeur, designer, cybersécurité, IA...'
+                },
+                nature: { 
+                    name: 'Nature', 
+                    icon: 'bi-tree-fill', 
+                    color: '#22c55e',
+                    description: 'Agriculture : permaculture, apiculture, maraîchage...'
+                },
+                art: { 
+                    name: 'Art', 
+                    icon: 'bi-palette-fill', 
+                    color: '#f43f5e',
+                    description: 'Arts : peinture, musique, danse, théâtre, sculpture...'
+                },
+                sport: { 
+                    name: 'Sport', 
+                    icon: 'bi-trophy-fill', 
+                    color: '#eab308',
+                    description: 'Sport : natation, escalade, arts martiaux, yoga...'
+                },
+                sante: { 
+                    name: 'Santé', 
+                    icon: 'bi-heart-pulse-fill', 
+                    color: '#ef4444',
+                    description: 'Bien-être : massage, naturopathie, premiers secours...'
+                },
+                education: { 
+                    name: 'Éducation', 
+                    icon: 'bi-mortarboard-fill', 
+                    color: '#14b8a6',
+                    description: 'Transmission : langues, pédagogie, formation, animation...'
+                },
+                other: { 
+                    name: 'Autres', 
+                    icon: 'bi-tag', 
+                    color: '#64748b',
+                    description: 'Autres savoir-faire'
+                }
+            };
+            
+            return categories[categoryId] || categories.other;
+        }
+        
+        // Update discovery count
+        function updateDiscoveryCount() {
+            const countEl = document.getElementById('discoveryCount');
+            if (countEl) {
+                countEl.textContent = `${allPermits.length} maîtrises disponibles`;
+            }
+        }
+        
+        // Scroll to all permits section
+        function scrollToAllPermits() {
+            document.getElementById('all-permits-list')?.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Toggle Quest Board visibility
+        function toggleQuestBoard() {
+            const section = document.getElementById('questBoardSection');
+            if (section) {
+                const isVisible = section.style.display !== 'none';
+                section.style.display = isVisible ? 'none' : 'block';
+                
+                if (!isVisible && uplanetGamification.questBoard) {
+                    // Refresh quests
+                    uplanetGamification.questBoard.setQuests(generateUserQuests());
+                    uplanetGamification.questBoard.setProgress(calculateQuestProgress());
+                    uplanetGamification.questBoard.render();
+                }
+            }
+        }
+        
+        // Toggle Profile Card visibility
+        function toggleProfileCard() {
+            const section = document.getElementById('profileCardSection');
+            if (section) {
+                const isVisible = section.style.display !== 'none';
+                section.style.display = isVisible ? 'none' : 'block';
+                
+                if (!isVisible && uplanetGamification.profileCard) {
+                    // Refresh profile
+                    uplanetGamification.profileCard.setUserData(buildUserProfileData());
+                    uplanetGamification.profileCard.render();
+                }
+            }
+        }
+        
+        // Notifications initialization
+        function initNotifications() {
+            uplanetGamification.notifications = new uplanetGamification.NotificationCenter({
+                containerId: 'notification-center',
+                maxNotifications: 10,
+                onNotificationClick: (id) => {
+                    uplanetGamification.notifications.markAsRead(id);
+                }
+            });
+        }
+        
+        // Show notification (helper for other code)
+        function showGameNotification(type, title, message) {
+            if (uplanetGamification.notifications) {
+                uplanetGamification.notifications.add({ type, title, message });
+            }
+        }
+        
+        // Update user level badge
+        function updateUserLevelBadge() {
+            if (!userHEX) return;
+            
+            const badge = document.getElementById('userLevelBadge');
+            const text = document.getElementById('userLevelText');
+            
+            if (badge && text) {
+                const profile = buildUserProfileData();
+                const levelInfo = uplanetGamification.utils.getLevelInfo(profile.level);
+                
+                badge.style.display = 'inline-flex';
+                badge.style.background = levelInfo.color;
+                text.textContent = `${levelInfo.label} (X${profile.level})`;
+            }
+        }
+        
+        // Initialize gamification after page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Wait for data to load before initializing gamification
+            setTimeout(() => {
+                initializeGamification();
+                updateUserLevelBadge();
+            }, 2000);
+        });
+        
+        // Re-initialize when user connects
+        const originalConnectMULTIPASS = connectMULTIPASS;
+        connectMULTIPASS = async function() {
+            await originalConnectMULTIPASS.apply(this, arguments);
+            
+            // Refresh gamification after connection
+            setTimeout(() => {
+                if (uplanetGamification.profileCard) {
+                    uplanetGamification.profileCard.setUserData(buildUserProfileData());
+                    uplanetGamification.profileCard.render();
+                }
+                if (uplanetGamification.questBoard) {
+                    uplanetGamification.questBoard.setQuests(generateUserQuests());
+                    uplanetGamification.questBoard.setProgress(calculateQuestProgress());
+                    uplanetGamification.questBoard.render();
+                }
+                updateUserLevelBadge();
+            }, 1000);
+        };
     </script>
 </body>
 </html>

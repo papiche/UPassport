@@ -8664,6 +8664,369 @@ async def revoke_permit_credential(credential_id: str, reason: Optional[str] = N
         raise HTTPException(status_code=500, detail=str(e))
 
 ################################################################################
+# RENEWAL SYSTEM API ROUTES
+################################################################################
+
+@app.get("/wotx2_renewal", response_class=HTMLResponse)
+async def get_wotx2_renewal(
+    request: Request, 
+    permit_id: Optional[str] = None, 
+    credential_id: Optional[str] = None,
+    npub: Optional[str] = None
+):
+    """WoTx2 Renewal Interface - Renew expiring certifications
+    
+    This page allows users to:
+    - View their expiring/expired credentials
+    - Create renewal requests (kind 30501)
+    - Find available masters for attestation
+    
+    Args:
+        permit_id: The permit definition ID to renew
+        credential_id: The specific credential being renewed
+        npub: Optional NOSTR public key for pre-authentication
+    """
+    try:
+        myipfs_gateway = get_myipfs_gateway()
+        ipfs_node_id = get_env_from_mysh("IPFSNODEID", "")
+        
+        return templates.TemplateResponse("wotx2_renewal.html", {
+            "request": request,
+            "myIPFS": myipfs_gateway,
+            "permit_id": permit_id or "",
+            "credential_id": credential_id or "",
+            "npub": npub or "",
+            "uSPOT": os.getenv("uSPOT", "http://127.0.0.1:54321"),
+            "nostr_relay": os.getenv("myRELAY", "ws://127.0.0.1:7777").split()[0],
+            "IPFSNODEID": ipfs_node_id
+        })
+        
+    except Exception as e:
+        logging.error(f"Error in get_wotx2_renewal: {e}", exc_info=True)
+        return HTMLResponse(
+            content=f"<html><body><h1>Error</h1><p>{str(e)}</p></body></html>", 
+            status_code=500
+        )
+
+
+class UserCredentialsResponse(BaseModel):
+    success: bool
+    credentials: List[Dict[str, Any]]
+    expiring_soon: List[Dict[str, Any]]  # Credentials expiring in 30 days
+    expired: List[Dict[str, Any]]  # Already expired credentials
+    total: int
+    timestamp: str
+
+
+@app.get("/api/permit/user/credentials")
+async def get_user_credentials(
+    npub: Optional[str] = None,
+    hex_pubkey: Optional[str] = None,
+    include_expired: bool = True
+):
+    """Get all credentials for a specific user with expiration status
+    
+    Args:
+        npub: User's NOSTR public key (npub format)
+        hex_pubkey: User's NOSTR public key (hex format)
+        include_expired: Whether to include expired credentials (default: true)
+    
+    Returns:
+        List of credentials with expiration status
+    """
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    if not npub and not hex_pubkey:
+        raise HTTPException(status_code=400, detail="Either 'npub' or 'hex_pubkey' parameter is required")
+    
+    try:
+        # Convert npub to hex if needed
+        holder_npub = npub
+        if hex_pubkey and not npub:
+            holder_npub = hex_to_npub(hex_pubkey)
+        
+        # Fetch credentials from NOSTR
+        credentials = oracle_system.fetch_permit_credentials_from_nostr(holder_npub=holder_npub)
+        
+        now = datetime.now()
+        thirty_days_later = now + timedelta(days=30)
+        
+        all_credentials = []
+        expiring_soon = []
+        expired = []
+        
+        for cred in credentials:
+            cred_data = {
+                "credential_id": cred.credential_id,
+                "permit_id": cred.permit_definition_id,
+                "permit_name": "",  # Will be filled if definition exists
+                "holder_npub": cred.holder_npub,
+                "issued_at": cred.issued_at.isoformat() if cred.issued_at else None,
+                "expires_at": cred.expires_at.isoformat() if cred.expires_at else None,
+                "status": cred.status.value if hasattr(cred, 'status') else "active",
+                "attestations_count": len(cred.attestations) if hasattr(cred, 'attestations') else 0,
+                "days_until_expiry": None,
+                "expiration_status": "ok"
+            }
+            
+            # Get permit definition for name
+            if cred.permit_definition_id in oracle_system.definitions:
+                definition = oracle_system.definitions[cred.permit_definition_id]
+                cred_data["permit_name"] = definition.name
+            
+            # Calculate expiration status
+            if cred.expires_at:
+                if cred.expires_at < now:
+                    cred_data["expiration_status"] = "expired"
+                    cred_data["days_until_expiry"] = (cred.expires_at - now).days
+                    if include_expired:
+                        expired.append(cred_data)
+                elif cred.expires_at < thirty_days_later:
+                    cred_data["expiration_status"] = "expiring_soon"
+                    cred_data["days_until_expiry"] = (cred.expires_at - now).days
+                    expiring_soon.append(cred_data)
+                else:
+                    cred_data["days_until_expiry"] = (cred.expires_at - now).days
+            
+            all_credentials.append(cred_data)
+        
+        return JSONResponse({
+            "success": True,
+            "credentials": all_credentials,
+            "expiring_soon": expiring_soon,
+            "expired": expired,
+            "total": len(all_credentials),
+            "timestamp": datetime.now().isoformat()
+        })
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting user credentials: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class MasterInfo(BaseModel):
+    npub: str
+    hex_pubkey: str
+    name: Optional[str] = None
+    display_name: Optional[str] = None
+    picture: Optional[str] = None
+    level: str = "X1"
+    competencies: List[str] = []
+    credential_id: Optional[str] = None
+    credential_expires_at: Optional[str] = None
+
+
+class AvailableMastersResponse(BaseModel):
+    success: bool
+    permit_id: str
+    permit_name: str
+    masters: List[MasterInfo]
+    total: int
+    timestamp: str
+
+
+@app.get("/api/permit/masters")
+async def get_available_masters(
+    permit_id: str,
+    exclude_npub: Optional[str] = None
+):
+    """Get list of certified masters who can attest for a specific permit
+    
+    Args:
+        permit_id: The permit definition ID
+        exclude_npub: Optional npub to exclude from results (usually the requester)
+    
+    Returns:
+        List of certified masters with valid credentials for this permit
+    """
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        # Get permit definition
+        permit_name = permit_id
+        if permit_id in oracle_system.definitions:
+            permit_name = oracle_system.definitions[permit_id].name
+        
+        # Fetch all credentials for this permit from NOSTR
+        all_credentials = oracle_system.fetch_permit_credentials_from_nostr()
+        
+        now = datetime.now()
+        masters = []
+        seen_pubkeys = set()
+        
+        for cred in all_credentials:
+            # Check if credential is for this permit (or higher level for WoTx2)
+            cred_permit_id = cred.permit_definition_id
+            
+            # Handle WoTx2 level matching (PERMIT_XXX_X1, PERMIT_XXX_X2, etc.)
+            is_matching_permit = False
+            cred_level = "X1"
+            
+            if cred_permit_id == permit_id:
+                is_matching_permit = True
+            elif "_X" in permit_id and "_X" in cred_permit_id:
+                # Extract base name and levels
+                base_requested = permit_id.rsplit("_X", 1)[0]
+                base_cred = cred_permit_id.rsplit("_X", 1)[0]
+                
+                if base_requested == base_cred:
+                    try:
+                        level_requested = int(permit_id.rsplit("_X", 1)[1])
+                        level_cred = int(cred_permit_id.rsplit("_X", 1)[1])
+                        cred_level = f"X{level_cred}"
+                        
+                        # Master can attest if their level >= requested level
+                        if level_cred >= level_requested:
+                            is_matching_permit = True
+                    except ValueError:
+                        pass
+            
+            if not is_matching_permit:
+                continue
+            
+            # Check if credential is still valid
+            if cred.expires_at and cred.expires_at < now:
+                continue
+            
+            # Skip if excluded or already seen
+            if cred.holder_npub == exclude_npub:
+                continue
+            if cred.holder_npub in seen_pubkeys:
+                continue
+            
+            seen_pubkeys.add(cred.holder_npub)
+            
+            # Try to get profile info
+            profile_info = {}
+            try:
+                holder_hex = npub_to_hex(cred.holder_npub) if cred.holder_npub.startswith("npub") else cred.holder_npub
+                if holder_hex:
+                    profiles = await fetch_nostr_profiles([holder_hex])
+                    if holder_hex in profiles:
+                        profile_info = profiles[holder_hex]
+            except Exception as e:
+                logging.debug(f"Could not fetch profile for {cred.holder_npub}: {e}")
+            
+            masters.append({
+                "npub": cred.holder_npub,
+                "hex_pubkey": npub_to_hex(cred.holder_npub) if cred.holder_npub.startswith("npub") else cred.holder_npub,
+                "name": profile_info.get("name", ""),
+                "display_name": profile_info.get("display_name", ""),
+                "picture": profile_info.get("picture", ""),
+                "level": cred_level,
+                "competencies": [],  # Could be extracted from attestations
+                "credential_id": cred.credential_id,
+                "credential_expires_at": cred.expires_at.isoformat() if cred.expires_at else None
+            })
+        
+        return JSONResponse({
+            "success": True,
+            "permit_id": permit_id,
+            "permit_name": permit_name,
+            "masters": masters,
+            "total": len(masters),
+            "timestamp": datetime.now().isoformat()
+        })
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting available masters: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class RenewalRequestData(BaseModel):
+    permit_id: str
+    previous_credential_id: Optional[str] = None
+    statement: str = "Annual renewal request"
+    evidence: List[str] = []
+    npub: str  # Required for authentication
+
+
+@app.post("/api/permit/renewal/request")
+async def create_renewal_request(renewal_data: RenewalRequestData):
+    """Create a renewal request for an expiring/expired credential
+    
+    This endpoint helps create a kind 30501 renewal request event.
+    The actual event should be signed client-side with NIP-07.
+    
+    Args:
+        renewal_data: Renewal request information
+    
+    Returns:
+        Event template to be signed and published
+    """
+    if not ORACLE_ENABLED or oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+    
+    try:
+        # Verify permit exists
+        if renewal_data.permit_id not in oracle_system.definitions:
+            # Try to fetch from NOSTR
+            definitions = oracle_system.fetch_permit_definitions_from_nostr()
+            found = False
+            for d in definitions:
+                if d.id == renewal_data.permit_id:
+                    found = True
+                    break
+            if not found:
+                raise HTTPException(status_code=404, detail=f"Permit definition '{renewal_data.permit_id}' not found")
+        
+        # Generate request ID
+        request_id = f"renewal_{renewal_data.npub[:16]}_{int(datetime.now().timestamp())}"
+        
+        # Build event template (unsigned - to be signed by client)
+        event_template = {
+            "kind": 30501,
+            "created_at": int(datetime.now().timestamp()),
+            "tags": [
+                ["d", request_id],
+                ["l", renewal_data.permit_id, "permit_type"],
+                ["t", "permit"],
+                ["t", "request"],
+                ["t", "renewal"]
+            ],
+            "content": json.dumps({
+                "request_id": request_id,
+                "request_type": "renewal",
+                "permit_definition_id": renewal_data.permit_id,
+                "previous_credential_id": renewal_data.previous_credential_id,
+                "applicant_did": f"did:nostr:{renewal_data.npub}",
+                "statement": renewal_data.statement,
+                "evidence": renewal_data.evidence,
+                "status": "pending"
+            })
+        }
+        
+        # Add previous credential reference if provided
+        if renewal_data.previous_credential_id:
+            event_template["tags"].append(["e", renewal_data.previous_credential_id, "", "previous_credential"])
+        
+        return JSONResponse({
+            "success": True,
+            "message": "Renewal request template created. Sign with NIP-07 and publish.",
+            "request_id": request_id,
+            "event_template": event_template,
+            "instructions": {
+                "step1": "Sign this event with your NOSTR private key (NIP-07)",
+                "step2": "Publish to your configured relay",
+                "step3": "A certified master must create a 30502 attestation",
+                "step4": "Once attested, Oracle will issue new 30503 credential"
+            }
+        })
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error creating renewal request: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+################################################################################
 # END ORACLE SYSTEM API ROUTES
 ################################################################################
 

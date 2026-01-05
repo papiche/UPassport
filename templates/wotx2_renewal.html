@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔄 Renouvellement de Certification - UPlanet WoTx2</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            --success-gradient: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            --warning-gradient: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+            --danger-gradient: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            --dark-bg: #0f0d1a;
+            --card-bg: #1a1625;
+        }
+        
+        body {
+            background: var(--dark-bg);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        .page-header {
+            background: var(--primary-gradient);
+            padding: 3rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .page-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
+        }
+        
+        .page-header h1 {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .credential-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            overflow: hidden;
+        }
+        
+        .credential-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .credential-body {
+            padding: 1.5rem;
+        }
+        
+        .status-expired {
+            background: var(--danger-gradient);
+        }
+        
+        .status-urgent {
+            background: var(--warning-gradient);
+        }
+        
+        .status-warning {
+            background: linear-gradient(135deg, #eab308 0%, #facc15 100%);
+        }
+        
+        .status-ok {
+            background: var(--success-gradient);
+        }
+        
+        .countdown-circle {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+            color: white;
+        }
+        
+        .countdown-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+        
+        .countdown-label {
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+        
+        .info-table {
+            color: #cbd5e1;
+        }
+        
+        .info-table td {
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .info-table td:first-child {
+            color: #94a3b8;
+        }
+        
+        .info-table td:last-child {
+            text-align: right;
+            font-weight: 500;
+        }
+        
+        .btn-renewal {
+            background: var(--primary-gradient);
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            border-radius: 50px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn-renewal:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
+        }
+        
+        .timeline {
+            position: relative;
+            padding-left: 2rem;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0.5rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, #6366f1, #8b5cf6, #a855f7);
+        }
+        
+        .timeline-step {
+            position: relative;
+            padding-bottom: 1.5rem;
+        }
+        
+        .timeline-step::before {
+            content: '';
+            position: absolute;
+            left: -1.75rem;
+            top: 0.25rem;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #6366f1;
+            border: 3px solid var(--dark-bg);
+        }
+        
+        .timeline-step.active::before {
+            background: #22c55e;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.3);
+        }
+        
+        .timeline-step.pending::before {
+            background: #6366f1;
+        }
+        
+        .masters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        
+        .master-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: all 0.2s;
+        }
+        
+        .master-card:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: #6366f1;
+            transform: translateY(-2px);
+        }
+        
+        .master-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .alert-renewal {
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 12px;
+            color: #c7d2fe;
+        }
+        
+        .loading-spinner {
+            display: none;
+        }
+        
+        .loading-spinner.active {
+            display: inline-block;
+        }
+        
+        #nostrLoginSection {
+            display: none;
+        }
+        
+        #renewalSection {
+            display: none;
+        }
+        
+        .npub-display {
+            font-family: 'Courier New', monospace;
+            background: rgba(99, 102, 241, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="page-header text-white text-center">
+        <div class="container">
+            <h1 class="display-5 fw-bold mb-2">
+                <i class="bi bi-arrow-repeat me-2"></i>Renouvellement de Certification
+            </h1>
+            <p class="lead opacity-75">WoTx2 - Toile de Confiance des Savoir-Faire</p>
+        </div>
+    </div>
+    
+    <div class="container py-5">
+        <!-- Login Section -->
+        <div id="loginSection" class="row justify-content-center">
+            <div class="col-lg-6">
+                <div class="credential-card">
+                    <div class="credential-header bg-gradient text-center" style="background: var(--primary-gradient);">
+                        <h4 class="text-white mb-0">
+                            <i class="bi bi-key me-2"></i>Connexion NOSTR
+                        </h4>
+                    </div>
+                    <div class="credential-body text-center py-5">
+                        <div class="mb-4">
+                            <i class="bi bi-shield-lock text-secondary" style="font-size: 4rem;"></i>
+                        </div>
+                        <p class="text-secondary mb-4">
+                            Connectez-vous avec votre identité NOSTR pour accéder à vos certificats et initier un renouvellement.
+                        </p>
+                        <button id="connectNostrBtn" class="btn btn-lg btn-renewal text-white">
+                            <i class="bi bi-lightning-charge me-2"></i>
+                            Connexion avec NOSTR
+                            <span class="loading-spinner spinner-border spinner-border-sm ms-2"></span>
+                        </button>
+                        
+                        <div class="mt-4">
+                            <small class="text-muted">
+                                Utilise NIP-07 (extension navigateur) ou génère une clé temporaire
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Renewal Interface (shown after login) -->
+        <div id="renewalSection">
+            <div class="row g-4">
+                <!-- Left Column: Current Credential Status -->
+                <div class="col-lg-5">
+                    <div class="credential-card h-100">
+                        <div class="credential-header">
+                            <h5 class="text-white mb-0">
+                                <i class="bi bi-award me-2"></i>Mon Certificat
+                            </h5>
+                        </div>
+                        <div class="credential-body">
+                            <!-- Status Circle -->
+                            <div class="text-center mb-4">
+                                <div id="statusCircle" class="countdown-circle status-warning">
+                                    <span class="countdown-number" id="daysRemaining">--</span>
+                                    <span class="countdown-label">jours restants</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Credential Info -->
+                            <table class="info-table w-100">
+                                <tr>
+                                    <td><i class="bi bi-mortarboard me-2"></i>Maîtrise</td>
+                                    <td id="permitName">--</td>
+                                </tr>
+                                <tr>
+                                    <td><i class="bi bi-bar-chart me-2"></i>Niveau</td>
+                                    <td id="permitLevel">--</td>
+                                </tr>
+                                <tr>
+                                    <td><i class="bi bi-calendar-check me-2"></i>Émis le</td>
+                                    <td id="issuedDate">--</td>
+                                </tr>
+                                <tr>
+                                    <td><i class="bi bi-calendar-x me-2"></i>Expire le</td>
+                                    <td id="expiryDate">--</td>
+                                </tr>
+                                <tr>
+                                    <td><i class="bi bi-people me-2"></i>Attestations</td>
+                                    <td id="attestationsCount">--</td>
+                                </tr>
+                            </table>
+                            
+                            <!-- User Info -->
+                            <div class="mt-4 pt-3 border-top border-secondary">
+                                <p class="text-muted small mb-2">Votre identité NOSTR:</p>
+                                <div class="npub-display" id="userNpub">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right Column: Renewal Actions -->
+                <div class="col-lg-7">
+                    <!-- Renewal Request Card -->
+                    <div class="credential-card mb-4">
+                        <div class="credential-header">
+                            <h5 class="text-white mb-0">
+                                <i class="bi bi-arrow-clockwise me-2"></i>Demande de Renouvellement
+                            </h5>
+                        </div>
+                        <div class="credential-body">
+                            <!-- Timeline -->
+                            <div class="timeline mb-4">
+                                <div class="timeline-step active">
+                                    <h6 class="text-white mb-1">1. Initier la demande</h6>
+                                    <p class="text-muted small mb-0">Créez une demande de renouvellement (kind 30501)</p>
+                                </div>
+                                <div class="timeline-step pending">
+                                    <h6 class="text-white mb-1">2. Obtenir une attestation</h6>
+                                    <p class="text-muted small mb-0">Un maître certifié valide vos compétences (kind 30502)</p>
+                                </div>
+                                <div class="timeline-step pending">
+                                    <h6 class="text-white mb-1">3. Recevoir le nouveau certificat</h6>
+                                    <p class="text-muted small mb-0">L'Oracle émet votre certificat renouvelé (kind 30503)</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Renewal Form -->
+                            <form id="renewalForm">
+                                <div class="mb-3">
+                                    <label class="form-label text-white">Message aux pairs (optionnel)</label>
+                                    <textarea class="form-control bg-dark text-white border-secondary" 
+                                              id="renewalMessage" 
+                                              rows="3" 
+                                              placeholder="Décrivez votre pratique actuelle, projets récents, etc."></textarea>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label text-white">Preuves / Portfolio (optionnel)</label>
+                                    <input type="text" 
+                                           class="form-control bg-dark text-white border-secondary" 
+                                           id="evidenceUrl"
+                                           placeholder="URL vers photos, vidéos, portfolio (IPFS, etc.)">
+                                </div>
+                                
+                                <button type="submit" class="btn btn-renewal text-white w-100">
+                                    <i class="bi bi-send me-2"></i>
+                                    Envoyer la Demande de Renouvellement
+                                    <span class="loading-spinner spinner-border spinner-border-sm ms-2"></span>
+                                </button>
+                            </form>
+                            
+                            <!-- Success Message (hidden by default) -->
+                            <div id="renewalSuccess" class="alert alert-success mt-3" style="display: none;">
+                                <i class="bi bi-check-circle me-2"></i>
+                                <strong>Demande envoyée !</strong> Votre demande de renouvellement a été publiée sur les relays NOSTR. 
+                                Un maître certifié doit maintenant valider vos compétences.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Available Masters -->
+                    <div class="credential-card">
+                        <div class="credential-header d-flex justify-content-between align-items-center">
+                            <h5 class="text-white mb-0">
+                                <i class="bi bi-people me-2"></i>Maîtres Disponibles
+                            </h5>
+                            <button class="btn btn-sm btn-outline-light" id="refreshMasters">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                        <div class="credential-body">
+                            <p class="text-muted mb-3">
+                                Ces maîtres certifiés peuvent valider votre renouvellement :
+                            </p>
+                            
+                            <div id="mastersGrid" class="masters-grid">
+                                <!-- Masters will be loaded dynamically -->
+                                <div class="text-center py-4 text-muted">
+                                    <i class="bi bi-hourglass-split"></i> Chargement des maîtres...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notifications -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="notificationToast" class="toast" role="alert">
+            <div class="toast-header">
+                <i class="bi bi-bell me-2"></i>
+                <strong class="me-auto">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toastMessage"></div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- nostr-tools (loaded from CDN) -->
+    <script src="https://unpkg.com/nostr-tools@2.1.0/lib/nostr.bundle.js"></script>
+    
+    <script>
+        // Configuration from server-side template
+        const API_BASE = '{{ uSPOT | default("", true) }}' || window.location.origin;
+        const RELAY_URL = '{{ nostr_relay | default("ws://127.0.0.1:7777", true) }}';
+        const IPFSNODEID = '{{ IPFSNODEID | default("", true) }}';
+        
+        // State
+        let currentUser = null;
+        let currentCredential = null;
+        let permitId = '{{ permit_id | default("", true) }}';
+        let credentialId = '{{ credential_id | default("", true) }}';
+        
+        // Get URL parameters (fallback)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (!permitId) permitId = urlParams.get('permit_id');
+        if (!credentialId) credentialId = urlParams.get('credential_id');
+        
+        // DOM Elements
+        const loginSection = document.getElementById('loginSection');
+        const renewalSection = document.getElementById('renewalSection');
+        const connectNostrBtn = document.getElementById('connectNostrBtn');
+        const renewalForm = document.getElementById('renewalForm');
+        
+        // NOSTR Connection
+        async function connectNostr() {
+            const spinner = connectNostrBtn.querySelector('.loading-spinner');
+            spinner.classList.add('active');
+            
+            try {
+                // Check for NIP-07 extension
+                if (window.nostr) {
+                    const pubkey = await window.nostr.getPublicKey();
+                    currentUser = {
+                        pubkey: pubkey,
+                        npub: NostrTools.nip19.npubEncode(pubkey)
+                    };
+                    
+                    showToast('Connecté avec succès !', 'success');
+                    await loadUserData();
+                } else {
+                    showToast('Extension NOSTR non détectée. Installez Alby ou nos-2x.', 'warning');
+                }
+            } catch (error) {
+                console.error('NOSTR connection error:', error);
+                showToast('Erreur de connexion: ' + error.message, 'error');
+            } finally {
+                spinner.classList.remove('active');
+            }
+        }
+        
+        // Load user credentials
+        async function loadUserData() {
+            loginSection.style.display = 'none';
+            renewalSection.style.display = 'block';
+            
+            // Display user info
+            document.getElementById('userNpub').textContent = currentUser.npub;
+            
+            // Load credential data
+            if (permitId || credentialId) {
+                await fetchCredentialInfo();
+            } else {
+                await fetchAllUserCredentials();
+            }
+            
+            // Load available masters
+            await loadAvailableMasters();
+        }
+        
+        // Fetch credential info from API
+        async function fetchCredentialInfo() {
+            try {
+                // Query API for user's credentials (kind 30503)
+                const response = await fetch(`${API_BASE}/api/permit/user/credentials?npub=${currentUser.npub}&include_expired=true`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.credentials && data.credentials.length > 0) {
+                        // Find matching credential
+                        let credential = null;
+                        if (permitId) {
+                            credential = data.credentials.find(c => c.permit_id === permitId);
+                        }
+                        if (credentialId) {
+                            credential = data.credentials.find(c => c.credential_id === credentialId);
+                        }
+                        if (!credential && data.credentials.length > 0) {
+                            // Use first expiring credential
+                            credential = data.expiring_soon[0] || data.expired[0] || data.credentials[0];
+                        }
+                        
+                        if (credential) {
+                            currentCredential = credential;
+                            permitId = credential.permit_id;
+                            displayCredentialInfo(credential);
+                        } else {
+                            showNoCredentialMessage();
+                        }
+                    } else {
+                        showNoCredentialMessage();
+                    }
+                } else {
+                    // Fallback: use mock data for demo
+                    displayMockCredentialInfo();
+                }
+            } catch (error) {
+                console.error('Error fetching credential:', error);
+                displayMockCredentialInfo();
+            }
+        }
+        
+        // Show message when no credential found
+        function showNoCredentialMessage() {
+            document.getElementById('permitName').textContent = 'Aucun certificat trouvé';
+            document.getElementById('permitLevel').textContent = '--';
+            document.getElementById('daysRemaining').textContent = '?';
+            showToast('Aucun certificat trouvé pour ce compte', 'warning');
+        }
+        
+        // Display credential info in UI (works with API response format)
+        function displayCredentialInfo(credential) {
+            // Handle both API format and raw NOSTR event format
+            let permitName = credential.permit_name || credential.permit_id || 'N/A';
+            let permitLevel = 'X1';
+            let issuedDate = credential.issued_at ? new Date(credential.issued_at) : new Date();
+            let expiryDate = credential.expires_at ? new Date(credential.expires_at) : null;
+            let attestationsCount = credential.attestations_count || 1;
+            let daysRemaining = credential.days_until_expiry;
+            
+            // Extract level from permit_id (e.g., PERMIT_XXX_X2 -> X2)
+            const permitId = credential.permit_id || '';
+            const levelMatch = permitId.match(/_X(\d+)$/);
+            if (levelMatch) {
+                permitLevel = `X${levelMatch[1]}`;
+            }
+            
+            // Calculate days remaining if not provided
+            if (daysRemaining === null || daysRemaining === undefined) {
+                if (expiryDate) {
+                    const now = new Date();
+                    daysRemaining = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
+                } else {
+                    daysRemaining = 365; // No expiry
+                }
+            }
+            
+            // Update display
+            document.getElementById('permitName').textContent = permitName;
+            document.getElementById('permitLevel').textContent = permitLevel;
+            document.getElementById('issuedDate').textContent = issuedDate.toLocaleDateString('fr-FR');
+            document.getElementById('expiryDate').textContent = expiryDate ? expiryDate.toLocaleDateString('fr-FR') : 'Jamais';
+            document.getElementById('attestationsCount').textContent = attestationsCount;
+            document.getElementById('daysRemaining').textContent = daysRemaining;
+            
+            // Update status circle
+            const statusCircle = document.getElementById('statusCircle');
+            statusCircle.classList.remove('status-expired', 'status-urgent', 'status-warning', 'status-ok');
+            
+            if (daysRemaining <= 0) {
+                statusCircle.classList.add('status-expired');
+                document.querySelector('.countdown-label').textContent = 'EXPIRÉ';
+            } else if (daysRemaining <= 7) {
+                statusCircle.classList.add('status-urgent');
+            } else if (daysRemaining <= 30) {
+                statusCircle.classList.add('status-warning');
+            } else {
+                statusCircle.classList.add('status-ok');
+            }
+        }
+        
+        // Mock data for demo
+        function displayMockCredentialInfo() {
+            const mockData = {
+                permit_name: permitId || 'PERMIT_ARTISAN_X1',
+                level: 'X1',
+                issued: new Date(Date.now() - 330 * 24 * 60 * 60 * 1000),
+                expiry: new Date(Date.now() + 35 * 24 * 60 * 60 * 1000),
+                attestations: 1
+            };
+            
+            const daysRemaining = Math.ceil((mockData.expiry - new Date()) / (1000 * 60 * 60 * 24));
+            
+            document.getElementById('permitName').textContent = mockData.permit_name;
+            document.getElementById('permitLevel').textContent = mockData.level;
+            document.getElementById('issuedDate').textContent = mockData.issued.toLocaleDateString('fr-FR');
+            document.getElementById('expiryDate').textContent = mockData.expiry.toLocaleDateString('fr-FR');
+            document.getElementById('attestationsCount').textContent = mockData.attestations;
+            document.getElementById('daysRemaining').textContent = daysRemaining;
+        }
+        
+        // Load available masters from API
+        async function loadAvailableMasters() {
+            const mastersGrid = document.getElementById('mastersGrid');
+            mastersGrid.innerHTML = `
+                <div class="text-center py-4 text-muted">
+                    <div class="spinner-border spinner-border-sm"></div> Chargement des maîtres...
+                </div>
+            `;
+            
+            if (!permitId) {
+                displayMasters([]);
+                return;
+            }
+            
+            try {
+                // Use the dedicated API endpoint
+                const excludeNpub = currentUser ? currentUser.npub : '';
+                const response = await fetch(`${API_BASE}/api/permit/masters?permit_id=${encodeURIComponent(permitId)}&exclude_npub=${excludeNpub}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        displayMasters(data.masters || []);
+                    } else {
+                        displayMasters([]);
+                    }
+                } else {
+                    console.warn('API returned error, showing empty list');
+                    displayMasters([]);
+                }
+            } catch (error) {
+                console.error('Error loading masters:', error);
+                displayMasters([]);
+            }
+        }
+        
+        // Display masters in grid (handles API response format)
+        function displayMasters(masters) {
+            const mastersGrid = document.getElementById('mastersGrid');
+            
+            if (!masters || masters.length === 0) {
+                mastersGrid.innerHTML = `
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-person-x"></i> Aucun maître disponible pour le moment
+                        <br><small>Créez une demande et partagez-la sur les réseaux sociaux</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            mastersGrid.innerHTML = masters.map(master => {
+                // Handle both API format (display_name, name) and npub
+                const displayName = master.display_name || master.name || 'Maître Anonyme';
+                const initial = displayName[0].toUpperCase();
+                const level = master.level || 'X1';
+                const npub = master.npub || '';
+                const shortNpub = npub.length > 20 ? npub.substring(0, 12) + '...' : npub;
+                const picture = master.picture || '';
+                
+                return `
+                    <div class="master-card">
+                        <div class="d-flex align-items-center gap-3">
+                            ${picture ? 
+                                `<img src="${picture}" class="master-avatar" style="object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                 <div class="master-avatar" style="display:none;">${initial}</div>` :
+                                `<div class="master-avatar">${initial}</div>`
+                            }
+                            <div class="flex-grow-1">
+                                <h6 class="text-white mb-0">${displayName}</h6>
+                                <small class="text-muted">Niveau ${level}</small>
+                                <br><small class="text-secondary" style="font-size: 0.7rem;">${shortNpub}</small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="requestAttestation('${npub}')" title="Demander une attestation">
+                                <i class="bi bi-envelope"></i>
+                            </button>
+                        </div>
+                        ${master.competencies && master.competencies.length > 0 ? `
+                            <div class="mt-2">
+                                ${master.competencies.map(c => `<span class="badge bg-secondary me-1">${c}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Submit renewal request using API
+        async function submitRenewal(e) {
+            e.preventDefault();
+            
+            const spinner = renewalForm.querySelector('.loading-spinner');
+            spinner.classList.add('active');
+            
+            const message = document.getElementById('renewalMessage').value;
+            const evidence = document.getElementById('evidenceUrl').value;
+            
+            try {
+                const targetPermitId = permitId || (currentCredential ? currentCredential.permit_id : null);
+                
+                if (!targetPermitId) {
+                    throw new Error('Aucun permit_id spécifié');
+                }
+                
+                // First, get the event template from API
+                const apiResponse = await fetch(`${API_BASE}/api/permit/renewal/request`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        permit_id: targetPermitId,
+                        previous_credential_id: credentialId || (currentCredential ? currentCredential.credential_id : null),
+                        statement: message || 'Demande de renouvellement annuel',
+                        evidence: evidence ? [evidence] : [],
+                        npub: currentUser.npub
+                    })
+                });
+                
+                if (!apiResponse.ok) {
+                    const errorData = await apiResponse.json().catch(() => ({}));
+                    throw new Error(errorData.detail || 'Erreur API');
+                }
+                
+                const data = await apiResponse.json();
+                
+                if (!data.success) {
+                    throw new Error(data.message || 'Échec de la création de la demande');
+                }
+                
+                // Sign the event template with NIP-07
+                if (window.nostr) {
+                    const eventTemplate = data.event_template;
+                    
+                    // Add IPFSNODEID tag if available
+                    if (IPFSNODEID) {
+                        eventTemplate.tags.push(['ipfs_node', IPFSNODEID]);
+                    }
+                    
+                    const signedEvent = await window.nostr.signEvent(eventTemplate);
+                    
+                    // Publish to relay using WebSocket
+                    const published = await publishToRelay(signedEvent);
+                    
+                    if (published) {
+                        document.getElementById('renewalSuccess').style.display = 'block';
+                        renewalForm.reset();
+                        showToast('Demande de renouvellement publiée !', 'success');
+                        
+                        // Update timeline
+                        document.querySelectorAll('.timeline-step')[0].classList.add('active');
+                    } else {
+                        throw new Error('Échec de la publication sur le relay');
+                    }
+                } else {
+                    throw new Error('Extension NOSTR non disponible. Installez Alby ou nos-2x.');
+                }
+            } catch (error) {
+                console.error('Renewal submission error:', error);
+                showToast('Erreur: ' + error.message, 'error');
+            } finally {
+                spinner.classList.remove('active');
+            }
+        }
+        
+        // Publish event to NOSTR relay
+        async function publishToRelay(signedEvent) {
+            return new Promise((resolve) => {
+                try {
+                    const ws = new WebSocket(RELAY_URL);
+                    let timeout = setTimeout(() => {
+                        ws.close();
+                        resolve(false);
+                    }, 10000);
+                    
+                    ws.onopen = () => {
+                        const message = JSON.stringify(['EVENT', signedEvent]);
+                        ws.send(message);
+                    };
+                    
+                    ws.onmessage = (event) => {
+                        try {
+                            const response = JSON.parse(event.data);
+                            if (response[0] === 'OK' && response[2] === true) {
+                                clearTimeout(timeout);
+                                ws.close();
+                                resolve(true);
+                            } else if (response[0] === 'OK') {
+                                clearTimeout(timeout);
+                                ws.close();
+                                resolve(response[2]); // Could be false with error message
+                            }
+                        } catch (e) {
+                            console.warn('Error parsing relay response:', e);
+                        }
+                    };
+                    
+                    ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        clearTimeout(timeout);
+                        resolve(false);
+                    };
+                } catch (error) {
+                    console.error('Error publishing to relay:', error);
+                    resolve(false);
+                }
+            });
+        }
+        
+        // Request attestation from a master
+        function requestAttestation(masterNpub) {
+            showToast(`Demande envoyée à ${masterNpub.substring(0, 16)}...`, 'info');
+            // TODO: Send DM to master
+        }
+        
+        // Toast notification
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('notificationToast');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toastMessage.textContent = message;
+            toast.className = `toast bg-${type === 'error' ? 'danger' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'primary'} text-white`;
+            
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+        }
+        
+        // Event Listeners
+        connectNostrBtn.addEventListener('click', connectNostr);
+        renewalForm.addEventListener('submit', submitRenewal);
+        document.getElementById('refreshMasters').addEventListener('click', loadAvailableMasters);
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if NIP-07 is available
+            if (window.nostr) {
+                connectNostrBtn.innerHTML = '<i class="bi bi-lightning-charge me-2"></i>Connexion avec NOSTR';
+            } else {
+                connectNostrBtn.innerHTML = '<i class="bi bi-download me-2"></i>Installer une extension NOSTR';
+            }
+        });
+    </script>
+</body>
+</html>
