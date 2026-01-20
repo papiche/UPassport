@@ -7,8 +7,12 @@
     <title>🤖 #BRO Terminal</title>
     <script src="/earth/jquery-3.6.3.min.js"></script>
     <script src="/earth/nostr.bundle.js"></script>
+    <script src="/earth/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="/earth/bootstrap.min.css"/>
     <link rel="stylesheet" href="/earth/leaflet.css"/>
     <script src="/earth/leaflet.js"></script>
+    <!-- YouTube Enhancements for advanced Tube features -->
+    <script src="/earth/youtube.enhancements.js" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -27,11 +31,7 @@
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        html, body {
-            height: 100%;
-            overflow: hidden;
-        }
+        html, body { height: 100%; overflow: hidden; }
 
         body {
             font-family: 'Share Tech Mono', monospace;
@@ -58,12 +58,7 @@
             font-weight: 700;
             color: var(--accent-cyan);
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 4px;
         }
-
-        .logo:hover { opacity: 0.8; }
 
         .profile-mini {
             display: flex;
@@ -74,7 +69,6 @@
             background: var(--bg-input);
             border-radius: 12px;
             font-size: 0.7rem;
-            cursor: pointer;
         }
 
         .profile-mini img {
@@ -106,7 +100,6 @@
             cursor: pointer;
         }
 
-        .btn-connect:hover { opacity: 0.9; }
         .btn-connect:disabled { background: var(--bg-hover); color: var(--text-dim); }
 
         .status-dot {
@@ -119,10 +112,7 @@
 
         .status-dot.offline { background: var(--accent-red); animation: none; }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
         /* === SERVICE TABS === */
         .service-bar {
@@ -148,12 +138,10 @@
             cursor: pointer;
             white-space: nowrap;
             transition: all 0.15s;
+            position: relative;
         }
 
-        .svc-btn:hover {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-        }
+        .svc-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
         .svc-btn.active {
             background: var(--bg-input);
@@ -161,35 +149,102 @@
             color: var(--accent-cyan);
         }
 
-        /* === CHAT AREA === */
+        .svc-btn .count {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: var(--accent-purple);
+            color: white;
+            font-size: 0.5rem;
+            padding: 1px 4px;
+            border-radius: 6px;
+            min-width: 14px;
+            text-align: center;
+        }
+
+        /* === MAIN CONTENT WITH NAV ARROWS === */
+        .main-content {
+            flex: 1;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Navigation arrows on sides */
+        .nav-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 80px;
+            background: linear-gradient(90deg, rgba(0,212,255,0.1), rgba(0,212,255,0.3));
+            border: none;
+            color: var(--accent-cyan);
+            font-size: 1.5rem;
+            cursor: pointer;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+                justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .nav-arrow:hover { background: linear-gradient(90deg, rgba(0,212,255,0.2), rgba(0,212,255,0.5)); }
+        .nav-arrow:disabled { opacity: 0.2; cursor: default; }
+
+        .nav-arrow.left {
+            left: 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .nav-arrow.right {
+            right: 0;
+            border-radius: 8px 0 0 8px;
+        }
+
+        /* Chat area between arrows */
+        .chat-wrapper {
+            flex: 1;
+            display: flex;
+                flex-direction: column;
+            margin: 0 45px;
+            overflow: hidden;
+        }
+
         .chat-area {
             flex: 1;
             overflow-y: auto;
-            padding: 8px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
-            gap: 6px;
-        }
+                gap: 8px;
+            }
 
         .chat-area::-webkit-scrollbar { width: 4px; }
         .chat-area::-webkit-scrollbar-track { background: var(--bg-panel); }
         .chat-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-        .msg {
-            padding: 8px 10px;
+        /* Message counter */
+        .msg-counter {
+            text-align: center;
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            padding: 4px;
             background: var(--bg-panel);
-            border-radius: 6px;
-            border-left: 2px solid var(--text-dim);
-            font-size: 0.8rem;
-            line-height: 1.4;
-            max-width: 95%;
+            border-radius: 4px;
+            margin-bottom: 6px;
         }
 
-        .msg.user {
-            border-left-color: var(--accent-cyan);
-            align-self: flex-end;
+        .msg {
+            padding: 10px 12px;
+            background: var(--bg-panel);
+            border-radius: 8px;
+            border-left: 3px solid var(--text-dim);
+            font-size: 0.85rem;
+            line-height: 1.5;
         }
 
+        .msg.user { border-left-color: var(--accent-cyan); }
         .msg.bot {
             border-left-color: var(--accent-green);
             background: linear-gradient(90deg, rgba(0,255,136,0.05), transparent);
@@ -199,15 +254,15 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            margin-bottom: 4px;
-            font-size: 0.65rem;
+            margin-bottom: 6px;
+            font-size: 0.7rem;
             color: var(--text-dim);
         }
 
         .msg-header .tag {
-            padding: 1px 4px;
+            padding: 2px 6px;
             background: var(--bg-hover);
-            border-radius: 2px;
+            border-radius: 3px;
             font-size: 0.6rem;
         }
 
@@ -217,60 +272,31 @@
         .msg-header .tag.search { color: var(--accent-green); }
 
         .msg-content { word-break: break-word; }
-
-        .msg-content a {
-            color: var(--accent-cyan);
-            text-decoration: none;
-        }
-
+        .msg-content a { color: var(--accent-cyan); text-decoration: none; }
         .msg-content a:hover { text-decoration: underline; }
 
         .msg-media {
-            margin-top: 6px;
-            border-radius: 4px;
+            margin-top: 8px;
+            border-radius: 6px;
             overflow: hidden;
             background: var(--bg-void);
         }
 
         .msg-media img, .msg-media video {
             max-width: 100%;
-            max-height: 200px;
+            max-height: 250px;
             display: block;
-        }
-
-        .msg-media audio { width: 100%; height: 32px; }
-
-        .msg-time {
-            font-size: 0.6rem;
-            color: var(--text-dim);
-            margin-top: 4px;
-            text-align: right;
-        }
-
-        .msg-nav {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            padding: 6px;
-        }
-
-        .msg-nav button {
-            padding: 4px 12px;
-            background: var(--bg-input);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            color: var(--text-dim);
-            font-family: inherit;
-            font-size: 0.7rem;
             cursor: pointer;
         }
 
-        .msg-nav button:hover:not(:disabled) {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-        }
+        .msg-media audio { width: 100%; height: 36px; }
 
-        .msg-nav button:disabled { opacity: 0.3; }
+        .msg-time {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            margin-top: 6px;
+            text-align: right;
+        }
 
         .empty-state {
             flex: 1;
@@ -279,18 +305,18 @@
             align-items: center;
             justify-content: center;
             color: var(--text-dim);
-            font-size: 0.8rem;
+            font-size: 0.85rem;
             text-align: center;
             padding: 20px;
         }
 
-        .empty-state .icon { font-size: 2rem; margin-bottom: 8px; opacity: 0.5; }
+        .empty-state .icon { font-size: 2.5rem; margin-bottom: 10px; opacity: 0.5; }
 
-        /* === INPUT AREA === */
-        .input-area {
+        /* === INPUT SECTION (below chat) === */
+        .input-section {
             background: var(--bg-panel);
             border-top: 1px solid var(--border);
-            padding: 8px;
+            padding: 10px;
             flex-shrink: 0;
         }
 
@@ -298,207 +324,29 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
             flex-wrap: wrap;
         }
 
         .opt-btn {
-            padding: 3px 8px;
+            padding: 4px 10px;
             background: var(--bg-input);
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: 12px;
             color: var(--text-dim);
             font-family: inherit;
-            font-size: 0.65rem;
+            font-size: 0.7rem;
             cursor: pointer;
             display: flex;
             align-items: center;
             gap: 4px;
+            transition: all 0.15s;
         }
 
         .opt-btn:hover { border-color: var(--accent-cyan); color: var(--text-primary); }
         .opt-btn.active { background: var(--accent-cyan); color: var(--bg-void); border-color: var(--accent-cyan); }
         .opt-btn.warn.active { background: var(--accent-orange); border-color: var(--accent-orange); }
 
-        .input-row {
-            display: flex;
-            gap: 6px;
-        }
-
-        .input-main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        #messageInput {
-            width: 100%;
-            padding: 8px 10px;
-            background: var(--bg-input);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--text-primary);
-            font-family: inherit;
-            font-size: 0.85rem;
-            resize: none;
-            min-height: 40px;
-            max-height: 120px;
-        }
-
-        #messageInput:focus {
-            outline: none;
-            border-color: var(--accent-cyan);
-        }
-
-        #messageInput::placeholder { color: var(--text-dim); }
-
-        .btn-send {
-            padding: 8px 16px;
-            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-            border: none;
-            border-radius: 6px;
-            color: white;
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.75rem;
-            font-weight: 700;
-            cursor: pointer;
-            align-self: flex-end;
-        }
-
-        .btn-send:hover { opacity: 0.9; transform: translateY(-1px); }
-        .btn-send:disabled { background: var(--bg-hover); color: var(--text-dim); transform: none; }
-
-        .hint {
-            font-size: 0.6rem;
-            color: var(--text-dim);
-            padding: 2px 0;
-        }
-
-        /* === IMAGE PREVIEW === */
-        .img-preview-wrap {
-            display: none;
-            position: relative;
-            margin-bottom: 6px;
-        }
-
-        .img-preview-wrap.visible { display: block; }
-
-        .img-preview-wrap img {
-            max-height: 80px;
-            border-radius: 4px;
-            border: 1px solid var(--border);
-        }
-
-        .img-preview-wrap .remove {
-            position: absolute;
-            top: -4px;
-            right: -4px;
-            width: 18px;
-            height: 18px;
-            background: var(--accent-red);
-            border: none;
-            border-radius: 50%;
-            color: white;
-            font-size: 0.7rem;
-            cursor: pointer;
-            line-height: 1;
-        }
-
-        /* === SETTINGS PANEL === */
-        .settings-panel {
-            display: none;
-            padding: 8px;
-            background: var(--bg-input);
-            border-top: 1px solid var(--border);
-        }
-
-        .settings-panel.open { display: block; }
-
-        .settings-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 4px 0;
-            font-size: 0.7rem;
-        }
-
-        .settings-row label {
-            color: var(--text-dim);
-            min-width: 60px;
-        }
-
-        .settings-row input[type="number"] {
-            width: 60px;
-            padding: 3px 6px;
-            background: var(--bg-panel);
-            border: 1px solid var(--border);
-            border-radius: 3px;
-            color: var(--text-primary);
-            font-family: inherit;
-            font-size: 0.7rem;
-        }
-
-        .settings-row input:focus { outline: none; border-color: var(--accent-cyan); }
-
-        .toggle-switch {
-            position: relative;
-            width: 32px;
-            height: 18px;
-            background: var(--bg-panel);
-            border-radius: 9px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .toggle-switch.on { background: var(--accent-cyan); }
-
-        .toggle-switch::after {
-            content: '';
-            position: absolute;
-            width: 14px;
-            height: 14px;
-            background: var(--text-primary);
-            border-radius: 50%;
-            top: 2px;
-            left: 2px;
-            transition: transform 0.2s;
-        }
-
-        .toggle-switch.on::after { transform: translateX(14px); }
-
-        /* === LIGHTBOX === */
-        .lightbox {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.95);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .lightbox.active { display: flex; }
-
-        .lightbox img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
-
-        .lightbox-close {
-            position: absolute;
-            top: 10px;
-            right: 15px;
-            font-size: 1.5rem;
-            color: white;
-            background: none;
-            border: none;
-            cursor: pointer;
-        }
-
-        /* === SUB-OPTIONS (video mode, etc.) === */
         .sub-options {
             display: none;
             gap: 4px;
@@ -508,25 +356,98 @@
         .sub-options.visible { display: flex; }
 
         .sub-opt {
-            padding: 2px 6px;
+            padding: 3px 8px;
             background: var(--bg-hover);
             border: 1px solid transparent;
-            border-radius: 3px;
+            border-radius: 4px;
             color: var(--text-dim);
-            font-size: 0.6rem;
+            font-size: 0.65rem;
             cursor: pointer;
         }
 
         .sub-opt:hover { border-color: var(--border); }
         .sub-opt.active { border-color: var(--accent-cyan); color: var(--accent-cyan); }
 
-        /* === LOADING === */
+        .img-preview-wrap {
+            display: none;
+            position: relative;
+            margin-bottom: 8px;
+        }
+
+        .img-preview-wrap.visible { display: inline-block; }
+
+        .img-preview-wrap img {
+            max-height: 60px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+
+        .img-preview-wrap .remove {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 20px;
+            height: 20px;
+            background: var(--accent-red);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 0.75rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        #messageInput {
+            flex: 1;
+            padding: 12px 14px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.95rem;
+            resize: none;
+            min-height: 50px;
+            max-height: 150px;
+        }
+
+        #messageInput:focus { outline: none; border-color: var(--accent-cyan); }
+        #messageInput::placeholder { color: var(--text-dim); }
+
+        .btn-send {
+            padding: 12px 20px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn-send:hover { opacity: 0.9; }
+        .btn-send:disabled { background: var(--bg-hover); color: var(--text-dim); }
+
+        .hint {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            margin-top: 6px;
+        }
+
         .loading {
             display: none;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            padding: 10px;
+            padding: 8px;
             color: var(--text-dim);
             font-size: 0.75rem;
         }
@@ -544,14 +465,419 @@
 
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* === HIDDEN === */
+        /* === SETTINGS === */
+        .settings-panel {
+            display: none;
+            padding: 10px;
+            background: var(--bg-input);
+            border-top: 1px solid var(--border);
+        }
+
+        .settings-panel.open { display: block; }
+
+        .settings-row {
+                    display: flex;
+                    align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+            font-size: 0.7rem;
+            flex-wrap: wrap;
+        }
+
+        .settings-row label { color: var(--text-dim); }
+
+        .settings-row input[type="number"] {
+            width: 70px;
+            padding: 4px 6px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+                    border-radius: 4px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.7rem;
+        }
+
+        .toggle-switch {
+            width: 32px;
+            height: 18px;
+            background: var(--bg-panel);
+            border-radius: 9px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .toggle-switch.on { background: var(--accent-cyan); }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s;
+        }
+
+        .toggle-switch.on::after { transform: translateX(14px); }
+
+        #mini-map { height: 100px; border-radius: 4px; margin-top: 8px; }
+
+        /* === LIGHTBOX === */
+        .lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
+            justify-content: center;
+                    align-items: center;
+        }
+
+        .lightbox.active { display: flex; }
+        .lightbox img { max-width: 95%; max-height: 95%; object-fit: contain; }
+
+        .lightbox-close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 2rem;
+            color: white;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+
         .hidden { display: none !important; }
 
-        /* === MAP MINI === */
-        #mini-map {
-            height: 120px;
-            border-radius: 4px;
-            margin-top: 6px;
+        /* === TUBE MODE === */
+        .tube-panel {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .tube-panel.active { display: flex; }
+
+        .tube-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .tube-header h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            color: var(--accent-cyan);
+            margin: 0;
+        }
+
+        .tube-filters {
+            display: flex;
+            gap: 6px;
+            margin-left: auto;
+            align-items: center;
+        }
+
+        .tube-filter-btn {
+            padding: 4px 10px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-dim);
+            font-family: inherit;
+            font-size: 0.65rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .tube-filter-btn:hover { border-color: var(--accent-cyan); color: var(--text-primary); }
+        .tube-filter-btn.active { background: var(--accent-cyan); color: var(--bg-void); border-color: var(--accent-cyan); }
+
+        .tube-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Friends sidebar */
+        .friends-sidebar {
+            width: 140px;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .friends-sidebar.collapsed { width: 0; border: none; overflow: hidden; }
+
+        .friends-header {
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .friends-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px;
+        }
+
+        .friend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-size: 0.7rem;
+        }
+
+        .friend-item:hover { background: var(--bg-hover); }
+        .friend-item.selected { background: rgba(0,212,255,0.15); border: 1px solid var(--accent-cyan); }
+        .friend-item.all { color: var(--accent-cyan); font-weight: 600; }
+
+        .friend-item img {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            object-fit: cover;
+        }
+
+        .friend-item .name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--text-primary);
+        }
+
+        .friend-item .count {
+            font-size: 0.55rem;
+            color: var(--text-dim);
+            background: var(--bg-input);
+            padding: 1px 4px;
+            border-radius: 6px;
+        }
+
+        /* Video grid */
+        .video-grid-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 12px;
+        }
+
+        @media (max-width: 600px) {
+            .video-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+            .friends-sidebar { width: 100px; }
+        }
+
+        .video-card {
+            background: var(--bg-panel);
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .video-card:hover { border-color: var(--accent-cyan); transform: translateY(-2px); }
+
+        .video-thumbnail {
+            position: relative;
+            aspect-ratio: 16/9;
+            background: var(--bg-void);
+            overflow: hidden;
+        }
+
+        .video-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-thumbnail .duration {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.6rem;
+        }
+
+        .video-thumbnail .badge-ai {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+            color: white;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 0.55rem;
+            font-weight: 600;
+        }
+
+        .video-info {
+            padding: 8px;
+        }
+
+        .video-info .title {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            -webkit-box-orient: vertical;
+            line-height: 1.3;
+            margin-bottom: 4px;
+        }
+
+        .video-info .meta {
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .video-info .meta .author {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .video-info .meta .author img {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+        }
+
+        .tube-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: var(--text-dim);
+            text-align: center;
+        }
+
+        .tube-empty .icon { font-size: 2rem; opacity: 0.4; margin-bottom: 8px; }
+
+        .tube-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            color: var(--text-dim);
+        }
+
+        .tube-loading .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Toggle friends sidebar on mobile */
+        .toggle-friends {
+            display: none;
+            padding: 4px 8px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-dim);
+            font-size: 0.7rem;
+            cursor: pointer;
+        }
+
+        @media (max-width: 600px) {
+            .toggle-friends { display: block; }
+        }
+
+        /* Theater modal for Tube */
+        .theater-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 1100;
+            display: none;
+            flex-direction: column;
+        }
+
+        .theater-backdrop.active { display: flex; }
+
+        .theater-close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 2rem;
+            color: white;
+            background: none;
+            border: none;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .theater-video {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .theater-video video {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 8px;
+        }
+
+        .theater-info {
+            padding: 15px;
+            background: var(--bg-panel);
+            border-top: 1px solid var(--border);
+        }
+
+        .theater-info h4 {
+            margin: 0 0 8px 0;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        .theater-info .meta {
+            font-size: 0.75rem;
+            color: var(--text-dim);
         }
     </style>
 </head>
@@ -567,164 +893,164 @@
         <button class="btn-connect" id="btnConnect">Connecter</button>
     </div>
 
-    <!-- SERVICE BAR -->
+    <!-- SERVICE TABS -->
     <div class="service-bar">
-        <button class="svc-btn active" data-svc="chat">💬 Chat</button>
+        <button class="svc-btn active" data-svc="all">📋 Tous</button>
+        <button class="svc-btn" data-svc="chat">💬 Chat</button>
         <button class="svc-btn" data-svc="image">🖼️ Image</button>
         <button class="svc-btn" data-svc="video">🎬 Vidéo</button>
         <button class="svc-btn" data-svc="music">🎵 Musique</button>
         <button class="svc-btn" data-svc="search">🔍 Search</button>
         <button class="svc-btn" data-svc="nature">🌿 Nature</button>
-        <button class="svc-btn" data-svc="memory">🧠 Mémoire</button>
+        <button class="svc-btn" data-svc="tube">📺 Tube</button>
     </div>
 
-    <!-- CHAT AREA -->
-    <div class="chat-area" id="chatArea">
-        <div class="empty-state" id="emptyState">
-            <div class="icon">🤖</div>
-            <div>Connectez-vous pour dialoguer avec votre ASTROBOT</div>
-            <div style="margin-top:8px;font-size:0.7rem;">Votre assistant IA répond en votre nom</div>
+    <!-- MAIN CONTENT WITH SIDE ARROWS -->
+    <div class="main-content">
+        <button class="nav-arrow left" id="btnPrev" disabled>◀</button>
+        
+        <div class="chat-wrapper">
+            <div class="chat-area" id="chatArea">
+                <div class="empty-state" id="emptyState">
+                    <div class="icon">🤖</div>
+                    <div>Connectez-vous pour dialoguer</div>
+                    <div style="margin-top:6px;font-size:0.7rem;">Votre ASTROBOT répond en votre nom</div>
+                </div>
+            </div>
+        </div>
+
+        <button class="nav-arrow right" id="btnNext" disabled>▶</button>
+    </div>
+
+    <!-- TUBE PANEL -->
+    <div class="tube-panel" id="tubePanel">
+        <div class="tube-header">
+            <h3>📺 NostrTube</h3>
+            <div class="tube-filters">
+                <button class="tube-filter-btn active" data-filter="all">Tous</button>
+                <button class="tube-filter-btn" data-filter="ai">🤖 IA</button>
+                <button class="tube-filter-btn" data-filter="nostr">📡 NostrTube</button>
+                <button class="toggle-friends" id="toggleFriends">👥</button>
+            </div>
+        </div>
+        <div class="tube-content">
+            <div class="friends-sidebar" id="friendsSidebar">
+                <div class="friends-header">
+                    <span>👥 Amis</span>
+                    <span id="friendsCount">0</span>
+                </div>
+                <div class="friends-list" id="friendsList">
+                    <div class="friend-item all selected" data-pubkey="all">
+                        <span class="name">🌐 Tous les flux</span>
+                    </div>
+                    <!-- Friends will be loaded here -->
+                </div>
+            </div>
+            <div class="video-grid-container">
+                <div class="video-grid" id="videoGrid">
+                    <div class="tube-empty">
+                        <div class="icon">📺</div>
+                        <div>Connectez-vous pour voir les vidéos</div>
+                        <div style="font-size:0.7rem;margin-top:6px;">Vidéos IA générées + NostrTube</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- MESSAGE NAV -->
-    <div class="msg-nav hidden" id="msgNav">
-        <button id="btnOlder">◀ Ancien</button>
-        <button id="btnRefresh">↻</button>
-        <button id="btnNewer">Récent ▶</button>
+    <!-- THEATER MODAL FOR TUBE -->
+    <div class="theater-backdrop" id="theaterBackdrop">
+        <button class="theater-close" onclick="closeTheater()">×</button>
+        <div class="theater-video">
+            <video id="theaterVideo" controls autoplay></video>
+        </div>
+        <div class="theater-info">
+            <h4 id="theaterTitle">Video Title</h4>
+            <div class="meta" id="theaterMeta"></div>
+        </div>
     </div>
 
-    <!-- INPUT AREA -->
-    <div class="input-area">
-        <!-- Options row -->
+    <!-- INPUT SECTION -->
+    <div class="input-section">
         <div class="input-options">
-            <button class="opt-btn active" id="btnConversation" title="Mode conversation: BRO répond en votre nom (éphémère 1h)">
-                💬 Conversation
-            </button>
-            <button class="opt-btn" id="btnPublic" title="Mode public: message permanent sur votre fil">
-                📢 Public
-            </button>
-            <label class="opt-btn" for="imgInput" id="btnImage" title="Joindre une image">
-                📷
-            </label>
+            <button class="opt-btn active" id="btnConversation" title="BRO répond en votre nom (éphémère 1h)">💬 Conversation</button>
+            <button class="opt-btn" id="btnPublic" title="Message permanent">📢 Public</button>
+            <label class="opt-btn" for="imgInput">📷</label>
             <input type="file" id="imgInput" accept="image/*" style="display:none;">
-            <button class="opt-btn" id="btnLocation" title="Activer/désactiver la localisation">
-                📍
-            </button>
-            <button class="opt-btn" id="btnSettings" title="Paramètres">
-                ⚙️
-            </button>
-            <!-- Sub-options for video -->
+            <button class="opt-btn" id="btnLocation">📍</button>
+            <button class="opt-btn" id="btnSettings">⚙️</button>
             <div class="sub-options" id="videoOpts">
                 <button class="sub-opt active" data-mode="t2v">T2V</button>
                 <button class="sub-opt" data-mode="i2v">I2V</button>
             </div>
         </div>
 
-        <!-- Image preview -->
         <div class="img-preview-wrap" id="imgPreviewWrap">
             <img id="imgPreview" src="#">
             <button class="remove" onclick="clearImage()">×</button>
         </div>
 
-        <!-- Input row -->
         <div class="input-row">
-            <div class="input-main">
-                <textarea id="messageInput" placeholder="Tapez votre message..." rows="1"></textarea>
-                <div class="hint" id="serviceHint">💬 Posez une question ou discutez avec votre IA</div>
-            </div>
+            <textarea id="messageInput" placeholder="Tapez votre message..." rows="2"></textarea>
             <button class="btn-send" id="btnSend" disabled>ENVOYER</button>
         </div>
 
-        <!-- Loading -->
+        <div class="hint" id="serviceHint">💬 Posez une question ou discutez avec votre IA</div>
+
         <div class="loading" id="loadingBar">
             <div class="spinner"></div>
-            <span id="loadingText">Envoi en cours...</span>
+            <span id="loadingText">Envoi...</span>
         </div>
     </div>
 
-    <!-- Settings Panel -->
+    <!-- SETTINGS -->
     <div class="settings-panel" id="settingsPanel">
         <div class="settings-row">
-            <label>Latitude</label>
-            <input type="number" id="latInput" step="0.01" min="-90" max="90" value="0">
-            <label>Longitude</label>
-            <input type="number" id="lonInput" step="0.01" min="-180" max="180" value="0">
-            <button class="opt-btn" id="btnGeolocate">📍 Ma position</button>
-        </div>
-        <div class="settings-row">
-            <label>Localisation</label>
+            <label>📍 Localisation</label>
             <div class="toggle-switch on" id="toggleLocation"></div>
-            <span style="color:var(--text-dim);font-size:0.65rem;">Requis pour #BRO</span>
+            <label>Lat:</label>
+            <input type="number" id="latInput" step="0.01" value="0">
+            <label>Lon:</label>
+            <input type="number" id="lonInput" step="0.01" value="0">
+            <button class="opt-btn" id="btnGeolocate">Ma position</button>
         </div>
-        <div id="mapContainer" style="display:none;">
-            <div id="mini-map"></div>
-        </div>
+        <div id="mapContainer" style="display:none;"><div id="mini-map"></div></div>
     </div>
 
-    <!-- Lightbox -->
+    <!-- LIGHTBOX -->
     <div class="lightbox" id="lightbox">
         <button class="lightbox-close" onclick="closeLightbox()">×</button>
         <img id="lightboxImg" src="#">
     </div>
 
-    <!-- Debug Panel -->
-    <details style="position:fixed;bottom:0;left:0;right:0;background:var(--bg-panel);border-top:1px solid var(--border);max-height:150px;overflow-y:auto;font-size:0.65rem;z-index:100;">
-        <summary style="padding:4px 8px;cursor:pointer;color:var(--text-dim);">🔧 Debug</summary>
-        <div id="debugLog" style="padding:6px;font-family:monospace;white-space:pre-wrap;color:var(--accent-cyan);"></div>
+    <!-- DEBUG -->
+    <details style="position:fixed;bottom:0;left:0;right:0;background:var(--bg-panel);border-top:1px solid var(--border);max-height:120px;overflow-y:auto;font-size:0.6rem;z-index:100;">
+        <summary style="padding:3px 8px;cursor:pointer;color:var(--text-dim);">🔧 Debug</summary>
+        <div id="debugLog" style="padding:4px;font-family:monospace;white-space:pre-wrap;color:var(--accent-cyan);"></div>
     </details>
 
     <script>
         // === CONFIG ===
         const DEFAULT_RELAYS = ['wss://relay.copylaradio.com', 'ws://127.0.0.1:7777'];
-        const MESSAGES_PER_PAGE = 10;
+        const MESSAGES_PER_PAGE = 50;
 
         // === STATE ===
         let publicKey = '';
-        let privateKeyHex = null;
         let pool = null;
         let allRelays = [...DEFAULT_RELAYS];
         let userProfile = null;
-        let messages = [];
+        let allMessages = [];  // All fetched messages
+        let filteredMessages = [];  // Messages filtered by service
         let msgIndex = 0;
-        let currentService = 'chat';
+        let currentService = 'all';
+        let currentInputService = 'chat';
         let videoMode = 't2v';
-        let isConversation = true; // Default: conversation mode (ephemeral)
+        let isConversation = true;
         let locationEnabled = true;
         let currentLat = null;
         let currentLon = null;
         let selectedImage = null;
         let miniMap = null;
-
-        // === ELEMENTS ===
-        const $statusDot = $('#statusDot');
-        const $profileMini = $('#profileMini');
-        const $profileImg = $('#profileImg');
-        const $profileName = $('#profileName');
-        const $btnConnect = $('#btnConnect');
-        const $chatArea = $('#chatArea');
-        const $emptyState = $('#emptyState');
-        const $msgNav = $('#msgNav');
-        const $messageInput = $('#messageInput');
-        const $btnSend = $('#btnSend');
-        const $loadingBar = $('#loadingBar');
-        const $loadingText = $('#loadingText');
-        const $serviceHint = $('#serviceHint');
-        const $imgPreviewWrap = $('#imgPreviewWrap');
-        const $imgPreview = $('#imgPreview');
-        const $settingsPanel = $('#settingsPanel');
-        const $videoOpts = $('#videoOpts');
-
-        // === SERVICE HINTS ===
-        const serviceHints = {
-            chat: '💬 Posez une question ou discutez avec votre IA',
-            image: '🖼️ Décrivez l\'image à générer (Stable Diffusion)',
-            video: '🎬 Décrivez la scène vidéo (Wan2.2 AI)',
-            music: '🎵 Style musical: "jazz piano 80bpm" ou ajoutez #parole',
-            search: '🔍 Recherche web avec Perplexica',
-            nature: '🌿 Joignez une photo pour identifier plantes/animaux',
-            memory: '🧠 #mem pour voir, #reset pour effacer'
-        };
 
         // === LOGGING ===
         let debugLog = '';
@@ -733,7 +1059,6 @@
             const line = `[${ts}] ${msg}`;
             console.log(line);
             debugLog += line + '\n';
-            // Keep last 50 lines
             const lines = debugLog.split('\n');
             if (lines.length > 50) debugLog = lines.slice(-50).join('\n');
             $('#debugLog').text(debugLog).scrollTop($('#debugLog')[0]?.scrollHeight || 0);
@@ -742,35 +1067,52 @@
         // === INIT ===
         $(document).ready(function() {
             log('Document ready');
-            
-            // Wait for NostrTools to load
             let attempts = 0;
             const checkLib = setInterval(() => {
                 attempts++;
                 if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
                     clearInterval(checkLib);
-                    log('NostrTools loaded OK');
-                    checkExtension();
-                    getLocation();
-                    setupEventListeners();
+                    log('NostrTools OK');
+                    init();
                 } else if (attempts > 50) {
                     clearInterval(checkLib);
-                    log('ERROR: NostrTools failed to load');
-                    $btnConnect.text('Erreur lib').prop('disabled', true);
-                } else {
-                    log(`Waiting for NostrTools... (${attempts})`);
+                    log('ERROR: NostrTools failed');
+                    $('#btnConnect').text('Erreur').prop('disabled', true);
                 }
             }, 100);
         });
 
-        function setupEventListeners() {
-            log('Setting up event listeners');
-            // Connect
-            $btnConnect.on('click', connectWallet);
+        function init() {
+            checkExtension();
+            getLocation();
+            setupEvents();
+        }
 
-            // Service tabs
+        function setupEvents() {
+            $('#btnConnect').on('click', connectWallet);
+
+            // Service filter tabs
             $('.svc-btn').on('click', function() {
-                switchService($(this).data('svc'));
+                const svc = $(this).data('svc');
+                currentService = svc;
+                $('.svc-btn').removeClass('active');
+                $(this).addClass('active');
+                
+                // Handle Tube mode switching
+                if (svc === 'tube') {
+                    $('.main-content').hide();
+                    $('#tubePanel').addClass('active');
+                    $('.input-section').hide();
+                    loadTubeVideos();
+                } else {
+                    $('#tubePanel').removeClass('active');
+                    $('.main-content').show();
+                    $('.input-section').show();
+                    filterAndDisplayMessages();
+                    updateInputHint(svc === 'all' ? 'chat' : svc);
+                    if (svc !== 'all' && svc !== 'tube') currentInputService = svc;
+                }
+                $('#videoOpts').toggleClass('visible', svc === 'video');
             });
 
             // Mode toggle
@@ -784,23 +1126,14 @@
                 $(this).addClass('active');
             });
 
-            // Image input
+            // Image
             $('#imgInput').on('change', handleImageSelect);
 
-            // Location toggle
+            // Location
             $('#btnLocation').on('click', function() {
                 locationEnabled = !locationEnabled;
                 $(this).toggleClass('active', locationEnabled);
                 $('#toggleLocation').toggleClass('on', locationEnabled);
-            });
-
-            // Settings
-            $('#btnSettings').on('click', function() {
-                $settingsPanel.toggleClass('open');
-                $(this).toggleClass('active');
-                if ($settingsPanel.hasClass('open') && !miniMap) {
-                    initMiniMap();
-                }
             });
 
             $('#toggleLocation').on('click', function() {
@@ -809,152 +1142,568 @@
                 $('#btnLocation').toggleClass('active', locationEnabled);
             });
 
+            // Settings
+            $('#btnSettings').on('click', function() {
+                $('#settingsPanel').toggleClass('open');
+                $(this).toggleClass('active');
+                if ($('#settingsPanel').hasClass('open') && !miniMap) initMiniMap();
+            });
+
             $('#btnGeolocate').on('click', getLocation);
 
+            // Navigation arrows
+            $('#btnPrev').on('click', () => navigate(-1));
+            $('#btnNext').on('click', () => navigate(1));
+
             // Send
-            $btnSend.on('click', sendMessage);
-            $messageInput.on('keydown', function(e) {
+            $('#btnSend').on('click', sendMessage);
+            $('#messageInput').on('keydown', function(e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     sendMessage();
                 }
-            });
-
-            // Auto-resize textarea
-            $messageInput.on('input', function() {
+            }).on('input', function() {
                 this.style.height = 'auto';
-                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+                this.style.height = Math.min(this.scrollHeight, 150) + 'px';
             });
-
-            // Navigation
-            $('#btnOlder').on('click', () => navigateMsg(1));
-            $('#btnNewer').on('click', () => navigateMsg(-1));
-            $('#btnRefresh').on('click', () => fetchMessages());
 
             // Lightbox
-            $('#lightbox').on('click', function(e) {
-                if (e.target.id === 'lightbox') closeLightbox();
+            $('#lightbox').on('click', e => { if (e.target.id === 'lightbox') closeLightbox(); });
+            $(document).on('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeTheater(); }});
+
+            // Tube events
+            setupTubeEvents();
+        }
+
+        // === TUBE MODE ===
+        let tubeVideos = [];
+        let filteredTubeVideos = [];
+        let friendsList = [];
+        let selectedFriend = 'all';
+        let tubeFilter = 'all';
+        let profileCache = {};
+
+        function setupTubeEvents() {
+            // Tube filter buttons
+            $('.tube-filter-btn').on('click', function() {
+                tubeFilter = $(this).data('filter');
+                $('.tube-filter-btn').removeClass('active');
+                $(this).addClass('active');
+                filterTubeVideos();
             });
-            $(document).on('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+            // Friends toggle (mobile)
+            $('#toggleFriends').on('click', function() {
+                $('#friendsSidebar').toggleClass('collapsed');
+            });
+
+            // Friend selection
+            $(document).on('click', '.friend-item', function() {
+                selectedFriend = $(this).data('pubkey');
+                $('.friend-item').removeClass('selected');
+                $(this).addClass('selected');
+                filterTubeVideos();
+            });
+
+            // Theater close
+            $('#theaterBackdrop').on('click', function(e) {
+                if (e.target.id === 'theaterBackdrop') closeTheater();
+            });
+        }
+
+        async function loadTubeVideos() {
+            if (!publicKey) {
+                $('#videoGrid').html(`
+                    <div class="tube-empty">
+                        <div class="icon">🔒</div>
+                        <div>Connectez-vous pour voir les vidéos</div>
+                    </div>
+                `);
+                return;
+            }
+
+            log('Loading Tube videos...');
+            $('#videoGrid').html('<div class="tube-loading"><div class="spinner"></div>Chargement des vidéos...</div>');
+
+            tubeVideos = [];
+            const p = getPool();
+
+            try {
+                // 1. Load AI-generated videos from user's messages (#video tag)
+                const userVideoMessages = await p.list(allRelays, [{
+                    kinds: [1],
+                    authors: [publicKey],
+                    '#t': ['video'],
+                    limit: 50
+                }]);
+
+                // Also get replies to user messages (AI responses with videos)
+                const userMessages = await p.list(allRelays, [{
+                    kinds: [1],
+                    authors: [publicKey],
+                    limit: 100
+                }]);
+
+                const userMsgIds = userMessages.map(m => m.id);
+                let aiReplies = [];
+                if (userMsgIds.length > 0) {
+                    aiReplies = await p.list(allRelays, [{
+                        kinds: [1],
+                        '#e': userMsgIds,
+                        limit: 200
+                    }]);
+                }
+
+                // Filter AI replies that contain video URLs
+                const aiVideoReplies = aiReplies.filter(r => {
+                    const urls = extractMediaUrls(r.content);
+                    return urls.some(u => detectMediaType(u) === 'video');
+                });
+
+                // Convert to video format
+                [...userVideoMessages, ...aiVideoReplies].forEach(event => {
+                    const video = convertMessageToVideo(event, true);
+                    if (video) tubeVideos.push(video);
+                });
+
+                // 2. Load NostrTube videos (kinds 21, 22)
+                const nostrtubeVideos = await p.list(allRelays, [{
+                    kinds: [21, 22],
+                    limit: 100
+                }]);
+
+                nostrtubeVideos.forEach(event => {
+                    const video = extractNostrTubeVideo(event);
+                    if (video) tubeVideos.push(video);
+                });
+
+                // 3. Load friends list
+                await loadFriendsList();
+
+                // Sort by date
+                tubeVideos.sort((a, b) => b.created_at - a.created_at);
+
+                log(`Loaded ${tubeVideos.length} videos (${userVideoMessages.length + aiVideoReplies.length} AI, ${nostrtubeVideos.length} NostrTube)`);
+                
+                filterTubeVideos();
+
+            } catch (e) {
+                log(`Tube error: ${e.message}`);
+                $('#videoGrid').html(`
+                    <div class="tube-empty">
+                        <div class="icon">❌</div>
+                        <div>Erreur de chargement</div>
+                        <div style="font-size:0.7rem">${e.message}</div>
+                    </div>
+                `);
+            }
+        }
+
+        function convertMessageToVideo(event, isAI) {
+            const urls = extractMediaUrls(event.content);
+            const videoUrl = urls.find(u => detectMediaType(u) === 'video');
+            if (!videoUrl) return null;
+
+            // Extract title from content
+            let title = cleanContent(event.content, urls);
+            if (title.length > 80) title = title.substring(0, 80) + '...';
+            if (!title) title = isAI ? 'Vidéo IA générée' : 'Vidéo';
+
+            return {
+                id: event.id,
+                title: title,
+                videoUrl: videoUrl,
+                thumbnailUrl: urls.find(u => detectMediaType(u) === 'image') || '',
+                authorId: event.pubkey,
+                created_at: event.created_at,
+                isAI: isAI,
+                type: 'ai',
+                duration: 0
+            };
+        }
+
+        function extractNostrTubeVideo(event) {
+            // Extract from NIP-71 format
+            const titleTag = event.tags.find(t => t[0] === 'title');
+            const urlTag = event.tags.find(t => t[0] === 'url' || t[0] === 'r');
+            const imageTag = event.tags.find(t => t[0] === 'image' || t[0] === 'thumb');
+            const durationTag = event.tags.find(t => t[0] === 'duration');
+            const imetaTag = event.tags.find(t => t[0] === 'imeta');
+
+            let videoUrl = urlTag ? urlTag[1] : '';
+            let thumbnailUrl = imageTag ? imageTag[1] : '';
+            let duration = durationTag ? parseInt(durationTag[1]) : 0;
+
+            // Parse imeta tag if available
+            if (imetaTag) {
+                imetaTag.forEach((item, idx) => {
+                    if (idx === 0) return;
+                    if (typeof item === 'string') {
+                        if (item.startsWith('url ')) videoUrl = videoUrl || item.substring(4).trim();
+                        if (item.startsWith('image ')) thumbnailUrl = thumbnailUrl || item.substring(6).trim();
+                        if (item.startsWith('duration ')) duration = duration || parseFloat(item.substring(9).trim());
+                    }
+                });
+            }
+
+            // Also check for URL in content
+            if (!videoUrl) {
+                const urls = extractMediaUrls(event.content);
+                videoUrl = urls.find(u => detectMediaType(u) === 'video') || '';
+            }
+
+            if (!videoUrl) return null;
+
+            return {
+                id: event.id,
+                title: titleTag ? titleTag[1] : 'NostrTube Video',
+                videoUrl: videoUrl,
+                thumbnailUrl: thumbnailUrl,
+                authorId: event.pubkey,
+                created_at: event.created_at,
+                isAI: false,
+                type: 'nostr',
+                duration: duration,
+                kind: event.kind
+            };
+        }
+
+        async function loadFriendsList() {
+            if (!publicKey) return;
+
+            const p = getPool();
+            try {
+                // Get contact list (kind 3)
+                const contacts = await p.list(allRelays, [{
+                    kinds: [3],
+                    authors: [publicKey],
+                    limit: 1
+                }]);
+
+                if (contacts.length > 0) {
+                    friendsList = contacts[0].tags
+                        .filter(t => t[0] === 'p')
+                        .map(t => t[1]);
+                    
+                    log(`Loaded ${friendsList.length} friends`);
+                    $('#friendsCount').text(friendsList.length);
+                    renderFriendsList();
+                }
+            } catch (e) {
+                log(`Friends error: ${e.message}`);
+            }
+        }
+
+        async function renderFriendsList() {
+            const $list = $('#friendsList');
+            $list.html(`
+                <div class="friend-item all ${selectedFriend === 'all' ? 'selected' : ''}" data-pubkey="all">
+                    <span class="name">🌐 Tous les flux</span>
+                </div>
+                <div class="friend-item ${selectedFriend === publicKey ? 'selected' : ''}" data-pubkey="${publicKey}">
+                    <img src="${userProfile?.picture || 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'}">
+                    <span class="name">📱 Mes vidéos</span>
+                </div>
+            `);
+
+            // Count videos per friend
+            const videoCounts = {};
+            tubeVideos.forEach(v => {
+                videoCounts[v.authorId] = (videoCounts[v.authorId] || 0) + 1;
+            });
+
+            // Load and render each friend
+            for (const pubkey of friendsList.slice(0, 30)) { // Limit to 30 friends
+                const profile = await getProfile(pubkey);
+                const count = videoCounts[pubkey] || 0;
+                
+                if (count > 0 || friendsList.indexOf(pubkey) < 10) { // Show first 10 or those with videos
+                    $list.append(`
+                        <div class="friend-item ${selectedFriend === pubkey ? 'selected' : ''}" data-pubkey="${pubkey}">
+                            <img src="${profile?.picture || 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'}" 
+                                 onerror="this.src='https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'">
+                            <span class="name">${profile?.display_name || profile?.name || pubkey.slice(0, 8)}</span>
+                            ${count > 0 ? `<span class="count">${count}</span>` : ''}
+                        </div>
+                    `);
+                }
+            }
+        }
+
+        async function getProfile(pubkey) {
+            if (profileCache[pubkey]) return profileCache[pubkey];
+
+            const p = getPool();
+            try {
+                const events = await p.list([allRelays[0]], [{
+                    kinds: [0],
+                    authors: [pubkey],
+                    limit: 1
+                }]);
+                if (events.length > 0) {
+                    profileCache[pubkey] = JSON.parse(events[0].content);
+                    return profileCache[pubkey];
+                }
+            } catch (e) {}
+            return null;
+        }
+
+        function filterTubeVideos() {
+            filteredTubeVideos = tubeVideos.filter(v => {
+                // Filter by type
+                if (tubeFilter === 'ai' && v.type !== 'ai') return false;
+                if (tubeFilter === 'nostr' && v.type !== 'nostr') return false;
+
+                // Filter by friend
+                if (selectedFriend !== 'all') {
+                    if (v.authorId !== selectedFriend) return false;
+                }
+
+                return true;
+            });
+
+            renderVideoGrid();
+        }
+
+        function renderVideoGrid() {
+            const $grid = $('#videoGrid');
+            
+            if (filteredTubeVideos.length === 0) {
+                $grid.html(`
+                    <div class="tube-empty">
+                        <div class="icon">📭</div>
+                        <div>Aucune vidéo trouvée</div>
+                        <div style="font-size:0.7rem;margin-top:6px;">
+                            ${tubeFilter === 'ai' ? 'Générez des vidéos avec #BRO #video' : ''}
+                            ${tubeFilter === 'nostr' ? 'Aucune vidéo NostrTube disponible' : ''}
+                        </div>
+                    </div>
+                `);
+                return;
+            }
+
+            $grid.html(filteredTubeVideos.map(v => renderVideoCard(v)).join(''));
+        }
+
+        function renderVideoCard(video) {
+            const thumbnail = video.thumbnailUrl || generateVideoPlaceholder(video.type);
+            const authorName = profileCache[video.authorId]?.display_name || 
+                              profileCache[video.authorId]?.name || 
+                              video.authorId.slice(0, 8);
+            const authorPic = profileCache[video.authorId]?.picture || 
+                             'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            const date = formatRelativeDate(video.created_at);
+            const duration = video.duration ? formatDuration(video.duration) : '';
+
+            return `
+                <div class="video-card" onclick="openVideoTheater('${video.id}')">
+                    <div class="video-thumbnail">
+                        ${thumbnail.startsWith('http') || thumbnail.startsWith('/') ? 
+                            `<img src="${thumbnail}" onerror="this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;font-size:2rem;\\'>🎬</div>'">`
+                            : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:2rem;">🎬</div>`
+                        }
+                        ${video.type === 'ai' ? '<span class="badge-ai">🤖 IA</span>' : ''}
+                        ${duration ? `<span class="duration">${duration}</span>` : ''}
+                    </div>
+                    <div class="video-info">
+                        <div class="title">${escapeHtml(video.title)}</div>
+                        <div class="meta">
+                            <div class="author">
+                                <img src="${authorPic}" onerror="this.style.display='none'">
+                                <span>${escapeHtml(authorName)}</span>
+                            </div>
+                            <span>•</span>
+                            <span>${date}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateVideoPlaceholder(type) {
+            return type === 'ai' ? '🤖' : '📺';
+        }
+
+        function openVideoTheater(videoId) {
+            const video = tubeVideos.find(v => v.id === videoId);
+            if (!video) return;
+
+            $('#theaterVideo').attr('src', video.videoUrl);
+            $('#theaterTitle').text(video.title);
+            
+            const authorName = profileCache[video.authorId]?.display_name || 
+                              profileCache[video.authorId]?.name || 
+                              video.authorId.slice(0, 8);
+            const date = new Date(video.created_at * 1000).toLocaleString();
+            
+            $('#theaterMeta').html(`
+                <span>${video.type === 'ai' ? '🤖 IA Generated' : '📺 NostrTube'}</span>
+                <span>•</span>
+                <span>Par ${escapeHtml(authorName)}</span>
+                <span>•</span>
+                <span>${date}</span>
+            `);
+
+            $('#theaterBackdrop').addClass('active');
+            $('body').css('overflow', 'hidden');
+        }
+
+        function closeTheater() {
+            $('#theaterBackdrop').removeClass('active');
+            $('#theaterVideo')[0]?.pause();
+            $('body').css('overflow', '');
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return '';
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return m > 60 ? `${Math.floor(m/60)}h ${m%60}m` : `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function formatRelativeDate(timestamp) {
+            const now = Math.floor(Date.now() / 1000);
+            const diff = now - timestamp;
+            if (diff < 60) return 'maintenant';
+            if (diff < 3600) return `${Math.floor(diff / 60)}min`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+            if (diff < 604800) return `${Math.floor(diff / 86400)}j`;
+            return new Date(timestamp * 1000).toLocaleDateString();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
         // === WALLET ===
         function checkExtension() {
-            log('Checking for Nostr extension...');
             if (typeof window.nostr !== 'undefined') {
-                log('Nostr extension found!');
-                $btnConnect.prop('disabled', false).text('Connecter');
+                log('Extension found');
+                $('#btnConnect').prop('disabled', false);
             } else {
-                log('No Nostr extension detected');
-                $btnConnect.text('Extension?').prop('disabled', true);
-                // Retry after a delay (some extensions load slowly)
+                log('No extension');
+                $('#btnConnect').text('Extension?').prop('disabled', true);
                 setTimeout(() => {
                     if (typeof window.nostr !== 'undefined') {
-                        log('Extension found on retry');
-                        $btnConnect.prop('disabled', false).text('Connecter');
+                        $('#btnConnect').prop('disabled', false).text('Connecter');
                     }
                 }, 1000);
             }
         }
 
         async function connectWallet() {
-            log('Connecting to wallet...');
+            log('Connecting...');
             try {
-                $btnConnect.prop('disabled', true).text('...');
-                
-                if (typeof window.nostr === 'undefined') {
-                    throw new Error('Nostr extension not available');
-                }
-                
-                log('Requesting public key...');
+                $('#btnConnect').prop('disabled', true).text('...');
                 publicKey = await window.nostr.getPublicKey();
-                log(`Connected! PubKey: ${publicKey.slice(0, 16)}...`);
-                
-                $statusDot.removeClass('offline');
-                $profileMini.addClass('connected');
-                $btnConnect.hide();
-                $btnSend.prop('disabled', false);
-                
-                log('Fetching profile...');
+                log(`Connected: ${publicKey.slice(0,12)}...`);
+                $('#statusDot').removeClass('offline');
+                $('#profileMini').addClass('connected');
+                $('#btnConnect').hide();
+                $('#btnSend').prop('disabled', false);
                 await fetchProfile();
-                
-                log('Fetching messages...');
                 await fetchMessages();
-                
-                log('Connection complete!');
-            } catch (e) {
-                log(`Connect ERROR: ${e.message || e}`);
-                console.error('Connect error:', e);
-                $btnConnect.prop('disabled', false).text('Réessayer');
-                $statusDot.addClass('offline');
+             } catch (e) {
+                log(`ERROR: ${e.message}`);
+                $('#btnConnect').prop('disabled', false).text('Réessayer');
             }
         }
 
         async function fetchProfile() {
-            log('fetchProfile: Getting pool...');
             const p = getPool();
-            try {
-                for (const relay of DEFAULT_RELAYS) {
-                    log(`fetchProfile: Trying relay ${relay}...`);
+            for (const relay of DEFAULT_RELAYS) {
+                try {
                     const events = await p.list([relay], [{ kinds: [0], authors: [publicKey], limit: 1 }]);
-                    log(`fetchProfile: Got ${events.length} events from ${relay}`);
-                    if (events.length > 0) {
+                    if (events.length) {
                         userProfile = JSON.parse(events[0].content);
-                        $profileImg.attr('src', userProfile.picture || $profileImg.attr('src'));
-                        $profileName.text(userProfile.display_name || userProfile.name || publicKey.slice(0, 8));
-                        log(`fetchProfile: Profile loaded - ${userProfile.name || userProfile.display_name}`);
+                        $('#profileImg').attr('src', userProfile.picture || $('#profileImg').attr('src'));
+                        $('#profileName').text(userProfile.display_name || userProfile.name || publicKey.slice(0, 8));
+                        log(`Profile: ${userProfile.name || userProfile.display_name}`);
                         break;
                     }
-                }
-            } catch (e) {
-                log(`fetchProfile ERROR: ${e.message || e}`);
-                console.error('Profile fetch error:', e);
+                } catch (e) { log(`Profile error: ${e.message}`); }
             }
         }
 
         // === MESSAGES ===
         async function fetchMessages() {
-            if (!publicKey) {
-                log('fetchMessages: No publicKey, skipping');
-                return;
-            }
-            log('fetchMessages: Getting pool...');
+            if (!publicKey) return;
+            log('Fetching messages...');
             const p = getPool();
             try {
-                log(`fetchMessages: Querying ${allRelays.length} relays...`);
                 const events = await p.list(allRelays, [{
                     kinds: [1],
                     authors: [publicKey],
                     limit: MESSAGES_PER_PAGE
                 }]);
-                log(`fetchMessages: Got ${events.length} messages`);
-                messages = events.sort((a, b) => b.created_at - a.created_at);
-                msgIndex = 0;
-                renderMessages();
+                allMessages = events.sort((a, b) => b.created_at - a.created_at);
+                log(`Got ${allMessages.length} messages`);
+                updateServiceCounts();
+                filterAndDisplayMessages();
             } catch (e) {
-                log(`fetchMessages ERROR: ${e.message || e}`);
-                console.error('Fetch error:', e);
+                log(`Fetch error: ${e.message}`);
             }
         }
 
-        function renderMessages() {
-            $emptyState.addClass('hidden');
-            $msgNav.removeClass('hidden');
-            $chatArea.empty();
+        function updateServiceCounts() {
+            const counts = { all: allMessages.length, chat: 0, image: 0, video: 0, music: 0, search: 0, nature: 0 };
+            allMessages.forEach(m => {
+                const tags = extractTags(m.content);
+                if (tags.includes('image')) counts.image++;
+                else if (tags.includes('video')) counts.video++;
+                else if (tags.includes('music')) counts.music++;
+                else if (tags.includes('search')) counts.search++;
+                else if (tags.includes('nature')) counts.nature++;
+                else counts.chat++;
+            });
+            // Update badges
+            Object.keys(counts).forEach(svc => {
+                const btn = $(`.svc-btn[data-svc="${svc}"]`);
+                btn.find('.count').remove();
+                if (counts[svc] > 0 && svc !== 'all') {
+                    btn.append(`<span class="count">${counts[svc]}</span>`);
+                }
+            });
+        }
 
-            if (messages.length === 0) {
-                $emptyState.removeClass('hidden');
-                $msgNav.addClass('hidden');
-                return;
+        function filterAndDisplayMessages() {
+            if (currentService === 'all') {
+                filteredMessages = [...allMessages];
+                } else {
+                filteredMessages = allMessages.filter(m => {
+                    const tags = extractTags(m.content);
+                    if (currentService === 'chat') {
+                        return !tags.includes('image') && !tags.includes('video') && 
+                               !tags.includes('music') && !tags.includes('search') && !tags.includes('nature');
+                    }
+                    return tags.includes(currentService);
+                });
             }
+            msgIndex = 0;
+            renderCurrentMessage();
+        }
 
-            const msg = messages[msgIndex];
-            renderSingleMessage(msg, true);
+        function renderCurrentMessage() {
+            const $chat = $('#chatArea').empty();
+            $('#emptyState').addClass('hidden');
+
+            if (filteredMessages.length === 0) {
+                $chat.append($('#emptyState').removeClass('hidden').clone());
+                updateNavButtons();
+                 return;
+             }
+
+            // Counter
+            $chat.append(`<div class="msg-counter">${msgIndex + 1} / ${filteredMessages.length}</div>`);
+
+            const msg = filteredMessages[msgIndex];
+            renderMessage(msg, true);
             fetchReplies(msg.id);
             updateNavButtons();
         }
 
-        function renderSingleMessage(event, isUser) {
+        function renderMessage(event, isUser) {
             const tags = extractTags(event.content);
             const expiration = getExpiration(event);
             const mediaUrls = extractMediaUrls(event.content);
@@ -962,22 +1711,14 @@
 
             const $msg = $('<div>').addClass('msg').addClass(isUser ? 'user' : 'bot');
             
-            // Header
             const $header = $('<div>').addClass('msg-header');
             $header.append($('<span>').text(isUser ? '👤 Vous' : '🤖 BRO'));
-            if (expiration) {
-                $header.append($('<span>').addClass('tag').text(`⏱️ ${formatExpiry(expiration)}`));
-            }
-            tags.forEach(t => {
-                $header.append($('<span>').addClass('tag ' + t).text('#' + t));
-            });
+            if (expiration) $header.append($('<span>').addClass('tag').text(`⏱️ ${formatExpiry(expiration)}`));
+            tags.forEach(t => $header.append($('<span>').addClass('tag ' + t).text('#' + t)));
             $msg.append($header);
 
-            // Content
-            const $content = $('<div>').addClass('msg-content').html(linkify(text));
-            $msg.append($content);
+            $msg.append($('<div>').addClass('msg-content').html(linkify(text)));
 
-            // Media
             mediaUrls.forEach(url => {
                 const type = detectMediaType(url);
                 if (type) {
@@ -993,89 +1734,73 @@
                 }
             });
 
-            // Time
-            $msg.append($('<div>').addClass('msg-time').text(
-                `${msgIndex + 1}/${messages.length} • ${new Date(event.created_at * 1000).toLocaleString()}`
-            ));
-
-            $chatArea.append($msg);
+            $msg.append($('<div>').addClass('msg-time').text(new Date(event.created_at * 1000).toLocaleString()));
+            $('#chatArea').append($msg);
         }
 
         async function fetchReplies(eventId) {
-            const pool = getPool();
+            const p = getPool();
             try {
-                const replies = await pool.list(allRelays, [{ kinds: [1], '#e': [eventId], limit: 10 }]);
+                const replies = await p.list(allRelays, [{ kinds: [1], '#e': [eventId], limit: 10 }]);
                 replies.sort((a, b) => a.created_at - b.created_at);
-                replies.forEach(r => renderSingleMessage(r, false));
-                $chatArea.scrollTop($chatArea[0].scrollHeight);
-
-                // Auto-refresh if no replies yet
+                replies.forEach(r => renderMessage(r, false));
+                $('#chatArea').scrollTop($('#chatArea')[0].scrollHeight);
                 if (replies.length === 0) {
                     setTimeout(() => {
-                        if (messages[msgIndex]?.id === eventId) fetchReplies(eventId);
+                        if (filteredMessages[msgIndex]?.id === eventId) fetchReplies(eventId);
                     }, 5000);
                 }
-            } catch (e) {
-                console.error('Replies error:', e);
-            }
+            } catch (e) { log(`Replies error: ${e.message}`); }
         }
 
-        function navigateMsg(delta) {
+        function navigate(delta) {
             const newIdx = msgIndex + delta;
-            if (newIdx >= 0 && newIdx < messages.length) {
+            if (newIdx >= 0 && newIdx < filteredMessages.length) {
                 msgIndex = newIdx;
-                renderMessages();
+                renderCurrentMessage();
             }
         }
 
         function updateNavButtons() {
-            $('#btnOlder').prop('disabled', msgIndex >= messages.length - 1);
-            $('#btnNewer').prop('disabled', msgIndex <= 0);
+            $('#btnPrev').prop('disabled', msgIndex <= 0);
+            $('#btnNext').prop('disabled', msgIndex >= filteredMessages.length - 1);
         }
 
         // === SEND ===
         async function sendMessage() {
             if (!publicKey) return;
-            const text = $messageInput.val().trim();
+            const text = $('#messageInput').val().trim();
             if (!text && !selectedImage) return;
 
             showLoading(true, 'Envoi...');
-
             try {
                 let content = buildContent(text);
                 let tags = [['application', 'UPlanet']];
 
-                // Location
                 if (locationEnabled && currentLat !== null) {
-                    tags.push(['latitude', currentLat.toFixed(2)]);
-                    tags.push(['longitude', currentLon.toFixed(2)]);
+                    tags.push(['latitude', currentLat.toFixed(2)], ['longitude', currentLon.toFixed(2)]);
                     tags.push(['g', `${currentLat.toFixed(6)};${currentLon.toFixed(6)}`]);
                 }
 
-                // Conversation mode (ephemeral)
                 if (isConversation) {
-                    const expiry = Math.floor(Date.now() / 1000) + 3600;
-                    tags.push(['expiration', expiry.toString()]);
+                    tags.push(['expiration', (Math.floor(Date.now() / 1000) + 3600).toString()]);
                 }
 
-                // Image upload
                 if (selectedImage) {
-                    showLoading(true, 'Upload image...');
+                    showLoading(true, 'Upload...');
                     try {
                         const result = await uploadNip96(selectedImage);
                         content += '\n' + result.url;
                         if (result.tags) tags = tags.concat(result.tags);
-                    } catch (e) {
-                        console.error('Upload error:', e);
-                    }
+                    } catch (e) { log(`Upload error: ${e.message}`); }
                 }
 
                 const event = {
                     kind: 1,
                     pubkey: publicKey,
                     created_at: Math.floor(Date.now() / 1000),
-                    tags: tags,
-                    content: content
+                    tags,
+                    content
                 };
 
                 showLoading(true, 'Signature...');
@@ -1083,17 +1808,16 @@
 
                 showLoading(true, 'Publication...');
                 let success = 0;
-                await Promise.all(allRelays.map(async (r) => {
-                    if (await publishToRelay(r, signed)) success++;
-                }));
+                await Promise.all(allRelays.map(async r => { if (await publishToRelay(r, signed)) success++; }));
 
                 if (success > 0) {
-                    $messageInput.val('').css('height', 'auto');
+                    log(`Published to ${success} relays`);
+                    $('#messageInput').val('').css('height', 'auto');
                     clearImage();
                     setTimeout(fetchMessages, 3000);
                 }
             } catch (e) {
-                console.error('Send error:', e);
+                log(`Send error: ${e.message}`);
             } finally {
                 showLoading(false);
             }
@@ -1101,28 +1825,26 @@
 
         function buildContent(text) {
             let prefix = '#BRO ';
-            switch (currentService) {
-                case 'image': prefix += '#image '; break;
-                case 'video': prefix += '#video '; break;
-                case 'music': prefix += '#music '; break;
-                case 'search': prefix += '#search '; break;
-                case 'nature': prefix += '#plantnet '; break;
-                case 'memory': return text.includes('#') ? text : '#BRO #mem';
-            }
+            const svc = currentInputService;
+            if (svc === 'image') prefix += '#image ';
+            else if (svc === 'video') prefix += '#video ';
+            else if (svc === 'music') prefix += '#music ';
+            else if (svc === 'search') prefix += '#search ';
+            else if (svc === 'nature') prefix += '#plantnet ';
             return prefix + text;
         }
 
-        // === UI HELPERS ===
-        function switchService(svc) {
-            currentService = svc;
-            $('.svc-btn').removeClass('active');
-            $(`.svc-btn[data-svc="${svc}"]`).addClass('active');
-            $serviceHint.text(serviceHints[svc] || '');
-            $videoOpts.toggleClass('visible', svc === 'video');
-            
-            // Show image button for relevant services
-            const needsImage = ['nature', 'video'].includes(svc) && (svc === 'nature' || videoMode === 'i2v');
-            $('#btnImage').toggleClass('active', needsImage);
+        // === UI ===
+        function updateInputHint(svc) {
+            const hints = {
+                chat: '💬 Posez une question à votre IA',
+                image: '🖼️ Décrivez l\'image à générer',
+                video: '🎬 Décrivez la scène vidéo',
+                music: '🎵 Style: "jazz piano 80bpm"',
+                search: '🔍 Recherche web',
+                nature: '🌿 Joignez une photo à identifier'
+            };
+            $('#serviceHint').text(hints[svc] || hints.chat);
         }
 
         function setMode(conversation) {
@@ -1135,10 +1857,10 @@
             const file = e.target.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = (ev) => {
+                reader.onload = ev => {
                     selectedImage = ev.target.result;
-                    $imgPreview.attr('src', selectedImage);
-                    $imgPreviewWrap.addClass('visible');
+                    $('#imgPreview').attr('src', selectedImage);
+                    $('#imgPreviewWrap').addClass('visible');
                 };
                 reader.readAsDataURL(file);
             }
@@ -1146,15 +1868,15 @@
 
         function clearImage() {
             selectedImage = null;
-            $imgPreview.attr('src', '#');
-            $imgPreviewWrap.removeClass('visible');
+            $('#imgPreview').attr('src', '#');
+            $('#imgPreviewWrap').removeClass('visible');
             $('#imgInput').val('');
         }
 
         function showLoading(show, text) {
-            $loadingBar.toggleClass('visible', show);
-            $loadingText.text(text || '');
-            $btnSend.prop('disabled', show || !publicKey);
+            $('#loadingBar').toggleClass('visible', show);
+            $('#loadingText').text(text || '');
+            $('#btnSend').prop('disabled', show || !publicKey);
         }
 
         function openLightbox(src) {
@@ -1162,21 +1884,19 @@
             $('#lightbox').addClass('active');
         }
 
-        function closeLightbox() {
-            $('#lightbox').removeClass('active');
-        }
+        function closeLightbox() { $('#lightbox').removeClass('active'); }
 
         // === LOCATION ===
         function getLocation() {
             if (!navigator.geolocation) return;
             navigator.geolocation.getCurrentPosition(
-                (pos) => {
+                pos => {
                     currentLat = pos.coords.latitude;
                     currentLon = pos.coords.longitude;
                     $('#latInput').val(currentLat.toFixed(2));
                     $('#lonInput').val(currentLon.toFixed(2));
                     $('#btnLocation').addClass('active');
-                    if (miniMap) updateMapMarker();
+                    log(`Location: ${currentLat.toFixed(2)}, ${currentLon.toFixed(2)}`);
                 },
                 () => { locationEnabled = false; $('#btnLocation').removeClass('active'); },
                 { enableHighAccuracy: true, timeout: 10000 }
@@ -1184,46 +1904,22 @@
         }
 
         function initMiniMap() {
-            const lat = currentLat || 0;
-            const lon = currentLon || 0;
+            const lat = currentLat || 0, lon = currentLon || 0;
             $('#mapContainer').show();
             miniMap = L.map('mini-map').setView([lat, lon], 10);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(miniMap);
             miniMap.marker = L.marker([lat, lon], { draggable: true }).addTo(miniMap);
-            miniMap.marker.on('dragend', (e) => {
+            miniMap.marker.on('dragend', e => {
                 const p = e.target.getLatLng();
-                currentLat = p.lat;
-                currentLon = p.lng;
+                currentLat = p.lat; currentLon = p.lng;
                 $('#latInput').val(currentLat.toFixed(2));
                 $('#lonInput').val(currentLon.toFixed(2));
             });
-            miniMap.on('click', (e) => {
-                currentLat = e.latlng.lat;
-                currentLon = e.latlng.lng;
-                miniMap.marker.setLatLng([currentLat, currentLon]);
-                $('#latInput').val(currentLat.toFixed(2));
-                $('#lonInput').val(currentLon.toFixed(2));
-            });
-        }
-
-        function updateMapMarker() {
-            if (miniMap && miniMap.marker) {
-                miniMap.marker.setLatLng([currentLat, currentLon]);
-                miniMap.setView([currentLat, currentLon], 10);
-            }
         }
 
         // === UTILS ===
         function getPool() {
-            if (!pool) {
-                log('Creating new SimplePool...');
-                if (typeof NostrTools === 'undefined' || !NostrTools.SimplePool) {
-                    log('ERROR: NostrTools.SimplePool not available!');
-                    throw new Error('NostrTools not loaded');
-                }
-                pool = new NostrTools.SimplePool({ getTimeout: 6000, listTimeout: 6000 });
-                log('SimplePool created');
-            }
+            if (!pool) pool = new NostrTools.SimplePool({ getTimeout: 6000, listTimeout: 6000 });
             return pool;
         }
 
@@ -1253,16 +1949,13 @@
         }
 
         function extractMediaUrls(content) {
-            const regex = /(https?:\/\/[^\s<>"]+)/gi;
-            const urls = content.match(regex) || [];
-            return urls.filter(u => detectMediaType(u));
+            return (content.match(/(https?:\/\/[^\s<>"]+)/gi) || []).filter(u => detectMediaType(u));
         }
 
         function cleanContent(content, mediaUrls) {
             let text = content;
             mediaUrls.forEach(u => { text = text.replace(u, ''); });
-            text = text.replace(/#(BRO|BOT|image|video|music|search|plantnet|inventory|mem|reset)\s*/gi, '');
-            return text.trim();
+            return text.replace(/#(BRO|BOT|image|video|music|search|plantnet|inventory|mem|reset)\s*/gi, '').trim();
         }
 
         function linkify(text) {
@@ -1270,8 +1963,7 @@
         }
 
         function getExpiration(event) {
-            if (!event.tags) return null;
-            const t = event.tags.find(t => t[0] === 'expiration');
+            const t = event.tags?.find(t => t[0] === 'expiration');
             return t ? parseInt(t[1], 10) : null;
         }
 
@@ -1285,47 +1977,34 @@
         async function uploadNip96(dataUrl) {
             const res = await fetch('/.well-known/nostr/nip96.json');
             const cfg = await res.json();
-            const api = cfg.api_url;
-            const dl = cfg.download_url || '';
-
             const b64 = dataUrl.split(',')[1];
             const mime = dataUrl.split(',')[0].split(':')[1].split(';')[0];
             const bin = atob(b64);
             const arr = new Uint8Array(bin.length);
             for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-            const blob = new Blob([arr], { type: mime });
-            const file = new File([blob], `img-${Date.now()}.png`, { type: mime });
-
+            const file = new File([new Blob([arr], { type: mime })], `img-${Date.now()}.png`, { type: mime });
             const fd = new FormData();
             fd.append('file', file);
-
-            const r = await fetch(api, { method: 'POST', body: fd });
+            const r = await fetch(cfg.api_url, { method: 'POST', body: fd });
             const data = await r.json();
-
             if (data.status === 'success' && data.nip94_event?.tags) {
                 let url = data.nip94_event.tags.find(t => t[0] === 'url')?.[1];
-                if (url?.startsWith('/ipfs/') && dl) {
-                    url = dl.replace(/\/$/, '') + url;
-                }
+                if (url?.startsWith('/ipfs/') && cfg.download_url) url = cfg.download_url.replace(/\/$/, '') + url;
                 return { url, tags: data.nip94_event.tags.filter(t => t[0] !== 'url') };
             }
             throw new Error('Upload failed');
         }
 
         async function publishToRelay(url, event) {
-            return new Promise((resolve) => {
+            return new Promise(resolve => {
                 try {
                     const ws = new WebSocket(url);
                     const timeout = setTimeout(() => { ws.close(); resolve(false); }, 5000);
                     ws.onopen = () => ws.send(JSON.stringify(['EVENT', event]));
-                    ws.onmessage = (e) => {
+                    ws.onmessage = e => {
                         try {
                             const m = JSON.parse(e.data);
-                            if (m[0] === 'OK' && m[1] === event.id) {
-                                clearTimeout(timeout);
-                                ws.close();
-                                resolve(true);
-                            }
+                            if (m[0] === 'OK' && m[1] === event.id) { clearTimeout(timeout); ws.close(); resolve(true); }
                         } catch {}
                     };
                     ws.onerror = () => { clearTimeout(timeout); resolve(false); };
