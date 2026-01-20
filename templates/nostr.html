@@ -1106,22 +1106,30 @@
 
         .theater-video {
             flex: 1;
-                    display: flex;
-                    align-items: center;
+            display: flex;
+            align-items: center;
             justify-content: center;
-            padding: 40px 20px;
+            padding: 20px;
+            overflow: hidden;
+            min-height: 0; /* Important for flex shrinking */
         }
 
         .theater-video video {
             max-width: 100%;
-            max-height: 100%;
+            max-height: calc(100vh - 220px); /* Leave space for info panel */
+            width: auto;
+            height: auto;
             border-radius: 8px;
+            object-fit: contain;
         }
 
         .theater-info {
-            padding: 15px;
+            padding: 12px 15px;
             background: var(--bg-panel);
             border-top: 1px solid var(--border);
+            max-height: 35vh;
+            overflow-y: auto;
+            flex-shrink: 0;
         }
 
         .theater-info h4 {
@@ -1146,8 +1154,8 @@
         }
 
         .theater-action-btn {
-            display: flex;
-            align-items: center;
+                    display: flex;
+                    align-items: center;
             gap: 6px;
             padding: 6px 12px;
             background: var(--bg-input);
@@ -1676,8 +1684,8 @@
                         <div>Connectez-vous pour voir les vidéos</div>
                     </div>
                 `);
-                 return;
-             }
+                return;
+            }
 
             log('Loading Tube videos...');
             $('#videoGrid').html('<div class="tube-loading"><div class="spinner"></div>Chargement des vidéos...</div>');
@@ -1786,13 +1794,17 @@
         }
 
         function extractNostrTubeVideo(event) {
-            // Extract from NIP-71 format
+            // Extract from NIP-71 format (including IPFS extension)
             const titleTag = event.tags.find(t => t[0] === 'title');
             const urlTag = event.tags.find(t => t[0] === 'url' || t[0] === 'r');
             const imageTag = event.tags.find(t => t[0] === 'image' || t[0] === 'thumb');
             const gifanimTag = event.tags.find(t => t[0] === 'gifanim' || t[0] === 'gif');
             const durationTag = event.tags.find(t => t[0] === 'duration');
             const imetaTag = event.tags.find(t => t[0] === 'imeta');
+            
+            // NIP-71 IPFS Extension: CID-only tags
+            const thumbnailIpfsTag = event.tags.find(t => t[0] === 'thumbnail_ipfs');
+            const gifanimIpfsTag = event.tags.find(t => t[0] === 'gifanim_ipfs');
 
             let videoUrl = urlTag ? urlTag[1] : '';
             let thumbnailUrl = imageTag ? imageTag[1] : '';
@@ -1811,6 +1823,14 @@
                     }
                 });
             }
+            
+            // Use CID-only tags as fallback (NIP-71 IPFS Extension)
+            if (!thumbnailUrl && thumbnailIpfsTag && thumbnailIpfsTag[1]) {
+                thumbnailUrl = thumbnailIpfsTag[1]; // Will be normalized below
+            }
+            if (!gifanimUrl && gifanimIpfsTag && gifanimIpfsTag[1]) {
+                gifanimUrl = gifanimIpfsTag[1]; // Will be normalized below
+            }
 
             // Also check for URL in content
             if (!videoUrl) {
@@ -1820,7 +1840,7 @@
 
             if (!videoUrl) return null;
 
-            // Normalize IPFS URLs (u. -> ipfs.)
+            // Normalize IPFS URLs: handles u.->ipfs., relative paths, and CID-only
             videoUrl = normalizeIpfsUrl(videoUrl);
             thumbnailUrl = normalizeIpfsUrl(thumbnailUrl);
             gifanimUrl = normalizeIpfsUrl(gifanimUrl);
@@ -1861,7 +1881,7 @@
                     $('#friendsCount').text(friendsList.length);
                     renderFriendsList();
                 }
-            } catch (e) {
+             } catch (e) {
                 log(`Friends error: ${e.message}`);
             }
         }
@@ -1924,8 +1944,12 @@
                     limit: 1
                 }]);
                 if (events.length > 0) {
-                    profileCache[pubkey] = JSON.parse(events[0].content);
-                    return profileCache[pubkey];
+                    const profile = JSON.parse(events[0].content);
+                    // Normalize IPFS URLs in profile
+                    if (profile.picture) profile.picture = normalizeIpfsUrl(profile.picture);
+                    if (profile.banner) profile.banner = normalizeIpfsUrl(profile.banner);
+                    profileCache[pubkey] = profile;
+                    return profile;
                 }
             } catch (e) {}
             return null;
@@ -1962,8 +1986,8 @@
                         </div>
                     </div>
                 `);
-                return;
-            }
+                 return;
+             }
 
             $grid.html(filteredTubeVideos.map(v => renderVideoCard(v)).join(''));
         }
@@ -2160,7 +2184,7 @@
                 $('#likeCount').text(Math.max(0, count));
                 
                 log(theaterLiked ? 'Liked' : 'Unliked');
-                } catch (e) {
+                    } catch (e) {
                 log(`Like error: ${e.message}`);
             }
         }
@@ -2365,7 +2389,7 @@
                 $btn.css('background', 'var(--accent-green)');
             } else if (type === 'warning') {
                 $btn.css('background', 'var(--accent-orange)');
-            } else {
+                } else {
                 $btn.css('background', 'var(--accent-cyan)');
             }
             
@@ -2373,12 +2397,69 @@
             modal.show();
         }
 
-        // Normalize IPFS URLs: replace u.{domain} with ipfs.{domain} for IPFS content
+        // Get IPFS gateway URL based on current domain/relay
+        // Follows Astroport convention: ipfs.{domain} for gateways
+        function getIpfsGateway() {
+            const hostname = window.location.hostname;
+            const protocol = window.location.protocol;
+            
+            // Localhost: use local IPFS gateway
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return 'http://127.0.0.1:8080';
+            }
+            
+            // Production: derive ipfs.{domain} from current hostname
+            // e.g., u.copylaradio.com -> ipfs.copylaradio.com
+            // e.g., ipfs.copylaradio.com -> ipfs.copylaradio.com
+            // e.g., relay.copylaradio.com -> ipfs.copylaradio.com
+            let baseDomain = hostname;
+            
+            // Remove common subdomains (u., ipfs., relay., www.)
+            baseDomain = baseDomain.replace(/^(u\.|ipfs\.|relay\.|www\.)/i, '');
+            
+            return `${protocol}//ipfs.${baseDomain}`;
+        }
+
+        // Normalize IPFS URLs: convert various formats to full gateway URLs
+        // Handles:
+        // 1. u.{domain} -> ipfs.{domain} (e.g., https://u.copylaradio.com/ipfs/... -> https://ipfs.copylaradio.com/ipfs/...)
+        // 2. Relative paths: /ipfs/Qm... or /ipns/... -> {gateway}/ipfs/Qm...
+        // 3. CID-only: Qm... or bafy... -> {gateway}/ipfs/Qm...
+        // 4. Existing full URLs with correct gateway: pass through
         function normalizeIpfsUrl(url) {
             if (!url) return url;
-            // Match u.{domain} pattern and replace with ipfs.{domain}
-            // e.g., https://u.copylaradio.com/ipfs/... -> https://ipfs.copylaradio.com/ipfs/...
-            return url.replace(/^(https?:\/\/)u\.([^\/]+)(\/ipfs\/|\/ipns\/)/i, '$1ipfs.$2$3');
+            
+            url = url.trim();
+            
+            // Already a full URL
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                // Replace u.{domain} with ipfs.{domain}
+                url = url.replace(/^(https?:\/\/)u\.([^\/]+)(\/ipfs\/|\/ipns\/)/i, '$1ipfs.$2$3');
+                return url;
+            }
+            
+            const gateway = getIpfsGateway();
+            
+            // Relative path: /ipfs/... or /ipns/...
+            if (url.startsWith('/ipfs/') || url.startsWith('/ipns/')) {
+                return `${gateway}${url}`;
+            }
+            
+            // CID-only format: starts with Qm (CIDv0) or bafy/bafk (CIDv1)
+            // Also handle potential filename after CID: Qm.../filename.mp4
+            if (/^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[yk][a-zA-Z2-7]{50,})/i.test(url)) {
+                // Check if it's a CID with filename
+                const parts = url.split('/');
+                const cid = parts[0];
+                const rest = parts.slice(1).join('/');
+                if (rest) {
+                    return `${gateway}/ipfs/${cid}/${rest}`;
+                }
+                return `${gateway}/ipfs/${url}`;
+            }
+            
+            // Return as-is if we can't determine format
+            return url;
         }
 
         // === WALLET ===
@@ -2409,7 +2490,7 @@
                 $('#btnSend').prop('disabled', false);
                 await fetchProfile();
                 await fetchMessages();
-             } catch (e) {
+                } catch (e) {
                 log(`ERROR: ${e.message}`);
                 $('#btnConnect').prop('disabled', false).text('Réessayer');
             }
@@ -2423,6 +2504,10 @@
                     if (events.length) {
                         const event = events[0];
                         userProfile = JSON.parse(event.content);
+                        
+                        // Normalize IPFS URLs in profile
+                        if (userProfile.picture) userProfile.picture = normalizeIpfsUrl(userProfile.picture);
+                        if (userProfile.banner) userProfile.banner = normalizeIpfsUrl(userProfile.banner);
                         
                         // Extract additional fields from event tags (g1pub, zencard)
                         if (event.tags && Array.isArray(event.tags)) {
@@ -2911,14 +2996,25 @@
         }
 
         function extractMediaUrls(content) {
-            return (content.match(/(https?:\/\/[^\s<>"]+)/gi) || [])
+            // Extract full URLs (http/https)
+            const httpUrls = content.match(/(https?:\/\/[^\s<>"]+)/gi) || [];
+            
+            // Extract relative IPFS paths (/ipfs/Qm... or /ipns/...)
+            const ipfsPaths = content.match(/(\/ipfs\/[^\s<>"]+|\/ipns\/[^\s<>"]+)/gi) || [];
+            
+            // Combine and normalize all URLs
+            return [...httpUrls, ...ipfsPaths]
                 .filter(u => detectMediaType(u))
-                .map(u => normalizeIpfsUrl(u)); // Normalize u. -> ipfs. for IPFS URLs
+                .map(u => normalizeIpfsUrl(u)); // Normalize to full gateway URLs
         }
 
         function cleanContent(content, mediaUrls) {
             let text = content;
+            // Remove normalized URLs from display
             mediaUrls.forEach(u => { text = text.replace(u, ''); });
+            // Also remove original IPFS paths (before normalization)
+            text = text.replace(/(\/ipfs\/[^\s<>"]+|\/ipns\/[^\s<>"]+)/gi, '');
+            text = text.replace(/(https?:\/\/[^\s<>"]+\.(mp4|webm|mp3|wav|ogg|jpg|jpeg|png|gif|webp|avif)([^\s<>"]*)?)/gi, '');
             return text.replace(/#(BRO|BOT|image|video|music|search|plantnet|inventory|mem|reset)\s*/gi, '').trim();
         }
 
