@@ -62,7 +62,7 @@
         .container-app {
             position: relative;
             z-index: 1;
-            padding: 10px;
+    padding: 10px;
             max-width: 600px;
             margin: 0 auto;
         }
@@ -76,7 +76,7 @@
             background: linear-gradient(135deg, var(--bg-panel) 0%, var(--bg-deep) 100%);
             border: 1px solid var(--border-glow);
             border-radius: 6px;
-            margin-bottom: 15px;
+    margin-bottom: 15px;
             position: relative;
             overflow: hidden;
         }
@@ -224,7 +224,7 @@
             background: var(--bg-hover);
             padding: 10px;
             border-radius: 4px;
-            text-align: center;
+    text-align: center;
             border: 1px solid transparent;
             transition: all 0.2s;
         }
@@ -254,7 +254,7 @@
             display: flex;
             flex-wrap: wrap;
             gap: 4px;
-            padding: 10px;
+             padding: 10px;
             background: var(--bg-card);
             border-bottom: 1px solid var(--border-glow);
         }
@@ -595,9 +595,9 @@
             color: var(--text-dim);
             text-align: center;
             margin-top: 8px;
-            cursor: pointer;
+             cursor: pointer;
             padding: 6px;
-            border-radius: 4px;
+             border-radius: 4px;
             transition: background 0.2s;
         }
 
@@ -688,7 +688,7 @@
         .message-nav {
             display: flex;
             gap: 8px;
-            padding: 10px;
+                padding: 10px;
             background: var(--bg-panel);
             border-bottom: 1px solid var(--border-glow);
         }
@@ -810,9 +810,9 @@
         .media-container {
             margin-top: 12px;
             display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
+                flex-direction: column;
+                gap: 10px;
+            }
 
         .media-item {
             border-radius: 6px;
@@ -842,7 +842,7 @@
         }
 
         .media-item audio {
-            width: 100%;
+                width: 100%;
             display: block;
             margin-top: 5px;
         }
@@ -939,7 +939,7 @@
             bottom: 0;
             background: rgba(0, 0, 0, 0.95);
             z-index: 1000;
-            justify-content: center;
+                justify-content: center;
             align-items: center;
             padding: 20px;
         }
@@ -1079,7 +1079,7 @@
         /* Quick Tags */
         .quick-tags {
             display: flex;
-            flex-wrap: wrap;
+                flex-wrap: wrap;
             gap: 6px;
             margin-bottom: 15px;
         }
@@ -1198,7 +1198,7 @@
                 <div class="logo-text">
                     <h1>#BRO SERVICES</h1>
                     <div class="subtitle">UPLANET AI ASSISTANT</div>
-                </div>
+        </div>
             </div>
             <div class="status-indicator">
                 <div class="status-dot online" id="connection-status"></div>
@@ -1211,7 +1211,7 @@
             <div class="panel-header">
                 <div class="panel-title">👤 IDENTITY</div>
                 <button class="btn-secondary" id="connectButton" style="width: auto; padding: 6px 12px;" disabled>Connect</button>
-            </div>
+                </div>
             <div class="panel-content">
                 <div id="profile-display">
                     <span style="color: var(--text-dim);">Loading profile...</span>
@@ -1220,11 +1220,11 @@
                     <div class="balance-box">
                         <div class="balance-label">G1 BALANCE</div>
                         <div class="balance-value g1" id="g1-balance">0 G1</div>
-                    </div>
+            </div>
                     <div class="balance-box">
                         <div class="balance-label">ZEN BALANCE</div>
                         <div class="balance-value zen" id="zen-balance">0 ZEN</div>
-                    </div>
+        </div>
                 </div>
             </div>
         </div>
@@ -1269,7 +1269,7 @@
                     <h3>💬 Chat with AI</h3>
                     <p>Have a conversation with your AI assistant. Ask questions, get help, or just chat.</p>
                     <div class="service-example">Example: "What is the Ğ1 libre currency?"</div>
-                </div>
+        </div>
                 <label for="message-chat">Your message:</label>
                 <textarea id="message-chat" placeholder="Type your message here..."></textarea>
             </div>
@@ -1409,7 +1409,7 @@
                         <div class="upload-icon">📸</div>
                         <div class="upload-text">Attach an image (optional)</div>
                     </label>
-                    <input type="file" id="imageInput" accept="image/*">
+        <input type="file" id="imageInput" accept="image/*">
                     <img id="imagePreview" src="#" alt="Preview"/>
                 </div>
 
@@ -1419,55 +1419,55 @@
                         <div class="location-title">📍 Location</div>
                     </div>
                     <div class="location-values">
-                        <div class="coord-control">
+                <div class="coord-control">
                             <div class="coord-label">Latitude</div>
                             <div class="tumbler-row">
-                                <select id="lat-sign" class="tumbler">
-                                    <option value="N">N</option>
-                                    <option value="S">S</option>
-                                </select>
-                                <select id="lat-deg1" class="tumbler"></select>
-                                <select id="lat-deg0" class="tumbler"></select>
-                                <span class="tumbler-dot">.</span>
-                                <select id="lat-frac1" class="tumbler"></select>
-                                <select id="lat-frac0" class="tumbler"></select>
-                            </div>
-                        </div>
-                        <div class="coord-control">
-                            <div class="coord-label">Longitude</div>
-                            <div class="tumbler-row">
-                                <select id="lon-sign" class="tumbler">
-                                    <option value="E">E</option>
-                                    <option value="W">W</option>
-                                </select>
-                                <select id="lon-deg2" class="tumbler"></select>
-                                <select id="lon-deg1" class="tumbler"></select>
-                                <select id="lon-deg0" class="tumbler"></select>
-                                <span class="tumbler-dot">.</span>
-                                <select id="lon-frac1" class="tumbler"></select>
-                                <select id="lon-frac0" class="tumbler"></select>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="location-status">📍 Click to open map</div>
-                    <div id="map-accordion" class="map-accordion">
-                        <div class="map-content">
-                            <div class="map-controls">
-                                <div class="coord-input">
-                                    <label>Lat:</label>
-                                    <input type="number" id="lat-display" step="0.01" min="-90" max="90">
-                                </div>
-                                <div class="coord-input">
-                                    <label>Lon:</label>
-                                    <input type="number" id="lon-display" step="0.01" min="-180" max="180">
-                                </div>
-                                <button type="button" class="map-btn" id="update-map">Go</button>
-                                <button type="button" class="map-btn" id="get-location">📍 My location</button>
-                            </div>
-                            <div id="mini-map"></div>
-                        </div>
+                        <select id="lat-sign" class="tumbler">
+                            <option value="N">N</option>
+                            <option value="S">S</option>
+                        </select>
+                        <select id="lat-deg1" class="tumbler"></select>
+                        <select id="lat-deg0" class="tumbler"></select>
+                        <span class="tumbler-dot">.</span>
+                        <select id="lat-frac1" class="tumbler"></select>
+                        <select id="lat-frac0" class="tumbler"></select>
                     </div>
                 </div>
+                <div class="coord-control">
+                            <div class="coord-label">Longitude</div>
+                            <div class="tumbler-row">
+                        <select id="lon-sign" class="tumbler">
+                            <option value="E">E</option>
+                            <option value="W">W</option>
+                        </select>
+                        <select id="lon-deg2" class="tumbler"></select>
+                        <select id="lon-deg1" class="tumbler"></select>
+                        <select id="lon-deg0" class="tumbler"></select>
+                        <span class="tumbler-dot">.</span>
+                        <select id="lon-frac1" class="tumbler"></select>
+                        <select id="lon-frac0" class="tumbler"></select>
+                    </div>
+                </div>
+            </div>
+                    <div id="location-status">📍 Click to open map</div>
+            <div id="map-accordion" class="map-accordion">
+                        <div class="map-content">
+                    <div class="map-controls">
+                        <div class="coord-input">
+                            <label>Lat:</label>
+                            <input type="number" id="lat-display" step="0.01" min="-90" max="90">
+                        </div>
+                        <div class="coord-input">
+                            <label>Lon:</label>
+                            <input type="number" id="lon-display" step="0.01" min="-180" max="180">
+                        </div>
+                                <button type="button" class="map-btn" id="update-map">Go</button>
+                                <button type="button" class="map-btn" id="get-location">📍 My location</button>
+                    </div>
+                    <div id="mini-map"></div>
+                    </div>
+                </div>
+            </div>
 
                 <!-- Post Button -->
                 <button class="btn-primary" id="postButton" disabled>
@@ -1477,8 +1477,8 @@
 
                 <div class="spinner" id="loadingSpinner"></div>
                 <div id="status">Initializing...</div>
-            </div>
         </div>
+            </div>
 
         <!-- Messages Panel -->
         <div class="panel-card" id="message-section" style="display: none;">
@@ -1492,7 +1492,7 @@
                     <button class="nav-btn" id="newer-button" disabled>Newer ▶</button>
                 </div>
                 <div class="message-content">
-                    <div id="last-message-area">Loading messages...</div>
+            <div id="last-message-area">Loading messages...</div>
                 </div>
                 <div class="replies-section" id="replies-area">
                     <h4>🤖 AI Response <span class="reply-count" style="display: none;">0</span></h4>
@@ -1896,24 +1896,24 @@
                 lonDeg1Select.val(currentVal <= maxTens ? currentVal : '0').trigger('change');
             });
 
-            $('#lon-deg1').on('change', function() {
-                const hundreds = parseInt($('#lon-deg2').val(), 10);
-                const tens = parseInt($(this).val(), 10);
-                const lonDeg0Select = $('#lon-deg0');
+             $('#lon-deg1').on('change', function() {
+                 const hundreds = parseInt($('#lon-deg2').val(), 10);
+                 const tens = parseInt($(this).val(), 10);
+                 const lonDeg0Select = $('#lon-deg0');
                 const currentVal = parseInt(lonDeg0Select.val() || '0', 10);
                 lonDeg0Select.empty();
                 const maxUnits = (hundreds === 1 && tens === 8) ? 0 : 9;
-                for (let i = 0; i <= maxUnits; i++) {
-                    $('<option>').val(i).text(i).appendTo(lonDeg0Select);
-                }
+                 for (let i = 0; i <= maxUnits; i++) {
+                     $('<option>').val(i).text(i).appendTo(lonDeg0Select);
+                 }
                 lonDeg0Select.val(currentVal <= maxUnits ? currentVal : '0');
-            });
+             });
 
             $('#lat-deg1').on('change', function() {
                 const tens = parseInt($(this).val(), 10);
                 const latDeg0Select = $('#lat-deg0');
                 const currentVal = parseInt(latDeg0Select.val() || '0', 10);
-                latDeg0Select.empty();
+                 latDeg0Select.empty();
                 const maxUnits = tens === 9 ? 0 : 9;
                 for (let i = 0; i <= maxUnits; i++) {
                     $('<option>').val(i).text(i).appendTo(latDeg0Select);
@@ -1933,7 +1933,7 @@
         function updateLocationUI(latitude, longitude) {
             if (latitude == null || longitude == null) {
                 $('#location-status').text('📍 Location unavailable');
-                manualLocationSet = true;
+                 manualLocationSet = true;
                 $('#location-controls').show();
                 return;
             }
@@ -2002,12 +2002,12 @@
             currentMessageIndex = 0;
 
             let nostrPool;
-            try {
-                nostrPool = getNostrPool();
-            } catch (e) {
-                messageArea.html('<i>Error initializing relay pool.</i>');
-                return;
-            }
+             try {
+                 nostrPool = getNostrPool();
+             } catch (e) {
+                 messageArea.html('<i>Error initializing relay pool.</i>');
+                 return;
+             }
 
             try {
                 const events = await nostrPool.list(allRelaysToPublish, [{
@@ -2029,19 +2029,19 @@
         }
 
         function displayMessageAtIndex(index) {
-            const messageArea = $('#last-message-area');
+             const messageArea = $('#last-message-area');
 
-            if (index < 0 || index >= fetchedMessages.length) {
-                return;
-            }
+             if (index < 0 || index >= fetchedMessages.length) {
+                 return;
+             }
 
-            currentMessageIndex = index;
-            const currentMessage = fetchedMessages[currentMessageIndex];
-            renderMessage(messageArea, currentMessage);
+             currentMessageIndex = index;
+             const currentMessage = fetchedMessages[currentMessageIndex];
+             renderMessage(messageArea, currentMessage);
             fetchAndDisplayReplies(currentMessage.id);
 
-            $('#newer-button').prop('disabled', currentMessageIndex <= 0);
-            $('#older-button').prop('disabled', currentMessageIndex >= fetchedMessages.length - 1);
+             $('#newer-button').prop('disabled', currentMessageIndex <= 0);
+             $('#older-button').prop('disabled', currentMessageIndex >= fetchedMessages.length - 1);
         }
 
         // --- Media Detection Helpers ---
@@ -2283,7 +2283,7 @@
                                 // Also clean up bot markers
                                 cleanLine = cleanLine.replace(/#BOT\s*/gi, '');
                                 if (cleanLine) textLines.push(cleanLine);
-                            } else {
+                } else {
                                 // Regular text, clean up markers
                                 const cleanLine = trimmed.replace(/#BOT\s*/gi, '');
                                 if (cleanLine) textLines.push(cleanLine);
@@ -2354,9 +2354,9 @@
                 $('#connection-status').addClass('online');
                 $('#relay-status').text('CONNECTED');
                 updateStatus(`Connected! ${publicKey.slice(0, 10)}...`, false, true);
-                await fetchProfileAndRelays(publicKey);
+                    await fetchProfileAndRelays(publicKey);
                 await fetchAndDisplayMessages(publicKey);
-            } catch (e) {
+                } catch (e) {
                 log(`Connection failed: ${e.message || e}`);
                 updateStatus('Connection failed.', true);
                 $('#connectButton').prop('disabled', false);
@@ -2582,7 +2582,7 @@
                     updateStatus(`Published to ${success}/${allRelaysToPublish.length} relays.`, false, true);
                     clearCurrentServiceInput();
                     setTimeout(() => fetchAndDisplayMessages(publicKey), 4000);
-                } else {
+                 } else {
                     updateStatus('Failed to publish to any relay.', true);
                 }
             } catch (e) {
