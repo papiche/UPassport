@@ -117,66 +117,153 @@
         /* === SERVICE TABS === */
         .service-bar {
             display: flex;
-            gap: 3px;
-            padding: 4px 6px;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 10px;
             background: var(--bg-panel);
             border-bottom: 1px solid var(--border);
-            overflow-x: auto;
             flex-shrink: 0;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: thin;
-            scrollbar-color: var(--border) transparent;
         }
 
-        .service-bar::-webkit-scrollbar { height: 3px; }
-        .service-bar::-webkit-scrollbar-track { background: transparent; }
-        .service-bar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-        .svc-btn {
-            padding: 4px 8px;
+        /* Main tabs */
+        .svc-tab {
+            padding: 8px 16px;
             background: transparent;
             border: 1px solid transparent;
+            border-radius: 6px;
+            color: var(--text-dim);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .svc-tab:hover { 
+            background: var(--bg-hover); 
+            color: var(--text-primary); 
+        }
+
+        .svc-tab.active {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 255, 136, 0.1));
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+            box-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
+        }
+
+        .dropdown-arrow {
+            font-size: 0.6rem;
+            margin-left: 4px;
+            transition: transform 0.2s;
+        }
+
+        .svc-dropdown.open .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+
+        /* Dropdown container */
+        .svc-dropdown {
+            position: relative;
+        }
+
+        .svc-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 6px;
+            display: none;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 140px;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .svc-dropdown.open .svc-dropdown-menu {
+            display: flex;
+        }
+
+        .svc-sub {
+            padding: 8px 12px;
+            background: transparent;
+            border: none;
             border-radius: 4px;
             color: var(--text-dim);
             font-family: inherit;
             font-size: 0.7rem;
             cursor: pointer;
-            white-space: nowrap;
+            text-align: left;
             transition: all 0.15s;
-            position: relative;
-            flex-shrink: 0;
         }
 
-        .svc-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-
-        /* Compact buttons on very small screens */
-        @media (max-width: 420px) {
-            .svc-btn {
-                padding: 3px 5px;
-                font-size: 0.65rem;
-            }
-            .svc-btn.add-btn {
-                padding: 3px 6px;
-            }
+        .svc-sub:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
         }
 
-        .svc-btn.active {
-            background: var(--bg-input);
-            border-color: var(--accent-cyan);
+        .svc-sub.active {
+            background: rgba(0, 212, 255, 0.15);
             color: var(--accent-cyan);
         }
 
+        .svc-sub .svc-count {
+            margin-left: auto;
+            padding: 2px 6px;
+            background: var(--bg-hover);
+            border-radius: 10px;
+            font-size: 0.6rem;
+            color: var(--accent-cyan);
+        }
+
+        /* Tab count badge */
+        .svc-tab[data-count]:not([data-count=""])::after {
+            content: attr(data-count);
+            margin-left: 6px;
+            padding: 1px 5px;
+            background: var(--accent-cyan);
+            color: var(--bg-void);
+            border-radius: 8px;
+            font-size: 0.55rem;
+            font-weight: 700;
+        }
+
+        /* Add button */
         .svc-btn.add-btn {
+            padding: 6px 10px;
             background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));
             color: var(--bg-void);
             border: none;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.8rem;
             font-weight: 700;
-            flex-shrink: 0;
+            cursor: pointer;
+            margin-left: auto;
+            transition: all 0.2s;
         }
 
         .svc-btn.add-btn:hover {
             transform: scale(1.1);
             box-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+        }
+
+        /* Compact on small screens */
+        @media (max-width: 420px) {
+            .svc-tab {
+                padding: 6px 10px;
+                font-size: 0.65rem;
+            }
+            .svc-btn.add-btn {
+                padding: 5px 8px;
+                font-size: 0.7rem;
+            }
         }
 
         .svc-btn .count {
@@ -239,6 +326,16 @@
                 flex-direction: column;
             margin: 0 45px;
             overflow: hidden;
+            transition: margin 0.2s;
+        }
+
+        /* Flux mode - full width, no arrows */
+        .main-content.flux-mode .chat-wrapper {
+            margin: 0 10px;
+        }
+
+        .main-content.flux-mode .nav-arrow {
+            display: none;
         }
 
         .chat-area {
@@ -253,6 +350,22 @@
         .chat-area::-webkit-scrollbar { width: 4px; }
         .chat-area::-webkit-scrollbar-track { background: var(--bg-panel); }
         .chat-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+        /* Flux mode - vertical feed styling */
+        .main-content.flux-mode .chat-area {
+            gap: 12px;
+            padding: 12px;
+        }
+
+        .main-content.flux-mode .msg {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .main-content.flux-mode .msg-counter {
+            display: none;
+        }
 
         /* Message counter */
         .msg-counter {
@@ -333,7 +446,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+                justify-content: center;
             color: var(--text-dim);
             font-size: 0.85rem;
             text-align: center;
@@ -836,14 +949,14 @@
         .video-info .meta {
             font-size: 0.6rem;
             color: var(--text-dim);
-            display: flex;
+                    display: flex;
             gap: 6px;
             align-items: center;
         }
 
         .video-info .meta .author {
-            display: flex;
-            align-items: center;
+                    display: flex;
+                    align-items: center;
             gap: 3px;
         }
 
@@ -854,8 +967,8 @@
         }
 
         .tube-empty {
-            display: flex;
-            flex-direction: column;
+                    display: flex;
+                    flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 200px;
@@ -927,8 +1040,8 @@
 
         .theater-video {
             flex: 1;
-            display: flex;
-            align-items: center;
+                    display: flex;
+                    align-items: center;
             justify-content: center;
             padding: 40px 20px;
         }
@@ -1077,16 +1190,20 @@
         <button class="btn-connect" id="btnConnect">Connecter</button>
     </div>
 
-    <!-- SERVICE TABS -->
+    <!-- SERVICE TABS - 3 main tabs -->
     <div class="service-bar">
-        <button class="svc-btn active" data-svc="all">📋 Tous</button>
-        <button class="svc-btn" data-svc="chat">💬 Chat</button>
-        <button class="svc-btn" data-svc="image">🖼️ Image</button>
-        <button class="svc-btn" data-svc="video">🎬 Vidéo</button>
-        <button class="svc-btn" data-svc="music">🎵 Musique</button>
-        <button class="svc-btn" data-svc="search">🔍 Search</button>
-        <button class="svc-btn" data-svc="nature">🌿 Nature</button>
-        <button class="svc-btn" data-svc="tube">📺 Tube</button>
+        <button class="svc-tab active" data-svc="flux">📋 Flux</button>
+        <div class="svc-dropdown">
+            <button class="svc-tab" data-svc="ia" id="iaTab">🤖 IA <span class="dropdown-arrow">▼</span></button>
+            <div class="svc-dropdown-menu" id="iaMenu">
+                <button class="svc-sub" data-svc="image">🖼️ Image</button>
+                <button class="svc-sub" data-svc="video">🎬 Vidéo</button>
+                <button class="svc-sub" data-svc="music">🎵 Musique</button>
+                <button class="svc-sub" data-svc="search">🔍 Search</button>
+                <button class="svc-sub" data-svc="nature">🌿 Nature</button>
+            </div>
+        </div>
+        <button class="svc-tab" data-svc="tube">📺 TUBE</button>
         <button class="svc-btn add-btn" id="btnAddVideo" title="Ajouter une vidéo">➕</button>
     </div>
 
@@ -1313,11 +1430,24 @@
         function setupEvents() {
             $('#btnConnect').on('click', connectWallet);
 
-            // Service filter tabs (excluding add button)
-            $('.svc-btn:not(.add-btn)').on('click', function() {
+            // Main tabs click handler
+            $('.svc-tab').on('click', function(e) {
                 const svc = $(this).data('svc');
-                currentService = svc;
-                $('.svc-btn:not(.add-btn)').removeClass('active');
+                
+                // Handle IA dropdown toggle
+                if (svc === 'ia') {
+                    e.stopPropagation();
+                    $('.svc-dropdown').toggleClass('open');
+                return;
+            }
+
+                // Close dropdown when clicking other tabs
+                $('.svc-dropdown').removeClass('open');
+                
+                // Update active state
+                currentService = svc === 'flux' ? 'all' : svc;
+                $('.svc-tab').removeClass('active');
+                $('.svc-sub').removeClass('active');
                 $(this).addClass('active');
                 
                 // Handle Tube mode switching
@@ -1331,10 +1461,41 @@
                     $('.main-content').show();
                     $('.input-section').show();
                     filterAndDisplayMessages();
-                    updateInputHint(svc === 'all' ? 'chat' : svc);
-                    if (svc !== 'all' && svc !== 'tube') currentInputService = svc;
+                    updateInputHint('chat');
                 }
+                $('#videoOpts').removeClass('visible');
+            });
+
+            // IA submenu click handler
+            $('.svc-sub').on('click', function(e) {
+                e.stopPropagation();
+                const svc = $(this).data('svc');
+                currentService = svc;
+                currentInputService = svc;
+                
+                // Update active states
+                $('.svc-tab').removeClass('active');
+                $('#iaTab').addClass('active');
+                $('.svc-sub').removeClass('active');
+                $(this).addClass('active');
+                
+                // Close dropdown
+                $('.svc-dropdown').removeClass('open');
+                
+                // Show main content
+                $('#tubePanel').removeClass('active');
+                $('.main-content').show();
+                $('.input-section').show();
+                filterAndDisplayMessages();
+                updateInputHint(svc);
+                
+                // Show video options if video service
                 $('#videoOpts').toggleClass('visible', svc === 'video');
+            });
+
+            // Close dropdown when clicking outside
+            $(document).on('click', function() {
+                $('.svc-dropdown').removeClass('open');
             });
 
             // Add video button - opens webcam page
@@ -1444,8 +1605,8 @@
                         <div>Connectez-vous pour voir les vidéos</div>
                     </div>
                 `);
-                return;
-            }
+                 return;
+             }
 
             log('Loading Tube videos...');
             $('#videoGrid').html('<div class="tube-loading"><div class="spinner"></div>Chargement des vidéos...</div>');
@@ -1526,8 +1687,12 @@
 
         function convertMessageToVideo(event, isAI) {
             const urls = extractMediaUrls(event.content);
-            const videoUrl = urls.find(u => detectMediaType(u) === 'video');
+            let videoUrl = urls.find(u => detectMediaType(u) === 'video');
             if (!videoUrl) return null;
+
+            // Normalize IPFS URLs (u. -> ipfs.)
+            videoUrl = normalizeIpfsUrl(videoUrl);
+            let thumbnailUrl = normalizeIpfsUrl(urls.find(u => detectMediaType(u) === 'image') || '');
 
             // Extract title from content
             let title = cleanContent(event.content, urls);
@@ -1538,7 +1703,7 @@
                 id: event.id,
                 title: title,
                 videoUrl: videoUrl,
-                thumbnailUrl: urls.find(u => detectMediaType(u) === 'image') || '',
+                thumbnailUrl: thumbnailUrl,
                 gifanimUrl: '', // AI videos don't have animated thumbnails
                 authorId: event.pubkey,
                 created_at: event.created_at,
@@ -1583,6 +1748,11 @@
             }
 
             if (!videoUrl) return null;
+
+            // Normalize IPFS URLs (u. -> ipfs.)
+            videoUrl = normalizeIpfsUrl(videoUrl);
+            thumbnailUrl = normalizeIpfsUrl(thumbnailUrl);
+            gifanimUrl = normalizeIpfsUrl(gifanimUrl);
 
             return {
                 id: event.id,
@@ -1919,7 +2089,7 @@
                 $('#likeCount').text(Math.max(0, count));
                 
                 log(theaterLiked ? 'Liked' : 'Unliked');
-            } catch (e) {
+                } catch (e) {
                 log(`Like error: ${e.message}`);
             }
         }
@@ -2095,12 +2265,20 @@
             return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
+        // Normalize IPFS URLs: replace u.{domain} with ipfs.{domain} for IPFS content
+        function normalizeIpfsUrl(url) {
+            if (!url) return url;
+            // Match u.{domain} pattern and replace with ipfs.{domain}
+            // e.g., https://u.copylaradio.com/ipfs/... -> https://ipfs.copylaradio.com/ipfs/...
+            return url.replace(/^(https?:\/\/)u\.([^\/]+)(\/ipfs\/|\/ipns\/)/i, '$1ipfs.$2$3');
+        }
+
         // === WALLET ===
         function checkExtension() {
             if (typeof window.nostr !== 'undefined') {
                 log('Extension found');
                 $('#btnConnect').prop('disabled', false);
-            } else {
+                } else {
                 log('No extension');
                 $('#btnConnect').text('Extension?').prop('disabled', true);
                 setTimeout(() => {
@@ -2166,30 +2344,36 @@
         }
 
         function updateServiceCounts() {
-            const counts = { all: allMessages.length, chat: 0, image: 0, video: 0, music: 0, search: 0, nature: 0 };
+            const counts = { all: allMessages.length, chat: 0, image: 0, video: 0, music: 0, search: 0, nature: 0, ia: 0 };
             allMessages.forEach(m => {
                 const tags = extractTags(m.content);
-                if (tags.includes('image')) counts.image++;
-                else if (tags.includes('video')) counts.video++;
-                else if (tags.includes('music')) counts.music++;
-                else if (tags.includes('search')) counts.search++;
-                else if (tags.includes('nature')) counts.nature++;
+                if (tags.includes('image')) { counts.image++; counts.ia++; }
+                else if (tags.includes('video')) { counts.video++; counts.ia++; }
+                else if (tags.includes('music')) { counts.music++; counts.ia++; }
+                else if (tags.includes('search')) { counts.search++; counts.ia++; }
+                else if (tags.includes('nature')) { counts.nature++; counts.ia++; }
                 else counts.chat++;
             });
-            // Update badges
+            
+            // Update badges on main tabs
+            $('.svc-tab[data-svc="flux"]').attr('data-count', counts.all || '');
+            $('.svc-tab[data-svc="ia"]').attr('data-count', counts.ia || '');
+            
+            // Update badges on IA submenu
             Object.keys(counts).forEach(svc => {
-                const btn = $(`.svc-btn[data-svc="${svc}"]`);
-                btn.find('.count').remove();
-                if (counts[svc] > 0 && svc !== 'all') {
-                    btn.append(`<span class="count">${counts[svc]}</span>`);
+                const btn = $(`.svc-sub[data-svc="${svc}"]`);
+                btn.find('.svc-count').remove();
+                if (counts[svc] > 0) {
+                    btn.append(`<span class="svc-count">${counts[svc]}</span>`);
                 }
             });
         }
 
         function filterAndDisplayMessages() {
             if (currentService === 'all') {
+                // Flux mode - all messages
                 filteredMessages = [...allMessages];
-                } else {
+                 } else {
                 filteredMessages = allMessages.filter(m => {
                     const tags = extractTags(m.content);
                     if (currentService === 'chat') {
@@ -2200,7 +2384,37 @@
                 });
             }
             msgIndex = 0;
-            renderCurrentMessage();
+            
+            // Toggle flux mode UI
+            if (currentService === 'all') {
+                $('.main-content').addClass('flux-mode');
+                renderFluxFeed();
+            } else {
+                $('.main-content').removeClass('flux-mode');
+                renderCurrentMessage();
+            }
+        }
+
+        // Render all messages as vertical infinite scroll feed
+        function renderFluxFeed() {
+            const $chat = $('#chatArea').empty();
+            $('#emptyState').addClass('hidden');
+
+            if (filteredMessages.length === 0) {
+                $chat.append($('#emptyState').removeClass('hidden').clone());
+                updateNavButtons();
+                return;
+            }
+
+            // Render all messages vertically
+            filteredMessages.forEach((msg, idx) => {
+                const rendered = renderMessage(msg, idx);
+                $chat.append(rendered);
+            });
+
+            // Scroll to top
+            $chat.scrollTop(0);
+            updateNavButtons();
         }
 
         function renderCurrentMessage() {
@@ -2210,10 +2424,10 @@
             if (filteredMessages.length === 0) {
                 $chat.append($('#emptyState').removeClass('hidden').clone());
                 updateNavButtons();
-                 return;
-             }
+                return;
+            }
 
-            // Counter
+            // Counter for navigation mode
             $chat.append(`<div class="msg-counter">${msgIndex + 1} / ${filteredMessages.length}</div>`);
 
             const msg = filteredMessages[msgIndex];
@@ -2478,7 +2692,9 @@
         }
 
         function extractMediaUrls(content) {
-            return (content.match(/(https?:\/\/[^\s<>"]+)/gi) || []).filter(u => detectMediaType(u));
+            return (content.match(/(https?:\/\/[^\s<>"]+)/gi) || [])
+                .filter(u => detectMediaType(u))
+                .map(u => normalizeIpfsUrl(u)); // Normalize u. -> ipfs. for IPFS URLs
         }
 
         function cleanContent(content, mediaUrls) {
