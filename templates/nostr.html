@@ -668,6 +668,12 @@
         <img id="lightboxImg" src="#">
     </div>
 
+    <!-- Debug Panel -->
+    <details style="position:fixed;bottom:0;left:0;right:0;background:var(--bg-panel);border-top:1px solid var(--border);max-height:150px;overflow-y:auto;font-size:0.65rem;z-index:100;">
+        <summary style="padding:4px 8px;cursor:pointer;color:var(--text-dim);">🔧 Debug</summary>
+        <div id="debugLog" style="padding:6px;font-family:monospace;white-space:pre-wrap;color:var(--accent-cyan);"></div>
+    </details>
+
     <script>
         // === CONFIG ===
         const DEFAULT_RELAYS = ['wss://relay.copylaradio.com', 'ws://127.0.0.1:7777'];
@@ -720,14 +726,45 @@
             memory: '🧠 #mem pour voir, #reset pour effacer'
         };
 
+        // === LOGGING ===
+        let debugLog = '';
+        function log(msg) {
+            const ts = new Date().toLocaleTimeString();
+            const line = `[${ts}] ${msg}`;
+            console.log(line);
+            debugLog += line + '\n';
+            // Keep last 50 lines
+            const lines = debugLog.split('\n');
+            if (lines.length > 50) debugLog = lines.slice(-50).join('\n');
+            $('#debugLog').text(debugLog).scrollTop($('#debugLog')[0]?.scrollHeight || 0);
+        }
+
         // === INIT ===
         $(document).ready(function() {
-            checkExtension();
-            getLocation();
-            setupEventListeners();
+            log('Document ready');
+            
+            // Wait for NostrTools to load
+            let attempts = 0;
+            const checkLib = setInterval(() => {
+                attempts++;
+                if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                    clearInterval(checkLib);
+                    log('NostrTools loaded OK');
+                    checkExtension();
+                    getLocation();
+                    setupEventListeners();
+                } else if (attempts > 50) {
+                    clearInterval(checkLib);
+                    log('ERROR: NostrTools failed to load');
+                    $btnConnect.text('Erreur lib').prop('disabled', true);
+                } else {
+                    log(`Waiting for NostrTools... (${attempts})`);
+                }
+            }, 100);
         });
 
         function setupEventListeners() {
+            log('Setting up event listeners');
             // Connect
             $btnConnect.on('click', connectWallet);
 
@@ -803,24 +840,50 @@
 
         // === WALLET ===
         function checkExtension() {
+            log('Checking for Nostr extension...');
             if (typeof window.nostr !== 'undefined') {
-                $btnConnect.prop('disabled', false);
+                log('Nostr extension found!');
+                $btnConnect.prop('disabled', false).text('Connecter');
             } else {
+                log('No Nostr extension detected');
                 $btnConnect.text('Extension?').prop('disabled', true);
+                // Retry after a delay (some extensions load slowly)
+                setTimeout(() => {
+                    if (typeof window.nostr !== 'undefined') {
+                        log('Extension found on retry');
+                        $btnConnect.prop('disabled', false).text('Connecter');
+                    }
+                }, 1000);
             }
         }
 
         async function connectWallet() {
+            log('Connecting to wallet...');
             try {
                 $btnConnect.prop('disabled', true).text('...');
+                
+                if (typeof window.nostr === 'undefined') {
+                    throw new Error('Nostr extension not available');
+                }
+                
+                log('Requesting public key...');
                 publicKey = await window.nostr.getPublicKey();
+                log(`Connected! PubKey: ${publicKey.slice(0, 16)}...`);
+                
                 $statusDot.removeClass('offline');
                 $profileMini.addClass('connected');
                 $btnConnect.hide();
                 $btnSend.prop('disabled', false);
+                
+                log('Fetching profile...');
                 await fetchProfile();
+                
+                log('Fetching messages...');
                 await fetchMessages();
+                
+                log('Connection complete!');
             } catch (e) {
+                log(`Connect ERROR: ${e.message || e}`);
                 console.error('Connect error:', e);
                 $btnConnect.prop('disabled', false).text('Réessayer');
                 $statusDot.addClass('offline');
@@ -828,36 +891,48 @@
         }
 
         async function fetchProfile() {
-            const pool = getPool();
+            log('fetchProfile: Getting pool...');
+            const p = getPool();
             try {
                 for (const relay of DEFAULT_RELAYS) {
-                    const events = await pool.list([relay], [{ kinds: [0], authors: [publicKey], limit: 1 }]);
+                    log(`fetchProfile: Trying relay ${relay}...`);
+                    const events = await p.list([relay], [{ kinds: [0], authors: [publicKey], limit: 1 }]);
+                    log(`fetchProfile: Got ${events.length} events from ${relay}`);
                     if (events.length > 0) {
                         userProfile = JSON.parse(events[0].content);
                         $profileImg.attr('src', userProfile.picture || $profileImg.attr('src'));
                         $profileName.text(userProfile.display_name || userProfile.name || publicKey.slice(0, 8));
+                        log(`fetchProfile: Profile loaded - ${userProfile.name || userProfile.display_name}`);
                         break;
                     }
                 }
             } catch (e) {
+                log(`fetchProfile ERROR: ${e.message || e}`);
                 console.error('Profile fetch error:', e);
             }
         }
 
         // === MESSAGES ===
         async function fetchMessages() {
-            if (!publicKey) return;
-            const pool = getPool();
+            if (!publicKey) {
+                log('fetchMessages: No publicKey, skipping');
+                return;
+            }
+            log('fetchMessages: Getting pool...');
+            const p = getPool();
             try {
-                const events = await pool.list(allRelays, [{
+                log(`fetchMessages: Querying ${allRelays.length} relays...`);
+                const events = await p.list(allRelays, [{
                     kinds: [1],
                     authors: [publicKey],
                     limit: MESSAGES_PER_PAGE
                 }]);
+                log(`fetchMessages: Got ${events.length} messages`);
                 messages = events.sort((a, b) => b.created_at - a.created_at);
                 msgIndex = 0;
                 renderMessages();
             } catch (e) {
+                log(`fetchMessages ERROR: ${e.message || e}`);
                 console.error('Fetch error:', e);
             }
         }
@@ -1141,7 +1216,13 @@
         // === UTILS ===
         function getPool() {
             if (!pool) {
-                pool = new NostrTools.SimplePool({ getTimeout: 5000 });
+                log('Creating new SimplePool...');
+                if (typeof NostrTools === 'undefined' || !NostrTools.SimplePool) {
+                    log('ERROR: NostrTools.SimplePool not available!');
+                    throw new Error('NostrTools not loaded');
+                }
+                pool = new NostrTools.SimplePool({ getTimeout: 6000, listTimeout: 6000 });
+                log('SimplePool created');
             }
             return pool;
         }
