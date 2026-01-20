@@ -56,9 +56,11 @@
         }
 
         .top-bar.with-banner {
-            background-size: cover;
+            background-size: 100% 100%;
             background-position: center;
+            background-repeat: no-repeat;
             min-height: 50px;
+            height: auto;
         }
 
         .top-bar.with-banner::before {
@@ -68,7 +70,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: linear-gradient(to right, rgba(10, 10, 15, 0.9), rgba(10, 10, 15, 0.6), rgba(10, 10, 15, 0.9));
+            background: linear-gradient(to right, rgba(10, 10, 15, 0.85), rgba(10, 10, 15, 0.5), rgba(10, 10, 15, 0.85));
             z-index: 0;
         }
 
@@ -500,6 +502,80 @@
 
         .msg-media audio { width: 100%; height: 36px; }
 
+        /* Webpage preview styles */
+        .msg-media.webpage-preview {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+        }
+
+        .webpage-frame {
+            position: relative;
+            width: 100%;
+            height: 180px;
+            overflow: hidden;
+        }
+
+        .webpage-frame iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            pointer-events: none;
+            transform: scale(0.8);
+            transform-origin: top left;
+            width: 125%;
+            height: 125%;
+        }
+
+        .webpage-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+            cursor: pointer;
+        }
+
+        .webpage-overlay:hover {
+            opacity: 1;
+        }
+
+        .webpage-overlay span {
+            background: var(--accent-cyan);
+            color: var(--bg-void);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .webpage-link {
+            display: block;
+            padding: 8px 12px;
+            color: var(--accent-cyan);
+            font-size: 0.75rem;
+            text-decoration: none;
+            background: var(--bg-input);
+            border-top: 1px solid var(--border);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .webpage-link:hover {
+            background: var(--bg-hover);
+            text-decoration: underline;
+        }
+
+        .webpage-link span {
+            margin-right: 6px;
+        }
+
         .msg-time {
             font-size: 0.65rem;
             color: var(--text-dim);
@@ -560,6 +636,7 @@
             display: none;
             gap: 4px;
             margin-left: auto;
+            align-items: center;
         }
 
         .sub-options.visible { display: flex; }
@@ -576,6 +653,48 @@
 
         .sub-opt:hover { border-color: var(--border); }
         .sub-opt.active { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+
+        /* I2V Image input buttons */
+        .i2v-btns {
+            display: none;
+            gap: 4px;
+            align-items: center;
+            margin-left: 4px;
+            padding-left: 4px;
+            border-left: 1px solid var(--border);
+        }
+
+        .i2v-btns.visible { display: flex; }
+
+        .i2v-btn {
+            padding: 3px 6px;
+            background: var(--bg-hover);
+            border: 1px solid var(--accent-purple);
+            border-radius: 4px;
+            color: var(--accent-purple);
+            font-size: 0.65rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .i2v-btn:hover {
+            background: var(--accent-purple);
+            color: var(--bg-void);
+        }
+
+        .i2v-btn.has-image {
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+            color: var(--bg-void);
+        }
+
+        .i2v-required {
+            font-size: 0.6rem;
+            color: var(--accent-orange);
+            margin-left: 4px;
+        }
+
+        .i2v-required.ok { color: var(--accent-green); }
 
         .img-preview-wrap {
             display: none;
@@ -741,10 +860,26 @@
             background: rgba(0,0,0,0.95);
             z-index: 1000;
             justify-content: center;
-                    align-items: center;
+            align-items: center;
         }
 
         .lightbox.active { display: flex; }
+
+        /* === MODAL Z-INDEX HIERARCHY === */
+        /* Camera modal: above lightbox */
+        .camera-modal {
+            z-index: 1100 !important;
+        }
+
+        /* Notification modal: above everything */
+        #notificationModal {
+            z-index: 1200 !important;
+        }
+
+        #notificationModal .modal-backdrop,
+        .modal-backdrop {
+            z-index: 1150 !important;
+        }
         .lightbox img { max-width: 95%; max-height: 95%; object-fit: contain; }
 
         .lightbox-close {
@@ -808,6 +943,21 @@
 
         .tube-filter-btn:hover { border-color: var(--accent-cyan); color: var(--text-primary); }
         .tube-filter-btn.active { background: var(--accent-cyan); color: var(--bg-void); border-color: var(--accent-cyan); }
+
+        .filter-sep {
+            color: var(--border);
+            font-size: 0.7rem;
+            padding: 0 2px;
+        }
+
+        @media (max-width: 700px) {
+            .tube-filters {
+                flex-wrap: wrap;
+                gap: 4px;
+            }
+            .filter-sep { display: none; }
+            .tube-filter-btn { font-size: 0.6rem; padding: 3px 6px; }
+        }
 
         .tube-content {
             flex: 1;
@@ -1173,6 +1323,23 @@
             border-color: var(--accent-cyan);
         }
 
+        .theater-action-btn.follow-btn {
+            background: var(--accent-green);
+            color: var(--bg-void);
+            border-color: var(--accent-green);
+        }
+
+        .theater-action-btn.follow-btn:hover {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+        }
+
+        .theater-action-btn.follow-btn.following {
+            background: var(--bg-hover);
+            color: var(--text-dim);
+            border-color: var(--border);
+        }
+
         .theater-action-btn.active {
             background: rgba(0, 212, 255, 0.2);
             color: var(--accent-cyan);
@@ -1310,7 +1477,13 @@
             <div class="tube-filters">
                 <button class="tube-filter-btn active" data-filter="all">Tous</button>
                 <button class="tube-filter-btn" data-filter="ai">🤖 IA</button>
-                <button class="tube-filter-btn" data-filter="nostr">📡 NostrTube</button>
+                <button class="tube-filter-btn" data-filter="nostr">📡 Nostr</button>
+                <span class="filter-sep">|</span>
+                <button class="tube-filter-btn" data-filter="short">⚡ Courts</button>
+                <button class="tube-filter-btn" data-filter="long">🎬 Longs</button>
+                <span class="filter-sep">|</span>
+                <button class="tube-filter-btn" data-filter="uplanet">🌍 UPlanet</button>
+                <button class="tube-filter-btn" data-filter="standard">📺 Standard</button>
                 <button class="toggle-friends" id="toggleFriends">👥</button>
             </div>
         </div>
@@ -1351,6 +1524,10 @@
             
             <!-- Actions bar -->
             <div class="theater-actions">
+                <button class="theater-action-btn follow-btn" id="btnFollow" onclick="followAuthor()" style="display:none;">
+                    <span class="icon">➕</span>
+                    <span>Suivre</span>
+                </button>
                 <button class="theater-action-btn" id="btnLike" onclick="toggleLike()">
                     <span class="icon">👍</span>
                     <span class="count" id="likeCount">0</span>
@@ -1387,15 +1564,21 @@
     <!-- INPUT SECTION -->
     <div class="input-section">
         <div class="input-options">
-            <button class="opt-btn active" id="btnConversation" title="BRO répond en votre nom (éphémère 1h)">💬 Conversation</button>
-            <button class="opt-btn" id="btnPublic" title="Message permanent">📢 Public</button>
+            <button class="opt-btn active" id="btnConversation" title="BRO répond en votre nom (éphémère 1h)">💬 </button>
+            <button class="opt-btn" id="btnPublic" title="Message permanent">📢 </button>
             <label class="opt-btn" for="imgInput">📷</label>
             <input type="file" id="imgInput" accept="image/*" style="display:none;">
             <button class="opt-btn" id="btnLocation">📍</button>
             <button class="opt-btn" id="btnSettings">⚙️</button>
             <div class="sub-options" id="videoOpts">
-                <button class="sub-opt active" data-mode="t2v">T2V</button>
-                <button class="sub-opt" data-mode="i2v">I2V</button>
+                <button class="sub-opt active" data-mode="t2v" title="Text-to-Video">T2V</button>
+                <button class="sub-opt" data-mode="i2v" title="Image-to-Video">I2V</button>
+                <div class="i2v-btns" id="i2vBtns">
+                    <label class="i2v-btn" for="i2vImgInput" title="Sélectionner une image">📁 Fichier</label>
+                    <input type="file" id="i2vImgInput" accept="image/*" style="display:none;">
+                    <button class="i2v-btn" id="btnI2vCamera" title="Capturer une photo">📸 Photo</button>
+                    <span class="i2v-required" id="i2vStatus">⚠️ Image requise</span>
+                </div>
             </div>
         </div>
 
@@ -1584,12 +1767,29 @@
             $('#btnConversation').on('click', () => setMode(true));
             $('#btnPublic').on('click', () => setMode(false));
 
-            // Video sub-options
+            // Video sub-options (T2V / I2V)
             $('.sub-opt').on('click', function() {
                 videoMode = $(this).data('mode');
                 $('.sub-opt').removeClass('active');
                 $(this).addClass('active');
+                
+                // Show/hide I2V image buttons
+                if (videoMode === 'i2v') {
+                    $('#i2vBtns').addClass('visible');
+                    updateI2vStatus();
+                } else {
+                    $('#i2vBtns').removeClass('visible');
+                }
+                
+                // Update hint to reflect mode
+                updateInputHint('video');
             });
+            
+            // I2V image file input
+            $('#i2vImgInput').on('change', handleI2vImageSelect);
+            
+            // I2V camera capture button
+            $('#btnI2vCamera').on('click', openI2vCamera);
 
             // Image
             $('#imgInput').on('change', handleImageSelect);
@@ -1778,6 +1978,11 @@
             if (title.length > 80) title = title.substring(0, 80) + '...';
             if (!title) title = isAI ? 'Vidéo IA générée' : 'Vidéo';
 
+            // Check if UPlanet (AI videos from BRO are always UPlanet)
+            const isUPlanet = isAI || event.tags.some(t => 
+                (t[0] === 'application' && t[1] === 'UPlanet')
+            );
+
             return {
                 id: event.id,
                 title: title,
@@ -1789,7 +1994,9 @@
                 isAI: isAI,
                 type: 'ai',
                 duration: 0,
-                kind: 1 // Kind 1 for AI video messages
+                kind: 1, // Kind 1 for AI video messages
+                isUPlanet: isUPlanet,
+                isShort: true // AI videos are typically short
             };
         }
 
@@ -1845,6 +2052,12 @@
             thumbnailUrl = normalizeIpfsUrl(thumbnailUrl);
             gifanimUrl = normalizeIpfsUrl(gifanimUrl);
 
+            // Check if UPlanet video (has application: UPlanet tag)
+            const isUPlanet = event.tags.some(t => 
+                (t[0] === 'application' && t[1] === 'UPlanet') ||
+                (t[0] === 't' && t[1] === 'UPlanet')
+            );
+
             return {
                 id: event.id,
                 title: titleTag ? titleTag[1] : 'NostrTube Video',
@@ -1856,7 +2069,9 @@
                 isAI: false,
                 type: 'nostr',
                 duration: duration,
-                kind: event.kind
+                kind: event.kind,
+                isUPlanet: isUPlanet,
+                isShort: event.kind === 22 || duration <= 60
             };
         }
 
@@ -1957,9 +2172,17 @@
 
         function filterTubeVideos() {
             filteredTubeVideos = tubeVideos.filter(v => {
-                // Filter by type
+                // Filter by source type
                 if (tubeFilter === 'ai' && v.type !== 'ai') return false;
                 if (tubeFilter === 'nostr' && v.type !== 'nostr') return false;
+                
+                // Filter by duration (short = kind 22 or ≤60s, long = kind 21 or >60s)
+                if (tubeFilter === 'short' && !v.isShort) return false;
+                if (tubeFilter === 'long' && v.isShort) return false;
+                
+                // Filter by platform (UPlanet vs standard Nostr)
+                if (tubeFilter === 'uplanet' && !v.isUPlanet) return false;
+                if (tubeFilter === 'standard' && v.isUPlanet) return false;
 
                 // Filter by friend
                 if (selectedFriend !== 'all') {
@@ -1976,13 +2199,20 @@
             const $grid = $('#videoGrid');
             
             if (filteredTubeVideos.length === 0) {
+                const emptyHints = {
+                    'ai': 'Générez des vidéos avec #BRO #video',
+                    'nostr': 'Aucune vidéo NostrTube disponible',
+                    'short': 'Aucune vidéo courte (≤60s) trouvée',
+                    'long': 'Aucune vidéo longue (>60s) trouvée',
+                    'uplanet': 'Aucune vidéo UPlanet trouvée',
+                    'standard': 'Aucune vidéo Nostr standard trouvée'
+                };
                 $grid.html(`
                     <div class="tube-empty">
                         <div class="icon">📭</div>
                         <div>Aucune vidéo trouvée</div>
                         <div style="font-size:0.7rem;margin-top:6px;">
-                            ${tubeFilter === 'ai' ? 'Générez des vidéos avec #BRO #video' : ''}
-                            ${tubeFilter === 'nostr' ? 'Aucune vidéo NostrTube disponible' : ''}
+                            ${emptyHints[tubeFilter] || ''}
                         </div>
                     </div>
                 `);
@@ -2066,6 +2296,17 @@
             $('#likeCount, #dislikeCount, #commentCount').text('0');
             $('#commentsList').html('');
             $('#theaterComments').hide();
+            
+            // Show follow button if not already following and not own video
+            const isOwnVideo = video.authorId === publicKey;
+            const isFollowing = friendsList.includes(video.authorId);
+            if (!isOwnVideo && !isFollowing) {
+                $('#btnFollow').show().removeClass('following').html('<span class="icon">➕</span><span>Suivre</span>');
+            } else if (!isOwnVideo && isFollowing) {
+                $('#btnFollow').show().addClass('following').html('<span class="icon">✓</span><span>Suivi</span>');
+            } else {
+                $('#btnFollow').hide();
+            }
 
             $('#theaterBackdrop').addClass('active');
             $('body').css('overflow', 'hidden');
@@ -2284,6 +2525,85 @@
                     log('Link copied to clipboard');
                     showNotification('Lien copié dans le presse-papier!', 'success');
                 });
+            }
+        }
+
+        // Follow video author
+        async function followAuthor() {
+            if (!publicKey || !currentTheaterVideo) {
+                showNotification('Connectez-vous d\'abord pour suivre', 'connect');
+                return;
+            }
+            
+            const authorPubkey = currentTheaterVideo.authorId;
+            
+            // Check if already following
+            if (friendsList.includes(authorPubkey)) {
+                showNotification('Vous suivez déjà cet auteur', 'info');
+                return;
+            }
+            
+            try {
+                const p = getPool();
+                
+                // Fetch current contact list (kind 3)
+                const contactEvents = await p.list(allRelays, [{
+                    kinds: [3],
+                    authors: [publicKey],
+                    limit: 1
+                }]);
+                
+                // Build existing contacts
+                let existingContacts = [];
+                if (contactEvents.length > 0) {
+                    existingContacts = contactEvents[0].tags.filter(t => t[0] === 'p');
+                }
+                
+                // Add new contact if not already present
+                if (!existingContacts.some(t => t[1] === authorPubkey)) {
+                    existingContacts.push(['p', authorPubkey]);
+                }
+                
+                // Create new contact list event
+                const event = {
+                    kind: 3,
+                    pubkey: publicKey,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: existingContacts,
+                    content: contactEvents.length > 0 ? contactEvents[0].content : ''
+                };
+                
+                const signed = await window.nostr.signEvent(event);
+                
+                // Publish to relays
+                let success = 0;
+                await Promise.all(allRelays.map(async r => {
+                    if (await publishToRelay(r, signed)) success++;
+                }));
+                
+                if (success > 0) {
+                    // Update local friendsList
+                    friendsList.push(authorPubkey);
+                    
+                    // Update UI
+                    $('#btnFollow').addClass('following').html('<span class="icon">✓</span><span>Suivi</span>');
+                    
+                    // Get author name for notification
+                    const authorName = profileCache[authorPubkey]?.display_name || 
+                                      profileCache[authorPubkey]?.name || 
+                                      authorPubkey.slice(0, 8);
+                    
+                    log(`Now following ${authorName}`);
+                    showNotification(`Vous suivez maintenant ${authorName}`, 'success', 'Suivi');
+                    
+                    // Refresh friends list in sidebar
+                    renderFriendsList();
+                } else {
+                    showNotification('Erreur lors du suivi', 'error');
+                }
+            } catch (e) {
+                log(`Follow error: ${e.message}`);
+                showNotification('Erreur: ' + e.message, 'error');
             }
         }
 
@@ -2766,6 +3086,20 @@
                         $media.append($('<video controls>').attr('src', url));
                     } else if (type === 'audio') {
                         $media.append($('<audio controls>').attr('src', url));
+                    } else if (type === 'webpage') {
+                        const pageUrl = buildWebpageUrl(url);
+                        $media.addClass('webpage-preview');
+                        $media.append(`
+                            <div class="webpage-frame">
+                                <iframe src="${pageUrl}" sandbox="allow-scripts allow-same-origin" loading="lazy"></iframe>
+                                <div class="webpage-overlay" onclick="window.open('${pageUrl}', '_blank')">
+                                    <span>🔗 Ouvrir</span>
+                                </div>
+                            </div>
+                            <a href="${pageUrl}" target="_blank" class="webpage-link">
+                                <span>🌐</span> ${url.length > 50 ? url.substring(0, 50) + '...' : url}
+                            </a>
+                        `);
                     }
                     $msg.append($media);
                 }
@@ -2808,6 +3142,12 @@
             if (!publicKey) return;
             const text = $('#messageInput').val().trim();
             if (!text && !selectedImage) return;
+            
+            // I2V mode requires an image
+            if (currentInputService === 'video' && videoMode === 'i2v' && !selectedImage) {
+                showNotification('Le mode I2V (Image-to-Video) nécessite une image. Utilisez les boutons 📁 Fichier ou 📸 Photo pour en ajouter une.', 'warning', 'Image requise');
+                return;
+            }
 
             showLoading(true, 'Envoi...');
             try {
@@ -2873,15 +3213,22 @@
 
         // === UI ===
         function updateInputHint(svc) {
-            const hints = {
-                chat: '💬 Posez une question à votre IA',
-                image: '🖼️ Décrivez l\'image à générer',
-                video: '🎬 Décrivez la scène vidéo',
-                music: '🎵 Style: "jazz piano 80bpm"',
-                search: '🔍 Recherche web',
-                nature: '🌿 Joignez une photo à identifier'
-            };
-            $('#serviceHint').text(hints[svc] || hints.chat);
+            let hint = '';
+            if (svc === 'video') {
+                hint = videoMode === 'i2v' 
+                    ? '🎬 I2V: Joignez une image + décrivez l\'animation souhaitée'
+                    : '🎬 T2V: Décrivez la scène vidéo à générer';
+            } else {
+                const hints = {
+                    chat: '💬 Posez une question à votre IA',
+                    image: '🖼️ Décrivez l\'image à générer',
+                    music: '🎵 Style: "jazz piano 80bpm"',
+                    search: '🔍 Recherche web',
+                    nature: '🌿 Joignez une photo à identifier'
+                };
+                hint = hints[svc] || hints.chat;
+            }
+            $('#serviceHint').text(hint);
         }
 
         function setMode(conversation) {
@@ -2918,6 +3265,110 @@
             $('#imgPreview').attr('src', '#');
             $('#imgPreviewWrap').removeClass('visible');
             $('#imgInput').val('');
+            $('#i2vImgInput').val('');
+            updateI2vStatus();
+        }
+        
+        // I2V Image handling
+        function handleI2vImageSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    selectedImage = ev.target.result;
+                    $('#imgPreview').attr('src', selectedImage);
+                    $('#imgPreviewWrap').addClass('visible');
+                    updateI2vStatus();
+                    log(`I2V: Image selected (${(file.size / 1024).toFixed(1)} KB)`);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        function updateI2vStatus() {
+            const $status = $('#i2vStatus');
+            const $btns = $('.i2v-btn');
+            
+            if (selectedImage) {
+                $status.text('✅ Image prête').addClass('ok');
+                $btns.addClass('has-image');
+            } else {
+                $status.text('⚠️ Image requise').removeClass('ok');
+                $btns.removeClass('has-image');
+            }
+        }
+        
+        // Camera capture for I2V
+        async function openI2vCamera() {
+            // Create camera modal
+            const $modal = $(`
+                <div class="camera-modal" style="
+                    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(0,0,0,0.95); z-index: 1100;
+                    display: flex; flex-direction: column; align-items: center; justify-content: center;
+                ">
+                    <video id="cameraPreview" autoplay playsinline style="
+                        max-width: 90%; max-height: 60vh; border-radius: 8px;
+                        border: 2px solid var(--accent-cyan);
+                    "></video>
+                    <div style="margin-top: 16px; display: flex; gap: 12px;">
+                        <button id="btnCapture" style="
+                            padding: 12px 24px; background: var(--accent-cyan);
+                            border: none; border-radius: 8px; color: var(--bg-void);
+                            font-size: 1rem; cursor: pointer; font-family: inherit;
+                        ">📸 Capturer</button>
+                        <button id="btnCancelCamera" style="
+                            padding: 12px 24px; background: var(--bg-hover);
+                            border: 1px solid var(--border); border-radius: 8px;
+                            color: var(--text-primary); font-size: 1rem; cursor: pointer; font-family: inherit;
+                        ">❌ Annuler</button>
+                    </div>
+                    <canvas id="captureCanvas" style="display: none;"></canvas>
+                </div>
+            `);
+            
+            $('body').append($modal);
+            
+            const video = document.getElementById('cameraPreview');
+            const canvas = document.getElementById('captureCanvas');
+            let stream = null;
+            
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } 
+                });
+                video.srcObject = stream;
+                log('I2V: Camera opened');
+            } catch (err) {
+                log(`I2V Camera error: ${err.message}`);
+                showNotification('Impossible d\'accéder à la caméra: ' + err.message, 'error');
+                $modal.remove();
+                return;
+            }
+            
+            // Capture button
+            $('#btnCapture').on('click', () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                
+                selectedImage = canvas.toDataURL('image/jpeg', 0.85);
+                $('#imgPreview').attr('src', selectedImage);
+                $('#imgPreviewWrap').addClass('visible');
+                updateI2vStatus();
+                log('I2V: Photo captured');
+                
+                // Cleanup
+                stream.getTracks().forEach(track => track.stop());
+                $modal.remove();
+            });
+            
+            // Cancel button
+            $('#btnCancelCamera').on('click', () => {
+                stream.getTracks().forEach(track => track.stop());
+                $modal.remove();
+                log('I2V: Camera cancelled');
+            });
         }
 
         function showLoading(show, text) {
@@ -2972,15 +3423,23 @@
 
         function detectMediaType(url) {
             const l = url.toLowerCase();
-            if (/\.(jpg|jpeg|png|webp)(\?|$)/i.test(l)) return 'image';
+            if (/\.(jpg|jpeg|png|webp|avif)(\?|$)/i.test(l)) return 'image';
             if (/\.gif(\?|$)/i.test(l)) return 'gif';
             if (/\.(mp4|webm|mov)(\?|$)/i.test(l)) return 'video';
             if (/\.(mp3|wav|ogg|m4a)(\?|$)/i.test(l)) return 'audio';
-            if (/ipfs/i.test(l)) {
-                if (/video_|\.mp4|\.webm/i.test(l)) return 'video';
-                if (/audio_|\.mp3|\.wav/i.test(l)) return 'audio';
+            if (/\.(html|htm)(\?|$)/i.test(l)) return 'webpage';
+            if (/ipfs|ipns/i.test(l)) {
+                if (/video_|\.mp4|\.webm|\.mov/i.test(l)) return 'video';
+                if (/audio_|music_|\.mp3|\.wav|\.ogg/i.test(l)) return 'audio';
                 if (/\.gif/i.test(l)) return 'gif';
-                return 'image';
+                if (/\.(jpg|jpeg|png|webp|avif)/i.test(l)) return 'image';
+                // IPFS URL without file extension = likely a webpage/directory
+                // Check if it ends with a CID or path without extension
+                if (/\/(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[yk][a-zA-Z2-7]+)\/?$/i.test(l) ||
+                    /\/[^.\/]+\/?$/i.test(l)) {
+                    return 'webpage';
+                }
+                return 'image'; // fallback for IPFS with unclear type
             }
             return null;
         }
@@ -3002,10 +3461,21 @@
             // Extract relative IPFS paths (/ipfs/Qm... or /ipns/...)
             const ipfsPaths = content.match(/(\/ipfs\/[^\s<>"]+|\/ipns\/[^\s<>"]+)/gi) || [];
             
-            // Combine and normalize all URLs
+            // Combine and normalize all URLs, including webpages
             return [...httpUrls, ...ipfsPaths]
-                .filter(u => detectMediaType(u))
+                .filter(u => detectMediaType(u)) // Now includes 'webpage' type
                 .map(u => normalizeIpfsUrl(u)); // Normalize to full gateway URLs
+        }
+        
+        // Build the correct URL for IPFS webpages (add index.html if needed)
+        function buildWebpageUrl(url) {
+            // If URL already ends with .html or .htm, use as-is
+            if (/\.(html|htm)(\?|$)/i.test(url)) {
+                return url;
+            }
+            // Add trailing slash if needed, then index.html
+            const baseUrl = url.endsWith('/') ? url : url + '/';
+            return baseUrl + 'index.html';
         }
 
         function cleanContent(content, mediaUrls) {
