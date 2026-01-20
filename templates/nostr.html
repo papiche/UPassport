@@ -117,15 +117,20 @@
         /* === SERVICE TABS === */
         .service-bar {
             display: flex;
-            gap: 2px;
+            gap: 3px;
             padding: 4px 6px;
             background: var(--bg-panel);
             border-bottom: 1px solid var(--border);
             overflow-x: auto;
             flex-shrink: 0;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
         }
 
-        .service-bar::-webkit-scrollbar { display: none; }
+        .service-bar::-webkit-scrollbar { height: 3px; }
+        .service-bar::-webkit-scrollbar-track { background: transparent; }
+        .service-bar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
         .svc-btn {
             padding: 4px 8px;
@@ -139,14 +144,39 @@
             white-space: nowrap;
             transition: all 0.15s;
             position: relative;
+            flex-shrink: 0;
         }
 
         .svc-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+        /* Compact buttons on very small screens */
+        @media (max-width: 420px) {
+            .svc-btn {
+                padding: 3px 5px;
+                font-size: 0.65rem;
+            }
+            .svc-btn.add-btn {
+                padding: 3px 6px;
+            }
+        }
 
         .svc-btn.active {
             background: var(--bg-input);
             border-color: var(--accent-cyan);
             color: var(--accent-cyan);
+        }
+
+        .svc-btn.add-btn {
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));
+            color: var(--bg-void);
+            border: none;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .svc-btn.add-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
         }
 
         .svc-btn .count {
@@ -710,11 +740,57 @@
             overflow: hidden;
         }
 
-        .video-thumbnail img {
+        .video-thumbnail img.thumb-static {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            transition: opacity 0.2s;
         }
+
+        .video-thumbnail .thumb-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            font-size: 2rem;
+            background: var(--bg-panel);
+            color: var(--text-dim);
+        }
+
+        .video-thumbnail img.gifanim {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 1;
+        }
+
+        .video-card:hover .video-thumbnail img.gifanim {
+            opacity: 1;
+        }
+
+        .video-card:hover .video-thumbnail img.thumb-static {
+            opacity: 0;
+        }
+
+        .video-thumbnail .play-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            color: white;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 2;
+        }
+
+        .video-card:hover .video-thumbnail .play-icon { opacity: 1; }
 
         .video-thumbnail .duration {
             position: absolute;
@@ -879,6 +955,114 @@
             font-size: 0.75rem;
             color: var(--text-dim);
         }
+
+        /* Theater actions bar */
+        .theater-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .theater-action-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .theater-action-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border-color: var(--accent-cyan);
+        }
+
+        .theater-action-btn.active {
+            background: rgba(0, 212, 255, 0.2);
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+        }
+
+        .theater-action-btn .icon { font-size: 1rem; }
+        .theater-action-btn .count { color: var(--text-primary); }
+
+        /* Theater comments section */
+        .theater-comments {
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 10px;
+            padding: 10px;
+            background: var(--bg-void);
+            border-radius: 8px;
+        }
+
+        .theater-comment {
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.7rem;
+        }
+
+        .theater-comment:last-child { border-bottom: none; }
+        .theater-comment .author { color: var(--accent-cyan); font-weight: 600; }
+        .theater-comment .text { color: var(--text-primary); margin-left: 6px; }
+
+        .theater-comment-form {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .theater-comment-form input {
+            flex: 1;
+            padding: 6px 10px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            color: var(--text-primary);
+            font-size: 0.75rem;
+        }
+
+        .theater-comment-form button {
+            padding: 6px 12px;
+            background: var(--accent-cyan);
+            border: none;
+            border-radius: 16px;
+            color: var(--bg-void);
+            font-weight: 600;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+
+        /* Friends list scroll */
+        .friends-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+
+        .friends-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .friends-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .friends-list::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body>
@@ -903,6 +1087,7 @@
         <button class="svc-btn" data-svc="search">🔍 Search</button>
         <button class="svc-btn" data-svc="nature">🌿 Nature</button>
         <button class="svc-btn" data-svc="tube">📺 Tube</button>
+        <button class="svc-btn add-btn" id="btnAddVideo" title="Ajouter une vidéo">➕</button>
     </div>
 
     <!-- MAIN CONTENT WITH SIDE ARROWS -->
@@ -967,6 +1152,39 @@
         <div class="theater-info">
             <h4 id="theaterTitle">Video Title</h4>
             <div class="meta" id="theaterMeta"></div>
+            
+            <!-- Actions bar -->
+            <div class="theater-actions">
+                <button class="theater-action-btn" id="btnLike" onclick="toggleLike()">
+                    <span class="icon">👍</span>
+                    <span class="count" id="likeCount">0</span>
+                </button>
+                <button class="theater-action-btn" id="btnDislike" onclick="toggleDislike()">
+                    <span class="icon">👎</span>
+                    <span class="count" id="dislikeCount">0</span>
+                </button>
+                <button class="theater-action-btn" id="btnBookmark" onclick="toggleBookmark()">
+                    <span class="icon">🔖</span>
+                    <span>Sauvegarder</span>
+                </button>
+                <button class="theater-action-btn" id="btnShare" onclick="shareVideo()">
+                    <span class="icon">📤</span>
+                    <span>Partager</span>
+                </button>
+                <button class="theater-action-btn" id="btnShowComments" onclick="toggleComments()">
+                    <span class="icon">💬</span>
+                    <span class="count" id="commentCount">0</span>
+                </button>
+            </div>
+            
+            <!-- Comments section -->
+            <div class="theater-comments" id="theaterComments" style="display:none;">
+                <div id="commentsList"></div>
+                <div class="theater-comment-form">
+                    <input type="text" id="commentInput" placeholder="Ajouter un commentaire...">
+                    <button onclick="postVideoCommentAction()">Envoyer</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1042,6 +1260,10 @@
         let allMessages = [];  // All fetched messages
         let filteredMessages = [];  // Messages filtered by service
         let msgIndex = 0;
+        let currentTheaterVideo = null;  // Current video in theater mode
+        let theaterLiked = false;
+        let theaterDisliked = false;
+        let theaterBookmarked = false;
         let currentService = 'all';
         let currentInputService = 'chat';
         let videoMode = 't2v';
@@ -1091,11 +1313,11 @@
         function setupEvents() {
             $('#btnConnect').on('click', connectWallet);
 
-            // Service filter tabs
-            $('.svc-btn').on('click', function() {
+            // Service filter tabs (excluding add button)
+            $('.svc-btn:not(.add-btn)').on('click', function() {
                 const svc = $(this).data('svc');
                 currentService = svc;
-                $('.svc-btn').removeClass('active');
+                $('.svc-btn:not(.add-btn)').removeClass('active');
                 $(this).addClass('active');
                 
                 // Handle Tube mode switching
@@ -1114,6 +1336,9 @@
                 }
                 $('#videoOpts').toggleClass('visible', svc === 'video');
             });
+
+            // Add video button - opens webcam page
+            $('#btnAddVideo').on('click', openWebcamUpload);
 
             // Mode toggle
             $('#btnConversation').on('click', () => setMode(true));
@@ -1314,11 +1539,13 @@
                 title: title,
                 videoUrl: videoUrl,
                 thumbnailUrl: urls.find(u => detectMediaType(u) === 'image') || '',
+                gifanimUrl: '', // AI videos don't have animated thumbnails
                 authorId: event.pubkey,
                 created_at: event.created_at,
                 isAI: isAI,
                 type: 'ai',
-                duration: 0
+                duration: 0,
+                kind: 1 // Kind 1 for AI video messages
             };
         }
 
@@ -1327,11 +1554,13 @@
             const titleTag = event.tags.find(t => t[0] === 'title');
             const urlTag = event.tags.find(t => t[0] === 'url' || t[0] === 'r');
             const imageTag = event.tags.find(t => t[0] === 'image' || t[0] === 'thumb');
+            const gifanimTag = event.tags.find(t => t[0] === 'gifanim' || t[0] === 'gif');
             const durationTag = event.tags.find(t => t[0] === 'duration');
             const imetaTag = event.tags.find(t => t[0] === 'imeta');
 
             let videoUrl = urlTag ? urlTag[1] : '';
             let thumbnailUrl = imageTag ? imageTag[1] : '';
+            let gifanimUrl = gifanimTag ? gifanimTag[1] : '';
             let duration = durationTag ? parseInt(durationTag[1]) : 0;
 
             // Parse imeta tag if available
@@ -1341,6 +1570,7 @@
                     if (typeof item === 'string') {
                         if (item.startsWith('url ')) videoUrl = videoUrl || item.substring(4).trim();
                         if (item.startsWith('image ')) thumbnailUrl = thumbnailUrl || item.substring(6).trim();
+                        if (item.startsWith('gifanim ') || item.startsWith('gif ')) gifanimUrl = gifanimUrl || item.substring(item.indexOf(' ') + 1).trim();
                         if (item.startsWith('duration ')) duration = duration || parseFloat(item.substring(9).trim());
                     }
                 });
@@ -1359,6 +1589,7 @@
                 title: titleTag ? titleTag[1] : 'NostrTube Video',
                 videoUrl: videoUrl,
                 thumbnailUrl: thumbnailUrl,
+                gifanimUrl: gifanimUrl,
                 authorId: event.pubkey,
                 created_at: event.created_at,
                 isAI: false,
@@ -1396,38 +1627,49 @@
 
         async function renderFriendsList() {
             const $list = $('#friendsList');
-            $list.html(`
-                <div class="friend-item all ${selectedFriend === 'all' ? 'selected' : ''}" data-pubkey="all">
-                    <span class="name">🌐 Tous les flux</span>
-                </div>
-                <div class="friend-item ${selectedFriend === publicKey ? 'selected' : ''}" data-pubkey="${publicKey}">
-                    <img src="${userProfile?.picture || 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'}">
-                    <span class="name">📱 Mes vidéos</span>
-                </div>
-            `);
-
-            // Count videos per friend
+            
+            // Count videos per friend first
             const videoCounts = {};
             tubeVideos.forEach(v => {
                 videoCounts[v.authorId] = (videoCounts[v.authorId] || 0) + 1;
             });
+            
+            // My video count
+            const myVideoCount = videoCounts[publicKey] || 0;
+            
+            $list.html(`
+                <div class="friend-item all ${selectedFriend === 'all' ? 'selected' : ''}" data-pubkey="all">
+                    <span class="name">🌐 Tous</span>
+                    <span class="count">${tubeVideos.length}</span>
+                </div>
+                ${myVideoCount > 0 ? `
+                <div class="friend-item ${selectedFriend === publicKey ? 'selected' : ''}" data-pubkey="${publicKey}">
+                    <img src="${userProfile?.picture || 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'}">
+                    <span class="name">📱 Moi</span>
+                    <span class="count">${myVideoCount}</span>
+                </div>
+                ` : ''}
+            `);
 
-            // Load and render each friend
-            for (const pubkey of friendsList.slice(0, 30)) { // Limit to 30 friends
+            // Only show friends who have published videos
+            const friendsWithVideos = friendsList.filter(pubkey => (videoCounts[pubkey] || 0) > 0);
+            
+            for (const pubkey of friendsWithVideos.slice(0, 30)) { // Limit to 30
                 const profile = await getProfile(pubkey);
-                const count = videoCounts[pubkey] || 0;
+                const count = videoCounts[pubkey];
                 
-                if (count > 0 || friendsList.indexOf(pubkey) < 10) { // Show first 10 or those with videos
-                    $list.append(`
-                        <div class="friend-item ${selectedFriend === pubkey ? 'selected' : ''}" data-pubkey="${pubkey}">
-                            <img src="${profile?.picture || 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'}" 
-                                 onerror="this.src='https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'">
-                            <span class="name">${profile?.display_name || profile?.name || pubkey.slice(0, 8)}</span>
-                            ${count > 0 ? `<span class="count">${count}</span>` : ''}
-                        </div>
-                    `);
-                }
+                $list.append(`
+                    <div class="friend-item ${selectedFriend === pubkey ? 'selected' : ''}" data-pubkey="${pubkey}">
+                        <img src="${profile?.picture || 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'}" 
+                             onerror="this.src='https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'">
+                        <span class="name">${profile?.display_name || profile?.name || pubkey.slice(0, 8)}</span>
+                        <span class="count">${count}</span>
+                    </div>
+                `);
             }
+            
+            // Update friends count to show only those with videos
+            $('#friendsCount').text(friendsWithVideos.length);
         }
 
         async function getProfile(pubkey) {
@@ -1486,7 +1728,8 @@
         }
 
         function renderVideoCard(video) {
-            const thumbnail = video.thumbnailUrl || generateVideoPlaceholder(video.type);
+            const thumbnail = video.thumbnailUrl || '';
+            const gifanim = video.gifanimUrl || '';
             const authorName = profileCache[video.authorId]?.display_name || 
                               profileCache[video.authorId]?.name || 
                               video.authorId.slice(0, 8);
@@ -1494,14 +1737,18 @@
                              'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
             const date = formatRelativeDate(video.created_at);
             const duration = video.duration ? formatDuration(video.duration) : '';
+            const hasThumb = thumbnail && (thumbnail.startsWith('http') || thumbnail.startsWith('/'));
+            const hasGif = gifanim && (gifanim.startsWith('http') || gifanim.startsWith('/'));
 
             return `
                 <div class="video-card" onclick="openVideoTheater('${video.id}')">
                     <div class="video-thumbnail">
-                        ${thumbnail.startsWith('http') || thumbnail.startsWith('/') ? 
-                            `<img src="${thumbnail}" onerror="this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;font-size:2rem;\\'>🎬</div>'">`
-                            : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:2rem;">🎬</div>`
+                        ${hasThumb ? 
+                            `<img class="thumb-static" src="${thumbnail}" onerror="this.style.display='none'">`
+                            : `<div class="thumb-placeholder">🎬</div>`
                         }
+                        ${hasGif ? `<img class="gifanim" src="${gifanim}" onerror="this.style.display='none'">` : ''}
+                        <span class="play-icon">▶</span>
                         ${video.type === 'ai' ? '<span class="badge-ai">🤖 IA</span>' : ''}
                         ${duration ? `<span class="duration">${duration}</span>` : ''}
                     </div>
@@ -1524,9 +1771,14 @@
             return type === 'ai' ? '🤖' : '📺';
         }
 
-        function openVideoTheater(videoId) {
+        async function openVideoTheater(videoId) {
             const video = tubeVideos.find(v => v.id === videoId);
             if (!video) return;
+
+            currentTheaterVideo = video;
+            theaterLiked = false;
+            theaterDisliked = false;
+            theaterBookmarked = false;
 
             $('#theaterVideo').attr('src', video.videoUrl);
             $('#theaterTitle').text(video.title);
@@ -1544,14 +1796,281 @@
                 <span>${date}</span>
             `);
 
+            // Reset UI
+            $('#btnLike, #btnDislike, #btnBookmark').removeClass('active');
+            $('#likeCount, #dislikeCount, #commentCount').text('0');
+            $('#commentsList').html('');
+            $('#theaterComments').hide();
+
             $('#theaterBackdrop').addClass('active');
             $('body').css('overflow', 'hidden');
+
+            // Load interactions (async)
+            loadVideoInteractions(video);
         }
 
         function closeTheater() {
             $('#theaterBackdrop').removeClass('active');
             $('#theaterVideo')[0]?.pause();
             $('body').css('overflow', '');
+            currentTheaterVideo = null;
+        }
+
+        // Load likes, dislikes, comments for current video
+        async function loadVideoInteractions(video) {
+            if (!video) return;
+            const p = getPool();
+            
+            try {
+                // Fetch reactions (kind 7)
+                const reactions = await p.list(allRelays, [{
+                    kinds: [7],
+                    '#e': [video.id],
+                    limit: 100
+                }]);
+                
+                let likes = 0, dislikes = 0;
+                reactions.forEach(r => {
+                    if (r.content === '+' || r.content === '👍' || r.content === '❤️') {
+                        likes++;
+                        if (r.pubkey === publicKey) {
+                            theaterLiked = true;
+                            $('#btnLike').addClass('active');
+                        }
+                    } else if (r.content === '-' || r.content === '👎') {
+                        dislikes++;
+                        if (r.pubkey === publicKey) {
+                            theaterDisliked = true;
+                            $('#btnDislike').addClass('active');
+                        }
+                    }
+                });
+                
+                $('#likeCount').text(likes);
+                $('#dislikeCount').text(dislikes);
+                
+                // Fetch comments (kind 1 or 1111 referencing video)
+                const comments = await p.list(allRelays, [{
+                    kinds: [1, 1111],
+                    '#e': [video.id],
+                    limit: 50
+                }]);
+                
+                $('#commentCount').text(comments.length);
+                
+                // Sort by date and render
+                comments.sort((a, b) => a.created_at - b.created_at);
+                const commentsHtml = await Promise.all(comments.map(async c => {
+                    const profile = await getProfile(c.pubkey);
+                    const name = profile?.display_name || profile?.name || c.pubkey.slice(0, 8);
+                    return `<div class="theater-comment">
+                        <span class="author">${escapeHtml(name)}:</span>
+                        <span class="text">${escapeHtml(c.content)}</span>
+                    </div>`;
+                }));
+                $('#commentsList').html(commentsHtml.join(''));
+                
+                // Check bookmark (kind 10002 or kind 30001)
+                const bookmarks = await p.list(allRelays, [{
+                    kinds: [30001],
+                    authors: [publicKey],
+                    '#d': ['videos'],
+                    limit: 1
+                }]);
+                
+                if (bookmarks.length > 0) {
+                    const bookmarkTags = bookmarks[0].tags.filter(t => t[0] === 'e');
+                    if (bookmarkTags.some(t => t[1] === video.id)) {
+                        theaterBookmarked = true;
+                        $('#btnBookmark').addClass('active');
+                    }
+                }
+                
+            } catch (e) {
+                log(`Error loading interactions: ${e.message}`);
+            }
+        }
+
+        // Toggle like reaction
+        async function toggleLike() {
+            if (!publicKey || !currentTheaterVideo) {
+                alert('Connectez-vous d\'abord');
+                return;
+            }
+            
+            try {
+                const event = {
+                    kind: 7,
+                    pubkey: publicKey,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [
+                        ['e', currentTheaterVideo.id],
+                        ['p', currentTheaterVideo.authorId]
+                    ],
+                    content: theaterLiked ? '' : '+'
+                };
+                
+                const signed = await window.nostr.signEvent(event);
+                await Promise.all(allRelays.map(r => publishToRelay(r, signed)));
+                
+                theaterLiked = !theaterLiked;
+                $('#btnLike').toggleClass('active', theaterLiked);
+                const count = parseInt($('#likeCount').text()) + (theaterLiked ? 1 : -1);
+                $('#likeCount').text(Math.max(0, count));
+                
+                log(theaterLiked ? 'Liked' : 'Unliked');
+            } catch (e) {
+                log(`Like error: ${e.message}`);
+            }
+        }
+
+        // Toggle dislike reaction
+        async function toggleDislike() {
+            if (!publicKey || !currentTheaterVideo) {
+                alert('Connectez-vous d\'abord');
+                return;
+            }
+            
+            try {
+                const event = {
+                    kind: 7,
+                    pubkey: publicKey,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [
+                        ['e', currentTheaterVideo.id],
+                        ['p', currentTheaterVideo.authorId]
+                    ],
+                    content: theaterDisliked ? '' : '-'
+                };
+                
+                const signed = await window.nostr.signEvent(event);
+                await Promise.all(allRelays.map(r => publishToRelay(r, signed)));
+                
+                theaterDisliked = !theaterDisliked;
+                $('#btnDislike').toggleClass('active', theaterDisliked);
+                const count = parseInt($('#dislikeCount').text()) + (theaterDisliked ? 1 : -1);
+                $('#dislikeCount').text(Math.max(0, count));
+                
+                log(theaterDisliked ? 'Disliked' : 'Un-disliked');
+            } catch (e) {
+                log(`Dislike error: ${e.message}`);
+            }
+        }
+
+        // Toggle bookmark
+        async function toggleBookmark() {
+            if (!publicKey || !currentTheaterVideo) {
+                alert('Connectez-vous d\'abord');
+                return;
+            }
+            
+            try {
+                // Fetch existing bookmarks list
+                const p = getPool();
+                const existing = await p.list(allRelays, [{
+                    kinds: [30001],
+                    authors: [publicKey],
+                    '#d': ['videos'],
+                    limit: 1
+                }]);
+                
+                let tags = [['d', 'videos']];
+                if (existing.length > 0) {
+                    tags = existing[0].tags.filter(t => t[0] !== 'e' || t[1] !== currentTheaterVideo.id);
+                }
+                
+                if (!theaterBookmarked) {
+                    tags.push(['e', currentTheaterVideo.id, '', 'mention']);
+                }
+                
+                const event = {
+                    kind: 30001,
+                    pubkey: publicKey,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags,
+                    content: 'My saved videos'
+                };
+                
+                const signed = await window.nostr.signEvent(event);
+                await Promise.all(allRelays.map(r => publishToRelay(r, signed)));
+                
+                theaterBookmarked = !theaterBookmarked;
+                $('#btnBookmark').toggleClass('active', theaterBookmarked);
+                
+                log(theaterBookmarked ? 'Bookmarked' : 'Removed from bookmarks');
+            } catch (e) {
+                log(`Bookmark error: ${e.message}`);
+            }
+        }
+
+        // Share video
+        function shareVideo() {
+            if (!currentTheaterVideo) return;
+            
+            const shareUrl = `${window.location.origin}/theater?video=${currentTheaterVideo.id}`;
+            
+            if (navigator.share) {
+                navigator.share({
+                    title: currentTheaterVideo.title,
+                    url: shareUrl
+                }).catch(() => {});
+            } else {
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    log('Link copied to clipboard');
+                    alert('Lien copié!');
+                });
+            }
+        }
+
+        // Toggle comments section
+        function toggleComments() {
+            $('#theaterComments').toggle();
+        }
+
+        // Post comment on video
+        async function postVideoCommentAction() {
+            if (!publicKey || !currentTheaterVideo) {
+                alert('Connectez-vous d\'abord');
+                return;
+            }
+            
+            const content = $('#commentInput').val().trim();
+            if (!content) return;
+            
+            try {
+                const event = {
+                    kind: 1111,
+                    pubkey: publicKey,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [
+                        ['e', currentTheaterVideo.id, allRelays[0], 'root'],
+                        ['p', currentTheaterVideo.authorId],
+                        ['k', currentTheaterVideo.kind?.toString() || '21']
+                    ],
+                    content
+                };
+                
+                const signed = await window.nostr.signEvent(event);
+                await Promise.all(allRelays.map(r => publishToRelay(r, signed)));
+                
+                // Add to UI
+                const profile = userProfile || {};
+                const name = profile.display_name || profile.name || publicKey.slice(0, 8);
+                $('#commentsList').append(`
+                    <div class="theater-comment">
+                        <span class="author">${escapeHtml(name)}:</span>
+                        <span class="text">${escapeHtml(content)}</span>
+                    </div>
+                `);
+                
+                const count = parseInt($('#commentCount').text()) + 1;
+                $('#commentCount').text(count);
+                $('#commentInput').val('');
+                
+                log('Comment posted');
+            } catch (e) {
+                log(`Comment error: ${e.message}`);
+            }
         }
 
         function formatDuration(seconds) {
@@ -1851,6 +2370,16 @@
             isConversation = conversation;
             $('#btnConversation').toggleClass('active', conversation);
             $('#btnPublic').toggleClass('active warn', !conversation);
+        }
+
+        // Open webcam upload page
+        function openWebcamUpload() {
+            if (!publicKey) {
+                log('Please connect to NOSTR first');
+                alert('Connectez-vous d\'abord à NOSTR');
+                return;
+            }
+            window.open('/webcam', '_blank');
         }
 
         function handleImageSelect(e) {
