@@ -2135,7 +2135,7 @@
         // Toggle like reaction
         async function toggleLike() {
             if (!publicKey || !currentTheaterVideo) {
-                alert('Connectez-vous d\'abord');
+                showNotification('Connectez-vous d\'abord pour liker', 'connect');
                 return;
             }
             
@@ -2168,7 +2168,7 @@
         // Toggle dislike reaction
         async function toggleDislike() {
             if (!publicKey || !currentTheaterVideo) {
-                alert('Connectez-vous d\'abord');
+                showNotification('Connectez-vous d\'abord pour réagir', 'connect');
                 return;
             }
             
@@ -2201,7 +2201,7 @@
         // Toggle bookmark
         async function toggleBookmark() {
             if (!publicKey || !currentTheaterVideo) {
-                alert('Connectez-vous d\'abord');
+                showNotification('Connectez-vous d\'abord pour sauvegarder', 'connect');
                 return;
             }
             
@@ -2258,7 +2258,7 @@
             } else {
                 navigator.clipboard.writeText(shareUrl).then(() => {
                     log('Link copied to clipboard');
-                    alert('Lien copié!');
+                    showNotification('Lien copié dans le presse-papier!', 'success');
                 });
             }
         }
@@ -2271,7 +2271,7 @@
         // Post comment on video
         async function postVideoCommentAction() {
             if (!publicKey || !currentTheaterVideo) {
-                alert('Connectez-vous d\'abord');
+                showNotification('Connectez-vous d\'abord pour commenter', 'connect');
                 return;
             }
             
@@ -2334,6 +2334,43 @@
         function escapeHtml(text) {
             if (!text) return '';
             return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        // Show Bootstrap notification modal
+        function showNotification(message, type = 'info', title = null) {
+            const icons = {
+                'info': 'ℹ️',
+                'success': '✅',
+                'warning': '⚠️',
+                'error': '❌',
+                'connect': '🔌'
+            };
+            const titles = {
+                'info': 'Information',
+                'success': 'Succès',
+                'warning': 'Attention',
+                'error': 'Erreur',
+                'connect': 'Connexion requise'
+            };
+            
+            $('#notificationIcon').text(icons[type] || icons.info);
+            $('#notificationTitle').text(title || titles[type] || titles.info);
+            $('#notificationMessage').text(message);
+            
+            // Style the OK button based on type
+            const $btn = $('#notificationModal .modal-footer button');
+            if (type === 'error') {
+                $btn.css('background', 'var(--accent-red)');
+            } else if (type === 'success') {
+                $btn.css('background', 'var(--accent-green)');
+            } else if (type === 'warning') {
+                $btn.css('background', 'var(--accent-orange)');
+            } else {
+                $btn.css('background', 'var(--accent-cyan)');
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('notificationModal'));
+            modal.show();
         }
 
         // Normalize IPFS URLs: replace u.{domain} with ipfs.{domain} for IPFS content
@@ -2772,7 +2809,7 @@
         function openWebcamUpload() {
             if (!publicKey) {
                 log('Please connect to NOSTR first');
-                alert('Connectez-vous d\'abord à NOSTR');
+                showNotification('Connectez-vous d\'abord à NOSTR pour ajouter une vidéo', 'connect');
                 return;
             }
             window.open('/webcam', '_blank');
@@ -2939,5 +2976,28 @@
             });
         }
     </script>
+
+    <!-- NOTIFICATION MODAL (Bootstrap) -->
+    <div class="modal fade" id="notificationModal" tabindex="-1" aria-labelledby="notificationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content" style="background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px;">
+                <div class="modal-header" style="border-bottom: 1px solid var(--border); padding: 12px 16px;">
+                    <h6 class="modal-title" id="notificationModalLabel" style="color: var(--accent-cyan); font-family: 'Orbitron', sans-serif; font-size: 0.85rem;">
+                        <span id="notificationIcon">ℹ️</span> <span id="notificationTitle">Notification</span>
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.7rem;"></button>
+                </div>
+                <div class="modal-body" style="padding: 16px; color: var(--text-primary); font-size: 0.8rem;">
+                    <p id="notificationMessage" style="margin: 0;"></p>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid var(--border); padding: 10px 16px;">
+                    <button type="button" class="btn btn-sm" data-bs-dismiss="modal" 
+                            style="background: var(--accent-cyan); color: var(--bg-void); border: none; border-radius: 6px; font-size: 0.75rem; padding: 6px 16px;">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
