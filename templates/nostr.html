@@ -4,429 +4,1536 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
-    <title>UPlanet NOSTR Geo Messaging</title>
+    <title>🤖 UPlanet #BRO - AI Services</title>
     <script src="/earth/jquery-3.6.3.min.js"></script>
-    <!-- Import nostr-tools (includes SimplePool) -->
     <script src="/earth/nostr.bundle.js"></script>
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="/earth/leaflet.css"/>
-    <!-- Leaflet JavaScript -->
     <script src="/earth/leaflet.js"></script>
+    <link rel="stylesheet" href="/earth/bootstrap.min.css"/>
+    <script src="/earth/bootstrap.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <style>
-        /* Basic styles */
-        body { font-family: 'Arial', sans-serif; margin: 0; padding: 15px; background-color: #1a1a1a; color: #e0e0e0; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; }
-        .container { background-color: #2a2a2a; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.5); width: 100%; max-width: 500px; margin: 20px auto; box-sizing: border-box; }
-        h1 { background: linear-gradient(to right, #ff6b6b, #ffa500, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 1.8em; text-align: center; margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: bold; color: #cccccc; }
-        textarea { width: 100%; height: 100px; padding: 10px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #555; border-radius: 4px; background-color: #333; color: #e0e0e0; font-size: 1em; }
-        button, .button-like { display: block; width: 100%; padding: 12px 15px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; text-align: center; margin-bottom: 10px; transition: background-color 0.3s ease; box-sizing: border-box; }
-        button:hover, .button-like:hover { background-color: #45a049; }
-        button:disabled { background-color: #555; cursor: not-allowed; opacity: 0.6; }
-        .button-like { background-color: #2196F3; }
-        .button-like:hover { background-color: #1976D2; }
-        input[type="file"] { display: none; }
-        #imagePreview { display: none; max-width: 100%; height: auto; margin-top: 15px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #444; }
-        #status { margin-top: 15px; font-weight: bold; text-align: center; padding: 10px; border-radius: 4px; background-color: #333; min-height: 20px; color: #ccc; word-wrap: break-word; }
-        .spinner { display: none; width: 40px; height: 40px; margin: 20px auto; border: 4px solid #555; border-top: 4px solid #4CAF50; border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .warning {
-    background: linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8b00ff);
-    color: #ffffff; /* Change la couleur du texte pour qu'il soit lisible sur le dégradé */
-    border: 1px solid #ffcc00;
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 15px;
-    text-align: center;
-    font-weight: bold;
-    -webkit-background-clip: text; /* Pour s'assurer que le texte est coloré par le dégradé */
-    -webkit-text-fill-color: transparent; /* Rend le texte transparent pour que le dégradé soit visible */
-}
-
-        details { background-color: #333; padding: 5px; border-radius: 4px; margin-top: 15px;}
-        details summary { cursor: pointer; color: #aaa; font-size: 0.9em; }
-        #debug-info { margin-top: 10px; border: 1px dashed #555; padding: 10px; font-size: 0.8em; white-space: pre-wrap; word-wrap: break-word; max-height: 200px; overflow-y: auto; background-color: #222; color: #bbb; }
-        #relay-list { font-size: 0.8em; margin-top: 5px; max-height: 100px; overflow-y: auto; padding-left: 15px; color: #aaa; }
-        #relay-list li { margin-bottom: 3px; }
-
-        /* Profile & Message Area Styles */
-        #profile-display { display: flex; align-items: center; padding: 10px; margin-bottom: 15px; background-color: #383838; border-radius: 5px; min-height: 50px; color: #ccc; font-size: 0.9em; }
-        #profile-display img { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; border: 1px solid #555; object-fit: cover; }
-        #profile-info { display: flex; flex-direction: column; }
-        #profile-info span { display: block; }
-        #profile-info .profile-name { font-weight: bold; color: #eee; }
-        #profile-info .profile-nip05 { font-size: 0.85em; color: #aaa; }
-        #message-section { margin-top: 20px; padding: 15px; background-color: #333; border-radius: 5px; display: none; }
-        #message-section h2 { margin-top: 0; font-size: 1.1em; color: #ddd; border-bottom: 1px solid #555; padding-bottom: 5px;}
-        #message-navigation { display: flex; justify-content: space-between; margin-bottom: 15px; }
-        #message-navigation button { width: auto; padding: 8px 12px; font-size: 0.9em; background-color: #555; flex-grow: 1; margin: 0 5px; } /* Style nav buttons */
-        #message-navigation button:first-child { margin-left: 0; }
-        #message-navigation button:last-child { margin-right: 0; }
-        #message-navigation button:hover:not(:disabled) { background-color: #666; }
-        #last-message-area, #replies-area { margin-top: 10px; }
-        .message-item, .reply-item { background-color: #2a2a2a; border: 1px solid #444; padding: 10px; border-radius: 4px; margin-bottom: 10px; word-wrap: break-word; }
-        .message-content img, .reply-content img { max-width: 100%; height: auto; border-radius: 4px; margin-top: 5px; }
-        .reply-author { font-size: 0.85em; color: #aaa; margin-bottom: 5px; }
-        .reply-author code { background-color: #444; padding: 1px 3px; border-radius: 3px;}
-        .reply-content { font-size: 0.95em; color: #ddd;}
-        #replies-list { padding-left: 0; list-style: none; }
-        /* Location Tumbler Styles */
-        #location-controls {
-             border: 1px solid #444;
-             border-radius: 5px;
-             padding: 10px;
-             background-color: #282828; /* Slightly different bg */
+        :root {
+            --bg-void: #030508;
+            --bg-deep: #0a0e14;
+            --bg-panel: #0d1219;
+            --bg-card: #111820;
+            --bg-hover: #1a222d;
+            --text-primary: #e8f4ff;
+            --text-secondary: #6b8299;
+            --text-dim: #3d5066;
+            --accent-cyan: #00d4ff;
+            --accent-green: #00ff88;
+            --accent-yellow: #ffd000;
+            --accent-orange: #ff8800;
+            --accent-red: #ff3366;
+            --accent-purple: #9966ff;
+            --accent-pink: #ff66aa;
+            --border-glow: rgba(0, 212, 255, 0.3);
+            --grid-line: rgba(0, 212, 255, 0.05);
         }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--bg-void);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(ellipse at 20% 30%, rgba(0, 212, 255, 0.03) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 70%, rgba(153, 102, 255, 0.03) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(0, 255, 136, 0.01) 0%, transparent 70%);
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: 
+                linear-gradient(var(--grid-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container-app {
+            position: relative;
+            z-index: 1;
+            padding: 10px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Command Header */
+        .command-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: linear-gradient(135deg, var(--bg-panel) 0%, var(--bg-deep) 100%);
+            border: 1px solid var(--border-glow);
+            border-radius: 6px;
+            margin-bottom: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .command-header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent-cyan), var(--accent-purple), transparent);
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .logo-icon {
+            font-size: 1.8rem;
+            animation: pulse-glow 3s ease-in-out infinite;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 5px var(--accent-cyan)); }
+            50% { filter: drop-shadow(0 0 15px var(--accent-cyan)); }
+        }
+
+        .logo-text h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo-text .subtitle {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            letter-spacing: 1px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.75rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: blink 2s ease-in-out infinite;
+        }
+
+        .status-dot.online { background: var(--accent-green); }
+        .status-dot.warning { background: var(--accent-yellow); }
+        .status-dot.offline { background: var(--accent-red); }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Panel Card */
+        .panel-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-glow);
+            border-radius: 6px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-glow);
+        }
+
+        .panel-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            color: var(--accent-cyan);
+        }
+
+        .panel-content {
+            padding: 15px;
+        }
+
+        /* Profile Display */
+        #profile-display {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: var(--bg-card);
+            border-radius: 6px;
+            min-height: 60px;
+        }
+
+        #profile-display img {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            border: 2px solid var(--border-glow);
+            object-fit: cover;
+        }
+
+        .profile-info {
+            flex: 1;
+        }
+
+        .profile-name {
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--text-primary);
+        }
+
+        .profile-nip05 {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        /* Wallet Balance */
+        .wallet-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .balance-box {
+            background: var(--bg-hover);
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .balance-box:hover {
+            border-color: var(--border-glow);
+        }
+
+        .balance-label {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .balance-value {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .balance-value.g1 { color: var(--accent-green); }
+        .balance-value.zen { color: var(--accent-cyan); }
+
+        /* BRO Service Tabs */
+        .bro-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 10px;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-glow);
+        }
+
+        .bro-tab {
+            flex: 1;
+            min-width: 60px;
+            padding: 8px 6px;
+            background: var(--bg-hover);
+            border: 1px solid transparent;
+            border-radius: 4px;
+            color: var(--text-secondary);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .bro-tab:hover {
+            background: var(--bg-panel);
+            border-color: var(--border-glow);
+            color: var(--text-primary);
+        }
+
+        .bro-tab.active {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            color: white;
+            border-color: transparent;
+        }
+
+        .bro-tab .tab-icon {
+            font-size: 1.2rem;
+        }
+
+        .bro-tab .tab-label {
+            font-size: 0.65rem;
+            letter-spacing: 0.5px;
+        }
+
+        /* Service Panel Content */
+        .service-panel {
+            display: none;
+            padding: 15px;
+        }
+
+        .service-panel.active {
+            display: block;
+        }
+
+        .service-description {
+            background: var(--bg-card);
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border-left: 3px solid var(--accent-cyan);
+        }
+
+        .service-description h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            color: var(--accent-cyan);
+            margin-bottom: 6px;
+        }
+
+        .service-description p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .service-example {
+            background: var(--bg-hover);
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 8px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        /* Form Elements */
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-glow);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.2);
+        }
+
+        textarea::placeholder {
+            color: var(--text-dim);
+        }
+
+        /* Buttons */
+        .btn-primary {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 12px 15px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            border: none;
+            border-radius: 4px;
+            color: white;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 212, 255, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: var(--bg-hover);
+            color: var(--text-dim);
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 10px 15px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-glow);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border-color: var(--accent-cyan);
+        }
+
+        /* Image Upload */
+        .image-upload-zone {
+            border: 2px dashed var(--border-glow);
+            border-radius: 6px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 15px;
+        }
+
+        .image-upload-zone:hover {
+            border-color: var(--accent-cyan);
+            background: var(--bg-card);
+        }
+
+        .image-upload-zone .upload-icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .image-upload-zone .upload-text {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        #imageInput { display: none; }
+
+        #imagePreview {
+            display: none;
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            border: 1px solid var(--border-glow);
+            margin-bottom: 15px;
+        }
+
+        #imagePreview.visible {
+            display: block;
+        }
+
+        /* Status Display */
+        #status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 4px;
+            background: var(--bg-card);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.85rem;
+            text-align: center;
+            color: var(--text-secondary);
+            min-height: 40px;
+            word-wrap: break-word;
+        }
+
+        #status.success {
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--accent-green);
+            border: 1px solid var(--accent-green);
+        }
+
+        #status.error {
+            background: rgba(255, 51, 102, 0.1);
+            color: var(--accent-red);
+            border: 1px solid var(--accent-red);
+        }
+
+        /* Spinner */
+        .spinner {
+            display: none;
+            width: 40px;
+            height: 40px;
+            margin: 15px auto;
+            border: 3px solid var(--bg-card);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .spinner.visible { display: block; }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Location Controls */
+        .location-panel {
+            background: var(--bg-card);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 15px;
+        }
+
+        .location-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .location-title {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .location-values {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
         .coord-control {
-            text-align: center; /* Center the label */
+            text-align: center;
         }
-        .coord-control > div {
-             justify-content: center; /* Center the selects horizontally */
+
+        .coord-label {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-bottom: 4px;
         }
+
+        .tumbler-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+        }
+
         .tumbler {
             appearance: none;
             -webkit-appearance: none;
-            -moz-appearance: none;
-            padding: 6px 2px;
-            border: 1px solid #555;
-            background-color: #404040;
-            color: #e0e0e0;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 0.9em;
-            font-weight: bold;
+            padding: 5px 2px;
+            border: 1px solid var(--border-glow);
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: 700;
             border-radius: 3px;
-            margin: 0 1px;
             text-align: center;
             cursor: pointer;
-            min-width: 24px;
-            max-width: 32px;
-        }
-        .tumbler:focus {
-            outline: none;
-            border-color: #4CAF50;
-            box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
-        }
-        .tumbler-dot {
-            font-size: 1.2em;
-            font-weight: bold;
-            margin: 0 2px;
-            align-self: center; /* Vertically align the dot */
-            color: #aaa;
-        }
-        #location-status {
-             min-height: 1.1em; /* Prevent layout jump */
-             cursor: pointer;
-             padding: 8px;
-             border-radius: 4px;
-             transition: background-color 0.3s ease;
-        }
-        #location-status:hover {
-             background-color: #383838;
+            min-width: 26px;
+            max-width: 30px;
         }
 
-        /* Map accordion styles */
+        .tumbler:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+        }
+
+        .tumbler-dot {
+            font-size: 1rem;
+            color: var(--text-dim);
+            margin: 0 2px;
+        }
+
+        #location-status {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-align: center;
+            margin-top: 8px;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        #location-status:hover {
+            background: var(--bg-hover);
+        }
+
+        /* Map Accordion */
         .map-accordion {
-            margin-top: 10px;
-            border: 1px solid #444;
-            border-radius: 5px;
-            background-color: #333;
-            overflow: hidden;
             max-height: 0;
+            overflow: hidden;
             transition: max-height 0.3s ease;
         }
+
         .map-accordion.open {
-            max-height: 500px;
+            max-height: 400px;
         }
-        .map-accordion-content {
+
+        .map-content {
             padding: 15px;
+            border-top: 1px solid var(--border-glow);
         }
+
         .map-controls {
             display: flex;
             gap: 10px;
-            align-items: center;
-            margin-bottom: 10px;
             flex-wrap: wrap;
+            margin-bottom: 10px;
         }
+
         .coord-input {
             display: flex;
             align-items: center;
             gap: 5px;
         }
+
         .coord-input label {
-            font-weight: bold;
-            color: #cccccc;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
             margin: 0;
-            min-width: 30px;
-            font-size: 0.8em;
+            min-width: 25px;
         }
+
         .coord-input input {
             width: 70px;
             padding: 6px;
-            border: 1px solid #555;
+            border: 1px solid var(--border-glow);
             border-radius: 3px;
-            font-size: 0.85em;
-            background-color: #404040;
-            color: #e0e0e0;
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            font-size: 0.8rem;
         }
+
         .coord-input input:focus {
-            border-color: #4CAF50;
             outline: none;
+            border-color: var(--accent-cyan);
         }
-        .map-button {
-            padding: 6px 10px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
+
+        .map-btn {
+            padding: 6px 12px;
+            background: var(--bg-hover);
+            border: 1px solid var(--border-glow);
+            border-radius: 3px;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
             cursor: pointer;
-            font-size: 0.8em;
-            transition: background-color 0.3s ease;
+            transition: all 0.2s;
         }
-        .map-button:hover {
-            background-color: #45a049;
+
+        .map-btn:hover {
+            background: var(--accent-cyan);
+            color: var(--bg-void);
         }
-        .map-button.secondary {
-            background-color: #2196F3;
-        }
-        .map-button.secondary:hover {
-            background-color: #1976D2;
-        }
+
         #mini-map {
-            height: 250px;
-            width: 100%;
+            height: 200px;
             border-radius: 4px;
-            border: 1px solid #555;
+            border: 1px solid var(--border-glow);
         }
 
-        /* Ajout de media queries pour le responsive */
-        @media screen and (max-width: 480px) {
-            .container {
-                padding: 10px;
-                margin: 10px auto;
+        /* Messages Section */
+        .messages-panel {
+            background: var(--bg-card);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .message-nav {
+            display: flex;
+            gap: 8px;
+            padding: 10px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border-glow);
+        }
+
+        .nav-btn {
+            flex: 1;
+            padding: 8px;
+            background: var(--bg-hover);
+            border: 1px solid var(--border-glow);
+            border-radius: 3px;
+            color: var(--text-secondary);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .nav-btn:hover:not(:disabled) {
+            background: var(--accent-cyan);
+            color: var(--bg-void);
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .message-content {
+            padding: 15px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        /* Conversation Thread */
+        .conversation-thread {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message-item {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-glow);
+            padding: 12px;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .message-item.user-message {
+            border-left: 3px solid var(--accent-cyan);
+        }
+
+        .message-item.ai-response {
+            border-left: 3px solid var(--accent-green);
+            background: linear-gradient(135deg, var(--bg-panel), rgba(0, 255, 136, 0.03));
+            margin-left: 15px;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-glow);
+        }
+
+        .message-avatar {
+            font-size: 1.2rem;
+        }
+
+        .message-sender {
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .message-sender.user { color: var(--accent-cyan); }
+        .message-sender.ai { color: var(--accent-green); }
+
+        .message-tags {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-left: auto;
+        }
+
+        .message-tag {
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            background: var(--bg-card);
+            border-radius: 3px;
+            color: var(--text-dim);
+            font-weight: 600;
+        }
+
+        .message-tag.bro { background: rgba(0, 212, 255, 0.2); color: var(--accent-cyan); }
+        .message-tag.image { background: rgba(153, 102, 255, 0.2); color: var(--accent-purple); }
+        .message-tag.video { background: rgba(255, 51, 102, 0.2); color: var(--accent-red); }
+        .message-tag.music { background: rgba(255, 208, 0, 0.2); color: var(--accent-yellow); }
+        .message-tag.search { background: rgba(0, 255, 136, 0.2); color: var(--accent-green); }
+
+        .message-body {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: var(--text-primary);
+            word-wrap: break-word;
+        }
+
+        .message-body a {
+            color: var(--accent-cyan);
+            text-decoration: none;
+        }
+
+        .message-body a:hover {
+            text-decoration: underline;
+        }
+
+        /* Media Display */
+        .media-container {
+            margin-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .media-item {
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--bg-void);
+            border: 1px solid var(--border-glow);
+            position: relative;
+        }
+
+        .media-item img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .media-item img:hover {
+            transform: scale(1.02);
+        }
+
+        .media-item video {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            background: #000;
+        }
+
+        .media-item audio {
+            width: 100%;
+            display: block;
+            margin-top: 5px;
+        }
+
+        .media-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.7);
+            color: var(--accent-green);
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        .media-badge.video { color: var(--accent-red); }
+        .media-badge.audio { color: var(--accent-yellow); }
+        .media-badge.gif { color: var(--accent-purple); }
+
+        /* IPFS Link */
+        .ipfs-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-glow);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            text-decoration: none;
+            margin-top: 8px;
+            transition: all 0.2s;
+        }
+
+        .ipfs-link:hover {
+            background: var(--accent-cyan);
+            color: var(--bg-void);
+        }
+
+        .message-meta {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-glow);
+            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        /* AI Response Section */
+        .ai-response-section {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px dashed var(--border-glow);
+        }
+
+        .ai-response-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            font-size: 0.8rem;
+            color: var(--accent-green);
+        }
+
+        .ai-response-header .spinner-small {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--bg-card);
+            border-top-color: var(--accent-green);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .no-response {
+            color: var(--text-dim);
+            font-style: italic;
+            font-size: 0.85rem;
+        }
+
+        /* Lightbox */
+        .lightbox {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .lightbox.active {
+            display: flex;
+        }
+
+        .lightbox-content {
+            max-width: 95%;
+            max-height: 95%;
+            object-fit: contain;
+        }
+
+        .lightbox-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 2rem;
+            color: white;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 10px;
+        }
+
+        .lightbox-close:hover {
+            color: var(--accent-cyan);
+        }
+
+        /* Reply Count Badge */
+        .reply-count {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            background: var(--accent-green);
+            color: var(--bg-void);
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        .replies-section {
+            border-top: 1px solid var(--border-glow);
+            padding: 15px;
+        }
+
+        .replies-section h4 {
+            font-size: 0.85rem;
+            color: var(--accent-green);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .reply-item {
+            background: var(--bg-hover);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            border-left: 3px solid var(--accent-green);
+        }
+
+        .reply-item.bot-reply {
+            border-left-color: var(--accent-purple);
+            background: linear-gradient(135deg, var(--bg-hover), rgba(153, 102, 255, 0.05));
+        }
+
+        .reply-author {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .reply-author .bot-badge {
+            background: var(--accent-purple);
+            color: white;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 0.65rem;
+            font-weight: 700;
+        }
+
+        .reply-body {
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        .reply-body .media-container {
+            margin-top: 10px;
+        }
+
+        /* Debug Section */
+        details {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-glow);
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+
+        details summary {
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+
+        #debug-info {
+            padding: 10px 15px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            max-height: 150px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background: var(--bg-void);
+        }
+
+        #relay-list {
+            padding: 10px 15px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            list-style: none;
+        }
+
+        #relay-list li {
+            margin-bottom: 4px;
+        }
+
+        /* Quick Tags */
+        .quick-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 15px;
+        }
+
+        .quick-tag {
+            padding: 6px 10px;
+            background: var(--bg-hover);
+            border: 1px solid var(--border-glow);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-tag:hover {
+            border-color: var(--accent-cyan);
+            color: var(--text-primary);
+        }
+
+        .quick-tag.active {
+            background: var(--accent-cyan);
+            color: var(--bg-void);
+            border-color: var(--accent-cyan);
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .container-app {
+                padding: 8px;
             }
 
-            #location-controls {
-                margin-bottom: 10px;
+            .command-header {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
             }
 
-            #location-values {
+            .bro-tab {
+                min-width: 50px;
+                padding: 6px 4px;
+            }
+
+            .bro-tab .tab-icon {
+                font-size: 1rem;
+            }
+
+            .bro-tab .tab-label {
+                font-size: 0.55rem;
+            }
+
+            .location-values {
                 flex-direction: column;
                 gap: 10px;
             }
 
-            .coord-control {
-                width: 100%;
-            }
-
-            .coord-control > div {
-                justify-content: center;
-                flex-wrap: wrap;
-                gap: 2px;
-            }
-
             .tumbler {
-                padding: 4px 1px;
-                font-size: 0.85em;
                 min-width: 22px;
-                max-width: 28px;
-            }
-
-            .tumbler-dot {
-                font-size: 1em;
-                margin: 0 1px;
-            }
-
-            .map-controls {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 8px;
-            }
-
-            .coord-input {
-                justify-content: center;
+                max-width: 26px;
+                font-size: 0.8rem;
             }
         }
 
-        /* Ajustements pour les écrans très petits */
-        @media screen and (max-width: 320px) {
-            .tumbler {
-                padding: 3px 1px;
-                font-size: 0.8em;
-                min-width: 20px;
-                max-width: 24px;
-            }
+        /* Sub-options for services */
+        .service-options {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
         }
 
-        .tag-button {
-            padding: 4px 8px;
-            background-color: #444;
-            color: #fff;
-            border: 1px solid #555;
+        .service-option {
+            flex: 1;
+            min-width: 100px;
+            padding: 10px;
+            background: var(--bg-hover);
+            border: 1px solid var(--border-glow);
             border-radius: 4px;
             cursor: pointer;
-            font-size: 0.85em;
-            transition: all 0.3s ease;
-            white-space: nowrap;
-            flex: 1;
-            max-width: 100px;
+            transition: all 0.2s;
+            text-align: center;
         }
-        .sub-tags {
-            display: flex;
-            gap: 5px;
-            transition: opacity 0.3s ease;
+
+        .service-option:hover {
+            border-color: var(--accent-cyan);
         }
-        .sub-tags.show {
-            display: flex !important;
-            opacity: 1 !important;
+
+        .service-option.active {
+            background: var(--bg-card);
+            border-color: var(--accent-cyan);
         }
-        .tag-button:hover {
-            background-color: #555;
+
+        .service-option .option-icon {
+            font-size: 1.5rem;
+            margin-bottom: 4px;
         }
-        .tag-button.active {
-            background-color: #4CAF50;
-            border-color: #45a049;
+
+        .service-option .option-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .service-option .option-desc {
+            font-size: 0.65rem;
+            color: var(--text-dim);
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div id="nsec-warning" class="warning">
-             🌐️ UPlanet Geo Message 🌐
-        </div>
-        <script>
-        document.getElementById('nsec-warning').addEventListener('click', function() {
-            history.go(-1);
-        });
-        </script>
-        <div id="profile-display"><span>Loading profile...</span></div>
-
-        <!-- Wallet Balance Display -->
-        <div id="wallet-balance" style="margin: 15px 0; padding: 10px; background-color: #282828; border-radius: 5px; border: 1px solid #444;">
-            <div style="display: flex; justify-content: space-around; gap: 10px;">
-                <div class="balance-item" style="text-align: center; flex: 1;">
-                    <div style="font-size: 0.9em; color: #aaa;">G1 Balance</div>
-                    <div id="g1-balance" style="font-size: 1.2em; color: #4CAF50; font-weight: bold;">0 G1</div>
-                </div>
-                <div class="balance-item" style="text-align: center; flex: 1;">
-                    <div style="font-size: 0.9em; color: #aaa;">Zen Balance</div>
-                    <div id="zen-balance" style="font-size: 1.2em; color: #2196F3; font-weight: bold;">0 ZEN</div>
+    <div class="container-app">
+        <!-- Command Header -->
+        <header class="command-header">
+            <div class="logo-section" onclick="history.go(-1)">
+                <div class="logo-icon">🤖</div>
+                <div class="logo-text">
+                    <h1>#BRO SERVICES</h1>
+                    <div class="subtitle">UPLANET AI ASSISTANT</div>
                 </div>
             </div>
-        </div>
-        <button id="connectButton" disabled>Connect with Nostr</button>
-
-        <label for="message">Message:</label>
-        <textarea id="message" placeholder="..."></textarea>
-        <div id="tag-buttons" style="display: flex; gap: 5px; margin: 5px 0 15px 0; justify-content: center;">
-            <button type="button" class="tag-button main-tag" data-tag="#BRO">🤖 IA</button>
-            <div class="sub-tags" style="display: none; opacity: 0; transition: opacity 0.3s ease;">
-                <button type="button" class="tag-button" data-tag="#search">🔍 Search</button>
-                <button type="button" class="tag-button" data-tag="#market">💰 Market</button>
+            <div class="status-indicator">
+                <div class="status-dot online" id="connection-status"></div>
+                <span id="relay-status">READY</span>
             </div>
-        </div>
-        <label for="imageInput" class="button-like">📸 Photo</label>
-        <input type="file" id="imageInput" accept="image/*">
-        <img id="imagePreview" src="#" alt="Image Preview"/>
-        <button id="postButton" disabled>📍 Post</button>
-        <div class="spinner" id="loadingSpinner"></div>
-        <div id="status">Initializing...</div>
+        </header>
 
-        <!-- Location Adjustment UI -->
-        <div id="location-controls" style="margin-bottom: 15px; display: none;">
-            <div id="location-values" style="display: flex; justify-content: space-around; background-color: #333; padding: 8px; border-radius: 5px; gap: 10px;">
-                <!-- Latitude -->
-                <div class="coord-control">
-                    <label for="lat-sign" style="font-size: 0.8em; display: block; text-align: center; margin-bottom: 3px;">Latitude</label>
-                    <div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px;">
-                        <select id="lat-sign" class="tumbler">
-                            <option value="N">N</option>
-                            <option value="S">S</option>
-                        </select>
-                        <select id="lat-deg1" class="tumbler"></select>
-                        <select id="lat-deg0" class="tumbler"></select>
-                        <span class="tumbler-dot">.</span>
-                        <select id="lat-frac1" class="tumbler"></select>
-                        <select id="lat-frac0" class="tumbler"></select>
+        <!-- Profile & Wallet Panel -->
+        <div class="panel-card">
+            <div class="panel-header">
+                <div class="panel-title">👤 IDENTITY</div>
+                <button class="btn-secondary" id="connectButton" style="width: auto; padding: 6px 12px;" disabled>Connect</button>
+            </div>
+            <div class="panel-content">
+                <div id="profile-display">
+                    <span style="color: var(--text-dim);">Loading profile...</span>
+                </div>
+                <div class="wallet-grid">
+                    <div class="balance-box">
+                        <div class="balance-label">G1 BALANCE</div>
+                        <div class="balance-value g1" id="g1-balance">0 G1</div>
                     </div>
-                </div>
-                <!-- Longitude -->
-                <div class="coord-control">
-                    <label for="lon-sign" style="font-size: 0.8em; display: block; text-align: center; margin-bottom: 3px;">Longitude</label>
-                    <div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px;">
-                        <select id="lon-sign" class="tumbler">
-                            <option value="E">E</option>
-                            <option value="W">W</option>
-                        </select>
-                        <select id="lon-deg2" class="tumbler"></select>
-                        <select id="lon-deg1" class="tumbler"></select>
-                        <select id="lon-deg0" class="tumbler"></select>
-                        <span class="tumbler-dot">.</span>
-                        <select id="lon-frac1" class="tumbler"></select>
-                        <select id="lon-frac0" class="tumbler"></select>
+                    <div class="balance-box">
+                        <div class="balance-label">ZEN BALANCE</div>
+                        <div class="balance-value zen" id="zen-balance">0 ZEN</div>
                     </div>
                 </div>
             </div>
-            <div id="location-status" style="font-size: 0.8em; text-align: center; margin-top: 5px; color: #aaa;">Fetching location...</div>
-            
-            <!-- Map Accordion -->
-            <div id="map-accordion" class="map-accordion">
-                <div class="map-accordion-content">
-                    <div class="map-controls">
-                        <div class="coord-input">
-                            <label>Lat:</label>
-                            <input type="number" id="lat-display" step="0.01" min="-90" max="90">
+        </div>
+
+        <!-- BRO Services Panel -->
+        <div class="panel-card">
+            <!-- Service Tabs -->
+            <div class="bro-tabs">
+                <button class="bro-tab active" data-service="chat" onclick="switchService('chat')">
+                    <span class="tab-icon">💬</span>
+                    <span class="tab-label">CHAT</span>
+                </button>
+                <button class="bro-tab" data-service="image" onclick="switchService('image')">
+                    <span class="tab-icon">🖼️</span>
+                    <span class="tab-label">IMAGE</span>
+                </button>
+                <button class="bro-tab" data-service="video" onclick="switchService('video')">
+                    <span class="tab-icon">🎬</span>
+                    <span class="tab-label">VIDEO</span>
+                </button>
+                <button class="bro-tab" data-service="music" onclick="switchService('music')">
+                    <span class="tab-icon">🎵</span>
+                    <span class="tab-label">MUSIC</span>
+                </button>
+                <button class="bro-tab" data-service="search" onclick="switchService('search')">
+                    <span class="tab-icon">🔍</span>
+                    <span class="tab-label">SEARCH</span>
+                </button>
+                <button class="bro-tab" data-service="nature" onclick="switchService('nature')">
+                    <span class="tab-icon">🌿</span>
+                    <span class="tab-label">NATURE</span>
+                </button>
+                <button class="bro-tab" data-service="memory" onclick="switchService('memory')">
+                    <span class="tab-icon">🧠</span>
+                    <span class="tab-label">MEMORY</span>
+                </button>
+            </div>
+
+            <!-- Chat Service -->
+            <div class="service-panel active" id="panel-chat">
+                <div class="service-description">
+                    <h3>💬 Chat with AI</h3>
+                    <p>Have a conversation with your AI assistant. Ask questions, get help, or just chat.</p>
+                    <div class="service-example">Example: "What is the Ğ1 libre currency?"</div>
+                </div>
+                <label for="message-chat">Your message:</label>
+                <textarea id="message-chat" placeholder="Type your message here..."></textarea>
+            </div>
+
+            <!-- Image Service -->
+            <div class="service-panel" id="panel-image">
+                <div class="service-description">
+                    <h3>🖼️ Image Generation</h3>
+                    <p>Generate unique images with Stable Diffusion via ComfyUI. Describe what you want to see.</p>
+                    <div class="service-example">Example: "A cyberpunk cityscape at sunset, neon lights"</div>
+                </div>
+                <label for="message-image">Describe your image:</label>
+                <textarea id="message-image" placeholder="Describe the image you want to generate..."></textarea>
+            </div>
+
+            <!-- Video Service -->
+            <div class="service-panel" id="panel-video">
+                <div class="service-description">
+                    <h3>🎬 Video Generation</h3>
+                    <p>Create videos with Wan2.2 AI models. Choose Text-to-Video or Image-to-Video mode.</p>
+                </div>
+                <div class="service-options">
+                    <div class="service-option active" data-mode="t2v" onclick="selectVideoMode('t2v')">
+                        <div class="option-icon">📝</div>
+                        <div class="option-title">Text-to-Video</div>
+                        <div class="option-desc">Generate from text prompt</div>
+                    </div>
+                    <div class="service-option" data-mode="i2v" onclick="selectVideoMode('i2v')">
+                        <div class="option-icon">🖼️</div>
+                        <div class="option-title">Image-to-Video</div>
+                        <div class="option-desc">Animate your image</div>
+                    </div>
+                </div>
+                <div id="video-t2v-section">
+                    <div class="service-example" style="margin-bottom: 15px;">Example: "A dragon flying over mountains, cinematic"</div>
+                    <label for="message-video">Describe your video:</label>
+                    <textarea id="message-video" placeholder="Describe the video scene..."></textarea>
+                </div>
+                <div id="video-i2v-section" style="display: none;">
+                    <div class="service-example" style="margin-bottom: 15px;">Upload an image, then describe the motion you want.</div>
+                    <label class="image-upload-zone" for="imageInputVideo" id="upload-zone-video">
+                        <div class="upload-icon">📸</div>
+                        <div class="upload-text">Click to upload source image</div>
+                    </label>
+                    <input type="file" id="imageInputVideo" accept="image/*">
+                    <img id="imagePreviewVideo" src="#" alt="Preview"/>
+                    <label for="message-video-i2v">Describe the motion:</label>
+                    <textarea id="message-video-i2v" placeholder="Ex: The character slowly turns their head and smiles..."></textarea>
+                </div>
+            </div>
+
+            <!-- Music Service -->
+            <div class="service-panel" id="panel-music">
+                <div class="service-description">
+                    <h3>🎵 Music Generation</h3>
+                    <p>Create original music with AceStep AI. Specify genre, tempo, and optionally add lyrics.</p>
+                    <div class="service-example">Example: "funk house electro 120bpm"</div>
+                </div>
+                <label for="message-music">Music style & description:</label>
+                <textarea id="message-music" placeholder="Ex: jazz piano ballad 80bpm"></textarea>
+                <div class="quick-tags" style="margin-top: 10px;">
+                    <span class="quick-tag" onclick="toggleTag(this, 'music', '#parole')">🎤 +Lyrics</span>
+                </div>
+                <div id="lyrics-section" style="display: none; margin-top: 10px;">
+                    <label for="message-lyrics">Lyrics (optional):</label>
+                    <textarea id="message-lyrics" placeholder="[verse]&#10;Your lyrics here...&#10;[chorus]&#10;Chorus lyrics..."></textarea>
+                </div>
+            </div>
+
+            <!-- Search Service -->
+            <div class="service-panel" id="panel-search">
+                <div class="service-description">
+                    <h3>🔍 Intelligent Search</h3>
+                    <p>Search the web with Perplexica, your decentralized search engine. Get synthesized answers.</p>
+                    <div class="service-example">Example: "Latest developments in Nostr protocol"</div>
+                </div>
+                <label for="message-search">Your search query:</label>
+                <textarea id="message-search" placeholder="What do you want to search for?"></textarea>
+            </div>
+
+            <!-- Nature Service -->
+            <div class="service-panel" id="panel-nature">
+                <div class="service-description">
+                    <h3>🌿 Nature Recognition</h3>
+                    <p>Identify plants, insects, and animals with AI. Your observations contribute to biodiversity tracking.</p>
+                </div>
+                <div class="service-options">
+                    <div class="service-option active" data-mode="plantnet" onclick="selectNatureMode('plantnet')">
+                        <div class="option-icon">🌱</div>
+                        <div class="option-title">PlantNet</div>
+                        <div class="option-desc">Plant identification</div>
+                    </div>
+                    <div class="service-option" data-mode="inventory" onclick="selectNatureMode('inventory')">
+                        <div class="option-icon">📦</div>
+                        <div class="option-title">Inventory</div>
+                        <div class="option-desc">Auto-classify</div>
+                    </div>
+                </div>
+                <label class="image-upload-zone" for="imageInputNature" id="upload-zone-nature">
+                    <div class="upload-icon">📸</div>
+                    <div class="upload-text">Upload a photo to identify</div>
+                </label>
+                <input type="file" id="imageInputNature" accept="image/*">
+                <img id="imagePreviewNature" src="#" alt="Preview"/>
+                <label for="message-nature">Additional notes (optional):</label>
+                <textarea id="message-nature" placeholder="Any additional context..."></textarea>
+            </div>
+
+            <!-- Memory Service -->
+            <div class="service-panel" id="panel-memory">
+                <div class="service-description">
+                    <h3>🧠 Memory Management</h3>
+                    <p>View or reset your AI conversation memory. Memory slots are available for CopyLaRadio members.</p>
+                </div>
+                <div class="service-options">
+                    <div class="service-option active" data-mode="view" onclick="selectMemoryMode('view')">
+                        <div class="option-icon">👁️</div>
+                        <div class="option-title">View Memory</div>
+                        <div class="option-desc">See conversation history</div>
+                    </div>
+                    <div class="service-option" data-mode="reset" onclick="selectMemoryMode('reset')">
+                        <div class="option-icon">🔄</div>
+                        <div class="option-title">Reset Memory</div>
+                        <div class="option-desc">Start fresh</div>
+                    </div>
+                </div>
+                <div id="memory-view-info" class="service-example" style="margin-top: 15px;">
+                    Click "Send" to retrieve your current memory state.
+                </div>
+            </div>
+
+            <!-- Common Elements -->
+            <div class="panel-content">
+                <!-- Image Upload (for general use) -->
+                <div id="general-image-upload" style="display: none;">
+                    <label class="image-upload-zone" for="imageInput" id="upload-zone-general">
+                        <div class="upload-icon">📸</div>
+                        <div class="upload-text">Attach an image (optional)</div>
+                    </label>
+                    <input type="file" id="imageInput" accept="image/*">
+                    <img id="imagePreview" src="#" alt="Preview"/>
+                </div>
+
+                <!-- Location Panel -->
+                <div class="location-panel" id="location-controls" style="display: none;">
+                    <div class="location-header">
+                        <div class="location-title">📍 Location</div>
+                    </div>
+                    <div class="location-values">
+                        <div class="coord-control">
+                            <div class="coord-label">Latitude</div>
+                            <div class="tumbler-row">
+                                <select id="lat-sign" class="tumbler">
+                                    <option value="N">N</option>
+                                    <option value="S">S</option>
+                                </select>
+                                <select id="lat-deg1" class="tumbler"></select>
+                                <select id="lat-deg0" class="tumbler"></select>
+                                <span class="tumbler-dot">.</span>
+                                <select id="lat-frac1" class="tumbler"></select>
+                                <select id="lat-frac0" class="tumbler"></select>
+                            </div>
                         </div>
-                        <div class="coord-input">
-                            <label>Lon:</label>
-                            <input type="number" id="lon-display" step="0.01" min="-180" max="180">
+                        <div class="coord-control">
+                            <div class="coord-label">Longitude</div>
+                            <div class="tumbler-row">
+                                <select id="lon-sign" class="tumbler">
+                                    <option value="E">E</option>
+                                    <option value="W">W</option>
+                                </select>
+                                <select id="lon-deg2" class="tumbler"></select>
+                                <select id="lon-deg1" class="tumbler"></select>
+                                <select id="lon-deg0" class="tumbler"></select>
+                                <span class="tumbler-dot">.</span>
+                                <select id="lon-frac1" class="tumbler"></select>
+                                <select id="lon-frac0" class="tumbler"></select>
+                            </div>
                         </div>
-                        <button type="button" class="map-button" id="update-map">Y aller</button>
-                        <button type="button" class="map-button secondary" id="get-location">Ma position</button>
                     </div>
-                    <div id="mini-map"></div>
-                    <div style="padding: 8px 0; font-size: 0.8em; color: #aaa; text-align: center;">
-                        💡 Cliquez sur la carte pour ajuster votre position
+                    <div id="location-status">📍 Click to open map</div>
+                    <div id="map-accordion" class="map-accordion">
+                        <div class="map-content">
+                            <div class="map-controls">
+                                <div class="coord-input">
+                                    <label>Lat:</label>
+                                    <input type="number" id="lat-display" step="0.01" min="-90" max="90">
+                                </div>
+                                <div class="coord-input">
+                                    <label>Lon:</label>
+                                    <input type="number" id="lon-display" step="0.01" min="-180" max="180">
+                                </div>
+                                <button type="button" class="map-btn" id="update-map">Go</button>
+                                <button type="button" class="map-btn" id="get-location">📍 My location</button>
+                            </div>
+                            <div id="mini-map"></div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
-        <!-- Message Section -->
-        <div id="message-section">
-            <!-- Navigation Buttons -->
-            <div id="message-navigation">
-                <button id="older-button" disabled> < </button>
-                <button id="refresh-button">___</button>
-                <button id="newer-button" disabled> > </button>
-            </div>
-            <div id="last-message-area">Loading messages...</div>
-            <div id="replies-area">
-                <h3>Replies</h3>
-                <ul id="replies-list"><li>Select a message to see replies...</li></ul>
+
+                <!-- Post Button -->
+                <button class="btn-primary" id="postButton" disabled>
+                    <span>🚀</span>
+                    <span>SEND</span>
+                </button>
+
+                <div class="spinner" id="loadingSpinner"></div>
+                <div id="status">Initializing...</div>
             </div>
         </div>
 
+        <!-- Messages Panel -->
+        <div class="panel-card" id="message-section" style="display: none;">
+            <div class="panel-header">
+                <div class="panel-title">📨 MESSAGES</div>
+            </div>
+            <div class="messages-panel">
+                <div class="message-nav">
+                    <button class="nav-btn" id="older-button" disabled>◀ Older</button>
+                    <button class="nav-btn" id="refresh-button">↻ Refresh</button>
+                    <button class="nav-btn" id="newer-button" disabled>Newer ▶</button>
+                </div>
+                <div class="message-content">
+                    <div id="last-message-area">Loading messages...</div>
+                </div>
+                <div class="replies-section" id="replies-area">
+                    <h4>🤖 AI Response <span class="reply-count" style="display: none;">0</span></h4>
+                    <ul id="replies-list" style="list-style: none; padding: 0; margin: 0;">
+                        <li class="reply-item" style="color: var(--text-dim);">Select a message to see AI response...</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Debug Section -->
         <details>
-            <summary>Show Relays & Debug</summary>
-            <div id="relay-list-container" style="margin-top: 10px;">
-                <span style="font-size: 0.9em; color: #bbb;">Publishing to:</span>
+            <summary>🔧 Debug & Relays</summary>
+            <div id="relay-list-container">
+                <span style="font-size: 0.8rem; color: var(--text-dim); padding: 10px; display: block;">Publishing to:</span>
                 <ul id="relay-list"><li>Loading relays...</li></ul>
             </div>
             <div id="debug-info"></div>
         </details>
     </div>
 
+    <!-- Lightbox for media -->
+    <div class="lightbox" id="lightbox">
+        <button class="lightbox-close" onclick="closeLightbox()">×</button>
+        <img class="lightbox-content" id="lightbox-img" src="#" alt="Full size"/>
+    </div>
+
     <script>
         // --- Configuration ---
-        const userNsec = ''; // Leave empty for extension
-        const MESSAGES_PER_PAGE = 10; // How many messages to fetch at once
-        let manualLocationSet = false; // Flag to track if UI is populated
+        const userNsec = '';
+        const MESSAGES_PER_PAGE = 10;
+        let manualLocationSet = false;
+
         // --- Global Variables ---
         let debugInfo = '';
         let nostrExtensionAvailable = false;
         let privateKeyHex = null;
         let publicKey = '';
         let userProfile = null;
-        let fetchedMessages = []; // Store the batch of fetched messages
-        let currentMessageIndex = 0; // Index of the currently displayed message
+        let fetchedMessages = [];
+        let currentMessageIndex = 0;
         let pool = null;
         let selectedImageDataUrl = null;
         let currentLatitude = null;
@@ -434,35 +1541,211 @@
         const DEFAULT_RELAYS = ['wss://relay.copylaradio.com', 'ws://127.0.0.1:7777'];
         let allRelaysToPublish = [...DEFAULT_RELAYS];
 
+        // Service state
+        let currentService = 'chat';
+        let videoMode = 't2v';
+        let natureMode = 'plantnet';
+        let memoryMode = 'view';
+
+        // --- Service Switching ---
+        function switchService(service) {
+            currentService = service;
+            
+            // Update tabs
+            document.querySelectorAll('.bro-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.service === service);
+            });
+            
+            // Update panels
+            document.querySelectorAll('.service-panel').forEach(panel => {
+                panel.classList.toggle('active', panel.id === `panel-${service}`);
+            });
+
+            // Show/hide general image upload based on service
+            const showImageUpload = ['chat'].includes(service);
+            document.getElementById('general-image-upload').style.display = showImageUpload ? 'block' : 'none';
+        }
+
+        function selectVideoMode(mode) {
+            videoMode = mode;
+            document.querySelectorAll('#panel-video .service-option').forEach(opt => {
+                opt.classList.toggle('active', opt.dataset.mode === mode);
+            });
+            document.getElementById('video-t2v-section').style.display = mode === 't2v' ? 'block' : 'none';
+            document.getElementById('video-i2v-section').style.display = mode === 'i2v' ? 'block' : 'none';
+        }
+
+        function selectNatureMode(mode) {
+            natureMode = mode;
+            document.querySelectorAll('#panel-nature .service-option').forEach(opt => {
+                opt.classList.toggle('active', opt.dataset.mode === mode);
+            });
+        }
+
+        function selectMemoryMode(mode) {
+            memoryMode = mode;
+            document.querySelectorAll('#panel-memory .service-option').forEach(opt => {
+                opt.classList.toggle('active', opt.dataset.mode === mode);
+            });
+            const infoText = mode === 'view' 
+                ? 'Click "Send" to retrieve your current memory state.'
+                : '⚠️ This will clear your conversation history. Click "Send" to confirm.';
+            document.getElementById('memory-view-info').textContent = infoText;
+        }
+
+        function toggleTag(element, service, tag) {
+            element.classList.toggle('active');
+            if (tag === '#parole') {
+                document.getElementById('lyrics-section').style.display = 
+                    element.classList.contains('active') ? 'block' : 'none';
+            }
+        }
+
+        // --- Build Message Content ---
+        function buildMessageContent() {
+            let tags = '#BRO ';
+            let content = '';
+
+            switch (currentService) {
+                case 'chat':
+                    content = document.getElementById('message-chat').value.trim();
+                    break;
+                case 'image':
+                    tags += '#image ';
+                    content = document.getElementById('message-image').value.trim();
+                    break;
+                case 'video':
+                    tags += '#video ';
+                    if (videoMode === 't2v') {
+                        content = document.getElementById('message-video').value.trim();
+                    } else {
+                        content = document.getElementById('message-video-i2v').value.trim();
+                    }
+                    break;
+                case 'music':
+                    tags += '#music ';
+                    content = document.getElementById('message-music').value.trim();
+                    const lyricsTag = document.querySelector('#panel-music .quick-tag');
+                    if (lyricsTag && lyricsTag.classList.contains('active')) {
+                        const lyrics = document.getElementById('message-lyrics').value.trim();
+                        if (lyrics) {
+                            content += '\n#parole\n' + lyrics;
+                        }
+                    }
+                    break;
+                case 'search':
+                    tags += '#search ';
+                    content = document.getElementById('message-search').value.trim();
+                    break;
+                case 'nature':
+                    tags += natureMode === 'plantnet' ? '#plantnet ' : '#inventory ';
+                    content = document.getElementById('message-nature').value.trim();
+                    break;
+                case 'memory':
+                    tags = memoryMode === 'view' ? '#BRO #mem' : '#BRO #reset';
+                    content = '';
+                    break;
+            }
+
+            return tags + content;
+        }
+
+        // --- Get selected image based on service ---
+        function getSelectedImageForService() {
+            if (currentService === 'video' && videoMode === 'i2v') {
+                return document.getElementById('imagePreviewVideo').src !== '#' 
+                    ? document.getElementById('imagePreviewVideo').src : null;
+            }
+            if (currentService === 'nature') {
+                return document.getElementById('imagePreviewNature').src !== '#'
+                    ? document.getElementById('imagePreviewNature').src : null;
+            }
+            return selectedImageDataUrl;
+        }
+
         // --- Helper Functions ---
-        function log(message) { console.log(message); const ts = new Date().toLocaleTimeString(); debugInfo += `[${ts}] ${message}\n`; const lines = debugInfo.split('\n'); if (lines.length > 150) debugInfo = lines.slice(-150).join('\n'); $('#debug-info').text(debugInfo); const el = document.getElementById('debug-info'); if (el) el.scrollTop = el.scrollHeight; }
-        function updateStatus(message, isError = false, isSuccess = false) { log(`Status Update: ${message}`); const el = $('#status'); el.text(message); let bg = '#333', fg = '#ccc'; if (isError) { bg = '#5c3a3a'; fg = '#ff6b6b'; } else if (isSuccess) { bg = '#3a5c3a'; fg = '#90ee90'; } el.css({ 'background-color': bg, 'color': fg }); }
-        function showLoading(show) { $('#loadingSpinner').toggle(show); $('#postButton').prop('disabled', show || !publicKey); }
-        function getRelayURL() { const u = new URL(window.location.href); let r = u.hostname.replace(/^u\./, 'relay.'); if (u.port === '54321' || ['localhost', '127.0.0.1'].includes(u.hostname)) return `ws://127.0.0.1:7777`; return `wss://${r}`; }
-        function updateRelayListUI() { const l = $('#relay-list').empty(); if (allRelaysToPublish.length > 0) allRelaysToPublish.forEach(r => { const li = $('<li>').text(r); if (r === userProfile?.source) { li.prepend('📌 '); } li.appendTo(l); }); log(`UI updated: ${allRelaysToPublish.length} relays.`); }
+        function log(message) {
+            console.log(message);
+            const ts = new Date().toLocaleTimeString();
+            debugInfo += `[${ts}] ${message}\n`;
+            const lines = debugInfo.split('\n');
+            if (lines.length > 150) debugInfo = lines.slice(-150).join('\n');
+            $('#debug-info').text(debugInfo);
+            const el = document.getElementById('debug-info');
+            if (el) el.scrollTop = el.scrollHeight;
+        }
 
+        function updateStatus(message, isError = false, isSuccess = false) {
+            log(`Status Update: ${message}`);
+            const el = $('#status');
+            el.text(message);
+            el.removeClass('success error');
+            if (isError) el.addClass('error');
+            else if (isSuccess) el.addClass('success');
+        }
 
+        function showLoading(show) {
+            $('#loadingSpinner').toggleClass('visible', show);
+            $('#postButton').prop('disabled', show || !publicKey);
+        }
+
+        function getRelayURL() {
+            const u = new URL(window.location.href);
+            let r = u.hostname.replace(/^u\./, 'relay.');
+            if (u.port === '54321' || ['localhost', '127.0.0.1'].includes(u.hostname)) return `ws://127.0.0.1:7777`;
+            return `wss://${r}`;
+        }
+
+        function updateRelayListUI() {
+            const l = $('#relay-list').empty();
+            if (allRelaysToPublish.length > 0) {
+                allRelaysToPublish.forEach(r => {
+                    const li = $('<li>').text(r);
+                    if (r === userProfile?.source) li.prepend('📌 ');
+                    li.appendTo(l);
+                });
+            }
+            log(`UI updated: ${allRelaysToPublish.length} relays.`);
+        }
 
         // --- Nostr Interaction Functions ---
-        function getNostrPool() { if (!pool) { if (typeof NostrTools?.SimplePool !== 'function') { const m = "Error: NostrTools.SimplePool undef/not func!"; log(m); console.error(m, "NostrTools:", NostrTools); updateStatus(m, true); throw new Error(m); } try { log("Init SimplePool..."); pool = new NostrTools.SimplePool({ getTimeout: 6000, listTimeout: 6000 }); if (typeof pool?.list !== 'function' || typeof pool?.get !== 'function') { log("Error: Pool missing methods."); console.error("Bad pool:", pool); pool = null; throw new Error("Pool invalid."); } log("Pool init OK."); } catch (e) { log(`Pool init error: ${e.message}`); console.error("Pool Init Details:", e); updateStatus("Fail pool init.", true); throw e; } } if (!pool) { const m = "Error: Pool null after init."; log(m); updateStatus("Relay pool N/A.", true); throw new Error(m); } return pool; }
+        function getNostrPool() {
+            if (!pool) {
+                if (typeof NostrTools?.SimplePool !== 'function') {
+                    const m = "Error: NostrTools.SimplePool undefined!";
+                    log(m);
+                    updateStatus(m, true);
+                    throw new Error(m);
+                }
+                try {
+                    log("Init SimplePool...");
+                    pool = new NostrTools.SimplePool({ getTimeout: 6000, listTimeout: 6000 });
+                    log("Pool init OK.");
+                } catch (e) {
+                    log(`Pool init error: ${e.message}`);
+                    updateStatus("Fail pool init.", true);
+                    throw e;
+                }
+            }
+            return pool;
+        }
+
         async function fetchProfileAndRelays(pubkey) {
-            log(`Fetching profile/relays for ${pubkey.slice(0,10)}...`);
+            log(`Fetching profile/relays for ${pubkey.slice(0, 10)}...`);
             let nostrPool;
             try {
                 nostrPool = getNostrPool();
             } catch (e) {
-                log("Pool fail in fetchProfileRelays.");
                 return {};
             }
 
             let profileEv = null;
             let relayEv = null;
             let userRelays = [];
-            let userProfile = {};
+            let profileData = {};
             let profileSource = '';
 
             try {
-                // Fetch from each relay individually to track the source
                 for (const relay of DEFAULT_RELAYS) {
                     try {
                         const events = await nostrPool.list([relay], [
@@ -474,47 +1757,15 @@
                             if (!profileEv || event.created_at > profileEv.created_at) {
                                 profileEv = event;
                                 profileSource = relay;
-                                log(`Profile from relay: ${profileSource}`);
                                 
-                                // Extract additional fields from tags
                                 if (event.tags) {
                                     event.tags.forEach(tag => {
                                         if (tag[0] === 'i') {
                                             const [type, value] = tag[1].split(':');
                                             switch(type) {
-                                                case 'g1pub':
-                                                    userProfile.g1_address = value;
-                                                    log(`Found G1 address: ${value}`);
-                                                    break;
-                                                case 'g1pubv2':
-                                                    userProfile.g1_address_v2 = value;
-                                                    log(`Found G1 address v2: ${value}`);
-                                                    break;
-                                                case 'zencard':
-                                                    userProfile.zen_address = value;
-                                                    log(`Found Zen address: ${value}`);
-                                                    break;
-                                                case 'github':
-                                                    userProfile.github = value;
-                                                    break;
-                                                case 'twitter':
-                                                    userProfile.twitter = value;
-                                                    break;
-                                                case 'mastodon':
-                                                    userProfile.mastodon = value;
-                                                    break;
-                                                case 'telegram':
-                                                    userProfile.telegram = value;
-                                                    break;
-                                                case 'ipfs_gw':
-                                                    userProfile.ipfs_gw = value;
-                                                    break;
-                                                case 'ipns_vault':
-                                                    userProfile.ipns_vault = value;
-                                                    break;
-                                                case 'tw_feed':
-                                                    userProfile.tw_feed = value;
-                                                    break;
+                                                case 'g1pub': profileData.g1_address = value; break;
+                                                case 'g1pubv2': profileData.g1_address_v2 = value; break;
+                                                case 'zencard': profileData.zen_address = value; break;
                                             }
                                         }
                                     });
@@ -526,56 +1777,46 @@
                     }
                 }
 
-                // Now fetch relay list
                 const relayEvents = await nostrPool.list(DEFAULT_RELAYS, [
                     { kinds: [10002], authors: [pubkey], limit: 1 }
                 ]);
 
                 if (relayEvents.length > 0) {
                     relayEv = relayEvents[0];
-                    log(`Relay list event: ${relayEv.id}`);
                     userRelays = relayEv.tags
                         .filter(t => t[0] === 'r' && typeof t[1] === 'string' && t[1].startsWith('wss://'))
                         .map(t => t[1]);
-                    log(`Extracted ${userRelays.length} relays.`);
                 }
 
                 if (profileEv) {
-                    log(`Profile event: ${profileEv.id}`);
                     try {
                         const parsedContent = JSON.parse(profileEv.content);
-                        userProfile = { ...userProfile, ...parsedContent }; // Merge with existing profile data
-                        userProfile.source = profileSource; // Add source to profile data
-                        log(`Profile data: ${JSON.stringify(userProfile, null, 2)}`);
+                        profileData = { ...profileData, ...parsedContent };
+                        profileData.source = profileSource;
                     } catch (e) {
                         log(`Profile parse error: ${e.message}`);
-                        userProfile = {};
                     }
                 }
 
+                userProfile = profileData;
                 const dyn = getRelayURL();
                 const comb = new Set([...DEFAULT_RELAYS, dyn, ...userRelays]);
                 allRelaysToPublish = [...comb];
                 updateRelayListUI();
+                renderProfile(pubkey, profileData);
                 
-                // Render profile first
-                renderProfile(pubkey, userProfile);
-                
-                // Then check wallet balances if addresses are available
-                if (userProfile.g1_address || userProfile.g1_address_v2) {
-                    log("Checking G1 wallet balances...");
-                    await checkG1Balances(userProfile);
+                if (profileData.g1_address || profileData.g1_address_v2) {
+                    await checkG1Balances(profileData);
                 }
                 
-                return userProfile;
+                return profileData;
             } catch (e) {
                 log(`Error fetching profile/relays: ${e}`);
-                updateStatus('Error fetching profile/relay.', true);
+                updateStatus('Error fetching profile.', true);
                 return {};
             }
         }
 
-        // Fonction pour vérifier les soldes G1 et calculer ZEN
         async function checkG1Balances(profileData) {
             try {
                 let g1Balance = 0;
@@ -583,30 +1824,22 @@
                 if (profileData.g1_address) {
                     const response = await fetch(`/check_balance?g1pub=${profileData.g1_address}`);
                     const data = await response.json();
-                    const balance = parseFloat(data.balance) || 0;
-                    $('#g1-balance-v1').text(`${balance} G1`);
-                    $('#g1-balance').text(`${balance} G1`); // Update main balance display
-                    g1Balance = balance; // Use this balance for ZEN calculation
+                    g1Balance = parseFloat(data.balance) || 0;
+                    $('#g1-balance').text(`${g1Balance.toFixed(2)} G1`);
                 }
-                if (profileData.g1_address_v2) {
+                if (profileData.g1_address_v2 && !profileData.g1_address) {
                     const response = await fetch(`/check_balance?g1pub=${profileData.g1_address_v2}`);
                     const data = await response.json();
-                    const balance = parseFloat(data.balance) || 0;
-                    $('#g1-balance-v2').text(`${balance} G1`);
-                    // Use V2 balance for ZEN calculation if V1 is not available
-                    if (!profileData.g1_address) {
-                        g1Balance = balance;
-                    }
+                    g1Balance = parseFloat(data.balance) || 0;
+                    $('#g1-balance').text(`${g1Balance.toFixed(2)} G1`);
                 }
                 
-                // Calculate ZEN balance using the formula: (G1_BALANCE - 1) * 10
                 const zenBalance = Math.floor((g1Balance - 1) * 10);
                 $('#zen-balance').text(`${zenBalance} ZEN`);
                 
             } catch (error) {
-                log(`Error checking G1 balances: ${error.message}`);
-                $('#g1-balance-v1, #g1-balance-v2').text('Error loading balance');
-                $('#g1-balance').text('Error loading balance');
+                log(`Error checking balances: ${error.message}`);
+                $('#g1-balance').text('Error');
                 $('#zen-balance').text('Error');
             }
         }
@@ -617,243 +1850,97 @@
             const pic = profileData?.picture || defPic;
             const name = profileData?.display_name || profileData?.name || pubkey.slice(0, 16);
             const nip05 = profileData?.nip05 || '';
-            const source = profileData?.source || 'unknown';
 
-            // Création de la structure du profil
-            const profileContainer = $('<div>').addClass('profile-container').appendTo(div);
-            
-            // Image et info de base
-            const basicInfo = $('<div>').addClass('profile-basic-info').appendTo(profileContainer);
             $('<img>').attr('src', pic).on('error', function() {
                 $(this).attr('src', defPic);
-            }).appendTo(basicInfo);
+            }).appendTo(div);
             
-            const infoDiv = $('<div>').addClass('profile-info').appendTo(basicInfo);
-            $('<span>').addClass('profile-name').text(name).appendTo(infoDiv);
-            if (nip05) $('<span>').addClass('profile-nip05').text(nip05).appendTo(infoDiv);
-
-            // Section des portefeuilles G1
-            if (profileData.g1_address || profileData.g1_address_v2) {
-                const walletSection = $('<div>').addClass('wallet-section').appendTo(profileContainer);
-                const g1Wallet = $('<div>').addClass('wallet-info').appendTo(walletSection);
-                
-                $('<div>').addClass('wallet-label').text('G1 Wallets').appendTo(g1Wallet);
-                
-                if (profileData.g1_address) {
-                    const v1Wallet = $('<div>').addClass('wallet-version').appendTo(g1Wallet);
-                    $('<div>').addClass('wallet-address')
-                        .text(`V1: ${profileData.g1_address}`)
-                        .appendTo(v1Wallet);
-                    $('<div>').addClass('wallet-balance')
-                        .html('<span class="balance-label">Balance:</span> <span id="g1-balance-v1" class="balance-amount">Loading...</span>')
-                        .appendTo(v1Wallet);
-                }
-                
-                if (profileData.g1_address_v2) {
-                    const v2Wallet = $('<div>').addClass('wallet-version').appendTo(g1Wallet);
-                    $('<div>').addClass('wallet-address')
-                        .text(`V2: ${profileData.g1_address_v2}`)
-                        .appendTo(v2Wallet);
-                    $('<div>').addClass('wallet-balance')
-                        .html('<span class="balance-label">Balance:</span> <span id="g1-balance-v2" class="balance-amount">Loading...</span>')
-                        .appendTo(v2Wallet);
-                }
-            }
-
-            // Ajout des styles CSS
-            $('<style>').text(`
-                .profile-container {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 15px;
-                    padding: 15px;
-                    background: #232733;
-                    border-radius: 8px;
-                }
-                .profile-basic-info {
-                    display: flex;
-                    align-items: center;
-                    gap: 15px;
-                }
-                .wallet-section {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 10px;
-                    margin-top: 10px;
-                }
-                .wallet-info {
-                    background: #1e2533;
-                    padding: 15px;
-                    border-radius: 6px;
-                }
-                .wallet-label {
-                    font-weight: bold;
-                    color: #4CAF50;
-                    margin-bottom: 10px;
-                    font-size: 1.1em;
-                }
-                .wallet-version {
-                    background: #2a2f3a;
-                    padding: 10px;
-                    border-radius: 4px;
-                    margin-bottom: 10px;
-                }
-                .wallet-address {
-                    font-family: monospace;
-                    font-size: 0.9em;
-                    color: #b8c6e0;
-                    word-break: break-all;
-                    margin: 5px 0;
-                }
-                .wallet-balance {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-top: 5px;
-                    padding-top: 5px;
-                    border-top: 1px solid #333;
-                }
-                .balance-label {
-                    color: #b8c6e0;
-                }
-                .balance-amount {
-                    color: #4CAF50;
-                    font-weight: bold;
-                }
-                #g1-balance, #zen-balance {
-                    font-size: 1.2em;
-                    font-weight: bold;
-                    color: #4CAF50;
-                }
-            `).appendTo('head');
+            const infoDiv = $('<div>').addClass('profile-info').appendTo(div);
+            $('<div>').addClass('profile-name').text(name).appendTo(infoDiv);
+            if (nip05) $('<div>').addClass('profile-nip05').text(nip05).appendTo(infoDiv);
         }
 
         // --- Location UI Helper Functions ---
-
-        // Populate a select dropdown with numbers
         function populateSelect(selectId, start, end) {
             const select = document.getElementById(selectId);
             if (!select) return;
-            select.innerHTML = ''; // Clear existing options
+            select.innerHTML = '';
             for (let i = start; i <= end; i++) {
                 const option = document.createElement('option');
                 option.value = i;
-                option.textContent = i.toString().padStart(end.toString().length > 1 && i < 10 ? end.toString().length : 1, '0'); // Pad with 0 if needed (e.g., 0-9 -> 0,1..9; 0-10 -> 00,01..10)
+                option.textContent = i.toString().padStart(end > 9 ? 2 : 1, '0');
                 select.appendChild(option);
             }
         }
 
-        // Populate all location selects with default ranges
         function initializeLocationSelects() {
             populateSelect('lat-deg1', 0, 9);
             populateSelect('lat-deg0', 0, 9);
             populateSelect('lat-frac1', 0, 9);
             populateSelect('lat-frac0', 0, 9);
-
             populateSelect('lon-deg2', 0, 1);
             populateSelect('lon-deg1', 0, 9);
             populateSelect('lon-deg0', 0, 9);
             populateSelect('lon-frac1', 0, 9);
             populateSelect('lon-frac0', 0, 9);
 
-            // Add change listener to longitude hundreds digit to restrict next digit
             $('#lon-deg2').on('change', function() {
                 const hundreds = parseInt($(this).val(), 10);
                 const lonDeg1Select = $('#lon-deg1');
-                const currentLonDeg1 = parseInt(lonDeg1Select.val() || '0', 10);
-                lonDeg1Select.empty(); // Clear options
-
-                let maxTens = 9;
-                if (hundreds === 1) {
-                    maxTens = 8; // Max longitude is 180
-                }
-
+                const currentVal = parseInt(lonDeg1Select.val() || '0', 10);
+                lonDeg1Select.empty();
+                const maxTens = hundreds === 1 ? 8 : 9;
                 for (let i = 0; i <= maxTens; i++) {
                     $('<option>').val(i).text(i).appendTo(lonDeg1Select);
                 }
-                // Try to restore previous value if valid, else set to 0
-                lonDeg1Select.val(currentLonDeg1 <= maxTens ? currentLonDeg1 : '0');
-                lonDeg1Select.trigger('change'); // Trigger change for the next digit
+                lonDeg1Select.val(currentVal <= maxTens ? currentVal : '0').trigger('change');
             });
 
-             // Add change listener to longitude tens digit to restrict units digit if hundreds is 1
-             $('#lon-deg1').on('change', function() {
-                 const hundreds = parseInt($('#lon-deg2').val(), 10);
-                 const tens = parseInt($(this).val(), 10);
-                 const lonDeg0Select = $('#lon-deg0');
-                 const currentLonDeg0 = parseInt(lonDeg0Select.val() || '0', 10);
-                 lonDeg0Select.empty(); // Clear options
+            $('#lon-deg1').on('change', function() {
+                const hundreds = parseInt($('#lon-deg2').val(), 10);
+                const tens = parseInt($(this).val(), 10);
+                const lonDeg0Select = $('#lon-deg0');
+                const currentVal = parseInt(lonDeg0Select.val() || '0', 10);
+                lonDeg0Select.empty();
+                const maxUnits = (hundreds === 1 && tens === 8) ? 0 : 9;
+                for (let i = 0; i <= maxUnits; i++) {
+                    $('<option>').val(i).text(i).appendTo(lonDeg0Select);
+                }
+                lonDeg0Select.val(currentVal <= maxUnits ? currentVal : '0');
+            });
 
-                 let maxUnits = 9;
-                 if (hundreds === 1 && tens === 8) {
-                     maxUnits = 0; // Max longitude is 180.00
-                 }
-
-                 for (let i = 0; i <= maxUnits; i++) {
-                     $('<option>').val(i).text(i).appendTo(lonDeg0Select);
-                 }
-                 // Try to restore previous value if valid, else set to 0
-                 lonDeg0Select.val(currentLonDeg0 <= maxUnits ? currentLonDeg0 : '0');
-             });
-
-
-            // Add change listener to latitude tens digit to restrict next digit (max 90)
             $('#lat-deg1').on('change', function() {
                 const tens = parseInt($(this).val(), 10);
                 const latDeg0Select = $('#lat-deg0');
-                const currentLatDeg0 = parseInt(latDeg0Select.val() || '0', 10);
-                 latDeg0Select.empty();
-
-                 let maxUnits = 9;
-                 if (tens === 9) {
-                     maxUnits = 0; // Max latitude is 90
-                 }
+                const currentVal = parseInt(latDeg0Select.val() || '0', 10);
+                latDeg0Select.empty();
+                const maxUnits = tens === 9 ? 0 : 9;
                 for (let i = 0; i <= maxUnits; i++) {
                     $('<option>').val(i).text(i).appendTo(latDeg0Select);
                 }
-                latDeg0Select.val(currentLatDeg0 <= maxUnits ? currentLatDeg0 : '0');
-
-                // If 90 is selected, force fractions to 0
-                if (tens === 9 && maxUnits === 0) {
-                    $('#lat-frac1').val('0').prop('disabled', true);
-                    $('#lat-frac0').val('0').prop('disabled', true);
+                latDeg0Select.val(currentVal <= maxUnits ? currentVal : '0');
+                if (tens === 9) {
+                    $('#lat-frac1, #lat-frac0').val('0').prop('disabled', true);
                 } else {
-                     $('#lat-frac1').prop('disabled', false);
-                     $('#lat-frac0').prop('disabled', false);
+                    $('#lat-frac1, #lat-frac0').prop('disabled', false);
                 }
             });
 
-            // Initial population based on default tens value (0)
             $('#lat-deg1').trigger('change');
-            $('#lon-deg2').trigger('change'); // This will trigger the chain for lon-deg1 change
+            $('#lon-deg2').trigger('change');
         }
 
-
-        // Update the location UI selects based on numeric lat/lon
         function updateLocationUI(latitude, longitude) {
             if (latitude == null || longitude == null) {
-                log("Cannot update location UI: Invalid coordinates.");
-                 $('#location-status').text('Location unavailable.');
-                // Optionally set UI to 0.00 N, 0.00 E
-                $('#lat-sign').val('N');
-                $('#lat-deg1').val(0); $('#lat-deg0').val(0);
-                $('#lat-frac1').val(0); $('#lat-frac0').val(0);
-                $('#lon-sign').val('E');
-                $('#lon-deg2').val(0); $('#lon-deg1').val(0); $('#lon-deg0').val(0);
-                $('#lon-frac1').val(0); $('#lon-frac0').val(0);
-                $('#lat-deg1').trigger('change'); // Update constraints
-                $('#lon-deg2').trigger('change'); // Update constraints
-                 manualLocationSet = true;
+                $('#location-status').text('📍 Location unavailable');
+                manualLocationSet = true;
                 $('#location-controls').show();
                 return;
             }
 
-            log(`Updating Location UI: Lat ${latitude.toFixed(6)}, Lon ${longitude.toFixed(6)}`);
-
-            // Latitude
             const latAbs = Math.abs(latitude);
             const latDeg = Math.floor(latAbs);
-            const latFrac = Math.round((latAbs - latDeg) * 100); // Get 2 decimal places
+            const latFrac = Math.round((latAbs - latDeg) * 100);
 
             $('#lat-sign').val(latitude >= 0 ? 'N' : 'S');
             $('#lat-deg1').val(Math.floor(latDeg / 10) % 10);
@@ -861,10 +1948,9 @@
             $('#lat-frac1').val(Math.floor(latFrac / 10) % 10);
             $('#lat-frac0').val(latFrac % 10);
 
-            // Longitude
             const lonAbs = Math.abs(longitude);
             const lonDeg = Math.floor(lonAbs);
-            const lonFrac = Math.round((lonAbs - lonDeg) * 100); // Get 2 decimal places
+            const lonFrac = Math.round((lonAbs - lonDeg) * 100);
 
             $('#lon-sign').val(longitude >= 0 ? 'E' : 'W');
             $('#lon-deg2').val(Math.floor(lonDeg / 100) % 10);
@@ -873,24 +1959,17 @@
             $('#lon-frac1').val(Math.floor(lonFrac / 10) % 10);
             $('#lon-frac0').val(lonFrac % 10);
 
-            // Trigger change events to ensure constraints (like 180 deg) are applied correctly
             $('#lat-deg1').trigger('change');
-            $('#lon-deg2').trigger('change'); // This triggers lon-deg1 check too
+            $('#lon-deg2').trigger('change');
 
-
-            $('#location-status').text(`Location Acquired: ${latitude.toFixed(2)}, ${longitude.toFixed(2)}`);
-            manualLocationSet = true; // Mark UI as populated
-            $('#location-controls').show(); // Show the controls
+            $('#location-status').text(`📍 ${latitude.toFixed(2)}, ${longitude.toFixed(2)} - Click to open map`);
+            manualLocationSet = true;
+            $('#location-controls').show();
         }
 
-        // Read the adjusted location from the UI selects
         function readLocationFromUI() {
-            if (!manualLocationSet) {
-                 log("Location UI not initialized, cannot read values.");
-                 return null; // Or throw error, or return default? Returning null is safest.
-            }
+            if (!manualLocationSet) return null;
 
-            // Latitude
             const latSign = $('#lat-sign').val() === 'N' ? 1 : -1;
             const latDeg1 = parseInt($('#lat-deg1').val(), 10);
             const latDeg0 = parseInt($('#lat-deg0').val(), 10);
@@ -898,7 +1977,6 @@
             const latFrac0 = parseInt($('#lat-frac0').val(), 10);
             const latitude = latSign * (latDeg1 * 10 + latDeg0 + (latFrac1 * 10 + latFrac0) / 100.0);
 
-            // Longitude
             const lonSign = $('#lon-sign').val() === 'E' ? 1 : -1;
             const lonDeg2 = parseInt($('#lon-deg2').val(), 10);
             const lonDeg1 = parseInt($('#lon-deg1').val(), 10);
@@ -907,38 +1985,31 @@
             const lonFrac0 = parseInt($('#lon-frac0').val(), 10);
             const longitude = lonSign * (lonDeg2 * 100 + lonDeg1 * 10 + lonDeg0 + (lonFrac1 * 10 + lonFrac0) / 100.0);
 
-             // Validate ranges (redundant due to select limits, but good practice)
-             const finalLat = Math.max(-90, Math.min(90, latitude));
-             const finalLon = Math.max(-180, Math.min(180, longitude));
-
-
-            log(`Read Location from UI: Lat ${finalLat.toFixed(2)}, Lon ${finalLon.toFixed(2)}`);
-            return { latitude: finalLat, longitude: finalLon };
+            return { 
+                latitude: Math.max(-90, Math.min(90, latitude)), 
+                longitude: Math.max(-180, Math.min(180, longitude)) 
+            };
         }
-        // Fetch and display a batch of messages
+
+        // --- Messages ---
         async function fetchAndDisplayMessages(pubkey) {
-            log(`Fetching batch of messages (limit ${MESSAGES_PER_PAGE}) for ${pubkey.slice(0, 10)}...`);
+            log(`Fetching messages for ${pubkey.slice(0, 10)}...`);
             $('#message-section').show();
             const messageArea = $('#last-message-area').html('<i>Loading messages...</i>');
-            const repliesList = $('#replies-list').empty().html('<li><i>Select a message...</i></li>');
-            $('#older-button').prop('disabled', true);
-            $('#newer-button').prop('disabled', true);
-            fetchedMessages = []; // Clear previous batch
+            $('#replies-list').empty().html('<li class="reply-item" style="color: var(--text-dim);">Select a message...</li>');
+            $('#older-button, #newer-button').prop('disabled', true);
+            fetchedMessages = [];
             currentMessageIndex = 0;
 
             let nostrPool;
-             try {
-                 nostrPool = getNostrPool();
-             } catch (e) {
-                 log("Failed to get Nostr pool in fetchAndDisplayMessages.");
-                 messageArea.html('<i>Error initializing relay pool.</i>');
-                 return;
-             }
+            try {
+                nostrPool = getNostrPool();
+            } catch (e) {
+                messageArea.html('<i>Error initializing relay pool.</i>');
+                return;
+            }
 
             try {
-                log("Pool object before list call in fetchAndDisplayMessages:", nostrPool);
-                console.dir(nostrPool);
-
                 const events = await nostrPool.list(allRelaysToPublish, [{
                     kinds: [1],
                     authors: [pubkey],
@@ -946,94 +2017,396 @@
                 }]);
 
                 if (events.length > 0) {
-                    log(`Fetched ${events.length} messages.`);
-                    // Sort newest first
                     fetchedMessages = events.sort((a, b) => b.created_at - a.created_at);
-                    displayMessageAtIndex(0); // Display the first (newest) message
+                    displayMessageAtIndex(0);
                 } else {
-                    log('No messages found for this user.');
-                    messageArea.html('<i>No messages found.</i>');
-                     $('#replies-list').empty().html('<li><i>N/A</i></li>');
-                     // Keep buttons disabled
+                    messageArea.html('<i style="color: var(--text-dim);">No messages found.</i>');
                 }
             } catch (error) {
                 log(`Error fetching messages: ${error}`);
-                console.error("Fetch Messages Error Details:", error);
                 messageArea.html('<i>Error loading messages.</i>');
-                 $('#replies-list').empty().html('<li><i>Error loading replies.</i></li>');
             }
         }
 
-        // Display message at a specific index and update controls
         function displayMessageAtIndex(index) {
-             log(`Displaying message at index: ${index}`);
-             const messageArea = $('#last-message-area');
-             const repliesList = $('#replies-list');
+            const messageArea = $('#last-message-area');
 
-             if (index < 0 || index >= fetchedMessages.length) {
-                 log(`Index ${index} out of bounds (0-${fetchedMessages.length - 1}).`);
-                 messageArea.html(`<i>Invalid message index: ${index}</i>`);
-                 repliesList.empty().html('<li><i>N/A</i></li>');
-                 // Update button states based on potential valid range
-                 $('#newer-button').prop('disabled', fetchedMessages.length === 0 || currentMessageIndex <= 0);
-                 $('#older-button').prop('disabled', fetchedMessages.length === 0 || currentMessageIndex >= fetchedMessages.length - 1);
-                 return;
-             }
+            if (index < 0 || index >= fetchedMessages.length) {
+                return;
+            }
 
-             currentMessageIndex = index;
-             const currentMessage = fetchedMessages[currentMessageIndex];
-             renderMessage(messageArea, currentMessage);
-             fetchAndDisplayReplies(currentMessage.id); // Fetch replies for the current message
+            currentMessageIndex = index;
+            const currentMessage = fetchedMessages[currentMessageIndex];
+            renderMessage(messageArea, currentMessage);
+            fetchAndDisplayReplies(currentMessage.id);
 
-             // Update navigation buttons
-             $('#newer-button').prop('disabled', currentMessageIndex <= 0);
-             $('#older-button').prop('disabled', currentMessageIndex >= fetchedMessages.length - 1);
-             log(`Navigation updated: Newer ${$('#newer-button').prop('disabled')}, Older ${$('#older-button').prop('disabled')}`);
+            $('#newer-button').prop('disabled', currentMessageIndex <= 0);
+            $('#older-button').prop('disabled', currentMessageIndex >= fetchedMessages.length - 1);
         }
 
-        // Render a single message
-        function renderMessage(container, event) { container.empty(); const item = $('<div>').addClass('message-item').appendTo(container); const contentDiv = $('<div>').addClass('message-content').appendTo(item); const lines = event.content.split('\n'); lines.forEach((line, i) => { const trimmed = line.trim(); if (/\.(jpg|jpeg|png|gif|webp)$/i.test(trimmed)) $('<img>').attr('src', trimmed).appendTo(contentDiv); else if (/^https?:\/\//.test(trimmed)) $('<a>').attr({href: trimmed, target: '_blank'}).text(trimmed).appendTo(contentDiv); else contentDiv.append(document.createTextNode(line)); if (i < lines.length - 1) contentDiv.append('<br>'); }); $('<div>').css({fontSize:'0.8em',color:'#888',marginTop:'5px'}).text(`Note ${currentMessageIndex + 1}/${fetchedMessages.length} | ID: ${event.id.slice(0,10)}... At: ${new Date(event.created_at*1000).toLocaleString()}`).appendTo(item); }
+        // --- Media Detection Helpers ---
+        function detectMediaType(url) {
+            const lower = url.toLowerCase();
+            if (/\.(jpg|jpeg|png|webp)$/i.test(lower)) return 'image';
+            if (/\.gif$/i.test(lower)) return 'gif';
+            if (/\.(mp4|webm|mov)$/i.test(lower)) return 'video';
+            if (/\.(mp3|wav|ogg|m4a)$/i.test(lower)) return 'audio';
+            if (/ipfs/.test(lower)) {
+                // Check IPFS content type hints
+                if (/video|mp4|webm/.test(lower)) return 'video';
+                if (/audio|mp3|wav/.test(lower)) return 'audio';
+                if (/gif/.test(lower)) return 'gif';
+                return 'image'; // Default IPFS to image
+            }
+            return null;
+        }
 
-        // Fetch and display replies
+        function extractTags(content) {
+            const tags = [];
+            if (/#BRO/i.test(content)) tags.push('bro');
+            if (/#image/i.test(content)) tags.push('image');
+            if (/#video/i.test(content)) tags.push('video');
+            if (/#music/i.test(content)) tags.push('music');
+            if (/#search/i.test(content)) tags.push('search');
+            if (/#plantnet/i.test(content)) tags.push('nature');
+            if (/#inventory/i.test(content)) tags.push('nature');
+            if (/#mem/i.test(content)) tags.push('memory');
+            if (/#reset/i.test(content)) tags.push('reset');
+            return tags;
+        }
+
+        function isAIBot(pubkey) {
+            // Known AI bot pubkeys (add more as needed)
+            const botPubkeys = [
+                'npub1', // Add your actual bot pubkey here
+            ];
+            // Also check if the content looks like a bot response
+            return botPubkeys.some(bp => pubkey.startsWith(bp));
+        }
+
+        function createMediaElement(url, type) {
+            const container = $('<div>').addClass('media-item');
+            
+            switch (type) {
+                case 'image':
+                    $('<img>').attr('src', url).attr('loading', 'lazy')
+                        .on('click', () => openLightbox(url))
+                        .appendTo(container);
+                    break;
+                case 'gif':
+                    $('<img>').attr('src', url).attr('loading', 'lazy')
+                        .on('click', () => openLightbox(url))
+                        .appendTo(container);
+                    $('<span>').addClass('media-badge gif').text('GIF').appendTo(container);
+                    break;
+                case 'video':
+                    $('<video>').attr({ src: url, controls: true, preload: 'metadata' })
+                        .appendTo(container);
+                    $('<span>').addClass('media-badge video').text('VIDEO').appendTo(container);
+                    break;
+                case 'audio':
+                    $('<audio>').attr({ src: url, controls: true, preload: 'metadata' })
+                        .appendTo(container);
+                    $('<span>').addClass('media-badge audio').text('AUDIO').appendTo(container);
+                    break;
+            }
+            
+            return container;
+        }
+
+        function openLightbox(src) {
+            $('#lightbox-img').attr('src', src);
+            $('#lightbox').addClass('active');
+        }
+
+        function closeLightbox() {
+            $('#lightbox').removeClass('active');
+            $('#lightbox-img').attr('src', '#');
+        }
+
+        // Close lightbox on click outside
+        $(document).on('click', '#lightbox', function(e) {
+            if (e.target.id === 'lightbox') closeLightbox();
+        });
+
+        // Close lightbox on Escape key
+        $(document).on('keydown', function(e) {
+            if (e.key === 'Escape') closeLightbox();
+        });
+
+        function renderMessage(container, event) {
+            container.empty();
+            const thread = $('<div>').addClass('conversation-thread').appendTo(container);
+            const item = $('<div>').addClass('message-item user-message').appendTo(thread);
+            
+            // Extract tags from content
+            const tags = extractTags(event.content);
+            
+            // Message header
+            const header = $('<div>').addClass('message-header').appendTo(item);
+            $('<span>').addClass('message-avatar').text('👤').appendTo(header);
+            $('<span>').addClass('message-sender user').text('You').appendTo(header);
+            
+            // Tag badges
+            if (tags.length > 0) {
+                const tagContainer = $('<div>').addClass('message-tags').appendTo(header);
+                tags.forEach(tag => {
+                    $('<span>').addClass(`message-tag ${tag}`).text(`#${tag.toUpperCase()}`).appendTo(tagContainer);
+                });
+            }
+            
+            // Message body
+            const bodyDiv = $('<div>').addClass('message-body').appendTo(item);
+            const mediaContainer = $('<div>').addClass('media-container');
+            let hasMedia = false;
+            
+            const lines = event.content.split('\n');
+            const textLines = [];
+            
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                
+                // Skip empty lines
+                if (!trimmed) {
+                    textLines.push('');
+                    return;
+                }
+                
+                // Check if it's a URL
+                const urlMatch = trimmed.match(/^(https?:\/\/[^\s]+)$/);
+                if (urlMatch) {
+                    const url = urlMatch[1];
+                    const mediaType = detectMediaType(url);
+                    
+                    if (mediaType) {
+                        hasMedia = true;
+                        mediaContainer.append(createMediaElement(url, mediaType));
+                    } else {
+                        // Regular link
+                        const linkEl = $('<a>').attr({ href: url, target: '_blank' }).text(url);
+                        textLines.push(linkEl.prop('outerHTML'));
+                    }
+                } else {
+                    // Regular text (remove tag markers for cleaner display)
+                    const cleanLine = trimmed.replace(/#(BRO|BOT|image|video|music|search|plantnet|inventory|mem|reset)\s*/gi, '');
+                    if (cleanLine) textLines.push(cleanLine);
+                }
+            });
+            
+            // Add text content
+            bodyDiv.html(textLines.join('<br>'));
+            
+            // Add media if any
+            if (hasMedia) {
+                mediaContainer.appendTo(item);
+            }
+            
+            // Message meta
+            const metaDiv = $('<div>').addClass('message-meta').appendTo(item);
+            $('<span>').text(`#${currentMessageIndex + 1}/${fetchedMessages.length}`).appendTo(metaDiv);
+            $('<span>').text(new Date(event.created_at * 1000).toLocaleString()).appendTo(metaDiv);
+        }
+
         async function fetchAndDisplayReplies(eventId) {
-            log(`Fetching replies for event ${eventId.slice(0, 10)}...`);
-            const list = $('#replies-list').empty().html('<li><i>Loading replies...</i></li>'); if (!eventId) { list.html('<li><i>No parent ID.</i></li>'); return; }
-            let nostrPool; try { nostrPool = getNostrPool(); } catch (e) { log("Pool fail in fetchReplies."); list.html('<li><i>Relay pool error.</i></li>'); return; }
-            try { log("Pool object before list call in fetchReplies:", nostrPool); console.dir(nostrPool); const replies = await nostrPool.list(allRelaysToPublish, [{ kinds: [1], '#e': [eventId], limit: 20 }]); if (replies.length > 0) { log(`Found ${replies.length} replies.`); list.empty(); replies.sort((a, b) => a.created_at - b.created_at).forEach(r => renderReply(list, r)); } else { log('No replies found.'); list.html('<li><i>No replies yet.</i></li>'); } } catch (e) { log(`Error fetching replies: ${e}`); list.html('<li><i>Error loading replies.</i></li>'); }
+            const list = $('#replies-list').empty();
+            const headerEl = $('#replies-area h4').html('🤖 AI Response <span class="reply-count" style="display:none">0</span>');
+            
+            $('<li>').addClass('reply-item').css('color', 'var(--text-dim)').text('Loading AI response...').appendTo(list);
+            
+            if (!eventId) return;
+
+            let nostrPool;
+            try {
+                nostrPool = getNostrPool();
+            } catch (e) {
+                list.html('<li class="reply-item">Relay pool error.</li>');
+                return;
+            }
+
+            try {
+                const replies = await nostrPool.list(allRelaysToPublish, [{ kinds: [1], '#e': [eventId], limit: 20 }]);
+                
+                list.empty();
+                
+                if (replies.length > 0) {
+                    // Update reply count badge
+                    $('#replies-area h4 .reply-count').text(replies.length).show();
+                    
+                    // Sort by timestamp
+                    replies.sort((a, b) => a.created_at - b.created_at);
+                    
+                    replies.forEach(reply => {
+                        const isBot = reply.content.includes('#BOT') || 
+                                     reply.pubkey !== publicKey;
+                        
+                        const item = $('<li>').addClass('reply-item');
+                        if (isBot) item.addClass('bot-reply');
+                        
+                        // Author info
+                        const authorDiv = $('<div>').addClass('reply-author').appendTo(item);
+                        if (isBot) {
+                            $('<span>').addClass('bot-badge').text('🤖 AI').appendTo(authorDiv);
+                        }
+                        $('<span>').text(`${reply.pubkey.slice(0, 8)}... • ${new Date(reply.created_at * 1000).toLocaleTimeString()}`).appendTo(authorDiv);
+                        
+                        // Reply body with media detection
+                        const bodyDiv = $('<div>').addClass('reply-body').appendTo(item);
+                        const mediaContainer = $('<div>').addClass('media-container');
+                        let hasMedia = false;
+                        
+                        const lines = reply.content.split('\n');
+                        const textLines = [];
+                        
+                        lines.forEach(line => {
+                            const trimmed = line.trim();
+                            if (!trimmed) {
+                                textLines.push('');
+                                return;
+                            }
+                            
+                            // Check for URLs
+                            const urlMatch = trimmed.match(/(https?:\/\/[^\s]+)/g);
+                            if (urlMatch) {
+                                urlMatch.forEach(url => {
+                                    const mediaType = detectMediaType(url);
+                                    if (mediaType) {
+                                        hasMedia = true;
+                                        mediaContainer.append(createMediaElement(url, mediaType));
+                                    }
+                                });
+                                
+                                // Remove URLs from text
+                                let cleanLine = trimmed;
+                                urlMatch.forEach(url => {
+                                    cleanLine = cleanLine.replace(url, '').trim();
+                                });
+                                // Also clean up bot markers
+                                cleanLine = cleanLine.replace(/#BOT\s*/gi, '');
+                                if (cleanLine) textLines.push(cleanLine);
+                            } else {
+                                // Regular text, clean up markers
+                                const cleanLine = trimmed.replace(/#BOT\s*/gi, '');
+                                if (cleanLine) textLines.push(cleanLine);
+                            }
+                        });
+                        
+                        bodyDiv.html(textLines.join('<br>'));
+                        
+                        if (hasMedia) {
+                            mediaContainer.appendTo(item);
+                        }
+                        
+                        // Add IPFS link if present
+                        const ipfsMatch = reply.content.match(/(https?:\/\/[^\s]*ipfs[^\s]+)/i);
+                        if (ipfsMatch) {
+                            $('<a>').addClass('ipfs-link').attr({ href: ipfsMatch[1], target: '_blank' })
+                                .html('📦 View on IPFS')
+                                .appendTo(item);
+                        }
+                        
+                        list.append(item);
+                    });
+                } else {
+                    $('<li>').addClass('reply-item').css('color', 'var(--text-dim)')
+                        .html('<i>⏳ Waiting for AI response... <span class="spinner-small" style="display: inline-block; width: 12px; height: 12px; border: 2px solid var(--bg-card); border-top-color: var(--accent-green); border-radius: 50%; animation: spin 1s linear infinite; vertical-align: middle; margin-left: 5px;"></span></i>')
+                        .appendTo(list);
+                    
+                    // Auto-refresh for AI response after 5 seconds
+                    setTimeout(() => {
+                        if (fetchedMessages[currentMessageIndex]?.id === eventId) {
+                            log('Auto-refreshing for AI response...');
+                            fetchAndDisplayReplies(eventId);
+                        }
+                    }, 5000);
+                }
+            } catch (e) {
+                log(`Error fetching replies: ${e}`);
+                list.html('<li class="reply-item">Error loading replies.</li>');
+            }
         }
 
-        // Render a single reply
-        function renderReply(list, event) { const item = $('<li>').addClass('reply-item').appendTo(list); const authorP = $('<p>').addClass('reply-author').appendTo(item); authorP.append('Reply by: '); $('<code>').text(event.pubkey.slice(0, 10) + '...').appendTo(authorP); authorP.append(` at ${new Date(event.created_at * 1000).toLocaleTimeString()}`); const contentDiv = $('<div>').addClass('reply-content').appendTo(item); const lines = event.content.split('\n'); lines.forEach((line, i) => { const trimmed = line.trim(); if (/\.(jpg|jpeg|png|gif|webp)$/i.test(trimmed)) $('<img>').attr('src', trimmed).appendTo(contentDiv); else if (/^https?:\/\//.test(trimmed)) $('<a>').attr({href: trimmed, target: '_blank'}).text(trimmed).appendTo(contentDiv); else contentDiv.append(document.createTextNode(line)); if (i < lines.length - 1) contentDiv.append('<br>'); }); }
+        // --- Connection ---
+        function checkNostrExtension() {
+            if (typeof window.nostr !== 'undefined') {
+                nostrExtensionAvailable = true;
+                log('Extension OK.');
+                $('#connectButton').prop('disabled', false).text('Connect');
+                updateStatus('Extension ready. Click Connect to start.', false, true);
+            } else {
+                nostrExtensionAvailable = false;
+                log('Extension not found.');
+                $('#connectButton').prop('disabled', true).text('Extension Needed');
+                updateStatus('Nostr extension not found.', true);
+            }
+        }
 
-        // checkNostrExtension, connectToNostr
-        function checkNostrExtension() { log('Checking extension...'); if (typeof window.nostr !== 'undefined') { nostrExtensionAvailable = true; log('Extension OK.'); $('#connectButton').prop('disabled', false).text('Connect'); updateStatus('Extension ready.'); } else { nostrExtensionAvailable = false; log('Extension fail.'); $('#connectButton').prop('disabled', true).text('Extension Needed'); updateStatus('Extension not found or NSEC needed.', true); } }
-        async function connectToNostr() { if (!nostrExtensionAvailable) return; log('Connecting via extension...'); updateStatus('Connecting extension...'); $('#connectButton').prop('disabled', true); try { publicKey = await window.nostr.getPublicKey(); log(`Ext connected. Pubkey: ${publicKey.slice(0, 10)}...`); $('#connectButton').hide(); $('#postButton').prop('disabled', false); updateStatus(`Ext Connected! ${publicKey.slice(0, 10)}...`, false, true); await fetchProfileAndRelays(publicKey); await fetchAndDisplayMessages(publicKey); } catch (e) { log(`Ext connection fail: ${e.message || e}`); updateStatus(`Ext connect failed.`, true); $('#connectButton').prop('disabled', false).show(); publicKey = ''; } }
+        async function connectToNostr() {
+            if (!nostrExtensionAvailable) return;
+            log('Connecting via extension...');
+            updateStatus('Connecting...');
+            $('#connectButton').prop('disabled', true);
+            
+            try {
+                publicKey = await window.nostr.getPublicKey();
+                log(`Connected. Pubkey: ${publicKey.slice(0, 10)}...`);
+                $('#connectButton').hide();
+                $('#postButton').prop('disabled', false);
+                $('#connection-status').addClass('online');
+                $('#relay-status').text('CONNECTED');
+                updateStatus(`Connected! ${publicKey.slice(0, 10)}...`, false, true);
+                await fetchProfileAndRelays(publicKey);
+                await fetchAndDisplayMessages(publicKey);
+            } catch (e) {
+                log(`Connection failed: ${e.message || e}`);
+                updateStatus('Connection failed.', true);
+                $('#connectButton').prop('disabled', false);
+                $('#connection-status').removeClass('online').addClass('offline');
+                $('#relay-status').text('DISCONNECTED');
+            }
+        }
 
-        // handleImageSelection, getLocation, uploadImageNip96, publishToRelay
-        function handleImageSelection(event) { const f = event.target.files[0]; if (f) { log(`Image selected: ${f.name}, size: ${f.size}`); const r = new FileReader(); r.onload = (e) => { selectedImageDataUrl = e.target.result; $('#imagePreview').attr('src', selectedImageDataUrl).show(); log('Preview updated.'); }; r.onerror = (e) => { log(`File read error: ${e}`); updateStatus('Error reading image.', true); selectedImageDataUrl = null; $('#imagePreview').hide().attr('src', '#'); }; r.readAsDataURL(f); } else { log('No image selected.'); selectedImageDataUrl = null; $('#imagePreview').hide().attr('src', '#'); } }
+        // --- Image Handling ---
+        function handleImageSelection(event, previewId = 'imagePreview') {
+            const f = event.target.files[0];
+            const preview = document.getElementById(previewId);
+            
+            if (f) {
+                const r = new FileReader();
+                r.onload = (e) => {
+                    if (previewId === 'imagePreview') {
+                        selectedImageDataUrl = e.target.result;
+                    }
+                    preview.src = e.target.result;
+                    preview.classList.add('visible');
+                    preview.style.display = 'block';
+                };
+                r.readAsDataURL(f);
+            } else {
+                if (previewId === 'imagePreview') {
+                    selectedImageDataUrl = null;
+                }
+                preview.classList.remove('visible');
+                preview.style.display = 'none';
+                preview.src = '#';
+            }
+        }
+
         function getLocation() {
             return new Promise((resolve, reject) => {
                 if (!navigator.geolocation) {
-                    const m = "Geolocation unsupported.";
-                    log(m);
-                    updateStatus(m, true);
-                    return reject(m);
+                    return reject("Geolocation unsupported.");
                 }
-                log('Requesting location...');
                 updateStatus('Getting location...');
                 navigator.geolocation.getCurrentPosition(
                     (p) => {
                         currentLatitude = p.coords.latitude;
                         currentLongitude = p.coords.longitude;
-                        log(`Location: Lat ${currentLatitude.toFixed(6)}, Lon ${currentLongitude.toFixed(6)}`);
-                        // updateStatus(`Location: ${currentLatitude.toFixed(2)}, ${currentLongitude.toFixed(2)}`); // Replaced by updateLocationUI status
                         updateLocationUI(currentLatitude, currentLongitude);
                         resolve({ latitude: currentLatitude, longitude: currentLongitude });
                     },
                     (e) => {
-                        log(`Location error: ${e.message} (Code: ${e.code})`);
-                        const m = ["Permission denied.", "Position unavailable.", "Timeout."][e.code-1] || "Location error.";
-                        updateStatus(m, true); // Keep general status update
+                        const m = ["Permission denied.", "Position unavailable.", "Timeout."][e.code - 1] || "Location error.";
+                        updateStatus(m, true);
                         updateLocationUI(null, null);
                         reject(m);
                     },
@@ -1042,182 +2415,305 @@
             });
         }
 
-        function uploadImageNip96(imageDataBase64) { return new Promise(async (resolve, reject) => { log("NIP-96 Upload start..."); const wk = `/.well-known/nostr/nip96.json`; try { log(`Fetching NIP-96 config from: ${wk}`); const cfg = await $.ajax({ url: wk, dataType: 'json' }); const ep = cfg.api_url; const downloadUrl = cfg.download_url || ''; if (!ep) throw new Error("No api_url in NIP-96 config"); log(`NIP-96 Upload endpoint: ${ep}`); log(`NIP-96 Download URL (IPFS gateway): ${downloadUrl || 'not set'}`); const bs = atob(imageDataBase64.split(',')[1]); const mime = imageDataBase64.split(',')[0].split(':')[1].split(';')[0]; const ab = new ArrayBuffer(bs.length); const ia = new Uint8Array(ab); for (let i=0; i<bs.length; i++) ia[i]=bs.charCodeAt(i); const blob = new Blob([ab],{type:mime}); const file = new File([blob],`mobile-${Date.now()}.png`,{type:mime}); const fd = new FormData(); fd.append('file', file); log(`Uploading to ${ep}...`); const r = await $.ajax({ url: ep, type: 'POST', data: fd, processData: false, contentType: false }); log("NIP-96 Resp:", r); if (r?.status === "success" && r.nip94_event?.tags) { const ut = r.nip94_event.tags.find(t => t[0] === 'url'); let url = ut?.[1]; const tags = r.nip94_event.tags; const size = r.fileSize; if (url) { /* Prepend IPFS gateway if URL is relative */ if (url.startsWith('/ipfs/') && downloadUrl) { url = downloadUrl.replace(/\/$/, '') + url; log(`Full IPFS URL: ${url}`); } /* Also update the url tag in nip94Tags */ const urlTagIndex = tags.findIndex(t => t[0] === 'url'); if (urlTagIndex !== -1) { tags[urlTagIndex][1] = url; } log(`Upload OK: ${url}, Size: ${size||'N/A'}`); resolve({ uploadedFileURL: url, nip94Tags: tags, fileSize: size }); } else throw new Error("No URL tag."); } else throw new Error(r?.message || "Invalid NIP-96 response."); } catch (e) { let m = e?.message || 'Unknown upload error'; if (e?.responseJSON?.message) m = e.responseJSON.message; else if (e?.statusText) m = `HTTP ${e.status}: ${e.statusText}`; log(`NIP-96 Err: ${m}`); console.error("NIP-96 Details:", e); reject(`Upload fail: ${m}`); } }); }
-        async function publishToRelay(relayUrl, signedEvent) { return new Promise((resolve) => { log(`Publish to ${relayUrl}`); let ws = null; let timer = null; try { ws = new WebSocket(relayUrl); const close = (ok, msg) => { clearTimeout(timer); if (ws?.readyState === WebSocket.OPEN) ws.close(); log(msg); resolve(ok); }; ws.onopen = () => { log(`Connected ${relayUrl}. Send.`); ws.send(JSON.stringify(['EVENT', signedEvent])); timer = setTimeout(() => close(true, `Sent ${relayUrl}, no OK/Notice.`), 3000); }; ws.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m[0]==='OK' && m[1]===signedEvent.id) close(true, `OK ${relayUrl}: ${m[1].slice(0,8)}...`); else if (m[0]==='NOTICE') { log(`NOTICE ${relayUrl}: ${m[1]}`); clearTimeout(timer); timer = setTimeout(() => close(true, `NOTICE ${relayUrl}, closing.`), 500); } } catch (e) { log(`Msg parse err ${relayUrl}: ${e.message}`); } }; ws.onerror = (e) => close(false, `Error ${relayUrl}: ${e.message || 'Unknown'}`); ws.onclose = (e) => { log(`Closed ${relayUrl}. Code: ${e.code}`); if (timer) { clearTimeout(timer); resolve(false); } }; timer = setTimeout(() => close(false, `Timeout ${relayUrl}`), 7000); } catch (e) { log(`Connect err ${relayUrl}: ${e.message}`); resolve(false); } }); }
+        // --- NIP-96 Upload ---
+        function uploadImageNip96(imageDataBase64) {
+            return new Promise(async (resolve, reject) => {
+                log("NIP-96 Upload start...");
+                const wk = `/.well-known/nostr/nip96.json`;
+                try {
+                    const cfg = await $.ajax({ url: wk, dataType: 'json' });
+                    const ep = cfg.api_url;
+                    const downloadUrl = cfg.download_url || '';
+                    if (!ep) throw new Error("No api_url in NIP-96 config");
 
-        // postNostrEvent
+                    const bs = atob(imageDataBase64.split(',')[1]);
+                    const mime = imageDataBase64.split(',')[0].split(':')[1].split(';')[0];
+                    const ab = new ArrayBuffer(bs.length);
+                    const ia = new Uint8Array(ab);
+                    for (let i = 0; i < bs.length; i++) ia[i] = bs.charCodeAt(i);
+                    const blob = new Blob([ab], { type: mime });
+                    const file = new File([blob], `upload-${Date.now()}.png`, { type: mime });
+                    const fd = new FormData();
+                    fd.append('file', file);
+
+                    const r = await $.ajax({ url: ep, type: 'POST', data: fd, processData: false, contentType: false });
+                    
+                    if (r?.status === "success" && r.nip94_event?.tags) {
+                        const ut = r.nip94_event.tags.find(t => t[0] === 'url');
+                        let url = ut?.[1];
+                        const tags = r.nip94_event.tags;
+                        
+                        if (url?.startsWith('/ipfs/') && downloadUrl) {
+                            url = downloadUrl.replace(/\/$/, '') + url;
+                        }
+                        
+                        const urlTagIndex = tags.findIndex(t => t[0] === 'url');
+                        if (urlTagIndex !== -1) tags[urlTagIndex][1] = url;
+                        
+                        log(`Upload OK: ${url}`);
+                        resolve({ uploadedFileURL: url, nip94Tags: tags, fileSize: r.fileSize });
+                    } else {
+                        throw new Error(r?.message || "Invalid NIP-96 response.");
+                    }
+                } catch (e) {
+                    let m = e?.responseJSON?.message || e?.message || 'Unknown upload error';
+                    log(`NIP-96 Error: ${m}`);
+                    reject(`Upload failed: ${m}`);
+                }
+            });
+        }
+
+        async function publishToRelay(relayUrl, signedEvent) {
+            return new Promise((resolve) => {
+                let ws = null;
+                let timer = null;
+                try {
+                    ws = new WebSocket(relayUrl);
+                    const close = (ok, msg) => {
+                        clearTimeout(timer);
+                        if (ws?.readyState === WebSocket.OPEN) ws.close();
+                        log(msg);
+                        resolve(ok);
+                    };
+                    ws.onopen = () => {
+                        ws.send(JSON.stringify(['EVENT', signedEvent]));
+                        timer = setTimeout(() => close(true, `Sent to ${relayUrl}`), 3000);
+                    };
+                    ws.onmessage = (ev) => {
+                        try {
+                            const m = JSON.parse(ev.data);
+                            if (m[0] === 'OK' && m[1] === signedEvent.id) close(true, `OK from ${relayUrl}`);
+                            else if (m[0] === 'NOTICE') {
+                                clearTimeout(timer);
+                                timer = setTimeout(() => close(true, `NOTICE from ${relayUrl}`), 500);
+                            }
+                        } catch (e) { }
+                    };
+                    ws.onerror = () => close(false, `Error on ${relayUrl}`);
+                    ws.onclose = () => {
+                        if (timer) { clearTimeout(timer); resolve(false); }
+                    };
+                    timer = setTimeout(() => close(false, `Timeout on ${relayUrl}`), 7000);
+                } catch (e) {
+                    log(`Connect error ${relayUrl}: ${e.message}`);
+                    resolve(false);
+                }
+            });
+        }
+
+        // --- Post Event ---
         async function postNostrEvent() {
-            if (!publicKey) { updateStatus("Not connected.", true); return; }
-            const msg = $('#message').val().trim();
-            if (!msg && !selectedImageDataUrl) { updateStatus("Need message or image.", true); return; }
-
-            showLoading(true);
-            updateStatus("Reading location from UI...");
-
-            const adjustedLocation = readLocationFromUI();
-
-            // Check if location is available from UI
-            if (!adjustedLocation) {
-                updateStatus("Location not available or not set. Cannot post.", true);
-                log("Post aborted: Location UI did not provide valid coordinates.");
-                showLoading(false);
-                return; // Stop posting if location isn't set in the UI
+            if (!publicKey) {
+                updateStatus("Not connected.", true);
+                return;
             }
 
-            const lat = adjustedLocation.latitude.toFixed(2); // Use adjusted value
-            const lon = adjustedLocation.longitude.toFixed(2); // Use adjusted value
+            const messageContent = buildMessageContent();
+            const imageData = getSelectedImageForService();
 
-            updateStatus("Preparing event...");
-            log(`Using adjusted location: Lat ${lat}, Lon ${lon}`);
+            if (!messageContent.replace(/#\w+\s*/g, '').trim() && !imageData) {
+                updateStatus("Please enter a message or add an image.", true);
+                return;
+            }
+
+            showLoading(true);
+            updateStatus("Preparing...");
+
+            const adjustedLocation = readLocationFromUI();
+            if (!adjustedLocation) {
+                updateStatus("Location not set. Cannot post.", true);
+                showLoading(false);
+                return;
+            }
+
+            const lat = adjustedLocation.latitude.toFixed(2);
+            const lon = adjustedLocation.longitude.toFixed(2);
 
             try {
-                // The rest of the function remains largely the same,
-                // but uses the lat/lon derived from readLocationFromUI()
-
-                let content = msg;
+                let content = messageContent;
                 let tags = [
                     ['application', 'UPlanet'],
-                    ['latitude', lat],      // Use adjusted lat
-                    ['longitude', lon],     // Use adjusted lon
-                    ['g', `${adjustedLocation.latitude.toFixed(6)};${adjustedLocation.longitude.toFixed(6)}`] // Use higher precision 'g' tag if desired
-                    // Consider adding ['geohash', geohashValue] if you implement geohashing
+                    ['latitude', lat],
+                    ['longitude', lon],
+                    ['g', `${adjustedLocation.latitude.toFixed(6)};${adjustedLocation.longitude.toFixed(6)}`]
                 ];
 
-                if (selectedImageDataUrl) {
+                if (imageData) {
                     updateStatus("Uploading image...");
                     try {
-                        const up = await uploadImageNip96(selectedImageDataUrl);
+                        const up = await uploadImageNip96(imageData);
                         content += `\n${up.uploadedFileURL}`;
                         if (up.nip94Tags) tags = tags.concat(up.nip94Tags.filter(t => Array.isArray(t) && t.length >= 2));
-                        if (up.fileSize != null) tags.push(['fileSize', String(up.fileSize)]);
-                        updateStatus("Image uploaded.", false, true);
                     } catch (e) {
                         updateStatus(`Upload failed: ${e}. Posting text only.`, true);
-                        // Continue without image, location is still set
                     }
                 }
 
-                const event = { kind: 1, pubkey: publicKey, created_at: Math.floor(Date.now() / 1000), tags: tags, content: content };
-                log("Unsigned event:"); console.log(JSON.stringify(event, null, 2));
+                const event = {
+                    kind: 1,
+                    pubkey: publicKey,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: tags,
+                    content: content
+                };
 
                 let signedEvent = null;
 
                 if (privateKeyHex) {
-                    log("Attempting local signing with NSEC..."); // More specific log
-                    try {
-                        if (typeof NostrTools === 'undefined' || typeof NostrTools.getEventHash !== 'function' || typeof NostrTools.getSignature !== 'function') {
-                            throw new Error("NostrTools crypto functions missing or not loaded!");
-                        }
-                        // It's generally safer to work with a copy if you modify it,
-                        // but in this case, modifying the original 'event' and assigning it works.
-                        // Let's stick to the original method but add checks.
-                        event.id = NostrTools.getEventHash(event);
-                        if (!event.id) throw new Error("Failed to generate event hash.");
-
-                        event.sig = NostrTools.getSignature(event, privateKeyHex);
-                         if (!event.sig) throw new Error("Failed to generate signature.");
-
-                        signedEvent = event; // Assign the fully signed event object
-
-                        if (!signedEvent || !signedEvent.id || !signedEvent.sig) {
-                            // Double-check after assignment
-                            throw new Error("Signed event object is incomplete after signing.");
-                        }
-
-                        log(`Signed locally. ID: ${signedEvent.id}`);
-                        updateStatus("Signed. Publishing...");
-
-                    } catch (signError) {
-                        log(`Local signing error: ${signError.message}`);
-                        console.error("Local Signing Error Details:", signError);
-                        updateStatus(`Local signing error: ${signError.message}`, true);
-                        showLoading(false); // Stop loading
-                        return; // Exit the function, don't proceed to publish
-                    }
-
+                    event.id = NostrTools.getEventHash(event);
+                    event.sig = NostrTools.getSignature(event, privateKeyHex);
+                    signedEvent = event;
                 } else if (window.nostr) {
                     updateStatus("Confirm in extension...");
-                    log("Requesting signature via extension...");
-                    try {
-                         signedEvent = await window.nostr.signEvent(event);
-                         if (!signedEvent || !signedEvent.id || !signedEvent.sig) {
-                             throw new Error("Extension returned incomplete signed event.");
-                         }
-                         log(`Signed via extension. ID: ${signedEvent.id}`);
-                         updateStatus("Signed. Publishing...");
-                    } catch (extSignError) {
-                        log(`Extension signing error: ${extSignError.message}`);
-                        console.error("Extension Signing Error Details:", extSignError);
-                        updateStatus(`Extension signing error: ${extSignError.message}`, true);
-                        showLoading(false); // Stop loading
-                        $('#connectButton').prop('disabled', false).show(); // Re-enable connect button maybe?
-                        return; // Exit the function
-                    }
+                    signedEvent = await window.nostr.signEvent(event);
                 } else {
-                     // This case should ideally not be reached if init logic is correct
-                    log("Error: Cannot sign event - No private key and no extension available.");
-                    updateStatus("Cannot sign event: No key/extension.", true);
-                    showLoading(false);
-                    return; // Exit
-                    // Old: throw new Error("Cannot sign.");
+                    throw new Error("Cannot sign event.");
                 }
 
-                // --- Crucial Check ---
                 if (!signedEvent) {
-                    log("Error: signedEvent is null or undefined before publishing. Aborting.");
-                    updateStatus("Failed to prepare event for publishing.", true);
-                    showLoading(false);
-                    return; // Exit explicitly if signing failed somehow
+                    throw new Error("Failed to sign event.");
                 }
-                // --- End Crucial Check ---
+
                 log(`Publishing to ${allRelaysToPublish.length} relays...`);
-                updateRelayListUI();
-                let success = 0;
                 const results = await Promise.all(allRelaysToPublish.map(r => publishToRelay(r, signedEvent)));
-                success = results.filter(Boolean).length;
-                log(`Published. Success: ${success}/${allRelaysToPublish.length}`);
+                const success = results.filter(Boolean).length;
 
                 if (success > 0) {
-                    updateStatus(`Published to ${success}/${allRelaysToPublish.length}. ID: ${signedEvent.id.slice(0,10)}...`, false, true);
-                    $('#message').val('');
-                    $('#imageInput').val('');
-                    $('#imagePreview').hide().attr('src', '#');
-                    selectedImageDataUrl = null;
-                    log("Scheduling message refresh...");
-                    setTimeout(() => { log("Refreshing messages..."); fetchAndDisplayMessages(publicKey); }, 4000);
+                    updateStatus(`Published to ${success}/${allRelaysToPublish.length} relays.`, false, true);
+                    clearCurrentServiceInput();
+                    setTimeout(() => fetchAndDisplayMessages(publicKey), 4000);
                 } else {
-                    updateStatus(`Failed to publish to any relays.`, true);
+                    updateStatus('Failed to publish to any relay.', true);
                 }
             } catch (e) {
-                log(`Post error: ${e?.message || e}`); console.error("Post Details:", e);
+                log(`Post error: ${e?.message || e}`);
                 updateStatus(`Error: ${e?.message || 'Unknown error'}`, true);
             } finally {
                 showLoading(false);
             }
         }
+
+        function clearCurrentServiceInput() {
+            switch (currentService) {
+                case 'chat':
+                    $('#message-chat').val('');
+                    break;
+                case 'image':
+                    $('#message-image').val('');
+                    break;
+                case 'video':
+                    $('#message-video, #message-video-i2v').val('');
+                    $('#imagePreviewVideo').attr('src', '#').hide();
+                    break;
+                case 'music':
+                    $('#message-music, #message-lyrics').val('');
+                    break;
+                case 'search':
+                    $('#message-search').val('');
+                    break;
+                case 'nature':
+                    $('#message-nature').val('');
+                    $('#imagePreviewNature').attr('src', '#').hide();
+                    break;
+            }
+            selectedImageDataUrl = null;
+            $('#imagePreview').attr('src', '#').removeClass('visible').hide();
+        }
+
+        // --- Map ---
+        let miniMap;
+        let miniMarker;
+
+        function initializeMiniMap(lat = 0, lon = 0) {
+            if (miniMap) miniMap.remove();
+            
+            miniMap = L.map('mini-map').setView([lat, lon], 10);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OSM'
+            }).addTo(miniMap);
+
+            miniMarker = L.marker([lat, lon], { draggable: true }).addTo(miniMap);
+
+            miniMap.on('click', function(e) {
+                const clickedLat = Math.round(e.latlng.lat * 100) / 100;
+                const clickedLon = Math.round(e.latlng.lng * 100) / 100;
+                updateCoordinatesFromMap(clickedLat, clickedLon);
+            });
+
+            miniMarker.on('dragend', function(e) {
+                const pos = e.target.getLatLng();
+                updateCoordinatesFromMap(Math.round(pos.lat * 100) / 100, Math.round(pos.lng * 100) / 100);
+            });
+        }
+
+        function updateCoordinatesFromMap(lat, lon) {
+            $('#lat-display').val(lat.toFixed(2));
+            $('#lon-display').val(lon.toFixed(2));
+            if (miniMarker) miniMarker.setLatLng([lat, lon]);
+            currentLatitude = lat;
+            currentLongitude = lon;
+            updateLocationUI(lat, lon);
+        }
+
+        function toggleMapAccordion() {
+            const accordion = $('#map-accordion');
+            const isOpen = accordion.hasClass('open');
+            
+            if (isOpen) {
+                accordion.removeClass('open');
+            } else {
+                accordion.addClass('open');
+                setTimeout(() => {
+                    const lat = currentLatitude || 0;
+                    const lon = currentLongitude || 0;
+                    initializeMiniMap(lat, lon);
+                    $('#lat-display').val(lat.toFixed(2));
+                    $('#lon-display').val(lon.toFixed(2));
+                    setTimeout(() => {
+                        if (miniMap) miniMap.invalidateSize();
+                    }, 350);
+                }, 50);
+            }
+        }
+
+        function getCurrentLocationForMap() {
+            if (navigator.geolocation) {
+                $('#get-location').text('...').prop('disabled', true);
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = Math.round(position.coords.latitude * 100) / 100;
+                        const lon = Math.round(position.coords.longitude * 100) / 100;
+                        updateCoordinatesFromMap(lat, lon);
+                        if (miniMap) miniMap.setView([lat, lon], 13);
+                        $('#get-location').text('📍 My location').prop('disabled', false);
+                    },
+                    function(error) {
+                        log(`Geolocation error: ${error.message}`);
+                        $('#get-location').text('📍 My location').prop('disabled', false);
+                    }
+                );
+            }
+        }
+
         // --- Initialization ---
         async function initializeApp() {
             log('initializeApp called.');
             if (userNsec) {
-                log("NSEC provided. Init local key.");
-                 if (typeof NostrTools === 'undefined') { updateStatus("Error: NostrTools unloaded.", true); log("Fatal: NostrTools missing."); return; }
                 try {
                     const decoded = NostrTools.nip19.decode(userNsec);
-                    if (decoded.type !== 'nsec' || !decoded.data) throw new Error('Invalid NSEC format');
-                    privateKeyHex = decoded.data; publicKey = NostrTools.getPublicKey(privateKeyHex);
-                    log(`Init NSEC OK. Pubkey: ${publicKey.slice(0, 10)}...`); updateStatus(`Using NSEC key. Pubkey: ${publicKey.slice(0, 10)}...`, false, true);
-                    $('#connectButton').hide(); $('#postButton').prop('disabled', false);
+                    if (decoded.type !== 'nsec') throw new Error('Invalid NSEC');
+                    privateKeyHex = decoded.data;
+                    publicKey = NostrTools.getPublicKey(privateKeyHex);
+                    $('#connectButton').hide();
+                    $('#postButton').prop('disabled', false);
                     await fetchProfileAndRelays(publicKey);
-                    await fetchAndDisplayMessages(publicKey); // Fetch initial batch
+                    await fetchAndDisplayMessages(publicKey);
                 } catch (e) {
-                    log(`Error initializing NSEC: ${e.message}. Falling back.`); updateStatus('Error NSEC. Trying extension...', true);
-                    privateKeyHex = null; publicKey = '';
-                    updateStatus("Checking extension (fallback)...");
-                    setTimeout(() => { log("Executing delayed check (fallback)."); checkNostrExtension(); }, 500);
+                    log(`NSEC error: ${e.message}. Falling back.`);
+                    setTimeout(checkNostrExtension, 500);
                 }
             } else {
-                log("No NSEC. Scheduling extension check..."); updateStatus("Checking extension...");
-                setTimeout(() => { log("Executing delayed check."); checkNostrExtension(); }, 500);
+                setTimeout(checkNostrExtension, 500);
             }
             updateRelayListUI();
         }
@@ -1225,257 +2721,61 @@
         $(document).ready(function() {
             log('Document ready.');
 
-            // Add tag button click handlers
-            $('.tag-button').on('click', function() {
-                const tag = $(this).data('tag');
-                const textarea = $('#message');
-                const currentText = textarea.val();
-                
-                // Toggle the tag
-                if (currentText.includes(tag)) {
-                    // Remove the tag if it exists
-                    textarea.val(currentText.replace(tag + ' ', '').replace(' ' + tag, ''));
-                    $(this).removeClass('active');
-                    
-                    // If IA tag is removed, hide other tags
-                    if (tag === '#BRO') {
-                        $('.sub-tags').removeClass('show');
-                    }
-                } else {
-                    // Add the tag if it doesn't exist
-                    textarea.val(currentText + (currentText ? ' ' : '') + tag + ' ');
-                    $(this).addClass('active');
-                    
-                    // If IA tag is added, show other tags
-                    if (tag === '#BRO') {
-                        $('.sub-tags').addClass('show');
-                    }
-                }
-            });
-
-            // Check for existing tags when textarea changes
-            $('#message').on('input', function() {
-                const text = $(this).val();
-                $('.tag-button').each(function() {
-                    const tag = $(this).data('tag');
-                    const isActive = text.includes(tag);
-                    $(this).toggleClass('active', isActive);
-                    
-                    // Handle sub-tags visibility based on IA tag
-                    if (tag === '#BRO') {
-                        $('.sub-tags').toggleClass('show', isActive);
-                    }
-                });
-            });
-
             initializeLocationSelects();
+            getLocation().catch(() => {});
 
-            log("Requesting initial location for UI...");
-            getLocation().catch(err => {
-                log(`Initial getLocation failed: ${err}. UI will show defaults/error state.`);
-            });
-
-            // Setup common event listeners immediately
+            // Event listeners
             $('#connectButton').on('click', connectToNostr);
-            $('#imageInput').on('change', handleImageSelection);
             $('#postButton').on('click', postNostrEvent);
             
-            // Map accordion event listeners
+            // Image inputs
+            $('#imageInput').on('change', (e) => handleImageSelection(e, 'imagePreview'));
+            $('#imageInputVideo').on('change', (e) => handleImageSelection(e, 'imagePreviewVideo'));
+            $('#imageInputNature').on('change', (e) => handleImageSelection(e, 'imagePreviewNature'));
+
+            // Map
             $('#location-status').on('click', toggleMapAccordion);
             $('#update-map').on('click', function() {
                 const lat = parseFloat($('#lat-display').val()) || 0;
                 const lon = parseFloat($('#lon-display').val()) || 0;
-                
                 updateCoordinatesFromMap(lat, lon);
-                if (miniMap) {
-                    miniMap.setView([lat, lon], miniMap.getZoom());
-                }
+                if (miniMap) miniMap.setView([lat, lon], miniMap.getZoom());
             });
             $('#get-location').on('click', getCurrentLocationForMap);
-            
-            // Sync display inputs with tumbler changes
-            $('#lat-display, #lon-display').on('change', function() {
-                const lat = parseFloat($('#lat-display').val()) || 0;
-                const lon = parseFloat($('#lon-display').val()) || 0;
-                
-                if (miniMarker) {
-                    miniMarker.setLatLng([lat, lon]);
-                }
-                if (miniMap) {
-                    miniMap.setView([lat, lon], miniMap.getZoom());
-                }
-            });
 
+            // Messages navigation
             $('#refresh-button').on('click', () => {
-                if (publicKey) {
-                    log("Refresh button clicked.");
-                    updateStatus("Refreshing messages...");
-                    fetchAndDisplayMessages(publicKey);
-                } else {
-                    log("Refresh clicked, but no public key.");
-                    updateStatus("Please connect first.", true);
-                }
+                if (publicKey) fetchAndDisplayMessages(publicKey);
+                else updateStatus("Please connect first.", true);
             });
-
             $('#older-button').on('click', () => {
-                log("Older button clicked.");
                 if (currentMessageIndex < fetchedMessages.length - 1) {
                     displayMessageAtIndex(currentMessageIndex + 1);
-                } else {
-                    log("Already at the oldest fetched message.");
                 }
             });
             $('#newer-button').on('click', () => {
-                 log("Newer button clicked.");
-                 if (currentMessageIndex > 0) {
-                     displayMessageAtIndex(currentMessageIndex - 1);
-                 } else {
-                     log("Already at the newest fetched message.");
-                 }
+                if (currentMessageIndex > 0) {
+                    displayMessageAtIndex(currentMessageIndex - 1);
+                }
             });
-            $('#debug-info').hide(); $('details summary').on('click', () => setTimeout(() => log(`Debug visibility: ${$('#debug-info').is(':visible')}`), 0));
 
-            // --- Conditional Initialization ---
+            // Initialize
             if (userNsec) {
-                log("NSEC configured. Waiting for NostrTools..."); updateStatus("Loading crypto library...");
-                let attempts = 0; const maxAttempts = 50; const intervalId = setInterval(() => { attempts++; if (typeof NostrTools !== 'undefined') { clearInterval(intervalId); log("NostrTools library loaded."); initializeApp(); } else if (attempts >= maxAttempts) { clearInterval(intervalId); log("Error: NostrTools timeout."); updateStatus("Error loading crypto library.", true); } else { /* log(`Waiting NostrTools... (${attempts})`); */ } }, 100);
+                let attempts = 0;
+                const intervalId = setInterval(() => {
+                    attempts++;
+                    if (typeof NostrTools !== 'undefined') {
+                        clearInterval(intervalId);
+                        initializeApp();
+                    } else if (attempts >= 50) {
+                        clearInterval(intervalId);
+                        updateStatus("Error loading crypto library.", true);
+                    }
+                }, 100);
             } else {
-                log("No NSEC configured. Initializing normally."); initializeApp();
+                initializeApp();
             }
         });
-
-        // Map variables
-        let miniMap;
-        let miniMarker;
-
-        // Initialize mini map
-        function initializeMiniMap(lat = 0, lon = 0) {
-            if (miniMap) {
-                miniMap.remove();
-            }
-            
-            miniMap = L.map('mini-map').setView([lat, lon], 10);
-            
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(miniMap);
-
-            // Add marker
-            miniMarker = L.marker([lat, lon], {
-                draggable: true
-            }).addTo(miniMap);
-
-            // Handle map click
-            miniMap.on('click', function(e) {
-                const clickedLat = Math.round(e.latlng.lat * 100) / 100;
-                const clickedLon = Math.round(e.latlng.lng * 100) / 100;
-                updateCoordinatesFromMap(clickedLat, clickedLon);
-            });
-
-            // Handle marker drag
-            miniMarker.on('dragend', function(e) {
-                const markerLat = Math.round(e.target.getLatLng().lat * 100) / 100;
-                const markerLon = Math.round(e.target.getLatLng().lng * 100) / 100;
-                updateCoordinatesFromMap(markerLat, markerLon);
-            });
-        }
-
-        // Update coordinates from map to all UI elements
-        function updateCoordinatesFromMap(lat, lon) {
-            const roundedLat = Math.round(lat * 100) / 100;
-            const roundedLon = Math.round(lon * 100) / 100;
-
-            // Update display inputs in map
-            $('#lat-display').val(roundedLat.toFixed(2));
-            $('#lon-display').val(roundedLon.toFixed(2));
-
-            // Update marker position
-            if (miniMarker) {
-                miniMarker.setLatLng([roundedLat, roundedLon]);
-            }
-
-            // Update current coordinates
-            currentLatitude = roundedLat;
-            currentLongitude = roundedLon;
-
-            // Update location UI (tumblers)
-            updateLocationUI(roundedLat, roundedLon);
-
-            log(`Map coordinates updated: ${roundedLat.toFixed(2)}, ${roundedLon.toFixed(2)}`);
-        }
-
-        // Toggle map accordion
-        function toggleMapAccordion() {
-            const accordion = $('#map-accordion');
-            const isOpen = accordion.hasClass('open');
-            
-            if (isOpen) {
-                accordion.removeClass('open');
-                log('Map accordion closed');
-            } else {
-                accordion.addClass('open');
-                log('Map accordion opened');
-                
-                // Initialize map if not already done or refresh it
-                setTimeout(() => {
-                    const lat = currentLatitude || 0;
-                    const lon = currentLongitude || 0;
-                    initializeMiniMap(lat, lon);
-                    
-                    // Update display inputs
-                    $('#lat-display').val(lat.toFixed(2));
-                    $('#lon-display').val(lon.toFixed(2));
-                    
-                    // Refresh map size after accordion animation
-                    setTimeout(() => {
-                        if (miniMap) {
-                            miniMap.invalidateSize();
-                        }
-                    }, 350);
-                }, 50);
-            }
-        }
-
-        // Get current location for mini map
-        function getCurrentLocationForMap() {
-            if (navigator.geolocation) {
-                $('#get-location').text('Localisation...').prop('disabled', true);
-                
-                navigator.geolocation.getCurrentPosition(
-                    function(position) {
-                        const lat = Math.round(position.coords.latitude * 100) / 100;
-                        const lon = Math.round(position.coords.longitude * 100) / 100;
-
-                        updateCoordinatesFromMap(lat, lon);
-                        if (miniMap) {
-                            miniMap.setView([lat, lon], 13);
-                        }
-                        
-                        $('#get-location').text('Ma position').prop('disabled', false);
-                    },
-                    function(error) {
-                        let errorMessage;
-                        switch(error.code) {
-                            case error.PERMISSION_DENIED:
-                                errorMessage = "Géolocalisation refusée.";
-                                break;
-                            case error.POSITION_UNAVAILABLE:
-                                errorMessage = "Position indisponible.";
-                                break;
-                            case error.TIMEOUT:
-                                errorMessage = "Délai dépassé.";
-                                break;
-                            default:
-                                errorMessage = "Erreur géolocalisation.";
-                        }
-                        log(`Geolocation error: ${errorMessage}`);
-                        $('#get-location').text('Ma position').prop('disabled', false);
-                    }
-                );
-            } else {
-                log("Geolocation not supported by browser");
-            }
-        }
     </script>
 </body>
 </html>
