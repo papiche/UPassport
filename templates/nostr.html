@@ -1144,6 +1144,29 @@
             font-weight: 600;
         }
 
+        .video-thumbnail .badge-source {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            color: white;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 0.55rem;
+            font-weight: 600;
+        }
+
+        .video-thumbnail .badge-source.youtube {
+            background: linear-gradient(135deg, #ff0000, #cc0000);
+        }
+
+        .video-thumbnail .badge-source.serie {
+            background: linear-gradient(135deg, #9c27b0, #673ab7);
+        }
+
+        .video-thumbnail .badge-source.film {
+            background: linear-gradient(135deg, #2196f3, #1976d2);
+        }
+
         .video-info {
             padding: 8px;
         }
@@ -1481,6 +1504,10 @@
                 <span class="filter-sep">|</span>
                 <button class="tube-filter-btn" data-filter="short">⚡ Courts</button>
                 <button class="tube-filter-btn" data-filter="long">🎬 Longs</button>
+                <span class="filter-sep">|</span>
+                <button class="tube-filter-btn" data-filter="youtube">📺 YouTube</button>
+                <button class="tube-filter-btn" data-filter="serie">🎭 Séries</button>
+                <button class="tube-filter-btn" data-filter="film">🎬 Films</button>
                 <span class="filter-sep">|</span>
                 <button class="tube-filter-btn" data-filter="uplanet">🌍 UPlanet</button>
                 <button class="tube-filter-btn" data-filter="standard">📺 Standard</button>
@@ -1996,7 +2023,8 @@
                 duration: 0,
                 kind: 1, // Kind 1 for AI video messages
                 isUPlanet: isUPlanet,
-                isShort: true // AI videos are typically short
+                isShort: true, // AI videos are typically short
+                sourceType: 'webcam' // AI videos default to webcam source
             };
         }
 
@@ -2058,6 +2086,20 @@
                 (t[0] === 't' && t[1] === 'UPlanet')
             );
 
+            // Extract source type from "i" tag with "source:" prefix (film, serie, youtube, webcam)
+            let sourceType = 'webcam'; // Default
+            const sourceTag = event.tags.find(t => t[0] === 'i' && t[1]?.startsWith('source:'));
+            if (sourceTag) {
+                sourceType = sourceTag[1].replace('source:', '');
+            } else {
+                // Fallback: check for t tags (film, serie)
+                if (event.tags.some(t => t[0] === 't' && t[1] === 'film')) sourceType = 'film';
+                else if (event.tags.some(t => t[0] === 't' && t[1] === 'serie')) sourceType = 'serie';
+                else if (event.tags.some(t => t[0] === 't' && t[1] === 'youtube')) sourceType = 'youtube';
+                // Check for YouTube URL tag
+                else if (event.tags.some(t => t[0] === 'youtube_url')) sourceType = 'youtube';
+            }
+
             return {
                 id: event.id,
                 title: titleTag ? titleTag[1] : 'NostrTube Video',
@@ -2071,7 +2113,8 @@
                 duration: duration,
                 kind: event.kind,
                 isUPlanet: isUPlanet,
-                isShort: event.kind === 22 || duration <= 60
+                isShort: event.kind === 22 || duration <= 60,
+                sourceType: sourceType
             };
         }
 
@@ -2172,13 +2215,18 @@
 
         function filterTubeVideos() {
             filteredTubeVideos = tubeVideos.filter(v => {
-                // Filter by source type
+                // Filter by video type (AI vs Nostr)
                 if (tubeFilter === 'ai' && v.type !== 'ai') return false;
                 if (tubeFilter === 'nostr' && v.type !== 'nostr') return false;
                 
                 // Filter by duration (short = kind 22 or ≤60s, long = kind 21 or >60s)
                 if (tubeFilter === 'short' && !v.isShort) return false;
                 if (tubeFilter === 'long' && v.isShort) return false;
+                
+                // Filter by source type (youtube, serie, film)
+                if (tubeFilter === 'youtube' && v.sourceType !== 'youtube') return false;
+                if (tubeFilter === 'serie' && v.sourceType !== 'serie') return false;
+                if (tubeFilter === 'film' && v.sourceType !== 'film') return false;
                 
                 // Filter by platform (UPlanet vs standard Nostr)
                 if (tubeFilter === 'uplanet' && !v.isUPlanet) return false;
@@ -2204,6 +2252,9 @@
                     'nostr': 'Aucune vidéo NostrTube disponible',
                     'short': 'Aucune vidéo courte (≤60s) trouvée',
                     'long': 'Aucune vidéo longue (>60s) trouvée',
+                    'youtube': 'Aucune vidéo YouTube archivée trouvée',
+                    'serie': 'Aucune série trouvée',
+                    'film': 'Aucun film trouvé',
                     'uplanet': 'Aucune vidéo UPlanet trouvée',
                     'standard': 'Aucune vidéo Nostr standard trouvée'
                 };
@@ -2245,6 +2296,9 @@
                         ${hasGif ? `<img class="gifanim" src="${gifanim}" onerror="this.style.display='none'">` : ''}
                         <span class="play-icon">▶</span>
                         ${video.type === 'ai' ? '<span class="badge-ai">🤖 IA</span>' : ''}
+                        ${video.sourceType === 'youtube' ? '<span class="badge-source youtube">📺 YT</span>' : ''}
+                        ${video.sourceType === 'serie' ? '<span class="badge-source serie">🎭 Série</span>' : ''}
+                        ${video.sourceType === 'film' ? '<span class="badge-source film">🎬 Film</span>' : ''}
                         ${duration ? `<span class="duration">${duration}</span>` : ''}
                     </div>
                     <div class="video-info">
