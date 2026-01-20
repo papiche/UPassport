@@ -120,6 +120,144 @@
             50% { opacity: 1; }
         }
 
+        /* Sociétaire Status Badge */
+        .societaire-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 0.6rem;
+            font-weight: 600;
+            margin-left: 4px;
+        }
+
+        .societaire-badge.constellation {
+            background: linear-gradient(135deg, rgba(147, 112, 219, 0.4), rgba(255, 165, 0, 0.3));
+            border: 1px solid #9370db;
+            color: #dda0dd;
+            box-shadow: 0 0 8px rgba(147, 112, 219, 0.3);
+        }
+
+        .societaire-badge.satellite {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.3), rgba(255, 165, 0, 0.2));
+            border: 1px solid var(--accent-gold, #ffd700);
+            color: #ffd700;
+        }
+
+        .societaire-badge.member {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.3), rgba(255, 165, 0, 0.2));
+            border: 1px solid var(--accent-gold, #ffd700);
+            color: #ffd700;
+        }
+
+        .societaire-badge.visitor {
+            background: linear-gradient(135deg, rgba(128, 128, 128, 0.2), rgba(100, 100, 100, 0.1));
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+        }
+
+        /* DID Profile Panel */
+        .did-panel {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            width: 280px;
+            max-height: 400px;
+            overflow-y: auto;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            z-index: 200;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+
+        .did-panel.visible {
+            display: block;
+        }
+
+        .did-panel h4 {
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            margin: 0 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .did-panel .did-section {
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .did-panel .did-section:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .did-panel .did-label {
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+
+        .did-panel .did-value {
+            font-size: 0.7rem;
+            color: var(--text-primary);
+            word-break: break-all;
+        }
+
+        .did-panel .did-value.highlight {
+            color: var(--accent-green);
+            font-weight: 600;
+        }
+
+        .did-panel .did-value.warning {
+            color: var(--accent-gold, #ffd700);
+        }
+
+        .did-panel .services-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .did-panel .service-tag {
+            padding: 2px 6px;
+            background: var(--bg-input);
+            border-radius: 4px;
+            font-size: 0.55rem;
+            color: var(--accent-cyan);
+        }
+
+        /* Societaire Warning Banner */
+        .societaire-warning {
+            background: linear-gradient(135deg, rgba(255, 165, 0, 0.2), rgba(255, 100, 0, 0.1));
+            border: 1px solid var(--accent-gold, #ffa500);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 0.65rem;
+            color: var(--accent-gold, #ffa500);
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .societaire-warning.constellation-warning {
+            background: linear-gradient(135deg, rgba(147, 112, 219, 0.2), rgba(255, 165, 0, 0.1));
+            border: 1px solid #9370db;
+            color: #dda0dd;
+        }
+
+        .societaire-warning a {
+            color: var(--accent-cyan);
+            text-decoration: underline;
+        }
+
         .logo {
             font-family: 'Orbitron', sans-serif;
             font-size: 0.85rem;
@@ -1447,9 +1585,10 @@
     <div class="top-bar" id="topBar">
         <div class="logo" onclick="history.go(-1)">🤖 #BRO</div>
         <div class="status-dot offline" id="statusDot"></div>
-        <div class="profile-mini" id="profileMini">
+        <div class="profile-mini" id="profileMini" style="cursor:pointer;" onclick="toggleDidPanel()">
             <img src="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1" id="profileImg">
             <span class="name" id="profileName">Non connecté</span>
+            <span class="societaire-badge visitor" id="societaireBadge" style="display:none;">👤 Visiteur</span>
         </div>
         <div class="zen-balance" id="zenBalance" style="display:none;">
             <span class="zen-icon">Ẑ</span>
@@ -1457,6 +1596,34 @@
             <span class="zencard-icon" id="zencardIcon" style="display:none;" title="ZEN Card disponible">💳</span>
         </div>
         <button class="btn-connect" id="btnConnect">Connecter</button>
+        <!-- DID Profile Panel -->
+        <div class="did-panel" id="didPanel">
+            <h4>📋 Identité Décentralisée (DID)</h4>
+            <div class="did-section">
+                <div class="did-label">Statut</div>
+                <div class="did-value" id="didContractStatus">---</div>
+            </div>
+            <div class="did-section">
+                <div class="did-label">Type de Jetons</div>
+                <div class="did-value" id="didTokenTypes">---</div>
+            </div>
+            <div class="did-section">
+                <div class="did-label">Quota Stockage</div>
+                <div class="did-value" id="didStorageQuota">---</div>
+            </div>
+            <div class="did-section">
+                <div class="did-label">Services</div>
+                <div class="did-value services-list" id="didServices">---</div>
+            </div>
+            <div class="did-section">
+                <div class="did-label">DID (kind 30800)</div>
+                <div class="did-value" id="didIdentifier" style="font-size:0.55rem;color:var(--text-dim);">---</div>
+            </div>
+            <div class="did-section">
+                <div class="did-label">Station Astroport</div>
+                <div class="did-value" id="didAstroport">---</div>
+            </div>
+        </div>
     </div>
 
     <!-- SERVICE TABS - 3 main tabs -->
@@ -1598,8 +1765,14 @@
             <button class="opt-btn" id="btnLocation">📍</button>
             <button class="opt-btn" id="btnSettings">⚙️</button>
             <div class="sub-options" id="videoOpts">
-                <button class="sub-opt active" data-mode="t2v" title="Text-to-Video">T2V</button>
-                <button class="sub-opt" data-mode="i2v" title="Image-to-Video">I2V</button>
+                <div class="societaire-warning" id="videoT2vWarning" style="display:none;">
+                    ⚠️ T2V réservé aux sociétaires - <a href="javascript:void(0)" onclick="showSocietaireInfo()">En savoir plus</a>
+                </div>
+                <div class="societaire-warning constellation-warning" id="videoI2vWarning" style="display:none;">
+                    🌟 I2V réservé aux Constellation - <a href="javascript:void(0)" onclick="showConstellationInfo()">Upgrade</a>
+                </div>
+                <button class="sub-opt active" data-mode="t2v" title="Text-to-Video (Satellite+)">⭐ T2V</button>
+                <button class="sub-opt" data-mode="i2v" title="Image-to-Video (Constellation)">🌟 I2V</button>
                 <div class="i2v-btns" id="i2vBtns">
                     <label class="i2v-btn" for="i2vImgInput" title="Sélectionner une image">📁 Fichier</label>
                     <input type="file" id="i2vImgInput" accept="image/*" style="display:none;">
@@ -1779,7 +1952,12 @@
                 updateInputHint(svc);
                 
                 // Show video options if video service
-                $('#videoOpts').toggleClass('visible', svc === 'video');
+                if (svc === 'video') {
+                    $('#videoOpts').addClass('visible');
+                    updateVideoAccessWarnings();
+                } else {
+                    $('#videoOpts').removeClass('visible');
+                }
             });
 
             // Close dropdown when clicking outside
@@ -1810,6 +1988,9 @@
                 
                 // Update hint to reflect mode
                 updateInputHint('video');
+                
+                // Update access warnings based on tier and mode
+                updateVideoAccessWarnings();
             });
             
             // I2V image file input
@@ -2863,6 +3044,7 @@
                 $('#btnConnect').hide();
                 $('#btnSend').prop('disabled', false);
                 await fetchProfile();
+                await fetchDidDocument(); // Fetch DID (kind 30800) for societaire status
                 await fetchMessages();
                 } catch (e) {
                 log(`ERROR: ${e.message}`);
@@ -2999,6 +3181,297 @@
             } else {
                 $zencardIcon.hide();
             }
+        }
+
+        // === DID DOCUMENT (kind 30800) ===
+        let userDid = null;
+        
+        // Fetch DID document (kind 30800 - NIP-101)
+        async function fetchDidDocument() {
+            if (!publicKey) return null;
+            
+            const p = getPool();
+            log('Fetching DID document (kind 30800)...');
+            
+            for (const relay of allRelays) {
+                try {
+                    const events = await p.list([relay], [{
+                        kinds: [30800],
+                        authors: [publicKey],
+                        '#d': ['did'],
+                        limit: 1
+                    }]);
+                    
+                    if (events.length > 0) {
+                        const event = events[0];
+                        try {
+                            userDid = JSON.parse(event.content);
+                            log(`DID found: ${userDid.id ? userDid.id.substring(0, 30) + '...' : 'unknown'}`);
+                            updateDidDisplay(userDid);
+                            updateSocietaireBadge(userDid);
+                            return userDid;
+                        } catch (e) {
+                            log(`DID parse error: ${e.message}`);
+                        }
+                    }
+                } catch (e) {
+                    log(`DID fetch error: ${e.message}`);
+                }
+            }
+            
+            log('No DID document found');
+            updateSocietaireBadge(null);
+            return null;
+        }
+
+        // Check if user is a sociétaire based on DID contractStatus (Satellite or higher)
+        function isSocietaireFromDid(did) {
+            if (!did || !did.metadata || !did.metadata.contractStatus) return false;
+            
+            const status = did.metadata.contractStatus;
+            return status.includes('cooperative_member') ||
+                   status.includes('infrastructure_contributor') ||
+                   status.includes('cooperative_treasury_contributor') ||
+                   status.includes('cooperative_rnd_contributor') ||
+                   status.includes('cooperative_assets_contributor');
+        }
+
+        // Check if user is CONSTELLATION tier (highest tier - I2V access)
+        function isConstellationFromDid(did) {
+            if (!did || !did.metadata || !did.metadata.contractStatus) return false;
+            
+            const status = did.metadata.contractStatus;
+            return status.includes('cooperative_member_constellation') ||
+                   status.includes('infrastructure_contributor');
+        }
+
+        // Get the tier level: 'constellation', 'satellite', or 'visitor'
+        function getTierFromDid(did) {
+            if (!did || !did.metadata || !did.metadata.contractStatus) return 'visitor';
+            
+            const status = did.metadata.contractStatus;
+            if (status.includes('cooperative_member_constellation') || 
+                status.includes('infrastructure_contributor')) {
+                return 'constellation';
+            }
+            if (status.includes('cooperative_member_satellite') ||
+                status.includes('cooperative_treasury_contributor') ||
+                status.includes('cooperative_rnd_contributor') ||
+                status.includes('cooperative_assets_contributor')) {
+                return 'satellite';
+            }
+            return 'visitor';
+        }
+
+        // Update societaire badge display - differentiate Satellite vs Constellation
+        function updateSocietaireBadge(did) {
+            const $badge = $('#societaireBadge');
+            const tier = getTierFromDid(did);
+            
+            $badge.removeClass('visitor member constellation satellite');
+            
+            if (tier === 'constellation') {
+                $badge.addClass('member constellation');
+                $badge.html('🌟 Constellation');
+                $badge.attr('title', 'Membre Constellation - Accès complet (T2V + I2V)');
+            } else if (tier === 'satellite') {
+                $badge.addClass('member satellite');
+                $badge.html('⭐ Satellite');
+                $badge.attr('title', 'Membre Satellite - Accès T2V (Text-to-Video)');
+            } else {
+                $badge.addClass('visitor');
+                $badge.html('👤 Visiteur');
+                $badge.attr('title', 'Accès limité - Devenez sociétaire pour débloquer toutes les fonctionnalités');
+            }
+            
+            $badge.show();
+        }
+
+        // Update DID panel display
+        function updateDidDisplay(did) {
+            if (!did) {
+                $('#didContractStatus').text('Non trouvé');
+                $('#didTokenTypes').text('---');
+                $('#didStorageQuota').text('---');
+                $('#didServices').text('---');
+                $('#didIdentifier').text('---');
+                $('#didAstroport').text('---');
+                return;
+            }
+            
+            const meta = did.metadata || {};
+            
+            // Contract Status
+            const statusMap = {
+                'active_rental': '🎫 MULTIPASS (Location)',
+                'cooperative_member_satellite': '⭐ Sociétaire Satellite',
+                'cooperative_member_constellation': '🌟 Sociétaire Constellation',
+                'infrastructure_contributor': '🏗️ Contributeur Infrastructure',
+                'cooperative_treasury_contributor': '💰 Contributeur Trésorerie',
+                'cooperative_rnd_contributor': '🔬 Contributeur R&D',
+                'cooperative_assets_contributor': '📦 Contributeur Assets',
+                'new_multipass': '🆕 Nouveau MULTIPASS',
+                'new_user': '👤 Nouvel utilisateur'
+            };
+            const statusText = statusMap[meta.contractStatus] || meta.contractStatus || '---';
+            const $status = $('#didContractStatus');
+            $status.text(statusText);
+            
+            if (isSocietaireFromDid(did)) {
+                $status.addClass('highlight').removeClass('warning');
+            } else {
+                $status.addClass('warning').removeClass('highlight');
+            }
+            
+            // Token Types
+            const tokenTypes = meta.tokenTypes || [];
+            const tokenIcons = {
+                'ZENCARD': '💳 ZenCard',
+                'ZENCOIN': '🪙 ZenCoin'
+            };
+            const tokenText = tokenTypes.map(t => tokenIcons[t] || t).join(', ') || '---';
+            $('#didTokenTypes').text(tokenText);
+            
+            // Storage Quota
+            const quota = meta.storageQuota || '---';
+            const $quota = $('#didStorageQuota');
+            $quota.text(quota);
+            if (quota === '128GB') {
+                $quota.addClass('highlight');
+            } else {
+                $quota.removeClass('highlight');
+            }
+            
+            // Services
+            const services = meta.services || '';
+            if (services) {
+                const serviceList = services.split('+').map(s => s.trim());
+                $('#didServices').html(serviceList.map(s => `<span class="service-tag">${s}</span>`).join(''));
+            } else {
+                $('#didServices').text('---');
+            }
+            
+            // DID Identifier
+            if (did.id) {
+                const shortDid = did.id.length > 50 ? did.id.substring(0, 50) + '...' : did.id;
+                $('#didIdentifier').text(shortDid);
+            } else {
+                $('#didIdentifier').text('---');
+            }
+            
+            // Astroport Station
+            const station = meta.astroportStation?.ipns || meta.astroport || '---';
+            if (station && station !== '---') {
+                const shortStation = station.length > 30 ? station.substring(0, 30) + '...' : station;
+                $('#didAstroport').text(shortStation);
+            } else {
+                $('#didAstroport').text('---');
+            }
+        }
+
+        // Toggle DID panel visibility
+        function toggleDidPanel() {
+            const $panel = $('#didPanel');
+            $panel.toggleClass('visible');
+            
+            // Close on click outside
+            if ($panel.hasClass('visible')) {
+                setTimeout(() => {
+                    $(document).one('click', function(e) {
+                        if (!$(e.target).closest('#didPanel, #profileMini').length) {
+                            $panel.removeClass('visible');
+                        }
+                    });
+                }, 100);
+            }
+        }
+
+        // Show societaire information modal (for T2V access)
+        function showSocietaireInfo() {
+            const ipfsGateway = getIpfsGateway();
+            showNotification(`
+                <h5>⭐ Accès Sociétaire Satellite</h5>
+                <p>Le mode <strong>Text-to-Video (T2V)</strong> est réservé aux membres de la coopérative.</p>
+                <h6>📊 Niveaux d'accès #video :</h6>
+                <ul style="text-align:left; font-size:0.8rem; margin: 8px 0;">
+                    <li>⭐ <strong>Satellite</strong> : Text-to-Video (T2V)</li>
+                    <li>🌟 <strong>Constellation</strong> : T2V + Image-to-Video (I2V)</li>
+                </ul>
+                <h6>Avantages sociétaires :</h6>
+                <ul style="text-align:left; font-size:0.8rem; margin: 8px 0;">
+                    <li>🧠 Slots mémoire 1-12 (#mem)</li>
+                    <li>📁 128 Go de stockage NextCloud</li>
+                    <li>🗳️ Droit de vote sur les évolutions</li>
+                </ul>
+                <p style="margin-top: 12px;">
+                    <a href="${ipfsGateway}/ipns/copylaradio.com" target="_blank" class="btn btn-sm btn-primary">
+                        Devenir sociétaire
+                    </a>
+                </p>
+            `);
+        }
+
+        // Show constellation upgrade information (for I2V access)
+        function showConstellationInfo() {
+            const ipfsGateway = getIpfsGateway();
+            const tier = getTierFromDid(userDid);
+            
+            let currentTierMsg = '';
+            if (tier === 'satellite') {
+                currentTierMsg = `<p style="color: #ffd700;">✅ Vous êtes <strong>Satellite</strong> - Accès T2V activé</p>`;
+            }
+            
+            showNotification(`
+                <h5>🌟 Accès Constellation</h5>
+                <p>Le mode <strong>Image-to-Video (I2V)</strong> nécessite le niveau Constellation.</p>
+                ${currentTierMsg}
+                <h6>📊 Comparatif des niveaux :</h6>
+                <table style="width:100%; font-size:0.75rem; margin: 8px 0;">
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td></td>
+                        <td style="text-align:center;">⭐ Satellite</td>
+                        <td style="text-align:center;">🌟 Constellation</td>
+                    </tr>
+                    <tr>
+                        <td>Text-to-Video</td>
+                        <td style="text-align:center;">✅</td>
+                        <td style="text-align:center;">✅</td>
+                    </tr>
+                    <tr>
+                        <td>Image-to-Video</td>
+                        <td style="text-align:center;">❌</td>
+                        <td style="text-align:center;">✅</td>
+                    </tr>
+                    <tr>
+                        <td>Services IA+</td>
+                        <td style="text-align:center;">❌</td>
+                        <td style="text-align:center;">✅</td>
+                    </tr>
+                </table>
+                <p style="margin-top: 12px;">
+                    <a href="${ipfsGateway}/ipns/copylaradio.com" target="_blank" class="btn btn-sm btn-primary">
+                        Upgrade vers Constellation
+                    </a>
+                </p>
+            `);
+        }
+
+        // Update video access warnings based on user tier and current video mode
+        function updateVideoAccessWarnings() {
+            const tier = getTierFromDid(userDid);
+            
+            // Hide all warnings first
+            $('#videoT2vWarning').hide();
+            $('#videoI2vWarning').hide();
+            
+            if (tier === 'visitor') {
+                // Non-societaire: show T2V warning (no access to any video)
+                $('#videoT2vWarning').show();
+            } else if (tier === 'satellite' && videoMode === 'i2v') {
+                // Satellite trying I2V: show constellation warning
+                $('#videoI2vWarning').show();
+            }
+            // Constellation users: no warnings needed
         }
 
         // === MESSAGES ===
@@ -3269,9 +3742,22 @@
         function updateInputHint(svc) {
             let hint = '';
             if (svc === 'video') {
-                hint = videoMode === 'i2v' 
-                    ? '🎬 I2V: Joignez une image + décrivez l\'animation souhaitée'
-                    : '🎬 T2V: Décrivez la scène vidéo à générer';
+                const tier = getTierFromDid(userDid);
+                if (videoMode === 'i2v') {
+                    if (tier === 'constellation') {
+                        hint = '🌟 I2V: Joignez une image + décrivez l\'animation souhaitée';
+                    } else if (tier === 'satellite') {
+                        hint = '🔒 I2V réservé Constellation - Utilisez T2V avec votre abonnement Satellite';
+                    } else {
+                        hint = '🔒 Réservé aux sociétaires Constellation';
+                    }
+                } else {
+                    if (tier !== 'visitor') {
+                        hint = '⭐ T2V: Décrivez la scène vidéo à générer';
+                    } else {
+                        hint = '🔒 Réservé aux sociétaires - Devenez membre pour générer des vidéos';
+                    }
+                }
             } else {
                 const hints = {
                     chat: '💬 Posez une question à votre IA',
