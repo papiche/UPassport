@@ -50,6 +50,72 @@
             background: var(--bg-panel);
             border-bottom: 1px solid var(--border);
             flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        .top-bar.with-banner {
+            background-size: cover;
+            background-position: center;
+            min-height: 50px;
+        }
+
+        .top-bar.with-banner::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to right, rgba(10, 10, 15, 0.9), rgba(10, 10, 15, 0.6), rgba(10, 10, 15, 0.9));
+            z-index: 0;
+        }
+
+        .top-bar > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ZEN Balance display */
+        .zen-balance {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            background: linear-gradient(135deg, rgba(0, 255, 136, 0.2), rgba(0, 212, 255, 0.1));
+            border: 1px solid var(--accent-green);
+            border-radius: 12px;
+            font-size: 0.7rem;
+            color: var(--accent-green);
+            font-weight: 600;
+            margin-left: auto;
+            white-space: nowrap;
+        }
+
+        .zen-balance .zen-icon {
+            font-size: 0.8rem;
+        }
+
+        .zen-balance .zen-amount {
+            color: var(--text-primary);
+        }
+
+        .zen-balance .zencard-icon {
+            margin-left: 4px;
+            color: var(--accent-purple);
+            font-size: 0.9rem;
+            cursor: help;
+        }
+
+        .zen-balance.loading {
+            opacity: 0.6;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
         }
 
         .logo {
@@ -1180,12 +1246,17 @@
 </head>
 <body>
     <!-- TOP BAR -->
-    <div class="top-bar">
+    <div class="top-bar" id="topBar">
         <div class="logo" onclick="history.go(-1)">🤖 #BRO</div>
         <div class="status-dot offline" id="statusDot"></div>
         <div class="profile-mini" id="profileMini">
             <img src="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1" id="profileImg">
             <span class="name" id="profileName">Non connecté</span>
+        </div>
+        <div class="zen-balance" id="zenBalance" style="display:none;">
+            <span class="zen-icon">Ẑ</span>
+            <span class="zen-amount" id="zenAmount">---</span>
+            <span class="zencard-icon" id="zencardIcon" style="display:none;" title="ZEN Card disponible">💳</span>
         </div>
         <button class="btn-connect" id="btnConnect">Connecter</button>
     </div>
@@ -2313,13 +2384,124 @@
                 try {
                     const events = await p.list([relay], [{ kinds: [0], authors: [publicKey], limit: 1 }]);
                     if (events.length) {
-                        userProfile = JSON.parse(events[0].content);
+                        const event = events[0];
+                        userProfile = JSON.parse(event.content);
+                        
+                        // Extract additional fields from event tags (g1pub, zencard)
+                        if (event.tags && Array.isArray(event.tags)) {
+                            event.tags.forEach(tag => {
+                                if (tag.length >= 2 && tag[0] === 'i') {
+                                    const value = tag[1];
+                                    if (value.startsWith('g1pub:')) {
+                                        userProfile.g1pub = value.substring(6);
+                                    } else if (value.startsWith('zencard:')) {
+                                        userProfile.zencard = value.substring(8);
+                                    }
+                                }
+                            });
+                        }
+                        
+                        // Update profile display
                         $('#profileImg').attr('src', userProfile.picture || $('#profileImg').attr('src'));
                         $('#profileName').text(userProfile.display_name || userProfile.name || publicKey.slice(0, 8));
                         log(`Profile: ${userProfile.name || userProfile.display_name}`);
+                        
+                        // Update header with banner if available
+                        updateHeaderWithBanner(userProfile);
+                        
+                        // Fetch and display ZEN balance
+                        fetchAndDisplayZenBalance(userProfile);
+                        
                         break;
                     }
                 } catch (e) { log(`Profile error: ${e.message}`); }
+            }
+        }
+
+        // Update header with user's banner
+        function updateHeaderWithBanner(profile) {
+            const $topBar = $('#topBar');
+            if (profile.banner) {
+                const bannerUrl = normalizeIpfsUrl(profile.banner);
+                $topBar.addClass('with-banner');
+                $topBar.css('background-image', `url('${bannerUrl}')`);
+                log(`Banner set: ${bannerUrl.substring(0, 50)}...`);
+            } else {
+                $topBar.removeClass('with-banner');
+                $topBar.css('background-image', 'none');
+            }
+        }
+
+        // Get API server URL (ipfs. -> u.)
+        function getApiServerUrl() {
+            const url = new URL(window.location.href);
+            let hostname = url.hostname.replace(/^ipfs\./, 'u.');
+            let port = url.port;
+            if (port === '8080') port = '54321';
+            const protocol = url.protocol;
+            return port ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`;
+        }
+
+        // Check ZEN balance for a g1pub
+        async function checkZenBalance(g1pub) {
+            try {
+                const apiUrl = getApiServerUrl();
+                const response = await fetch(`${apiUrl}/check_balance?g1pub=${g1pub}`, { timeout: 5000 });
+                
+                if (!response.ok) return null;
+                
+                const data = await response.json();
+                if (data.balance && data.g1pub) {
+                    const g1Balance = parseFloat(data.balance);
+                    const zenBalance = Math.floor((g1Balance - 1) * 10);
+                    return { g1Balance, zenBalance, g1pub: data.g1pub };
+                }
+                return null;
+            } catch (error) {
+                log(`Balance check error: ${error.message}`);
+                return null;
+            }
+        }
+
+        // Fetch and display ZEN balance
+        async function fetchAndDisplayZenBalance(profile) {
+            const $zenBalance = $('#zenBalance');
+            const $zenAmount = $('#zenAmount');
+            const $zencardIcon = $('#zencardIcon');
+            
+            // Show loading state
+            $zenBalance.show().addClass('loading');
+            $zenAmount.text('...');
+            
+            let totalZen = 0;
+            let hasZenCard = false;
+            
+            // Check g1pub balance
+            if (profile.g1pub) {
+                const g1pubParts = profile.g1pub.split(':');
+                const mainPub = g1pubParts[0]; // Use first part (MULTIPASS)
+                
+                const balance = await checkZenBalance(mainPub);
+                if (balance) {
+                    totalZen = balance.zenBalance;
+                    log(`ZEN Balance: ${totalZen} ẐEN`);
+                }
+            }
+            
+            // Check ZenCard
+            if (profile.zencard && profile.zencard !== 'None' && profile.zencard.trim() !== '') {
+                hasZenCard = true;
+                log(`ZenCard found: ${profile.zencard.substring(0, 8)}...`);
+            }
+            
+            // Update display
+            $zenBalance.removeClass('loading');
+            $zenAmount.text(totalZen > 0 ? `${totalZen} ẐEN` : '0 ẐEN');
+            
+            if (hasZenCard) {
+                $zencardIcon.show();
+            } else {
+                $zencardIcon.hide();
             }
         }
 
