@@ -4169,12 +4169,19 @@
                 }
 
                 if (selectedImage) {
-                    showLoading(true, 'Upload...');
+                    showLoading(true, 'Upload image...');
                     try {
                         const result = await uploadNip96(selectedImage);
-                        content += '\n' + result.url;
-                        if (result.tags) tags = tags.concat(result.tags);
-                    } catch (e) { log(`Upload error: ${e.message}`); }
+                        if (result.url) {
+                            content += '\n' + result.url;
+                            if (result.tags) tags = tags.concat(result.tags);
+                            log(`✅ Image uploaded: ${result.url.substring(0, 50)}...`);
+                        }
+                    } catch (e) { 
+                        log(`❌ Upload error: ${e.message}`);
+                        showNotification(`Erreur upload: ${e.message}`, 'warning');
+                        // Continue without image
+                    }
                 }
 
                 const event = {
@@ -4554,21 +4561,65 @@
         }
 
         async function uploadNip96(dataUrl) {
-            const res = await fetch('/.well-known/nostr/nip96.json');
-            const cfg = await res.json();
+            // Convert dataUrl to File
             const b64 = dataUrl.split(',')[1];
             const mime = dataUrl.split(',')[0].split(':')[1].split(';')[0];
             const bin = atob(b64);
             const arr = new Uint8Array(bin.length);
             for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
             const file = new File([new Blob([arr], { type: mime })], `img-${Date.now()}.png`, { type: mime });
+            
+            // Use uploadPhotoToIPFS from common.js if available (handles auth + correct URL)
+            if (typeof uploadPhotoToIPFS === 'function') {
+                log('Using common.js uploadPhotoToIPFS...');
+                const result = await uploadPhotoToIPFS(file);
+                if (result.success && result.url) {
+                    // Build tags from result metadata
+                    const tags = [];
+                    if (result.cid) tags.push(['x', result.cid]);
+                    if (result.fileName) tags.push(['filename', result.fileName]);
+                    if (result.thumbnail_ipfs) tags.push(['thumb', `${getIpfsGateway()}/ipfs/${result.thumbnail_ipfs}`]);
+                    if (result.gifanim_ipfs) tags.push(['gifanim', `${getIpfsGateway()}/ipfs/${result.gifanim_ipfs}`]);
+                    return { 
+                        url: result.url, 
+                        tags: tags 
+                    };
+                }
+                throw new Error(result.error || 'Upload failed - no URL returned');
+            }
+            
+            // Fallback to NIP-96 with HTTPS fix
+            log('Fallback to NIP-96 upload...');
+            const res = await fetch('/.well-known/nostr/nip96.json');
+            const cfg = await res.json();
+            
+            // Fix mixed content: ensure api_url uses same protocol as page
+            let apiUrl = cfg.api_url;
+            if (location.protocol === 'https:' && apiUrl.startsWith('http://')) {
+                apiUrl = apiUrl.replace('http://', 'https://');
+                log(`Fixed mixed content: ${apiUrl}`);
+            }
+            
             const fd = new FormData();
             fd.append('file', file);
-            const r = await fetch(cfg.api_url, { method: 'POST', body: fd });
+            
+            // Add npub for authenticated upload
+            if (STATE.pubkey) {
+                fd.append('npub', STATE.pubkey);
+            }
+            
+            const r = await fetch(apiUrl, { method: 'POST', body: fd });
             const data = await r.json();
             if (data.status === 'success' && data.nip94_event?.tags) {
                 let url = data.nip94_event.tags.find(t => t[0] === 'url')?.[1];
-                if (url?.startsWith('/ipfs/') && cfg.download_url) url = cfg.download_url.replace(/\/$/, '') + url;
+                // Fix download URL protocol too
+                let downloadUrl = cfg.download_url;
+                if (location.protocol === 'https:' && downloadUrl?.startsWith('http://')) {
+                    downloadUrl = downloadUrl.replace('http://', 'https://');
+                }
+                if (url?.startsWith('/ipfs/') && downloadUrl) {
+                    url = downloadUrl.replace(/\/$/, '') + url;
+                }
                 return { url, tags: data.nip94_event.tags.filter(t => t[0] !== 'url') };
             }
             throw new Error('Upload failed');
