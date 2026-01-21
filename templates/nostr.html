@@ -4038,6 +4038,20 @@
                         $media.append($('<video controls>').attr('src', normalizedUrl));
                     } else if (type === 'audio') {
                         $media.append($('<audio controls>').attr('src', normalizedUrl));
+                    } else if (type === 'webpage') {
+                        // Webpage preview with iframe
+                        $media.addClass('webpage-preview');
+                        $media.append(`
+                            <div class="webpage-frame">
+                                <iframe src="${normalizedUrl}" sandbox="allow-scripts allow-same-origin" loading="lazy"></iframe>
+                                <div class="webpage-overlay" onclick="window.open('${normalizedUrl}', '_blank')">
+                                    <span>🔗 Ouvrir</span>
+                                </div>
+                            </div>
+                            <a href="${normalizedUrl}" target="_blank" class="webpage-link">
+                                <span>🌐</span> ${originalUrl.length > 60 ? originalUrl.substring(0, 60) + '...' : originalUrl}
+                            </a>
+                        `);
                     }
                     $msg.append($media);
                 }
@@ -4448,24 +4462,38 @@
 
         function detectMediaType(url) {
             const l = url.toLowerCase();
-            if (/\.(jpg|jpeg|png|webp|avif)(\?|$)/i.test(l)) return 'image';
-            if (/\.gif(\?|$)/i.test(l)) return 'gif';
-            if (/\.(mp4|webm|mov)(\?|$)/i.test(l)) return 'video';
-            if (/\.(mp3|wav|ogg|m4a)(\?|$)/i.test(l)) return 'audio';
-            if (/\.(html|htm)(\?|$)/i.test(l)) return 'webpage';
-            if (/ipfs|ipns/i.test(l)) {
-                if (/video_|\.mp4|\.webm|\.mov/i.test(l)) return 'video';
-                if (/audio_|music_|\.mp3|\.wav|\.ogg/i.test(l)) return 'audio';
+            
+            // Check file extensions first (works for any URL)
+            if (/\.(jpg|jpeg|png|webp|avif)(\?|#|$)/i.test(l)) return 'image';
+            if (/\.gif(\?|#|$)/i.test(l)) return 'gif';
+            if (/\.(mp4|webm|mov)(\?|#|$)/i.test(l)) return 'video';
+            if (/\.(mp3|wav|ogg|m4a)(\?|#|$)/i.test(l)) return 'audio';
+            if (/\.(html|htm|pdf)(\?|#|$)/i.test(l)) return 'webpage';
+            
+            // Check for IPFS/IPNS URLs (gateway URLs or relative paths)
+            if (/ipfs\.|\/ipfs\/|\/ipns\//i.test(l)) {
+                // Check patterns in filename/path
+                if (/video_|_video|\.mp4|\.webm|\.mov/i.test(l)) return 'video';
+                if (/audio_|_audio|music_|_music|\.mp3|\.wav|\.ogg/i.test(l)) return 'audio';
                 if (/\.gif/i.test(l)) return 'gif';
-                if (/\.(jpg|jpeg|png|webp|avif)/i.test(l)) return 'image';
-                // IPFS URL without file extension = likely a webpage/directory
-                // Check if it ends with a CID or path without extension
-                if (/\/(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[yk][a-zA-Z2-7]+)\/?$/i.test(l) ||
-                    /\/[^.\/]+\/?$/i.test(l)) {
+                if (/image_|_image|photo_|_photo|\.(jpg|jpeg|png|webp|avif)/i.test(l)) return 'image';
+                
+                // IPFS URL ending with a CID (no file extension) = webpage/document
+                // CIDv0: Qm followed by 44 base58 chars (total 46)
+                // CIDv1: bafy/bafk followed by base32 chars
+                if (/\/(Qm[1-9A-HJ-NP-Za-km-z]{44,46}|baf[yk][a-zA-Z2-7]{50,})\/?$/i.test(l)) {
                     return 'webpage';
                 }
-                return 'image'; // fallback for IPFS with unclear type
+                
+                // IPFS URL ending with path without extension (likely a directory/document)
+                if (/\/ipfs\/[^\/]+\/?$/i.test(l) || /\/ipns\/[^\/]+\/?$/i.test(l)) {
+                    return 'webpage';
+                }
+                
+                // Fallback: if it's an IPFS URL without clear type, treat as webpage
+                return 'webpage';
             }
+            
             return null;
         }
 
