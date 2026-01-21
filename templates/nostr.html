@@ -2617,21 +2617,26 @@
 
         // Preload profiles for all video authors (batch loading for performance)
         async function preloadVideoAuthorProfiles() {
-            const uniqueAuthors = [...new Set(tubeVideos.map(v => v.authorId))];
+            const uniqueAuthors = [...new Set(tubeVideos.map(v => v.authorId).filter(Boolean))];
             const missingAuthors = uniqueAuthors.filter(a => !profileCache[a]);
             
-            if (missingAuthors.length === 0) return;
+            if (missingAuthors.length === 0) {
+                log(`All ${uniqueAuthors.length} author profiles already cached`);
+                return;
+            }
             
-            log(`Preloading ${missingAuthors.length} author profiles...`);
+            log(`Preloading ${missingAuthors.length}/${uniqueAuthors.length} author profiles...`);
             
             const p = getPool();
             try {
                 // Batch fetch all missing profiles at once
-                const events = await p.list([allRelays[0]], [{
+                const events = await p.list(allRelays.slice(0, 3), [{
                     kinds: [0],
                     authors: missingAuthors,
-                    limit: missingAuthors.length
+                    limit: missingAuthors.length * 2
                 }]);
+                
+                log(`Received ${events.length} profile events`);
                 
                 events.forEach(event => {
                     try {
@@ -2639,12 +2644,16 @@
                         if (profile.picture) profile.picture = normalizeIpfsUrl(profile.picture);
                         if (profile.banner) profile.banner = normalizeIpfsUrl(profile.banner);
                         profileCache[event.pubkey] = profile;
-                    } catch (e) {}
+                    } catch (e) {
+                        console.warn('Profile parse error:', e);
+                    }
                 });
                 
-                log(`Loaded ${events.length} profiles`);
+                const loadedCount = Object.keys(profileCache).length;
+                log(`✅ Loaded ${events.length} profiles (cache now has ${loadedCount} entries)`);
             } catch (e) {
-                log(`Profile preload error: ${e.message}`);
+                log(`❌ Profile preload error: ${e.message}`);
+                console.error('Profile preload error:', e);
             }
         }
 
@@ -2712,7 +2721,7 @@
             const thumbnail = video.thumbnailUrl || '';
             const gifanim = video.gifanimUrl || '';
             const profile = profileCache[video.authorId] || {};
-            const authorName = profile.display_name || profile.name || video.authorId.slice(0, 8);
+            const authorName = profile.display_name || profile.name || video.authorId?.slice(0, 8) || 'Unknown';
             const authorPic = profile.picture || 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
             const authorBanner = profile.banner || '';
             const authorNip05 = profile.nip05 || '';
@@ -2722,7 +2731,12 @@
             const hasThumb = thumbnail && (thumbnail.startsWith('http') || thumbnail.startsWith('/'));
             const hasGif = gifanim && (gifanim.startsWith('http') || gifanim.startsWith('/'));
             const hasBanner = authorBanner && (authorBanner.startsWith('http') || authorBanner.startsWith('/'));
-            const shortPubkey = video.authorId.slice(0, 8) + '...' + video.authorId.slice(-4);
+            const shortPubkey = video.authorId ? (video.authorId.slice(0, 8) + '...' + video.authorId.slice(-4)) : '???';
+            
+            // Debug log for first few videos
+            if (tubeVideos.indexOf(video) < 3) {
+                console.log(`[VideoCard] ${video.title?.slice(0,20)}... author=${video.authorId?.slice(0,8)}, profile=`, profile);
+            }
 
             return `
                 <div class="video-card" onclick="openVideoTheater('${video.id}')">
@@ -3408,10 +3422,11 @@
                             udriveUrl = `${gateway}/ipns/${udriveInfo.ipnsVault}`;
                         }
                         
-                        // Show uDRIVE section (use class toggle for visibility)
-                        $('#didUdriveSection').addClass('visible');
+                        // Show uDRIVE section
+                        const $udriveSection = $('#didUdriveSection');
+                        $udriveSection.removeClass('hidden-service').css('display', 'block');
                         $('#didUdriveLink').attr('href', udriveUrl);
-                        log(`uDRIVE URL: ${udriveUrl.substring(0, 50)}...`);
+                        log(`✅ uDRIVE section shown, URL: ${udriveUrl.substring(0, 50)}...`);
                     }
                 }
             } catch (e) {
@@ -3432,10 +3447,12 @@
                         // Build UMAP chat URL
                         const umapChatUrl = `/earth/chat.html#${umapKey}`;
                         
-                        // Show UMAP section (use class toggle for visibility)
-                        $('#didUmapSection').addClass('visible');
+                        // Show UMAP section
+                        const $umapSection = $('#didUmapSection');
+                        $umapSection.removeClass('hidden-service').css('display', 'block');
                         $('#didUmapLink').attr('href', umapChatUrl);
                         $('#didUmapCoords').text(`Chat ${umapKey}`);
+                        log(`✅ UMAP section shown, coords: ${umapKey}`);
                         
                         // Store for later use
                         window.userUmapKey = umapKey;
