@@ -7,6 +7,7 @@
     <title>🤖 #BRO Terminal</title>
     <script src="/earth/jquery-3.6.3.min.js"></script>
     <script src="/earth/nostr.bundle.js"></script>
+    <script src="/earth/common.js"></script>
     <script src="/earth/bootstrap.bundle.min.js"></script>
     <link rel="stylesheet" href="/earth/bootstrap.min.css"/>
     <link rel="stylesheet" href="/earth/leaflet.css"/>
@@ -233,6 +234,62 @@
             border-radius: 4px;
             font-size: 0.55rem;
             color: var(--accent-cyan);
+        }
+
+        /* Auth Badge */
+        .auth-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 0.6rem;
+            font-weight: 600;
+        }
+
+        .auth-badge.pending {
+            background: rgba(255, 165, 0, 0.2);
+            border: 1px solid var(--accent-orange);
+            color: var(--accent-orange);
+        }
+
+        .auth-badge.authenticated {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid var(--accent-green);
+            color: var(--accent-green);
+        }
+
+        .auth-badge.failed {
+            background: rgba(255, 68, 102, 0.2);
+            border: 1px solid var(--accent-red);
+            color: var(--accent-red);
+        }
+
+        /* Service Links in DID Panel */
+        .did-panel .service-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(153, 102, 255, 0.1));
+            border: 1px solid var(--accent-cyan);
+            border-radius: 6px;
+            color: var(--accent-cyan);
+            text-decoration: none;
+            font-size: 0.65rem;
+            transition: all 0.2s;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .did-panel .service-link:hover {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.3), rgba(153, 102, 255, 0.2));
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 212, 255, 0.3);
+        }
+
+        .did-panel .service-link .icon {
+            font-size: 0.8rem;
         }
 
         /* Societaire Warning Banner */
@@ -1700,6 +1757,30 @@
                 <div class="did-label">Station Astroport</div>
                 <div class="did-value" id="didAstroport">---</div>
             </div>
+            <div class="did-section">
+                <div class="did-label">Authentification</div>
+                <div class="did-value" id="didAuthStatus">
+                    <span class="auth-badge pending">⏳ Non vérifié</span>
+                </div>
+            </div>
+            <!-- uDRIVE Section -->
+            <div class="did-section" id="didUdriveSection" style="display:none;">
+                <div class="did-label">📁 uDRIVE</div>
+                <div class="did-value">
+                    <a href="#" id="didUdriveLink" target="_blank" class="service-link">
+                        <span class="icon">📂</span> Ouvrir mon espace
+                    </a>
+                </div>
+            </div>
+            <!-- UMAP Chat Section -->
+            <div class="did-section" id="didUmapSection" style="display:none;">
+                <div class="did-label">💬 UMAP Chat</div>
+                <div class="did-value">
+                    <a href="#" id="didUmapLink" target="_blank" class="service-link">
+                        <span class="icon">🗺️</span> <span id="didUmapCoords">Chat local</span>
+                    </a>
+                </div>
+            </div>
             <div class="did-section" style="text-align:center;padding-top:6px;">
                 <a href="/earth/crowdfunding.html" style="color:var(--accent-green);font-size:0.65rem;text-decoration:none;" title="Financez les Communs">🌳 Crowdfunding Forêt Jardin</a>
             </div>
@@ -1846,10 +1927,10 @@
             <button class="opt-btn" id="btnSettings">⚙️</button>
             <div class="sub-options" id="videoOpts">
                 <div class="societaire-warning" id="videoT2vWarning" style="display:none;">
-                    ⚠️ T2V réservé aux sociétaires - <a href="javascript:void(0)" onclick="showSocietaireInfo()">En savoir plus</a>
+                    ⚠️ T2V accès - <a href="javascript:void(0)" onclick="showSocietaireInfo()">En savoir plus</a>
                         </div>
                 <div class="societaire-warning constellation-warning" id="videoI2vWarning" style="display:none;">
-                    🌟 I2V réservé aux Constellation - <a href="javascript:void(0)" onclick="showConstellationInfo()">Upgrade</a>
+                    🌟 I2V Niveau Constellation - <a href="javascript:void(0)" onclick="showConstellationInfo()">Upgrade</a>
                         </div>
                 <button class="sub-opt active" data-mode="t2v" title="Text-to-Video (Satellite+)">⭐ T2V</button>
                 <button class="sub-opt" data-mode="i2v" title="Image-to-Video (Constellation)">🌟 I2V</button>
@@ -1911,21 +1992,23 @@
 
     <script>
         // === CONFIG ===
-        const DEFAULT_RELAYS = ['wss://relay.copylaradio.com', 'ws://127.0.0.1:7777'];
-        // Fallback public relays for profile fetching
-        const PROFILE_FALLBACK_RELAYS = [
-            'wss://relay.damus.io',
-            'wss://relay.nostr.band',
-            'wss://nos.lol',
-            'wss://relay.snort.social',
-            'wss://purplepag.es'
-        ];
+        // Use DEFAULT_RELAYS from common.js (auto-detected from hostname)
+        // common.js provides: DEFAULT_RELAYS, nostrRelay, connectToRelay(), connectNostr(), publishNote(), etc.
         const MESSAGES_PER_PAGE = 50;
+        
+        // Wait for common.js to initialize and get relays
+        function getAllRelays() {
+            // Use common.js DEFAULT_RELAYS if available, otherwise fallback
+            if (typeof window.DEFAULT_RELAYS !== 'undefined' && window.DEFAULT_RELAYS.length > 0) {
+                return window.DEFAULT_RELAYS;
+            }
+            return ['wss://relay.copylaradio.com', 'ws://127.0.0.1:7777'];
+        }
 
         // === STATE ===
         let publicKey = '';
         let pool = null;
-        let allRelays = [...DEFAULT_RELAYS];
+        let allRelays = [];  // Will be set from common.js DEFAULT_RELAYS
         let userProfile = null;
         let allMessages = [];  // All fetched messages
         let filteredMessages = [];  // Messages filtered by service
@@ -1962,9 +2045,20 @@
             let attempts = 0;
             const checkLib = setInterval(() => {
                 attempts++;
-                if (typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                // Wait for both NostrTools and common.js to be ready
+                const nostrReady = typeof NostrTools !== 'undefined' && NostrTools.SimplePool;
+                const commonReady = typeof window.DEFAULT_RELAYS !== 'undefined';
+                
+                if (nostrReady && commonReady) {
                     clearInterval(checkLib);
-                    log('NostrTools OK');
+                    allRelays = getAllRelays();
+                    log(`Libraries OK → Relay: ${allRelays[0]}`);
+                    init();
+                } else if (nostrReady && attempts > 20) {
+                    // common.js might not be loaded, use fallback
+                    clearInterval(checkLib);
+                    allRelays = getAllRelays();
+                    log(`NostrTools OK (common.js timeout) → Relay: ${allRelays[0]}`);
                     init();
                 } else if (attempts > 50) {
                     clearInterval(checkLib);
@@ -2393,9 +2487,6 @@
             };
         }
 
-        // Store relay hints from contacts list (NIP-02)
-        let friendRelayHints = {};
-
         async function loadFriendsList() {
             if (!publicKey) return;
 
@@ -2409,22 +2500,11 @@
                 }]);
 
                 if (contacts.length > 0) {
-                    // Extract friends and their relay hints (NIP-02 format: ["p", pubkey, relay_url])
-                    friendsList = [];
-                    friendRelayHints = {};
-                    
-                    contacts[0].tags
+                    friendsList = contacts[0].tags
                         .filter(t => t[0] === 'p')
-                        .forEach(t => {
-                            const pubkey = t[1];
-                            const relayHint = t[2]; // Optional relay hint
-                            friendsList.push(pubkey);
-                            if (relayHint && relayHint.startsWith('wss://')) {
-                                friendRelayHints[pubkey] = relayHint;
-                            }
-                        });
+                        .map(t => t[1]);
                     
-                    log(`Loaded ${friendsList.length} friends (${Object.keys(friendRelayHints).length} with relay hints)`);
+                    log(`Loaded ${friendsList.length} friends`);
                     $('#friendsCount').text(friendsList.length);
                     renderFriendsList();
                 }
@@ -2484,36 +2564,21 @@
             if (profileCache[pubkey]) return profileCache[pubkey];
 
             const p = getPool();
-            
-            // Build relay list: hint relay (priority) + all relays + fallback relays
-            let relaysToQuery = [...allRelays];
-            if (friendRelayHints[pubkey]) {
-                relaysToQuery.unshift(friendRelayHints[pubkey]); // Prioritize hint relay
-            }
-            // Add fallback relays for better profile discovery
-            relaysToQuery = [...new Set([...relaysToQuery, ...PROFILE_FALLBACK_RELAYS])];
-            
             try {
-                // Query all relays for this profile
-                const events = await p.list(relaysToQuery, [{
+                const events = await p.list([allRelays[0]], [{
                     kinds: [0],
                     authors: [pubkey],
-                    limit: 3 // Get multiple in case of different versions
+                    limit: 1
                 }]);
-                
                 if (events.length > 0) {
-                    // Use the newest profile
-                    const newest = events.sort((a, b) => b.created_at - a.created_at)[0];
-                    const profile = JSON.parse(newest.content);
+                    const profile = JSON.parse(events[0].content);
                     // Normalize IPFS URLs in profile
                     if (profile.picture) profile.picture = normalizeIpfsUrl(profile.picture);
                     if (profile.banner) profile.banner = normalizeIpfsUrl(profile.banner);
                     profileCache[pubkey] = profile;
                     return profile;
                 }
-            } catch (e) {
-                log(`Profile fetch error for ${pubkey.slice(0,8)}: ${e.message}`);
-            }
+            } catch (e) {}
             return null;
         }
 
@@ -2527,32 +2592,15 @@
             log(`Preloading ${missingAuthors.length} author profiles...`);
             
             const p = getPool();
-            
-            // Collect all relay hints for missing authors + fallback public relays
-            const hintRelays = [...new Set(
-                missingAuthors
-                    .map(a => friendRelayHints[a])
-                    .filter(r => r)
-            )];
-            const relaysToQuery = [...new Set([...allRelays, ...hintRelays, ...PROFILE_FALLBACK_RELAYS])];
-            
             try {
-                // Batch fetch all missing profiles from all relays
-                const events = await p.list(relaysToQuery, [{
+                // Batch fetch all missing profiles at once
+                const events = await p.list([allRelays[0]], [{
                     kinds: [0],
                     authors: missingAuthors,
-                    limit: missingAuthors.length * 2 // Allow for duplicates from multiple relays
+                    limit: missingAuthors.length
                 }]);
                 
-                // Deduplicate: keep newest profile for each pubkey
-                const profilesByPubkey = {};
                 events.forEach(event => {
-                    if (!profilesByPubkey[event.pubkey] || event.created_at > profilesByPubkey[event.pubkey].created_at) {
-                        profilesByPubkey[event.pubkey] = event;
-                    }
-                });
-                
-                Object.values(profilesByPubkey).forEach(event => {
                     try {
                         const profile = JSON.parse(event.content);
                         if (profile.picture) profile.picture = normalizeIpfsUrl(profile.picture);
@@ -2561,14 +2609,7 @@
                     } catch (e) {}
                 });
                 
-                log(`Loaded ${Object.keys(profilesByPubkey).length} profiles from ${relaysToQuery.length} relays`);
-                
-                // Second pass: try individual relay hints for still-missing profiles
-                const stillMissing = missingAuthors.filter(a => !profileCache[a]);
-                if (stillMissing.length > 0) {
-                    log(`Retrying ${stillMissing.length} profiles with individual hints...`);
-                    await Promise.all(stillMissing.slice(0, 10).map(pubkey => getProfile(pubkey)));
-                }
+                log(`Loaded ${events.length} profiles`);
             } catch (e) {
                 log(`Profile preload error: ${e.message}`);
             }
@@ -3140,26 +3181,23 @@
             modal.show();
         }
 
-        // Get IPFS gateway URL based on current domain/relay
-        // Follows Astroport convention: ipfs.{domain} for gateways
+        // Get IPFS gateway URL - use common.js IPFS_GATEWAY if available
         function getIpfsGateway() {
+            // Use common.js gateway if available
+            if (typeof window.IPFS_GATEWAY !== 'undefined' && window.IPFS_GATEWAY) {
+                return window.IPFS_GATEWAY;
+            }
+            
+            // Fallback: derive from hostname
             const hostname = window.location.hostname;
             const protocol = window.location.protocol;
             
-            // Localhost: use local IPFS gateway
             if (hostname === 'localhost' || hostname === '127.0.0.1') {
                 return 'http://127.0.0.1:8080';
             }
             
-            // Production: derive ipfs.{domain} from current hostname
-            // e.g., u.copylaradio.com -> ipfs.copylaradio.com
-            // e.g., ipfs.copylaradio.com -> ipfs.copylaradio.com
-            // e.g., relay.copylaradio.com -> ipfs.copylaradio.com
-            let baseDomain = hostname;
-            
             // Remove common subdomains (u., ipfs., relay., www.)
-            baseDomain = baseDomain.replace(/^(u\.|ipfs\.|relay\.|www\.)/i, '');
-            
+            const baseDomain = hostname.replace(/^(u\.|ipfs\.|relay\.|www\.)/i, '');
             return `${protocol}//ipfs.${baseDomain}`;
         }
 
@@ -3222,27 +3260,150 @@
         }
 
         async function connectWallet() {
-            log('Connecting...');
+            log('Connecting with NIP-42...');
             try {
                 $('#btnConnect').prop('disabled', true).text('...');
-                publicKey = await window.nostr.getPublicKey();
-                log(`Connected: ${publicKey.slice(0,12)}...`);
+                updateAuthBadge('pending', '⏳ Connexion...');
+                
+                // Use common.js connectNostr with NIP-42 auth
+                if (typeof connectNostr === 'function') {
+                    publicKey = await connectNostr(true); // Force NIP-42 auth
+                    log(`Connected via common.js: ${publicKey.slice(0,12)}...`);
+                } else {
+                    // Fallback to direct extension call
+                    publicKey = await window.nostr.getPublicKey();
+                    log(`Connected (fallback): ${publicKey.slice(0,12)}...`);
+                }
+                
                 $('#statusDot').removeClass('offline');
                 $('#profileMini').addClass('connected');
                 $('#btnConnect').hide();
                 $('#btnSend').prop('disabled', false);
+                
+                // Fetch profile and DID
                 await fetchProfile();
-                await fetchDidDocument(); // Fetch DID (kind 30800) for societaire status
+                await fetchDidDocument();
+                
+                // Verify NIP-42 authentication
+                await verifyAndShowAuth();
+                
+                // Fetch user services (uDRIVE, UMAP)
+                await fetchUserServices();
+                
+                // Finally fetch messages
                 await fetchMessages();
-                    } catch (e) {
+                
+            } catch (e) {
                 log(`ERROR: ${e.message}`);
+                updateAuthBadge('failed', '❌ Échec');
                 $('#btnConnect').prop('disabled', false).text('Réessayer');
+            }
+        }
+        
+        // Update auth badge display
+        function updateAuthBadge(status, text) {
+            const $badge = $('#didAuthStatus .auth-badge');
+            $badge.removeClass('pending authenticated failed').addClass(status);
+            $badge.text(text);
+        }
+        
+        // Verify NIP-42 authentication with API
+        async function verifyAndShowAuth() {
+            if (!publicKey) return;
+            
+            updateAuthBadge('pending', '⏳ Vérification...');
+            
+            try {
+                // Use common.js verifyAuthenticationWithAPI if available
+                if (typeof verifyAuthenticationWithAPI === 'function') {
+                    const authResult = await verifyAuthenticationWithAPI(publicKey);
+                    
+                    if (authResult && authResult.auth_verified) {
+                        log('✅ NIP-42 authenticated');
+                        updateAuthBadge('authenticated', '✅ Authentifié (NIP-42)');
+                        return true;
+                    } else {
+                        log('⚠️ NIP-42 not verified');
+                        updateAuthBadge('pending', '⚠️ Non vérifié');
+                        return false;
+                    }
+                } else {
+                    // No API available, assume connected
+                    updateAuthBadge('authenticated', '✅ Connecté');
+                    return true;
+                }
+            } catch (e) {
+                log(`Auth check error: ${e.message}`);
+                updateAuthBadge('pending', '⚠️ Vérification échouée');
+                return false;
+            }
+        }
+        
+        // Fetch user services (uDRIVE, UMAP GPS)
+        async function fetchUserServices() {
+            if (!publicKey) return;
+            
+            log('Fetching user services...');
+            
+            // Fetch uDRIVE info using common.js
+            try {
+                if (typeof fetchUserUDriveInfo === 'function') {
+                    const udriveInfo = await fetchUserUDriveInfo(publicKey);
+                    
+                    if (udriveInfo && udriveInfo.ipnsVault) {
+                        log(`✅ uDRIVE found: ${udriveInfo.ipnsVault.substring(0, 12)}...`);
+                        
+                        // Build uDRIVE URL
+                        const gateway = getIpfsGateway();
+                        const udriveUrl = typeof buildUDriveUrl === 'function' 
+                            ? buildUDriveUrl(udriveInfo.ipnsVault)
+                            : `${gateway}/ipns/${udriveInfo.ipnsVault}`;
+                        
+                        // Show uDRIVE section
+                        $('#didUdriveSection').show();
+                        $('#didUdriveLink').attr('href', udriveUrl);
+                    }
+                }
+            } catch (e) {
+                log(`uDRIVE fetch error: ${e.message}`);
+            }
+            
+            // Fetch GPS/UMAP info from API
+            try {
+                const gpsResponse = await fetch(`/api/myGPS?npub=${publicKey}`);
+                
+                if (gpsResponse.ok) {
+                    const gpsData = await gpsResponse.json();
+                    
+                    if (gpsData.success && gpsData.coordinates) {
+                        const umapKey = gpsData.umap_key;
+                        log(`✅ UMAP found: ${umapKey}`);
+                        
+                        // Build UMAP chat URL
+                        const umapChatUrl = `/earth/chat.html#${umapKey}`;
+                        
+                        // Show UMAP section
+                        $('#didUmapSection').show();
+                        $('#didUmapLink').attr('href', umapChatUrl);
+                        $('#didUmapCoords').text(`Chat ${umapKey}`);
+                        
+                        // Store for later use
+                        window.userUmapKey = umapKey;
+                        window.userGpsData = gpsData;
+                    }
+                } else if (gpsResponse.status === 403) {
+                    log('GPS: auth required');
+                } else {
+                    log('GPS: not available');
+                }
+            } catch (e) {
+                log(`GPS fetch error: ${e.message}`);
             }
         }
 
         async function fetchProfile() {
             const p = getPool();
-            for (const relay of DEFAULT_RELAYS) {
+            for (const relay of allRelays) {
                 try {
                     const events = await p.list([relay], [{ kinds: [0], authors: [publicKey], limit: 1 }]);
                     if (events.length) {
