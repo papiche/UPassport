@@ -3627,8 +3627,8 @@
                         const umapKey = gpsData.umap_key || `${gpsData.coordinates.lat.toFixed(2)},${gpsData.coordinates.lon.toFixed(2)}`;
                         log(`✅ UMAP found: ${umapKey}`);
                         
-                        // Build UMAP chat URL
-                        const umapChatUrl = `/earth/chat.html#${umapKey}`;
+                        // Build UMAP chat URL (format: /chat?room=LAT,LON)
+                        const umapChatUrl = `/chat?room=${encodeURIComponent(umapKey)}`;
                         console.log('[GPS] UMAP URL:', umapChatUrl);
                         
                         // Show UMAP in DID panel
