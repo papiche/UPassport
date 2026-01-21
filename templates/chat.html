@@ -63,6 +63,124 @@
             flex-direction: column;
         }
         
+        /* Embed mode (when inside iframe) - detected via URL param or window check */
+        html.embed-mode,
+        body.embed-mode {
+            min-height: 100%;
+            height: 100%;
+            overflow: hidden;
+            width: 100%;
+            max-width: 100%;
+        }
+        
+        body.embed-mode .chat-container {
+            height: 100%;
+            width: 100%;
+            max-width: 100%;
+            border-radius: 0;
+            overflow: hidden;
+        }
+        
+        body.embed-mode .chat-header {
+            padding: 8px 12px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        body.embed-mode .chat-header-left {
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        body.embed-mode .chat-header-info {
+            gap: 6px;
+        }
+        
+        body.embed-mode .chat-header-title {
+            font-size: 0.95em;
+        }
+        
+        body.embed-mode .distance-selector {
+            padding: 3px 6px;
+            gap: 4px;
+        }
+        
+        body.embed-mode .distance-selector label {
+            font-size: 0.75em;
+            display: none; /* Hide label in compact mode */
+        }
+        
+        body.embed-mode .distance-selector select {
+            font-size: 0.75em;
+            padding: 2px 4px;
+        }
+        
+        body.embed-mode .umap-badge {
+            padding: 3px 6px;
+            font-size: 0.7em;
+        }
+        
+        body.embed-mode .users-count,
+        body.embed-mode .connection-status {
+            padding: 3px 6px;
+            font-size: 0.7em;
+        }
+        
+        body.embed-mode .umap-profile-link {
+            font-size: 0.75em !important;
+        }
+        
+        body.embed-mode .tab-buttons {
+            gap: 4px;
+        }
+        
+        body.embed-mode .tab-btn {
+            padding: 6px 10px;
+            font-size: 0.8em;
+        }
+        
+        body.embed-mode .chat-tabs {
+            padding: 8px 12px;
+            gap: 6px;
+        }
+        
+        body.embed-mode .chat-tab-btn {
+            padding: 6px 12px;
+            font-size: 0.8em;
+            gap: 4px;
+        }
+        
+        body.embed-mode .chat-tab-btn i {
+            font-size: 0.9em;
+        }
+        
+        body.embed-mode .chat-input-area {
+            padding: 8px 12px;
+        }
+        
+        body.embed-mode .chat-input-area input,
+        body.embed-mode .chat-input-area textarea {
+            font-size: 0.9em;
+            padding: 8px 10px;
+        }
+        
+        body.embed-mode .chat-send-btn,
+        body.embed-mode .send-btn {
+            padding: 8px 12px;
+            font-size: 0.85em;
+        }
+        
+        body.embed-mode .chat-messages {
+            padding: 8px;
+            min-height: 0; /* Important for flex shrink */
+        }
+        
+        body.embed-mode .message-bubble {
+            max-width: 90%;
+            padding: 8px 12px;
+            font-size: 0.9em;
+        }
+        
         .chat-container {
             display: flex;
             flex-direction: column;
@@ -789,9 +907,6 @@
         <!-- Chat Header -->
         <div class="chat-header">
             <div class="chat-header-left">
-                <button class="back-link" onclick="history.go(-1);" type="button">
-                    <i class="bi bi-arrow-left"></i> Back
-                </button>
                 <div class="chat-header-title">💬 UMAP Chat</div>
                 <a href="#" id="umapProfileLink" class="umap-profile-link" target="_blank" rel="noopener noreferrer" style="display: none; margin-left: 12px; color: #3b82f6; text-decoration: none; font-size: 0.9em;" title="View UMAP profile">
                     <i class="bi bi-person-badge"></i> Profile
@@ -987,6 +1102,15 @@
         
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('[CHAT] Initializing UMAP chat...');
+            
+            // Detect embed mode (inside iframe or explicit param)
+            const urlParamsInit = new URLSearchParams(window.location.search);
+            const isEmbed = urlParamsInit.get('embed') === '1' || window.self !== window.top;
+            if (isEmbed) {
+                document.documentElement.classList.add('embed-mode');
+                document.body.classList.add('embed-mode');
+                console.log('[CHAT] Running in embed mode');
+            }
             
             // Get UMAP data from backend (passed via Jinja template)
             // These are set by the /chat route in 54321.py
