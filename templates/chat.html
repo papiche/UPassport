@@ -789,9 +789,9 @@
         <!-- Chat Header -->
         <div class="chat-header">
             <div class="chat-header-left">
-                <a href="/youtube?html=1" class="back-link">
+                <button class="back-link" onclick="history.go(-1);" type="button">
                     <i class="bi bi-arrow-left"></i> Back
-                </a>
+                </button>
                 <div class="chat-header-title">💬 UMAP Chat</div>
                 <a href="#" id="umapProfileLink" class="umap-profile-link" target="_blank" rel="noopener noreferrer" style="display: none; margin-left: 12px; color: #3b82f6; text-decoration: none; font-size: 0.9em;" title="View UMAP profile">
                     <i class="bi bi-person-badge"></i> Profile
@@ -900,8 +900,86 @@
             messages: [],
             profileCache: new Map(), // Cache for user profiles (pubkey -> profile data)
             hexKeys: {}, // Store hex keys for all distance levels (umap, sector, region)
-            currentDistanceLevel: 'umap' // Current distance level: 'umap', 'sector', or 'region'
+            currentDistanceLevel: 'umap', // Current distance level: 'umap', 'sector', or 'region'
+            pool: null // SimplePool instance for subscriptions
         };
+        
+        // Helper function to get or create SimplePool
+        function getPool() {
+            if (!UMAPChat.pool && typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                UMAPChat.pool = new NostrTools.SimplePool({ getTimeout: 6000, listTimeout: 6000 });
+            }
+            return UMAPChat.pool;
+        }
+        
+        // Helper function to get relay URL
+        function getRelayUrl() {
+            if (typeof window.DEFAULT_RELAYS !== 'undefined' && window.DEFAULT_RELAYS.length > 0) {
+                return window.DEFAULT_RELAYS[0];
+            }
+            return 'wss://relay.copylaradio.com';
+        }
+        
+        // Safe subscription using SimplePool (more robust than relay.sub())
+        async function safeSubscribe(filters, options = {}) {
+            const pool = getPool();
+            const relayUrl = getRelayUrl();
+            
+            if (!pool) {
+                console.error('[CHAT] ❌ SimplePool not available');
+                return null;
+            }
+            
+            const events = [];
+            const handlers = { event: [], eose: [] };
+            
+            try {
+                // Use pool.sub for event-by-event handling
+                const sub = pool.sub([relayUrl], filters);
+                
+                sub.on('event', (event) => {
+                    events.push(event);
+                    handlers.event.forEach(h => h(event));
+                });
+                
+                sub.on('eose', () => {
+                    handlers.eose.forEach(h => h());
+                });
+                
+                // Return subscription-like object
+                return {
+                    on: function(type, handler) {
+                        if (handlers[type]) handlers[type].push(handler);
+                        return this;
+                    },
+                    unsub: function() {
+                        sub.unsub();
+                    },
+                    events: events
+                };
+            } catch (error) {
+                console.error('[CHAT] ❌ Subscription error:', error);
+                return null;
+            }
+        }
+        
+        // Safe list query using SimplePool
+        async function safeList(filters, timeout = 5000) {
+            const pool = getPool();
+            const relayUrl = getRelayUrl();
+            
+            if (!pool) {
+                console.error('[CHAT] ❌ SimplePool not available');
+                return [];
+            }
+            
+            try {
+                return await pool.list([relayUrl], filters, { timeout });
+            } catch (error) {
+                console.error('[CHAT] ❌ List query error:', error);
+                return [];
+            }
+        }
         
         // ========================================
         // INITIALIZATION
@@ -1100,16 +1178,14 @@
                     
                     // Connect to relay
                     if (typeof connectToRelay === 'function') {
-                        window.nostrRelay = await connectToRelay();
-                        window.isNostrConnected = window.nostrRelay !== null;
-                        console.log('[CHAT] ✅ Relay connected:', window.isNostrConnected);
+                        // connectToRelay() returns true/false, NOT the relay object
+                        // The relay is stored in NostrState.nostrRelay and exposed via window.nostrRelay getter
+                        const connected = await connectToRelay();
+                        console.log('[CHAT] ✅ Relay connected:', connected);
                         
-                        // Sync with global variables if they exist
-                        if (typeof nostrRelay !== 'undefined') {
-                            nostrRelay = window.nostrRelay;
-                        }
-                        if (typeof isNostrConnected !== 'undefined') {
-                            isNostrConnected = window.isNostrConnected;
+                        // Now window.nostrRelay should have the actual relay (via getter from common.js)
+                        if (connected && window.nostrRelay) {
+                            console.log('[CHAT] ✅ Relay object available, has sub():', typeof window.nostrRelay.sub === 'function');
                         }
                     } else {
                         console.warn('[CHAT] ⚠️ connectToRelay function not available');
@@ -1271,49 +1347,14 @@
                 // Step 2: Search for ORE Meeting Space (kind 30312) by author (hex pubkey)
                 console.log(`[CHAT] Step 2: Searching for ORE Meeting Space (kind 30312) by author (${level.toUpperCase()})...`);
                 
-                // Ensure relay connection
-                let currentRelay = window.nostrRelay;
-                if (!currentRelay) {
-                    console.log('[CHAT] Connecting to relay...');
-                    if (typeof connectToRelay === 'function') {
-                        await connectToRelay();
-                    }
-                    currentRelay = window.nostrRelay;
-                }
+                // Search for ORE Meeting Space using SimplePool (more robust)
+                const filter = {
+                    kinds: [30312],         // ORE Meeting Space
+                    authors: [currentHex],  // Filter by hex pubkey
+                    limit: 1
+                };
                 
-                if (!currentRelay) {
-                    console.warn('[CHAT] ⚠️ No relay available');
-                    // Use hex as channelId (it's the deterministic DID pubkey)
-                    UMAPChat.channelId = currentHex;
-                    console.log(`[CHAT] Using ${level.toUpperCase()} hex as channel reference:`, currentHex.substring(0, 8) + '...');
-                    return;
-                }
-                
-                const oreSpaces = await new Promise((resolve) => {
-                    const filter = {
-                        kinds: [30312],         // ORE Meeting Space
-                        authors: [currentHex],  // Filter by hex pubkey
-                        limit: 1
-                    };
-                    
-                    const results = [];
-                    const sub = currentRelay.sub([filter]);
-                    const timeout = setTimeout(() => {
-                        sub.unsub();
-                        resolve(results);
-                    }, 5000);
-                    
-                    sub.on('event', (event) => {
-                        console.log('[CHAT] 📍 Found ORE Meeting Space event:', event.id.substring(0, 8) + '...');
-                        results.push(event);
-                    });
-                    
-                    sub.on('eose', () => {
-                        clearTimeout(timeout);
-                        sub.unsub();
-                        resolve(results);
-                    });
-                });
+                const oreSpaces = await safeList([filter], 5000);
                 
                 if (oreSpaces.length > 0) {
                     const oreSpace = oreSpaces[0];
@@ -1418,7 +1459,11 @@
                     }
                     
                     console.log('[CHAT] Subscribing to kind 42 (USER CHAT) with filter:', filter42);
-                    const sub = window.nostrRelay.sub([filter42]);
+                    const sub = await safeSubscribe([filter42]);
+                    if (!sub) {
+                        console.error('[CHAT] ❌ Failed to create subscription');
+                        return;
+                    }
                     
                     // Filter for kind 1 (text notes) published by the MAP itself
                     // Use the MAP's hex pubkey as author (primary method)
@@ -1439,7 +1484,10 @@
                     }
                     
                     console.log('[CHAT] Subscribing to kind 1 (MAP MESSAGES) with filter:', filter1);
-                    const subKind1 = window.nostrRelay.sub([filter1]);
+                    const subKind1 = await safeSubscribe([filter1]);
+                    if (!subKind1) {
+                        console.warn('[CHAT] ⚠️ Failed to create kind 1 subscription');
+                    }
                     
                     // Clear loading message
                     messagesEl.innerHTML = '';
@@ -2638,7 +2686,11 @@
                     };
                     
                     console.log('[CHAT] Subscribing to MAP messages (kind 1) with filter:', filter1);
-                    const sub = window.nostrRelay.sub([filter1]);
+                    const sub = await safeSubscribe([filter1]);
+                    if (!sub) {
+                        console.error('[CHAT] ❌ Failed to create MAP subscription');
+                        return;
+                    }
                     
                     const mapMessages = [];
                     

@@ -1850,6 +1850,79 @@
             background: var(--border);
             border-radius: 2px;
         }
+
+        /* UMAP Chat Modal */
+        .chat-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .chat-modal-backdrop.active {
+            display: flex;
+        }
+
+        .chat-modal {
+            width: 100%;
+            max-width: 600px;
+            height: 80vh;
+            max-height: 700px;
+            background: var(--bg-panel);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .chat-modal-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, var(--bg-input), var(--bg-void));
+            border-bottom: 1px solid var(--border);
+        }
+
+        .chat-modal-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        .chat-modal-room {
+            font-size: 0.8rem;
+            color: var(--accent-cyan);
+            font-family: monospace;
+        }
+
+        .chat-modal-close {
+            margin-left: auto;
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0 8px;
+            line-height: 1;
+        }
+
+        .chat-modal-close:hover {
+            color: var(--accent-red);
+        }
+
+        .chat-modal iframe {
+            flex: 1;
+            width: 100%;
+            border: none;
+            background: var(--bg-void);
+        }
     </style>
 </head>
 <body>
@@ -2069,6 +2142,18 @@
                     </div>
                 </div>
             </div>
+    </div>
+
+    <!-- UMAP CHAT MODAL -->
+    <div class="chat-modal-backdrop" id="chatModalBackdrop">
+        <div class="chat-modal">
+            <div class="chat-modal-header">
+                <span class="chat-modal-title">🗺️ UMAP Chat</span>
+                <span class="chat-modal-room" id="chatModalRoom"></span>
+                <button class="chat-modal-close" onclick="closeChatModal()">×</button>
+            </div>
+            <iframe id="chatModalFrame" src="" frameborder="0"></iframe>
+        </div>
     </div>
 
     <!-- INPUT SECTION -->
@@ -2382,7 +2467,12 @@
 
             // Lightbox
             $('#lightbox').on('click', e => { if (e.target.id === 'lightbox') closeLightbox(); });
-            $(document).on('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeTheater(); }});
+            $(document).on('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeTheater(); closeChatModal(); }});
+            
+            // Chat modal close on backdrop click
+            $('#chatModalBackdrop').on('click', function(e) {
+                if (e.target.id === 'chatModalBackdrop') closeChatModal();
+            });
 
             // Tube events
             setupTubeEvents();
@@ -2974,6 +3064,25 @@
             $('#theaterVideo')[0]?.pause();
             $('body').css('overflow', '');
             currentTheaterVideo = null;
+        }
+
+        // UMAP Chat Modal
+        function openChatModal(room) {
+            const chatUrl = `/chat?room=${encodeURIComponent(room)}&embed=1`;
+            console.log('[ChatModal] Opening:', chatUrl);
+            
+            $('#chatModalRoom').text(room);
+            $('#chatModalFrame').attr('src', chatUrl);
+            $('#chatModalBackdrop').addClass('active');
+            $('body').css('overflow', 'hidden');
+            
+            log(`💬 Chat ouvert: ${room}`);
+        }
+
+        function closeChatModal() {
+            $('#chatModalBackdrop').removeClass('active');
+            $('#chatModalFrame').attr('src', '');
+            $('body').css('overflow', '');
         }
 
         // Load likes, dislikes, comments for current video
@@ -3631,15 +3740,28 @@
                         const umapChatUrl = `/chat?room=${encodeURIComponent(umapKey)}`;
                         console.log('[GPS] UMAP URL:', umapChatUrl);
                         
-                        // Show UMAP in DID panel
+                        // Show UMAP in DID panel (opens modal)
                         const $umapSection = $('#didUmapSection');
                         $umapSection.removeClass('hidden-service').css('display', 'block');
-                        $('#didUmapLink').attr('href', umapChatUrl);
+                        $('#didUmapLink')
+                            .attr('href', '#')
+                            .attr('data-room', umapKey)
+                            .on('click', function(e) {
+                                e.preventDefault();
+                                openChatModal(umapKey);
+                            });
                         $('#didUmapCoords').text(`Chat ${umapKey}`);
                         
-                        // Show UMAP button in top bar
+                        // Show UMAP button in top bar (opens modal)
                         $('#topbarServices').show();
-                        $('#topbarUmap').attr('href', umapChatUrl).show();
+                        $('#topbarUmap')
+                            .attr('href', '#')
+                            .attr('data-room', umapKey)
+                            .on('click', function(e) {
+                                e.preventDefault();
+                                openChatModal(umapKey);
+                            })
+                            .show();
                         
                         console.log('[GPS] ✅ Button added to topbar');
                         log(`✅ UMAP: ${umapKey}`);
