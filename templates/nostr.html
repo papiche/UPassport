@@ -3353,15 +3353,25 @@
                     if (udriveInfo && udriveInfo.ipnsVault) {
                         log(`✅ uDRIVE found: ${udriveInfo.ipnsVault.substring(0, 12)}...`);
                         
-                        // Build uDRIVE URL
+                        // Build uDRIVE URL - try buildUDriveUrl first, fallback to manual build
                         const gateway = getIpfsGateway();
-                        const udriveUrl = typeof buildUDriveUrl === 'function' 
-                            ? buildUDriveUrl(udriveInfo.ipnsVault)
-                            : `${gateway}/ipns/${udriveInfo.ipnsVault}`;
+                        let udriveUrl;
+                        try {
+                            if (typeof buildUDriveUrl === 'function' && udriveInfo.email) {
+                                udriveUrl = buildUDriveUrl(udriveInfo.ipnsVault, udriveInfo.email);
+                            } else {
+                                // Direct IPNS URL fallback
+                                udriveUrl = `${gateway}/ipns/${udriveInfo.ipnsVault}`;
+                            }
+                        } catch (urlErr) {
+                            // Fallback to simple IPNS URL
+                            udriveUrl = `${gateway}/ipns/${udriveInfo.ipnsVault}`;
+                        }
                         
                         // Show uDRIVE section
                         $('#didUdriveSection').show();
                         $('#didUdriveLink').attr('href', udriveUrl);
+                        log(`uDRIVE URL: ${udriveUrl.substring(0, 50)}...`);
                     }
                 }
             } catch (e) {
@@ -3952,9 +3962,11 @@
 
             $msg.append($('<div>').addClass('msg-content').html(linkify(text)));
 
-            mediaUrls.forEach(url => {
-                const type = detectMediaType(url);
+            mediaUrls.forEach(originalUrl => {
+                const type = detectMediaType(originalUrl);
                 if (type) {
+                    // Normalize URL for display (convert relative IPFS paths to full URLs)
+                    const url = normalizeIpfsUrl(originalUrl);
                     const $media = $('<div>').addClass('msg-media');
                     if (type === 'image' || type === 'gif') {
                         $media.append($('<img>').attr('src', url).on('click', () => openLightbox(url)));
@@ -3973,7 +3985,7 @@
                                 </div>
                             </div>
                             <a href="${pageUrl}" target="_blank" class="webpage-link">
-                                <span>🌐</span> ${url.length > 50 ? url.substring(0, 50) + '...' : url}
+                                <span>🌐</span> ${originalUrl.length > 50 ? originalUrl.substring(0, 50) + '...' : originalUrl}
                             </a>
                         `);
                     }
@@ -4350,10 +4362,10 @@
             // Extract relative IPFS paths (/ipfs/Qm... or /ipns/...)
             const ipfsPaths = content.match(/(\/ipfs\/[^\s<>"]+|\/ipns\/[^\s<>"]+)/gi) || [];
             
-            // Combine and normalize all URLs, including webpages
+            // Return original URLs (not normalized) for proper matching in cleanContent
+            // We'll normalize them only when displaying
             return [...httpUrls, ...ipfsPaths]
-                .filter(u => detectMediaType(u)) // Now includes 'webpage' type
-                .map(u => normalizeIpfsUrl(u)); // Normalize to full gateway URLs
+                .filter(u => detectMediaType(u)); // Keep only media types (including 'webpage')
         }
         
         // Build the correct URL for IPFS webpages
@@ -4369,23 +4381,28 @@
 
         function cleanContent(content, mediaUrls) {
             let text = content;
-            // Remove ALL occurrences of media URLs from display (use split/join for global replace)
+            
+            // Remove ALL occurrences of media URLs (original form) from display
             mediaUrls.forEach(u => { 
                 // Escape special regex characters in URL
                 const escaped = u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 text = text.replace(new RegExp(escaped, 'gi'), '');
             });
-            // Also remove original IPFS paths (before normalization)
+            
+            // Remove any remaining IPFS paths that might have different formats
             text = text.replace(/(\/ipfs\/[^\s<>"]+|\/ipns\/[^\s<>"]+)/gi, '');
-            // Remove media file URLs
-            text = text.replace(/(https?:\/\/[^\s<>"]+\.(mp4|webm|mp3|wav|ogg|jpg|jpeg|png|gif|webp|avif|html|htm)([^\s<>"]*)?)/gi, '');
-            // Remove any remaining URLs that will be displayed as media previews
-            text = text.replace(/(https?:\/\/[^\s<>"]+)/gi, (match) => {
-                // Keep URL in text only if it won't be displayed as media
-                const type = detectMediaType(match);
-                return type ? '' : match;
-            });
-            return text.replace(/#(BRO|BOT|image|video|music|search|plantnet|inventory|mem|reset)\s*/gi, '').trim();
+            
+            // Remove any remaining media file URLs (various extensions)
+            text = text.replace(/(https?:\/\/[^\s<>"]+\.(mp4|webm|mov|mp3|wav|ogg|m4a|jpg|jpeg|png|gif|webp|avif|html|htm)([^\s<>"]*)?)/gi, '');
+            
+            // Remove IPFS gateway URLs that weren't caught
+            text = text.replace(/(https?:\/\/ipfs[^\s<>"]+)/gi, '');
+            
+            // Remove hashtags
+            text = text.replace(/#(BRO|BOT|image|video|music|search|plantnet|inventory|mem|reset)\s*/gi, '');
+            
+            // Clean up multiple spaces and trim
+            return text.replace(/\s+/g, ' ').trim();
         }
 
         function linkify(text) {
