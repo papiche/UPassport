@@ -292,6 +292,15 @@
             font-size: 0.8rem;
         }
 
+        /* Hidden service sections */
+        .did-panel .hidden-service {
+            display: none !important;
+        }
+
+        .did-panel .hidden-service.visible {
+            display: block !important;
+        }
+
         /* Societaire Warning Banner */
         .societaire-warning {
             background: linear-gradient(135deg, rgba(255, 165, 0, 0.2), rgba(255, 100, 0, 0.1));
@@ -676,6 +685,8 @@
         .msg-header .tag.image { color: var(--accent-purple); }
         .msg-header .tag.music { color: var(--accent-orange); }
         .msg-header .tag.search { color: var(--accent-green); }
+        .msg-header .tag.nature { color: #4CAF50; }
+        .msg-header .tag.generic { color: var(--accent-cyan); opacity: 0.8; }
 
         .msg-content { word-break: break-word; }
         .msg-content a { color: var(--accent-cyan); text-decoration: none; }
@@ -776,6 +787,28 @@
             color: var(--text-dim);
             margin-top: 6px;
             text-align: right;
+        }
+
+        .msg-links {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 8px;
+            padding: 8px;
+            background: var(--bg-input);
+            border-radius: 6px;
+            border-left: 2px solid var(--accent-cyan);
+        }
+
+        .msg-links a {
+            color: var(--accent-cyan);
+            text-decoration: none;
+            font-size: 0.75rem;
+            word-break: break-all;
+        }
+
+        .msg-links a:hover {
+            text-decoration: underline;
         }
 
         .empty-state {
@@ -1764,7 +1797,7 @@
                 </div>
             </div>
             <!-- uDRIVE Section -->
-            <div class="did-section" id="didUdriveSection" style="display:none;">
+            <div class="did-section hidden-service" id="didUdriveSection">
                 <div class="did-label">📁 uDRIVE</div>
                 <div class="did-value">
                     <a href="#" id="didUdriveLink" target="_blank" class="service-link">
@@ -1773,7 +1806,7 @@
                 </div>
             </div>
             <!-- UMAP Chat Section -->
-            <div class="did-section" id="didUmapSection" style="display:none;">
+            <div class="did-section hidden-service" id="didUmapSection">
                 <div class="did-label">💬 UMAP Chat</div>
                 <div class="did-value">
                     <a href="#" id="didUmapLink" target="_blank" class="service-link">
@@ -3203,10 +3236,10 @@
 
         // Normalize IPFS URLs: convert various formats to full gateway URLs
         // Handles:
-        // 1. u.{domain} -> ipfs.{domain} (e.g., https://u.copylaradio.com/ipfs/... -> https://ipfs.copylaradio.com/ipfs/...)
+        // 1. u.{domain}/ipfs/... -> ipfs.{domain}/ipfs/... (only for IPFS paths)
         // 2. Relative paths: /ipfs/Qm... or /ipns/... -> {gateway}/ipfs/Qm...
         // 3. CID-only: Qm... or bafy... -> {gateway}/ipfs/Qm...
-        // 4. Existing full URLs with correct gateway: pass through
+        // 4. Already complete URLs (ipfs.*, gateway.*, etc.): pass through unchanged
         function normalizeIpfsUrl(url) {
             if (!url) return url;
             
@@ -3214,8 +3247,15 @@
             
             // Already a full URL
             if (url.startsWith('http://') || url.startsWith('https://')) {
-                // Replace u.{domain} with ipfs.{domain}
-                url = url.replace(/^(https?:\/\/)u\.([^\/]+)(\/ipfs\/|\/ipns\/)/i, '$1ipfs.$2$3');
+                // If URL already has an IPFS gateway (ipfs.*, gateway.*, dweb.*), don't modify
+                if (/^https?:\/\/(ipfs\.|gateway\.|dweb\.)/i.test(url)) {
+                    return url; // Already a proper gateway URL
+                }
+                
+                // Only replace u.{domain} with ipfs.{domain} for IPFS/IPNS paths
+                if (/\/ipfs\/|\/ipns\//i.test(url)) {
+                    url = url.replace(/^(https?:\/\/)u\.([^\/]+)(\/ipfs\/|\/ipns\/)/i, '$1ipfs.$2$3');
+                }
                 return url;
             }
             
@@ -3368,8 +3408,8 @@
                             udriveUrl = `${gateway}/ipns/${udriveInfo.ipnsVault}`;
                         }
                         
-                        // Show uDRIVE section
-                        $('#didUdriveSection').show();
+                        // Show uDRIVE section (use class toggle for visibility)
+                        $('#didUdriveSection').addClass('visible');
                         $('#didUdriveLink').attr('href', udriveUrl);
                         log(`uDRIVE URL: ${udriveUrl.substring(0, 50)}...`);
                     }
@@ -3392,8 +3432,8 @@
                         // Build UMAP chat URL
                         const umapChatUrl = `/earth/chat.html#${umapKey}`;
                         
-                        // Show UMAP section
-                        $('#didUmapSection').show();
+                        // Show UMAP section (use class toggle for visibility)
+                        $('#didUmapSection').addClass('visible');
                         $('#didUmapLink').attr('href', umapChatUrl);
                         $('#didUmapCoords').text(`Chat ${umapKey}`);
                         
@@ -3949,52 +3989,129 @@
         function renderMessage(event, isUser) {
             const tags = extractTags(event.content);
             const expiration = getExpiration(event);
-            const mediaUrls = extractMediaUrls(event.content);
-            let text = cleanContent(event.content, mediaUrls);
+            
+            // Extract media from content AND from event tags (imeta, url, thumb, etc.)
+            const contentMediaUrls = extractMediaUrls(event.content);
+            const tagMediaUrls = extractMediaFromTags(event.tags);
+            
+            // Combine and deduplicate media URLs
+            const allMediaUrls = [...new Set([...contentMediaUrls, ...tagMediaUrls])];
+            
+            // Extract ALL URLs from content (not just media) for cleaning
+            const allContentUrls = event.content.match(/(https?:\/\/[^\s<>"]+)/gi) || [];
+            
+            // Clean content: remove ALL URLs and hashtags
+            let text = cleanContentFull(event.content, allContentUrls);
 
             const $msg = $('<div>').addClass('msg').addClass(isUser ? 'user' : 'bot');
             
             const $header = $('<div>').addClass('msg-header');
             $header.append($('<span>').text(isUser ? '👤 Vous' : '🤖 BRO'));
             if (expiration) $header.append($('<span>').addClass('tag').text(`⏱️ ${formatExpiry(expiration)}`));
-            tags.forEach(t => $header.append($('<span>').addClass('tag ' + t).text('#' + t)));
+            // Display all hashtags with appropriate styling
+            tags.forEach(t => {
+                const tagClass = getTagClass(t);
+                $header.append($('<span>').addClass('tag ' + tagClass).text('#' + t));
+            });
             $msg.append($header);
 
-            $msg.append($('<div>').addClass('msg-content').html(linkify(text)));
+            // Display cleaned text (no URLs in text)
+            if (text) {
+                $msg.append($('<div>').addClass('msg-content').text(text));
+            }
 
-            mediaUrls.forEach(originalUrl => {
+            // Display media from all sources (content + tags)
+            const displayedUrls = new Set();
+            allMediaUrls.forEach(originalUrl => {
+                const normalizedUrl = normalizeIpfsUrl(originalUrl);
+                // Avoid duplicates with different formats
+                const urlKey = normalizedUrl.replace(/^https?:\/\/[^\/]+/, '');
+                if (displayedUrls.has(urlKey)) return;
+                displayedUrls.add(urlKey);
+                
                 const type = detectMediaType(originalUrl);
                 if (type) {
-                    // Normalize URL for display (convert relative IPFS paths to full URLs)
-                    const url = normalizeIpfsUrl(originalUrl);
                     const $media = $('<div>').addClass('msg-media');
                     if (type === 'image' || type === 'gif') {
-                        $media.append($('<img>').attr('src', url).on('click', () => openLightbox(url)));
+                        $media.append($('<img>').attr('src', normalizedUrl).on('click', () => openLightbox(normalizedUrl)));
                     } else if (type === 'video') {
-                        $media.append($('<video controls>').attr('src', url));
+                        $media.append($('<video controls>').attr('src', normalizedUrl));
                     } else if (type === 'audio') {
-                        $media.append($('<audio controls>').attr('src', url));
-                    } else if (type === 'webpage') {
-                        const pageUrl = buildWebpageUrl(url);
-                        $media.addClass('webpage-preview');
-                        $media.append(`
-                            <div class="webpage-frame">
-                                <iframe src="${pageUrl}" sandbox="allow-scripts allow-same-origin" loading="lazy"></iframe>
-                                <div class="webpage-overlay" onclick="window.open('${pageUrl}', '_blank')">
-                                    <span>🔗 Ouvrir</span>
-                                </div>
-                            </div>
-                            <a href="${pageUrl}" target="_blank" class="webpage-link">
-                                <span>🌐</span> ${originalUrl.length > 50 ? originalUrl.substring(0, 50) + '...' : originalUrl}
-                            </a>
-                        `);
+                        $media.append($('<audio controls>').attr('src', normalizedUrl));
                     }
                     $msg.append($media);
                 }
             });
+            
+            // Display non-media links as a separate section
+            const nonMediaUrls = allContentUrls.filter(u => !detectMediaType(u));
+            if (nonMediaUrls.length > 0) {
+                const $links = $('<div>').addClass('msg-links');
+                nonMediaUrls.forEach(url => {
+                    $links.append($('<a>').attr('href', url).attr('target', '_blank').text('🔗 ' + (url.length > 50 ? url.substring(0, 50) + '...' : url)));
+                });
+                $msg.append($links);
+            }
 
             $msg.append($('<div>').addClass('msg-time').text(new Date(event.created_at * 1000).toLocaleString()));
             $('#chatArea').append($msg);
+        }
+        
+        // Extract media URLs from event tags (imeta, url, thumb, image, etc.)
+        function extractMediaFromTags(tags) {
+            if (!tags || !Array.isArray(tags)) return [];
+            
+            const mediaUrls = [];
+            tags.forEach(tag => {
+                if (tag.length < 2) return;
+                const tagType = tag[0].toLowerCase();
+                
+                // imeta tags contain media info
+                if (tagType === 'imeta') {
+                    // Parse imeta format: ["imeta", "url ...", "m ...", "dim ...", "blurhash ...", "thumb ..."]
+                    tag.slice(1).forEach(field => {
+                        if (field.startsWith('url ')) {
+                            mediaUrls.push(field.substring(4).trim());
+                        } else if (field.startsWith('thumb ')) {
+                            mediaUrls.push(field.substring(6).trim());
+                        }
+                    });
+                }
+                // Direct URL tags
+                else if (tagType === 'url' || tagType === 'thumb' || tagType === 'image' || tagType === 'video') {
+                    mediaUrls.push(tag[1]);
+                }
+                // r tags often contain URLs
+                else if (tagType === 'r' && /^https?:\/\//i.test(tag[1])) {
+                    const type = detectMediaType(tag[1]);
+                    if (type) mediaUrls.push(tag[1]);
+                }
+            });
+            
+            return mediaUrls;
+        }
+        
+        // Clean content: remove ALL URLs and ALL hashtags (hashtags displayed in header)
+        function cleanContentFull(content, allUrls) {
+            let text = content;
+            
+            // Remove all provided URLs
+            allUrls.forEach(u => { 
+                const escaped = u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                text = text.replace(new RegExp(escaped, 'gi'), '');
+            });
+            
+            // Remove IPFS paths
+            text = text.replace(/(\/ipfs\/[^\s<>"]+|\/ipns\/[^\s<>"]+)/gi, '');
+            
+            // Remove ALL hashtags (they are displayed in the header)
+            text = text.replace(/#[a-zA-Z0-9_àâäéèêëïîôùûüç]+\s*/gi, '');
+            
+            // Clean up trailing emojis (like 🎥 🔗)
+            text = text.replace(/[🎥🔗📸🎵🎬🖼️]+\s*$/g, '');
+            
+            // Clean up multiple spaces and trim
+            return text.replace(/\s+/g, ' ').trim();
         }
 
         async function fetchReplies(eventId) {
@@ -4346,13 +4463,28 @@
         }
 
         function extractTags(content) {
-            const tags = [];
-            if (/#image/i.test(content)) tags.push('image');
-            if (/#video/i.test(content)) tags.push('video');
-            if (/#music/i.test(content)) tags.push('music');
-            if (/#search/i.test(content)) tags.push('search');
-            if (/#plantnet|#inventory/i.test(content)) tags.push('nature');
-            return tags;
+            // Extract ALL hashtags from content
+            const hashtagMatches = content.match(/#[a-zA-Z0-9_àâäéèêëïîôùûüç]+/gi) || [];
+            // Return unique tags (lowercase for deduplication, keep original case for display)
+            const seen = new Set();
+            return hashtagMatches.map(t => t.substring(1)) // Remove # prefix
+                .filter(t => {
+                    const lower = t.toLowerCase();
+                    if (seen.has(lower)) return false;
+                    seen.add(lower);
+                    return true;
+                });
+        }
+        
+        // Get special tag class for known service tags
+        function getTagClass(tag) {
+            const lower = tag.toLowerCase();
+            if (['image', 'photo', 'img'].includes(lower)) return 'image';
+            if (['video', 'film', 'movie'].includes(lower)) return 'video';
+            if (['music', 'audio', 'sound', 'musique'].includes(lower)) return 'music';
+            if (['search', 'recherche'].includes(lower)) return 'search';
+            if (['plantnet', 'inventory', 'nature', 'plant'].includes(lower)) return 'nature';
+            return 'generic';
         }
 
         function extractMediaUrls(content) {
