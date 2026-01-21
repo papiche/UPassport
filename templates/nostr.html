@@ -3491,85 +3491,127 @@
         
         // Fetch user services (uDRIVE, UMAP GPS)
         async function fetchUserServices() {
-            if (!publicKey) return;
+            if (!publicKey) {
+                log('⚠️ fetchUserServices: no publicKey');
+                return;
+            }
             
             log('Fetching user services...');
+            console.log('[Services] Starting fetch for pubkey:', publicKey.slice(0, 12));
             
-            // Fetch uDRIVE info using common.js
+            // ==================== uDRIVE ====================
+            log('📁 [uDRIVE] Starting fetch...');
             try {
                 if (typeof fetchUserUDriveInfo === 'function') {
+                    console.log('[uDRIVE] Calling fetchUserUDriveInfo...');
                     const udriveInfo = await fetchUserUDriveInfo(publicKey);
+                    console.log('[uDRIVE] Result:', udriveInfo);
                     
                     if (udriveInfo && udriveInfo.ipnsVault) {
                         log(`✅ uDRIVE found: ${udriveInfo.ipnsVault.substring(0, 12)}...`);
                         
-                        // Build uDRIVE URL - try buildUDriveUrl first, fallback to manual build
+                        // Build uDRIVE URL
                         const gateway = getIpfsGateway();
+                        console.log('[uDRIVE] Gateway:', gateway);
                         let udriveUrl;
+                        
                         try {
                             if (typeof buildUDriveUrl === 'function' && udriveInfo.email) {
+                                console.log('[uDRIVE] Using buildUDriveUrl with email:', udriveInfo.email);
                                 udriveUrl = buildUDriveUrl(udriveInfo.ipnsVault, udriveInfo.email);
                             } else {
-                                // Direct IPNS URL fallback
+                                console.log('[uDRIVE] Fallback: direct IPNS URL (no email or buildUDriveUrl)');
                                 udriveUrl = `${gateway}/ipns/${udriveInfo.ipnsVault}`;
                             }
                         } catch (urlErr) {
-                            // Fallback to simple IPNS URL
+                            console.warn('[uDRIVE] buildUDriveUrl error:', urlErr);
                             udriveUrl = `${gateway}/ipns/${udriveInfo.ipnsVault}`;
                         }
                         
-                        // Show uDRIVE section
+                        console.log('[uDRIVE] Final URL:', udriveUrl);
+                        
+                        // Show uDRIVE section - verify element exists
                         const $udriveSection = $('#didUdriveSection');
+                        console.log('[uDRIVE] Section element found:', $udriveSection.length > 0);
+                        console.log('[uDRIVE] Section current display:', $udriveSection.css('display'));
+                        
                         $udriveSection.removeClass('hidden-service').css('display', 'block');
                         $('#didUdriveLink').attr('href', udriveUrl);
+                        
+                        console.log('[uDRIVE] Section display after change:', $udriveSection.css('display'));
                         log(`✅ uDRIVE section shown, URL: ${udriveUrl.substring(0, 50)}...`);
+                    } else {
+                        log('📁 [uDRIVE] No IPNS vault found');
+                        console.log('[uDRIVE] udriveInfo incomplete:', udriveInfo);
                     }
+                } else {
+                    log('⚠️ [uDRIVE] fetchUserUDriveInfo not available');
                 }
             } catch (e) {
-                log(`uDRIVE fetch error: ${e.message}`);
+                log(`❌ [uDRIVE] Error: ${e.message}`);
+                console.error('[uDRIVE] Exception:', e);
             }
             
-            // Fetch GPS/UMAP info from API
+            // ==================== GPS/UMAP ====================
+            log('🗺️ [GPS] Starting fetch...');
+            const gpsUrl = `/api/myGPS?npub=${publicKey}`;
+            console.log('[GPS] Fetching:', gpsUrl);
+            
             try {
-                const gpsResponse = await fetch(`/api/myGPS?npub=${publicKey}`);
+                const gpsResponse = await fetch(gpsUrl);
+                console.log('[GPS] Response status:', gpsResponse.status);
                 
                 if (gpsResponse.ok) {
                     const gpsData = await gpsResponse.json();
+                    console.log('[GPS] Response data:', gpsData);
                     
                     if (gpsData.success && gpsData.coordinates) {
-                        const umapKey = gpsData.umap_key;
+                        const umapKey = gpsData.umap_key || `${gpsData.coordinates.lat.toFixed(2)},${gpsData.coordinates.lon.toFixed(2)}`;
                         log(`✅ UMAP found: ${umapKey}`);
                         
                         // Build UMAP chat URL
                         const umapChatUrl = `/earth/chat.html#${umapKey}`;
+                        console.log('[GPS] UMAP URL:', umapChatUrl);
                         
-                        // Show UMAP section
+                        // Show UMAP section - verify element exists
                         const $umapSection = $('#didUmapSection');
+                        console.log('[GPS] Section element found:', $umapSection.length > 0);
+                        console.log('[GPS] Section current display:', $umapSection.css('display'));
+                        
                         $umapSection.removeClass('hidden-service').css('display', 'block');
                         $('#didUmapLink').attr('href', umapChatUrl);
                         $('#didUmapCoords').text(`Chat ${umapKey}`);
+                        
+                        console.log('[GPS] Section display after change:', $umapSection.css('display'));
                         log(`✅ UMAP section shown, coords: ${umapKey}`);
                         
                         // Store for later use
                         window.userUmapKey = umapKey;
                         window.userGpsData = gpsData;
                     } else {
-                        log('GPS: no coordinates in response');
+                        log('🗺️ [GPS] No coordinates in response');
+                        console.log('[GPS] Response missing data:', { success: gpsData.success, hasCoords: !!gpsData.coordinates });
                     }
                 } else if (gpsResponse.status === 403) {
-                    log('GPS: auth required - connect to your home relay');
+                    log('🗺️ [GPS] 403 - Auth required (connect to your home relay)');
                 } else if (gpsResponse.status === 404) {
-                    log('GPS: not registered on this relay');
+                    log('🗺️ [GPS] 404 - Not registered on this relay');
                 } else {
-                    log(`GPS: API returned ${gpsResponse.status}`);
+                    log(`🗺️ [GPS] API returned ${gpsResponse.status}`);
+                    const errorText = await gpsResponse.text().catch(() => '');
+                    console.log('[GPS] Error response:', errorText);
                 }
             } catch (e) {
-                log(`GPS: ${e.message}`);
+                log(`❌ [GPS] Error: ${e.message}`);
+                console.error('[GPS] Exception:', e);
             }
             
-            // Show info message if no services found (user might be on wrong relay)
-            const hasServices = $('#didUdriveSection').is(':visible') || $('#didUmapSection').is(':visible');
-            if (!hasServices && publicKey) {
+            // ==================== Summary ====================
+            const udriveVisible = $('#didUdriveSection').css('display') !== 'none';
+            const umapVisible = $('#didUmapSection').css('display') !== 'none';
+            console.log('[Services] Summary - uDRIVE visible:', udriveVisible, ', UMAP visible:', umapVisible);
+            
+            if (!udriveVisible && !umapVisible && publicKey) {
                 log('ℹ️ Services not available - try connecting to your home relay');
             }
         }
