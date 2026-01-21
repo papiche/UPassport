@@ -1343,6 +1343,83 @@
             border-radius: 50%;
         }
 
+        /* Profile Banner for Video Cards */
+        .video-author-banner {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            background: linear-gradient(135deg, var(--bg-input), var(--bg-panel));
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .video-author-banner.with-banner {
+            background-size: cover;
+            background-position: center;
+        }
+
+        .video-author-banner.with-banner::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, rgba(10, 10, 15, 0.9), rgba(10, 10, 15, 0.7));
+            z-index: 0;
+        }
+
+        .video-author-banner > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .video-author-banner .author-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-cyan);
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .video-author-banner .author-details {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .video-author-banner .author-name {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .video-author-banner .author-nip05 {
+            font-size: 0.55rem;
+            color: var(--accent-cyan);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .video-author-banner .author-nip05::before {
+            content: '✓ ';
+            color: var(--accent-green);
+        }
+
+        .video-author-banner .author-pubkey {
+            font-size: 0.5rem;
+            color: var(--text-dim);
+            font-family: monospace;
+        }
+
+        .video-card:hover .video-author-banner {
+            background-color: var(--bg-hover);
+        }
+
         .tube-empty {
                     display: flex;
                 flex-direction: column;
@@ -1835,6 +1912,14 @@
     <script>
         // === CONFIG ===
         const DEFAULT_RELAYS = ['wss://relay.copylaradio.com', 'ws://127.0.0.1:7777'];
+        // Fallback public relays for profile fetching
+        const PROFILE_FALLBACK_RELAYS = [
+            'wss://relay.damus.io',
+            'wss://relay.nostr.band',
+            'wss://nos.lol',
+            'wss://relay.snort.social',
+            'wss://purplepag.es'
+        ];
         const MESSAGES_PER_PAGE = 50;
 
         // === STATE ===
@@ -2164,6 +2249,9 @@
 
                 log(`Loaded ${tubeVideos.length} videos (${userVideoMessages.length + aiVideoReplies.length} AI, ${nostrtubeVideos.length} NostrTube)`);
                 
+                // Preload profiles for all video authors
+                await preloadVideoAuthorProfiles();
+                
                 filterTubeVideos();
 
                     } catch (e) {
@@ -2305,6 +2393,9 @@
             };
         }
 
+        // Store relay hints from contacts list (NIP-02)
+        let friendRelayHints = {};
+
         async function loadFriendsList() {
             if (!publicKey) return;
 
@@ -2318,11 +2409,22 @@
                 }]);
 
                 if (contacts.length > 0) {
-                    friendsList = contacts[0].tags
-                        .filter(t => t[0] === 'p')
-                        .map(t => t[1]);
+                    // Extract friends and their relay hints (NIP-02 format: ["p", pubkey, relay_url])
+                    friendsList = [];
+                    friendRelayHints = {};
                     
-                    log(`Loaded ${friendsList.length} friends`);
+                    contacts[0].tags
+                        .filter(t => t[0] === 'p')
+                        .forEach(t => {
+                            const pubkey = t[1];
+                            const relayHint = t[2]; // Optional relay hint
+                            friendsList.push(pubkey);
+                            if (relayHint && relayHint.startsWith('wss://')) {
+                                friendRelayHints[pubkey] = relayHint;
+                            }
+                        });
+                    
+                    log(`Loaded ${friendsList.length} friends (${Object.keys(friendRelayHints).length} with relay hints)`);
                     $('#friendsCount').text(friendsList.length);
                     renderFriendsList();
                 }
@@ -2382,22 +2484,94 @@
             if (profileCache[pubkey]) return profileCache[pubkey];
 
             const p = getPool();
+            
+            // Build relay list: hint relay (priority) + all relays + fallback relays
+            let relaysToQuery = [...allRelays];
+            if (friendRelayHints[pubkey]) {
+                relaysToQuery.unshift(friendRelayHints[pubkey]); // Prioritize hint relay
+            }
+            // Add fallback relays for better profile discovery
+            relaysToQuery = [...new Set([...relaysToQuery, ...PROFILE_FALLBACK_RELAYS])];
+            
             try {
-                const events = await p.list([allRelays[0]], [{
+                // Query all relays for this profile
+                const events = await p.list(relaysToQuery, [{
                     kinds: [0],
                     authors: [pubkey],
-                    limit: 1
+                    limit: 3 // Get multiple in case of different versions
                 }]);
+                
                 if (events.length > 0) {
-                    const profile = JSON.parse(events[0].content);
+                    // Use the newest profile
+                    const newest = events.sort((a, b) => b.created_at - a.created_at)[0];
+                    const profile = JSON.parse(newest.content);
                     // Normalize IPFS URLs in profile
                     if (profile.picture) profile.picture = normalizeIpfsUrl(profile.picture);
                     if (profile.banner) profile.banner = normalizeIpfsUrl(profile.banner);
                     profileCache[pubkey] = profile;
                     return profile;
                 }
-            } catch (e) {}
+            } catch (e) {
+                log(`Profile fetch error for ${pubkey.slice(0,8)}: ${e.message}`);
+            }
             return null;
+        }
+
+        // Preload profiles for all video authors (batch loading for performance)
+        async function preloadVideoAuthorProfiles() {
+            const uniqueAuthors = [...new Set(tubeVideos.map(v => v.authorId))];
+            const missingAuthors = uniqueAuthors.filter(a => !profileCache[a]);
+            
+            if (missingAuthors.length === 0) return;
+            
+            log(`Preloading ${missingAuthors.length} author profiles...`);
+            
+            const p = getPool();
+            
+            // Collect all relay hints for missing authors + fallback public relays
+            const hintRelays = [...new Set(
+                missingAuthors
+                    .map(a => friendRelayHints[a])
+                    .filter(r => r)
+            )];
+            const relaysToQuery = [...new Set([...allRelays, ...hintRelays, ...PROFILE_FALLBACK_RELAYS])];
+            
+            try {
+                // Batch fetch all missing profiles from all relays
+                const events = await p.list(relaysToQuery, [{
+                    kinds: [0],
+                    authors: missingAuthors,
+                    limit: missingAuthors.length * 2 // Allow for duplicates from multiple relays
+                }]);
+                
+                // Deduplicate: keep newest profile for each pubkey
+                const profilesByPubkey = {};
+                events.forEach(event => {
+                    if (!profilesByPubkey[event.pubkey] || event.created_at > profilesByPubkey[event.pubkey].created_at) {
+                        profilesByPubkey[event.pubkey] = event;
+                    }
+                });
+                
+                Object.values(profilesByPubkey).forEach(event => {
+                    try {
+                        const profile = JSON.parse(event.content);
+                        if (profile.picture) profile.picture = normalizeIpfsUrl(profile.picture);
+                        if (profile.banner) profile.banner = normalizeIpfsUrl(profile.banner);
+                        profileCache[event.pubkey] = profile;
+                    } catch (e) {}
+                });
+                
+                log(`Loaded ${Object.keys(profilesByPubkey).length} profiles from ${relaysToQuery.length} relays`);
+                
+                // Second pass: try individual relay hints for still-missing profiles
+                const stillMissing = missingAuthors.filter(a => !profileCache[a]);
+                if (stillMissing.length > 0) {
+                    log(`Retrying ${stillMissing.length} profiles with individual hints...`);
+                    await Promise.all(stillMissing.slice(0, 10).map(pubkey => getProfile(pubkey)));
+                }
+            } catch (e) {
+                log(`Profile preload error: ${e.message}`);
+            }
         }
 
         function filterTubeVideos() {
@@ -2463,18 +2637,30 @@
         function renderVideoCard(video) {
             const thumbnail = video.thumbnailUrl || '';
             const gifanim = video.gifanimUrl || '';
-            const authorName = profileCache[video.authorId]?.display_name || 
-                              profileCache[video.authorId]?.name || 
-                              video.authorId.slice(0, 8);
-            const authorPic = profileCache[video.authorId]?.picture || 
-                             'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            const profile = profileCache[video.authorId] || {};
+            const authorName = profile.display_name || profile.name || video.authorId.slice(0, 8);
+            const authorPic = profile.picture || 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            const authorBanner = profile.banner || '';
+            const authorNip05 = profile.nip05 || '';
+            const authorAbout = profile.about || '';
             const date = formatRelativeDate(video.created_at);
             const duration = video.duration ? formatDuration(video.duration) : '';
             const hasThumb = thumbnail && (thumbnail.startsWith('http') || thumbnail.startsWith('/'));
             const hasGif = gifanim && (gifanim.startsWith('http') || gifanim.startsWith('/'));
+            const hasBanner = authorBanner && (authorBanner.startsWith('http') || authorBanner.startsWith('/'));
+            const shortPubkey = video.authorId.slice(0, 8) + '...' + video.authorId.slice(-4);
 
             return `
                 <div class="video-card" onclick="openVideoTheater('${video.id}')">
+                    <div class="video-author-banner ${hasBanner ? 'with-banner' : ''}" 
+                         ${hasBanner ? `style="background-image: url('${authorBanner}')"` : ''}>
+                        <img class="author-avatar" src="${authorPic}" onerror="this.src='https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'">
+                        <div class="author-details">
+                            <div class="author-name">${escapeHtml(authorName)}</div>
+                            ${authorNip05 ? `<div class="author-nip05">${escapeHtml(authorNip05)}</div>` : 
+                                           `<div class="author-pubkey">${shortPubkey}</div>`}
+                        </div>
+                    </div>
                     <div class="video-thumbnail">
                         ${hasThumb ? 
                             `<img class="thumb-static" src="${thumbnail}" onerror="this.style.display='none'">`
@@ -2491,12 +2677,8 @@
                     <div class="video-info">
                         <div class="title">${escapeHtml(video.title)}</div>
                         <div class="meta">
-                            <div class="author">
-                                <img src="${authorPic}" onerror="this.style.display='none'">
-                                <span>${escapeHtml(authorName)}</span>
-                            </div>
-                            <span>•</span>
                             <span>${date}</span>
+                            ${video.type === 'ai' ? '<span>•</span><span>🤖 Généré par IA</span>' : ''}
                         </div>
                     </div>
                 </div>
@@ -2940,7 +3122,7 @@
             
             $('#notificationIcon').text(icons[type] || icons.info);
             $('#notificationTitle').text(title || titles[type] || titles.info);
-            $('#notificationMessage').text(message);
+            $('#notificationMessage').html(message);
             
             // Style the OK button based on type
             const $btn = $('#notificationModal .modal-footer button');
@@ -4026,11 +4208,22 @@
 
         function cleanContent(content, mediaUrls) {
             let text = content;
-            // Remove normalized URLs from display
-            mediaUrls.forEach(u => { text = text.replace(u, ''); });
+            // Remove ALL occurrences of media URLs from display (use split/join for global replace)
+            mediaUrls.forEach(u => { 
+                // Escape special regex characters in URL
+                const escaped = u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                text = text.replace(new RegExp(escaped, 'gi'), '');
+            });
             // Also remove original IPFS paths (before normalization)
             text = text.replace(/(\/ipfs\/[^\s<>"]+|\/ipns\/[^\s<>"]+)/gi, '');
-            text = text.replace(/(https?:\/\/[^\s<>"]+\.(mp4|webm|mp3|wav|ogg|jpg|jpeg|png|gif|webp|avif)([^\s<>"]*)?)/gi, '');
+            // Remove media file URLs
+            text = text.replace(/(https?:\/\/[^\s<>"]+\.(mp4|webm|mp3|wav|ogg|jpg|jpeg|png|gif|webp|avif|html|htm)([^\s<>"]*)?)/gi, '');
+            // Remove any remaining URLs that will be displayed as media previews
+            text = text.replace(/(https?:\/\/[^\s<>"]+)/gi, (match) => {
+                // Keep URL in text only if it won't be displayed as media
+                const type = detectMediaType(match);
+                return type ? '' : match;
+            });
             return text.replace(/#(BRO|BOT|image|video|music|search|plantnet|inventory|mem|reset)\s*/gi, '').trim();
         }
 
