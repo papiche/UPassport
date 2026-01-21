@@ -1621,6 +1621,73 @@
             color: var(--text-dim);
         }
 
+        /* Theater Author Banner */
+        .theater-author-banner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            margin: -12px -15px 12px -15px;
+            background: linear-gradient(135deg, var(--bg-input), var(--bg-void));
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .theater-author-banner.with-banner {
+            background-size: cover;
+            background-position: center;
+        }
+
+        .theater-author-banner.with-banner::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, rgba(10, 10, 15, 0.95), rgba(10, 10, 15, 0.75));
+            z-index: 0;
+        }
+
+        .theater-author-banner > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .theater-author-banner .author-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--accent-cyan);
+            flex-shrink: 0;
+        }
+
+        .theater-author-banner .author-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .theater-author-banner .author-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .theater-author-banner .author-nip05 {
+            font-size: 0.8rem;
+            color: var(--accent-cyan);
+        }
+
+        .theater-author-banner .author-nip05::before {
+            content: '✓ ';
+            color: var(--accent-green);
+        }
+
+        .theater-author-banner .author-pubkey {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            font-family: monospace;
+        }
+
         /* Theater actions bar */
         .theater-actions {
             display: flex;
@@ -1907,6 +1974,14 @@
             <video id="theaterVideo" controls autoplay></video>
                     </div>
         <div class="theater-info">
+            <!-- Author Profile Banner -->
+            <div class="theater-author-banner" id="theaterAuthorBanner">
+                <img class="author-avatar" id="theaterAuthorAvatar" src="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+                <div class="author-details">
+                    <div class="author-name" id="theaterAuthorName">Author</div>
+                    <div class="author-nip05" id="theaterAuthorNip05"></div>
+                </div>
+            </div>
             <h4 id="theaterTitle">Video Title</h4>
             <div class="meta" id="theaterMeta"></div>
             
@@ -2789,15 +2864,36 @@
             $('#theaterVideo').attr('src', video.videoUrl);
             $('#theaterTitle').text(video.title);
             
-            const authorName = profileCache[video.authorId]?.display_name || 
-                              profileCache[video.authorId]?.name || 
-                              video.authorId.slice(0, 8);
+            // Populate author profile banner
+            const profile = profileCache[video.authorId] || {};
+            const authorName = profile.display_name || profile.name || video.authorId?.slice(0, 8) || 'Unknown';
+            const authorPic = profile.picture || 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            const authorBanner = profile.banner || '';
+            const authorNip05 = profile.nip05 || '';
+            const shortPubkey = video.authorId ? (video.authorId.slice(0, 8) + '...' + video.authorId.slice(-4)) : '';
+            
+            // Update theater author banner
+            const $banner = $('#theaterAuthorBanner');
+            if (authorBanner && authorBanner.startsWith('http')) {
+                $banner.addClass('with-banner').css('background-image', `url('${authorBanner}')`);
+            } else {
+                $banner.removeClass('with-banner').css('background-image', '');
+            }
+            $('#theaterAuthorAvatar').attr('src', authorPic);
+            $('#theaterAuthorName').text(authorName);
+            
+            // Show NIP-05 or pubkey
+            const $nip05 = $('#theaterAuthorNip05');
+            if (authorNip05) {
+                $nip05.removeClass('author-pubkey').addClass('author-nip05').text(authorNip05);
+            } else {
+                $nip05.removeClass('author-nip05').addClass('author-pubkey').text(shortPubkey);
+            }
+            
             const date = new Date(video.created_at * 1000).toLocaleString();
             
             $('#theaterMeta').html(`
                 <span>${video.type === 'ai' ? '🤖 IA Generated' : '📺 NostrTube'}</span>
-                <span>•</span>
-                <span>Par ${escapeHtml(authorName)}</span>
                 <span>•</span>
                 <span>${date}</span>
             `);
@@ -3457,14 +3553,24 @@
                         // Store for later use
                         window.userUmapKey = umapKey;
                         window.userGpsData = gpsData;
+                    } else {
+                        log('GPS: no coordinates in response');
                     }
                 } else if (gpsResponse.status === 403) {
-                    log('GPS: auth required');
+                    log('GPS: auth required - connect to your home relay');
+                } else if (gpsResponse.status === 404) {
+                    log('GPS: not registered on this relay');
                 } else {
-                    log('GPS: not available');
+                    log(`GPS: API returned ${gpsResponse.status}`);
                 }
             } catch (e) {
-                log(`GPS fetch error: ${e.message}`);
+                log(`GPS: ${e.message}`);
+            }
+            
+            // Show info message if no services found (user might be on wrong relay)
+            const hasServices = $('#didUdriveSection').is(':visible') || $('#didUmapSection').is(':visible');
+            if (!hasServices && publicKey) {
+                log('ℹ️ Services not available - try connecting to your home relay');
             }
         }
 
