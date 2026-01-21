@@ -3513,22 +3513,32 @@
                         // Build uDRIVE URL
                         const gateway = getIpfsGateway();
                         console.log('[uDRIVE] Gateway:', gateway);
+                        console.log('[uDRIVE] buildUDriveUrl available:', typeof buildUDriveUrl === 'function');
+                        console.log('[uDRIVE] email available:', !!udriveInfo.email, udriveInfo.email);
                         let udriveUrl;
                         
                         try {
                             if (typeof buildUDriveUrl === 'function' && udriveInfo.email) {
-                                console.log('[uDRIVE] Using buildUDriveUrl with email:', udriveInfo.email);
+                                console.log('[uDRIVE] Calling buildUDriveUrl...');
                                 udriveUrl = buildUDriveUrl(udriveInfo.ipnsVault, udriveInfo.email);
+                                console.log('[uDRIVE] buildUDriveUrl returned:', udriveUrl);
                             } else {
-                                console.log('[uDRIVE] Fallback: direct IPNS URL (no email or buildUDriveUrl)');
+                                console.log('[uDRIVE] Fallback: direct IPNS URL');
                                 udriveUrl = `${gateway}/ipns/${udriveInfo.ipnsVault}`;
                             }
                         } catch (urlErr) {
-                            console.warn('[uDRIVE] buildUDriveUrl error:', urlErr);
+                            console.error('[uDRIVE] buildUDriveUrl error:', urlErr.message, urlErr);
+                            log(`⚠️ [uDRIVE] URL build error: ${urlErr.message}`);
                             udriveUrl = `${gateway}/ipns/${udriveInfo.ipnsVault}`;
+                            console.log('[uDRIVE] Using fallback URL:', udriveUrl);
                         }
                         
                         console.log('[uDRIVE] Final URL:', udriveUrl);
+                        
+                        if (!udriveUrl) {
+                            console.error('[uDRIVE] No URL generated!');
+                            return;
+                        }
                         
                         // Show uDRIVE section - verify element exists
                         const $udriveSection = $('#didUdriveSection');
