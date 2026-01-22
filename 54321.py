@@ -7304,6 +7304,7 @@ async def get_my_gps_coordinates(npub: str):
         - coordinates: { lat: float, lon: float } (rounded to 0.01° for UMAP precision)
         - umap_key: str (formatted as "lat,lon" for UMAP DID lookup)
         - email: str (associated email)
+        - ipfsnodeid: str (IPFS node ID of the station serving this request)
         - message: str (status message)
     
     Raises:
@@ -7323,6 +7324,7 @@ async def get_my_gps_coordinates(npub: str):
             "coordinates": { "lat": 48.20, "lon": -2.48 },
             "umap_key": "48.20,-2.48",
             "email": "user@example.com",
+            "ipfsnodeid": "12D3KooWABC...",
             "message": "GPS coordinates retrieved successfully"
         }
     """
@@ -7428,6 +7430,11 @@ async def get_my_gps_coordinates(npub: str):
             lon_rounded = round(lon, 2)
             umap_key = f"{lat_rounded:.2f},{lon_rounded:.2f}"
             
+            # Get IPFSNODEID for this station
+            ipfs_node_id = get_env_from_mysh("IPFSNODEID", "")
+            if not ipfs_node_id:
+                ipfs_node_id = os.getenv("IPFSNODEID", "")
+            
             logging.info(f"✅ GPS coordinates retrieved for {user_email}: {umap_key}")
             
             return {
@@ -7438,6 +7445,7 @@ async def get_my_gps_coordinates(npub: str):
                 },
                 "umap_key": umap_key,
                 "email": user_email,
+                "ipfsnodeid": ipfs_node_id,  # Station's IPFS node ID
                 "message": "GPS coordinates retrieved successfully",
                 "timestamp": datetime.now().isoformat()
             }
