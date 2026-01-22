@@ -159,6 +159,22 @@
             border-color: #2196F3;
         }
 
+        #topbarCrowdfunding {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.2));
+            border-color: #22c55e;
+        }
+
+        #topbarCrowdfunding:hover {
+            background: linear-gradient(135deg, #22c55e, #10b981);
+            border-color: #22c55e;
+        }
+
+        .crowdfunding-link:hover {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.3), rgba(16, 185, 129, 0.25)) !important;
+            transform: scale(1.02);
+            box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+        }
+
         /* Sociétaire Status Badge */
         .societaire-badge {
             display: inline-flex;
@@ -1941,12 +1957,15 @@
             <span class="zencard-icon" id="zencardIcon" style="display:none;" title="ZEN Card disponible">💳</span>
         </div>
         <!-- Quick access buttons for uDRIVE and UMAP -->
-        <div class="topbar-services" id="topbarServices" style="display:none;">
+        <div class="topbar-services" id="topbarServices">
             <a href="#" id="topbarUdrive" class="topbar-service-btn" target="_blank" title="Mon espace uDRIVE" style="display:none;">
                 📂
             </a>
             <a href="#" id="topbarUmap" class="topbar-service-btn" target="_blank" title="UMAP Chat" style="display:none;">
                 🗺️
+            </a>
+            <a href="/earth/crowdfunding.html" id="topbarCrowdfunding" class="topbar-service-btn crowdfunding" target="_blank" title="🌳 Crowdfunding des Communs">
+                🌳
             </a>
         </div>
         <button class="btn-connect" id="btnConnect">Connecter</button>
@@ -2001,8 +2020,11 @@
                     </a>
                 </div>
             </div>
-            <div class="did-section" style="text-align:center;padding-top:6px;">
-                <a href="/earth/crowdfunding.html" style="color:var(--accent-green);font-size:0.65rem;text-decoration:none;" title="Financez les Communs">🌳 Crowdfunding Forêt Jardin</a>
+            <!-- Crowdfunding Section -->
+            <div class="did-section" style="text-align:center;padding-top:8px;margin-top:4px;border-top:1px dashed var(--accent-green);">
+                <a href="/earth/crowdfunding.html" target="_blank" class="crowdfunding-link" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(16, 185, 129, 0.1));border:1px solid var(--accent-green);border-radius:8px;color:var(--accent-green);font-size:0.7rem;text-decoration:none;transition:all 0.2s;" title="Financez les Communs">
+                    🌳 Crowdfunding des Communs
+                </a>
             </div>
         </div>
     </div>
@@ -2214,7 +2236,7 @@
         </div>
         <div id="mapContainer" style="display:none;"><div id="mini-map"></div></div>
         <div class="settings-row" style="justify-content:center;padding-top:8px;border-top:1px solid var(--border);margin-top:8px;">
-            <a href="/earth/crowdfunding.html" style="color:var(--text-dim);font-size:0.7rem;text-decoration:none;opacity:0.7;" title="Crowdfunding Forêt Jardin">🌳 Crowdfunding Communs</a>
+            <a href="/earth/crowdfunding.html" style="color:var(--text-dim);font-size:0.7rem;text-decoration:none;opacity:0.7;" title="Crowdfunding des Communs">🌳 Crowdfunding des Communs</a>
             </div>
         </div>
 
