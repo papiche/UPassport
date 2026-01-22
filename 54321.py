@@ -9030,6 +9030,304 @@ async def create_renewal_request(renewal_data: RenewalRequestData):
 # END ORACLE SYSTEM API ROUTES
 ################################################################################
 
+
+################################################################################
+# CROWDFUNDING API ROUTES
+# Wrapper for CROWDFUNDING.sh CLI commands
+################################################################################
+
+# Path to CROWDFUNDING.sh script
+CROWDFUNDING_SCRIPT = os.path.expanduser("~/.zen/Astroport.ONE/tools/CROWDFUNDING.sh")
+CROWDFUNDING_DIR = os.path.expanduser("~/.zen/game/crowdfunding")
+
+
+class CrowdfundingCreateRequest(BaseModel):
+    lat: float
+    lon: float
+    name: str
+    description: str = ""
+    npub: str  # Creator's NOSTR pubkey for verification
+
+
+class CrowdfundingAddOwnerRequest(BaseModel):
+    project_id: str
+    email: str
+    mode: str  # "commons" or "cash"
+    amount: float
+    currency: str = "ZEN"  # or "EUR"
+    npub: str
+
+
+def run_crowdfunding_command(args: List[str], timeout: int = 30) -> Dict[str, Any]:
+    """Execute CROWDFUNDING.sh with given arguments and return result"""
+    if not os.path.exists(CROWDFUNDING_SCRIPT):
+        return {"success": False, "error": "CROWDFUNDING.sh script not found"}
+    
+    try:
+        result = subprocess.run(
+            [CROWDFUNDING_SCRIPT] + args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=os.path.dirname(CROWDFUNDING_SCRIPT)
+        )
+        
+        return {
+            "success": result.returncode == 0,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "returncode": result.returncode
+        }
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "Command timed out"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def parse_project_json(project_id: str) -> Optional[Dict[str, Any]]:
+    """Read project.json for a given project ID"""
+    project_file = os.path.join(CROWDFUNDING_DIR, project_id, "project.json")
+    if os.path.exists(project_file):
+        try:
+            with open(project_file, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return None
+
+
+@app.post("/api/crowdfunding/create")
+async def crowdfunding_create(request: CrowdfundingCreateRequest):
+    """Create a new crowdfunding project
+    
+    Wraps: ./CROWDFUNDING.sh create LAT LON "NAME" "DESCRIPTION"
+    
+    Returns the created project with Bien identity (hex, npub, g1pub)
+    """
+    logging.info(f"Creating crowdfunding project: {request.name} at ({request.lat}, {request.lon})")
+    
+    result = run_crowdfunding_command([
+        "create",
+        str(request.lat),
+        str(request.lon),
+        request.name,
+        request.description
+    ], timeout=60)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result.get("error", result.get("stderr", "Creation failed")))
+    
+    # Extract project ID from output
+    # Output format includes: "ID Projet: CF-XXXXXXXX-XXXX"
+    import re
+    match = re.search(r'(CF-\d{8}-[A-F0-9]{8})', result["stdout"])
+    if match:
+        project_id = match.group(1)
+        project_data = parse_project_json(project_id)
+        
+        return JSONResponse({
+            "success": True,
+            "project_id": project_id,
+            "project": project_data,
+            "bien_identity": project_data.get("bien_identity") if project_data else None,
+            "message": f"Project {project_id} created successfully"
+        })
+    
+    return JSONResponse({
+        "success": True,
+        "message": "Project created",
+        "output": result["stdout"]
+    })
+
+
+@app.get("/api/crowdfunding/list")
+async def crowdfunding_list(status: str = "all"):
+    """List crowdfunding projects
+    
+    Wraps: ./CROWDFUNDING.sh list [--active|--completed|--all]
+    
+    Args:
+        status: Filter by status (active, completed, all)
+    """
+    flag = f"--{status}" if status in ["active", "completed", "all"] else "--all"
+    
+    # Instead of calling CLI, directly read project directories
+    projects = []
+    
+    if os.path.exists(CROWDFUNDING_DIR):
+        for project_dir in os.listdir(CROWDFUNDING_DIR):
+            project_data = parse_project_json(project_dir)
+            if project_data:
+                # Filter by status
+                if status == "active" and project_data.get("status") not in ["crowdfunding", "vote_pending"]:
+                    continue
+                if status == "completed" and project_data.get("status") != "completed":
+                    continue
+                
+                projects.append({
+                    "id": project_data.get("id"),
+                    "name": project_data.get("name"),
+                    "status": project_data.get("status"),
+                    "location": project_data.get("location"),
+                    "bien_identity": project_data.get("bien_identity"),
+                    "totals": project_data.get("totals"),
+                    "owners_count": len(project_data.get("owners", [])),
+                    "created_at": project_data.get("created_at")
+                })
+    
+    return JSONResponse({
+        "success": True,
+        "count": len(projects),
+        "projects": projects
+    })
+
+
+@app.get("/api/crowdfunding/status/{project_id}")
+async def crowdfunding_status(project_id: str):
+    """Get detailed status of a crowdfunding project
+    
+    Returns full project.json data including:
+    - Project details
+    - Bien identity (hex, npub, g1pub)
+    - Owners and their modes
+    - Contribution totals
+    - Vote status if applicable
+    """
+    project_data = parse_project_json(project_id)
+    
+    if not project_data:
+        raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
+    
+    # Optionally get Bien wallet balance
+    bien_g1pub = project_data.get("bien_identity", {}).get("g1pub")
+    bien_balance = None
+    
+    if bien_g1pub:
+        try:
+            g1check_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1check.sh")
+            if os.path.exists(g1check_script):
+                result = subprocess.run(
+                    [g1check_script, bien_g1pub],
+                    capture_output=True, text=True, timeout=10
+                )
+                if result.returncode == 0:
+                    bien_balance = result.stdout.strip()
+        except Exception:
+            pass
+    
+    return JSONResponse({
+        "success": True,
+        "project": project_data,
+        "bien_balance_g1": bien_balance
+    })
+
+
+@app.post("/api/crowdfunding/add-owner")
+async def crowdfunding_add_owner(request: CrowdfundingAddOwnerRequest):
+    """Add an owner to a crowdfunding project
+    
+    Wraps: ./CROWDFUNDING.sh add-owner PROJECT_ID EMAIL MODE AMOUNT [CURRENCY]
+    
+    Modes: "commons" (donation) or "cash" (sale in €)
+    """
+    logging.info(f"Adding owner {request.email} to project {request.project_id}")
+    
+    args = [
+        "add-owner",
+        request.project_id,
+        request.email,
+        request.mode,
+        str(request.amount)
+    ]
+    
+    if request.currency:
+        args.append(request.currency)
+    
+    result = run_crowdfunding_command(args, timeout=30)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result.get("stderr", "Failed to add owner"))
+    
+    # Return updated project
+    project_data = parse_project_json(request.project_id)
+    
+    return JSONResponse({
+        "success": True,
+        "message": f"Owner {request.email} added with mode {request.mode}",
+        "project": project_data
+    })
+
+
+@app.get("/api/crowdfunding/bien-balance/{project_id}")
+async def crowdfunding_bien_balance(project_id: str):
+    """Get the Bien wallet balance
+    
+    Returns the G1 balance and calculated ZEN balance for the project's Bien wallet.
+    """
+    project_data = parse_project_json(project_id)
+    
+    if not project_data:
+        raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
+    
+    bien_g1pub = project_data.get("bien_identity", {}).get("g1pub")
+    
+    if not bien_g1pub:
+        raise HTTPException(status_code=400, detail="Project has no Bien wallet")
+    
+    try:
+        g1check_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1check.sh")
+        if os.path.exists(g1check_script):
+            result = subprocess.run(
+                [g1check_script, bien_g1pub],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                g1_balance = float(result.stdout.strip() or "0")
+                zen_balance = max(0, (g1_balance - 1) * 10)  # 1 G1 reserve
+                
+                return JSONResponse({
+                    "success": True,
+                    "project_id": project_id,
+                    "bien_g1pub": bien_g1pub,
+                    "g1_balance": g1_balance,
+                    "zen_balance": zen_balance
+                })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Balance check failed: {str(e)}")
+    
+    raise HTTPException(status_code=500, detail="G1check script not available")
+
+
+# Note on add-owner:
+# POST /api/crowdfunding/add-owner is for administrative use only.
+# It wraps ./CROWDFUNDING.sh add-owner and should be called by:
+# - The captain (administrator)
+# - An authorized process after owner verification
+# There is no public web UI for this - owners are added during project creation
+# or manually by the captain via CLI or this API.
+
+# Note on Follow = Interest:
+# When a user "follows" a Bien's NOSTR profile (kind 3 contact list),
+# it indicates interest in the crowdfunding project. This can be used to:
+# - Show community support before contributions
+# - Notify followers of project updates
+# - Gauge interest before launching campaigns
+# Followers are queried directly from NOSTR relays, not via this API.
+
+
+################################################################################
+# END CROWDFUNDING API ROUTES
+# 
+# Note: The following operations are handled via NOSTR or CLI only:
+# - Contributions: via kind 7 reactions with t:crowdfunding tag
+# - Votes: via kind 7 reactions with target:VOTE tag  
+# - Finalization: via CLI ./CROWDFUNDING.sh finalize (captain only)
+#
+# The "Follow" action on a Bien's NOSTR profile (kind 3) can be used to
+# indicate interest in a project. Followers can be counted from NOSTR.
+################################################################################
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=54321)
