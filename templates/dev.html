@@ -716,6 +716,11 @@
                         <i class="bi bi-file-text"></i> API Reference
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="uplanet-tab" data-bs-toggle="tab" data-bs-target="#uplanet" type="button" role="tab">
+                        <i class="bi bi-globe"></i> UPlanet Systems
+                    </button>
+                </li>
             </ul>
             
             <!-- Tab Content -->
@@ -1787,6 +1792,381 @@ const hex = npubToHex(npub);</code></pre>
                         </div>
                     </div>
                 </div>
+                
+                <!-- Tab 8: UPlanet Systems -->
+                <div class="tab-pane fade" id="uplanet" role="tabpanel">
+                    <h3><i class="bi bi-globe"></i> UPlanet Systems</h3>
+                    <p class="lead">Complete guide to UPlanet protocol extensions, event kinds, and system integration</p>
+                    
+                    <!-- Section 1: UPlanet Event Kinds Reference -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h4 class="mb-0"><i class="bi bi-list-ul"></i> UPlanet Event Kinds Reference</h4>
+                        </div>
+                        <div class="card-body">
+                            <p>UPlanet extends the NOSTR protocol with specialized event kinds for identity, permits, environmental tracking, economy, and crowdfunding.</p>
+                            
+                            <div class="alert alert-info">
+                                <strong><i class="bi bi-info-circle"></i> Complete Reference:</strong> 
+                                See <a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/NOSTR_EVENTS_REFERENCE.md" target="_blank" class="alert-link">NOSTR_EVENTS_REFERENCE.md</a> for the complete source of truth with detailed JSON examples.
+                            </div>
+                            
+                            <h5 class="mt-4">Event Kinds Table</h5>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Kind</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Description</th>
+                                            <th>NIP</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>30800</strong></td>
+                                            <td>DID Document</td>
+                                            <td><span class="badge bg-primary">Identity</span></td>
+                                            <td>W3C-compliant Decentralized Identifier document</td>
+                                            <td>NIP-101</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>30312</strong></td>
+                                            <td>ORE Meeting Space</td>
+                                            <td><span class="badge bg-success">ORE</span></td>
+                                            <td>Persistent geographic space for environmental verification</td>
+                                            <td>NIP-101</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>30313</strong></td>
+                                            <td>ORE Verification</td>
+                                            <td><span class="badge bg-success">ORE</span></td>
+                                            <td>Environmental verification meeting result</td>
+                                            <td>NIP-101</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>30500</strong></td>
+                                            <td>Permit Definition</td>
+                                            <td><span class="badge bg-warning">Oracle</span></td>
+                                            <td>Definition of a permit/license type</td>
+                                            <td>NIP-101</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>30501</strong></td>
+                                            <td>Permit Request</td>
+                                            <td><span class="badge bg-warning">Oracle</span></td>
+                                            <td>User request for a permit</td>
+                                            <td>NIP-101</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>30502</strong></td>
+                                            <td>Permit Attestation</td>
+                                            <td><span class="badge bg-warning">Oracle</span></td>
+                                            <td>Multi-signature attestation by permit holders</td>
+                                            <td>NIP-101</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>30503</strong></td>
+                                            <td>Permit Credential</td>
+                                            <td><span class="badge bg-warning">Oracle</span></td>
+                                            <td>W3C Verifiable Credential issued after validation</td>
+                                            <td>NIP-101</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>30850</strong></td>
+                                            <td>Economic Health</td>
+                                            <td><span class="badge bg-info">Economy</span></td>
+                                            <td>Station economic health report (daily/weekly)</td>
+                                            <td>NIP-101</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>30904</strong></td>
+                                            <td>Crowdfunding Metadata</td>
+                                            <td><span class="badge bg-danger">Crowdfunding</span></td>
+                                            <td>Structured JSON metadata for crowdfunding campaigns</td>
+                                            <td>NIP-101</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>30023</strong></td>
+                                            <td>Long-form Content</td>
+                                            <td><span class="badge bg-secondary">Content</span></td>
+                                            <td>Articles, documents, journals linked to UMAP</td>
+                                            <td>NIP-23</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>7</strong></td>
+                                            <td>Reaction (+ZEN)</td>
+                                            <td><span class="badge bg-info">Economy</span></td>
+                                            <td>ZEN payments, votes, likes (with tags: crowdfunding, vote-assets)</td>
+                                            <td>NIP-25</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="alert alert-warning mt-3">
+                                <strong><i class="bi bi-exclamation-triangle"></i> Note:</strong> 
+                                Crowdfunding contributions are handled via <strong>kind 7</strong> (Reaction) with tag <code>["t", "crowdfunding"]</code> and ZEN amount in content (e.g., "+100"). 
+                                Kind 30904 contains the structured metadata for parsing campaigns.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Section 2: NIP-101 Extensions -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h4 class="mb-0"><i class="bi bi-puzzle"></i> NIP-101 Extensions</h4>
+                        </div>
+                        <div class="card-body">
+                            <p>UPlanet extends NOSTR with 10 official protocol extensions. Each extension adds specialized functionality to the base protocol.</p>
+                            
+                            <div class="alert alert-info">
+                                <strong><i class="bi bi-info-circle"></i> Overview:</strong> 
+                                See <a href="https://github.com/papiche/nostr-nips/blob/NIP-101/UPLANET_EXTENSIONS.md" target="_blank" class="alert-link">UPLANET_EXTENSIONS.md</a> for the complete list and descriptions.
+                            </div>
+                            
+                            <h5 class="mt-4">Core Extensions</h5>
+                            <div class="list-group">
+                                <div class="list-group-item">
+                                    <h6 class="mb-1"><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/101.md" target="_blank">NIP-101: UPlanet Protocol</a></h6>
+                                    <p class="mb-1 small">Core protocol for decentralized identity, geographic coordination, and verifiable credentials</p>
+                                    <small class="text-muted">Includes: DID Documents (30800), Oracle System (30500-30503), ORE System (30312-30313)</small>
+                                </div>
+                                <div class="list-group-item">
+                                    <h6 class="mb-1"><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/42-oracle-permits-extension.md" target="_blank">Oracle Permits Extension</a></h6>
+                                    <p class="mb-1 small">Multi-signature permit management using Web of Trust (WoT)</p>
+                                    <small class="text-muted">Event kinds: 30500-30503 | See also: <a href="/docs/WOTX2_SYSTEM.md" target="_blank">WoTx2 System</a></small>
+                                </div>
+                                <div class="list-group-item">
+                                    <h6 class="mb-1"><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/42-twin-key-extension.md" target="_blank">Twin-Key Extension</a></h6>
+                                    <p class="mb-1 small">Geographic identity authentication (personal + UMAP keypair)</p>
+                                    <small class="text-muted">Extends: NIP-42 | Kind: 22242</small>
+                                </div>
+                                <div class="list-group-item">
+                                    <h6 class="mb-1"><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/58-oracle-badges-extension.md" target="_blank">Oracle Badges Extension</a></h6>
+                                    <p class="mb-1 small">Gamification with NIP-58 badges for visual competence representation</p>
+                                    <small class="text-muted">Extends: NIP-58</small>
+                                </div>
+                                <div class="list-group-item">
+                                    <h6 class="mb-1"><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/75-crowdfunding-extension.md" target="_blank">Crowdfunding Extension</a></h6>
+                                    <p class="mb-1 small">Commons acquisition with multi-currency support (Ẑen/Ğ1/€)</p>
+                                    <small class="text-muted">Event kinds: 7 (contributions), 30904 (metadata), 30023 (documents)</small>
+                                </div>
+                                <div class="list-group-item">
+                                    <h6 class="mb-1"><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/101-economic-health-extension.md" target="_blank">Economic Health Extension</a></h6>
+                                    <p class="mb-1 small">Swarm economic monitoring and station health reports</p>
+                                    <small class="text-muted">Event kind: 30850</small>
+                                </div>
+                                <div class="list-group-item">
+                                    <h6 class="mb-1"><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/101-n2-constellation-sync-extension.md" target="_blank">N² Constellation Sync Extension</a></h6>
+                                    <p class="mb-1 small">Social graph synchronization (N1 + N2 = friends + friends-of-friends)</p>
+                                    <small class="text-muted">Synchronizes 40 event types across constellation</small>
+                                </div>
+                                <div class="list-group-item">
+                                    <h6 class="mb-1"><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/28-umap-extension.md" target="_blank">UMAP Chat Rooms Extension</a></h6>
+                                    <p class="mb-1 small">Geographic chat rooms based on UMAP coordinates</p>
+                                    <small class="text-muted">Extends: NIP-28 | Uses: ORE Meeting Spaces (30312)</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Section 3: Connecting a Complete UPlanet Client -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h4 class="mb-0"><i class="bi bi-plug"></i> Connecting a Complete UPlanet Client</h4>
+                        </div>
+                        <div class="card-body">
+                            <p>To build a complete UPlanet client, you need to subscribe to all relevant event kinds and handle UPlanet-specific tags.</p>
+                            
+                            <h5 class="mt-4">Recommended NOSTR Filters</h5>
+                            <pre class="bg-dark text-light p-3 rounded"><code>// Complete subscription for a UPlanet client
+const filters = [
+  // Core NOSTR events
+  { kinds: [0, 1, 3, 5, 6, 7] },
+  
+  // Media events
+  { kinds: [21, 22, 1063, 1111] },
+  
+  // Long-form content
+  { kinds: [30023, 30024] },
+  
+  // UPlanet Identity
+  { kinds: [30800] },
+  
+  // Oracle/Permits System
+  { kinds: [30500, 30501, 30502, 30503] },
+  
+  // ORE Environmental System
+  { kinds: [30312, 30313] },
+  
+  // Economic Health
+  { kinds: [30850] },
+  
+  // Crowdfunding
+  { kinds: [30904] }
+];
+
+// Connect to relay and subscribe
+await connectToRelay();
+const sub = window.nostrRelay.sub(filters);
+
+sub.on('event', (event) => {
+  // Handle events based on kind
+  switch(event.kind) {
+    case 30800: handleDIDDocument(event); break;
+    case 30500: handlePermitDefinition(event); break;
+    case 30501: handlePermitRequest(event); break;
+    case 30502: handlePermitAttestation(event); break;
+    case 30503: handlePermitCredential(event); break;
+    case 30312: handleORESpace(event); break;
+    case 30313: handleOREVerification(event); break;
+    case 30850: handleEconomicHealth(event); break;
+    case 30904: handleCrowdfundingMetadata(event); break;
+    case 7: handleReaction(event); // Check tags for crowdfunding/vote-assets
+    default: handleStandardEvent(event);
+  }
+});</code></pre>
+                            
+                            <h5 class="mt-4">Important Tags</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>Tag</th>
+                                            <th>Usage</th>
+                                            <th>Example</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><code>["ipfs_node", "&lt;IPFSNODEID&gt;"]</code></td>
+                                            <td>Filter events by Astroport station</td>
+                                            <td>Multi-station constellation isolation</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>["t", "crowdfunding"]</code></td>
+                                            <td>Kind 7 reactions for crowdfunding contributions</td>
+                                            <td>ZEN payments to crowdfunding projects</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>["t", "vote-assets"]</code></td>
+                                            <td>Kind 7 reactions for ASSETS voting</td>
+                                            <td>Crowdfunding governance votes</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>["g", "lat,lon"]</code></td>
+                                            <td>Geolocation coordinates</td>
+                                            <td>UMAP, ORE spaces, geotagged content</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>["d", "identifier"]</code></td>
+                                            <td>Parameterized replaceable events</td>
+                                            <td>DID documents, permit definitions, ORE spaces</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Section 4: UPlanet Systems -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h4 class="mb-0"><i class="bi bi-gear"></i> UPlanet Systems Overview</h4>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="mt-3"><i class="bi bi-shield-check"></i> Oracle/Permits System</h5>
+                            <p>Web of Trust (WoT) multi-signature permit management. Users can request permits, receive attestations from existing permit holders, and automatically receive W3C Verifiable Credentials.</p>
+                            <ul>
+                                <li><strong>Event Flow:</strong> 30500 (Definition) → 30501 (Request) → 30502 (Attestations) → 30503 (Credential)</li>
+                                <li><strong>WoTx2 System:</strong> Self-proclaimed masteries with unlimited automatic progression (X1 → X2 → ... → X144 → ...)</li>
+                                <li><strong>Documentation:</strong> <a href="/docs/WOTX2_SYSTEM.md" target="_blank">WoTx2 System</a> | <a href="/docs/ORACLE_SYSTEM.md" target="_blank">Oracle System</a></li>
+                            </ul>
+                            
+                            <h5 class="mt-4"><i class="bi bi-tree"></i> ORE Environmental System</h5>
+                            <p>Environmental Real Obligations (ORE) system for tracking ecological commitments attached to geographic cells (UMAP).</p>
+                            <ul>
+                                <li><strong>Event Flow:</strong> 30312 (Meeting Space) → 30313 (Verification) → Economic reward</li>
+                                <li><strong>Use Case:</strong> Environmental contracts, biodiversity tracking, satellite verification</li>
+                                <li><strong>Documentation:</strong> <a href="/docs/ORE_SYSTEM.md" target="_blank">ORE System</a></li>
+                            </ul>
+                            
+                            <h5 class="mt-4"><i class="bi bi-currency-exchange"></i> Economic Health System</h5>
+                            <p>Stations broadcast economic health reports (kind 30850) for swarm monitoring and constellation-wide economic visibility.</p>
+                            <ul>
+                                <li><strong>Content:</strong> Wallet balances (CASH, ASSETS, CAPITAL), revenue streams, health status</li>
+                                <li><strong>Frequency:</strong> Daily or weekly broadcasts</li>
+                                <li><strong>Aggregation:</strong> <code>economy.Swarm.html</code> aggregates all station reports</li>
+                            </ul>
+                            
+                            <h5 class="mt-4"><i class="bi bi-heart"></i> Crowdfunding System</h5>
+                            <p>Commons acquisition with multi-currency support. Contributions via kind 7 reactions with ZEN amounts.</p>
+                            <ul>
+                                <li><strong>Contribution:</strong> Kind 7 with <code>["t", "crowdfunding"]</code> tag and ZEN amount in content (e.g., "+100")</li>
+                                <li><strong>Metadata:</strong> Kind 30904 contains structured JSON for campaign parsing</li>
+                                <li><strong>Documents:</strong> Kind 30023 for campaign descriptions and contracts</li>
+                                <li><strong>Documentation:</strong> <a href="/docs/CROWDFUNDING_COMMUNS.md" target="_blank">Crowdfunding System</a></li>
+                            </ul>
+                            
+                            <h5 class="mt-4"><i class="bi bi-diagram-3"></i> Constellation N² Synchronization</h5>
+                            <p>Social graph synchronization system that distributes content based on N1 (friends) + N2 (friends-of-friends) network.</p>
+                            <ul>
+                                <li><strong>Concept:</strong> Relativistic content distribution - users see content from their extended social network</li>
+                                <li><strong>Synchronization:</strong> 40 event types automatically synced across constellation</li>
+                                <li><strong>Filtering:</strong> Use <code>ipfs_node</code> tag to filter by station in multi-station setups</li>
+                                <li><strong>Documentation:</strong> <a href="/nostr-nips/101-n2-constellation-sync-extension.md" target="_blank">N² Constellation Sync Extension</a></li>
+                            </ul>
+                            
+                            <h5 class="mt-4"><i class="bi bi-wallet2"></i> ZEN Economy</h5>
+                            <p>Native economic system using kind 7 reactions for payments, votes, and contributions.</p>
+                            <ul>
+                                <li><strong>Payment:</strong> Kind 7 with content "+50" sends 50 Ẑen to recipient</li>
+                                <li><strong>Crowdfunding:</strong> Tag <code>["t", "crowdfunding"]</code> routes to project wallet</li>
+                                <li><strong>Voting:</strong> Tag <code>["t", "vote-assets"]</code> for governance votes</li>
+                                <li><strong>Documentation:</strong> <a href="/docs/ZEN.ECONOMY.readme.md" target="_blank">ZEN Economy</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Section 5: Resources -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h4 class="mb-0"><i class="bi bi-book"></i> Additional Resources</h4>
+                        </div>
+                        <div class="card-body">
+                            <h5>Complete Documentation</h5>
+                            <ul>
+                                <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/NOSTR_EVENTS_REFERENCE.md" target="_blank"><strong>NOSTR Events Reference</strong></a> - Complete source of truth for all UPlanet event kinds</li>
+                                <li><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/UPLANET_EXTENSIONS.md" target="_blank"><strong>UPlanet Extensions</strong></a> - Overview of all 10 protocol extensions</li>
+                                <li><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/101.md" target="_blank"><strong>NIP-101 Core Specification</strong></a> - Base protocol specification</li>
+                            </ul>
+                            
+                            <h5 class="mt-3">System Documentation</h5>
+                            <ul>
+                                <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/WOTX2_SYSTEM.md" target="_blank">WoTx2 System</a> - Self-proclaimed masteries with automatic progression</li>
+                                <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/ORACLE_SYSTEM.md" target="_blank">Oracle System</a> - Permit management and credentials</li>
+                                <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/ORE_SYSTEM.md" target="_blank">ORE System</a> - Environmental obligations and verification</li>
+                                <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/CROWDFUNDING_COMMUNS.md" target="_blank">Crowdfunding System</a> - Commons acquisition</li>
+                                <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/ZEN.ECONOMY.readme.md" target="_blank">ZEN Economy</a> - Economic system documentation</li>
+                                <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/COLLABORATIVE_COMMONS_SYSTEM.md" target="_blank">Collaborative Commons</a> - Collaborative document system</li>
+                            </ul>
+                            
+                            <h5 class="mt-3">Extension Specifications</h5>
+                            <ul>
+                                <li><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/42-oracle-permits-extension.md" target="_blank">Oracle Permits Extension</a></li>
+                                <li><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/75-crowdfunding-extension.md" target="_blank">Crowdfunding Extension</a></li>
+                                <li><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/101-economic-health-extension.md" target="_blank">Economic Health Extension</a></li>
+                                <li><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/101-n2-constellation-sync-extension.md" target="_blank">N² Constellation Sync Extension</a></li>
+                                <li><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/42-twin-key-extension.md" target="_blank">Twin-Key Extension</a></li>
+                                <li><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/58-oracle-badges-extension.md" target="_blank">Oracle Badges Extension</a></li>
+                                <li><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/28-umap-extension.md" target="_blank">UMAP Chat Rooms Extension</a></li>
+                                <li><a href="https://github.com/papiche/nostr-nips/blob/NIP-101/10000-analytics-extension.md" target="_blank">Navigation history for analytics</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -2212,6 +2592,9 @@ const hex = npubToHex(npub);</code></pre>
                     <li><strong>File Contract:</strong> NIP-94 (images, audio, documents) and NIP-71 (videos)</li>
                     <li><strong>Common.js API:</strong> <code>{{ myIPFS }}/ipns/copylaradio.com/common.js</code></li>
                     <li><strong>Developer Guide:</strong> <a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/README.NostrTube.DEV.md" target="_blank">NostrTube Developer Documentation</a></li>
+                    <li><strong>UPlanet Systems:</strong> See <strong>"UPlanet Systems"</strong> tab above for complete UPlanet protocol documentation</li>
+                    <li><strong>UPlanet Event Reference:</strong> <a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/NOSTR_EVENTS_REFERENCE.md" target="_blank">NOSTR Events Reference</a> - Complete source of truth</li>
+                    <li><strong>UPlanet Extensions:</strong> <a href="https://github.com/papiche/nostr-nips/blob/NIP-101/UPLANET_EXTENSIONS.md" target="_blank">UPlanet Extensions Overview</a></li>
                     <li><strong>Source Code Examples:</strong>
                         <ul>
                             <li><a href="https://github.com/papiche/UPassport/blob/main/templates/youtube.html" target="_blank">youtube.html</a> - Video platform</li>
