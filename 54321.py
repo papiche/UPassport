@@ -2717,7 +2717,8 @@ async def check_society_route(request: Request, html: Optional[str] = None, nost
             society_data = json.loads(result.stdout.strip())
         except json.JSONDecodeError as e:
             logging.error(f"Failed to parse G1society.sh output: {e}")
-            logging.error(f"Raw output: {result.stdout[:500]}")
+            logging.error(f"Raw stdout: {result.stdout[:500]}")
+            logging.error(f"Raw stderr: {result.stderr[:500]}")
             raise ValueError(f"Invalid JSON from G1society.sh: {e}")
         
         # Check for errors in the response
