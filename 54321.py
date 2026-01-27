@@ -53,7 +53,6 @@ import time
 import hashlib
 import websockets
 import shutil
-import zipfile
 from datetime import datetime, timezone, timedelta
 from urllib.parse import unquote, urlparse, parse_qs
 from pathlib import Path
@@ -513,17 +512,6 @@ class UploadResponse(BaseModel):
     dimensions: Optional[str] = None  # Video dimensions (e.g., "640x480", from upload2ipfs.sh)
     upload_chain: Optional[str] = None  # Upload chain for provenance tracking (from upload2ipfs.sh)
 
-class DeleteRequest(BaseModel):
-    file_path: str
-    npub: str  # Authentification NOSTR obligatoire
-
-class DeleteResponse(BaseModel):
-    success: bool
-    message: str
-    deleted_file: str
-    new_cid: Optional[str] = None
-    timestamp: str
-    auth_verified: bool
 
 class CoinflipStartRequest(BaseModel):
     token: str
@@ -6287,57 +6275,7 @@ async def upload_file(
     # Determine target directory based on validated file type
     mime_type = validation_result["file_type"]
 
-    # Special handling for ZIP files
-    if mime_type == 'application/zip' or sanitized_filename.lower().endswith('.zip'):
-        apps_dir = user_drive_path / "Apps"
-        apps_dir.mkdir(parents=True, exist_ok=True)
-        
-        temp_zip_path = apps_dir / sanitized_filename
-        
-        try:
-            # Save the zip file temporarily
-            with open(temp_zip_path, "wb") as buffer:
-                await file.seek(0)  # Rewind file pointer after validation read
-                while True:
-                    chunk = await file.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    buffer.write(chunk)
-            
-            # Create subdirectory for unzipping
-            unzip_dir_name = sanitized_filename.rsplit('.', 1)[0]
-            unzip_path = apps_dir / unzip_dir_name
-            unzip_path.mkdir(exist_ok=True)
-
-            # Unzip the file
-            with zipfile.ZipFile(temp_zip_path, 'r') as zip_ref:
-                zip_ref.extractall(unzip_path)
-            logging.info(f"Unzipped '{temp_zip_path}' to '{unzip_path}'")
-
-        except Exception as e:
-            logging.error(f"Failed to process ZIP file: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to process ZIP file: {e}")
-        finally:
-            # Clean up the temporary zip file
-            if temp_zip_path.exists():
-                temp_zip_path.unlink()
-
-        # Regenerate IPFS structure
-        ipfs_result = await run_uDRIVE_generation_script(user_drive_path)
-        new_cid_info = ipfs_result.get("final_cid")
-        
-        return UploadResponse(
-            success=True,
-            message="ZIP file uploaded and extracted successfully.",
-            file_path=str(unzip_path.relative_to(user_drive_path)),
-            file_type="application/zip",
-            target_directory="Apps",
-            new_cid=new_cid_info,
-            timestamp=datetime.now().isoformat(),
-            auth_verified=True
-        )
-
-    # Determine target directory for other files
+    # Determine target directory for files
     target_directory_name = "Documents"  # Default
     if mime_type == 'text/html' or sanitized_filename.lower().endswith('.html'):
         target_directory_name = "Apps"
@@ -6485,105 +6423,6 @@ async def upload_from_drive(request: UploadFromDriveRequest):
         logging.error(f"Error downloading from IPFS or saving file: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to synchronize file: {e}")
 
-@app.post("/api/delete", response_model=DeleteResponse)
-async def delete_file(request: DeleteRequest):
-    """Supprimer un fichier avec authentification NOSTR obligatoire"""
-    try:
-        # Vérifier que la npub est fournie
-        if not request.npub or not request.npub.strip():
-            raise HTTPException(
-                status_code=400, 
-                detail="❌ Clé publique NOSTR (npub) obligatoire pour la suppression. "
-                       "Connectez-vous à NOSTR dans l'interface et réessayez."
-            )
-        
-        # Vérifier l'authentification NOSTR (obligatoire)
-        logging.info(f"Vérification NOSTR obligatoire pour suppression - npub: {request.npub}")
-        request.npub = await require_nostr_auth(request.npub)
-        logging.info(f"✅ Authentification NOSTR réussie pour suppression - npub: {request.npub}")
-        
-        # Obtenir le répertoire source basé UNIQUEMENT sur la clé publique NOSTR
-        base_dir = get_authenticated_user_directory(request.npub)
-        
-        # Valider et nettoyer le chemin du fichier
-        file_path = request.file_path.strip()
-        if not file_path:
-            raise HTTPException(status_code=400, detail="Chemin de fichier manquant")
-        
-        # Éviter les chemins dangereux
-        if '..' in file_path or file_path.startswith('/') or '\\' in file_path:
-            raise HTTPException(
-                status_code=400, 
-                detail="Chemin de fichier non sécurisé. Utilisez un chemin relatif sans '..' ou '/'."
-            )
-        
-        # Construire le chemin complet du fichier à supprimer
-        full_file_path = base_dir / file_path
-        
-        # Vérifier que le fichier existe
-        if not full_file_path.exists():
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Fichier non trouvé: {file_path}"
-            )
-        
-        # Vérifier que c'est bien un fichier (pas un répertoire)
-        if not full_file_path.is_file():
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Le chemin spécifié n'est pas un fichier: {file_path}"
-            )
-        
-        # Vérifier que le fichier est dans le répertoire source (sécurité)
-        try:
-            full_file_path.resolve().relative_to(base_dir.resolve())
-        except ValueError:
-            raise HTTPException(
-                status_code=403, 
-                detail="Le fichier n'est pas dans le répertoire source autorisé"
-            )
-        
-        logging.info(f"Suppression authentifiée du fichier: {full_file_path}")
-        logging.info(f"NOSTR npub: {request.npub}")
-        logging.info(f"Authentification NOSTR: ✅ Vérifiée et obligatoire")
-        
-        # Supprimer le fichier
-        try:
-            full_file_path.unlink()
-            logging.info(f"Fichier supprimé avec succès: {full_file_path}")
-        except OSError as e:
-            logging.error(f"Erreur lors de la suppression du fichier: {e}")
-            raise HTTPException(
-                status_code=500, 
-                detail=f"Erreur lors de la suppression du fichier: {str(e)}"
-            )
-        
-        # Régénérer la structure IPFS
-        logging.info("Régénération de la structure IPFS après suppression...")
-        try:
-            ipfs_result = await run_uDRIVE_generation_script(base_dir, enable_logging=False)
-            new_cid = ipfs_result.get("final_cid") if ipfs_result["success"] else None
-        except Exception as e:
-            logging.warning(f"Erreur lors de la régénération IPFS: {e}")
-            new_cid = None
-        
-        response = DeleteResponse(
-            success=True,
-            message=f"Fichier {file_path} supprimé avec succès (authentifié NOSTR)",
-            deleted_file=file_path,
-            new_cid=new_cid,
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            auth_verified=True
-        )
-        
-        logging.info(f"Suppression authentifiée terminée avec succès. Nouveau CID: {new_cid}")
-        return response
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"Erreur lors de la suppression authentifiée: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la suppression: {str(e)}")
 
 
 
