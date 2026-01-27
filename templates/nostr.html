@@ -4555,9 +4555,11 @@
                     try {
                         const result = await uploadNip96(selectedImage);
                         if (result.url) {
-                            content += '\n' + result.url;
+                            // Normalize URL to use correct IPFS gateway (myIPFS)
+                            const normalizedUrl = normalizeIpfsUrl(result.url);
+                            content += '\n' + normalizedUrl;
                             if (result.tags) tags = tags.concat(result.tags);
-                            log(`✅ Image uploaded: ${result.url.substring(0, 50)}...`);
+                            log(`✅ Image uploaded: ${normalizedUrl.substring(0, 50)}...`);
                         }
                     } catch (e) { 
                         log(`❌ Upload error: ${e.message}`);
