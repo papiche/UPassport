@@ -4,9 +4,9 @@
     <title>MULTIPASS DISCO Respawn</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://ipfs.copylaradio.com/ipns/copylaradio.com/leaflet.css"/>
+    <link rel="stylesheet" href="/earth/leaflet.css"/>
     <!-- Leaflet JavaScript -->
-    <script src="https://ipfs.copylaradio.com/ipns/copylaradio.com/leaflet.js"></script>
+    <script src="/earth/leaflet.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -696,6 +696,8 @@
 
                 <label for="pepper">Password :</label>
                 <input type="password" id="pepper" name="pepper" placeholder="Laissez vide pour génération automatique">
+
+                <p style="margin-top: 10px; font-size: 0.9em;"><a href="/earth/login-to-nsec.html" target="_blank" rel="noopener">🔑 Dériver nsec/npub depuis login+pass (outil dédié)</a></p>
             </div>
         </div>
 
@@ -725,7 +727,7 @@
                     </div>
                     <button type="button" class="map-button" id="update-map">Y aller</button>
                     <button type="button" class="map-button secondary" id="get-location">Ma position</button>
-                    <p><a id="map-link" href="https://ipfs.copylaradio.com/ipns/copylaradio.com/map_render.html?southWestLat=0.00&southWestLon=0.00&deg=0.01" target="_blank">UMAP</a></p>
+                    <p><a id="map-link" href="/earth/map_render.html?southWestLat=0.00&southWestLon=0.00&deg=0.01" target="_blank">UMAP</a></p>
                 </div>
             </div>
             <div id="map"></div>
@@ -829,7 +831,7 @@
                 }
 
                 // Update map link
-                mapLink.href = `https://ipfs.copylaradio.com/ipns/copylaradio.com/map_render.html?southWestLat=${roundedLat.toFixed(2)}&southWestLon=${roundedLon.toFixed(2)}&deg=0.01`;
+                mapLink.href = `/earth/map_render.html?southWestLat=${roundedLat.toFixed(2)}&southWestLon=${roundedLon.toFixed(2)}&deg=0.01`;
             }
 
             // Initialize map with default coordinates
