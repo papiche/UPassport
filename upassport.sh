@@ -1078,11 +1078,16 @@ nb_fichiers=$(ls ${MY_PATH}/pdf/${PUBKEY}/N1/*.p2p*.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ${MY_PATH}/pdf/${PUBKEY}/N1/*.p2p*.png ${MY_PATH}/pdf/${PUBKEY}/P2P.${PUBKEY}.pdf
 echo "convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P2P.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P2P.png"
 convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P2P.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P2P.png
-## Peer to One “Followers”
-nb_fichiers=$(ls ${MY_PATH}/pdf/${PUBKEY}/N1/*.certin*.png | wc -l)
-montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ${MY_PATH}/pdf/${PUBKEY}/N1/*.certin*.png ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf
-echo "convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P21.png"
-convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P21.png
+## Peer to One “Followers” (certin only: 12P)
+nb_fichiers=$(ls ${MY_PATH}/pdf/${PUBKEY}/N1/*.certin*.png 2>/dev/null | wc -l)
+if [[ "$nb_fichiers" -gt 0 ]]; then
+  montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ${MY_PATH}/pdf/${PUBKEY}/N1/*.certin*.png ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf
+  echo "convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P21.png"
+  convert -density 300 ${MY_PATH}/pdf/${PUBKEY}/P21.${PUBKEY}.pdf -resize 375x550 ${MY_PATH}/pdf/${PUBKEY}/P21.png
+else
+  # No certin-only UIDs (TOT_12P=0): skip P21 montage to avoid divide by zero
+  convert -size 375x550 xc:white ${MY_PATH}/pdf/${PUBKEY}/P21.png
+fi
 ## One to Peer “Following”
 nb_fichiers=$(ls ${MY_PATH}/pdf/${PUBKEY}/N1/*.certout*.png | wc -l)
 montage -mode concatenate -geometry +20x20 -tile $(echo "scale=0; $nb_fichiers / sqrt($nb_fichiers) - 1" | bc)x$(echo "scale=0; sqrt($nb_fichiers) + 3" | bc) -density 300 ${MY_PATH}/pdf/${PUBKEY}/N1/*.certout*.png ${MY_PATH}/pdf/${PUBKEY}/12P.${PUBKEY}.pdf
@@ -1372,7 +1377,7 @@ else
                       -e "s~_TOTAL_~${TOTAL}~g" \
                       -e "s~_UPASSPORT_HTML_~${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/_index.html~g" \
                       -e "s~_IPFS_URL_~${myIPFS}/ipfs/${IPFSPORTAL}/${PUBKEY}/~g" \
-                      -e "s~_WOT_STATUS_~⚠️ Email trouvé dans 1ère TX : ${FIRST_TX_EMAIL:-"Aucun"} | Authentification WoT : ❌ Non trouvé dans ~/.zen/game/nostr/~g" \
+                      -e "s#_WOT_STATUS_#⚠️ Email trouvé dans 1ère TX : ${FIRST_TX_EMAIL:-"Aucun"} | Authentification WoT : ❌ Non trouvé dans \$HOME/.zen/game/nostr/#g" \
                 > "$CAPTAIN_NOTIFICATION"
 
             # Envoyer la notification au CAPITAINE
@@ -1391,5 +1396,8 @@ else
         echo "⚠️  Passport non créé - pas d'envoi d'email utilisateur"
     fi
 fi
+
+# Python oracle expects the last line to be the output HTML file path
+[[ -s "${MY_PATH}/pdf/${PUBKEY}/_index.html" ]] && echo "${MY_PATH}/pdf/${PUBKEY}/_index.html"
 
 exit 0
