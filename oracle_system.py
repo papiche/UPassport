@@ -672,14 +672,18 @@ class OracleSystem:
         """Publish permit attestation to NOSTR"""
         # Prepare NOSTR event (kind 30502)
         # CRITICAL: Content must be canonicalized JSON (RFC 8785) for signature consistency
+        # NIP-101/42: tag "p" MUST be the applicant (subject of attestation), not the attester (event pubkey)
+        request = self.requests.get(attestation.request_id)
+        applicant_npub = request.applicant_npub if request else attestation.attester_npub
         tags = [
             ["d", attestation.attestation_id],
             ["e", attestation.request_id],
-            ["p", attestation.attester_npub],
+            ["p", applicant_npub],
             ["t", "permit"],
             ["t", "attestation"]
         ]
-        
+        if request:
+            tags.append(["permit", request.permit_definition_id])
         # Add IPFSNODEID tag to filter events by Astroport (prevents conflicts in multi-station constellations)
         ipfs_node_id = os.getenv("IPFSNODEID", "")
         if ipfs_node_id:
