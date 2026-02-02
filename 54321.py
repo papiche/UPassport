@@ -5089,6 +5089,59 @@ async def process_vocals_message(
         })
 
 ############# API DESCRIPTION PAGE
+# JSON-LD context endpoints (used in @context of Verifiable Credentials and DIDs)
+CREDENTIALS_CONTEXT_V1 = {
+    "@context": {
+        "@version": 1.1,
+        "UPlanetLicense": "https://u.copylaradio.com/credentials/v1#UPlanetLicense",
+        "license": "https://u.copylaradio.com/credentials/v1#license",
+        "licenseName": "https://u.copylaradio.com/credentials/v1#licenseName",
+        "holderNpub": "https://u.copylaradio.com/credentials/v1#holderNpub",
+        "attestationsCount": "https://u.copylaradio.com/credentials/v1#attestationsCount",
+        "status": "https://u.copylaradio.com/credentials/v1#status",
+    }
+}
+
+NS_CONTEXT_V1 = {
+    "@context": {
+        "@version": 1.1,
+        "CooperativeWallet": "https://u.copylaradio.com/ns/v1#CooperativeWallet",
+        "IPFSGateway": "https://u.copylaradio.com/ns/v1#IPFSGateway",
+        "g1pub": "https://u.copylaradio.com/ns/v1#g1pub",
+        "walletType": "https://u.copylaradio.com/ns/v1#walletType",
+        "cooperative": "https://u.copylaradio.com/ns/v1#cooperative",
+        "cesiumLink": "https://u.copylaradio.com/ns/v1#cesiumLink",
+        "CooperativeDID": "https://u.copylaradio.com/ns/v1#CooperativeDID",
+        "rootDID": "https://u.copylaradio.com/ns/v1#rootDID",
+        "configSource": "https://u.copylaradio.com/ns/v1#configSource",
+        "contractStatus": "https://u.copylaradio.com/ns/v1#contractStatus",
+        "description": "https://u.copylaradio.com/ns/v1#description",
+    }
+}
+
+
+@app.get("/credentials/v1", response_class=JSONResponse)
+@app.get("/credentials/v1/", response_class=JSONResponse)
+async def credentials_context_v1():
+    """JSON-LD context for UPlanet Verifiable Credentials (UPlanetLicense)."""
+    return JSONResponse(
+        content=CREDENTIALS_CONTEXT_V1,
+        media_type="application/ld+json",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@app.get("/ns/v1", response_class=JSONResponse)
+@app.get("/ns/v1/", response_class=JSONResponse)
+async def ns_context_v1():
+    """JSON-LD context for UPlanet DID namespace (CooperativeWallet, IPFSGateway, etc.)."""
+    return JSONResponse(
+        content=NS_CONTEXT_V1,
+        media_type="application/ld+json",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint that doesn't count towards rate limits"""
@@ -8169,7 +8222,7 @@ async def get_permit_credential(credential_id: str):
             "@context": [
                 "https://www.w3.org/2018/credentials/v1",
                 "https://w3id.org/security/v2",
-                "https://uplanet.copylaradio.com/credentials/v1"
+                "https://u.copylaradio.com/credentials/v1"
             ],
             "id": f"urn:uuid:{credential.credential_id}",
             "type": ["VerifiableCredential", "UPlanetLicense"],
