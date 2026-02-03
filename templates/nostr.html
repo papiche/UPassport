@@ -53,8 +53,8 @@
             .btn-connect { padding: 4px 10px; font-size: 0.75rem; }
             .service-bar { padding: 4px 6px; gap: 4px; flex-wrap: wrap; }
             .svc-tab { padding: 6px 10px; font-size: 0.8rem; }
-            .flux-tag-filter-wrap { max-width: 100%; min-width: 0; }
-            .flux-tag-btn { padding: 2px 4px; font-size: 0.6rem; }
+            .flux-tag-cloud { padding: 4px 6px; gap: 4px; }
+            .tag-cloud-pill { padding: 2px 6px; font-size: 0.65rem; }
             .main-content .chat-wrapper { margin-left: 36px; margin-right: 36px; }
             .main-content.flux-mode .chat-wrapper { margin-left: 6px; margin-right: 6px; }
             .nav-arrow { width: 32px; height: 60px; font-size: 1.2rem; }
@@ -659,38 +659,106 @@
             border-color: var(--accent-cyan);
         }
 
-        /* Flux tag filter bar - visible when Flux tab active, compact and wrap on small screens */
-        .flux-tag-filter-wrap {
-            display: inline-flex;
-            align-items: center;
+        /* Tag cloud below message list (Flux): tags extracted from displayed messages */
+        .flux-tag-cloud {
+            flex-shrink: 0;
+            padding: 6px 10px;
+            background: var(--bg-panel);
+            border-top: 1px solid var(--border);
+            display: flex;
             flex-wrap: wrap;
-            gap: 2px;
+            align-items: center;
+            gap: 6px;
             max-width: 100%;
+            min-height: 0;
         }
-        .flux-tag-btn {
-            padding: 3px 6px;
+        .tag-cloud-label {
             font-size: 0.65rem;
+            color: var(--text-dim);
+            margin-right: 4px;
+        }
+        .tag-cloud-pill {
+            padding: 3px 8px;
+            font-size: 0.7rem;
             font-family: inherit;
             background: var(--bg-input);
             border: 1px solid var(--border);
-            border-radius: 4px;
+            border-radius: 12px;
             color: var(--text-dim);
             cursor: pointer;
-            white-space: nowrap;
         }
-        .flux-tag-btn:hover {
+        .tag-cloud-pill:hover {
             border-color: var(--accent-cyan);
             color: var(--text-primary);
         }
-        .flux-tag-btn.active {
+        .tag-cloud-pill.active {
             background: rgba(0, 212, 255, 0.15);
             border-color: var(--accent-cyan);
             color: var(--accent-cyan);
         }
-        .flux-tag-btn .flux-tag-count {
-            margin-left: 2px;
-            font-size: 0.6rem;
-            opacity: 0.8;
+        .input-tag-icons { display: inline-flex; align-items: center; gap: 2px; }
+        .input-tag-btn { min-width: 28px; }
+        .input-tag-btn.active { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+
+        /* Blog feed: article cards (kind 30023) */
+        .blog-article-card {
+            padding: 12px;
+            background: var(--bg-panel);
+            border-radius: 10px;
+            border-left: 3px solid var(--accent-cyan);
+            margin-bottom: 8px;
+        }
+        .blog-article-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .blog-article-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid var(--border);
+        }
+        .blog-article-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .blog-article-author {
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            cursor: pointer;
+        }
+        .blog-article-author:hover { text-decoration: underline; }
+        .blog-article-date {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+        }
+        .blog-article-title {
+            font-size: 0.95rem;
+            margin: 0 0 6px 0;
+            color: var(--text-primary);
+        }
+        .blog-article-preview {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            margin: 0 0 8px 0;
+            line-height: 1.4;
+        }
+        .blog-article-view-btn {
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--accent-cyan);
+            cursor: pointer;
+        }
+        .blog-article-view-btn:hover {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 212, 255, 0.1);
         }
 
         /* === MAIN CONTENT WITH NAV ARROWS === */
@@ -2659,17 +2727,9 @@
     <!-- SERVICE TABS - 3 main tabs -->
     <div class="service-bar">
         <button class="svc-tab active" data-svc="flux">📋 Flux</button>
-        <span class="flux-tag-filter-wrap" id="fluxTagFilterWrap" style="display:none;">
-            <button type="button" class="flux-tag-btn active" data-flux-tag="all">Tous</button>
-            <button type="button" class="flux-tag-btn" data-flux-tag="chat">Chat</button>
-            <button type="button" class="flux-tag-btn" data-flux-tag="image">🖼️</button>
-            <button type="button" class="flux-tag-btn" data-flux-tag="video">🎬</button>
-            <button type="button" class="flux-tag-btn" data-flux-tag="music">🎵</button>
-            <button type="button" class="flux-tag-btn" data-flux-tag="search">🔍</button>
-            <button type="button" class="flux-tag-btn" data-flux-tag="nature">🌿</button>
-        </span>
         <button class="svc-tab" data-svc="n" title="Messages from friends">N</button>
         <button class="svc-tab" data-svc="n2" title="Messages from friends of friends">N²</button>
+        <button class="svc-tab" data-svc="blog" title="Long-form articles (kind 30023)">📝 Blog</button>
         <span class="n-feed-filter-wrap" id="nFeedFilterWrap" style="display:none;">
             <select id="nFeedFilterSelect" class="n-feed-filter-select" title="N/N² filter: unidirectional (p21) or reciprocal (p2p)">
                 <option value="p21">p21</option>
@@ -2692,6 +2752,7 @@
                     <div style="margin-top:6px;font-size:0.7rem;">Votre ASTROBOT répond en votre nom</div>
         </div>
             </div>
+            <div class="flux-tag-cloud" id="fluxTagCloud" style="display:none;"></div>
         </div>
 
         <!-- TUBE PANEL (same space as chat-wrapper when Tube tab is active) -->
@@ -2853,6 +2914,14 @@
         <div class="input-options">
             <button class="opt-btn active" id="btnConversation" title="BRO répond en votre nom (éphémère 10s)">💬 </button>
             <button class="opt-btn" id="btnPublic" title="Message permanent">📢 </button>
+            <span class="input-tag-icons" id="inputTagIcons">
+                <button type="button" class="opt-btn input-tag-btn active" data-tag="chat" title="Chat (no tag)">Tous</button>
+                <button type="button" class="opt-btn input-tag-btn" data-tag="image" title="Add #image">🖼️</button>
+                <button type="button" class="opt-btn input-tag-btn" data-tag="video" title="Add #video">🎬</button>
+                <button type="button" class="opt-btn input-tag-btn" data-tag="music" title="Add #music">🎵</button>
+                <button type="button" class="opt-btn input-tag-btn" data-tag="search" title="Add #search">🔍</button>
+                <button type="button" class="opt-btn input-tag-btn" data-tag="nature" title="Add #plantnet">🌿</button>
+            </span>
             <label class="opt-btn" for="imgInput">📷</label>
             <input type="file" id="imgInput" accept="image/*" style="display:none;">
             <button class="opt-btn" id="btnLocation">📍</button>
@@ -3054,7 +3123,7 @@
             checkExtension();
             getLocation();
             setupEvents();
-            if (currentService === 'all') $('#fluxTagFilterWrap').show();
+            if (currentService === 'all') $('#fluxTagCloud').show();
         }
 
         function setupEvents() {
@@ -3068,7 +3137,7 @@
                 $(this).addClass('active');
 
                 if (svc === 'tube') {
-                    $('#fluxTagFilterWrap').hide();
+                    $('#fluxTagCloud').hide();
                     $('#nFeedFilterWrap').show();
                     $('#nFeedFilterSelect').val(nFeedFilter);
                     $('.main-content').addClass('tube-mode').show();
@@ -3078,7 +3147,7 @@
                     $('#tubeInputToggle').removeClass('collapsed');
                     loadTubeVideos();
                 } else if (svc === 'n' || svc === 'n2') {
-                    $('#fluxTagFilterWrap').hide();
+                    $('#fluxTagCloud').hide();
                     $('#nFeedFilterWrap').show();
                     $('#nFeedFilterSelect').val(nFeedFilter);
                     $('#tubePanel').removeClass('active');
@@ -3089,20 +3158,32 @@
                     $('.input-section').show();
                     fetchNFeed(svc);
                     updateInputHint('chat');
-                } else {
-                    // Flux
-                    $('#nFeedFilterWrap').hide();
-                    $('#fluxTagFilterWrap').show();
+                } else if (svc === 'blog') {
+                    $('#fluxTagFilterWrap').hide();
+                    $('#nFeedFilterWrap').show();
+                    $('#nFeedFilterSelect').val(nFeedFilter);
                     $('#tubePanel').removeClass('active');
                     $('.main-content').removeClass('tube-mode').show().addClass('flux-mode');
                     $('body').removeClass('tube-mode');
                     $('#inputSection').removeClass('tube-input-visible');
                     $('#tubeInputToggle').addClass('collapsed');
                     $('.input-section').show();
-                    currentInputService = fluxTagFilter === 'all' ? 'chat' : fluxTagFilter;
+                    fetchBlogFeed();
+                    updateInputHint('chat');
+                } else {
+                    // Flux: tag cloud below list (no filter bar in service bar)
+                    $('#nFeedFilterWrap').hide();
+                    $('#fluxTagCloud').show();
+                    $('#tubePanel').removeClass('active');
+                    $('.main-content').removeClass('tube-mode').show().addClass('flux-mode');
+                    $('body').removeClass('tube-mode');
+                    $('#inputSection').removeClass('tube-input-visible');
+                    $('#tubeInputToggle').addClass('collapsed');
+                    $('.input-section').show();
                     filterAndDisplayMessages();
-                    updateInputHint(fluxTagFilter === 'all' ? 'chat' : fluxTagFilter);
-                    if (fluxTagFilter === 'video') {
+                    updateFluxTagCloud();
+                    updateInputHint(currentInputService === 'chat' ? 'chat' : currentInputService);
+                    if (currentInputService === 'video') {
                         $('#videoOpts').addClass('visible');
                         updateVideoAccessWarnings();
                     } else {
@@ -3118,18 +3199,19 @@
                     fetchNFeed(currentService);
                 } else if (currentService === 'tube') {
                     loadTubeVideos();
+                } else if (currentService === 'blog') {
+                    fetchBlogFeed();
                 }
             });
 
-            // Flux tag filter buttons: filter Flux feed by tag
-            $(document).on('click', '.flux-tag-btn', function() {
-                const tag = $(this).data('flux-tag');
-                fluxTagFilter = tag;
-                currentInputService = tag === 'all' ? 'chat' : tag;
-                $('.flux-tag-btn').removeClass('active');
+            // Input section tag icons: set tag to add to next message (currentInputService)
+            $(document).on('click', '.input-tag-btn', function(e) {
+                e.preventDefault();
+                const tag = $(this).data('tag');
+                currentInputService = tag;
+                $('.input-tag-btn').removeClass('active');
                 $(this).addClass('active');
-                filterAndDisplayMessages();
-                updateInputHint(tag === 'all' ? 'chat' : tag);
+                updateInputHint(tag === 'chat' ? 'chat' : tag);
                 if (tag === 'video') {
                     $('#videoOpts').addClass('visible');
                     updateVideoAccessWarnings();
@@ -5324,6 +5406,118 @@
             $tab.html(`${label} <span class="svc-count">${messageCount != null ? messageCount : 0}</span>`);
         }
 
+        // Blog: long-form articles (kind 30023) from friends, with p21/p2p filter
+        function getArticleTitle(ev) {
+            if (!ev.tags || !Array.isArray(ev.tags)) return 'Untitled';
+            const titleTag = ev.tags.find(t => t[0] === 'title' && t[1]);
+            if (titleTag) return titleTag[1];
+            const dTag = ev.tags.find(t => t[0] === 'd' && t[1]);
+            return (dTag && dTag[1]) ? dTag[1] : 'Untitled';
+        }
+
+        async function fetchBlogFeed() {
+            if (!publicKey) {
+                $('#chatArea').empty().append($('#emptyState').removeClass('hidden').clone());
+                return;
+            }
+            const $chat = $('#chatArea').empty();
+            $('#emptyState').addClass('hidden');
+            $chat.append('<div class="n-feed-loading" style="padding:20px;text-align:center;color:var(--text-dim);">Loading...</div>');
+            try {
+                if (!friendsList || friendsList.length === 0) await loadFriendsList();
+                const p = getPool();
+                let authors = [...(friendsList || [])];
+                if (nFeedFilter === 'p2p' && authors.length > 0 && allRelays && allRelays.length > 0) {
+                    try {
+                        const contactEvents = await p.list(allRelays.slice(0, 3), [{ kinds: [3], authors: authors, limit: authors.length * 2 }]);
+                        const reciprocalSet = new Set();
+                        contactEvents.forEach(ev => {
+                            const hasMe = ev.tags && ev.tags.some(t => t[0] === 'p' && t[1] === publicKey);
+                            if (hasMe) reciprocalSet.add(ev.pubkey);
+                        });
+                        authors = authors.filter(a => reciprocalSet.has(a));
+                    } catch (e) {}
+                }
+                const peopleCount = authors.length;
+                if (authors.length === 0) {
+                    $chat.empty().append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">No friends yet, or no reciprocal follows. Follow people to see their blog posts here.</div>');
+                    updateBlogTabCount(0, peopleCount);
+                    return;
+                }
+                await ensureMuteListLoaded();
+                const events = await p.list(allRelays, [{ kinds: [30023], authors: authors.slice(0, 100), limit: 80 }]);
+                const muted = (typeof getMutedPubkeys === 'function' ? getMutedPubkeys() : null) || window.mutedPubkeys || new Set();
+                const filtered = events.filter(e => e.pubkey !== publicKey && !muted.has(e.pubkey));
+                filtered.sort((a, b) => b.created_at - a.created_at);
+                $chat.find('.n-feed-loading').remove();
+                renderBlogView(filtered);
+                updateBlogTabCount(filtered.length, peopleCount);
+            } catch (e) {
+                log(`Blog feed error: ${e.message}`);
+                $chat.find('.n-feed-loading').remove();
+                $chat.append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">Error: ' + (e.message || 'Failed to load') + '</div>');
+                updateBlogTabCount(0, (friendsList || []).length);
+            }
+        }
+
+        function updateBlogTabCount(articleCount, peopleCount) {
+            const $tab = $('.svc-tab[data-svc="blog"]');
+            if (!$tab.length) return;
+            const people = peopleCount != null ? peopleCount : 0;
+            $tab.html(`📝 Blog (${people}) <span class="svc-count">${articleCount != null ? articleCount : 0}</span>`);
+        }
+
+        async function renderBlogView(events) {
+            const $chat = $('#chatArea').empty();
+            $('#emptyState').addClass('hidden');
+            if (events.length === 0) {
+                $chat.append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">No blog articles from this feed yet.</div>');
+                return;
+            }
+            const defaultAvatar = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            const uniquePubkeys = [...new Set(events.map(e => e.pubkey).filter(Boolean))];
+            const missingPubkeys = uniquePubkeys.filter(pk => !profileCache[pk]);
+            if (missingPubkeys.length > 0 && allRelays && allRelays.length > 0) {
+                try {
+                    const pool = getPool();
+                    const profileEvents = await pool.list(allRelays.slice(0, 3), [{ kinds: [0], authors: missingPubkeys, limit: missingPubkeys.length * 2 }]);
+                    profileEvents.forEach(ev => {
+                        try {
+                            const profile = JSON.parse(ev.content);
+                            if (profile.picture) profile.picture = normalizeIpfsUrl(profile.picture);
+                            if (profile.banner) profile.banner = normalizeIpfsUrl(profile.banner);
+                            profileCache[ev.pubkey] = profile;
+                        } catch (e) {}
+                    });
+                } catch (e) {}
+            }
+            for (const ev of events) {
+                const profile = profileCache[ev.pubkey] || null;
+                const avatarUrl = profile?.picture ? normalizeIpfsUrl(profile.picture) : defaultAvatar;
+                const name = profile?.display_name || profile?.name || ev.pubkey.slice(0, 8);
+                const title = getArticleTitle(ev);
+                const content = ev.content || '';
+                const preview = content.replace(/\s+/g, ' ').trim().slice(0, 150);
+                const dateStr = new Date(ev.created_at * 1000).toLocaleString();
+                const $card = $('<div class="blog-article-card"></div>');
+                $card.append(`
+                    <div class="blog-article-header">
+                        <img class="blog-article-avatar" src="${avatarUrl}" alt="" onerror="this.src='${defaultAvatar}'">
+                        <div class="blog-article-meta">
+                            <span class="blog-article-author">${$('<div>').text(name).html()}</span>
+                            <span class="blog-article-date">${dateStr}</span>
+                        </div>
+                    </div>
+                    <h3 class="blog-article-title">${$('<div>').text(title).html()}</h3>
+                    ${preview ? `<p class="blog-article-preview">${$('<div>').text(preview + (content.length > 150 ? '…' : '')).html()}</p>` : ''}
+                    <button type="button" class="blog-article-view-btn">📄 View</button>
+                `);
+                $card.find('.blog-article-author').on('click', function(e) { e.preventDefault(); openProfileViewerModal(ev.pubkey); });
+                $card.find('.blog-article-view-btn').on('click', function(e) { e.preventDefault(); openMessageViewerModal(ev.id); });
+                $chat.append($card);
+            }
+        }
+
         // Render markdown when content looks like md; use /earth marked.min.js if available
         function renderMarkdownContent(content) {
             if (!content || !content.trim()) return { html: '', isMarkdown: false };
@@ -5418,17 +5612,6 @@
             
             // Update badge on Flux tab
             $('.svc-tab[data-svc="flux"]').attr('data-count', counts.all || '');
-
-            // Update badges on Flux tag filter buttons
-            const fluxTagKeys = ['all', 'chat', 'image', 'video', 'music', 'search', 'nature'];
-            fluxTagKeys.forEach(key => {
-                const btn = $(`.flux-tag-btn[data-flux-tag="${key}"]`);
-                btn.find('.flux-tag-count').remove();
-                const n = counts[key] != null ? counts[key] : 0;
-                if (n > 0) {
-                    btn.append(`<span class="flux-tag-count">${n}</span>`);
-                }
-            });
         }
 
         function filterAndDisplayMessages() {
@@ -5460,6 +5643,33 @@
             $('.main-content').addClass('flux-mode');
             renderFluxFeed(scrollToTop);
             lastRenderedService = currentService;
+            updateFluxTagCloud();
+        }
+
+        function updateFluxTagCloud() {
+            const $cloud = $('#fluxTagCloud');
+            if (!$cloud.length || currentService !== 'all') return;
+            const tagCounts = {};
+            filteredMessages.forEach(m => {
+                const tags = m._tags || extractTags(m.content);
+                tags.forEach(t => {
+                    const lower = t.toLowerCase();
+                    tagCounts[lower] = (tagCounts[lower] || 0) + 1;
+                });
+            });
+            const tags = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]);
+            let html = '<span class="tag-cloud-label">Tags:</span> <button type="button" class="tag-cloud-pill' + (fluxTagFilter === 'all' ? ' active' : '') + '" data-flux-tag="all">Tous</button>';
+            tags.forEach(t => {
+                const tagClass = getTagClass(t);
+                const safeTag = (t + '').replace(/"/g, '&quot;');
+                html += '<button type="button" class="tag-cloud-pill tag-' + tagClass + (fluxTagFilter === t ? ' active' : '') + '" data-flux-tag="' + safeTag + '">#' + $('<div>').text(t).html() + '</button>';
+            });
+            $cloud.html(html);
+            $cloud.find('.tag-cloud-pill').on('click', function() {
+                const tag = $(this).data('flux-tag');
+                fluxTagFilter = tag;
+                filterAndDisplayMessages();
+            });
         }
 
         // Render all messages as vertical infinite scroll feed
