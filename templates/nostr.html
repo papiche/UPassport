@@ -5394,7 +5394,8 @@
             updateNavButtons();
         }
 
-        function renderMessage(event, isUser) {
+        function renderMessage(event, isUser, opts) {
+            opts = opts || {};
             const tags = extractTags(event.content);
             const expiration = getExpiration(event);
             
@@ -5416,7 +5417,11 @@
             const $msg = $('<div>').addClass('msg').addClass(isUser ? 'user' : 'bot').attr('data-copy-content', copyContent);
             
             const $header = $('<div>').addClass('msg-header');
-            $header.append($('<span>').text(isUser ? '👤 Vous' : '🤖 BRO'));
+            if (opts.authorAvatar) {
+                const $avatar = $('<img>').addClass('msg-header-avatar').attr('src', opts.authorAvatar).attr('alt', opts.authorLabel || '').on('error', function() { $(this).attr('src', 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'); });
+                $header.append($avatar);
+            }
+            $header.append($('<span>').text(isUser ? '👤 Vous' : (opts.authorLabel || '🤖 BRO')));
             if (expiration) $header.append($('<span>').addClass('tag').text(`⏱️ ${formatExpiry(expiration)}`));
             // Display all hashtags with appropriate styling
             tags.forEach(t => {
@@ -5433,6 +5438,13 @@
                 $viewBtn.on('click', function(e) { e.stopPropagation(); openMessageViewerModal(event.id); });
                 $header.append($viewBtn);
             }
+            // Reply button (N/N² feed)
+            if (opts.showReplyButton && event.pubkey) {
+                const replyName = opts.authorLabel || event.pubkey.slice(0, 8);
+                const $replyBtn = $('<button type="button" class="msg-view-btn n-feed-reply-btn" title="Reply">↩ Reply</button>');
+                $replyBtn.on('click', function(e) { e.stopPropagation(); setReplyTo(event.id, event.pubkey, replyName); });
+                $header.append($replyBtn);
+            }
             // Delete button: show for any message authored by current user (including BRO replies signed with user identity)
             if (event.pubkey === publicKey && event.id) {
                 const $delBtn = $('<button type="button" class="msg-delete-btn" title="Delete (kind 5)">🗑</button>').attr('data-event-id', event.id);
@@ -5440,6 +5452,17 @@
                 $header.append($delBtn);
             }
             $msg.append($header);
+            // N² "via" line (friends who follow this author)
+            if (opts.viaFriends && opts.viaFriends.length > 0) {
+                const defaultAvatar = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+                const $via = $('<div>').addClass('n-feed-via');
+                $via.append($('<span>').addClass('n-feed-via-label').text('via'));
+                opts.viaFriends.slice(0, 8).forEach(function(friendPubkey) {
+                    const $viaImg = $('<img>').addClass('via-avatar').attr('data-pubkey', friendPubkey).attr('src', defaultAvatar).attr('title', friendPubkey.slice(0, 8));
+                    $via.append($viaImg);
+                });
+                $msg.append($via);
+            }
 
             // Display cleaned text (no URLs in text)
             if (text) {
