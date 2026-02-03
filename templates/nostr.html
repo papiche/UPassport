@@ -1453,18 +1453,21 @@
 
         .hidden { display: none !important; }
 
-        /* === TUBE MODE === */
-        .tube-panel {
+        /* === TUBE MODE (Tube uses same area as Flux/N/N² inside .main-content) === */
+        .main-content .tube-panel {
             display: none;
             flex: 1 1 0%;
             flex-direction: column;
             min-height: 0;
             overflow: hidden;
+            margin: 0 45px;
         }
-
-        .tube-panel.active {
-            display: flex;
+        .main-content.tube-mode .tube-panel {
+            display: flex !important;
         }
+        .main-content.tube-mode .chat-wrapper { display: none !important; }
+        .main-content.tube-mode .nav-arrow { display: none !important; }
+        .main-content.tube-mode .tube-panel { margin: 0 10px; }
 
         /* When Tube is active, input can be toggled; floating button to expand input */
         .tube-input-toggle {
@@ -1486,11 +1489,9 @@
             box-shadow: 0 2px 12px rgba(0,0,0,0.3);
             transition: transform 0.2s, background 0.2s;
         }
-        .tube-panel.active ~ .input-section ~ .tube-input-toggle,
-        .tube-panel.active ~ .tube-input-toggle { display: flex; }
+        body.tube-mode .tube-input-toggle { display: flex; }
+        body.tube-mode .tube-input-toggle.collapsed { display: none !important; }
         .tube-input-toggle:hover { background: var(--accent-cyan); filter: brightness(1.1); transform: scale(1.05); }
-        .tube-input-toggle.collapsed { display: none !important; }
-        body.tube-mode .tube-input-toggle:not(.collapsed) { display: flex !important; }
         /* When input is visible in Tube mode, show collapse icon on input section */
         .input-section.tube-input-visible .input-collapse-btn { display: flex !important; }
         .input-section .input-collapse-btn {
@@ -2497,8 +2498,8 @@
         <button class="svc-btn add-btn" id="btnAddVideo" title="Ajouter une vidéo">➕</button>
             </div>
 
-    <!-- MAIN CONTENT WITH SIDE ARROWS -->
-    <div class="main-content flex-grow-1 d-flex overflow-hidden">
+    <!-- MAIN CONTENT WITH SIDE ARROWS (Flux/N/N²/IA and Tube share this same area) -->
+    <div class="main-content flex-grow-1 d-flex overflow-hidden" id="mainContent">
         <button class="nav-arrow left" id="btnPrev" disabled>◀</button>
         
         <div class="chat-wrapper">
@@ -2511,11 +2512,8 @@
             </div>
         </div>
 
-        <button class="nav-arrow right" id="btnNext" disabled>▶</button>
-            </div>
-
-    <!-- TUBE PANEL -->
-    <div class="tube-panel" id="tubePanel">
+        <!-- TUBE PANEL (same space as chat-wrapper when Tube tab is active) -->
+        <div class="tube-panel" id="tubePanel">
         <div class="tube-header">
             <h3>📺 NostrTube</h3>
             <div class="tube-filters">
@@ -2559,6 +2557,9 @@
             </div>
         </div>
         <button type="button" class="tube-input-toggle collapsed" id="tubeInputToggle" title="Show message input">💬</button>
+        </div>
+
+        <button class="nav-arrow right" id="btnNext" disabled>▶</button>
     </div>
 
     <!-- THEATER MODAL FOR TUBE -->
@@ -2863,9 +2864,9 @@
                 $('.svc-sub').removeClass('active');
                 $(this).addClass('active');
                 
-                // Handle Tube mode switching
+                // Handle Tube mode switching (Tube uses same .main-content area as Flux/N/N²)
                 if (svc === 'tube') {
-                    $('.main-content').hide();
+                    $('.main-content').addClass('tube-mode').show();
                     $('#tubePanel').addClass('active');
                     $('.input-section').hide().removeClass('tube-input-visible');
                     $('body').addClass('tube-mode');
@@ -2873,19 +2874,19 @@
                     loadTubeVideos();
                 } else if (svc === 'n' || svc === 'n2') {
                     $('#tubePanel').removeClass('active');
+                    $('.main-content').removeClass('tube-mode').show().addClass('flux-mode');
                     $('body').removeClass('tube-mode');
                     $('#inputSection').removeClass('tube-input-visible');
                     $('#tubeInputToggle').addClass('collapsed');
-                    $('.main-content').show().addClass('flux-mode');
                     $('.input-section').show();
                     fetchNFeed(svc);
                     updateInputHint('chat');
                 } else {
                     $('#tubePanel').removeClass('active');
+                    $('.main-content').removeClass('tube-mode').show();
                     $('body').removeClass('tube-mode');
                     $('#inputSection').removeClass('tube-input-visible');
                     $('#tubeInputToggle').addClass('collapsed');
-                    $('.main-content').show();
                     $('.input-section').show();
                     filterAndDisplayMessages();
                     updateInputHint('chat');
@@ -2911,10 +2912,10 @@
                 
                 // Show main content (leave Tube mode)
                 $('#tubePanel').removeClass('active');
+                $('.main-content').removeClass('tube-mode').show();
                 $('body').removeClass('tube-mode');
                 $('#inputSection').removeClass('tube-input-visible');
                 $('#tubeInputToggle').addClass('collapsed');
-                $('.main-content').show();
                 $('.input-section').show();
                 filterAndDisplayMessages();
                 updateInputHint(svc);
