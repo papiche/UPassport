@@ -787,6 +787,33 @@
         .n-feed-via-label { font-size: 0.65rem; color: var(--text-dim); margin-right: 4px; }
         .n-feed-via .via-avatar { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); cursor: pointer; }
         .n-feed-via .via-avatar:hover { opacity: 0.9; }
+        .n-feed-reply-btn {
+            margin-top: 6px;
+            padding: 4px 10px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-dim);
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .n-feed-reply-btn:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+        .reply-to-hint {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            margin-bottom: 6px;
+            background: var(--bg-input);
+            border: 1px solid var(--accent-cyan);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+        .reply-to-hint.visible { display: flex; }
+        .reply-to-hint .cancel-reply { margin-left: auto; padding: 2px 8px; cursor: pointer; color: var(--accent-cyan); }
+        .reply-to-hint .cancel-reply:hover { text-decoration: underline; }
 
         .msg {
             padding: 10px 12px;
@@ -2532,6 +2559,11 @@
             <button class="remove" onclick="clearImage()">×</button>
             </div>
 
+        <div class="reply-to-hint" id="replyToHint">
+            <span class="reply-to-text">Replying to <strong id="replyToName"></strong></span>
+            <button type="button" class="cancel-reply" id="cancelReplyBtn">Cancel</button>
+        </div>
+
         <div class="input-row" id="inputRowBroZone">
             <textarea id="messageInput" placeholder="Tapez votre message..." rows="2"></textarea>
             <div class="input-row-btns d-flex gap-1 align-items-end flex-shrink-0">
@@ -2625,6 +2657,7 @@
         let currentService = 'all';
         let currentInputService = 'chat';
         let lastRenderedService = null;  // used to preserve scroll when re-rendering same view
+        let pendingReplyTo = null;  // { eventId, authorPubkey, authorName } when replying to N/N² message
         let videoMode = 't2v';
         let isConversation = true;
         let locationEnabled = true;
@@ -2848,6 +2881,7 @@
                 $('#inputSection').removeClass('input-section-fullscreen');
                 $('#inputFullscreenClose').addClass('d-none');
             });
+            $('#cancelReplyBtn').on('click', clearReplyTo);
             $(document).on('keydown', function(e) {
                 if (e.key === 'Escape' && $('#inputSection').hasClass('input-section-fullscreen')) {
                     $('#inputSection').removeClass('input-section-fullscreen');
@@ -4857,9 +4891,25 @@
                     $body.append($content);
                 }
                 $body.append($('<div>').addClass('msg-time').text(new Date(event.created_at * 1000).toLocaleString()));
+                const $replyBtn = $('<button type="button" class="n-feed-reply-btn">Reply</button>');
+                $replyBtn.on('click', function(e) { e.preventDefault(); e.stopPropagation(); setReplyTo(event.id, event.pubkey, name); });
+                $body.append($replyBtn);
                 $card.append($body);
                 $chat.append($card);
             }
+        }
+
+        function setReplyTo(eventId, authorPubkey, authorName) {
+            pendingReplyTo = { eventId, authorPubkey, authorName: authorName || authorPubkey.slice(0, 8) };
+            $('#replyToName').text(pendingReplyTo.authorName);
+            $('#replyToHint').addClass('visible');
+            $('#messageInput').focus();
+            if (!isConversation) setMode(true);
+        }
+
+        function clearReplyTo() {
+            pendingReplyTo = null;
+            $('#replyToHint').removeClass('visible');
         }
 
         function updateServiceCounts() {
@@ -5177,6 +5227,12 @@
                     tags.push(['expiration', (Math.floor(Date.now() / 1000) + 3600).toString()]);
                 }
 
+                if (pendingReplyTo) {
+                    const relay = (allRelays && allRelays[0]) ? allRelays[0] : '';
+                    tags.push(['e', pendingReplyTo.eventId, relay, 'reply']);
+                    tags.push(['p', pendingReplyTo.authorPubkey]);
+                }
+
                 if (selectedImage) {
                     showLoading(true, 'Upload image...');
                     try {
@@ -5214,7 +5270,12 @@
                     log(`Published to ${success} relays`);
                     $('#messageInput').val('').css('height', 'auto');
                     clearImage();
-                    setTimeout(fetchMessages, 3000);
+                    clearReplyTo();
+                    if (currentService === 'n' || currentService === 'n2') {
+                        setTimeout(() => fetchNFeed(currentService), 2000);
+                    } else {
+                        setTimeout(fetchMessages, 3000);
+                    }
                 }
             } catch (e) {
                 log(`Send error: ${e.message}`);
