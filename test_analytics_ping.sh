@@ -205,15 +205,15 @@ if [[ -n "$NOSTR_GET_EVENTS" ]]; then
         fi
     fi
     
-    # Query analytics events (kind 10000) created since test start
-    echo -e "${GREEN}Querying analytics events (kind 10000) since test start...${NC}"
+    # Query analytics events (kind 10600; kind 10000 is NIP-51 mute list) created since test start
+    echo -e "${GREEN}Querying analytics events (kind 10600) since test start...${NC}"
     
     if [[ -n "$CAPTAIN_PUBKEY" ]]; then
         echo -e "${BLUE}Filtering by author: ${CAPTAIN_PUBKEY:0:16}...${NC}"
-        EVENTS=$("$NOSTR_GET_EVENTS" --kind 10000 --tag-t "analytics" --author "$CAPTAIN_PUBKEY" --since "$TEST_START_TIME" --limit 50 2>/dev/null || echo "")
+        EVENTS=$("$NOSTR_GET_EVENTS" --kind 10600 --tag-t "analytics" --author "$CAPTAIN_PUBKEY" --since "$TEST_START_TIME" --limit 50 2>/dev/null || echo "")
     else
         echo -e "${YELLOW}⚠️  Captain pubkey not found, querying all analytics events...${NC}"
-        EVENTS=$("$NOSTR_GET_EVENTS" --kind 10000 --tag-t "analytics" --since "$TEST_START_TIME" --limit 50 2>/dev/null || echo "")
+        EVENTS=$("$NOSTR_GET_EVENTS" --kind 10600 --tag-t "analytics" --since "$TEST_START_TIME" --limit 50 2>/dev/null || echo "")
     fi
     
     if [[ -z "$EVENTS" ]]; then
@@ -258,11 +258,11 @@ if [[ -n "$NOSTR_GET_EVENTS" ]]; then
                 fi
             fi
             
-            # Delete events
+            # Delete events (kind 10600 = UPlanet analytics)
             if [[ -n "$CAPTAIN_PUBKEY" ]]; then
-                "$NOSTR_GET_EVENTS" --kind 10000 --tag-t "analytics" --author "$CAPTAIN_PUBKEY" --since "$TEST_START_TIME" --del --force 2>/dev/null || true
+                "$NOSTR_GET_EVENTS" --kind 10600 --tag-t "analytics" --author "$CAPTAIN_PUBKEY" --since "$TEST_START_TIME" --del --force 2>/dev/null || true
             else
-                "$NOSTR_GET_EVENTS" --kind 10000 --tag-t "analytics" --since "$TEST_START_TIME" --del --force 2>/dev/null || true
+                "$NOSTR_GET_EVENTS" --kind 10600 --tag-t "analytics" --since "$TEST_START_TIME" --del --force 2>/dev/null || true
             fi
             
             echo -e "${GREEN}✅ Test events deleted${NC}"

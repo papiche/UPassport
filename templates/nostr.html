@@ -4921,18 +4921,21 @@
                 filtered.sort((a, b) => b.created_at - a.created_at);
                 $chat.find('.n-feed-loading').remove();
                 renderNFeedView(filtered, mode, fofToFriends);
-                updateNFeedTabCount(mode, filtered.length);
+                updateNFeedTabCount(mode, filtered.length, peopleCount);
             } catch (e) {
                 log(`N feed error: ${e.message}`);
                 $chat.find('.n-feed-loading').remove();
                 $chat.append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--accent-red);">Error: ' + (e.message || 'Failed to load') + '</div>');
-                updateNFeedTabCount(mode, 0);
+                updateNFeedTabCount(mode, 0, mode === 'n' ? (friendsList || []).length : 0);
             }
         }
 
-        function updateNFeedTabCount(mode, count) {
+        function updateNFeedTabCount(mode, messageCount, peopleCount) {
             const $tab = $(`.svc-tab[data-svc="${mode}"]`);
-            if ($tab.length) $tab.html(mode === 'n' ? `N <span class="svc-count">${count}</span>` : `N² <span class="svc-count">${count}</span>`);
+            if (!$tab.length) return;
+            const people = peopleCount != null ? peopleCount : 0;
+            const label = mode === 'n' ? `N (${people})` : `N² (${people})`;
+            $tab.html(`${label} <span class="svc-count">${messageCount != null ? messageCount : 0}</span>`);
         }
 
         // Render markdown when content looks like md; use /earth marked.min.js if available
