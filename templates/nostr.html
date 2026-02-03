@@ -2420,6 +2420,64 @@
             border: none;
             background: var(--bg-void);
         }
+        /* URL modal: open external links in iframe instead of new tab */
+        .url-modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            background: rgba(0,0,0,0.75);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .url-modal-backdrop.active { display: flex; }
+        .url-modal {
+            width: 100%;
+            max-width: 95vw;
+            height: 90vh;
+            max-height: 900px;
+            background: var(--bg-panel);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .url-modal .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .url-modal .modal-title {
+            font-size: 0.8rem;
+            color: var(--accent-cyan);
+            max-width: calc(100% - 50px);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .url-modal .modal-close {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            line-height: 1;
+        }
+        .url-modal .modal-close:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+        .url-modal iframe {
+            flex: 1;
+            width: 100%;
+            border: none;
+            background: var(--bg-void);
+        }
         .msg-view-btn {
             padding: 2px 8px;
             background: transparent;
@@ -2702,12 +2760,23 @@
         </div>
     </div>
 
+    <!-- URL MODAL (open links in iframe instead of new tab) -->
+    <div class="url-modal-backdrop" id="urlModalBackdrop">
+        <div class="url-modal">
+            <div class="modal-header">
+                <span class="modal-title" id="urlModalTitle">🔗 Link</span>
+                <button type="button" class="modal-close" onclick="closeUrlModal()">×</button>
+            </div>
+            <iframe id="urlModalFrame" src="" frameborder="0" title="External link"></iframe>
+        </div>
+    </div>
+
     <!-- INPUT SECTION -->
     <div class="input-section" id="inputSection">
         <button type="button" class="input-collapse-btn" id="inputCollapseBtn" title="Collapse message input (replier)">▼</button>
         <button type="button" class="input-fullscreen-close d-none" id="inputFullscreenClose" title="Exit fullscreen">✕</button>
         <div class="input-options">
-            <button class="opt-btn active" id="btnConversation" title="BRO répond en votre nom (éphémère 1h)">💬 </button>
+            <button class="opt-btn active" id="btnConversation" title="BRO répond en votre nom (éphémère 10s)">💬 </button>
             <button class="opt-btn" id="btnPublic" title="Message permanent">📢 </button>
             <label class="opt-btn" for="imgInput">📷</label>
             <input type="file" id="imgInput" accept="image/*" style="display:none;">
@@ -3171,11 +3240,24 @@
 
             // Lightbox
             $('#lightbox').on('click', e => { if (e.target.id === 'lightbox') closeLightbox(); });
-            $(document).on('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeTheater(); closeChatModal(); closeProfileViewerModal(); closeMessageViewerModal(); }});
+            $(document).on('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeTheater(); closeChatModal(); closeProfileViewerModal(); closeMessageViewerModal(); closeUrlModal(); }});
             
             // Chat modal close on backdrop click
             $('#chatModalBackdrop').on('click', function(e) {
                 if (e.target.id === 'chatModalBackdrop') closeChatModal();
+            });
+            $('#urlModalBackdrop').on('click', function(e) {
+                if (e.target.id === 'urlModalBackdrop') closeUrlModal();
+            });
+            // Open links in modal instead of new tab (chat area and webpage preview)
+            $(document).on('click', '#chatArea a[href^="http"]', function(e) {
+                e.preventDefault();
+                openUrlModal($(this).attr('href'));
+            });
+            $(document).on('click', '.webpage-overlay', function(e) {
+                e.preventDefault();
+                const url = $(this).data('url');
+                if (url) openUrlModal(url);
             });
             $('#profileViewerBackdrop').on('click', function(e) {
                 if (e.target.id === 'profileViewerBackdrop') closeProfileViewerModal();
@@ -4256,6 +4338,19 @@
             $('#messageViewerFrame').attr('src', '');
         }
 
+        // Open external URL in modal (iframe) instead of new tab
+        function openUrlModal(url) {
+            if (!url || !url.trim()) return;
+            const u = url.trim();
+            $('#urlModalTitle').text(u.length > 60 ? u.substring(0, 60) + '…' : u).attr('title', u);
+            $('#urlModalFrame').attr('src', u);
+            $('#urlModalBackdrop').addClass('active');
+        }
+        function closeUrlModal() {
+            $('#urlModalBackdrop').removeClass('active');
+            $('#urlModalFrame').attr('src', '');
+        }
+
         // Get IPFS gateway URL - use common.js IPFS_GATEWAY if available
         function getIpfsGateway() {
             // Use common.js gateway if available
@@ -5187,11 +5282,12 @@
             const counts = { all: allMessages.length, chat: 0, image: 0, video: 0, music: 0, search: 0, nature: 0, ia: 0 };
             allMessages.forEach(m => {
                 const tags = extractTags(m.content);
-                if (tags.includes('image')) { counts.image++; counts.ia++; }
-                else if (tags.includes('video')) { counts.video++; counts.ia++; }
-                else if (tags.includes('music')) { counts.music++; counts.ia++; }
-                else if (tags.includes('search')) { counts.search++; counts.ia++; }
-                else if (tags.includes('nature')) { counts.nature++; counts.ia++; }
+                const isFromSelf = m.pubkey === publicKey;
+                if (tags.includes('image')) { if (!isFromSelf) { counts.image++; counts.ia++; } }
+                else if (tags.includes('video')) { if (!isFromSelf) { counts.video++; counts.ia++; } }
+                else if (tags.includes('music')) { if (!isFromSelf) { counts.music++; counts.ia++; } }
+                else if (tags.includes('search')) { if (!isFromSelf) { counts.search++; counts.ia++; } }
+                else if (tags.includes('nature')) { if (!isFromSelf) { counts.nature++; counts.ia++; } }
                 else counts.chat++;
             });
             
@@ -5216,11 +5312,17 @@
                 // Flux mode - all messages (already filtered by mute in allMessages; re-apply in case mute list refreshed)
                 filteredMessages = [...withoutMuted];
                  } else {
+                const iaServices = ['image', 'video', 'music', 'search', 'nature'];
                 filteredMessages = withoutMuted.filter(m => {
                     const tags = extractTags(m.content);
                     if (currentService === 'chat') {
-                        return !tags.includes('image') && !tags.includes('video') && 
+                        return !tags.includes('image') && !tags.includes('video') &&
                                !tags.includes('music') && !tags.includes('search') && !tags.includes('nature');
+                    }
+                    // IA tab: only show messages tagged by UPlanet_IA_Responder (exclude "Vous" / self)
+                    if (iaServices.includes(currentService)) {
+                        if (m.pubkey === publicKey) return false;
+                        return tags.includes(currentService);
                     }
                     return tags.includes(currentService);
                 });
@@ -5363,16 +5465,17 @@
                     } else if (type === 'audio') {
                         $media.append($('<audio controls>').attr('src', normalizedUrl));
                     } else if (type === 'webpage') {
-                        // Webpage preview with iframe
+                        // Webpage preview with iframe (open in modal, not new tab)
+                        const safeUrl = normalizedUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
                         $media.addClass('webpage-preview');
                         $media.append(`
                             <div class="webpage-frame">
                                 <iframe src="${normalizedUrl}" sandbox="allow-scripts allow-same-origin" loading="lazy"></iframe>
-                                <div class="webpage-overlay" onclick="window.open('${normalizedUrl}', '_blank')">
+                                <div class="webpage-overlay" data-url="${safeUrl}" title="Open in modal">
                                     <span>🔗 Ouvrir</span>
                                 </div>
                             </div>
-                            <a href="${normalizedUrl}" target="_blank" class="webpage-link">
+                            <a href="${normalizedUrl}" class="webpage-link" title="Open in modal">
                                 <span>🌐</span> ${originalUrl.length > 60 ? originalUrl.substring(0, 60) + '...' : originalUrl}
                             </a>
                         `);
@@ -5503,7 +5606,7 @@
                 }
 
                 if (isConversation) {
-                    tags.push(['expiration', (Math.floor(Date.now() / 1000) + 3600).toString()]);
+                    tags.push(['expiration', (Math.floor(Date.now() / 1000) + 10).toString()]);
                 }
 
                 if (pendingReplyTo) {
@@ -5957,7 +6060,7 @@
         }
 
         function linkify(text) {
-            return text.replace(/(https?:\/\/[^\s<>"]+)/gi, '<a href="$1" target="_blank">$1</a>');
+            return text.replace(/(https?:\/\/[^\s<>"]+)/gi, '<a href="$1">$1</a>');
         }
 
         function getExpiration(event) {
