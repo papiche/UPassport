@@ -1278,8 +1278,8 @@
         }
         .bro-radial-circle {
             position: relative;
-            width: 200px;
-            height: 200px;
+            width: 280px;
+            height: 280px;
         }
         .bro-radial-center {
             position: absolute;
@@ -1298,35 +1298,84 @@
             align-items: center;
             justify-content: center;
             pointer-events: none;
+            z-index: 2;
+        }
+        .bro-radial-ring {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 0;
+            height: 0;
+            pointer-events: none;
+        }
+        .bro-radial-ring .bro-radial-item {
+            pointer-events: auto;
         }
         .bro-radial-item {
             position: absolute;
             left: 50%;
             top: 50%;
-            width: 56px;
-            height: 56px;
-            margin-left: -28px;
-            margin-top: -28px;
+            width: 48px;
+            height: 48px;
+            margin-left: -24px;
+            margin-top: -24px;
             border-radius: 50%;
             background: var(--bg-panel);
             border: 2px solid var(--accent-cyan);
             color: var(--accent-green);
-            font-size: 0.7rem;
+            font-size: 0.6rem;
             font-weight: 600;
             cursor: pointer;
             transition: transform 0.15s, background 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            line-height: 1.1;
         }
         .bro-radial-item:hover {
             background: var(--accent-cyan);
             color: var(--bg-void);
-            transform: scale(1.1);
+            z-index: 1;
         }
-        .bro-radial-item:nth-child(2) { transform: translate(0, -82px); }
-        .bro-radial-item:nth-child(3) { transform: translate(-71px, 41px); }
-        .bro-radial-item:nth-child(4) { transform: translate(71px, 41px); }
-        .bro-radial-item:nth-child(2):hover { transform: translate(0, -82px) scale(1.1); }
-        .bro-radial-item:nth-child(3):hover { transform: translate(-71px, 41px) scale(1.1); }
-        .bro-radial-item:nth-child(4):hover { transform: translate(71px, 41px) scale(1.1); }
+        /* Inner ring: 9 items at 65px radius, first at top (-90deg) */
+        .bro-radial-ring-inner .bro-radial-item:nth-child(1) { transform: rotate(-90deg) translateY(-65px) rotate(90deg); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(2) { transform: rotate(-50deg) translateY(-65px) rotate(50deg); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(3) { transform: rotate(-10deg) translateY(-65px) rotate(10deg); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(4) { transform: rotate(30deg) translateY(-65px) rotate(-30deg); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(5) { transform: rotate(70deg) translateY(-65px) rotate(-70deg); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(6) { transform: rotate(110deg) translateY(-65px) rotate(-110deg); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(7) { transform: rotate(150deg) translateY(-65px) rotate(-150deg); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(8) { transform: rotate(190deg) translateY(-65px) rotate(-190deg); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(9) { transform: rotate(230deg) translateY(-65px) rotate(-230deg); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(1):hover { transform: rotate(-90deg) translateY(-65px) rotate(90deg) scale(1.12); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(2):hover { transform: rotate(-50deg) translateY(-65px) rotate(50deg) scale(1.12); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(3):hover { transform: rotate(-10deg) translateY(-65px) rotate(10deg) scale(1.12); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(4):hover { transform: rotate(30deg) translateY(-65px) rotate(-30deg) scale(1.12); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(5):hover { transform: rotate(70deg) translateY(-65px) rotate(-70deg) scale(1.12); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(6):hover { transform: rotate(110deg) translateY(-65px) rotate(-110deg) scale(1.12); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(7):hover { transform: rotate(150deg) translateY(-65px) rotate(-150deg) scale(1.12); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(8):hover { transform: rotate(190deg) translateY(-65px) rotate(-190deg) scale(1.12); }
+        .bro-radial-ring-inner .bro-radial-item:nth-child(9):hover { transform: rotate(230deg) translateY(-65px) rotate(-230deg) scale(1.12); }
+        /* Outer ring: 9 items at 105px radius */
+        .bro-radial-ring-outer .bro-radial-item:nth-child(1) { transform: rotate(-90deg) translateY(-105px) rotate(90deg); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(2) { transform: rotate(-50deg) translateY(-105px) rotate(50deg); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(3) { transform: rotate(-10deg) translateY(-105px) rotate(10deg); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(4) { transform: rotate(30deg) translateY(-105px) rotate(-30deg); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(5) { transform: rotate(70deg) translateY(-105px) rotate(-70deg); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(6) { transform: rotate(110deg) translateY(-105px) rotate(-110deg); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(7) { transform: rotate(150deg) translateY(-105px) rotate(-150deg); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(8) { transform: rotate(190deg) translateY(-105px) rotate(-190deg); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(9) { transform: rotate(230deg) translateY(-105px) rotate(-230deg); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(1):hover { transform: rotate(-90deg) translateY(-105px) rotate(90deg) scale(1.12); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(2):hover { transform: rotate(-50deg) translateY(-105px) rotate(50deg) scale(1.12); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(3):hover { transform: rotate(-10deg) translateY(-105px) rotate(10deg) scale(1.12); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(4):hover { transform: rotate(30deg) translateY(-105px) rotate(-30deg) scale(1.12); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(5):hover { transform: rotate(70deg) translateY(-105px) rotate(-70deg) scale(1.12); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(6):hover { transform: rotate(110deg) translateY(-105px) rotate(-110deg) scale(1.12); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(7):hover { transform: rotate(150deg) translateY(-105px) rotate(-150deg) scale(1.12); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(8):hover { transform: rotate(190deg) translateY(-105px) rotate(-190deg) scale(1.12); }
+        .bro-radial-ring-outer .bro-radial-item:nth-child(9):hover { transform: rotate(230deg) translateY(-105px) rotate(-230deg) scale(1.12); }
 
         .loading {
             display: none;
@@ -2700,23 +2749,44 @@
             </div>
         </div>
 
-        <!-- BRO radial menu (long-press on input) -->
+        <!-- BRO radial menu (long-press on input) - tags from UPlanet_IA_Responder.sh -->
         <div class="bro-radial-overlay" id="broRadialOverlay">
             <div class="bro-radial-circle">
                 <div class="bro-radial-center" title="BRO commands">BRO</div>
-                <button type="button" class="bro-radial-item" data-tag="#url" title="Include link content">#url</button>
-                <button type="button" class="bro-radial-item" data-tag="#status" title="Services status">#status</button>
-                <button type="button" class="bro-radial-item" data-tag="#whoami" title="Your pubkey &amp; KNAME">#whoami</button>
+                <div class="bro-radial-ring bro-radial-ring-inner">
+                    <button type="button" class="bro-radial-item" data-tag="#url" title="Include link content">#url</button>
+                    <button type="button" class="bro-radial-item" data-tag="#status" title="Services status">#status</button>
+                    <button type="button" class="bro-radial-item" data-tag="#whoami" title="Your pubkey &amp; KNAME">#whoami</button>
+                    <button type="button" class="bro-radial-item" data-tag="#help" title="BRO tags summary">#help</button>
+                    <button type="button" class="bro-radial-item" data-tag="#search" title="Perplexica search">#search</button>
+                    <button type="button" class="bro-radial-item" data-tag="#image" title="Generate image (ComfyUI)">#image</button>
+                    <button type="button" class="bro-radial-item" data-tag="#video" title="Generate video (ComfyUI)">#video</button>
+                    <button type="button" class="bro-radial-item" data-tag="#music" title="Generate music (ComfyUI)">#music</button>
+                    <button type="button" class="bro-radial-item" data-tag="#youtube" title="Download video / #mp3 for audio">#youtube</button>
+                </div>
+                <div class="bro-radial-ring bro-radial-ring-outer">
+                    <button type="button" class="bro-radial-item" data-tag="#mem" title="Conversation memory">#mem</button>
+                    <button type="button" class="bro-radial-item" data-tag="#rec" title="Save to memory">#rec</button>
+                    <button type="button" class="bro-radial-item" data-tag="#rec2" title="Auto-save bot response">#rec2</button>
+                    <button type="button" class="bro-radial-item" data-tag="#reset" title="Clear memory">#reset</button>
+                    <button type="button" class="bro-radial-item" data-tag="#pierre" title="TTS voice Pierre">#pierre</button>
+                    <button type="button" class="bro-radial-item" data-tag="#amelie" title="TTS voice Amélie">#amelie</button>
+                    <button type="button" class="bro-radial-item" data-tag="#plantnet" title="Plant recognition (image)">#plantnet</button>
+                    <button type="button" class="bro-radial-item" data-tag="#cookie" title="Cookie workflow">#cookie</button>
+                    <button type="button" class="bro-radial-item" data-tag="#inventory" title="Inventory (image)">#inventory</button>
+                </div>
             </div>
         </div>
 
         <div class="hint" id="serviceHint">💬 Posez une question ou discutez avec votre IA</div>
         <details class="bro-commands-help" id="broCommandsHelp">
-            <summary>BRO commands</summary>
+            <summary>BRO commands (long-press input for radial menu)</summary>
             <ul>
-                <li><code>#url</code> — Include link content in context (paste a URL in your message)</li>
-                <li><code>#status</code> — Check services status (Ollama, ComfyUI, Perplexica, Orpheus)</li>
-                <li><code>#whoami</code> — Your pubkey and KNAME</li>
+                <li><strong>Meta:</strong> <code>#url</code> link content | <code>#status</code> services | <code>#whoami</code> identity | <code>#help</code></li>
+                <li><strong>Search &amp; media:</strong> <code>#search</code> | <code>#image</code> | <code>#video</code> | <code>#music</code> | <code>#youtube</code> [#mp3]</li>
+                <li><strong>Memory:</strong> <code>#mem</code> [#1..#12] | <code>#rec</code> | <code>#rec2</code> | <code>#reset</code></li>
+                <li><strong>Voice (TTS):</strong> <code>#pierre</code> | <code>#amelie</code></li>
+                <li><strong>Tools:</strong> <code>#plantnet</code> [image] | <code>#cookie</code> &lt;workflow&gt; | <code>#inventory</code> [image]</li>
             </ul>
         </details>
 
