@@ -4996,6 +4996,27 @@
         }
 
         // === MESSAGES ===
+        // Ensure mute list (NIP-51 kind 10000) is loaded for filtering. Use common.js if available, else fetch here.
+        async function ensureMuteListLoaded() {
+            if (typeof loadMuteList === 'function') {
+                await loadMuteList();
+                return;
+            }
+            if (!publicKey) {
+                window.mutedPubkeys = window.mutedPubkeys || new Set();
+                return;
+            }
+            try {
+                const p = getPool();
+                const events = await p.list(allRelays || [], [{ kinds: [10000], authors: [publicKey], limit: 1 }]);
+                const ev = events && events[0];
+                const list = (ev && ev.tags) ? ev.tags.filter(t => t[0] === 'p' && t[1]).map(t => t[1]) : [];
+                window.mutedPubkeys = new Set(list);
+            } catch (e) {
+                window.mutedPubkeys = window.mutedPubkeys || new Set();
+            }
+        }
+
         async function fetchMessages() {
             if (!publicKey) return;
             log('Fetching messages...');
