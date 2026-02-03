@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/earth/bootstrap.min.css"/>
     <link rel="stylesheet" href="/earth/leaflet.css"/>
     <script src="/earth/leaflet.js"></script>
+    <script src="/earth/marked.min.js"></script>
     <!-- YouTube Enhancements for advanced Tube features -->
     <script src="/earth/youtube.enhancements.js" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -776,7 +777,16 @@
         }
         .n-feed-body { flex: 1; min-width: 0; }
         .n-feed-body .msg-content { word-break: break-word; margin-bottom: 4px; }
+        .n-feed-body .msg-content.markdown-content h1, .n-feed-body .msg-content.markdown-content h2, .n-feed-body .msg-content.markdown-content h3 { margin: 0.5em 0 0.25em; font-size: 1em; }
+        .n-feed-body .msg-content.markdown-content pre { background: var(--bg-input); padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 0.8em; margin: 6px 0; }
+        .n-feed-body .msg-content.markdown-content code { background: var(--bg-input); padding: 2px 4px; border-radius: 4px; font-size: 0.9em; }
+        .n-feed-body .msg-content.markdown-content a { color: var(--accent-cyan); }
+        .n-feed-body .msg-content.markdown-content blockquote { border-left: 3px solid var(--accent-cyan); padding-left: 8px; margin: 4px 0; color: var(--text-dim); }
         .n-feed-body .msg-time { font-size: 0.65rem; color: var(--text-dim); }
+        .n-feed-via { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+        .n-feed-via-label { font-size: 0.65rem; color: var(--text-dim); margin-right: 4px; }
+        .n-feed-via .via-avatar { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); cursor: pointer; }
+        .n-feed-via .via-avatar:hover { opacity: 0.9; }
 
         .msg {
             padding: 10px 12px;
@@ -4734,6 +4744,7 @@
         }
 
         // N: messages from friends. N²: messages from friends of friends.
+        // Exclude "Vous" (self) messages, or only show self when replying to N/N² (we exclude all self for simplicity).
         async function fetchNFeed(mode) {
             if (!publicKey) {
                 $('#chatArea').empty().append($('#emptyState').removeClass('hidden').clone());
@@ -4749,16 +4760,23 @@
                 }
                 const p = getPool();
                 let authors = [];
+                let fofToFriends = {}; // N²: map FoF pubkey -> array of friend pubkeys who follow them
                 if (mode === 'n') {
                     authors = [...(friendsList || [])];
                 } else if (mode === 'n2') {
                     const meAndFriends = new Set([publicKey, ...(friendsList || [])]);
                     const fof = new Set();
                     const friendPubkeys = (friendsList || []).slice(0, 50);
-                    for (const pubkey of friendPubkeys) {
-                        const contacts = await p.list(allRelays, [{ kinds: [3], authors: [pubkey], limit: 1 }]);
+                    for (const friendPubkey of friendPubkeys) {
+                        const contacts = await p.list(allRelays, [{ kinds: [3], authors: [friendPubkey], limit: 1 }]);
                         if (contacts.length > 0) {
-                            contacts[0].tags.filter(t => t[0] === 'p').forEach(t => { if (t[1] && !meAndFriends.has(t[1])) fof.add(t[1]); });
+                            contacts[0].tags.filter(t => t[0] === 'p').forEach(t => {
+                                if (t[1] && !meAndFriends.has(t[1])) {
+                                    fof.add(t[1]);
+                                    if (!fofToFriends[t[1]]) fofToFriends[t[1]] = [];
+                                    fofToFriends[t[1]].push(friendPubkey);
+                                }
+                            });
                         }
                     }
                     authors = [...fof];
@@ -4766,6 +4784,7 @@
                 if (authors.length === 0) {
                     $chat.empty().append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">' +
                         (mode === 'n' ? 'No friends yet. Follow people to see their messages here.' : 'No friends of friends to show.') + '</div>');
+                    updateNFeedTabCount(mode, 0);
                     return;
                 }
                 const events = await p.list(allRelays, [{
@@ -4773,23 +4792,45 @@
                     authors: authors.slice(0, 100),
                     limit: 150
                 }]);
-                events.sort((a, b) => b.created_at - a.created_at);
+                // Exclude self messages (only show messages from N/N² authors; optionally later: include self if reply to N/N²)
+                const filtered = events.filter(e => e.pubkey !== publicKey);
+                filtered.sort((a, b) => b.created_at - a.created_at);
                 $chat.find('.n-feed-loading').remove();
-                renderNFeedView(events);
+                renderNFeedView(filtered, mode, fofToFriends);
+                updateNFeedTabCount(mode, filtered.length);
             } catch (e) {
                 log(`N feed error: ${e.message}`);
                 $chat.find('.n-feed-loading').remove();
                 $chat.append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--accent-red);">Error: ' + (e.message || 'Failed to load') + '</div>');
+                updateNFeedTabCount(mode, 0);
             }
         }
 
-        async function renderNFeedView(events) {
+        function updateNFeedTabCount(mode, count) {
+            const $tab = $(`.svc-tab[data-svc="${mode}"]`);
+            if ($tab.length) $tab.html(mode === 'n' ? `N <span class="svc-count">${count}</span>` : `N² <span class="svc-count">${count}</span>`);
+        }
+
+        // Render markdown when content looks like md; use /earth marked.min.js if available
+        function renderMarkdownContent(content) {
+            if (!content || !content.trim()) return { html: '', isMarkdown: false };
+            const looksLikeMd = /#{1,6}\s|(\*\*|__).*\1|^```|^\s*[-*+]\s|^\s*\d+\.\s/m.test(content);
+            if (looksLikeMd && typeof marked !== 'undefined') {
+                try {
+                    if (marked.setOptions) marked.setOptions({ gfm: true, breaks: true });
+                    return { html: marked.parse(content), isMarkdown: true };
+                } catch (e) { return { html: $('<div>').text(content).html(), isMarkdown: false }; }
+            }
+            return { html: $('<div>').text(content).html(), isMarkdown: false };
+        }
+
+        async function renderNFeedView(events, mode, fofToFriends) {
             const $chat = $('#chatArea');
             const defaultAvatar = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
             for (const event of events) {
                 const profile = await getProfile(event.pubkey);
                 const allContentUrls = event.content.match(/(https?:\/\/[^\s<>"]+)/gi) || [];
-                const text = cleanContentFull(event.content, allContentUrls) || event.content.replace(/#[a-zA-Z0-9_àâäéèêëïîôùûüç]+\s*/gi, '').trim();
+                const rawText = cleanContentFull(event.content, allContentUrls) || event.content.replace(/#[a-zA-Z0-9_àâäéèêëïîôùûüç]+\s*/gi, '').trim();
                 const avatarUrl = profile?.picture ? normalizeIpfsUrl(profile.picture) : defaultAvatar;
                 const name = profile?.display_name || profile?.name || event.pubkey.slice(0, 8);
                 const $card = $('<div>').addClass('n-feed-msg');
@@ -4799,7 +4840,22 @@
                 $author.append($('<span>').addClass('name').text(name));
                 $card.append($author);
                 const $body = $('<div>').addClass('n-feed-body');
-                if (text) $body.append($('<div>').addClass('msg-content').text(text));
+                if (mode === 'n2' && fofToFriends && fofToFriends[event.pubkey] && fofToFriends[event.pubkey].length > 0) {
+                    const $via = $('<div>').addClass('n-feed-via');
+                    $via.append($('<span>').addClass('n-feed-via-label').text('via'));
+                    for (const friendPubkey of fofToFriends[event.pubkey].slice(0, 8)) {
+                        const friendProfile = await getProfile(friendPubkey);
+                        const friendAvatar = friendProfile?.picture ? normalizeIpfsUrl(friendProfile.picture) : defaultAvatar;
+                        const $viaImg = $('<img>').addClass('via-avatar').attr('src', friendAvatar).attr('title', friendProfile?.display_name || friendProfile?.name || friendPubkey.slice(0, 8)).on('click', function(e) { e.preventDefault(); e.stopPropagation(); openProfileViewerModal(friendPubkey); }).on('error', function() { $(this).attr('src', defaultAvatar); });
+                        $via.append($viaImg);
+                    }
+                    $body.append($via);
+                }
+                if (rawText) {
+                    const { html, isMarkdown } = renderMarkdownContent(rawText);
+                    const $content = $('<div>').addClass('msg-content').addClass(isMarkdown ? 'markdown-content' : '').html(html);
+                    $body.append($content);
+                }
                 $body.append($('<div>').addClass('msg-time').text(new Date(event.created_at * 1000).toLocaleString()));
                 $card.append($body);
                 $chat.append($card);
