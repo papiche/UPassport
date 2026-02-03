@@ -830,6 +830,21 @@
             background: linear-gradient(90deg, rgba(0,255,136,0.05), transparent);
         }
 
+        .msg-header-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 6px;
+            vertical-align: middle;
+            border: 1px solid var(--border);
+        }
+        .msg-header .msg-author-link {
+            color: inherit;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .msg-header .msg-author-link:hover { color: var(--accent-cyan); text-decoration: underline; }
         .msg-header {
             display: flex;
             align-items: center;
@@ -5222,47 +5237,35 @@
         }
 
         async function renderNFeedView(events, mode, fofToFriends) {
-            const $chat = $('#chatArea');
+            const $chat = $('#chatArea').empty();
+            $('#emptyState').addClass('hidden');
             const defaultAvatar = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
             for (const event of events) {
                 const profile = await getProfile(event.pubkey);
-                const allContentUrls = event.content.match(/(https?:\/\/[^\s<>"]+)/gi) || [];
-                const rawText = cleanContentFull(event.content, allContentUrls) || event.content.replace(/#[a-zA-Z0-9_àâäéèêëïîôùûüç]+\s*/gi, '').trim();
                 const avatarUrl = profile?.picture ? normalizeIpfsUrl(profile.picture) : defaultAvatar;
                 const name = profile?.display_name || profile?.name || event.pubkey.slice(0, 8);
-                const $card = $('<div>').addClass('n-feed-msg');
-                const $author = $('<a>').addClass('n-feed-author').attr('href', '#').attr('title', 'Open profile').data('pubkey', event.pubkey);
-                $author.on('click', function(e) { e.preventDefault(); openProfileViewerModal(event.pubkey); });
-                $author.append($('<img>').attr('src', avatarUrl).attr('alt', name).on('error', function() { $(this).attr('src', defaultAvatar); }));
-                $author.append($('<span>').addClass('name').text(name));
-                $card.append($author);
-                const $body = $('<div>').addClass('n-feed-body');
-                if (mode === 'n2' && fofToFriends && fofToFriends[event.pubkey] && fofToFriends[event.pubkey].length > 0) {
-                    const $via = $('<div>').addClass('n-feed-via');
-                    $via.append($('<span>').addClass('n-feed-via-label').text('via'));
-                    for (const friendPubkey of fofToFriends[event.pubkey].slice(0, 8)) {
-                        const friendProfile = await getProfile(friendPubkey);
-                        const friendAvatar = friendProfile?.picture ? normalizeIpfsUrl(friendProfile.picture) : defaultAvatar;
-                        const $viaImg = $('<img>').addClass('via-avatar').attr('src', friendAvatar).attr('title', friendProfile?.display_name || friendProfile?.name || friendPubkey.slice(0, 8)).on('click', function(e) { e.preventDefault(); e.stopPropagation(); openProfileViewerModal(friendPubkey); }).on('error', function() { $(this).attr('src', defaultAvatar); });
-                        $via.append($viaImg);
-                    }
-                    $body.append($via);
-                }
-                if (rawText) {
-                    const $content = $('<div>').addClass('msg-content').text(rawText.length > 300 ? rawText.slice(0, 300) + '…' : rawText);
-                    $body.append($content);
-                }
-                $body.append($('<div>').addClass('msg-time').text(new Date(event.created_at * 1000).toLocaleString()));
-                const $actions = $('<div>').addClass('n-feed-actions');
-                const $viewBtn = $('<button type="button" class="msg-view-btn n-feed-reply-btn">📄 View</button>');
-                $viewBtn.on('click', function(e) { e.preventDefault(); e.stopPropagation(); openMessageViewerModal(event.id); });
-                const $replyBtn = $('<button type="button" class="n-feed-reply-btn">Reply</button>');
-                $replyBtn.on('click', function(e) { e.preventDefault(); e.stopPropagation(); setReplyTo(event.id, event.pubkey, name); });
-                $actions.append($viewBtn).append($replyBtn);
-                $body.append($actions);
-                $card.append($body);
-                $chat.append($card);
+                const viaFriends = (mode === 'n2' && fofToFriends && fofToFriends[event.pubkey]) ? fofToFriends[event.pubkey] : [];
+                renderMessage(event, event.pubkey === publicKey, {
+                    authorLabel: name,
+                    authorAvatar: avatarUrl,
+                    viaFriends: viaFriends,
+                    showReplyButton: true
+                });
             }
+            // Load via-avatar images asynchronously (optional)
+            $chat.find('.via-avatar').each(function() {
+                const $img = $(this);
+                const pk = $img.attr('data-pubkey');
+                if (pk) getProfile(pk).then(function(profile) {
+                    if (profile?.picture) $img.attr('src', normalizeIpfsUrl(profile.picture)).attr('title', profile?.display_name || profile?.name || pk.slice(0, 8));
+                });
+            });
+            $chat.find('.via-avatar').on('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const pk = $(this).attr('data-pubkey');
+                if (pk) openProfileViewerModal(pk);
+            });
         }
 
         function setReplyTo(eventId, authorPubkey, authorName) {
@@ -5419,9 +5422,23 @@
             const $header = $('<div>').addClass('msg-header');
             if (opts.authorAvatar) {
                 const $avatar = $('<img>').addClass('msg-header-avatar').attr('src', opts.authorAvatar).attr('alt', opts.authorLabel || '').on('error', function() { $(this).attr('src', 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'); });
-                $header.append($avatar);
+                if (event.pubkey && !isUser) {
+                    const $a = $('<a>').addClass('msg-author-link').attr('href', '#').attr('title', 'Open profile');
+                    $a.append($avatar);
+                    $a.on('click', function(e) { e.preventDefault(); e.stopPropagation(); openProfileViewerModal(event.pubkey); });
+                    $header.append($a);
+                } else {
+                    $header.append($avatar);
+                }
             }
-            $header.append($('<span>').text(isUser ? '👤 Vous' : (opts.authorLabel || '🤖 BRO')));
+            const authorText = isUser ? '👤 Vous' : (opts.authorLabel || '🤖 BRO');
+            if (event.pubkey && !isUser && opts.authorLabel) {
+                const $authorLink = $('<a>').addClass('msg-author-link').attr('href', '#').attr('title', 'Open profile').text(authorText);
+                $authorLink.on('click', function(e) { e.preventDefault(); e.stopPropagation(); openProfileViewerModal(event.pubkey); });
+                $header.append($authorLink);
+            } else {
+                $header.append($('<span>').text(authorText));
+            }
             if (expiration) $header.append($('<span>').addClass('tag').text(`⏱️ ${formatExpiry(expiration)}`));
             // Display all hashtags with appropriate styling
             tags.forEach(t => {
@@ -5512,7 +5529,7 @@
             if (nonMediaUrls.length > 0) {
                 const $links = $('<div>').addClass('msg-links');
                 nonMediaUrls.forEach(url => {
-                    $links.append($('<a>').attr('href', url).attr('target', '_blank').text('🔗 ' + (url.length > 50 ? url.substring(0, 50) + '...' : url)));
+                    $links.append($('<a>').attr('href', url).text('🔗 ' + (url.length > 50 ? url.substring(0, 50) + '...' : url)));
                 });
                 $msg.append($links);
             }
