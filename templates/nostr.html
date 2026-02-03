@@ -737,6 +737,47 @@
             margin-bottom: 6px;
         }
 
+        /* N / N² feed: message card with author avatar + name (clickable) */
+        .n-feed-msg {
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            background: var(--bg-panel);
+            border-radius: 10px;
+            border-left: 3px solid var(--accent-cyan);
+            font-size: 0.85rem;
+        }
+        .n-feed-author {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            transition: opacity 0.15s;
+        }
+        .n-feed-author:hover { opacity: 0.85; color: var(--accent-cyan); }
+        .n-feed-author img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid var(--border);
+        }
+        .n-feed-author .name {
+            font-size: 0.7rem;
+            max-width: 72px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: center;
+        }
+        .n-feed-body { flex: 1; min-width: 0; }
+        .n-feed-body .msg-content { word-break: break-word; margin-bottom: 4px; }
+        .n-feed-body .msg-time { font-size: 0.65rem; color: var(--text-dim); }
+
         .msg {
             padding: 10px 12px;
             background: var(--bg-panel);
@@ -2136,6 +2177,66 @@
             border: none;
             background: var(--bg-void);
         }
+
+        /* Profile viewer modal (Nostr profile) */
+        .profile-viewer-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+        }
+        .profile-viewer-backdrop.active {
+            display: flex;
+        }
+        .profile-viewer-modal {
+            width: 100%;
+            max-width: 900px;
+            height: 85vh;
+            max-height: 800px;
+            background: var(--bg-panel);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .profile-viewer-modal .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .profile-viewer-modal .modal-header .modal-title { font-size: 0.9rem; color: var(--accent-cyan); }
+        .profile-viewer-modal .modal-close {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            line-height: 1;
+        }
+        .profile-viewer-modal .modal-close:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+        .profile-viewer-modal iframe {
+            flex: 1;
+            width: 100%;
+            border: none;
+            background: var(--bg-void);
+        }
+        .profile-name-link {
+            color: inherit;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .profile-name-link:hover { text-decoration: underline; color: var(--accent-cyan); }
     </style>
 </head>
 <body class="d-flex flex-column min-vh-100">
@@ -2145,7 +2246,7 @@
         <div class="status-dot offline" id="statusDot"></div>
         <div class="profile-mini" id="profileMini" style="cursor:pointer;" onclick="toggleDidPanel()">
             <img src="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1" id="profileImg">
-            <span class="name" id="profileName">Non connecté</span>
+            <a href="#" id="profileNameLink" class="profile-name-link name" title="Open profile in modal" onclick="event.preventDefault();event.stopPropagation();openProfileViewerModal();"><span id="profileName">Non connecté</span></a>
             <span class="societaire-badge visitor" id="societaireBadge" style="display:none;">👤 Visiteur</span>
         </div>
         <div class="zen-balance" id="zenBalance" style="display:none;">
@@ -2229,6 +2330,8 @@
     <!-- SERVICE TABS - 3 main tabs -->
     <div class="service-bar">
         <button class="svc-tab active" data-svc="flux">📋 Flux</button>
+        <button class="svc-tab" data-svc="n" title="Messages from friends">N</button>
+        <button class="svc-tab" data-svc="n2" title="Messages from friends of friends">N²</button>
         <div class="svc-dropdown">
             <button class="svc-tab" data-svc="ia" id="iaTab">🤖 IA <span class="dropdown-arrow">▼</span></button>
             <div class="svc-dropdown-menu" id="iaMenu">
@@ -2372,6 +2475,17 @@
                 <button class="chat-modal-close" onclick="closeChatModal()">×</button>
             </div>
             <iframe id="chatModalFrame" src="" frameborder="0"></iframe>
+        </div>
+    </div>
+
+    <!-- PROFILE VIEWER MODAL -->
+    <div class="profile-viewer-backdrop" id="profileViewerBackdrop">
+        <div class="profile-viewer-modal">
+            <div class="modal-header">
+                <span class="modal-title">👤 Nostr Profile</span>
+                <button type="button" class="modal-close" onclick="closeProfileViewerModal()">×</button>
+            </div>
+            <iframe id="profileViewerFrame" src="" frameborder="0" title="Nostr Profile Viewer"></iframe>
         </div>
     </div>
 
@@ -2585,6 +2699,12 @@
                     $('#tubePanel').addClass('active');
                     $('.input-section').hide();
                     loadTubeVideos();
+                } else if (svc === 'n' || svc === 'n2') {
+                    $('#tubePanel').removeClass('active');
+                    $('.main-content').show().addClass('flux-mode');
+                    $('.input-section').show();
+                    fetchNFeed(svc);
+                    updateInputHint('chat');
                 } else {
                     $('#tubePanel').removeClass('active');
                     $('.main-content').show();
@@ -2798,11 +2918,14 @@
 
             // Lightbox
             $('#lightbox').on('click', e => { if (e.target.id === 'lightbox') closeLightbox(); });
-            $(document).on('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeTheater(); closeChatModal(); }});
+            $(document).on('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeTheater(); closeChatModal(); closeProfileViewerModal(); }});
             
             // Chat modal close on backdrop click
             $('#chatModalBackdrop').on('click', function(e) {
                 if (e.target.id === 'chatModalBackdrop') closeChatModal();
+            });
+            $('#profileViewerBackdrop').on('click', function(e) {
+                if (e.target.id === 'profileViewerBackdrop') closeProfileViewerModal();
             });
 
             // Tube events
@@ -3811,6 +3934,46 @@
             modal.show();
         }
 
+        // Get public key as hex (for profile viewer URL)
+        function getPublicKeyHex() {
+            if (!publicKey) return '';
+            if (/^[0-9a-f]{64}$/i.test(publicKey)) return publicKey;
+            if (typeof NostrTools !== 'undefined' && NostrTools.nip19 && publicKey.startsWith('npub')) {
+                try {
+                    const decoded = NostrTools.nip19.decode(publicKey);
+                    if (decoded && decoded.data) return decoded.data;
+                } catch (e) { log(`nip19 decode error: ${e.message}`); }
+            }
+            return publicKey;
+        }
+
+        // Open Nostr profile viewer in modal (gateway from common.js / getIpfsGateway)
+        // If pubkeyArg is provided, open that profile; otherwise open current user's profile
+        function openProfileViewerModal(pubkeyArg) {
+            const targetPubkey = (pubkeyArg && pubkeyArg.length) ? pubkeyArg : publicKey;
+            if (!targetPubkey) {
+                showNotification('Connect first to view profile', 'info');
+                return;
+            }
+            let hex = targetPubkey;
+            if (!/^[0-9a-f]{64}$/i.test(targetPubkey) && typeof NostrTools !== 'undefined' && NostrTools.nip19 && targetPubkey.startsWith('npub')) {
+                try {
+                    const decoded = NostrTools.nip19.decode(targetPubkey);
+                    if (decoded && decoded.data) hex = decoded.data;
+                } catch (e) {}
+            }
+            const gateway = getIpfsGateway();
+            const profileViewerPath = '/ipns/copylaradio.com/nostr_profile_viewer.html';
+            const url = `${gateway}${profileViewerPath}?hex=${encodeURIComponent(hex)}&origin=${encodeURIComponent(hex)}`;
+            $('#profileViewerFrame').attr('src', url);
+            $('#profileViewerBackdrop').addClass('active');
+        }
+
+        function closeProfileViewerModal() {
+            $('#profileViewerBackdrop').removeClass('active');
+            $('#profileViewerFrame').attr('src', '');
+        }
+
         // Get IPFS gateway URL - use common.js IPFS_GATEWAY if available
         function getIpfsGateway() {
             // Use common.js gateway if available
@@ -4570,6 +4733,79 @@
             }
         }
 
+        // N: messages from friends. N²: messages from friends of friends.
+        async function fetchNFeed(mode) {
+            if (!publicKey) {
+                $('#chatArea').empty().append($('#emptyState').removeClass('hidden').clone());
+                return;
+            }
+            const $chat = $('#chatArea').empty();
+            $('#emptyState').addClass('hidden');
+            $chat.append('<div class="n-feed-loading" style="padding:20px;text-align:center;color:var(--text-dim);">Loading...</div>');
+
+            try {
+                if (!friendsList || friendsList.length === 0) {
+                    await loadFriendsList();
+                }
+                const p = getPool();
+                let authors = [];
+                if (mode === 'n') {
+                    authors = [...(friendsList || [])];
+                } else if (mode === 'n2') {
+                    const meAndFriends = new Set([publicKey, ...(friendsList || [])]);
+                    const fof = new Set();
+                    const friendPubkeys = (friendsList || []).slice(0, 50);
+                    for (const pubkey of friendPubkeys) {
+                        const contacts = await p.list(allRelays, [{ kinds: [3], authors: [pubkey], limit: 1 }]);
+                        if (contacts.length > 0) {
+                            contacts[0].tags.filter(t => t[0] === 'p').forEach(t => { if (t[1] && !meAndFriends.has(t[1])) fof.add(t[1]); });
+                        }
+                    }
+                    authors = [...fof];
+                }
+                if (authors.length === 0) {
+                    $chat.empty().append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">' +
+                        (mode === 'n' ? 'No friends yet. Follow people to see their messages here.' : 'No friends of friends to show.') + '</div>');
+                    return;
+                }
+                const events = await p.list(allRelays, [{
+                    kinds: [1],
+                    authors: authors.slice(0, 100),
+                    limit: 150
+                }]);
+                events.sort((a, b) => b.created_at - a.created_at);
+                $chat.find('.n-feed-loading').remove();
+                renderNFeedView(events);
+            } catch (e) {
+                log(`N feed error: ${e.message}`);
+                $chat.find('.n-feed-loading').remove();
+                $chat.append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--accent-red);">Error: ' + (e.message || 'Failed to load') + '</div>');
+            }
+        }
+
+        async function renderNFeedView(events) {
+            const $chat = $('#chatArea');
+            const defaultAvatar = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            for (const event of events) {
+                const profile = await getProfile(event.pubkey);
+                const allContentUrls = event.content.match(/(https?:\/\/[^\s<>"]+)/gi) || [];
+                const text = cleanContentFull(event.content, allContentUrls) || event.content.replace(/#[a-zA-Z0-9_àâäéèêëïîôùûüç]+\s*/gi, '').trim();
+                const avatarUrl = profile?.picture ? normalizeIpfsUrl(profile.picture) : defaultAvatar;
+                const name = profile?.display_name || profile?.name || event.pubkey.slice(0, 8);
+                const $card = $('<div>').addClass('n-feed-msg');
+                const $author = $('<a>').addClass('n-feed-author').attr('href', '#').attr('title', 'Open profile').data('pubkey', event.pubkey);
+                $author.on('click', function(e) { e.preventDefault(); openProfileViewerModal(event.pubkey); });
+                $author.append($('<img>').attr('src', avatarUrl).attr('alt', name).on('error', function() { $(this).attr('src', defaultAvatar); }));
+                $author.append($('<span>').addClass('name').text(name));
+                $card.append($author);
+                const $body = $('<div>').addClass('n-feed-body');
+                if (text) $body.append($('<div>').addClass('msg-content').text(text));
+                $body.append($('<div>').addClass('msg-time').text(new Date(event.created_at * 1000).toLocaleString()));
+                $card.append($body);
+                $chat.append($card);
+            }
+        }
+
         function updateServiceCounts() {
             const counts = { all: allMessages.length, chat: 0, image: 0, video: 0, music: 0, search: 0, nature: 0, ia: 0 };
             allMessages.forEach(m => {
@@ -4693,8 +4929,10 @@
             
             // Clean content: remove ALL URLs and hashtags
             let text = cleanContentFull(event.content, allContentUrls);
+            // Copyable content: displayed text, or raw content when cleaned is empty (e.g. only #tags or URL)
+            const copyContent = (text && text.trim()) ? text.trim() : (event.content || '').trim();
 
-            const $msg = $('<div>').addClass('msg').addClass(isUser ? 'user' : 'bot');
+            const $msg = $('<div>').addClass('msg').addClass(isUser ? 'user' : 'bot').attr('data-copy-content', copyContent);
             
             const $header = $('<div>').addClass('msg-header');
             $header.append($('<span>').text(isUser ? '👤 Vous' : '🤖 BRO'));
@@ -4932,7 +5170,6 @@
         // Delete message: publish kind 5 (NIP-09)
         async function deleteMessage(eventId) {
             if (!publicKey || !eventId) return;
-            if (!confirm('Delete this message? Relays will be notified (kind 5).')) return;
             showLoading(true, 'Deleting...');
             try {
                 const event = {
