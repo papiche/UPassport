@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
     <title>🤖 #BRO Terminal</title>
     <script src="/earth/jquery-3.6.3.min.js"></script>
@@ -32,7 +32,7 @@
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { height: 100%; overflow: hidden; }
+        html, body { height: 100%; overflow: hidden; min-height: 100vh; min-height: 100dvh; }
 
         body {
             font-family: 'Share Tech Mono', monospace;
@@ -40,6 +40,39 @@
             color: var(--text-primary);
             display: flex;
             flex-direction: column;
+        }
+
+        /* Responsive: mobile-first adjustments */
+        @media (max-width: 767.98px) {
+            .top-bar { padding: 6px 8px; gap: 6px; flex-wrap: wrap; }
+            .top-bar .logo { font-size: 0.85rem; }
+            .profile-mini .name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .zen-balance { font-size: 0.65rem; padding: 2px 6px; }
+            .topbar-services { margin-left: 4px; }
+            .topbar-service-btn { width: 28px; height: 28px; font-size: 0.95rem; }
+            .btn-connect { padding: 4px 10px; font-size: 0.75rem; }
+            .service-bar { padding: 4px 6px; gap: 4px; flex-wrap: wrap; }
+            .svc-tab { padding: 6px 10px; font-size: 0.8rem; }
+            .main-content .chat-wrapper { margin-left: 36px; margin-right: 36px; }
+            .main-content.flux-mode .chat-wrapper { margin-left: 6px; margin-right: 6px; }
+            .nav-arrow { width: 32px; height: 60px; font-size: 1.2rem; }
+            .chat-area { padding: 8px; gap: 6px; }
+            .msg { padding: 8px 10px; font-size: 0.8rem; }
+            .input-section { padding: 8px; }
+            .input-options { gap: 4px; margin-bottom: 6px; }
+            .opt-btn { padding: 3px 8px; font-size: 0.65rem; }
+            .input-row { gap: 6px; }
+            #messageInput { padding: 10px 12px; min-height: 44px; font-size: 16px; }
+            .btn-send { padding: 10px 14px; font-size: 0.75rem; }
+        }
+        @media (min-width: 768px) {
+            .main-content .chat-wrapper { margin-left: 45px; margin-right: 45px; }
+            .main-content.flux-mode .chat-wrapper { margin-left: 12px; margin-right: 12px; }
+        }
+        /* Fullscreen input on small screens: safe area and close button */
+        @media (max-width: 767.98px) {
+            .input-section.input-section-fullscreen { padding: 12px env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); padding-top: 48px; }
+            .input-section-fullscreen .input-fullscreen-close { top: 12px; right: 12px; }
         }
 
         /* === TOP BAR === */
@@ -742,6 +775,38 @@
         .msg-header .tag.nature { color: #4CAF50; }
         .msg-header .tag.generic { color: var(--accent-cyan); opacity: 0.8; }
 
+        .msg-delete-btn {
+            margin-left: auto;
+            padding: 2px 6px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .msg-delete-btn:hover {
+            color: var(--accent-red);
+            border-color: var(--accent-red);
+        }
+
+        .msg-copy-btn {
+            margin-left: 4px;
+            padding: 2px 6px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .msg-copy-btn:hover {
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+        }
+
         .msg-content { word-break: break-word; }
         .msg-content a { color: var(--accent-cyan); text-decoration: none; }
         .msg-content a:hover { text-decoration: underline; }
@@ -885,7 +950,51 @@
             border-top: 1px solid var(--border);
             padding: 10px;
             flex-shrink: 0;
+            transition: box-shadow 0.2s;
         }
+        /* Fullscreen input zone */
+        .input-section.input-section-fullscreen {
+            position: fixed;
+            inset: 0;
+            z-index: 9998;
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            background: var(--bg-panel);
+            border: none;
+            box-shadow: 0 0 0 2px var(--accent-cyan);
+        }
+        .input-section-fullscreen .input-row { flex: 1; display: flex; flex-direction: column; align-items: stretch; min-height: 0; }
+        .input-section-fullscreen #messageInput { flex: 1; min-height: 120px; max-height: none; resize: none; }
+        .input-section-fullscreen .input-fullscreen-close {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 36px;
+            height: 36px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-dim);
+            font-size: 1.2rem;
+            cursor: pointer;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .input-section-fullscreen .input-fullscreen-close:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+        .btn-input-fullscreen {
+            padding: 12px 14px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-dim);
+            font-size: 1rem;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .btn-input-fullscreen:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
 
         .input-options {
             display: flex;
@@ -2029,9 +2138,9 @@
         }
     </style>
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
     <!-- TOP BAR -->
-    <div class="top-bar" id="topBar">
+    <div class="top-bar d-flex align-items-center flex-wrap" id="topBar">
         <div class="logo" onclick="history.go(-1)">🤖 #BRO</div>
         <div class="status-dot offline" id="statusDot"></div>
         <div class="profile-mini" id="profileMini" style="cursor:pointer;" onclick="toggleDidPanel()">
@@ -2135,7 +2244,7 @@
             </div>
 
     <!-- MAIN CONTENT WITH SIDE ARROWS -->
-    <div class="main-content">
+    <div class="main-content flex-grow-1 d-flex overflow-hidden">
         <button class="nav-arrow left" id="btnPrev" disabled>◀</button>
         
         <div class="chat-wrapper">
@@ -2267,7 +2376,8 @@
     </div>
 
     <!-- INPUT SECTION -->
-    <div class="input-section">
+    <div class="input-section" id="inputSection">
+        <button type="button" class="input-fullscreen-close d-none" id="inputFullscreenClose" title="Exit fullscreen">✕</button>
         <div class="input-options">
             <button class="opt-btn active" id="btnConversation" title="BRO répond en votre nom (éphémère 1h)">💬 </button>
             <button class="opt-btn" id="btnPublic" title="Message permanent">📢 </button>
@@ -2300,7 +2410,10 @@
 
         <div class="input-row" id="inputRowBroZone">
             <textarea id="messageInput" placeholder="Tapez votre message..." rows="2"></textarea>
-            <button class="btn-send" id="btnSend" disabled>ENVOYER</button>
+            <div class="input-row-btns d-flex gap-1 align-items-end flex-shrink-0">
+                <button type="button" class="btn-input-fullscreen" id="btnInputFullscreen" title="Fullscreen input">⛶</button>
+                <button class="btn-send" id="btnSend" disabled>ENVOYER</button>
+            </div>
         </div>
 
         <!-- BRO radial menu (long-press on input) -->
@@ -2590,8 +2703,26 @@
                     sendMessage();
                 }
             }).on('input', function() {
+                const maxH = $('#inputSection').hasClass('input-section-fullscreen') ? 9999 : 150;
                 this.style.height = 'auto';
-                this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+                this.style.height = Math.min(this.scrollHeight, maxH) + 'px';
+            });
+
+            // Fullscreen input zone
+            $('#btnInputFullscreen').on('click', function() {
+                $('#inputSection').addClass('input-section-fullscreen');
+                $('#inputFullscreenClose').removeClass('d-none');
+                $('#messageInput').focus();
+            });
+            $('#inputFullscreenClose').on('click', function() {
+                $('#inputSection').removeClass('input-section-fullscreen');
+                $('#inputFullscreenClose').addClass('d-none');
+            });
+            $(document).on('keydown', function(e) {
+                if (e.key === 'Escape' && $('#inputSection').hasClass('input-section-fullscreen')) {
+                    $('#inputSection').removeClass('input-section-fullscreen');
+                    $('#inputFullscreenClose').addClass('d-none');
+                }
             });
 
             // BRO radial menu: long-press on input to show, select tag to insert
@@ -4573,6 +4704,16 @@
                 const tagClass = getTagClass(t);
                 $header.append($('<span>').addClass('tag ' + tagClass).text('#' + t));
             });
+            // Copy button: insert message content into draft
+            const $copyBtn = $('<button type="button" class="msg-copy-btn" title="Copy to draft">📋</button>');
+            $copyBtn.on('click', function(e) { e.stopPropagation(); copyMessageToDraft($msg); });
+            $header.append($copyBtn);
+            // Delete button: show for any message authored by current user (including BRO replies signed with user identity)
+            if (event.pubkey === publicKey && event.id) {
+                const $delBtn = $('<button type="button" class="msg-delete-btn" title="Delete (kind 5)">🗑</button>').attr('data-event-id', event.id);
+                $delBtn.on('click', function(e) { e.stopPropagation(); deleteMessage(event.id); });
+                $header.append($delBtn);
+            }
             $msg.append($header);
 
             // Display cleaned text (no URLs in text)
@@ -4786,6 +4927,52 @@
             } finally {
                 showLoading(false);
             }
+        }
+
+        // Delete message: publish kind 5 (NIP-09)
+        async function deleteMessage(eventId) {
+            if (!publicKey || !eventId) return;
+            if (!confirm('Delete this message? Relays will be notified (kind 5).')) return;
+            showLoading(true, 'Deleting...');
+            try {
+                const event = {
+                    kind: 5,
+                    pubkey: publicKey,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [['e', eventId]],
+                    content: ''
+                };
+                const signed = await window.nostr.signEvent(event);
+                let success = 0;
+                await Promise.all(allRelays.map(async r => { if (await publishToRelay(r, signed)) success++; }));
+                if (success > 0) {
+                    log(`Deleted (kind 5) on ${success} relays`);
+                    showNotification('Deletion published (kind 5)', 'info');
+                    setTimeout(fetchMessages, 1500);
+                } else {
+                    showNotification('Failed to publish deletion', 'error');
+                }
+            } catch (e) {
+                log(`Delete error: ${e.message}`);
+                showNotification('Delete error: ' + e.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function copyMessageToDraft($msg) {
+            const content = ($msg && $msg.length) ? ($msg.attr('data-copy-content') || '').trim() : '';
+            if (!content) {
+                showNotification('Nothing to copy', 'info');
+                return;
+            }
+            const $input = $('#messageInput');
+            const current = $input.val().trim();
+            $input.val(current ? current + '\n\n' + content : content);
+            $input[0].style.height = 'auto';
+            $input[0].style.height = Math.min($input[0].scrollHeight, 150) + 'px';
+            $input.focus();
+            showNotification('Copied to draft', 'info');
         }
 
         function buildContent(text) {
