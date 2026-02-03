@@ -638,6 +638,25 @@
             text-align: center;
         }
 
+        /* N/N² filter (p21 vs p2p) - visible when N or N² tab active */
+        .n-feed-filter-wrap {
+            display: inline-flex;
+            align-items: center;
+        }
+        .n-feed-filter-select {
+            padding: 4px 8px;
+            font-size: 0.7rem;
+            font-family: inherit;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+        .n-feed-filter-select:hover {
+            border-color: var(--accent-cyan);
+        }
+
         /* === MAIN CONTENT WITH NAV ARROWS === */
         .main-content {
             flex: 1;
@@ -2606,6 +2625,12 @@
         <button class="svc-tab active" data-svc="flux">📋 Flux</button>
         <button class="svc-tab" data-svc="n" title="Messages from friends">N</button>
         <button class="svc-tab" data-svc="n2" title="Messages from friends of friends">N²</button>
+        <span class="n-feed-filter-wrap" id="nFeedFilterWrap" style="display:none;">
+            <select id="nFeedFilterSelect" class="n-feed-filter-select" title="N/N² filter: unidirectional (p21) or reciprocal (p2p)">
+                <option value="p21">p21</option>
+                <option value="p2p">p2p</option>
+            </select>
+        </span>
         <div class="svc-dropdown">
             <button class="svc-tab" data-svc="ia" id="iaTab">🤖 IA <span class="dropdown-arrow">▼</span></button>
             <div class="svc-dropdown-menu" id="iaMenu">
@@ -3027,6 +3052,8 @@
                     $('#tubeInputToggle').removeClass('collapsed');
                     loadTubeVideos();
                 } else if (svc === 'n' || svc === 'n2') {
+                    $('#nFeedFilterWrap').show();
+                    $('#nFeedFilterSelect').val(nFeedFilter);
                     $('#tubePanel').removeClass('active');
                     $('.main-content').removeClass('tube-mode').show().addClass('flux-mode');
                     $('body').removeClass('tube-mode');
@@ -3036,6 +3063,7 @@
                     fetchNFeed(svc);
                     updateInputHint('chat');
                 } else {
+                    $('#nFeedFilterWrap').hide();
                     $('#tubePanel').removeClass('active');
                     $('.main-content').removeClass('tube-mode').show();
                     $('body').removeClass('tube-mode');
@@ -3046,6 +3074,14 @@
                     updateInputHint('chat');
                 }
                 $('#videoOpts').removeClass('visible');
+            });
+
+            // N/N² filter (p21 vs p2p): on change, refresh current N or N² feed
+            $('#nFeedFilterSelect').on('change', function() {
+                nFeedFilter = $(this).val();
+                if (currentService === 'n' || currentService === 'n2') {
+                    fetchNFeed(currentService);
+                }
             });
 
             // IA submenu click handler
@@ -3289,6 +3325,7 @@
         let selectedFriend = 'all';
         let tubeFilter = 'all';
         let profileCache = {};
+        let nFeedFilter = 'p21'; // p21 = unidirectional, p2p = reciprocal follows
 
         function setupTubeEvents() {
             // Tube filter buttons
@@ -3628,7 +3665,9 @@
 
             const p = getPool();
             try {
-                const events = await p.list([allRelays[0]], [{
+                const relays = (allRelays && allRelays.length) ? allRelays.slice(0, 3) : [];
+                if (relays.length === 0) return null;
+                const events = await p.list(relays, [{
                     kinds: [0],
                     authors: [pubkey],
                     limit: 1
@@ -5140,6 +5179,7 @@
                 }]);
                 const muted = typeof getMutedPubkeys === 'function' ? getMutedPubkeys() : new Set();
                 allMessages = events.filter(e => !muted.has(e.pubkey)).sort((a, b) => b.created_at - a.created_at);
+                allMessages.forEach(m => { m._tags = extractTags(m.content); });
                 log(`Got ${allMessages.length} messages${muted.size ? ` (muted ${muted.size} authors)` : ''}`);
                 updateServiceCounts();
                 filterAndDisplayMessages();
@@ -5173,9 +5213,12 @@
                     const meAndFriends = new Set([publicKey, ...(friendsList || [])]);
                     const fof = new Set();
                     const friendPubkeys = (friendsList || []).slice(0, 50);
-                    for (const friendPubkey of friendPubkeys) {
-                        const contacts = await p.list(allRelays, [{ kinds: [3], authors: [friendPubkey], limit: 1 }]);
-                        if (contacts.length > 0) {
+                    const contactsResults = await Promise.all(
+                        friendPubkeys.map(friendPubkey => p.list(allRelays, [{ kinds: [3], authors: [friendPubkey], limit: 1 }]))
+                    );
+                    contactsResults.forEach((contacts, i) => {
+                        const friendPubkey = friendPubkeys[i];
+                        if (contacts && contacts.length > 0) {
                             contacts[0].tags.filter(t => t[0] === 'p').forEach(t => {
                                 if (t[1] && !meAndFriends.has(t[1])) {
                                     fof.add(t[1]);
@@ -5184,10 +5227,31 @@
                                 }
                             });
                         }
-                    }
+                    });
                     authors = [...fof];
                 }
-                const peopleCount = mode === 'n' ? friendsCount : authors.length;
+                // p2p filter: keep only authors whose kind 3 contains publicKey (reciprocal follow)
+                if (nFeedFilter === 'p2p' && authors.length > 0 && allRelays && allRelays.length > 0) {
+                    try {
+                        const contactEvents = await p.list(allRelays.slice(0, 3), [{
+                            kinds: [3],
+                            authors: authors,
+                            limit: authors.length * 2
+                        }]);
+                        const reciprocalSet = new Set();
+                        contactEvents.forEach(ev => {
+                            const hasMe = ev.tags && ev.tags.some(t => t[0] === 'p' && t[1] === publicKey);
+                            if (hasMe) reciprocalSet.add(ev.pubkey);
+                        });
+                        authors = authors.filter(a => reciprocalSet.has(a));
+                        if (mode === 'n2' && fofToFriends) {
+                            const newFof = {};
+                            authors.forEach(a => { if (fofToFriends[a]) newFof[a] = fofToFriends[a]; });
+                            fofToFriends = newFof;
+                        }
+                    } catch (e) {}
+                }
+                const peopleCount = authors.length;
                 if (authors.length === 0) {
                     $chat.empty().append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">' +
                         (mode === 'n' ? 'No friends yet. Follow people to see their messages here.' : 'No friends of friends to show.') + '</div>');
@@ -5240,17 +5304,38 @@
             const $chat = $('#chatArea').empty();
             $('#emptyState').addClass('hidden');
             const defaultAvatar = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            // Batch-load missing profiles before render
+            const uniquePubkeys = [...new Set(events.map(e => e.pubkey).filter(Boolean))];
+            const missingPubkeys = uniquePubkeys.filter(pk => !profileCache[pk]);
+            if (missingPubkeys.length > 0 && allRelays && allRelays.length > 0) {
+                try {
+                    const pool = getPool();
+                    const profileEvents = await pool.list(allRelays.slice(0, 3), [{
+                        kinds: [0],
+                        authors: missingPubkeys,
+                        limit: missingPubkeys.length * 2
+                    }]);
+                    profileEvents.forEach(ev => {
+                        try {
+                            const profile = JSON.parse(ev.content);
+                            if (profile.picture) profile.picture = normalizeIpfsUrl(profile.picture);
+                            if (profile.banner) profile.banner = normalizeIpfsUrl(profile.banner);
+                            profileCache[ev.pubkey] = profile;
+                        } catch (e) {}
+                    });
+                } catch (e) {}
+            }
             for (const event of events) {
-                const profile = await getProfile(event.pubkey);
+                const profile = profileCache[event.pubkey] || null;
                 const avatarUrl = profile?.picture ? normalizeIpfsUrl(profile.picture) : defaultAvatar;
                 const name = profile?.display_name || profile?.name || event.pubkey.slice(0, 8);
                 const viaFriends = (mode === 'n2' && fofToFriends && fofToFriends[event.pubkey]) ? fofToFriends[event.pubkey] : [];
-                renderMessage(event, event.pubkey === publicKey, {
+                $chat.append(renderMessage(event, event.pubkey === publicKey, {
                     authorLabel: name,
                     authorAvatar: avatarUrl,
                     viaFriends: viaFriends,
                     showReplyButton: true
-                });
+                }));
             }
             // Load via-avatar images asynchronously (optional)
             $chat.find('.via-avatar').each(function() {
@@ -5284,7 +5369,7 @@
         function updateServiceCounts() {
             const counts = { all: allMessages.length, chat: 0, image: 0, video: 0, music: 0, search: 0, nature: 0, ia: 0 };
             allMessages.forEach(m => {
-                const tags = extractTags(m.content);
+                const tags = m._tags || extractTags(m.content);
                 const isFromSelf = m.pubkey === publicKey;
                 if (tags.includes('image')) { if (!isFromSelf) { counts.image++; counts.ia++; } }
                 else if (tags.includes('video')) { if (!isFromSelf) { counts.video++; counts.ia++; } }
@@ -5317,7 +5402,7 @@
                  } else {
                 const iaServices = ['image', 'video', 'music', 'search', 'nature'];
                 filteredMessages = withoutMuted.filter(m => {
-                    const tags = extractTags(m.content);
+                    const tags = m._tags || extractTags(m.content);
                     if (currentService === 'chat') {
                         return !tags.includes('image') && !tags.includes('video') &&
                                !tags.includes('music') && !tags.includes('search') && !tags.includes('nature');
@@ -5392,7 +5477,7 @@
             $chat.append(`<div class="msg-counter">${msgIndex + 1} / ${filteredMessages.length}</div>`);
 
             const msg = filteredMessages[msgIndex];
-            renderMessage(msg, msg.pubkey === publicKey);
+            $chat.append(renderMessage(msg, msg.pubkey === publicKey));
             fetchReplies(msg.id);
             updateNavButtons();
         }
@@ -5535,7 +5620,7 @@
             }
 
             $msg.append($('<div>').addClass('msg-time').text(new Date(event.created_at * 1000).toLocaleString()));
-            $('#chatArea').append($msg);
+            return $msg;
         }
         
         // Extract media URLs from event tags (imeta, url, thumb, image, etc.)
@@ -5600,7 +5685,7 @@
             try {
                 const replies = await p.list(allRelays, [{ kinds: [1], '#e': [eventId], limit: 10 }]);
                 replies.sort((a, b) => a.created_at - b.created_at);
-                replies.forEach(r => renderMessage(r, r.pubkey === publicKey));
+                replies.forEach(r => $('#chatArea').append(renderMessage(r, r.pubkey === publicKey)));
                 $('#chatArea').scrollTop($('#chatArea')[0].scrollHeight);
                 if (replies.length === 0) {
                     setTimeout(() => {
