@@ -775,7 +775,7 @@
             text-align: center;
         }
         .n-feed-body { flex: 1; min-width: 0; }
-        .n-feed-body .msg-content { word-break: break-word; margin-bottom: 4px; }
+        .n-feed-body .msg-content { word-break: break-word; margin-bottom: 4px; white-space: pre-line; }
         .n-feed-body .msg-content.markdown-content h1, .n-feed-body .msg-content.markdown-content h2, .n-feed-body .msg-content.markdown-content h3 { margin: 0.5em 0 0.25em; font-size: 1em; }
         .n-feed-body .msg-content.markdown-content pre { background: var(--bg-input); padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 0.8em; margin: 6px 0; }
         .n-feed-body .msg-content.markdown-content code { background: var(--bg-input); padding: 2px 4px; border-radius: 4px; font-size: 0.9em; }
@@ -5591,8 +5591,8 @@
             // Clean up trailing emojis (like 🎥 🔗)
             text = text.replace(/[🎥🔗📸🎵🎬🖼️]+\s*$/g, '');
             
-            // Clean up multiple spaces and trim
-            return text.replace(/\s+/g, ' ').trim();
+            // Collapse multiple spaces per line but preserve newlines (for pre-line display)
+            return text.split(/\n/).map(function(line) { return line.replace(/\s+/g, ' ').trim(); }).join('\n').trim();
         }
 
         async function fetchReplies(eventId) {
