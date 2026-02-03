@@ -4928,6 +4928,7 @@
         async function fetchMessages() {
             if (!publicKey) return;
             log('Fetching messages...');
+            if (typeof loadMuteList === 'function') await loadMuteList();
             const p = getPool();
             try {
                 const events = await p.list(allRelays, [{
@@ -4935,8 +4936,9 @@
                     authors: [publicKey],
                     limit: MESSAGES_PER_PAGE
                 }]);
-                allMessages = events.sort((a, b) => b.created_at - a.created_at);
-                log(`Got ${allMessages.length} messages`);
+                const muted = typeof getMutedPubkeys === 'function' ? getMutedPubkeys() : new Set();
+                allMessages = events.filter(e => !muted.has(e.pubkey)).sort((a, b) => b.created_at - a.created_at);
+                log(`Got ${allMessages.length} messages${muted.size ? ` (muted ${muted.size} authors)` : ''}`);
                 updateServiceCounts();
                 filterAndDisplayMessages();
             } catch (e) {
@@ -4990,13 +4992,15 @@
                     updateNFeedTabCount(mode, 0, peopleCount);
                     return;
                 }
+                await ensureMuteListLoaded();
                 const events = await p.list(allRelays, [{
                     kinds: [1],
                     authors: authors.slice(0, 100),
                     limit: 150
                 }]);
-                // Exclude self messages (only show messages from N/N² authors; optionally later: include self if reply to N/N²)
-                const filtered = events.filter(e => e.pubkey !== publicKey);
+                const muted = (typeof getMutedPubkeys === 'function' ? getMutedPubkeys() : null) || window.mutedPubkeys || new Set();
+                // Exclude self and muted authors
+                const filtered = events.filter(e => e.pubkey !== publicKey && !muted.has(e.pubkey));
                 filtered.sort((a, b) => b.created_at - a.created_at);
                 $chat.find('.n-feed-loading').remove();
                 renderNFeedView(filtered, mode, fofToFriends);
@@ -5114,11 +5118,13 @@
         }
 
         function filterAndDisplayMessages() {
+            const muted = typeof getMutedPubkeys === 'function' ? getMutedPubkeys() : new Set();
+            const withoutMuted = muted.size ? allMessages.filter(m => !muted.has(m.pubkey)) : allMessages;
             if (currentService === 'all') {
-                // Flux mode - all messages
-                filteredMessages = [...allMessages];
+                // Flux mode - all messages (already filtered by mute in allMessages; re-apply in case mute list refreshed)
+                filteredMessages = [...withoutMuted];
                  } else {
-                filteredMessages = allMessages.filter(m => {
+                filteredMessages = withoutMuted.filter(m => {
                     const tags = extractTags(m.content);
                     if (currentService === 'chat') {
                         return !tags.includes('image') && !tags.includes('video') && 
