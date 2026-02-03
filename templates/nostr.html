@@ -2535,7 +2535,7 @@
 <body class="d-flex flex-column min-vh-100">
     <!-- TOP BAR -->
     <div class="top-bar d-flex align-items-center flex-wrap" id="topBar">
-        <div class="logo" onclick="history.go(-1)">🤖 #BRO</div>
+        <div class="logo" onclick="location.reload()" title="Reload application">🤖 #BRO</div>
         <div class="status-dot offline" id="statusDot"></div>
         <div class="profile-mini" id="profileMini" style="cursor:pointer;" onclick="toggleDidPanel()">
             <img src="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1" id="profileImg">
@@ -2623,6 +2623,15 @@
     <!-- SERVICE TABS - 3 main tabs -->
     <div class="service-bar">
         <button class="svc-tab active" data-svc="flux">📋 Flux</button>
+        <span class="flux-tag-filter-wrap" id="fluxTagFilterWrap" style="display:none;">
+            <button type="button" class="flux-tag-btn active" data-flux-tag="all">Tous</button>
+            <button type="button" class="flux-tag-btn" data-flux-tag="chat">Chat</button>
+            <button type="button" class="flux-tag-btn" data-flux-tag="image">🖼️</button>
+            <button type="button" class="flux-tag-btn" data-flux-tag="video">🎬</button>
+            <button type="button" class="flux-tag-btn" data-flux-tag="music">🎵</button>
+            <button type="button" class="flux-tag-btn" data-flux-tag="search">🔍</button>
+            <button type="button" class="flux-tag-btn" data-flux-tag="nature">🌿</button>
+        </span>
         <button class="svc-tab" data-svc="n" title="Messages from friends">N</button>
         <button class="svc-tab" data-svc="n2" title="Messages from friends of friends">N²</button>
         <span class="n-feed-filter-wrap" id="nFeedFilterWrap" style="display:none;">
@@ -2631,16 +2640,6 @@
                 <option value="p2p">p2p</option>
             </select>
         </span>
-        <div class="svc-dropdown">
-            <button class="svc-tab" data-svc="ia" id="iaTab">🤖 IA <span class="dropdown-arrow">▼</span></button>
-            <div class="svc-dropdown-menu" id="iaMenu">
-                <button class="svc-sub" data-svc="image">🖼️ Image</button>
-                <button class="svc-sub" data-svc="video">🎬 Vidéo</button>
-                <button class="svc-sub" data-svc="music">🎵 Musique</button>
-                <button class="svc-sub" data-svc="search">🔍 Search</button>
-                <button class="svc-sub" data-svc="nature">🌿 Nature</button>
-                </div>
-                </div>
         <button class="svc-tab" data-svc="tube">📺 TUBE</button>
         <button class="svc-btn add-btn" id="btnAddVideo" title="Ajouter une vidéo">➕</button>
             </div>
@@ -2962,6 +2961,7 @@
         let theaterDisliked = false;
         let theaterBookmarked = false;
         let currentService = 'all';
+        let fluxTagFilter = 'all'; // all | chat | image | video | music | search | nature (Flux view only)
         let currentInputService = 'chat';
         let lastRenderedService = null;  // used to preserve scroll when re-rendering same view
         let pendingReplyTo = null;  // { eventId, authorPubkey, authorName } when replying to N/N² message
@@ -3045,6 +3045,8 @@
                 
                 // Handle Tube mode switching (Tube uses same .main-content area as Flux/N/N²)
                 if (svc === 'tube') {
+                    $('#nFeedFilterWrap').show();
+                    $('#nFeedFilterSelect').val(nFeedFilter);
                     $('.main-content').addClass('tube-mode').show();
                     $('#tubePanel').addClass('active');
                     $('.input-section').hide().removeClass('tube-input-visible');
@@ -3076,11 +3078,13 @@
                 $('#videoOpts').removeClass('visible');
             });
 
-            // N/N² filter (p21 vs p2p): on change, refresh current N or N² feed
+            // N/N² and Tube filter (p21 vs p2p): on change, refresh current feed
             $('#nFeedFilterSelect').on('change', function() {
                 nFeedFilter = $(this).val();
                 if (currentService === 'n' || currentService === 'n2') {
                     fetchNFeed(currentService);
+                } else if (currentService === 'tube') {
+                    loadTubeVideos();
                 }
             });
 
@@ -3322,6 +3326,7 @@
         let tubeVideos = [];
         let filteredTubeVideos = [];
         let friendsList = [];
+        let tubeEffectiveFriends = []; // friendsList or p2p-filtered (reciprocal) for Tube sidebar
         let selectedFriend = 'all';
         let tubeFilter = 'all';
         let profileCache = {};
@@ -3437,6 +3442,27 @@
 
                 // 3. Load friends list
                 await loadFriendsList();
+
+                // Apply p2p/p21 filter for Tube: effective list = friends (p21) or reciprocal only (p2p)
+                if (nFeedFilter === 'p2p' && friendsList.length > 0 && allRelays && allRelays.length > 0) {
+                    try {
+                        const contactEvents = await p.list(allRelays.slice(0, 3), [{
+                            kinds: [3],
+                            authors: friendsList,
+                            limit: friendsList.length * 2
+                        }]);
+                        const reciprocalSet = new Set();
+                        contactEvents.forEach(ev => {
+                            const hasMe = ev.tags && ev.tags.some(t => t[0] === 'p' && t[1] === publicKey);
+                            if (hasMe) reciprocalSet.add(ev.pubkey);
+                        });
+                        tubeEffectiveFriends = friendsList.filter(a => reciprocalSet.has(a));
+                    } catch (e) {
+                        tubeEffectiveFriends = [...friendsList];
+                    }
+                } else {
+                    tubeEffectiveFriends = [...(friendsList || [])];
+                }
 
                 // Sort by date
                 tubeVideos.sort((a, b) => b.created_at - a.created_at);
@@ -3639,8 +3665,9 @@
                 ` : ''}
             `);
 
-            // Only show friends who have published videos
-            const friendsWithVideos = friendsList.filter(pubkey => (videoCounts[pubkey] || 0) > 0);
+            // Only show (effective) friends who have published videos (p21 = all follows, p2p = reciprocal)
+            const effectiveList = tubeEffectiveFriends.length ? tubeEffectiveFriends : (friendsList || []);
+            const friendsWithVideos = effectiveList.filter(pubkey => (videoCounts[pubkey] || 0) > 0);
             
             for (const pubkey of friendsWithVideos.slice(0, 30)) { // Limit to 30
                 const profile = await getProfile(pubkey);
@@ -3656,7 +3683,7 @@
                 `);
             }
             
-            // Update friends count to show only those with videos
+            // Update friends count to show only those with videos (effective list)
             $('#friendsCount').text(friendsWithVideos.length);
         }
 
