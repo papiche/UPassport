@@ -12,7 +12,6 @@
     <link rel="stylesheet" href="/earth/bootstrap.min.css"/>
     <link rel="stylesheet" href="/earth/leaflet.css"/>
     <script src="/earth/leaflet.js"></script>
-    <script src="/earth/marked.min.js"></script>
     <!-- YouTube Enhancements for advanced Tube features -->
     <script src="/earth/youtube.enhancements.js" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -799,6 +798,7 @@
             transition: color 0.15s, border-color 0.15s;
         }
         .n-feed-reply-btn:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+        .n-feed-actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
         .reply-to-hint {
             display: none;
             align-items: center;
@@ -2268,6 +2268,70 @@
             border: none;
             background: var(--bg-void);
         }
+
+        /* Message viewer modal (nostr_message_viewer.html on IPFS gateway) */
+        .message-viewer-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+        }
+        .message-viewer-backdrop.active { display: flex; }
+        .message-viewer-modal {
+            width: 100%;
+            max-width: 900px;
+            height: 85vh;
+            max-height: 800px;
+            background: var(--bg-panel);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .message-viewer-modal .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .message-viewer-modal .modal-header .modal-title { font-size: 0.9rem; color: var(--accent-cyan); }
+        .message-viewer-modal .modal-close {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            line-height: 1;
+        }
+        .message-viewer-modal .modal-close:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+        .message-viewer-modal iframe {
+            flex: 1;
+            width: 100%;
+            border: none;
+            background: var(--bg-void);
+        }
+        .msg-view-btn {
+            padding: 2px 8px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-dim);
+            font-size: 0.7rem;
+            cursor: pointer;
+            margin-left: 4px;
+        }
+        .msg-view-btn:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+
         .profile-name-link {
             color: inherit;
             text-decoration: none;
@@ -2523,6 +2587,17 @@
                 <button type="button" class="modal-close" onclick="closeProfileViewerModal()">×</button>
             </div>
             <iframe id="profileViewerFrame" src="" frameborder="0" title="Nostr Profile Viewer"></iframe>
+        </div>
+    </div>
+
+    <!-- MESSAGE VIEWER MODAL (markdown / blog via earth/nostr_message_viewer.html) -->
+    <div class="message-viewer-backdrop" id="messageViewerBackdrop">
+        <div class="message-viewer-modal">
+            <div class="modal-header">
+                <span class="modal-title">📄 Message</span>
+                <button type="button" class="modal-close" onclick="closeMessageViewerModal()">×</button>
+            </div>
+            <iframe id="messageViewerFrame" src="" frameborder="0" title="Nostr Message Viewer"></iframe>
         </div>
     </div>
 
@@ -2962,7 +3037,7 @@
 
             // Lightbox
             $('#lightbox').on('click', e => { if (e.target.id === 'lightbox') closeLightbox(); });
-            $(document).on('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeTheater(); closeChatModal(); closeProfileViewerModal(); }});
+            $(document).on('keydown', e => { if (e.key === 'Escape') { closeLightbox(); closeTheater(); closeChatModal(); closeProfileViewerModal(); closeMessageViewerModal(); }});
             
             // Chat modal close on backdrop click
             $('#chatModalBackdrop').on('click', function(e) {
@@ -4018,6 +4093,21 @@
             $('#profileViewerFrame').attr('src', '');
         }
 
+        // Open message viewer in modal (earth/nostr_message_viewer.html on IPFS gateway)
+        function openMessageViewerModal(eventId) {
+            if (!eventId) return;
+            const gateway = getIpfsGateway();
+            const messageViewerPath = '/ipns/copylaradio.com/nostr_message_viewer.html';
+            const url = `${gateway}${messageViewerPath}?e=${encodeURIComponent(eventId)}&origin=${encodeURIComponent(eventId)}`;
+            $('#messageViewerFrame').attr('src', url);
+            $('#messageViewerBackdrop').addClass('active');
+        }
+
+        function closeMessageViewerModal() {
+            $('#messageViewerBackdrop').removeClass('active');
+            $('#messageViewerFrame').attr('src', '');
+        }
+
         // Get IPFS gateway URL - use common.js IPFS_GATEWAY if available
         function getIpfsGateway() {
             // Use common.js gateway if available
@@ -4886,14 +4976,17 @@
                     $body.append($via);
                 }
                 if (rawText) {
-                    const { html, isMarkdown } = renderMarkdownContent(rawText);
-                    const $content = $('<div>').addClass('msg-content').addClass(isMarkdown ? 'markdown-content' : '').html(html);
+                    const $content = $('<div>').addClass('msg-content').text(rawText.length > 300 ? rawText.slice(0, 300) + '…' : rawText);
                     $body.append($content);
                 }
                 $body.append($('<div>').addClass('msg-time').text(new Date(event.created_at * 1000).toLocaleString()));
+                const $actions = $('<div>').addClass('n-feed-actions');
+                const $viewBtn = $('<button type="button" class="msg-view-btn n-feed-reply-btn">📄 View</button>');
+                $viewBtn.on('click', function(e) { e.preventDefault(); e.stopPropagation(); openMessageViewerModal(event.id); });
                 const $replyBtn = $('<button type="button" class="n-feed-reply-btn">Reply</button>');
                 $replyBtn.on('click', function(e) { e.preventDefault(); e.stopPropagation(); setReplyTo(event.id, event.pubkey, name); });
-                $body.append($replyBtn);
+                $actions.append($viewBtn).append($replyBtn);
+                $body.append($actions);
                 $card.append($body);
                 $chat.append($card);
             }
@@ -5052,6 +5145,12 @@
             const $copyBtn = $('<button type="button" class="msg-copy-btn" title="Copy to draft">📋</button>');
             $copyBtn.on('click', function(e) { e.stopPropagation(); copyMessageToDraft($msg); });
             $header.append($copyBtn);
+            // View button: open message in nostr_message_viewer modal (markdown/blog rendering)
+            if (event.id) {
+                const $viewBtn = $('<button type="button" class="msg-view-btn" title="View in message viewer">📄</button>');
+                $viewBtn.on('click', function(e) { e.stopPropagation(); openMessageViewerModal(event.id); });
+                $header.append($viewBtn);
+            }
             // Delete button: show for any message authored by current user (including BRO replies signed with user identity)
             if (event.pubkey === publicKey && event.id) {
                 const $delBtn = $('<button type="button" class="msg-delete-btn" title="Delete (kind 5)">🗑</button>').attr('data-event-id', event.id);
