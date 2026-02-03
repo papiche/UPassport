@@ -4098,7 +4098,7 @@
             if (!eventId) return;
             const gateway = getIpfsGateway();
             const messageViewerPath = '/ipns/copylaradio.com/nostr_message_viewer.html';
-            const url = `${gateway}${messageViewerPath}?event=${encodeURIComponent(eventId)}`;
+            const url = `${gateway}${messageViewerPath}?id=${encodeURIComponent(eventId)}`;
             $('#messageViewerFrame').attr('src', url);
             $('#messageViewerBackdrop').addClass('active');
         }
