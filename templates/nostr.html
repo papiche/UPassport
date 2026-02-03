@@ -5624,18 +5624,10 @@
             if (fluxTagFilter === 'all') {
                 filteredMessages = [...withoutMuted];
             } else {
-                const iaServices = ['image', 'video', 'music', 'search', 'nature'];
+                const tagLower = (fluxTagFilter + '').toLowerCase();
                 filteredMessages = withoutMuted.filter(m => {
                     const tags = m._tags || extractTags(m.content);
-                    if (fluxTagFilter === 'chat') {
-                        return !tags.includes('image') && !tags.includes('video') &&
-                               !tags.includes('music') && !tags.includes('search') && !tags.includes('nature');
-                    }
-                    if (iaServices.includes(fluxTagFilter)) {
-                        if (m.pubkey === publicKey) return false;
-                        return tags.includes(fluxTagFilter);
-                    }
-                    return tags.includes(fluxTagFilter);
+                    return tags.some(t => (t + '').toLowerCase() === tagLower);
                 });
             }
             msgIndex = 0;
@@ -5658,11 +5650,13 @@
                 });
             });
             const tags = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]);
+            const currentFilterLower = (fluxTagFilter + '').toLowerCase();
             let html = '<span class="tag-cloud-label">Tags:</span> <button type="button" class="tag-cloud-pill' + (fluxTagFilter === 'all' ? ' active' : '') + '" data-flux-tag="all">Tous</button>';
             tags.forEach(t => {
                 const tagClass = getTagClass(t);
                 const safeTag = (t + '').replace(/"/g, '&quot;');
-                html += '<button type="button" class="tag-cloud-pill tag-' + tagClass + (fluxTagFilter === t ? ' active' : '') + '" data-flux-tag="' + safeTag + '">#' + $('<div>').text(t).html() + '</button>';
+                const isActive = (t + '').toLowerCase() === currentFilterLower;
+                html += '<button type="button" class="tag-cloud-pill tag-' + tagClass + (isActive ? ' active' : '') + '" data-flux-tag="' + safeTag + '">#' + $('<div>').text(t).html() + '</button>';
             });
             $cloud.html(html);
             $cloud.find('.tag-cloud-pill').on('click', function() {
