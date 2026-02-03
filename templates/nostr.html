@@ -53,6 +53,8 @@
             .btn-connect { padding: 4px 10px; font-size: 0.75rem; }
             .service-bar { padding: 4px 6px; gap: 4px; flex-wrap: wrap; }
             .svc-tab { padding: 6px 10px; font-size: 0.8rem; }
+            .flux-tag-filter-wrap { max-width: 100%; min-width: 0; }
+            .flux-tag-btn { padding: 2px 4px; font-size: 0.6rem; }
             .main-content .chat-wrapper { margin-left: 36px; margin-right: 36px; }
             .main-content.flux-mode .chat-wrapper { margin-left: 6px; margin-right: 6px; }
             .nav-arrow { width: 32px; height: 60px; font-size: 1.2rem; }
@@ -655,6 +657,40 @@
         }
         .n-feed-filter-select:hover {
             border-color: var(--accent-cyan);
+        }
+
+        /* Flux tag filter bar - visible when Flux tab active, compact and wrap on small screens */
+        .flux-tag-filter-wrap {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 2px;
+            max-width: 100%;
+        }
+        .flux-tag-btn {
+            padding: 3px 6px;
+            font-size: 0.65rem;
+            font-family: inherit;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-dim);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .flux-tag-btn:hover {
+            border-color: var(--accent-cyan);
+            color: var(--text-primary);
+        }
+        .flux-tag-btn.active {
+            background: rgba(0, 212, 255, 0.15);
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+        .flux-tag-btn .flux-tag-count {
+            margin-left: 2px;
+            font-size: 0.6rem;
+            opacity: 0.8;
         }
 
         /* === MAIN CONTENT WITH NAV ARROWS === */
@@ -2644,7 +2680,7 @@
         <button class="svc-btn add-btn" id="btnAddVideo" title="Ajouter une vidéo">➕</button>
             </div>
 
-    <!-- MAIN CONTENT WITH SIDE ARROWS (Flux/N/N²/IA and Tube share this same area) -->
+    <!-- MAIN CONTENT WITH SIDE ARROWS (Flux/N/N² and Tube share this same area) -->
     <div class="main-content flex-grow-1 d-flex overflow-hidden" id="mainContent">
         <button class="nav-arrow left" id="btnPrev" disabled>◀</button>
         
@@ -3018,6 +3054,7 @@
             checkExtension();
             getLocation();
             setupEvents();
+            if (currentService === 'all') $('#fluxTagFilterWrap').show();
         }
 
         function setupEvents() {
@@ -3026,25 +3063,12 @@
             // Main tabs click handler
             $('.svc-tab').on('click', function(e) {
                 const svc = $(this).data('svc');
-                
-                // Handle IA dropdown toggle
-                if (svc === 'ia') {
-                    e.stopPropagation();
-                    $('.svc-dropdown').toggleClass('open');
-                return;
-            }
-
-                // Close dropdown when clicking other tabs
-                $('.svc-dropdown').removeClass('open');
-                
-                // Update active state
                 currentService = svc === 'flux' ? 'all' : svc;
                 $('.svc-tab').removeClass('active');
-                $('.svc-sub').removeClass('active');
                 $(this).addClass('active');
-                
-                // Handle Tube mode switching (Tube uses same .main-content area as Flux/N/N²)
+
                 if (svc === 'tube') {
+                    $('#fluxTagFilterWrap').hide();
                     $('#nFeedFilterWrap').show();
                     $('#nFeedFilterSelect').val(nFeedFilter);
                     $('.main-content').addClass('tube-mode').show();
@@ -3054,6 +3078,7 @@
                     $('#tubeInputToggle').removeClass('collapsed');
                     loadTubeVideos();
                 } else if (svc === 'n' || svc === 'n2') {
+                    $('#fluxTagFilterWrap').hide();
                     $('#nFeedFilterWrap').show();
                     $('#nFeedFilterSelect').val(nFeedFilter);
                     $('#tubePanel').removeClass('active');
@@ -3065,17 +3090,25 @@
                     fetchNFeed(svc);
                     updateInputHint('chat');
                 } else {
+                    // Flux
                     $('#nFeedFilterWrap').hide();
+                    $('#fluxTagFilterWrap').show();
                     $('#tubePanel').removeClass('active');
-                    $('.main-content').removeClass('tube-mode').show();
+                    $('.main-content').removeClass('tube-mode').show().addClass('flux-mode');
                     $('body').removeClass('tube-mode');
                     $('#inputSection').removeClass('tube-input-visible');
                     $('#tubeInputToggle').addClass('collapsed');
                     $('.input-section').show();
+                    currentInputService = fluxTagFilter === 'all' ? 'chat' : fluxTagFilter;
                     filterAndDisplayMessages();
-                    updateInputHint('chat');
+                    updateInputHint(fluxTagFilter === 'all' ? 'chat' : fluxTagFilter);
+                    if (fluxTagFilter === 'video') {
+                        $('#videoOpts').addClass('visible');
+                        updateVideoAccessWarnings();
+                    } else {
+                        $('#videoOpts').removeClass('visible');
+                    }
                 }
-                $('#videoOpts').removeClass('visible');
             });
 
             // N/N² and Tube filter (p21 vs p2p): on change, refresh current feed
@@ -3088,44 +3121,21 @@
                 }
             });
 
-            // IA submenu click handler
-            $('.svc-sub').on('click', function(e) {
-                e.stopPropagation();
-                const svc = $(this).data('svc');
-                currentService = svc;
-                currentInputService = svc;
-                
-                // Update active states
-                $('.svc-tab').removeClass('active');
-                $('#iaTab').addClass('active');
-                $('.svc-sub').removeClass('active');
+            // Flux tag filter buttons: filter Flux feed by tag
+            $(document).on('click', '.flux-tag-btn', function() {
+                const tag = $(this).data('flux-tag');
+                fluxTagFilter = tag;
+                currentInputService = tag === 'all' ? 'chat' : tag;
+                $('.flux-tag-btn').removeClass('active');
                 $(this).addClass('active');
-                
-                // Close dropdown
-                $('.svc-dropdown').removeClass('open');
-                
-                // Show main content (leave Tube mode)
-                $('#tubePanel').removeClass('active');
-                $('.main-content').removeClass('tube-mode').show();
-                $('body').removeClass('tube-mode');
-                $('#inputSection').removeClass('tube-input-visible');
-                $('#tubeInputToggle').addClass('collapsed');
-                $('.input-section').show();
                 filterAndDisplayMessages();
-                updateInputHint(svc);
-                
-                // Show video options if video service
-                if (svc === 'video') {
+                updateInputHint(tag === 'all' ? 'chat' : tag);
+                if (tag === 'video') {
                     $('#videoOpts').addClass('visible');
                     updateVideoAccessWarnings();
                 } else {
                     $('#videoOpts').removeClass('visible');
                 }
-            });
-
-            // Close dropdown when clicking outside
-            $(document).on('click', function() {
-                $('.svc-dropdown').removeClass('open');
             });
 
             // Add video button - opens webcam page
@@ -5406,53 +5416,49 @@
                 else counts.chat++;
             });
             
-            // Update badges on main tabs
+            // Update badge on Flux tab
             $('.svc-tab[data-svc="flux"]').attr('data-count', counts.all || '');
-            $('.svc-tab[data-svc="ia"]').attr('data-count', counts.ia || '');
-            
-            // Update badges on IA submenu
-            Object.keys(counts).forEach(svc => {
-                const btn = $(`.svc-sub[data-svc="${svc}"]`);
-                btn.find('.svc-count').remove();
-                if (counts[svc] > 0) {
-                    btn.append(`<span class="svc-count">${counts[svc]}</span>`);
+
+            // Update badges on Flux tag filter buttons
+            const fluxTagKeys = ['all', 'chat', 'image', 'video', 'music', 'search', 'nature'];
+            fluxTagKeys.forEach(key => {
+                const btn = $(`.flux-tag-btn[data-flux-tag="${key}"]`);
+                btn.find('.flux-tag-count').remove();
+                const n = counts[key] != null ? counts[key] : 0;
+                if (n > 0) {
+                    btn.append(`<span class="flux-tag-count">${n}</span>`);
                 }
             });
         }
 
         function filterAndDisplayMessages() {
+            if (currentService !== 'all') {
+                return; // N, N², Tube: do not update main chat area (they have their own feed)
+            }
             const muted = typeof getMutedPubkeys === 'function' ? getMutedPubkeys() : new Set();
             const withoutMuted = muted.size ? allMessages.filter(m => !muted.has(m.pubkey)) : allMessages;
-            if (currentService === 'all') {
-                // Flux mode - all messages (already filtered by mute in allMessages; re-apply in case mute list refreshed)
+            // Flux mode: filter by fluxTagFilter (all | chat | image | video | music | search | nature)
+            if (fluxTagFilter === 'all') {
                 filteredMessages = [...withoutMuted];
-                 } else {
+            } else {
                 const iaServices = ['image', 'video', 'music', 'search', 'nature'];
                 filteredMessages = withoutMuted.filter(m => {
                     const tags = m._tags || extractTags(m.content);
-                    if (currentService === 'chat') {
+                    if (fluxTagFilter === 'chat') {
                         return !tags.includes('image') && !tags.includes('video') &&
                                !tags.includes('music') && !tags.includes('search') && !tags.includes('nature');
                     }
-                    // IA tab: only show messages tagged by UPlanet_IA_Responder (exclude "Vous" / self)
-                    if (iaServices.includes(currentService)) {
+                    if (iaServices.includes(fluxTagFilter)) {
                         if (m.pubkey === publicKey) return false;
-                        return tags.includes(currentService);
+                        return tags.includes(fluxTagFilter);
                     }
-                    return tags.includes(currentService);
+                    return tags.includes(fluxTagFilter);
                 });
             }
             msgIndex = 0;
-            
-            // Toggle flux mode UI (scroll to top only when switching into flux, not on refresh)
             const scrollToTop = (lastRenderedService !== currentService);
-            if (currentService === 'all') {
-                $('.main-content').addClass('flux-mode');
-                renderFluxFeed(scrollToTop);
-            } else {
-                $('.main-content').removeClass('flux-mode');
-                renderCurrentMessage();
-            }
+            $('.main-content').addClass('flux-mode');
+            renderFluxFeed(scrollToTop);
             lastRenderedService = currentService;
         }
 
