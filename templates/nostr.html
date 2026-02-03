@@ -1052,6 +1052,94 @@
             margin-top: 6px;
         }
 
+        .bro-commands-help {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+        .bro-commands-help summary {
+            cursor: pointer;
+            color: var(--accent-cyan);
+        }
+        .bro-commands-help ul {
+            margin: 4px 0 0 12px;
+            padding-left: 8px;
+        }
+        .bro-commands-help li {
+            margin: 2px 0;
+        }
+        .bro-commands-help code {
+            background: var(--bg-hover);
+            padding: 1px 4px;
+            border-radius: 4px;
+            color: var(--accent-green);
+        }
+
+        /* BRO radial menu (long-press) */
+        .bro-radial-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(10, 10, 15, 0.85);
+            align-items: center;
+            justify-content: center;
+        }
+        .bro-radial-overlay.visible {
+            display: flex;
+        }
+        .bro-radial-circle {
+            position: relative;
+            width: 200px;
+            height: 200px;
+        }
+        .bro-radial-center {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 52px;
+            height: 52px;
+            margin-left: -26px;
+            margin-top: -26px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+        .bro-radial-item {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 56px;
+            height: 56px;
+            margin-left: -28px;
+            margin-top: -28px;
+            border-radius: 50%;
+            background: var(--bg-panel);
+            border: 2px solid var(--accent-cyan);
+            color: var(--accent-green);
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.15s, background 0.15s;
+        }
+        .bro-radial-item:hover {
+            background: var(--accent-cyan);
+            color: var(--bg-void);
+            transform: scale(1.1);
+        }
+        .bro-radial-item:nth-child(2) { transform: translate(0, -82px); }
+        .bro-radial-item:nth-child(3) { transform: translate(-71px, 41px); }
+        .bro-radial-item:nth-child(4) { transform: translate(71px, 41px); }
+        .bro-radial-item:nth-child(2):hover { transform: translate(0, -82px) scale(1.1); }
+        .bro-radial-item:nth-child(3):hover { transform: translate(-71px, 41px) scale(1.1); }
+        .bro-radial-item:nth-child(4):hover { transform: translate(71px, 41px) scale(1.1); }
+
         .loading {
             display: none;
             align-items: center;
@@ -2210,12 +2298,30 @@
             <button class="remove" onclick="clearImage()">×</button>
             </div>
 
-        <div class="input-row">
+        <div class="input-row" id="inputRowBroZone">
             <textarea id="messageInput" placeholder="Tapez votre message..." rows="2"></textarea>
             <button class="btn-send" id="btnSend" disabled>ENVOYER</button>
         </div>
 
+        <!-- BRO radial menu (long-press on input) -->
+        <div class="bro-radial-overlay" id="broRadialOverlay">
+            <div class="bro-radial-circle">
+                <div class="bro-radial-center" title="BRO commands">BRO</div>
+                <button type="button" class="bro-radial-item" data-tag="#url" title="Include link content">#url</button>
+                <button type="button" class="bro-radial-item" data-tag="#status" title="Services status">#status</button>
+                <button type="button" class="bro-radial-item" data-tag="#whoami" title="Your pubkey &amp; KNAME">#whoami</button>
+            </div>
+        </div>
+
         <div class="hint" id="serviceHint">💬 Posez une question ou discutez avec votre IA</div>
+        <details class="bro-commands-help" id="broCommandsHelp">
+            <summary>BRO commands</summary>
+            <ul>
+                <li><code>#url</code> — Include link content in context (paste a URL in your message)</li>
+                <li><code>#status</code> — Check services status (Ollama, ComfyUI, Perplexica, Orpheus)</li>
+                <li><code>#whoami</code> — Your pubkey and KNAME</li>
+            </ul>
+        </details>
 
         <div class="loading" id="loadingBar">
             <div class="spinner"></div>
@@ -2281,6 +2387,7 @@
         let theaterBookmarked = false;
         let currentService = 'all';
         let currentInputService = 'chat';
+        let lastRenderedService = null;  // used to preserve scroll when re-rendering same view
         let videoMode = 't2v';
         let isConversation = true;
         let locationEnabled = true;
@@ -2486,6 +2593,77 @@
                 this.style.height = 'auto';
                 this.style.height = Math.min(this.scrollHeight, 150) + 'px';
             });
+
+            // BRO radial menu: long-press on input to show, select tag to insert
+            (function() {
+                const BRO_LONG_PRESS_MS = 500;
+                let broLongPressTimer = null;
+
+                function showBroRadial() {
+                    if (!isConversation) return;
+                    $('#broRadialOverlay').addClass('visible');
+                }
+                function hideBroRadial() {
+                    $('#broRadialOverlay').removeClass('visible');
+                }
+                function insertBroTag(tag) {
+                    const el = document.getElementById('messageInput');
+                    const start = el.selectionStart, end = el.selectionEnd;
+                    const text = el.value;
+                    const insert = (text && start > 0 && !/^\s/.test(text.slice(start - 1)) && !/^\s/.test(tag)) ? ' ' + tag : tag;
+                    el.value = text.slice(0, start) + insert + text.slice(end);
+                    el.selectionStart = el.selectionEnd = start + insert.length;
+                    el.focus();
+                }
+
+                function clearBroTimer() {
+                    if (broLongPressTimer) {
+                        clearTimeout(broLongPressTimer);
+                        broLongPressTimer = null;
+                    }
+                }
+
+                $('#messageInput').on('mousedown touchstart', function(e) {
+                    if (!isConversation) return;
+                    clearBroTimer();
+                    broLongPressTimer = setTimeout(function() {
+                        broLongPressTimer = null;
+                        e.preventDefault();
+                        showBroRadial();
+                    }, BRO_LONG_PRESS_MS);
+                });
+                $('#messageInput').on('mouseup mouseleave touchend touchcancel', function() {
+                    clearBroTimer();
+                });
+
+                $('#inputRowBroZone').on('mousedown touchstart', function(e) {
+                    if (!isConversation || $(e.target).closest('#messageInput').length || $(e.target).closest('.btn-send').length) return;
+                    clearBroTimer();
+                    broLongPressTimer = setTimeout(function() {
+                        broLongPressTimer = null;
+                        e.preventDefault();
+                        showBroRadial();
+                    }, BRO_LONG_PRESS_MS);
+                });
+                $('#inputRowBroZone').on('mouseup mouseleave touchend touchcancel', function() {
+                    clearBroTimer();
+                });
+
+                $('#broRadialOverlay').on('click', function(e) {
+                    if (e.target.id === 'broRadialOverlay') hideBroRadial();
+                });
+                $('.bro-radial-item').on('click', function(e) {
+                    e.stopPropagation();
+                    const tag = $(this).data('tag');
+                    if (tag) insertBroTag(tag);
+                    hideBroRadial();
+                });
+                $(document).on('keydown', function(e) {
+                    if (e.key === 'Escape' && $('#broRadialOverlay').hasClass('visible')) {
+                        hideBroRadial();
+                    }
+                });
+            })();
 
             // Lightbox
             $('#lightbox').on('click', e => { if (e.target.id === 'lightbox') closeLightbox(); });
@@ -4303,19 +4481,27 @@
             }
             msgIndex = 0;
             
-            // Toggle flux mode UI
+            // Toggle flux mode UI (scroll to top only when switching into flux, not on refresh)
+            const scrollToTop = (lastRenderedService !== currentService);
             if (currentService === 'all') {
                 $('.main-content').addClass('flux-mode');
-                renderFluxFeed();
+                renderFluxFeed(scrollToTop);
             } else {
                 $('.main-content').removeClass('flux-mode');
                 renderCurrentMessage();
             }
+            lastRenderedService = currentService;
         }
 
         // Render all messages as vertical infinite scroll feed
-        function renderFluxFeed() {
-            const $chat = $('#chatArea').empty();
+        function renderFluxFeed(scrollToTop) {
+            const $chat = $('#chatArea');
+            const el = $chat[0];
+            const wasFlux = (lastRenderedService === 'all');
+            const savedScrollTop = (wasFlux && el) ? el.scrollTop : 0;
+            const savedScrollHeight = (wasFlux && el) ? el.scrollHeight : 0;
+
+            $chat.empty();
             $('#emptyState').addClass('hidden');
 
             if (filteredMessages.length === 0) {
@@ -4324,14 +4510,20 @@
                 return;
             }
 
-            // Render all messages vertically
-            filteredMessages.forEach((msg, idx) => {
-                const rendered = renderMessage(msg, idx);
+            // Render all messages vertically (isUser = author is current user)
+            filteredMessages.forEach((msg) => {
+                const rendered = renderMessage(msg, msg.pubkey === publicKey);
                 $chat.append(rendered);
             });
 
-            // Scroll to top
-            $chat.scrollTop(0);
+            // Restore scroll: top when switching into flux, else preserve position
+            if (scrollToTop !== false) {
+                $chat.scrollTop(0);
+            } else if (el && savedScrollHeight > 0) {
+                const newHeight = el.scrollHeight;
+                const maxScroll = Math.max(0, newHeight - el.clientHeight);
+                $chat.scrollTop(Math.min(savedScrollTop, maxScroll));
+            }
             updateNavButtons();
         }
 
@@ -4349,7 +4541,7 @@
             $chat.append(`<div class="msg-counter">${msgIndex + 1} / ${filteredMessages.length}</div>`);
 
             const msg = filteredMessages[msgIndex];
-            renderMessage(msg, true);
+            renderMessage(msg, msg.pubkey === publicKey);
             fetchReplies(msg.id);
             updateNavButtons();
         }
@@ -4501,7 +4693,7 @@
             try {
                 const replies = await p.list(allRelays, [{ kinds: [1], '#e': [eventId], limit: 10 }]);
                 replies.sort((a, b) => a.created_at - b.created_at);
-                replies.forEach(r => renderMessage(r, false));
+                replies.forEach(r => renderMessage(r, r.pubkey === publicKey));
                 $('#chatArea').scrollTop($('#chatArea')[0].scrollHeight);
                 if (replies.length === 0) {
                     setTimeout(() => {
@@ -4629,7 +4821,7 @@
                 }
             } else {
                 const hints = {
-                    chat: '💬 Posez une question à votre IA',
+                    chat: '💬 Ask your IA • #url links • #status #whoami',
                     image: '🖼️ Décrivez l\'image à générer',
                     music: '🎵 Style: "jazz piano 80bpm"',
                     search: '🔍 Recherche web',
@@ -4638,6 +4830,8 @@
                 hint = hints[svc] || hints.chat;
             }
             $('#serviceHint').text(hint);
+            // Show BRO commands help only in chat/conversation mode
+            $('#broCommandsHelp').toggle(svc === 'chat' || !svc);
         }
 
         function setMode(conversation) {
