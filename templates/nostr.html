@@ -1024,6 +1024,7 @@
 
         /* === INPUT SECTION (below chat) === */
         .input-section {
+            position: relative;
             background: var(--bg-panel);
             border-top: 1px solid var(--border);
             padding: 10px;
@@ -1455,12 +1456,61 @@
         /* === TUBE MODE === */
         .tube-panel {
             display: none;
-            flex: 1;
-                flex-direction: column;
+            flex: 1 1 0%;
+            flex-direction: column;
+            min-height: 0;
             overflow: hidden;
         }
 
-        .tube-panel.active { display: flex; }
+        .tube-panel.active {
+            display: flex;
+        }
+
+        /* When Tube is active, input can be toggled; floating button to expand input */
+        .tube-input-toggle {
+            position: fixed;
+            bottom: 12px;
+            right: 12px;
+            z-index: 100;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+            color: var(--bg-void);
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+            transition: transform 0.2s, background 0.2s;
+        }
+        .tube-panel.active ~ .input-section ~ .tube-input-toggle,
+        .tube-panel.active ~ .tube-input-toggle { display: flex; }
+        .tube-input-toggle:hover { background: var(--accent-cyan); filter: brightness(1.1); transform: scale(1.05); }
+        .tube-input-toggle.collapsed { display: none !important; }
+        body.tube-mode .tube-input-toggle:not(.collapsed) { display: flex !important; }
+        /* When input is visible in Tube mode, show collapse icon on input section */
+        .input-section.tube-input-visible .input-collapse-btn { display: flex !important; }
+        .input-section .input-collapse-btn {
+            display: none;
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 32px;
+            height: 32px;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-dim);
+            cursor: pointer;
+            z-index: 5;
+            font-size: 1rem;
+        }
+        .input-collapse-btn:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
 
         .tube-header {
             display: flex;
@@ -2508,6 +2558,7 @@
                 </div>
             </div>
         </div>
+        <button type="button" class="tube-input-toggle collapsed" id="tubeInputToggle" title="Show message input">💬</button>
     </div>
 
     <!-- THEATER MODAL FOR TUBE -->
@@ -2603,6 +2654,7 @@
 
     <!-- INPUT SECTION -->
     <div class="input-section" id="inputSection">
+        <button type="button" class="input-collapse-btn" id="inputCollapseBtn" title="Collapse message input (replier)">▼</button>
         <button type="button" class="input-fullscreen-close d-none" id="inputFullscreenClose" title="Exit fullscreen">✕</button>
         <div class="input-options">
             <button class="opt-btn active" id="btnConversation" title="BRO répond en votre nom (éphémère 1h)">💬 </button>
@@ -2815,16 +2867,24 @@
                 if (svc === 'tube') {
                     $('.main-content').hide();
                     $('#tubePanel').addClass('active');
-                    $('.input-section').hide();
+                    $('.input-section').hide().removeClass('tube-input-visible');
+                    $('body').addClass('tube-mode');
+                    $('#tubeInputToggle').removeClass('collapsed');
                     loadTubeVideos();
                 } else if (svc === 'n' || svc === 'n2') {
                     $('#tubePanel').removeClass('active');
+                    $('body').removeClass('tube-mode');
+                    $('#inputSection').removeClass('tube-input-visible');
+                    $('#tubeInputToggle').addClass('collapsed');
                     $('.main-content').show().addClass('flux-mode');
                     $('.input-section').show();
                     fetchNFeed(svc);
                     updateInputHint('chat');
                 } else {
                     $('#tubePanel').removeClass('active');
+                    $('body').removeClass('tube-mode');
+                    $('#inputSection').removeClass('tube-input-visible');
+                    $('#tubeInputToggle').addClass('collapsed');
                     $('.main-content').show();
                     $('.input-section').show();
                     filterAndDisplayMessages();
@@ -2849,8 +2909,11 @@
                 // Close dropdown
                 $('.svc-dropdown').removeClass('open');
                 
-                // Show main content
+                // Show main content (leave Tube mode)
                 $('#tubePanel').removeClass('active');
+                $('body').removeClass('tube-mode');
+                $('#inputSection').removeClass('tube-input-visible');
+                $('#tubeInputToggle').addClass('collapsed');
                 $('.main-content').show();
                 $('.input-section').show();
                 filterAndDisplayMessages();
@@ -3084,6 +3147,20 @@
             // Theater close
             $('#theaterBackdrop').on('click', function(e) {
                 if (e.target.id === 'theaterBackdrop') closeTheater();
+            });
+
+            // Tube mode: show message input (floating button)
+            $('#tubeInputToggle').on('click', function() {
+                $('.input-section').show();
+                $('#inputSection').addClass('tube-input-visible');
+                $('#tubeInputToggle').addClass('collapsed');
+            });
+
+            // Tube mode: collapse message input (replier)
+            $('#inputCollapseBtn').on('click', function() {
+                $('#inputSection').removeClass('tube-input-visible');
+                $('.input-section').hide();
+                $('#tubeInputToggle').removeClass('collapsed');
             });
         }
 
@@ -4882,6 +4959,7 @@
                 if (!friendsList || friendsList.length === 0) {
                     await loadFriendsList();
                 }
+                const friendsCount = (friendsList || []).length;
                 const p = getPool();
                 let authors = [];
                 let fofToFriends = {}; // N²: map FoF pubkey -> array of friend pubkeys who follow them
@@ -4905,10 +4983,11 @@
                     }
                     authors = [...fof];
                 }
+                const peopleCount = mode === 'n' ? friendsCount : authors.length;
                 if (authors.length === 0) {
                     $chat.empty().append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">' +
                         (mode === 'n' ? 'No friends yet. Follow people to see their messages here.' : 'No friends of friends to show.') + '</div>');
-                    updateNFeedTabCount(mode, 0);
+                    updateNFeedTabCount(mode, 0, peopleCount);
                     return;
                 }
                 const events = await p.list(allRelays, [{
