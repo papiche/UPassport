@@ -3759,9 +3759,9 @@
 
             // Only show (effective) friends who have published videos (p21 = all follows, p2p = reciprocal)
             const effectiveList = tubeEffectiveFriends.length ? tubeEffectiveFriends : (friendsList || []);
-            const friendsWithVideos = effectiveList.filter(pubkey => (videoCounts[pubkey] || 0) > 0);
+            const friendsWithVideos = effectiveList.filter(pubkey => pubkey !== publicKey && (videoCounts[pubkey] || 0) > 0);
             
-            for (const pubkey of friendsWithVideos.slice(0, 30)) { // Limit to 30
+            for (const pubkey of friendsWithVideos.slice(0, 30)) { // Limit to 30 (exclude self, already shown as "Moi")
                 const profile = await getProfile(pubkey);
                 const count = videoCounts[pubkey];
                 
