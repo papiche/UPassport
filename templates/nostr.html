@@ -739,6 +739,37 @@
             font-size: 0.65rem;
             color: var(--text-dim);
         }
+        /* Mute list (NIP-51) */
+        .mute-list-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: var(--bg-panel);
+            border-radius: 10px;
+            border-left: 3px solid var(--accent-orange);
+            margin-bottom: 8px;
+        }
+        .mute-list-card .mute-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid var(--border);
+        }
+        .mute-list-card .mute-info { flex: 1; min-width: 0; }
+        .mute-list-card .mute-name { font-size: 0.9rem; color: var(--text-primary); }
+        .mute-list-card .mute-pubkey { font-size: 0.7rem; color: var(--text-dim); }
+        .mute-list-card .mute-unmute-btn {
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            background: var(--bg-input);
+            border: 1px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .mute-list-card .mute-unmute-btn:hover { background: rgba(0, 212, 255, 0.15); }
         .blog-article-title {
             font-size: 0.95rem;
             margin: 0 0 6px 0;
@@ -2779,12 +2810,14 @@
         <button class="svc-tab" data-svc="n2" title="Messages from friends of friends">N²</button>
         <button class="svc-tab" data-svc="blog" title="Long-form articles (kind 30023)">📝 Blog</button>
         <span class="n-feed-filter-wrap" id="nFeedFilterWrap" style="display:none;">
-            <select id="nFeedFilterSelect" class="n-feed-filter-select" title="N/N² filter: unidirectional (p21) or reciprocal (p2p)">
+            <select id="nFeedFilterSelect" class="n-feed-filter-select" title="N/Blog: p21=following, p2p=mutual, 12p=followers we don't follow">
                 <option value="p21">p21</option>
                 <option value="p2p">p2p</option>
+                <option value="12p">12p</option>
             </select>
         </span>
         <button class="svc-tab" data-svc="tube">📺 TUBE</button>
+        <button class="svc-tab" data-svc="mutes" title="Mute list (NIP-51)">🔇 Mutes</button>
         <button class="svc-btn add-btn" id="btnAddVideo" title="Ajouter une vidéo">➕</button>
             </div>
 
@@ -3237,6 +3270,16 @@
                     $('.input-section').show();
                     fetchBlogFeed();
                     updateInputHint('chat');
+                } else if (svc === 'mutes') {
+                    $('#fluxTagCloud').hide();
+                    $('#nFeedFilterWrap').hide();
+                    $('#tubePanel').removeClass('active');
+                    $('.main-content').removeClass('tube-mode').show().addClass('flux-mode');
+                    $('body').removeClass('tube-mode');
+                    $('#inputSection').removeClass('tube-input-visible');
+                    $('#tubeInputToggle').addClass('collapsed');
+                    $('.input-section').show();
+                    fetchMuteListView();
                 } else {
                     // Flux: tag cloud below list, no N/Blog filter bar
                     switchToFluxLikeView(true, false);
@@ -3482,7 +3525,7 @@
         let selectedFriend = 'all';
         let tubeFilter = 'all';
         let profileCache = {};
-        let nFeedFilter = 'p21'; // p21 = unidirectional, p2p = reciprocal follows
+        let nFeedFilter = 'p21'; // p21 = we follow, p2p = mutual, 12p = they follow us (we don't follow them)
         let feedTagFilter = 'all'; // tag filter for N, N², Blog views
         let nFeedEvents = [];
         let blogEvents = [];
@@ -3600,8 +3643,10 @@
                 // 3. Load friends list
                 await loadFriendsList();
 
-                // Apply p2p/p21 filter for Tube: effective list = friends (p21) or reciprocal only (p2p)
-                if (nFeedFilter === 'p2p' && friendsList.length > 0 && allRelays && allRelays.length > 0) {
+                // Apply p2p/p21/12p filter for Tube: p21=following, p2p=mutual, 12p=followers we don't follow
+                if (nFeedFilter === '12p') {
+                    tubeEffectiveFriends = await get12pAuthors();
+                } else if (nFeedFilter === 'p2p' && friendsList.length > 0 && allRelays && allRelays.length > 0) {
                     try {
                         const contactEvents = await p.list(allRelays.slice(0, 3), [{
                             kinds: [3],
@@ -5380,6 +5425,96 @@
             }
         }
 
+        /** Fetch existing mute list event (kind 10000) for current user */
+        async function fetchMuteListEvent() {
+            if (!publicKey || !allRelays?.length) return null;
+            const p = getPool();
+            const events = await p.list(allRelays.slice(0, 3), [{ kinds: [10000], authors: [publicKey], limit: 1 }]);
+            return events && events[0] ? events[0] : null;
+        }
+
+        /** Render mute list view (tab Mutes) */
+        async function fetchMuteListView() {
+            const $chat = $('#chatArea').empty();
+            $('#emptyState').addClass('hidden');
+            if (!publicKey) {
+                $chat.append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">Connect to see your mute list.</div>');
+                return;
+            }
+            $chat.append('<div class="n-feed-loading" style="padding:20px;text-align:center;color:var(--text-dim);">Loading mute list...</div>');
+            await ensureMuteListLoaded();
+            const muted = typeof getMutedPubkeys === 'function' ? getMutedPubkeys() : (window.mutedPubkeys || new Set());
+            const list = Array.from(muted);
+            $chat.find('.n-feed-loading').remove();
+            if (list.length === 0) {
+                $chat.append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">No muted profiles. Mute users from their profile (e.g. nostr_profile_viewer) to hide their messages here.</div>');
+                return;
+            }
+            const defaultAvatar = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            for (const pk of list) {
+                const profile = profileCache[pk] || null;
+                const name = profile?.display_name || profile?.name || pk.slice(0, 8) + '…';
+                const avatar = profile?.picture ? normalizeIpfsUrl(profile.picture) : defaultAvatar;
+                const $card = $('<div class="mute-list-card"></div>');
+                $card.append(`<img class="mute-avatar" src="${avatar}" alt="" onerror="this.src='${defaultAvatar}'">`);
+                $card.append(`<div class="mute-info"><div class="mute-name">${$('<div>').text(name).html()}</div><div class="mute-pubkey">${pk.slice(0, 12)}…${pk.slice(-8)}</div></div>`);
+                const $btn = $('<button type="button" class="mute-unmute-btn">Unmute</button>');
+                $btn.on('click', function(e) { e.stopPropagation(); unmuteUser(pk); });
+                $card.append($btn);
+                $card.find('.mute-info').on('click', function(e) { e.preventDefault(); openProfileViewerModal(pk); }).css('cursor', 'pointer');
+                $chat.append($card);
+            }
+            // Preload missing profiles
+            const missing = list.filter(pk => !profileCache[pk]);
+            if (missing.length > 0 && allRelays?.length) {
+                const p = getPool();
+                const evs = await p.list(allRelays.slice(0, 3), [{ kinds: [0], authors: missing, limit: missing.length * 2 }]);
+                evs.forEach(ev => {
+                    try {
+                        const profile = JSON.parse(ev.content);
+                        if (profile.picture) profile.picture = normalizeIpfsUrl(profile.picture);
+                        profileCache[ev.pubkey] = profile;
+                    } catch (e) {}
+                });
+                fetchMuteListView();
+            }
+        }
+
+        /** Remove a pubkey from NIP-51 mute list (kind 10000) and refresh */
+        async function unmuteUser(pubkeyToRemove) {
+            if (!publicKey || !pubkeyToRemove) return;
+            showLoading(true, 'Unmute...');
+            try {
+                const existing = await fetchMuteListEvent();
+                const tags = (existing && existing.tags) ? existing.tags.filter(t => !(t[0] === 'p' && t[1] === pubkeyToRemove)) : [];
+                const content = (existing && existing.content) ? existing.content : '';
+                const event = {
+                    kind: 10000,
+                    pubkey: publicKey,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: tags,
+                    content: content
+                };
+                const signed = await window.nostr.signEvent(event);
+                let success = 0;
+                await Promise.all(allRelays.map(async r => { if (await publishToRelay(r, signed)) success++; }));
+                if (success > 0) {
+                    if (window.mutedPubkeys) window.mutedPubkeys.delete(pubkeyToRemove);
+                    if (typeof loadMuteList === 'function') await loadMuteList();
+                    else await ensureMuteListLoaded();
+                    showNotification('Unmuted', 'info');
+                    fetchMuteListView();
+                } else {
+                    showNotification('Failed to publish unmute', 'error');
+                }
+            } catch (e) {
+                log(`Unmute error: ${e.message}`);
+                showNotification(`Unmute error: ${e.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
         async function fetchMessages() {
             if (!publicKey) return;
             log('Fetching messages...');
@@ -5421,7 +5556,18 @@
                 const p = getPool();
                 let authors = [];
                 let fofToFriends = {}; // N²: map FoF pubkey -> array of friend pubkeys who follow them
-                if (mode === 'n') {
+                // 12p: people who follow us but we don't follow them (followers \ following)
+                if (nFeedFilter === '12p' && allRelays && allRelays.length > 0) {
+                    try {
+                        const followerEvents = await p.list(allRelays.slice(0, 5), [{ kinds: [3], '#p': [publicKey], limit: 500 }]);
+                        const followers = [...new Set(followerEvents.map(ev => ev.pubkey).filter(pk => pk && pk !== publicKey))];
+                        const followingSet = new Set(friendsList || []);
+                        authors = followers.filter(pk => !followingSet.has(pk));
+                        fofToFriends = {};
+                    } catch (e) {
+                        log(`12p fetch error: ${e.message}`);
+                    }
+                } else if (mode === 'n') {
                     authors = [...(friendsList || [])];
                 } else if (mode === 'n2') {
                     const meAndFriends = new Set([publicKey, ...(friendsList || [])]);
@@ -5467,8 +5613,10 @@
                 }
                 const peopleCount = authors.length;
                 if (authors.length === 0) {
-                    $chat.empty().append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">' +
-                        (mode === 'n' ? 'No friends yet. Follow people to see their messages here.' : 'No friends of friends to show.') + '</div>');
+                    const emptyMsg = nFeedFilter === '12p'
+                        ? 'No followers (who don\'t follow you) yet. Their messages will appear here when they post.'
+                        : (mode === 'n' ? 'No friends yet. Follow people to see their messages here.' : 'No friends of friends to show.');
+                    $chat.empty().append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">' + emptyMsg + '</div>');
                     updateNFeedTabCount(mode, 0, peopleCount);
                     return;
                 }
@@ -5482,9 +5630,14 @@
                 // Exclude self and muted authors
                 const filtered = events.filter(e => e.pubkey !== publicKey && !muted.has(e.pubkey));
                 filtered.sort((a, b) => b.created_at - a.created_at);
+                nFeedEvents = filtered;
+                lastNFeedMode = mode;
+                lastFofToFriends = fofToFriends;
+                const filteredByTag = applyFeedTagFilter(filtered);
                 $chat.find('.n-feed-loading').remove();
-                renderNFeedView(filtered, mode, fofToFriends);
-                updateNFeedTabCount(mode, filtered.length, peopleCount);
+                renderNFeedView(filteredByTag, mode, fofToFriends);
+                updateNFeedTabCount(mode, filteredByTag.length, peopleCount);
+                updateFluxTagCloud();
             } catch (e) {
                 log(`N feed error: ${e.message}`);
                 $chat.find('.n-feed-loading').remove();
@@ -5521,21 +5674,29 @@
             try {
                 if (!friendsList || friendsList.length === 0) await loadFriendsList();
                 const p = getPool();
-                let authors = [...(friendsList || [])];
-                if (nFeedFilter === 'p2p' && authors.length > 0 && allRelays && allRelays.length > 0) {
-                    try {
-                        const contactEvents = await p.list(allRelays.slice(0, 3), [{ kinds: [3], authors: authors, limit: authors.length * 2 }]);
-                        const reciprocalSet = new Set();
-                        contactEvents.forEach(ev => {
-                            const hasMe = ev.tags && ev.tags.some(t => t[0] === 'p' && t[1] === publicKey);
-                            if (hasMe) reciprocalSet.add(ev.pubkey);
-                        });
-                        authors = authors.filter(a => reciprocalSet.has(a));
-                    } catch (e) {}
+                let authors = [];
+                if (nFeedFilter === '12p') {
+                    authors = await get12pAuthors();
+                } else {
+                    authors = [...(friendsList || [])];
+                    if (nFeedFilter === 'p2p' && authors.length > 0 && allRelays && allRelays.length > 0) {
+                        try {
+                            const contactEvents = await p.list(allRelays.slice(0, 3), [{ kinds: [3], authors: authors, limit: authors.length * 2 }]);
+                            const reciprocalSet = new Set();
+                            contactEvents.forEach(ev => {
+                                const hasMe = ev.tags && ev.tags.some(t => t[0] === 'p' && t[1] === publicKey);
+                                if (hasMe) reciprocalSet.add(ev.pubkey);
+                            });
+                            authors = authors.filter(a => reciprocalSet.has(a));
+                        } catch (e) {}
+                    }
                 }
                 const peopleCount = authors.length;
                 if (authors.length === 0) {
-                    $chat.empty().append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">No friends yet, or no reciprocal follows. Follow people to see their blog posts here.</div>');
+                    const emptyMsg = nFeedFilter === '12p'
+                        ? 'No followers (who don\'t follow you) yet. Their blog posts will appear here.'
+                        : 'No friends yet, or no reciprocal follows. Follow people to see their blog posts here.';
+                    $chat.empty().append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">' + emptyMsg + '</div>');
                     updateBlogTabCount(0, peopleCount);
                     return;
                 }
