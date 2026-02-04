@@ -3140,6 +3140,19 @@
             if (currentService === 'all' || currentService === 'n' || currentService === 'n2' || currentService === 'blog') $('#fluxTagCloud').show();
         }
 
+        // Switch main area to Flux-like view (chat + tag cloud), hide Tube, show input
+        function switchToFluxLikeView(showTagCloud, showNFeedFilter) {
+            $('#fluxTagCloud').toggle(!!showTagCloud);
+            $('#nFeedFilterWrap').toggle(!!showNFeedFilter);
+            if (showNFeedFilter) $('#nFeedFilterSelect').val(nFeedFilter);
+            $('#tubePanel').removeClass('active');
+            $('.main-content').removeClass('tube-mode').show().addClass('flux-mode');
+            $('body').removeClass('tube-mode');
+            $('#inputSection').removeClass('tube-input-visible');
+            $('#tubeInputToggle').addClass('collapsed');
+            $('.input-section').show();
+        }
+
         function setupEvents() {
             $('#btnConnect').on('click', connectWallet);
 
@@ -3185,15 +3198,8 @@
                     fetchBlogFeed();
                     updateInputHint('chat');
                 } else {
-                    // Flux: tag cloud below list (no filter bar in service bar)
-                    $('#nFeedFilterWrap').hide();
-                    $('#fluxTagCloud').show();
-                    $('#tubePanel').removeClass('active');
-                    $('.main-content').removeClass('tube-mode').show().addClass('flux-mode');
-                    $('body').removeClass('tube-mode');
-                    $('#inputSection').removeClass('tube-input-visible');
-                    $('#tubeInputToggle').addClass('collapsed');
-                    $('.input-section').show();
+                    // Flux: tag cloud below list, no N/Blog filter bar
+                    switchToFluxLikeView(true, false);
                     filterAndDisplayMessages();
                     updateFluxTagCloud();
                     updateInputHint(currentInputService === 'chat' ? 'chat' : currentInputService);
@@ -5690,9 +5696,11 @@
             $cloud.find('.tag-cloud-pill').on('click', function() {
                 const tag = $(this).data('flux-tag');
                 if (isFlux) {
+                    if (tag === fluxTagFilter) return;
                     fluxTagFilter = tag;
                     filterAndDisplayMessages();
                 } else {
+                    if (tag === feedTagFilter) return;
                     feedTagFilter = tag;
                     if (isN && nFeedEvents.length) {
                         const filteredByTag = applyFeedTagFilter(nFeedEvents);
@@ -5773,7 +5781,8 @@
 
         function renderMessage(event, isUser, opts) {
             opts = opts || {};
-            const tags = extractTags(event.content);
+            // Use cached tags when available to avoid repeated extractTags/getEventTags
+            const tags = event._tags != null ? event._tags : (event._tags = getEventTags(event));
             const expiration = getExpiration(event);
             
             // Extract media from content AND from event tags (imeta, url, thumb, etc.)
