@@ -53,7 +53,7 @@
             .btn-connect { padding: 4px 10px; font-size: 0.75rem; }
             .service-bar { padding: 4px 6px; gap: 4px; flex-wrap: wrap; }
             .svc-tab { padding: 6px 10px; font-size: 0.8rem; }
-            .flux-tag-cloud { padding: 4px 6px; gap: 4px; }
+            .flux-tag-cloud { padding: 4px 6px; gap: 4px; max-height: 4em; }
             .tag-cloud-pill { padding: 2px 6px; font-size: 0.65rem; }
             .main-content .chat-wrapper { margin-left: 36px; margin-right: 36px; }
             .main-content.flux-mode .chat-wrapper { margin-left: 6px; margin-right: 6px; }
@@ -659,7 +659,7 @@
             border-color: var(--accent-cyan);
         }
 
-        /* Tag cloud below message list (Flux): tags extracted from displayed messages */
+        /* Tag cloud below message list (Flux/N/Blog): tags extracted from displayed messages */
         .flux-tag-cloud {
             flex-shrink: 0;
             padding: 6px 10px;
@@ -668,9 +668,12 @@
             display: flex;
             flex-wrap: wrap;
             align-items: center;
+            align-content: flex-start;
             gap: 6px;
             max-width: 100%;
             min-height: 0;
+            max-height: 4.5em;
+            overflow-y: auto;
         }
         .tag-cloud-label {
             font-size: 0.65rem;
