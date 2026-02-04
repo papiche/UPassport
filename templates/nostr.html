@@ -3137,7 +3137,7 @@
             checkExtension();
             getLocation();
             setupEvents();
-            if (currentService === 'all') $('#fluxTagCloud').show();
+            if (currentService === 'all' || currentService === 'n' || currentService === 'n2' || currentService === 'blog') $('#fluxTagCloud').show();
         }
 
         function setupEvents() {
@@ -3161,7 +3161,7 @@
                     $('#tubeInputToggle').removeClass('collapsed');
                     loadTubeVideos();
                 } else if (svc === 'n' || svc === 'n2') {
-                    $('#fluxTagCloud').hide();
+                    $('#fluxTagCloud').show();
                     $('#nFeedFilterWrap').show();
                     $('#nFeedFilterSelect').val(nFeedFilter);
                     $('#tubePanel').removeClass('active');
@@ -3173,7 +3173,7 @@
                     fetchNFeed(svc);
                     updateInputHint('chat');
                 } else if (svc === 'blog') {
-                    $('#fluxTagFilterWrap').hide();
+                    $('#fluxTagCloud').show();
                     $('#nFeedFilterWrap').show();
                     $('#nFeedFilterSelect').val(nFeedFilter);
                     $('#tubePanel').removeClass('active');
@@ -3437,6 +3437,11 @@
         let tubeFilter = 'all';
         let profileCache = {};
         let nFeedFilter = 'p21'; // p21 = unidirectional, p2p = reciprocal follows
+        let feedTagFilter = 'all'; // tag filter for N, N², Blog views
+        let nFeedEvents = [];
+        let blogEvents = [];
+        let lastNFeedMode = 'n';
+        let lastFofToFriends = null;
 
         function setupTubeEvents() {
             // Tube filter buttons
@@ -5463,9 +5468,12 @@
                 const muted = (typeof getMutedPubkeys === 'function' ? getMutedPubkeys() : null) || window.mutedPubkeys || new Set();
                 const filtered = events.filter(e => e.pubkey !== publicKey && !muted.has(e.pubkey));
                 filtered.sort((a, b) => b.created_at - a.created_at);
+                blogEvents = filtered;
+                const filteredByTag = applyFeedTagFilter(filtered);
                 $chat.find('.n-feed-loading').remove();
-                renderBlogView(filtered);
-                updateBlogTabCount(filtered.length, peopleCount);
+                renderBlogView(filteredByTag);
+                updateBlogTabCount(filteredByTag.length, peopleCount);
+                updateFluxTagCloud();
             } catch (e) {
                 log(`Blog feed error: ${e.message}`);
                 $chat.find('.n-feed-loading').remove();
@@ -5654,18 +5662,24 @@
 
         function updateFluxTagCloud() {
             const $cloud = $('#fluxTagCloud');
-            if (!$cloud.length || currentService !== 'all') return;
+            if (!$cloud.length) return;
+            const isFlux = (currentService === 'all');
+            const isN = (currentService === 'n' || currentService === 'n2');
+            const isBlog = (currentService === 'blog');
+            if (!isFlux && !isN && !isBlog) return;
+            const sourceEvents = isFlux ? filteredMessages : (isN ? nFeedEvents : blogEvents);
+            const filterVar = isFlux ? fluxTagFilter : feedTagFilter;
             const tagCounts = {};
-            filteredMessages.forEach(m => {
-                const tags = m._tags || extractTags(m.content);
+            (sourceEvents || []).forEach(ev => {
+                const tags = isFlux ? (ev._tags || extractTags(ev.content)) : getEventTags(ev);
                 tags.forEach(t => {
-                    const lower = t.toLowerCase();
+                    const lower = (t + '').toLowerCase();
                     tagCounts[lower] = (tagCounts[lower] || 0) + 1;
                 });
             });
             const tags = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]);
-            const currentFilterLower = (fluxTagFilter + '').toLowerCase();
-            let html = '<span class="tag-cloud-label">Tags:</span> <button type="button" class="tag-cloud-pill' + (fluxTagFilter === 'all' ? ' active' : '') + '" data-flux-tag="all">Tous</button>';
+            const currentFilterLower = (filterVar + '').toLowerCase();
+            let html = '<span class="tag-cloud-label">Tags:</span> <button type="button" class="tag-cloud-pill' + (filterVar === 'all' ? ' active' : '') + '" data-flux-tag="all">Tous</button>';
             tags.forEach(t => {
                 const tagClass = getTagClass(t);
                 const safeTag = (t + '').replace(/"/g, '&quot;');
@@ -5675,8 +5689,24 @@
             $cloud.html(html);
             $cloud.find('.tag-cloud-pill').on('click', function() {
                 const tag = $(this).data('flux-tag');
-                fluxTagFilter = tag;
-                filterAndDisplayMessages();
+                if (isFlux) {
+                    fluxTagFilter = tag;
+                    filterAndDisplayMessages();
+                } else {
+                    feedTagFilter = tag;
+                    if (isN && nFeedEvents.length) {
+                        const filteredByTag = applyFeedTagFilter(nFeedEvents);
+                        const $chat = $('#chatArea').empty();
+                        $('#emptyState').addClass('hidden');
+                        renderNFeedView(filteredByTag, lastNFeedMode, lastFofToFriends);
+                        updateNFeedTabCount(lastNFeedMode, filteredByTag.length, (lastNFeedMode === 'n' ? (friendsList || []).length : Object.keys(lastFofToFriends || {}).length));
+                    } else if (isBlog && blogEvents.length) {
+                        const filteredByTag = applyFeedTagFilter(blogEvents);
+                        renderBlogView(filteredByTag);
+                        updateBlogTabCount(filteredByTag.length, (friendsList || []).length);
+                    }
+                    updateFluxTagCloud();
+                }
             });
         }
 
@@ -6393,6 +6423,29 @@
                     seen.add(lower);
                     return true;
                 });
+        }
+
+        // Tags from event: content hashtags (kind 1) and/or event tags "t" (kind 30023)
+        function getEventTags(ev) {
+            const fromContent = extractTags(ev.content || '');
+            if (ev.kind === 30023 && ev.tags && Array.isArray(ev.tags)) {
+                const fromTags = ev.tags.filter(t => t[0] === 't' && t[1]).map(t => t[1]);
+                const seen = new Set(fromContent.map(t => t.toLowerCase()));
+                fromTags.forEach(t => {
+                    const lower = (t + '').toLowerCase();
+                    if (!seen.has(lower)) { seen.add(lower); fromContent.push(t); }
+                });
+            }
+            return fromContent;
+        }
+
+        function applyFeedTagFilter(events, _kind) {
+            if (feedTagFilter === 'all') return events;
+            const tagLower = (feedTagFilter + '').toLowerCase();
+            return events.filter(ev => {
+                const tags = getEventTags(ev);
+                return tags.some(t => (t + '').toLowerCase() === tagLower);
+            });
         }
         
         // Get special tag class for known service tags
