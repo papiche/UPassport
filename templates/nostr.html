@@ -938,6 +938,20 @@
         .reply-to-hint .cancel-reply { margin-left: auto; padding: 2px 8px; cursor: pointer; color: var(--accent-cyan); }
         .reply-to-hint .cancel-reply:hover { text-decoration: underline; }
 
+        .msg-thread { margin-bottom: 8px; }
+        .msg-replies-accordion { margin-top: 8px; margin-left: 12px; border-left: 2px solid var(--border); padding-left: 10px; }
+        .msg-replies-toggle {
+            background: none; border: none; color: var(--accent-cyan); cursor: pointer;
+            font-size: 0.8rem; padding: 4px 8px; border-radius: 4px;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .msg-replies-toggle:hover { background: var(--bg-input); color: var(--accent-cyan); }
+        .msg-replies-toggle::before { content: '▶'; font-size: 0.65rem; transition: transform 0.2s; }
+        .msg-replies-accordion.expanded .msg-replies-toggle::before { transform: rotate(90deg); }
+        .msg-replies-body { display: none; margin-top: 6px; }
+        .msg-replies-accordion.expanded .msg-replies-body { display: block; }
+        .msg-replies-body .msg { margin-bottom: 8px; }
+
         .msg {
             padding: 10px 12px;
             background: var(--bg-panel);
@@ -5714,7 +5728,15 @@
             $chat.append(`<div class="msg-counter">${msgIndex + 1} / ${filteredMessages.length}</div>`);
 
             const msg = filteredMessages[msgIndex];
-            $chat.append(renderMessage(msg, msg.pubkey === publicKey));
+            const $thread = $('<div>').addClass('msg-thread').attr('data-root-id', msg.id);
+            $thread.append(renderMessage(msg, msg.pubkey === publicKey));
+            const $accordion = $('<div>').addClass('msg-replies-accordion').attr('data-root-id', msg.id);
+            const $toggle = $('<button type="button" class="msg-replies-toggle">Replies (0)</button>');
+            const $body = $('<div>').addClass('msg-replies-body');
+            $accordion.append($toggle).append($body);
+            $toggle.on('click', function() { $accordion.toggleClass('expanded'); });
+            $thread.append($accordion);
+            $chat.append($thread);
             fetchReplies(msg.id);
             updateNavButtons();
         }
@@ -5918,13 +5940,24 @@
         }
 
         async function fetchReplies(eventId) {
+            const $accordion = $(`.msg-replies-accordion[data-root-id="${eventId}"]`);
+            const $body = $accordion.length ? $accordion.find('.msg-replies-body') : null;
+            const $toggle = $accordion.length ? $accordion.find('.msg-replies-toggle') : null;
             const p = getPool();
             try {
-                const replies = await p.list(allRelays, [{ kinds: [1], '#e': [eventId], limit: 10 }]);
+                const replies = await p.list(allRelays, [{ kinds: [1], '#e': [eventId], limit: 50 }]);
                 replies.sort((a, b) => a.created_at - b.created_at);
-                replies.forEach(r => $('#chatArea').append(renderMessage(r, r.pubkey === publicKey)));
-                $('#chatArea').scrollTop($('#chatArea')[0].scrollHeight);
-                if (replies.length === 0) {
+                if ($body && $toggle) {
+                    $body.empty();
+                    replies.forEach(r => $body.append(renderMessage(r, r.pubkey === publicKey)));
+                    $toggle.text('Replies (' + replies.length + ')');
+                    if (replies.length > 0) $accordion.addClass('expanded');
+                } else {
+                    replies.forEach(r => $('#chatArea').append(renderMessage(r, r.pubkey === publicKey)));
+                }
+                const $chat = $('#chatArea');
+                if ($chat[0]) $chat.scrollTop($chat[0].scrollHeight);
+                if (replies.length === 0 && $accordion.length) {
                     setTimeout(() => {
                         if (filteredMessages[msgIndex]?.id === eventId) fetchReplies(eventId);
                     }, 5000);
@@ -5986,6 +6019,8 @@
                             const normalizedUrl = normalizeIpfsUrl(result.url);
                             content += '\n' + normalizedUrl;
                             if (result.tags) tags = tags.concat(result.tags);
+                            // Add imeta so backend can get image URL from event (I2V / #image / plantnet etc.)
+                            tags.push(['imeta', 'url ' + normalizedUrl]);
                             log(`✅ Image uploaded: ${normalizedUrl.substring(0, 50)}...`);
                         }
                     } catch (e) { 
