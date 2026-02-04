@@ -2166,6 +2166,37 @@
             z-index: 10;
         }
 
+        .theater-nav-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.5);
+            background: rgba(0,0,0,0.4);
+            color: white;
+            font-size: 1.25rem;
+            cursor: pointer;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .theater-nav-arrow:hover {
+            background: rgba(0, 212, 255, 0.3);
+            border-color: var(--accent-cyan);
+        }
+        .theater-nav-arrow:disabled,
+        .theater-nav-arrow.hidden {
+            opacity: 0.35;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .theater-nav-prev { left: 12px; }
+        .theater-nav-next { right: 12px; }
+
         .theater-video {
             flex: 1;
             display: flex;
@@ -2825,9 +2856,11 @@
     <!-- THEATER MODAL FOR TUBE -->
     <div class="theater-backdrop" id="theaterBackdrop">
         <button class="theater-close" onclick="closeTheater()">×</button>
+        <button type="button" class="theater-nav-arrow theater-nav-prev" id="theaterNavPrev" title="Previous video" onclick="theaterPrevVideo()">◀</button>
         <div class="theater-video">
             <video id="theaterVideo" controls autoplay></video>
-                    </div>
+        </div>
+        <button type="button" class="theater-nav-arrow theater-nav-next" id="theaterNavNext" title="Next video" onclick="theaterNextVideo()">▶</button>
         <div class="theater-info">
             <!-- Author Profile Banner -->
             <div class="theater-author-banner" id="theaterAuthorBanner">
@@ -4063,8 +4096,37 @@
             $('#theaterBackdrop').addClass('active');
             $('body').css('overflow', 'hidden');
 
+            // Update prev/next arrows visibility (based on filteredTubeVideos order)
+            const idx = filteredTubeVideos.findIndex(v => v.id === video.id);
+            const $prev = $('#theaterNavPrev');
+            const $next = $('#theaterNavNext');
+            if (idx > 0) {
+                $prev.removeClass('hidden').prop('disabled', false);
+            } else {
+                $prev.addClass('hidden').prop('disabled', true);
+            }
+            if (idx >= 0 && idx < filteredTubeVideos.length - 1) {
+                $next.removeClass('hidden').prop('disabled', false);
+            } else {
+                $next.addClass('hidden').prop('disabled', true);
+            }
+
             // Load interactions (async)
             loadVideoInteractions(video);
+        }
+
+        function theaterPrevVideo() {
+            if (!currentTheaterVideo || filteredTubeVideos.length === 0) return;
+            const idx = filteredTubeVideos.findIndex(v => v.id === currentTheaterVideo.id);
+            if (idx <= 0) return;
+            openVideoTheater(filteredTubeVideos[idx - 1].id);
+        }
+
+        function theaterNextVideo() {
+            if (!currentTheaterVideo || filteredTubeVideos.length === 0) return;
+            const idx = filteredTubeVideos.findIndex(v => v.id === currentTheaterVideo.id);
+            if (idx < 0 || idx >= filteredTubeVideos.length - 1) return;
+            openVideoTheater(filteredTubeVideos[idx + 1].id);
         }
 
         function closeTheater() {
