@@ -3141,6 +3141,10 @@
             getLocation();
             setupEvents();
             if (currentService === 'all' || currentService === 'n' || currentService === 'n2' || currentService === 'blog') $('#fluxTagCloud').show();
+            // Auto-connect when extension is already available (Nostr WS + NIP-42)
+            if (typeof window.nostr !== 'undefined') {
+                setTimeout(connectWallet, 300);
+            }
         }
 
         // Switch main area to Flux-like view (chat + tag cloud), hide Tube, show input
@@ -4626,12 +4630,13 @@
             if (typeof window.nostr !== 'undefined') {
                 log('Extension found');
                 $('#btnConnect').prop('disabled', false);
-                } else {
+            } else {
                 log('No extension');
                 $('#btnConnect').text('Extension?').prop('disabled', true);
                 setTimeout(() => {
                     if (typeof window.nostr !== 'undefined') {
                         $('#btnConnect').prop('disabled', false).text('Connecter');
+                        connectWallet();
                     }
                 }, 1000);
             }
