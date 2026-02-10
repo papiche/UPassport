@@ -67,12 +67,12 @@ if [ ! -z $isEMAIL ]; then
         echo "////////////// REGISTERED ZENCARD \\\\\\\\\\\\\\"
         ~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL"
         $(~/.zen/Astroport.ONE/tools/search_for_this_email_in_players.sh "$isEMAIL" | tail -n 1)
-        ## https://opencollective.com/uplanet-zero <-> Corresponding Ẑen from "$UPLANETNAME.SOCIETY" wallet
+        ## https://opencollective.com/monnaie-libre <-> Corresponding Ẑen from "$UPLANETNAME.SOCIETY" wallet
         echo "$TODATE" > ~/.zen/game/players/$isEMAIL/U.SOCIETY
         ln -s ~/.zen/game/players/$isEMAIL/U.SOCIETY ~/.zen/game/nostr/$isEMAIL/U.SOCIETY
         ## ## ## ## UPASSPORT will receive Ẑen from "UPLANETNAME.SOCIETY" wallet 
-            # Satellite = 50 Ẑ / an : https://opencollective.com/uplanet-zero/contribute/achat-128-go-sur-nanopi5-86611
-            # PC GAMER = 540 Ẑ / 3 ans : https://opencollective.com/uplanet-zero/contribute/proprio-128-go-71400
+            # Satellite = 50 Ẑ / an : https://opencollective.com/monnaie-libre/contribute/parrainage-infrastructure-extension-128-go-98386
+            # PC GAMER = 540 Ẑ / 3 ans : https://opencollective.com/monnaie-libre/contribute/parrainage-infrastructure-module-gpu-1-24-98385
         ## SEND ACTIVATED UPASSPORT to PLAYER -- OC2UPLANET STUFF --
         ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${isEMAIL}" "$HOME/.zen/game/passport/${PUBKEY}/.passport.html" "UPlanet SOCIETY Welcome"
         ###################################################################################################""
