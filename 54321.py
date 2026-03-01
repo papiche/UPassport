@@ -1393,7 +1393,7 @@ async def check_nip42_auth(npub: str, timeout: int = 5) -> bool:
             
             try:
                 while not end_received:
-                    response = await asyncio.wait_for(websocket.recv(), timeout=3.0)  # Timeout réduit
+                    response = await asyncio.wait_for(websocket.recv(), timeout=5.0)  # Timeout réduit
                     parsed_response = json.loads(response)
                     
                     logging.info(f"Réponse reçue: {parsed_response[0] if parsed_response else 'Invalid'}")
@@ -1404,7 +1404,7 @@ async def check_nip42_auth(npub: str, timeout: int = 5) -> bool:
                             event = parsed_response[2]
                             events_found.append(event)
                             logging.info(f"Événement NIP42 trouvé: {event.get('id', 'N/A')} "
-                                      f"du {datetime.fromtimestamp(event.get('created_at', 0))}")
+                                        f"du {datetime.fromtimestamp(event.get('created_at', 0))}")
                     
                     elif parsed_response[0] == "EOSE":
                         # Fin des événements pour cette subscription
