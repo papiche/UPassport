@@ -1338,7 +1338,7 @@ INFO_JSON_CONTENT="{
   \"protocol\": {
     \"name\": \"UPlanet File Management Contract\",
     \"version\": \"$PROTOCOL_VERSION\",
-    \"specification\": \"https://github.com/papiche/Astroport.ONE/blob/main/Astroport.ONE/docs/UPlanet_FILE_CONTRACT.md\"
+    \"specification\": \"https://github.com/papiche/Astroport.ONE/blob/master/Astroport.ONE/docs/UPlanet_FILE_CONTRACT.md\"
   },
   \"file\": {
     \"name\": \"$FILE_NAME\",
