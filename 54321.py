@@ -2348,7 +2348,7 @@ async def get_root(request: Request):
 
 # Beside /g1
 @app.post("/g1nostr")
-async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...), lat: str = Form(...), lon: str = Form(...), salt: str = Form(default=""), pepper: str = Form(default="")):
+async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...), lat: str = Form(...), lon: str = Form(...), salt: str = Form(default=""), pepper: str = Form(default=""), format: str = Form(default="html")):
     """
     Endpoint to execute the g1.sh script and return the generated file.
     Supports both regular users and swarm subscription aliases.
@@ -2574,10 +2574,20 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
     if return_code == 0:
         returned_file_path = last_line.strip()
         logging.info(f"Returning file: {returned_file_path}")
-        
+
         if is_swarm_subscription:
             logging.info(f"✅ Swarm subscription processed successfully: {email}")
-        
+
+        # JSON format: return MULTIPASS data for app onboarding
+        if format == "json":
+            multipass_json = os.path.expanduser(f"~/.zen/game/nostr/{email}/.multipass.json")
+            if os.path.exists(multipass_json):
+                with open(multipass_json, 'r') as f:
+                    data = json.load(f)
+                return JSONResponse(data)
+            else:
+                return JSONResponse({"error": "MULTIPASS created but JSON sidecar not found"}, status_code=500)
+
         return FileResponse(returned_file_path)
     else:
         error_message = f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs. Script output: {last_line}"

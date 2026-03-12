@@ -24,6 +24,42 @@ ME="${0##*/}"
 source "$HOME/.zen/Astroport.ONE/tools/my.sh"
 
 ####################################################################
+## Write .multipass.json sidecar with credentials + MULTIPASS data
+write_multipass_json() {
+    local _EMAIL="$1" _SALT="$2" _PEPPER="$3"
+    local NOSTR_DIR="${HOME}/.zen/game/nostr/${_EMAIL}"
+    local JSON_FILE="${NOSTR_DIR}/.multipass.json"
+    [[ ! -d "$NOSTR_DIR" ]] && return 1
+    local _G1PUB=$(cat "${NOSTR_DIR}/G1PUBNOSTR" 2>/dev/null)
+    local _NPUB=$(cat "${NOSTR_DIR}/NPUB" 2>/dev/null)
+    local _HEX=$(cat "${NOSTR_DIR}/HEX" 2>/dev/null)
+    local _NOSTRNS=$(cat "${NOSTR_DIR}/NOSTRNS" 2>/dev/null)
+    local _GPS=$(cat "${NOSTR_DIR}/GPS" 2>/dev/null)
+    local _LAT=$(echo "$_GPS" | grep -oP 'LAT=\K[^;]+')
+    local _LON=$(echo "$_GPS" | grep -oP 'LON=\K[^;]+')
+    local _SSSS_PLAYER=$(cat "${NOSTR_DIR}/.ssss.player.key" 2>/dev/null)
+    ## Generate nsec from salt/pepper
+    local _NSEC=""
+    [[ -n "$_SALT" && -n "$_PEPPER" ]] \
+        && _NSEC=$(${HOME}/.zen/Astroport.ONE/tools/keygen -t nostr "${_SALT}" "${_PEPPER}" -s 2>/dev/null)
+    cat > "$JSON_FILE" <<EOJSON
+{
+  "email": "${_EMAIL}",
+  "salt": "${_SALT}",
+  "pepper": "${_PEPPER}",
+  "nsec": "${_NSEC}",
+  "g1pub": "${_G1PUB}",
+  "npub": "${_NPUB}",
+  "hex": "${_HEX}",
+  "nostrns": "${_NOSTRNS}",
+  "lat": "${_LAT}",
+  "lon": "${_LON}",
+  "ssss_player": "${_SSSS_PLAYER}"
+}
+EOJSON
+    echo "Wrote ${JSON_FILE}" >&2
+}
+
 EMAIL="$1"
 LANG="$2"
 LAT="$3"
@@ -51,6 +87,7 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
         # Check if not TODATE made account
         BIRTHDAY=$(cat ${HOME}/.zen/game/nostr/${EMAIL}/TODATE)
         if [[ $BIRTHDAY != $TODATE ]]; then
+            ## Existing account from a previous day - no salt/pepper available
             cat ${MY_PATH}/templates/message.html \
             | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
                 -e "s~_MESSAGE_~EXISTING MULTIPASS~g" \
@@ -58,6 +95,8 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
             exit 0
         else
+            ## Same-day re-request - salt/pepper still in params
+            write_multipass_json "${EMAIL}" "${SALT}" "${PEPPER}"
             echo ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
             exit 0
         fi
@@ -80,10 +119,12 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
         ## MAILJET SEND NOSTR CARD
         YOUSER=$(${HOME}/.zen/Astroport.ONE/tools/clyuseryomail.sh ${EMAIL})
         ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "MULTIPASS[Ğ1] [UPlanet:${UPLANETG1PUB:0:8}:${LAT}:${LON}]"
+        write_multipass_json "${EMAIL}" "${SALT}" "${PEPPER}"
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
         exit 0
     else
         if [[ "$(cat ${HOME}/.zen/game/nostr/${EMAIL}/TODATE)" == "$TODATE" ]]; then
+            write_multipass_json "${EMAIL}" "${SALT}" "${PEPPER}"
             echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
             exit 0
         fi
