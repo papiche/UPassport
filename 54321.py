@@ -2584,6 +2584,9 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
             if os.path.exists(multipass_json):
                 with open(multipass_json, 'r') as f:
                     data = json.load(f)
+                # Inject ORIGIN mode + OC contribution URLs for Ginkgo
+                data["is_origin"] = _is_origin_mode()
+                data["oc_urls"] = _get_oc_tier_urls()
                 return JSONResponse(data)
             else:
                 return JSONResponse({"error": "MULTIPASS created but JSON sidecar not found"}, status_code=500)
@@ -2599,8 +2602,8 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
 ########################################################################
 ORIGIN_KEY = "0000000000000000000000000000000000000000000000000000000000000000"
 
-def _get_oc_api_url():
-    """Return OC API URL based on UPLANET mode (ORIGIN=staging, else production)"""
+def _is_origin_mode():
+    """Check if running in ORIGIN mode (dev/staging) via swarm.key"""
     swarm_key_path = os.path.expanduser("~/.ipfs/swarm.key")
     uplanet_name = ""
     if os.path.exists(swarm_key_path):
@@ -2608,20 +2611,41 @@ def _get_oc_api_url():
             lines = f.readlines()
             if lines:
                 uplanet_name = lines[-1].strip()
-    if not uplanet_name or uplanet_name == ORIGIN_KEY:
+    return not uplanet_name or uplanet_name == ORIGIN_KEY
+
+def _get_oc_api_url():
+    """Return OC API URL based on UPLANET mode (ORIGIN=staging, else production)"""
+    if _is_origin_mode():
         return "https://api-staging.opencollective.com/graphql/v2"
     return "https://api.opencollective.com/graphql/v2"
 
-def _get_oc_token():
-    """Read OC API token from OC2UPlanet .env or environment"""
+def _get_oc_env():
+    """Read all OC_* vars from OC2UPlanet .env"""
+    env_vars = {}
     env_path = os.path.expanduser("~/.zen/workspace/OC2UPlanet/.env")
     if os.path.exists(env_path):
         with open(env_path, 'r') as f:
             for line in f:
                 line = line.strip()
-                if line.startswith("OCAPIKEY="):
-                    return line.split("=", 1)[1].strip().strip('"').strip("'")
-    return os.getenv("OCAPIKEY", "")
+                if line and not line.startswith("#") and "=" in line:
+                    key, val = line.split("=", 1)
+                    env_vars[key.strip()] = val.strip().strip('"').strip("'")
+    return env_vars
+
+def _get_oc_token():
+    """Read OC API token from OC2UPlanet .env or environment"""
+    oc_env = _get_oc_env()
+    return oc_env.get("OCAPIKEY", os.getenv("OCAPIKEY", ""))
+
+def _get_oc_tier_urls():
+    """Return OC contribution URLs for Ginkgo onboarding"""
+    oc_env = _get_oc_env()
+    return {
+        "satellite": oc_env.get("OC_URL_SATELLITE", ""),
+        "constellation": oc_env.get("OC_URL_CONSTELLATION", ""),
+        "cloud": oc_env.get("OC_URL_CLOUD", ""),
+        "membre": oc_env.get("OC_URL_MEMBRE", ""),
+    }
 
 @app.post("/oc_webhook")
 async def oc_webhook(request: Request):
