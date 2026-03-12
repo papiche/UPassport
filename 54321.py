@@ -2584,9 +2584,12 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
             if os.path.exists(multipass_json):
                 with open(multipass_json, 'r') as f:
                     data = json.load(f)
-                # Inject ORIGIN mode + OC contribution URLs for Ginkgo
+                # Inject ORIGIN mode + OC contribution URLs + UPlanet home for Ginkgo
                 data["is_origin"] = _is_origin_mode()
                 data["oc_urls"] = _get_oc_tier_urls()
+                # Build UPlanet home URL: ipfs.{domain}/ipns/{domain}
+                # Convention: UPassport = u.{domain}, IPFS gw = ipfs.{domain}
+                data["uplanet_home"] = _get_uplanet_home_url()
                 return JSONResponse(data)
             else:
                 return JSONResponse({"error": "MULTIPASS created but JSON sidecar not found"}, status_code=500)
@@ -2646,6 +2649,21 @@ def _get_oc_tier_urls():
         "cloud": oc_env.get("OC_URL_CLOUD", ""),
         "membre": oc_env.get("OC_URL_MEMBRE", ""),
     }
+
+def _get_uplanet_home_url():
+    """Build UPlanet home URL from UPASSPORT_URL convention: u.{domain} → ipfs.{domain}/ipns/{domain}"""
+    upassport_url = os.getenv("UPASSPORT_URL", "")
+    if not upassport_url:
+        upassport_url = get_env_from_mysh("UPASSPORT_URL", "")
+    if upassport_url:
+        from urllib.parse import urlparse
+        parsed = urlparse(upassport_url)
+        host = parsed.hostname or ""
+        # Convention: u.{domain} → extract domain
+        if host.startswith("u."):
+            domain = host[2:]
+            return f"https://ipfs.{domain}/ipns/{domain}"
+    return ""
 
 @app.post("/oc_webhook")
 async def oc_webhook(request: Request):
