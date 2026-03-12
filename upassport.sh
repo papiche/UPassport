@@ -23,8 +23,24 @@ source ${MY_PATH}/.env
 [[ -z $myDUNITER ]] && myDUNITER="https://g1.cgeek.fr" # DUNITER
 [[ -z $myCESIUM ]] && myCESIUM="https://g1.data.e-is.pro" # CESIUM+
 [[ -z $myIPFS ]] && myIPFS="http://127.0.0.1:8080" # IPFS
+## Duniter v2s squid indexer for WoT queries
+SQUID_URL="${SQUID_URL:-https://squid.g1.gyroi.de/v1/graphql}"
+if [[ -x "$HOME/.zen/Astroport.ONE/tools/duniter_getnode.sh" ]]; then
+    _dyn_squid=$("$HOME/.zen/Astroport.ONE/tools/duniter_getnode.sh" squid 2>/dev/null)
+    [[ -n "$_dyn_squid" ]] && SQUID_URL="$_dyn_squid"
+fi
 
 function urldecode() { : "${*//+/ }"; echo -e "${_//%/\\x}"; }
+
+## GraphQL helper for squid queries (Duniter v2s)
+graphql_squid() {
+    local query_json="$1"
+    curl -sf -X POST \
+        -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
+        --data "$query_json" \
+        "$SQUID_URL"
+}
 
 ## PUBKEY SHOULD BE A MEMBER PUBLIC KEY
 QRCODE="$1"
@@ -931,13 +947,19 @@ fi
 #######################################################################
 ### FIRST TRY. NO ZEROCARD MADE YET.
 ### FRESH PUBKEY... IS IT A MEMBER 0R A WALLET ?
-echo "## GETTING CESIUM+ PROFILE"
-[[ ! -s ${MY_PATH}/tmp/$PUBKEY.me.json ]] \
-&& $HOME/.zen/Astroport.ONE/tools/timeout.sh -t 8 \
-wget -q -O ${MY_PATH}/tmp/$PUBKEY.me.json ${myDUNITER}/wot/lookup/$PUBKEY
+echo "## GETTING WoT IDENTITY (Duniter v2s squid)"
+
+## Query squid indexer for identity + certifications (replaces v1 /wot/lookup + /wot/certifiers-of)
+if [[ ! -s ${MY_PATH}/tmp/$PUBKEY.wot.json ]]; then
+    WOT_QUERY=$(jq -cn --arg pk "$PUBKEY" '{
+        query: "query($pk:String!){identities(condition:{accountId:$pk}){nodes{name accountId certIssued(condition:{isActive:true}){nodes{receiver{name accountId}}}certReceived(condition:{isActive:true}){nodes{issuer{name accountId}}}}}}}",
+        variables: {pk: $pk}
+    }')
+    graphql_squid "$WOT_QUERY" > ${MY_PATH}/tmp/$PUBKEY.wot.json 2>/dev/null
+fi
 
 echo "# GET MEMBER UID"
-MEMBERUID=$(cat ${MY_PATH}/tmp/$PUBKEY.me.json | jq -r '.results[].uids[].uid')
+MEMBERUID=$(jq -r '.data.identities.nodes[0].name // empty' ${MY_PATH}/tmp/$PUBKEY.wot.json 2>/dev/null)
 
 if [[ -z $MEMBERUID ]]; then
     ## NOT MEMBERUID : THIS IS A SIMPLE WALLET - show amount -
@@ -954,41 +976,37 @@ fi
 ## N1 DESTINATION PATH
 mkdir -p ${MY_PATH}/pdf/${PUBKEY}/N1/
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## CESIUM RELATIONS & DUNITER AMOUNT extract
-cp ${MY_PATH}/tmp/$PUBKEY.me.json ${MY_PATH}/pdf/${PUBKEY}/P2P.CESIUM.json
-cp ${MY_PATH}/tmp/$PUBKEY.TX.json ${MY_PATH}/pdf/${PUBKEY}/TX.json
+## WoT RELATIONS extract (Duniter v2s)
+cp ${MY_PATH}/tmp/$PUBKEY.wot.json ${MY_PATH}/pdf/${PUBKEY}/WoT.json
+[[ -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]] && cp ${MY_PATH}/tmp/$PUBKEY.TX.json ${MY_PATH}/pdf/${PUBKEY}/TX.json
 
 ################################################## N1 analysing
-### ANALYSE RELATIONS FROM ${MY_PATH}/tmp/$PUBKEY.me.json
-##################################################"
-# Extract the uids and pubkeys into a bash array
-certbyme=$(jq -r '.results[].signed[] | [.uid, .pubkey] | @tsv' ${MY_PATH}/tmp/$PUBKEY.me.json)
+### ANALYSE RELATIONS FROM squid WoT query
+##################################################
+# Extract certs issued (P21): uid + SS58 address of each certified identity
+certbyme=$(jq -r '.data.identities.nodes[0].certIssued.nodes[] | [.receiver.name, .receiver.accountId] | @tsv' ${MY_PATH}/tmp/$PUBKEY.wot.json 2>/dev/null)
 # Initialize a bash array
 declare -A certout
 
 # Populate the array
 while IFS=$'\t' read -r uid pubkey; do
-  certout["$uid"]="$pubkey"
+  [[ -n "$uid" && -n "$pubkey" ]] && certout["$uid"]="$pubkey"
 done <<< "$certbyme"
 
 echo "___________Pubkey Certifiés P21 :"
-# Access the values (example: print all uids and their corresponding pubkeys)
+# Access the values (print all uids and their corresponding SS58 addresses)
 for uid in "${!certout[@]}"; do
-  echo "UID: $uid, PubKey: ${certout[$uid]}"
+  echo "UID: $uid, Address: ${certout[$uid]}"
 done
 
-## GET certifiers-of
-[[ ! -s ${MY_PATH}/tmp/$PUBKEY.them.json ]] \
-&& wget -q -O ${MY_PATH}/tmp/$PUBKEY.them.json "${myDUNITER}/wot/certifiers-of/$PUBKEY?pubkey=true"
-
-# Extract the uids and pubkeys into a bash array
-certbythem=$(jq -r '.certifications[] | [.uid, .pubkey] | @tsv' ${MY_PATH}/tmp/$PUBKEY.them.json)
+# Extract certs received (12P): uid + SS58 address of each certifying identity
+certbythem=$(jq -r '.data.identities.nodes[0].certReceived.nodes[] | [.issuer.name, .issuer.accountId] | @tsv' ${MY_PATH}/tmp/$PUBKEY.wot.json 2>/dev/null)
 # Initialize a bash array
 declare -A certin
 
 # Populate the array
 while IFS=$'\t' read -r uid pubkey; do
-  certin["$uid"]="$pubkey"
+  [[ -n "$uid" && -n "$pubkey" ]] && certin["$uid"]="$pubkey"
 done <<< "$certbythem"
 
 echo "___________Pubkey certifiantes 12P :"
