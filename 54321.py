@@ -2594,6 +2594,254 @@ async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...
         logging.error(error_message)
         return JSONResponse({"error": error_message}, status_code=500) # Return 500 for server error
 
+########################################################################
+## OpenCollective Webhook → ẐEN Emission
+########################################################################
+ORIGIN_KEY = "0000000000000000000000000000000000000000000000000000000000000000"
+
+def _get_oc_api_url():
+    """Return OC API URL based on UPLANET mode (ORIGIN=staging, else production)"""
+    swarm_key_path = os.path.expanduser("~/.ipfs/swarm.key")
+    uplanet_name = ""
+    if os.path.exists(swarm_key_path):
+        with open(swarm_key_path, 'r') as f:
+            lines = f.readlines()
+            if lines:
+                uplanet_name = lines[-1].strip()
+    if not uplanet_name or uplanet_name == ORIGIN_KEY:
+        return "https://api-staging.opencollective.com/graphql/v2"
+    return "https://api.opencollective.com/graphql/v2"
+
+def _get_oc_token():
+    """Read OC API token from OC2UPlanet .env or environment"""
+    env_path = os.path.expanduser("~/.zen/workspace/OC2UPlanet/.env")
+    if os.path.exists(env_path):
+        with open(env_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("OCAPIKEY="):
+                    return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return os.getenv("OCAPIKEY", "")
+
+@app.post("/oc_webhook")
+async def oc_webhook(request: Request):
+    """
+    OpenCollective webhook endpoint for COLLECTIVE_TRANSACTION_CREATED events.
+    Triggers ẐEN emission via UPLANET.official.sh when a payment is received.
+    """
+    try:
+        payload = await request.json()
+    except Exception as e:
+        logging.error(f"OC webhook: invalid JSON payload: {e}")
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    event_type = payload.get("type", "")
+    logging.info(f"OC webhook received: type={event_type}")
+
+    # Only process transaction created events
+    if event_type != "collective.transaction.created":
+        logging.info(f"OC webhook: ignoring event type {event_type}")
+        return JSONResponse({"status": "ignored", "type": event_type})
+
+    data = payload.get("data", {})
+    tx = data.get("transaction", {})
+    from_collective = data.get("fromCollective", {})
+
+    amount_raw = tx.get("amount", 0)
+    currency = tx.get("currency", "EUR")
+    slug = from_collective.get("slug", "")
+    name = from_collective.get("name", "")
+    collective_id = payload.get("CollectiveId")
+    webhook_id = payload.get("id")
+
+    # Amount is in cents in webhook payload
+    amount_eur = amount_raw / 100.0 if isinstance(amount_raw, int) and amount_raw > 99 else amount_raw
+
+    logging.info(f"OC webhook TX: slug={slug} name={name} amount={amount_eur} {currency}")
+
+    # Idempotency check
+    processed_file = os.path.expanduser("~/.zen/tmp/oc_webhook_processed.log")
+    tx_id = f"{webhook_id}:{slug}:{amount_eur}"
+    if os.path.exists(processed_file):
+        with open(processed_file, 'r') as f:
+            if tx_id in f.read():
+                logging.info(f"OC webhook: already processed {tx_id}")
+                return JSONResponse({"status": "already_processed", "tx_id": tx_id})
+
+    # Webhook payloads don't include email nor tier (OC privacy).
+    # Look up BOTH email AND last transaction tier via GraphQL API.
+    # OC tier slugs (from opencollective.com/monnaie-libre/projects/coeurbox):
+    #   parrainage-infrastructure-extension-128-go  → Satellite sociétaire
+    #   parrainage-infrastructure-module-gpu-1-24   → Constellation sociétaire
+    #   cotisation-services-cloud-usage             → Cloud locataire (webhook immediate)
+    #   membre-resident-soutien-mensuel             → Membre locataire (monthly cycle)
+    email = None
+    tier_slug = ""
+    oc_token = _get_oc_token()
+    if oc_token and slug:
+        import httpx
+        oc_api = _get_oc_api_url()
+        # Single query: get email + last CREDIT transaction with tier info
+        query = {
+            "query": """query($slug: String) {
+                account(slug: $slug) {
+                    emails
+                    transactions(limit: 5, type: CREDIT, orderBy: {field: CREATED_AT, direction: DESC}) {
+                        nodes {
+                            amount { value }
+                            order { tier { slug name } }
+                            createdAt
+                        }
+                    }
+                }
+            }""",
+            "variables": {"slug": slug}
+        }
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    oc_api,
+                    json=query,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Personal-Token": oc_token
+                    }
+                )
+                if resp.status_code == 200:
+                    result = resp.json()
+                    account = result.get("data", {}).get("account", {})
+                    emails = account.get("emails", [])
+                    if emails:
+                        email = emails[0]
+                        logging.info(f"OC webhook: resolved slug={slug} → email={email}")
+                    # Find tier from most recent transaction matching this amount
+                    tx_nodes = account.get("transactions", {}).get("nodes", [])
+                    for node in tx_nodes:
+                        node_amount = node.get("amount", {}).get("value", 0)
+                        order = node.get("order") or {}
+                        tier = order.get("tier") or {}
+                        t_slug = tier.get("slug", "")
+                        # Match the transaction closest to webhook amount
+                        if t_slug and abs(node_amount - amount_eur) < 1.0:
+                            tier_slug = t_slug
+                            logging.info(f"OC webhook: resolved tier_slug={tier_slug}")
+                            break
+                    if not tier_slug and tx_nodes:
+                        # Fallback: use tier from most recent transaction
+                        first = tx_nodes[0]
+                        order = (first.get("order") or {})
+                        tier = (order.get("tier") or {})
+                        tier_slug = tier.get("slug", "")
+                        if tier_slug:
+                            logging.info(f"OC webhook: fallback tier_slug={tier_slug} (most recent tx)")
+        except Exception as e:
+            logging.error(f"OC webhook: GraphQL lookup failed: {e}")
+
+    # Fallback: try slug:email map from OC2UPlanet
+    if not email:
+        map_file = os.path.expanduser("~/.zen/workspace/OC2UPlanet/data/slug_email_map.json")
+        if os.path.exists(map_file):
+            try:
+                with open(map_file, 'r') as f:
+                    slug_map = json.load(f)
+                email = slug_map.get(slug)
+                if email:
+                    logging.info(f"OC webhook: found email in slug_email_map: {slug} → {email}")
+            except Exception:
+                pass
+
+    if not email:
+        logging.warning(f"OC webhook: no email found for slug={slug}")
+        return JSONResponse({"status": "no_email", "slug": slug}, status_code=200)
+
+    # Check MULTIPASS exists
+    multipass_dir = os.path.expanduser(f"~/.zen/game/nostr/{email}")
+    if not os.path.isdir(multipass_dir):
+        logging.warning(f"OC webhook: no MULTIPASS for {email}")
+        return JSONResponse({"status": "no_multipass", "email": email}, status_code=200)
+
+    # Calculate ẐEN: amount is already net (OC deducted fees before CREDIT). 1€ = 1Ẑ
+    zen_amount = f"{amount_eur:.2f}"
+
+    astroport_path = os.path.expanduser("~/.zen/Astroport.ONE")
+    script = os.path.join(astroport_path, "UPLANET.official.sh")
+
+    if not os.path.isfile(script):
+        logging.error("OC webhook: UPLANET.official.sh not found")
+        return JSONResponse({"error": "UPLANET.official.sh not found"}, status_code=500)
+
+    # Map OC tier slug → emission type using exact tier slug patterns
+    # Tier slugs from OC /monnaie-libre/projects/coeurbox/contribute/:
+    #   parrainage-infrastructure-extension-128-go-98386 → Satellite
+    #   parrainage-infrastructure-module-gpu-1-24-98385  → Constellation
+    #   cotisation-services-cloud-usage-98388             → Cloud usage
+    #   membre-resident-soutien-mensuel-98389             → Monthly member
+    emission_type = "locataire"
+    cmd_args = ["bash", script, "-l", email, "-m", zen_amount]
+
+    if any(k in tier_slug for k in ["128-go", "extension-128", "satellite"]):
+        emission_type = "societaire_satellite"
+        cmd_args = ["bash", script, "-s", email, "-t", "satellite", "-m", zen_amount]
+    elif any(k in tier_slug for k in ["gpu", "module-gpu", "constellation"]):
+        emission_type = "societaire_constellation"
+        cmd_args = ["bash", script, "-s", email, "-t", "constellation", "-m", zen_amount]
+    elif any(k in tier_slug for k in ["cotisation", "cloud-usage", "services-cloud"]):
+        emission_type = "locataire_cloud"
+    elif any(k in tier_slug for k in ["membre-resident", "soutien-mensuel"]):
+        emission_type = "locataire_membre"
+    elif not tier_slug:
+        logging.warning(f"OC webhook: no tier resolved for slug={slug}, defaulting to locataire")
+
+    logging.info(f"OC webhook: tier_slug={tier_slug} → {emission_type} → {zen_amount} Ẑ to {email}")
+
+    try:
+        # Step 1: Execute sociétaire or locataire emission
+        process = await asyncio.create_subprocess_exec(
+            *cmd_args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=astroport_path
+        )
+        stdout, stderr = await asyncio.wait_for(
+            process.communicate(), timeout=120
+        )
+        return_code = process.returncode
+        logging.info(f"OC webhook: UPLANET.official.sh ({emission_type}) returned {return_code}")
+
+        # Note: sociétaires (Satellite/Constellation) ne créditent PAS le MULTIPASS.
+        # Le MULTIPASS reçoit son crédit initial lors de make_NOSTRCARD.sh (PRIMO TX),
+        # paramétré dans le DID Zen Economy de l'essaim.
+        # Seuls les locataires (cloud-usage, membre-resident) rechargent le MULTIPASS.
+
+        # Log processed transaction
+        os.makedirs(os.path.dirname(processed_file), exist_ok=True)
+        with open(processed_file, 'a') as f:
+            status = "OK" if return_code == 0 else "FAIL"
+            f.write(f"{tx_id}:{zen_amount}:{emission_type}:{datetime.now().isoformat()}:{status}\n")
+
+        if return_code == 0:
+            return JSONResponse({
+                "status": "ok",
+                "email": email,
+                "zen": zen_amount,
+                "type": emission_type,
+                "tx_id": tx_id
+            })
+        else:
+            return JSONResponse({
+                "status": "emission_failed",
+                "email": email,
+                "return_code": return_code,
+                "stderr": stderr.decode()[:500]
+            }, status_code=500)
+
+    except asyncio.TimeoutError:
+        logging.error(f"OC webhook: UPLANET.official.sh timeout for {email}")
+        return JSONResponse({"error": "timeout"}, status_code=504)
+    except Exception as e:
+        logging.error(f"OC webhook: execution error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
 @app.get("/check_balance")
 async def check_balance_route(g1pub: str, html: Optional[str] = None):
     try:
