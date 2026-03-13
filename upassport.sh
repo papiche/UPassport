@@ -820,7 +820,7 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
         ZEROCARD=$(cat ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD)
         ## Change ẐeroCard G1/Cesium link to ZEROCARD /IPNS link
         sed -i "s~${ZWALL}~${OIPNSQR}~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
-        sed -i "s~${myIPFS}/ipfs/QmYZWzSfPgb1y83fWTmKBEHdA9QoxsYBmqLkEJU2KQ1DYW/#/app/wot/${ZEROCARD}/~${myIPFS}/ipns/$(cat ${MY_PATH}/pdf/${PUBKEY}/IPNS)~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
+        sed -i "s~${myIPFS}/ipfs/QmYZWzSfPgb1y83fWTmKBEHdA9QoxsYBmqLkEJU2KQ1DYW/#/wot/${ZEROCARD}/~${myIPFS}/ipns/$(cat ${MY_PATH}/pdf/${PUBKEY}/IPNS)~g" ${MY_PATH}/pdf/${PUBKEY}/_index.html
         ## NEW IPFSPORTAL (DATA : ${MY_PATH}/pdf/${PUBKEY}/*)
         IPFSPORTAL=$(ipfs add -qrw ${MY_PATH}/pdf/${PUBKEY}/ | tail -n 1)
         ipfs pin rm ${IPFSPORTAL}
