@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <link rel="icon" type="image/x-icon" href="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+    <link rel="icon" type="image/x-icon" id="favicon" href="/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
     <title>🤖 #BRO Terminal</title>
     <script src="/earth/jquery-3.6.3.min.js"></script>
     <script src="/earth/nostr.bundle.js"></script>
@@ -2721,7 +2721,7 @@
         <div class="logo" onclick="location.reload()" title="Reload application">🤖 #BRO</div>
         <div class="status-dot offline" id="statusDot"></div>
         <div class="profile-mini" id="profileMini" style="cursor:pointer;" onclick="toggleDidPanel()">
-            <img src="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1" id="profileImg">
+            <img src="/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1" id="profileImg">
             <a href="#" id="profileNameLink" class="profile-name-link name" title="Open profile in modal" onclick="event.preventDefault();event.stopPropagation();openProfileViewerModal();"><span id="profileName">Non connecté</span></a>
             <span class="societaire-badge visitor" id="societaireBadge" style="display:none;">👤 Visiteur</span>
         </div>
@@ -2897,7 +2897,7 @@
         <div class="theater-info">
             <!-- Author Profile Banner -->
             <div class="theater-author-banner" id="theaterAuthorBanner">
-                <img class="author-avatar" id="theaterAuthorAvatar" src="https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
+                <img class="author-avatar" id="theaterAuthorAvatar" src="/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1">
                 <div class="author-details">
                     <div class="author-name" id="theaterAuthorName">Author</div>
                     <div class="author-nip05" id="theaterAuthorNip05"></div>
@@ -3122,19 +3122,40 @@
         </details>
 
     <script>
-        // === CONFIG ===
-        // Use DEFAULT_RELAYS from common.js (auto-detected from hostname)
+        // === CONFIG (derived from serving context u.domain) ===
         // common.js provides: DEFAULT_RELAYS, nostrRelay, connectToRelay(), connectNostr(), publishNote(), etc.
         const MESSAGES_PER_PAGE = 50;
-        
+
+        // Derive base domain from current URL (u.domain → domain)
+        const _hostname = window.location.hostname;
+        const _protocol = window.location.protocol;
+        const _baseDomain = _hostname.replace(/^(u\.|ipfs\.|relay\.|www\.)/i, '');
+        const _isLocal = (_hostname === 'localhost' || _hostname === '127.0.0.1');
+
+        // Dynamic service URLs
+        const IPFS_GW = _isLocal ? 'http://127.0.0.1:8080' : `${_protocol}//ipfs.${_baseDomain}`;
+        const DEFAULT_AVATAR = `${IPFS_GW}/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1`;
+        const IPNS_DOMAIN = _baseDomain || 'copylaradio.com';
+        const RELAY_WSS = _isLocal ? 'ws://127.0.0.1:7777' : `wss://relay.${_baseDomain}`;
+
         // Wait for common.js to initialize and get relays
         function getAllRelays() {
             // Use common.js DEFAULT_RELAYS if available, otherwise fallback
             if (typeof window.DEFAULT_RELAYS !== 'undefined' && window.DEFAULT_RELAYS.length > 0) {
                 return window.DEFAULT_RELAYS;
             }
-            return ['wss://relay.copylaradio.com', 'ws://127.0.0.1:7777'];
+            return [RELAY_WSS, 'ws://127.0.0.1:7777'].filter((v, i, a) => a.indexOf(v) === i);
         }
+
+        // Update static HTML elements with dynamic gateway URLs
+        document.addEventListener('DOMContentLoaded', function() {
+            const fav = document.getElementById('favicon');
+            if (fav) fav.href = DEFAULT_AVATAR;
+            ['profileImg', 'theaterAuthorAvatar'].forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el) el.src = DEFAULT_AVATAR;
+            });
+        });
 
         // === STATE ===
         let publicKey = '';
@@ -3860,7 +3881,7 @@
                 </div>
                 ${myVideoCount > 0 ? `
                 <div class="friend-item ${selectedFriend === publicKey ? 'selected' : ''}" data-pubkey="${publicKey}">
-                    <img src="${userProfile?.picture || 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'}">
+                    <img src="${userProfile?.picture || DEFAULT_AVATAR}">
                     <span class="name">📱 Moi</span>
                     <span class="count">${myVideoCount}</span>
                 </div>
@@ -3877,8 +3898,8 @@
                 
                 $list.append(`
                     <div class="friend-item ${selectedFriend === pubkey ? 'selected' : ''}" data-pubkey="${pubkey}">
-                        <img src="${profile?.picture || 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'}" 
-                             onerror="this.src='https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'">
+                        <img src="${profile?.picture || DEFAULT_AVATAR}" 
+                             onerror="this.src='${DEFAULT_AVATAR}'">
                         <span class="name">${profile?.display_name || profile?.name || pubkey.slice(0, 8)}</span>
                         <span class="count">${count}</span>
                     </div>
@@ -4020,7 +4041,7 @@
             const gifanim = video.gifanimUrl || '';
             const profile = profileCache[video.authorId] || {};
             const authorName = profile.display_name || profile.name || video.authorId?.slice(0, 8) || 'Unknown';
-            const authorPic = profile.picture || 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            const authorPic = profile.picture || DEFAULT_AVATAR;
             const authorBanner = profile.banner || '';
             const authorNip05 = profile.nip05 || '';
             const authorAbout = profile.about || '';
@@ -4040,7 +4061,7 @@
                 <div class="video-card" onclick="openVideoTheater('${video.id}')">
                     <div class="video-author-banner ${hasBanner ? 'with-banner' : ''}" 
                          ${hasBanner ? `style="background-image: url('${authorBanner}')"` : ''}>
-                        <img class="author-avatar" src="${authorPic}" onerror="this.src='https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'">
+                        <img class="author-avatar" src="${authorPic}" onerror="this.src='${DEFAULT_AVATAR}'">
                         <div class="author-details">
                             <div class="author-name">${escapeHtml(authorName)}</div>
                             ${authorNip05 ? `<div class="author-nip05">${escapeHtml(authorNip05)}</div>` : 
@@ -4090,7 +4111,7 @@
             // Populate author profile banner
             const profile = profileCache[video.authorId] || {};
             const authorName = profile.display_name || profile.name || video.authorId?.slice(0, 8) || 'Unknown';
-            const authorPic = profile.picture || 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            const authorPic = profile.picture || DEFAULT_AVATAR;
             const authorBanner = profile.banner || '';
             const authorNip05 = profile.nip05 || '';
             const shortPubkey = video.authorId ? (video.authorId.slice(0, 8) + '...' + video.authorId.slice(-4)) : '';
@@ -4624,7 +4645,7 @@
                 } catch (e) {}
             }
             const gateway = getIpfsGateway();
-            const profileViewerPath = '/ipns/copylaradio.com/nostr_profile_viewer.html';
+            const profileViewerPath = `/ipns/${IPNS_DOMAIN}/nostr_profile_viewer.html`;
             const url = `${gateway}${profileViewerPath}?hex=${encodeURIComponent(hex)}&origin=${encodeURIComponent(hex)}`;
             $('#profileViewerFrame').attr('src', url);
             $('#profileViewerBackdrop').addClass('active');
@@ -4639,7 +4660,7 @@
         function openMessageViewerModal(eventId) {
             if (!eventId) return;
             const gateway = getIpfsGateway();
-            const messageViewerPath = '/ipns/copylaradio.com/nostr_message_viewer.html';
+            const messageViewerPath = `/ipns/${IPNS_DOMAIN}/nostr_message_viewer.html`;
             const url = `${gateway}${messageViewerPath}?id=${encodeURIComponent(eventId)}`;
             $('#messageViewerFrame').attr('src', url);
             $('#messageViewerBackdrop').addClass('active');
@@ -5053,7 +5074,10 @@
         async function checkZenBalance(g1pub) {
             try {
                 const apiUrl = getApiServerUrl();
-                const response = await fetch(`${apiUrl}/check_balance?g1pub=${g1pub}`, { timeout: 5000 });
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                const response = await fetch(`${apiUrl}/check_balance?g1pub=${g1pub}`, { signal: controller.signal });
+                clearTimeout(timeoutId);
                 
                 if (!response.ok) return null;
                 
@@ -5450,7 +5474,7 @@
                 $chat.append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">No muted profiles. Mute users from their profile (e.g. nostr_profile_viewer) to hide their messages here.</div>');
                 return;
             }
-            const defaultAvatar = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            const defaultAvatar = DEFAULT_AVATAR;
             for (const pk of list) {
                 const profile = profileCache[pk] || null;
                 const name = profile?.display_name || profile?.name || pk.slice(0, 8) + '…';
@@ -5733,7 +5757,7 @@
                 $chat.append('<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-dim);">No blog articles from this feed yet.</div>');
                 return;
             }
-            const defaultAvatar = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            const defaultAvatar = DEFAULT_AVATAR;
             const uniquePubkeys = [...new Set(events.map(e => e.pubkey).filter(Boolean))];
             const missingPubkeys = uniquePubkeys.filter(pk => !profileCache[pk]);
             if (missingPubkeys.length > 0 && allRelays && allRelays.length > 0) {
@@ -5793,7 +5817,7 @@
         async function renderNFeedView(events, mode, fofToFriends) {
             const $chat = $('#chatArea').empty();
             $('#emptyState').addClass('hidden');
-            const defaultAvatar = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+            const defaultAvatar = DEFAULT_AVATAR;
             // Batch-load missing profiles before render
             const uniquePubkeys = [...new Set(events.map(e => e.pubkey).filter(Boolean))];
             const missingPubkeys = uniquePubkeys.filter(pk => !profileCache[pk]);
@@ -6035,7 +6059,7 @@
             
             const $header = $('<div>').addClass('msg-header');
             if (opts.authorAvatar) {
-                const $avatar = $('<img>').addClass('msg-header-avatar').attr('src', opts.authorAvatar).attr('alt', opts.authorLabel || '').on('error', function() { $(this).attr('src', 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1'); });
+                const $avatar = $('<img>').addClass('msg-header-avatar').attr('src', opts.authorAvatar).attr('alt', opts.authorLabel || '').on('error', function() { $(this).attr('src', DEFAULT_AVATAR); });
                 if (event.pubkey && !isUser) {
                     const $a = $('<a>').addClass('msg-author-link').attr('href', '#').attr('title', 'Open profile');
                     $a.append($avatar);
@@ -6085,7 +6109,7 @@
             $msg.append($header);
             // N² "via" line (friends who follow this author)
             if (opts.viaFriends && opts.viaFriends.length > 0) {
-                const defaultAvatar = 'https://ipfs.copylaradio.com/ipfs/QmQRq211EMmQJ7QE44FrVZt8EMF7JJWnayDXHyKzes4pX1';
+                const defaultAvatar = DEFAULT_AVATAR;
                 const $via = $('<div>').addClass('n-feed-via');
                 $via.append($('<span>').addClass('n-feed-via-label').text('via'));
                 opts.viaFriends.slice(0, 8).forEach(function(friendPubkey) {

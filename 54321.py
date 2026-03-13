@@ -403,6 +403,54 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+from starlette.responses import StreamingResponse
+import httpx
+
+# --- IPFS/IPNS gateway proxy (relay local IPFS gateway on port 8080) ---
+IPFS_GATEWAY_URL = os.getenv("IPFS_GATEWAY", "http://127.0.0.1:8080")
+
+async def _proxy_ipfs_gateway(request: Request):
+    """Proxy /ipfs/ and /ipns/ requests to the local IPFS gateway."""
+    gw_path = request.url.path  # e.g. /ipfs/Qm... or /ipns/domain/file
+    gw_url = f"{IPFS_GATEWAY_URL}{gw_path}"
+    if request.url.query:
+        gw_url += f"?{request.url.query}"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            gw_resp = await client.request(
+                method=request.method,
+                url=gw_url,
+                headers={
+                    k: v for k, v in request.headers.items()
+                    if k.lower() not in ('host', 'connection')
+                },
+            )
+
+        # Stream response back with original headers
+        excluded = {'transfer-encoding', 'content-encoding', 'connection'}
+        headers = {
+            k: v for k, v in gw_resp.headers.items()
+            if k.lower() not in excluded
+        }
+        return StreamingResponse(
+            content=iter([gw_resp.content]),
+            status_code=gw_resp.status_code,
+            headers=headers,
+        )
+    except httpx.ConnectError:
+        raise HTTPException(status_code=502, detail="IPFS gateway unavailable")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="IPFS gateway timeout")
+
+@app.api_route("/ipfs/{path:path}", methods=["GET", "HEAD"])
+async def proxy_ipfs(request: Request, path: str):
+    return await _proxy_ipfs_gateway(request)
+
+@app.api_route("/ipns/{path:path}", methods=["GET", "HEAD"])
+async def proxy_ipns(request: Request, path: str):
+    return await _proxy_ipfs_gateway(request)
+
 # --- Coinflip server-authoritative state ---
 COINFLIP_SECRET = os.getenv("COINFLIP_SECRET") or base64.urlsafe_b64encode(os.urandom(32)).decode()
 COINFLIP_SESSIONS: Dict[str, Dict[str, Any]] = {}
@@ -6681,6 +6729,177 @@ async def upload_file(
     except Exception as e:
         logging.error(f"Error saving file or running IPFS script: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to process file: {e}")
+
+
+# ==================== IMAGE UPLOAD (TrocZen/ZENBOX compatible) ====================
+
+# Magic bytes for image validation
+IMAGE_MAGIC_BYTES = {
+    'png': [b'\x89PNG\r\n\x1a\n'],
+    'jpg': [b'\xFF\xD8\xFF'],
+    'jpeg': [b'\xFF\xD8\xFF'],
+    'webp': [b'RIFF'],  # + WEBP at offset 8
+    'gif': [b'GIF87a', b'GIF89a'],
+}
+
+IMAGE_ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif'}
+
+IMAGE_MIME_TYPES = {
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'webp': 'image/webp',
+    'gif': 'image/gif',
+}
+
+MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
+
+def _validate_image_magic_bytes(file_content: bytes, extension: str) -> bool:
+    """Validate magic bytes match the declared extension."""
+    ext = extension.lower()
+    if ext not in IMAGE_MAGIC_BYTES:
+        return False
+    if ext == 'webp':
+        return len(file_content) >= 12 and file_content[:4] == b'RIFF' and file_content[8:12] == b'WEBP'
+    for sig in IMAGE_MAGIC_BYTES[ext]:
+        if file_content.startswith(sig):
+            return True
+    return False
+
+def _validate_image_file(filename: str, file_content: bytes) -> tuple:
+    """Validate image file extension and magic bytes. Returns (is_valid, error_msg)."""
+    if '.' not in filename:
+        return False, "File has no extension"
+    ext = filename.rsplit('.', 1)[1].lower()
+    if ext not in IMAGE_ALLOWED_EXTENSIONS:
+        return False, f"Extension '{ext}' not allowed. Allowed: {', '.join(IMAGE_ALLOWED_EXTENSIONS)}"
+    if len(file_content) < 12:
+        return False, "File too small for validation"
+    if not _validate_image_magic_bytes(file_content[:12], ext):
+        return False, f"Magic bytes don't match extension '{ext}'. Potentially malicious file."
+    return True, None
+
+async def _upload_image_to_ipfs(filepath: str) -> tuple:
+    """Upload image to IPFS via local API. Returns (cid, ipfs_url) or (None, None)."""
+    try:
+        import aiohttp
+        ipfs_api_url = "http://127.0.0.1:5001"
+        with open(filepath, 'rb') as f:
+            file_content = f.read()
+        data = aiohttp.FormData()
+        data.add_field('file', file_content,
+                       filename=os.path.basename(filepath),
+                       content_type='application/octet-stream')
+        timeout = aiohttp.ClientTimeout(total=30)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(f'{ipfs_api_url}/api/v0/add', data=data) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    cid = result['Hash']
+                    ipfs_gateway = get_myipfs_gateway().rstrip('/')
+                    ipfs_url = f"{ipfs_gateway}/ipfs/{cid}"
+                    return cid, ipfs_url
+        return None, None
+    except Exception as e:
+        logging.error(f"IPFS image upload error: {e}")
+        return None, None
+
+
+@app.post("/api/upload/image")
+async def upload_image(
+    file: UploadFile = File(...),
+    npub: str = Form(...),
+    type: str = Form(default="avatar"),
+):
+    """
+    Upload image (avatar, banner, picture) for NOSTR profiles.
+    Compatible with TrocZen ZENBOX API.
+
+    Security:
+    - File extension validation
+    - Magic bytes validation to prevent malicious files
+    - IPFS upload with local URL fallback
+
+    Args:
+        file: Image file (PNG, JPG, JPEG, WEBP, GIF, max 5MB)
+        npub: NOSTR public key (bech32 or hex)
+        type: Image type ('avatar', 'banner', 'logo')
+    """
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    image_type = type.lower()
+    if image_type not in ('avatar', 'banner', 'logo'):
+        raise HTTPException(status_code=400,
+                            detail="Invalid image type (must be avatar, banner, or logo)")
+
+    if not npub:
+        raise HTTPException(status_code=400, detail="Missing npub")
+
+    # Read header for magic bytes validation
+    file_header = await file.read(12)
+    await file.seek(0)
+
+    is_valid, error_msg = _validate_image_file(file.filename, file_header)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+
+    # Read full content and check size
+    content = await file.read()
+    if len(content) > MAX_IMAGE_SIZE:
+        raise HTTPException(status_code=413,
+                            detail=f"File size ({len(content) // 1024}KB) exceeds maximum (5MB)")
+
+    # Secure filename
+    original_name = sanitize_filename_python(file.filename)
+    ext = original_name.rsplit('.', 1)[1].lower()
+    timestamp = int(datetime.now().timestamp())
+    npub_short = npub[:16] if len(npub) > 16 else npub
+    new_filename = f"{npub_short}_{image_type}_{timestamp}.{ext}"
+
+    # Ensure uploads directory exists
+    uploads_dir = Path("uploads")
+    uploads_dir.mkdir(exist_ok=True)
+    filepath = uploads_dir / new_filename
+
+    # Save locally
+    async with aiofiles.open(str(filepath), 'wb') as f:
+        await f.write(content)
+
+    # Generate checksum
+    file_hash = hashlib.sha256(content).hexdigest()
+
+    # Local URL fallback
+    local_url = f"/uploads/{new_filename}"
+
+    # Upload to IPFS
+    cid, ipfs_url = await _upload_image_to_ipfs(str(filepath))
+
+    return JSONResponse(content={
+        'success': True,
+        'url': ipfs_url or local_url,
+        'local_url': local_url,
+        'ipfs_url': ipfs_url,
+        'ipfs_cid': cid,
+        'ipfs_status': 'completed' if cid else 'failed',
+        'filename': new_filename,
+        'checksum': file_hash,
+        'size': len(content),
+        'uploaded_at': datetime.now().isoformat(),
+        'storage': 'ipfs' if cid else 'local',
+        'type': image_type,
+        'mime_type': IMAGE_MIME_TYPES.get(ext, 'application/octet-stream'),
+    }, status_code=201)
+
+
+@app.get("/uploads/{filename}")
+async def serve_upload(filename: str):
+    """Serve uploaded file from local storage."""
+    filepath = Path("uploads") / sanitize_filename_python(filename)
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    from fastapi.responses import FileResponse
+    return FileResponse(str(filepath))
 
 
 @app.post("/api/upload_from_drive", response_model=UploadFromDriveResponse)
