@@ -35,10 +35,12 @@ class G1NostrForm(BaseModel):
     pepper: str = ""
     format: str = "html"
 
+from fastapi import Depends
+
 @router.post("/g1nostr")
 async def scan_qr(
     request: Request,
-    form_data: G1NostrForm = Form(...)
+    form_data: G1NostrForm = Depends(G1NostrForm.as_form)
 ):
     email = form_data.email
     lang = form_data.lang
@@ -296,6 +298,7 @@ async def scan_qr(
         logging.error(error_message)
         raise HTTPException(status_code=500, detail=error_message)
 
+@as_form
 class UPassportForm(BaseModel):
     parametre: str
     imageData: Optional[str] = None
@@ -304,7 +307,7 @@ class UPassportForm(BaseModel):
 
 @router.post("/upassport")
 async def scan_qr_upassport(
-    form_data: UPassportForm = Form(...)
+    form_data: UPassportForm = Depends(UPassportForm.as_form)
 ):
     parametre = form_data.parametre
     imageData = form_data.imageData
@@ -382,13 +385,14 @@ async def scan_qr_upassport(
         logging.error(error_message)
         raise HTTPException(status_code=500, detail=error_message)
 
+@as_form
 class SSSSForm(BaseModel):
     cardns: str
     ssss: str
     zerocard: Optional[str] = None
 
 @router.post("/ssss")
-async def ssss(request: Request, form_data: SSSSForm = Form(...)):
+async def ssss(request: Request, form_data: SSSSForm = Depends(SSSSForm.as_form)):
     cardns = form_data.cardns
     ssss = form_data.ssss
     zerocard = form_data.zerocard

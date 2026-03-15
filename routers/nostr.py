@@ -126,7 +126,10 @@ async def get_n2_network(
         raise HTTPException(status_code=500, detail=f"Erreur lors de l'analyse: {str(e)}")
 
 from pydantic import BaseModel
+from utils.helpers import as_form
+from fastapi import Depends
 
+@as_form
 class SendMsgForm(BaseModel):
     friendEmail: str
     friendName: str = ""
@@ -142,7 +145,7 @@ class SendMsgForm(BaseModel):
 
 @router.post("/sendmsg")
 async def send_invitation_message(
-    form_data: SendMsgForm = Form(...)
+    form_data: SendMsgForm = Depends(SendMsgForm.as_form)
 ):
     friendEmail = form_data.friendEmail
     friendName = form_data.friendName
