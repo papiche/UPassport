@@ -12,7 +12,8 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
 
 from core.state import app_state, ORACLE_ENABLED
-from services.nostr import verify_nostr_auth, hex_to_npub, npub_to_hex, fetch_nostr_profiles
+from services.nostr import verify_nostr_auth, fetch_nostr_profiles
+from utils.crypto import hex_to_npub, npub_to_hex
 from utils.helpers import get_env_from_mysh, run_script
 from core.config import settings
 
