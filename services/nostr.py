@@ -341,10 +341,10 @@ async def verify_nostr_auth(npub: Optional[str], force_check: bool = False) -> b
     
     if len(npub) == 64:
         from utils.crypto import npub_to_hex
-    hex_pubkey = npub_to_hex(npub)
+        hex_pubkey = npub_to_hex(npub)
     elif npub.startswith('npub1'):
         from utils.crypto import npub_to_hex
-    hex_pubkey = npub_to_hex(npub)
+        hex_pubkey = npub_to_hex(npub)
     else:
         return False
     
