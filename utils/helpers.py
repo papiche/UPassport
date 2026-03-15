@@ -256,7 +256,7 @@ def as_form(cls):
     setattr(cls, 'as_form', as_form_func)
     return cls
 
-def get_uplanet_home_url():
+async def get_uplanet_home_url():
     from core.config import settings
     upassport_url = settings.UPASSPORT_URL
     if not upassport_url:

@@ -285,7 +285,7 @@ async def scan_qr(
                 
                 data["is_origin"] = is_origin_mode()
                 data["oc_urls"] = get_oc_tier_urls()
-                data["uplanet_home"] = get_uplanet_home_url()
+                data["uplanet_home"] = await get_uplanet_home_url()
                 return JSONResponse(data)
             else:
                 raise HTTPException(status_code=500, detail="MULTIPASS created but JSON sidecar not found")
