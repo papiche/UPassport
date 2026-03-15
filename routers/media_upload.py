@@ -59,6 +59,14 @@ class WebcamForm(BaseModel):
     youtube_url: str = ""
     genres: str = ""
 
+@router.get("/webcam", response_class=HTMLResponse)
+async def get_webcam_page(request: Request):
+    """Render the webcam recording page"""
+    return templates.TemplateResponse("webcam.html", {
+        "request": request,
+        "myIPFS": await get_myipfs_gateway()
+    })
+
 @router.post("/webcam", response_class=HTMLResponse)
 async def process_webcam_video(
     request: Request,

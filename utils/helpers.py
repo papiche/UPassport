@@ -279,7 +279,7 @@ async def check_balance(g1pub: str):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
         if process.returncode != 0:
             raise ValueError("Erreur dans G1check.sh: " + stderr.decode())
         balance_line = stdout.decode().strip().splitlines()[-1]

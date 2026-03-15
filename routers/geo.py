@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from core.config import settings
 from utils.helpers import get_myipfs_gateway, get_env_from_mysh
 from services.nostr import verify_nostr_auth
 from utils.crypto import hex_to_npub
