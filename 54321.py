@@ -86,8 +86,6 @@ except ImportError as e:
 
 # Charger les variables d'environnement depuis le fichier .env
 load_dotenv()
-# Récupérer la valeur de OBSkey depuis l'environnement
-OBSkey = os.getenv("OBSkey")
 
 DEFAULT_PORT = 54321
 DEFAULT_HOST = "127.0.0.1"
@@ -527,6 +525,87 @@ async def rate_limit_middleware(request: Request, call_next):
             response.headers["X-RateLimit-Client-IP"] = e.detail.get("client_ip", "unknown")
             return response
         raise e
+
+# ==========================================
+# CORE HELPERS : REFACTORISATION
+# ==========================================
+
+async def execute_bash_json_script(script_name: str, args: list = None, timeout: int = 60) -> Dict[str, Any]:
+    """Exécute un script bash de manière asynchrone et parse sa sortie JSON. Ne bloque pas FastAPI."""
+    args = args or []
+    script_path = os.path.expanduser(f"~/.zen/Astroport.ONE/tools/{script_name}")
+    
+    if not os.path.exists(script_path):
+        raise HTTPException(status_code=500, detail=f"Script introuvable: {script_name}")
+
+    try:
+        process = await asyncio.create_subprocess_exec(
+            script_path, *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+
+        if process.returncode != 0:
+            logging.error(f"Script {script_name} a échoué: {stderr.decode()}")
+            raise ValueError(f"Erreur d'exécution: {stderr.decode()}")
+
+        output_str = stdout.decode().strip()
+        if not output_str:
+            return {}
+
+        parsed_data = json.loads(output_str)
+        if "error" in parsed_data:
+            raise ValueError(parsed_data["error"])
+            
+        return parsed_data
+
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail=f"Timeout lors de l'exécution de {script_name}")
+    except json.JSONDecodeError as e:
+        logging.error(f"Erreur JSON depuis {script_name}. Sortie: {output_str[:200]}")
+        raise HTTPException(status_code=500, detail="Sortie du script invalide (Non-JSON)")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
+
+def render_page(request: Request, template_name: str, context: dict = None) -> HTMLResponse:
+    """Raccourci pour rendre un template avec les variables de base (myIPFS)."""
+    base_context = {
+        "request": request,
+        "myIPFS": get_myipfs_gateway()
+    }
+    if context:
+        base_context.update(context)
+    return templates.TemplateResponse(template_name, base_context)
+
+# ==========================================
+# ROUTES UI SIMPLES
+# ==========================================
+
+SIMPLE_UI_ROUTES = {
+    "/cloud": "cloud.html",
+    "/dev": "dev.html",
+    "/g1": "g1nostr.html",
+    "/scan": "scan_new.html",
+    "/upload": "upload2ipfs.html",
+    "/scan_multipass_payment.html": "scan_multipass_payment.html",
+    "/vocals": "vocals.html",
+    "/vocals-read": "vocals-read.html",
+}
+
+for route_path, template_name in SIMPLE_UI_ROUTES.items():
+    @app.get(route_path, response_class=HTMLResponse)
+    async def _simple_route(request: Request, _tpl=template_name): # Utilise une closure
+        return render_page(request, _tpl)
+
+# Redirections
+@app.get("/video")
+async def video_route(): return RedirectResponse(url="/youtube?html=1", status_code=302)
+
+@app.get("/audio")
+async def audio_route(): return RedirectResponse(url="/mp3?html=1", status_code=302)
 
 # Modèles Pydantic existants
 class MessageData(BaseModel):
@@ -1011,95 +1090,33 @@ async def run_uDRIVE_generation_script(source_dir: Path, enable_logging: bool = 
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 # NOSTR and NIP42 Functions
-def hex_to_npub(hex_pubkey: str) -> Optional[str]:
-    """
-    Convert hex pubkey to npub (bech32 format).
-    
-    Args:
-        hex_pubkey: 64-character hexadecimal public key
-        
-    Returns:
-        npub string (npub1...) or None if conversion fails
-    """
-    if not hex_pubkey or len(hex_pubkey) != 64:
-        return None
+def convert_nostr_key(key: str, to_format: str) -> Optional[str]:
+    """Convertit une clé NOSTR entre bech32 (npub) et hexadécimal."""
+    if not key: return None
+    key = key.lower().strip()
     
     try:
-        # Try using nostr_sdk first (preferred)
-        from nostr_sdk import PublicKey
-        return PublicKey.from_hex(hex_pubkey).to_bech32()
-    except Exception:
-        try:
-            # Fallback to bech32 library
+        if to_format == "hex":
+            if len(key) == 64: return key # Déjà en hex
+            if not key.startswith('npub1'): return None
+            # Logique bech32 simplifiée via librairie externe si dispo, sinon votre implémentation
             import bech32
-            # Convert hex to bytes
-            pubkey_bytes = bytes.fromhex(hex_pubkey)
-            # Encode as npub
-            return bech32.bech32_encode('npub', bech32.convertbits(pubkey_bytes, 8, 5))
-        except Exception:
-            return None
-
-def npub_to_hex(npub: str) -> Optional[str]:
-    """Convertir une clé publique npub en format hexadécimal"""
-    try:
-        # Si c'est déjà du hex (64 caractères), le valider et le retourner
-        if len(npub) == 64:
-            try:
-                int(npub, 16)  # Vérifier que c'est du hex valide
-                return npub.lower()  # Normaliser en minuscules
-            except ValueError:
-                logging.error(f"Clé de 64 caractères mais pas en hexadécimal valide: {npub}")
-                return None
-        
-        # Si ça ne commence pas par npub1, on ne peut pas traiter
-        if not npub.startswith('npub1'):
-            logging.error(f"Format non supporté: {npub} (doit être npub1... ou hex 64 chars)")
-            return None
-        
-        # Décoder bech32 basique (implémentation simplifiée)
-        # Dans un environnement de production, utiliser une vraie lib bech32
-        
-        # Table bech32
-        BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
-        
-        # Enlever le préfixe 'npub1'
-        data = npub[5:]
-        
-        # Décoder en base32
-        decoded = []
-        for char in data[:-6]:  # Enlever les 6 derniers chars (checksum)
-            if char in BECH32_CHARSET:
-                decoded.append(BECH32_CHARSET.index(char))
-            else:
-                logging.error(f"Caractère invalide dans npub: {char}")
-                return None
-        
-        # Convertir de 5-bit à 8-bit
-        bits = []
-        for value in decoded:
-            bits.extend([(value >> i) & 1 for i in range(4, -1, -1)])
-        
-        # Grouper par 8 bits et convertir en hex
-        hex_bytes = []
-        for i in range(0, len(bits) - len(bits) % 8, 8):
-            byte_value = 0
-            for j in range(8):
-                byte_value = (byte_value << 1) | bits[i + j]
-            hex_bytes.append(f"{byte_value:02x}")
-        
-        hex_pubkey = ''.join(hex_bytes)
-        
-        # Validation de la longueur (32 bytes = 64 hex chars)
-        if len(hex_pubkey) == 64:
-            logging.info(f"npub décodée avec succès: {npub} -> {hex_pubkey}")
-            return hex_pubkey.lower()  # Normaliser en minuscules
-        else:
-            logging.error(f"Longueur incorrecte après décodage: {len(hex_pubkey)} chars")
-            return None
-        
+            _, data = bech32.bech32_decode(key)
+            decoded = bech32.convertbits(data, 5, 8, False)
+            return bytes(decoded).hex() if decoded else None
+            
+        elif to_format == "npub":
+            if key.startswith('npub1'): return key
+            if len(key) != 64: return None
+            import bech32
+            data = bech32.convertbits(bytes.fromhex(key), 8, 5)
+            return bech32.bech32_encode('npub', data)
     except Exception as e:
-        logging.error(f"Erreur lors de la conversion npub: {e}")
+        logging.error(f"Erreur conversion clé NOSTR ({key} -> {to_format}): {e}")
         return None
+
+def npub_to_hex(npub: str) -> Optional[str]: return convert_nostr_key(npub, "hex")
+def hex_to_npub(hex_key: str) -> Optional[str]: return convert_nostr_key(hex_key, "npub")
 
 def get_nostr_relay_url() -> str:
     """Obtenir l'URL du relai NOSTR local"""
@@ -1730,12 +1747,17 @@ def is_safe_email(email: str) -> bool:
     return True
 
 def is_safe_g1pub(g1pub: str) -> bool:
-    """Valider qu'une g1pub est sûre et ne contient pas de caractères dangereux"""
-    if not g1pub or len(g1pub) > 100:  # Limite raisonnable pour une g1pub
+    """Valider qu'une g1pub est sûre et ne contient pas de caractères dangereux.
+    Accepte les formats :
+    - G1 v1 base58 : 43-50 chars (ex: 8qFNab...)
+    - Duniter v2s SS58 : commence par 'g1', base58 (ex: g1ABC...)
+    - Suffixe :ZEN optionnel (ex: 8qFNab...:ZEN)
+    """
+    if not g1pub or len(g1pub) > 100:
         return False
-    
-    # Vérifier qu'il n'y a que des caractères alphanumériques et quelques caractères spéciaux
-    safe_pattern = re.compile(r'^[a-zA-Z0-9+/=]+(:ZEN)?$')
+
+    # Base58 alphabet (no 0, O, I, l — unlike base64 which has +/=)
+    safe_pattern = re.compile(r'^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+(:ZEN)?$')
     return bool(safe_pattern.match(g1pub))
 
 def get_safe_user_path(user_type: str, email: str, filename: str) -> Optional[str]:
@@ -2119,143 +2141,6 @@ async def get_nostr(request: Request, type: str = "default"):
             detail=f"Erreur interne lors du chargement du template: {str(e)}"
         )
 
-# ---DEV--- NOSTR BLOG MESSAGE
-@app.get("/blog")
-async def get_root(request: Request):
-    return templates.TemplateResponse("nostr_blog.html", {"request": request})
-
-# UPlanet Oracle - Permit Management Interface
-@app.get("/wotx2", response_class=HTMLResponse)
-async def get_wotx2(request: Request, npub: Optional[str] = None, permit_id: Optional[str] = None):
-    """WoTx2 Permit Interface - Evolving Web of Trust for Professional Permits
-    
-    This interface reads all data from Nostr relays. The API only serves to initialize the page.
-    All permit requests (30501) and attestations (30502) are managed directly via Nostr by each MULTIPASS.
-    Only permit definitions (30500) and credentials (30503) are managed by UPLANETNAME_G1 via the API.
-    
-    Args:
-        npub: Optional NOSTR public key for authenticated users
-        permit_id: Optional permit ID to display (default: PERMIT_DE_NAGER or first available)
-    """
-    try:
-        myipfs_gateway = get_myipfs_gateway()
-        
-        # Initialize empty data - will be loaded from Nostr by the frontend
-        all_permits = []
-        selected_permit_data = {}
-        selected_permit_id = permit_id or "PERMIT_DE_NAGER"
-        
-        # Fetch permit definitions from Nostr (kind 30500) and local definitions
-        if ORACLE_ENABLED and oracle_system is not None:
-            try:
-                # Fetch permit definitions from Nostr (includes MULTIPASS directories)
-                nostr_definitions = oracle_system.fetch_permit_definitions_from_nostr()
-                
-                # Also include local definitions (from oracle_system.definitions)
-                # This ensures permits created locally but not yet in Nostr are visible
-                seen_permit_ids = set()
-                
-                # First, add Nostr definitions
-                for permit_def in nostr_definitions:
-                    seen_permit_ids.add(permit_def.id)
-                    all_permits.append({
-                        "id": permit_def.id,
-                        "name": permit_def.name,
-                        "description": permit_def.description,
-                        "min_attestations": permit_def.min_attestations,
-                        "holders_count": 0,  # Will be calculated from Nostr by frontend
-                        "pending_count": 0,  # Will be calculated from Nostr by frontend
-                        "category": permit_def.metadata.get("category", "general") if permit_def.metadata else "general"
-                    })
-                
-                # Then, add local definitions not found in Nostr
-                for def_id, local_def in oracle_system.definitions.items():
-                    if def_id not in seen_permit_ids:
-                        all_permits.append({
-                            "id": local_def.id,
-                            "name": local_def.name,
-                            "description": local_def.description,
-                            "min_attestations": local_def.min_attestations,
-                            "holders_count": 0,
-                            "pending_count": 0,
-                            "category": local_def.metadata.get("category", "general") if local_def.metadata else "general"
-                        })
-                        # Also add to nostr_definitions list for selection logic
-                        nostr_definitions.append(local_def)
-                
-                # Find selected permit (from Nostr or local)
-                selected_permit = next((p for p in nostr_definitions if p.id == selected_permit_id), None)
-                if not selected_permit and nostr_definitions:
-                    selected_permit = nostr_definitions[0]
-                    selected_permit_id = selected_permit.id if selected_permit else None
-                
-                if selected_permit:
-                    selected_permit_data = {
-                        "id": selected_permit.id,
-                        "name": selected_permit.name,
-                        "description": selected_permit.description,
-                        "min_attestations": selected_permit.min_attestations,
-                        "valid_duration_days": selected_permit.valid_duration_days,
-                        "required_license": selected_permit.required_license,
-                        "revocable": selected_permit.revocable,
-                        "verification_method": selected_permit.verification_method,
-                        "metadata": selected_permit.metadata
-                    }
-            except Exception as e:
-                logging.warning(f"Error fetching permits from Nostr: {e}")
-        
-        # Detect if this is the primary station (ORACLE des ORACLES)
-        # Same logic as ORACLE.refresh.sh - check if IPFSNODEID matches first STRAP in A_boostrap_nodes.txt
-        is_primary_station = False
-        ipfs_node_id = get_env_from_mysh("IPFSNODEID", "")
-        if not ipfs_node_id:
-            # Fallback to environment variable
-            ipfs_node_id = os.getenv("IPFSNODEID", "")
-        if ipfs_node_id:
-            strapfile = None
-            if os.path.exists(os.path.expanduser("~/.zen/game/MY_boostrap_nodes.txt")):
-                strapfile = os.path.expanduser("~/.zen/game/MY_boostrap_nodes.txt")
-            elif os.path.exists(os.path.expanduser("~/.zen/Astroport.ONE/A_boostrap_nodes.txt")):
-                strapfile = os.path.expanduser("~/.zen/Astroport.ONE/A_boostrap_nodes.txt")
-            
-            if strapfile and os.path.exists(strapfile):
-                try:
-                    with open(strapfile, 'r') as f:
-                        straps = []
-                        for line in f:
-                            line = line.strip()
-                            if line and not line.startswith('#'):
-                                # Extract IPFSNODEID from line (same logic as bash: rev | cut -d '/' -f 1 | rev)
-                                strap_id = line.split('/')[-1].strip()
-                                if strap_id:
-                                    straps.append(strap_id)
-                        
-                        if straps and straps[0] == ipfs_node_id:
-                            is_primary_station = True
-                            logging.info(f"⭐ PRIMARY STATION DETECTED - IPFSNODEID {ipfs_node_id} matches first STRAP")
-                except Exception as e:
-                    logging.warning(f"Error reading bootstrap nodes file: {e}")
-        
-        return templates.TemplateResponse("wotx2.html", {
-            "request": request,
-            "myIPFS": myipfs_gateway,
-            "permit_data": selected_permit_data,
-            "all_permits": all_permits,
-            "selected_permit_id": permit_id or "PERMIT_DE_NAGER",
-            "npub": npub,
-            "uSPOT": os.getenv("uSPOT", "http://127.0.0.1:54321"),
-            "nostr_relay": os.getenv("myRELAY", "ws://127.0.0.1:7777").split()[0] if os.getenv("NOSTR_RELAYS") else "ws://127.0.0.1:7777",
-            "IPFSNODEID": ipfs_node_id,
-            "is_primary_station": is_primary_station
-        })
-        
-    except Exception as e:
-        logging.error(f"Error in get_wotx2: {e}", exc_info=True)
-        return HTMLResponse(
-            content=f"<html><body><h1>Error</h1><p>{str(e)}</p></body></html>", 
-            status_code=500
-        )
-
 @app.get("/oracle")
 async def get_oracle(
     request: Request, 
@@ -2389,11 +2274,6 @@ async def get_oracle(
         raise HTTPException(status_code=500, detail=str(e))
 
 ######################################### MULTIPASS CREATION
-# UPlanet G1 MULTIPASS Registration
-@app.get("/g1", response_class=HTMLResponse)
-async def get_root(request: Request):
-    return templates.TemplateResponse("g1nostr.html", {"request": request})
-
 # Beside /g1
 @app.post("/g1nostr")
 async def scan_qr(request: Request, email: str = Form(...), lang: str = Form(...), lat: str = Form(...), lon: str = Form(...), salt: str = Form(default=""), pepper: str = Form(default=""), format: str = Form(default="html")):
@@ -3025,226 +2905,65 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
         logging.error(f"Erreur inattendue dans check_balance_route: {e}")
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
+# ==========================================
+# ROUTES FINANCIERES OPTIMISEES
+# ==========================================
+
 @app.get("/check_society")
 async def check_society_route(request: Request, html: Optional[str] = None, nostr: Optional[str] = None):
-    """Check transaction history of SOCIETY wallet to see capital contributions
+    args = ["--nostr"] if nostr is not None else []
+    data = await execute_bash_json_script("G1society.sh", args, timeout=120)
     
-    Args:
-        html: If present, return HTML page instead of JSON
-        nostr: If present, include Nostr DID data in the response
-    """
-    try:
-        # Call G1society.sh to get filtered and calculated society data
-        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1society.sh")
-        
-        # Build command with optional --nostr flag
-        cmd = [script_path]
-        if nostr is not None:
-            cmd.append("--nostr")
-        
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)  # Increased timeout for Nostr queries
-        
-        if result.returncode != 0:
-            logging.error(f"G1society.sh failed with return code {result.returncode}: {result.stderr}")
-            raise ValueError(f"Error in G1society.sh: {result.stderr}")
-        
-        # Parse JSON output from G1society.sh
-        try:
-            society_data = json.loads(result.stdout.strip())
-        except json.JSONDecodeError as e:
-            logging.error(f"Failed to parse G1society.sh output: {e}")
-            logging.error(f"Raw stdout: {result.stdout[:500]}")
-            logging.error(f"Raw stderr: {result.stderr[:500]}")
-            raise ValueError(f"Invalid JSON from G1society.sh: {e}")
-        
-        # Check for errors in the response
-        if "error" in society_data:
-            logging.error(f"G1society.sh returned error: {society_data['error']}")
-            raise HTTPException(status_code=500, detail=society_data['error'])
-        
-        # If html parameter is provided, return HTML page
-        if html is not None:
-            g1pub = society_data.get("g1pub", "N/A")
-            return generate_society_html_page(request, g1pub, society_data)
-        
-        # Otherwise return JSON
-        return society_data
-        
-    except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="Transaction history retrieval timeout")
-    except Exception as e:
-        logging.error(f"Error checking society history: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+    if html:
+        data["has_nostr_data"] = len(data.get('nostr_did_data', [])) > 0
+        data["nostr_count"] = len(data.get('nostr_did_data', []))
+        return render_page(request, "society.html", data)
+    return data
 
 @app.get("/check_revenue")
 async def check_revenue_route(request: Request, html: Optional[str] = None, year: Optional[str] = None):
-    """Check revenue history from ZENCOIN transactions (Chiffre d'Affaires)
+    data = await execute_bash_json_script("G1revenue.sh", [year or "all"], timeout=60)
     
-    Args:
-        html: If present, return HTML page instead of JSON
-        year: Optional year filter (e.g. "2024", "2025"). Default: "all"
-    """
-    try:
-        # Call G1revenue.sh to get filtered and calculated revenue data
-        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1revenue.sh")
-        
-        # Pass year filter as argument (default: "all")
-        year_filter = year if year else "all"
-        result = subprocess.run([script_path, year_filter], capture_output=True, text=True, timeout=60)
-        
-        if result.returncode != 0:
-            logging.error(f"G1revenue.sh failed with return code {result.returncode}: {result.stderr}")
-            raise ValueError(f"Error in G1revenue.sh: {result.stderr}")
-        
-        # Parse JSON output from G1revenue.sh
-        try:
-            revenue_data = json.loads(result.stdout.strip())
-        except json.JSONDecodeError as e:
-            logging.error(f"Failed to parse G1revenue.sh output: {e}")
-            logging.error(f"Raw output: {result.stdout[:500]}")
-            raise ValueError(f"Invalid JSON from G1revenue.sh: {e}")
-        
-        # Check for errors in the response
-        if "error" in revenue_data:
-            logging.error(f"G1revenue.sh returned error: {revenue_data['error']}")
-            raise HTTPException(status_code=500, detail=revenue_data['error'])
-        
-        # If html parameter is provided, return HTML page
-        if html is not None:
-            g1pub = revenue_data.get("g1pub", "N/A")
-            return generate_revenue_html_page(request, g1pub, revenue_data)
-        
-        # Otherwise return JSON
-        return revenue_data
-        
-    except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="Revenue history retrieval timeout")
-    except Exception as e:
-        logging.error(f"Error checking revenue history: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+    if html:
+        data["filter_year"] = year or 'all'
+        return render_page(request, "revenue.html", data)
+    return data
 
 @app.get("/check_zencard")
 async def check_zencard_route(request: Request, email: str, html: Optional[str] = None):
-    """Check ZEN Card social shares history for a given email
+    if not email:
+        raise HTTPException(status_code=400, detail="Email requis")
+        
+    data = await execute_bash_json_script("G1zencard_history.sh", [email, "true"], timeout=60)
     
-    Args:
-        email: Email of the ZEN Card holder (required)
-        html: If present, return HTML page instead of JSON
-    """
-    try:
-        # Validate email parameter
-        if not email:
-            raise HTTPException(status_code=400, detail="Email parameter is required")
-        
-        # Call G1zencard_history.sh to get filtered and calculated ZEN Card data
-        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1zencard_history.sh")
-        result = subprocess.run([script_path, email, "true"], capture_output=True, text=True, timeout=60)
-        
-        # Parse JSON output from G1zencard_history.sh (script always outputs JSON, even on error)
-        try:
-            zencard_data = json.loads(result.stdout.strip())
-        except json.JSONDecodeError as e:
-            logging.error(f"Failed to parse G1zencard_history.sh output: {e}")
-            logging.error(f"Return code: {result.returncode}, stderr: {result.stderr}")
-            logging.error(f"Raw stdout: {result.stdout[:500]}")
-            raise ValueError(f"Invalid JSON from G1zencard_history.sh: {e}")
-        
-        # Check for errors in the response
-        if "error" in zencard_data:
-            error_msg = zencard_data.get('error', 'Unknown error')
-            logging.warning(f"G1zencard_history.sh returned error: {error_msg}")
-            # Return 404 for "not found" errors, 500 for other errors
-            status_code = 404 if "not found" in error_msg.lower() or "not configured" in error_msg.lower() else 500
-            raise HTTPException(status_code=status_code, detail=error_msg)
-        
-        # If html parameter is provided, return HTML page
-        if html is not None:
-            return generate_zencard_html_page(request, email, zencard_data)
-        
-        # Otherwise return JSON
-        return zencard_data
-        
-    except HTTPException:
-        # Re-raise HTTP exceptions as-is
-        raise
-    except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="ZEN Card history retrieval timeout")
-    except Exception as e:
-        logging.error(f"Error checking ZEN Card history: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+    if html:
+        data["zencard_email"] = email
+        return render_page(request, "zencard_api.html", data)
+    return data
 
 @app.get("/check_impots")
 async def check_impots_route(request: Request, html: Optional[str] = None):
-    """Check tax provisions history (TVA + IS)
+    data = await execute_bash_json_script("G1impots.sh", timeout=60)
     
-    Args:
-        html: If present, return HTML page instead of JSON
-    """
-    try:
-        # Call G1impots.sh to get tax provisions data
-        script_path = os.path.expanduser("~/.zen/Astroport.ONE/tools/G1impots.sh")
+    # Valeurs par défaut si le script renvoie vide
+    if not data:
+        data = {
+            "wallet": "N/A", "total_provisions_g1": 0, "total_provisions_zen": 0, "total_transactions": 0,
+            "breakdown": {"tva": {"total_g1": 0, "total_zen": 0, "transactions": 0}, "is": {"total_g1": 0, "total_zen": 0, "transactions": 0}},
+            "provisions": []
+        }
         
-        if not os.path.exists(script_path):
-            logging.error(f"G1impots.sh script not found at: {script_path}")
-            raise HTTPException(status_code=500, detail="G1impots.sh script not found")
-        
-        result = subprocess.run([script_path], capture_output=True, text=True, timeout=60)
-        
-        # Log stderr if present (for debugging)
-        if result.stderr:
-            logging.warning(f"G1impots.sh stderr: {result.stderr}")
-        
-        if result.returncode != 0:
-            logging.error(f"G1impots.sh failed with return code {result.returncode}")
-            logging.error(f"stdout: {result.stdout[:500]}")
-            logging.error(f"stderr: {result.stderr[:500]}")
-            raise ValueError(f"Error in G1impots.sh: return code {result.returncode}")
-        
-        # Check if output is empty
-        if not result.stdout or not result.stdout.strip():
-            logging.error("G1impots.sh returned empty output")
-            # Return default empty structure
-            impots_data = {
-                "wallet": "N/A",
-                "total_provisions_g1": 0,
-                "total_provisions_zen": 0,
-                "total_transactions": 0,
-                "breakdown": {
-                    "tva": {"total_g1": 0, "total_zen": 0, "transactions": 0, "description": "TVA collectée sur locations ZENCOIN (20%)"},
-                    "is": {"total_g1": 0, "total_zen": 0, "transactions": 0, "description": "Impôt sur les Sociétés provisionné (15% ou 25%)"}
-                },
-                "provisions": []
-            }
-        else:
-            # Parse JSON output from G1impots.sh
-            try:
-                impots_data = json.loads(result.stdout.strip())
-            except json.JSONDecodeError as e:
-                logging.error(f"Failed to parse G1impots.sh output: {e}")
-                logging.error(f"Raw output: {result.stdout[:500]}")
-                logging.error(f"Raw stderr: {result.stderr[:500]}")
-                raise ValueError(f"Invalid JSON from G1impots.sh: {e}")
-        
-        # If html parameter is provided, return HTML page
-        if html is not None:
-            return generate_impots_html_page(request, impots_data)
-        
-        # Otherwise return JSON
-        return impots_data
-        
-    except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="Tax provisions retrieval timeout")
-    except Exception as e:
-        logging.error(f"Error in check_impots_route: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    if html:
+        # Aplatir le dictionnaire breakdown pour le template
+        flat_data = {**data}
+        flat_data["tva_total_zen"] = data["breakdown"]["tva"]["total_zen"]
+        flat_data["tva_total_g1"] = data["breakdown"]["tva"]["total_g1"]
+        flat_data["tva_transactions"] = data["breakdown"]["tva"]["transactions"]
+        flat_data["is_total_zen"] = data["breakdown"]["is"]["total_zen"]
+        flat_data["is_total_g1"] = data["breakdown"]["is"]["total_g1"]
+        flat_data["is_transactions"] = data["breakdown"]["is"]["transactions"]
+        return render_page(request, "impots.html", flat_data)
+    return data
 
 async def send_server_side_analytics(analytics_data: Dict[str, Any], request: Request) -> None:
     """Send analytics data server-side (for clients without JavaScript)
@@ -3499,16 +3218,6 @@ async def playlist_manager_route(request: Request, id: Optional[str] = None):
         "playlist_id": id
     })
 
-@app.get("/video")
-async def video_route(request: Request):
-    """Redirect to /youtube?html=1"""
-    return RedirectResponse(url="/youtube?html=1", status_code=302)
-
-@app.get("/audio")
-async def audio_route(request: Request):
-    """Redirect to /mp3?html=1"""
-    return RedirectResponse(url="/mp3?html=1", status_code=302)
-
 @app.get("/tags", response_class=HTMLResponse)
 async def tags_route(request: Request, video: Optional[str] = None):
     """Tags management page for NOSTR videos
@@ -3553,14 +3262,6 @@ async def contrib_route(request: Request, video: Optional[str] = None, kind: Opt
         "myIPFS": ipfs_gateway,
         "video_id": video,
         "video_kind": kind or "21"
-    })
-
-@app.get("/cloud", response_class=HTMLResponse)
-async def cloud_route(request: Request):
-    """Cloud Drive - Professional file management interface"""
-    return templates.TemplateResponse("cloud.html", {
-        "request": request,
-        "myIPFS": get_myipfs_gateway()
     })
 
 @app.get("/youtube")
@@ -4320,11 +4021,7 @@ async def mp3_route(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-####################### MULTI SCAN 
-@app.get("/scan")
-async def get_root(request: Request):
-    return templates.TemplateResponse("scan_new.html", {"request": request})
-
+####################### MULTI SCAN
 ## DECODER email, G1PUB, SSSS:nodeid ... url ...
 @app.post("/upassport")
 async def scan_qr(
@@ -4404,12 +4101,6 @@ async def scan_qr(
         logging.error(error_message)
         return JSONResponse({"error": error_message}, status_code=500)
 
-
-### NEED DEBUG
-@app.get("/scan_multipass_payment.html")
-async def get_scan_multipass_payment(request: Request):
-    """MULTIPASS Payment Terminal - Internal route for authenticated payments between MULTIPASS wallets"""
-    return templates.TemplateResponse("scan_multipass_payment.html", {"request": request})
 
 ###############################################################################
 ## Collect UPassport SSSS KEY and match ot with CAPTAIN parts or SWARM key copy
@@ -4580,22 +4271,6 @@ async def rec_form(request: Request):
     return templates.TemplateResponse("webcam.html", {
         "request": request, 
         "recording": False,
-        "myIPFS": get_myipfs_gateway()
-    })
-
-@app.get("/vocals", response_class=HTMLResponse)
-async def vocals_form(request: Request):
-    """Voice messages interface with encryption support"""
-    return templates.TemplateResponse("vocals.html", {
-        "request": request,
-        "myIPFS": get_myipfs_gateway()
-    })
-
-@app.get("/vocals-read", response_class=HTMLResponse)
-async def vocals_read(request: Request):
-    """Voice messages reader interface - decrypt and play encrypted messages"""
-    return templates.TemplateResponse("vocals-read.html", {
-        "request": request,
         "myIPFS": get_myipfs_gateway()
     })
 
@@ -5520,18 +5195,6 @@ async def rate_limit_status(request: Request):
         "is_blocked": remaining == 0
     }
 
-@app.get("/dev", response_class=HTMLResponse)
-async def welcomeuplanet(request: Request, console: Optional[str] = None):
-    if console:
-        return templates.TemplateResponse("relay_console.html", {
-            "request": request,
-            "myIPFS": get_myipfs_gateway()
-        })
-    return templates.TemplateResponse("dev.html", {
-        "request": request,
-        "myIPFS": get_myipfs_gateway()
-    })
-
 @app.post('/ping')
 async def get_webhook(request: Request):
     """Receive analytics data and send as NOSTR message to CAPTAINEMAIL
@@ -5656,19 +5319,20 @@ async def get_webhook(request: Request):
             
             # Execute command (non-blocking, fire and forget)
             try:
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=10
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
                 )
                 
-                if result.returncode == 0:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
+                
+                if process.returncode == 0:
                     logging.info(f"✅ Analytics sent to captain via NOSTR: {data.get('type', 'unknown')}")
                 else:
-                    logging.warning(f"⚠️ NOSTR send failed: {result.stderr}")
+                    logging.warning(f"⚠️ NOSTR send failed: {stderr.decode()}")
                     
-            except subprocess.TimeoutExpired:
+            except asyncio.TimeoutError:
                 logging.warning("⚠️ NOSTR send timeout")
             except Exception as e:
                 logging.warning(f"⚠️ NOSTR send error: {e}")
@@ -5800,11 +5464,7 @@ async def nip96_discovery(request: Request):
         }
     }
 
-### GENERIC UPLOAD - Free & Anonymous 
-@app.get("/upload", response_class=HTMLResponse)
-async def upload_form(request: Request):
-    return templates.TemplateResponse("upload2ipfs.html", {"request": request})
-
+### GENERIC UPLOAD - Free & Anonymous
 # Old NIP96 method, still used by coracle.copylaradio.com
 @app.post("/upload2ipfs")
 async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
@@ -6160,7 +5820,7 @@ def transform_youtube_metadata_to_structured(flat_metadata: Dict[str, Any]) -> D
     
     return structured
 
-
+### OFFICIAL NIP-42 FILEUPLOAD to uDRIVE
 @app.post("/api/fileupload", response_model=UploadResponse)
 async def upload_file_to_ipfs(
     file: UploadFile = File(...),
@@ -6995,9 +6655,7 @@ async def upload_from_drive(request: UploadFromDriveRequest):
         logging.error(f"Error downloading from IPFS or saving file: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to synchronize file: {e}")
 
-
-
-
+###########################################################################
 # --- Coinflip endpoints ---
 @app.post("/coinflip/start", response_model=CoinflipStartResponse)
 async def coinflip_start(payload: CoinflipStartRequest):
@@ -7274,260 +6932,6 @@ async def get_n2_network(
     except Exception as e:
         logging.error(f"Erreur lors de l'analyse N2: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de l'analyse: {str(e)}")
-
-@app.post("/sendmsg")
-async def send_invitation_message(
-    friendEmail: str = Form(...),
-    friendName: str = Form(default=""),
-    yourName: str = Form(default=""),
-    personalMessage: str = Form(default=""),
-    memberInfo: str = Form(default=""),
-    relation: str = Form(default=""),
-    pubkeyUpassport: str = Form(default=""),
-    ulat: str = Form(default=""),
-    ulon: str = Form(default=""),
-    pubkey: str = Form(default=""),
-    uid: str = Form(default="")
-):
-    """
-    Envoyer une invitation UPlanet à un ami via email
-    
-    Ce endpoint reçoit les données du formulaire N1 et génère un message d'invitation
-    personnalisé qui sera envoyé via mailjet.sh
-    """
-    try:
-        logging.info(f"Invitation UPlanet pour: {friendEmail} de la part de: {yourName}")
-        
-        # Validation de l'email ami
-        if not friendEmail or not friendEmail.strip():
-            raise HTTPException(status_code=400, detail="Email de l'ami requis")
-        
-        # Validation basique de l'email
-        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', friendEmail):
-            raise HTTPException(status_code=400, detail="Format d'email invalide")
-        
-        # Préparer les informations pour le message
-        friend_name = friendName.strip() if friendName else "Ami"
-        sender_name = yourName.strip() if yourName else "Un membre UPlanet"
-        personal_msg = personalMessage.strip() if personalMessage else ""
-        
-        # Utiliser directement le message prérempli (déjà clair et complet)
-        invitation_html = f"""
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <title>Invitation UPlanet</title>
-        </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; text-align: center;">
-                <h1>🌍 Invitation UPlanet</h1>
-                <p>De la part de {sender_name}</p>
-            </div>
-            
-            <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <pre style="white-space: pre-wrap; font-family: Arial, sans-serif; margin: 0;">{personal_msg}</pre>
-            </div>
-            
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="https://qo-op.com" style="background-color: #4CAF50; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">🚀 Rejoindre UPlanet</a>
-            </div>
-            
-            <footer style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
-                <p>Ce message a été envoyé via UPlanet - Réseau social décentralisé</p>
-            </footer>
-        </body>
-        </html>
-        """
-        
-        # Sauvegarder le message dans un fichier temporaire
-        timestamp = int(time.time())
-        temp_message_file = f"/tmp/uplanet_invitation_{timestamp}.html"
-        
-        with open(temp_message_file, 'w', encoding='utf-8') as f:
-            f.write(invitation_html)
-        
-        # Préparer le sujet de l'email
-        subject = f"🌍 {sender_name} vous invite à rejoindre UPlanet !"
-        
-        # Appeler mailjet.sh pour envoyer l'email
-        mailjet_script = os.path.expanduser("~/.zen/Astroport.ONE/tools/mailjet.sh")
-        
-        if not os.path.exists(mailjet_script):
-            raise HTTPException(status_code=500, detail="Script mailjet.sh non trouvé")
-        
-        # Exécuter mailjet.sh
-        process = await asyncio.create_subprocess_exec(
-            mailjet_script,
-            friendEmail,
-            temp_message_file,
-            subject,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        
-        stdout, stderr = await process.communicate()
-        
-        # Nettoyer le fichier temporaire
-        try:
-            os.remove(temp_message_file)
-        except Exception as e:
-            logging.warning(f"Erreur suppression fichier temp: {e}")
-        
-        if process.returncode == 0:
-            logging.info(f"✅ Invitation envoyée avec succès à {friendEmail}")
-            return JSONResponse({
-                "success": True,
-                "message": f"Invitation envoyée avec succès à {friend_name} ({friendEmail}) !",
-                "details": {
-                    "recipient": friendEmail,
-                    "sender": sender_name,
-                    "subject": subject
-                }
-            })
-        else:
-            error_msg = stderr.decode().strip() if stderr else "Erreur inconnue"
-            logging.error(f"❌ Erreur mailjet.sh: {error_msg}")
-            raise HTTPException(
-                status_code=500, 
-                detail=f"Erreur lors de l'envoi: {error_msg}"
-            )
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"Erreur lors de l'envoi d'invitation: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
-
-def create_invitation_message(
-    friend_name: str,
-    sender_name: str,
-    personal_message: str,
-    member_info: str,
-    relation: str,
-    pubkey_passport: str,
-    wot_member_uid: str,
-    wot_member_pubkey: str,
-    ulat: str,
-    ulon: str
-) -> str:
-    """Créer le message d'invitation HTML personnalisé"""
-    
-    # Obtenir l'URL de la gateway IPFS
-    myipfs_gateway = get_myipfs_gateway()
-    
-    # Créer le lien vers le passport si disponible
-    passport_link = ""
-    if pubkey_passport:
-        passport_link = f'<p>🎫 <a href="{myipfs_gateway}/ipfs/HASH/{pubkey_passport}/" target="_blank">Voir mon UPassport</a></p>'
-    
-    # Informations sur le membre WoT trouvé
-    wot_info = ""
-    if wot_member_uid and relation:
-        relation_text = {
-            'p2p': 'nous nous certifions mutuellement',
-            'certin': 'cette personne me certifie',
-            'certout': 'je certifie cette personne'
-        }.get(relation.replace('🤝 Relation mutuelle (P2P)', 'p2p')
-              .replace('👥 Vous suit (12P)', 'certin')
-              .replace('👤 Vous suivez (P21)', 'certout'), relation)
-        
-        wot_info = f"""
-        <div style="background-color: #f0f8ff; padding: 15px; border-radius: 8px; margin: 15px 0;">
-            <h3>🔗 Connexion via la Web of Trust</h3>
-            <p>J'ai trouvé <strong>{wot_member_uid}</strong> dans mon réseau de confiance Ğ1.</p>
-            <p>Notre relation : {relation_text}</p>
-            <p><small>Clé publique : {wot_member_pubkey[:20]}...</small></p>
-        </div>
-        """
-    
-    # Message personnel
-    personal_section = ""
-    if personal_message:
-        personal_section = f"""
-        <div style="background-color: #fff8dc; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ffd700;">
-            <h3>💬 Message personnel de {sender_name}</h3>
-            <p style="font-style: italic;">"{personal_message}"</p>
-        </div>
-        """
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="fr">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Invitation UPlanet</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; text-align: center; }}
-            .content {{ padding: 20px 0; }}
-            .cta-button {{ display: inline-block; background: #4CAF50; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }}
-            .footer {{ background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin-top: 30px; text-align: center; font-size: 0.9em; color: #666; }}
-            .highlight {{ background-color: #e8f5e8; padding: 10px; border-radius: 5px; margin: 10px 0; }}
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>🌍 Bienvenue dans UPlanet !</h1>
-            <p>Vous êtes invité(e) à rejoindre le réseau social décentralisé</p>
-        </div>
-        
-        <div class="content">
-            <h2>Bonjour {friend_name} ! 👋</h2>
-            
-            <p><strong>{sender_name}</strong> vous invite à découvrir <strong>UPlanet</strong>, un réseau social révolutionnaire basé sur :</p>
-            
-            <div class="highlight">
-                <ul>
-                    <li>🔐 <strong>Blockchain Ğ1</strong> - Monnaie libre et décentralisée</li>
-                    <li>🌐 <strong>IPFS</strong> - Stockage distribué et censure-résistant</li>
-                    <li>⚡ <strong>NOSTR</strong> - Protocole de communication décentralisé</li>
-                    <li>🤝 <strong>Web of Trust</strong> - Réseau de confiance humain</li>
-                </ul>
-            </div>
-            
-            {personal_section}
-            
-            {wot_info}
-            
-            <h3>🚀 Pourquoi rejoindre UPlanet ?</h3>
-            <ul>
-                <li>✅ <strong>Liberté totale</strong> - Vos données vous appartiennent</li>
-                <li>✅ <strong>Pas de censure</strong> - Communication libre et ouverte</li>
-                <li>✅ <strong>Économie circulaire</strong> - Échanges en monnaie libre Ğ1</li>
-                <li>✅ <strong>Communauté bienveillante</strong> - Basée sur la confiance mutuelle</li>
-                <li>✅ <strong>Innovation technologique</strong> - À la pointe du Web3</li>
-            </ul>
-            
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="{myipfs_gateway}/scan" class="cta-button">
-                    🎫 Créer mon UPassport maintenant !
-                </a>
-            </div>
-            
-            {passport_link}
-            
-            <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <h4>📱 Comment commencer ?</h4>
-                <ol>
-                    <li>Cliquez sur le bouton ci-dessus</li>
-                    <li>Scannez votre QR code Ğ1 (ou créez un compte)</li>
-                    <li>Obtenez votre UPassport personnalisé</li>
-                    <li>Rejoignez la communauté UPlanet !</li>
-                </ol>
-            </div>
-        </div>
-        
-        <div class="footer">
-            <p>Cette invitation vous a été envoyée par <strong>{sender_name}</strong></p>
-            <p>UPlanet - Le réseau social du futur, décentralisé et libre</p>
-            <p><small>Propulsé par Astroport.ONE - Technologie blockchain Ğ1</small></p>
-        </div>
-    </body>
-    </html>
-    """
-    
-    return html_content
 
 @app.post("/api/test-nostr")
 async def test_nostr_auth(npub: str = Form(...)):
@@ -8030,90 +7434,6 @@ def convert_g1_to_zen(g1_balance: str) -> str:
     except (ValueError, TypeError):
         # Si la conversion échoue, retourner la valeur originale
         return g1_balance
-
-def generate_society_html_page(request: Request, g1pub: str, society_data: Dict[str, Any]):
-    """Generate HTML page to display SOCIETY wallet transaction history using template"""
-    try:
-        # Extract Nostr DID data if available
-        nostr_did_data = society_data.get('nostr_did_data', [])
-        has_nostr_data = len(nostr_did_data) > 0
-        
-        return templates.TemplateResponse("society.html", {
-            "request": request,
-            "g1pub": g1pub,
-            "total_outgoing_zen": society_data['total_outgoing_zen'],
-            "total_outgoing_g1": society_data['total_outgoing_g1'],
-            "total_transfers": society_data['total_transfers'],
-            "transfers": society_data['transfers'],
-            "timestamp": society_data['timestamp'],
-            "nostr_did_data": nostr_did_data,
-            "has_nostr_data": has_nostr_data,
-            "nostr_count": len(nostr_did_data)
-        })
-    except Exception as e:
-        logging.error(f"Error generating society HTML page: {e}")
-        raise HTTPException(status_code=500, detail="Error generating HTML page")
-
-def generate_revenue_html_page(request: Request, g1pub: str, revenue_data: Dict[str, Any]):
-    """Generate HTML page to display revenue history (Chiffre d'Affaires) using template"""
-    try:
-        return templates.TemplateResponse("revenue.html", {
-            "request": request,
-            "g1pub": g1pub,
-            "filter_year": revenue_data.get('filter_year', 'all'),
-            "total_revenue_zen": revenue_data['total_revenue_zen'],
-            "total_revenue_g1": revenue_data['total_revenue_g1'],
-            "total_transactions": revenue_data['total_transactions'],
-            "yearly_summary": revenue_data.get('yearly_summary', []),
-            "transactions": revenue_data['transactions'],
-            "timestamp": revenue_data['timestamp']
-        })
-    except Exception as e:
-        logging.error(f"Error generating revenue HTML page: {e}")
-        raise HTTPException(status_code=500, detail="Error generating HTML page")
-
-def generate_impots_html_page(request: Request, impots_data: Dict[str, Any]):
-    """Generate HTML page to display tax provisions history (TVA + IS) using template"""
-    try:
-        return templates.TemplateResponse("impots.html", {
-            "request": request,
-            "g1pub": impots_data.get('wallet', 'N/A'),
-            "total_provisions_zen": impots_data['total_provisions_zen'],
-            "total_provisions_g1": impots_data['total_provisions_g1'],
-            "total_transactions": impots_data['total_transactions'],
-            "tva_total_zen": impots_data['breakdown']['tva']['total_zen'],
-            "tva_total_g1": impots_data['breakdown']['tva']['total_g1'],
-            "tva_transactions": impots_data['breakdown']['tva']['transactions'],
-            "is_total_zen": impots_data['breakdown']['is']['total_zen'],
-            "is_total_g1": impots_data['breakdown']['is']['total_g1'],
-            "is_transactions": impots_data['breakdown']['is']['transactions'],
-            "provisions": impots_data['provisions']
-        })
-    except Exception as e:
-        logging.error(f"Error generating impots HTML page: {e}")
-        raise HTTPException(status_code=500, detail="Error generating HTML page")
-
-def generate_zencard_html_page(request: Request, email: str, zencard_data: Dict[str, Any]):
-    """Generate HTML page to display ZEN Card social shares history using template"""
-    try:
-        return templates.TemplateResponse("zencard_api.html", {
-            "request": request,
-            "zencard_email": zencard_data.get('zencard_email', email),
-            "zencard_g1pub": zencard_data.get('zencard_g1pub', 'N/A'),
-            "filter_years": zencard_data.get('filter_years', 3),
-            "filter_period": zencard_data.get('filter_period', 'Dernières 3 années'),
-            "total_received_g1": zencard_data.get('total_received_g1', 0),
-            "total_received_zen": zencard_data.get('total_received_zen', 0),
-            "valid_balance_g1": zencard_data.get('valid_balance_g1', 0),
-            "valid_balance_zen": zencard_data.get('valid_balance_zen', 0),
-            "total_transfers": zencard_data.get('total_transfers', 0),
-            "valid_transfers": zencard_data.get('valid_transfers', 0),
-            "transfers": zencard_data.get('transfers', []),
-            "timestamp": zencard_data.get('timestamp', '')
-        })
-    except Exception as e:
-        logging.error(f"Error generating ZEN Card HTML page: {e}")
-        raise HTTPException(status_code=500, detail="Error generating HTML page")
 
 def generate_balance_html_page(identifier: str, balance_data: Dict[str, Any]) -> HTMLResponse:
     """Générer une page HTML pour afficher les balances en utilisant le template message.html"""
