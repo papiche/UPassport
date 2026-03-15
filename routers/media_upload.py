@@ -701,6 +701,7 @@ def transform_youtube_metadata_to_structured(flat_metadata: Dict[str, Any]) -> D
     return structured
 
 @router.post("/api/fileupload", response_model=UploadResponse)
+@router.post("/api/upload", response_model=UploadResponse)
 async def upload_file_to_ipfs(
     file: UploadFile = File(...),
     npub: str = Form(...),

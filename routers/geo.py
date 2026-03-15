@@ -45,7 +45,6 @@ async def get_umap_geolinks(lat: float, lon: float) -> Dict[str, Any]:
         if lon < -180 or lon > 180:
             raise ValueError("Longitude doit être entre -180 et 180")
         
-        from core.config import settings
         script_path = settings.TOOLS_PATH / "Umap_geonostr.sh"
         
         if not os.path.exists(script_path):
@@ -284,7 +283,6 @@ async def get_my_gps_coordinates(npub: str):
             
             ipfs_node_id = await get_env_from_mysh("IPFSNODEID", "")
             if not ipfs_node_id:
-                from core.config import settings
                 ipfs_node_id = settings.IPFSNODEID
             
             return {
