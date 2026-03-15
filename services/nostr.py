@@ -357,12 +357,12 @@ async def verify_nostr_auth(npub: Optional[str], force_check: bool = False) -> b
     
     return auth_result
 
-async def require_nostr_auth(npub: str = Form(...)) -> str:
+async def require_nostr_auth(npub: str = Form(...), force_check: bool = False) -> str:
     """
     FastAPI dependency to require NOSTR authentication.
     Returns the authenticated npub or raises HTTPException.
     """
-    auth_verified = await verify_nostr_auth(npub)
+    auth_verified = await verify_nostr_auth(npub, force_check=force_check)
     if not auth_verified:
         raise HTTPException(
             status_code=403,
