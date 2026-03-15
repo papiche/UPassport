@@ -29,6 +29,7 @@
 
 import os
 import sys
+import logging
 import json
 import hashlib
 import subprocess
@@ -238,7 +239,7 @@ class OracleSystem:
             creator_npub: Optional NOSTR pubkey of the creator (for saving event in their directory)
         """
         if definition.id in self.definitions:
-            print(f"❌ Permit definition {definition.id} already exists")
+            logging.info(f"❌ Permit definition {definition.id} already exists")
             return False
         
         self.definitions[definition.id] = definition
@@ -247,17 +248,17 @@ class OracleSystem:
         # Publish to NOSTR (signed by oracle key, but saved in creator's directory if provided)
         self.publish_permit_definition(definition, creator_npub=creator_npub)
         
-        print(f"✅ Permit definition {definition.id} created")
+        logging.info(f"✅ Permit definition {definition.id} created")
         return True
     
     def request_permit(self, request: PermitRequest) -> bool:
         """Submit a permit request"""
         if request.permit_definition_id not in self.definitions:
-            print(f"❌ Permit definition {request.permit_definition_id} not found")
+            logging.info(f"❌ Permit definition {request.permit_definition_id} not found")
             return False
         
         if request.request_id in self.requests:
-            print(f"❌ Request {request.request_id} already exists")
+            logging.info(f"❌ Request {request.request_id} already exists")
             return False
         
         request.status = PermitStatus.PENDING
@@ -271,13 +272,13 @@ class OracleSystem:
         # Publish to NOSTR
         self.publish_permit_request(request)
         
-        print(f"✅ Permit request {request.request_id} submitted")
+        logging.info(f"✅ Permit request {request.request_id} submitted")
         return True
     
     def attest_permit(self, attestation: PermitAttestation) -> bool:
         """Add an attestation to a permit request"""
         if attestation.request_id not in self.requests:
-            print(f"❌ Request {attestation.request_id} not found")
+            logging.info(f"❌ Request {attestation.request_id} not found")
             return False
         
         request = self.requests[attestation.request_id]
@@ -286,14 +287,14 @@ class OracleSystem:
         # Check if attester has required license
         if definition.required_license:
             if not self.check_attester_has_license(attestation.attester_npub, definition.required_license):
-                print(f"❌ Attester {attestation.attester_npub} does not have required license {definition.required_license}")
+                logging.info(f"❌ Attester {attestation.attester_npub} does not have required license {definition.required_license}")
                 return False
         
         # Check if attester already attested
         for att_id in request.attestations:
             att = self.attestations.get(att_id)
             if att and att.attester_npub == attestation.attester_npub:
-                print(f"❌ Attester {attestation.attester_npub} already attested for this request")
+                logging.info(f"❌ Attester {attestation.attester_npub} already attested for this request")
                 return False
         
         attestation.created_at = datetime.now()
@@ -311,13 +312,13 @@ class OracleSystem:
         # Check if enough attestations
         if len(request.attestations) >= required_attestations:
             request.status = PermitStatus.VALIDATED
-            print(f"✅ Permit request {request.request_id} validated with {len(request.attestations)} attestations (required: {required_attestations})")
+            logging.info(f"✅ Permit request {request.request_id} validated with {len(request.attestations)} attestations (required: {required_attestations})")
             
             # Auto-issue credential (ORACLE.refresh.sh will also check and issue)
             self.issue_credential(request.request_id)
         else:
             request.status = PermitStatus.ATTESTING
-            print(f"✅ Attestation added ({len(request.attestations)}/{required_attestations}) - WoTx2 progressing")
+            logging.info(f"✅ Attestation added ({len(request.attestations)}/{required_attestations}) - WoTx2 progressing")
         
         self.save_data()
         
@@ -336,18 +337,18 @@ class OracleSystem:
         
         # If not found locally, try to fetch from Nostr (WoTx2 system)
         if not request:
-            print(f"📡 Request {request_id} not found locally, fetching from Nostr...")
+            logging.info(f"📡 Request {request_id} not found locally, fetching from Nostr...")
             nostr_requests = self.fetch_permit_requests_from_nostr()
             for nr in nostr_requests:
                 if nr.request_id == request_id:
                     request = nr
                     # Store in local cache for future use
                     self.requests[request_id] = request
-                    print(f"✅ Request {request_id} loaded from Nostr")
+                    logging.info(f"✅ Request {request_id} loaded from Nostr")
                     break
         
         if not request:
-            print(f"❌ Request {request_id} not found in local storage or Nostr")
+            logging.info(f"❌ Request {request_id} not found in local storage or Nostr")
             return None
         
         # For requests from Nostr, check attestations count
@@ -359,17 +360,17 @@ class OracleSystem:
                 if any(tag[0] == 'e' and tag[1] == request_id for tag in att.get('tags', []))
             ]
             request.attestations = [att.get('id', '') for att in request_attestations]
-            print(f"📊 Found {len(request.attestations)} attestations for request {request_id} from Nostr")
+            logging.info(f"📊 Found {len(request.attestations)} attestations for request {request_id} from Nostr")
         
         # Check if request has enough attestations
         definition = self.definitions.get(request.permit_definition_id)
         if not definition:
-            print(f"❌ Permit definition {request.permit_definition_id} not found")
+            logging.info(f"❌ Permit definition {request.permit_definition_id} not found")
             return None
         
         required_attestations = definition.min_attestations
         if len(request.attestations) < required_attestations:
-            print(f"❌ Request {request_id} has {len(request.attestations)} attestations, needs {required_attestations}")
+            logging.info(f"❌ Request {request_id} has {len(request.attestations)} attestations, needs {required_attestations}")
             return None
         
         # Mark as validated if not already
@@ -416,7 +417,7 @@ class OracleSystem:
         # Update holder's DID document
         self.update_holder_did(credential)
         
-        print(f"✅ Credential {credential_id} issued for {request.applicant_npub}")
+        logging.info(f"✅ Credential {credential_id} issued for {request.applicant_npub}")
         return credential
     
     def _is_primary_station(self) -> bool:
@@ -450,7 +451,7 @@ class OracleSystem:
                     if straps and straps[0] == ipfs_node_id:
                         return True
             except Exception as e:
-                print(f"⚠️  Error reading bootstrap nodes file: {e}")
+                logging.info(f"⚠️  Error reading bootstrap nodes file: {e}")
         
         return False
     
@@ -464,14 +465,14 @@ class OracleSystem:
         if self._is_primary_station():
             keyfile = Path.home() / ".zen/game/uplanet.G1.nostr"
             if keyfile.exists():
-                print("⭐ Primary station - Using UPLANETNAME_G1 key")
+                logging.info("⭐ Primary station - Using UPLANETNAME_G1 key")
                 return keyfile
         
         # Other stations use myswarm_secret.nostr directly
         # nostr_send_note.py reads NSEC= from the file, so we can use it as-is
         myswarm_secret = Path.home() / ".zen/game/myswarm_secret.nostr"
         if myswarm_secret.exists():
-            print(f"🔑 Oracle station - Using myswarm_secret.nostr")
+            logging.info(f"🔑 Oracle station - Using myswarm_secret.nostr")
             return myswarm_secret
         
         return None
@@ -515,7 +516,7 @@ class OracleSystem:
                             oracle_key = line.split('HEX=')[1].split(';')[0].strip()
                             break
                 except Exception as e:
-                    print(f"⚠️  Error reading HEX from myswarm_secret.nostr: {e}")
+                    logging.info(f"⚠️  Error reading HEX from myswarm_secret.nostr: {e}")
         
         # Create proof structure
         proof = {
@@ -540,8 +541,20 @@ class OracleSystem:
         # Sign with oracle authority
         # CRITICAL: Use canonical JSON (RFC 8785) for signature consistency
         data_str = canonicalize_json(credential_data)
-        signature = hashlib.sha256(f"{data_str}:{oracle_key}".encode()).hexdigest()
         
+        try:
+            from nostr.key import PrivateKey
+            pk = PrivateKey(bytes.fromhex(oracle_key))
+            # Sign the sha256 hash of the data
+            data_hash = hashlib.sha256(data_str.encode()).digest()
+            signature = pk.sign(data_hash).hex()
+        except ImportError:
+            logging.info("⚠️  python-nostr not found, falling back to basic hash (NOT SECURE)")
+            signature = hashlib.sha256(f"{data_str}:{oracle_key}".encode()).hexdigest()
+        except Exception as e:
+            logging.info(f"⚠️  Error signing credential: {e}")
+            signature = hashlib.sha256(f"{data_str}:{oracle_key}".encode()).hexdigest()
+            
         proof["proofValue"] = signature
         
         return proof
@@ -567,7 +580,7 @@ class OracleSystem:
         # Get holder's email from NOSTR key
         email = self.get_email_from_npub(credential.holder_npub)
         if not email:
-            print(f"⚠️  Could not find email for {credential.holder_npub}")
+            logging.info(f"⚠️  Could not find email for {credential.holder_npub}")
             return
         
         # Update DID using did_manager_nostr.sh
@@ -582,11 +595,11 @@ class OracleSystem:
                     "PERMIT_ISSUED",
                     "0",
                     "0"
-                ], check=False)
+                ], check=False, timeout=30)
                 
-                print(f"✅ DID updated for {email}")
+                logging.info(f"✅ DID updated for {email}")
             except Exception as e:
-                print(f"⚠️  Failed to update DID: {e}")
+                logging.info(f"⚠️  Failed to update DID: {e}")
     
     def get_email_from_npub(self, npub: str) -> Optional[str]:
         """Get email from NOSTR pubkey (scan ~/.zen/game/nostr)"""
@@ -759,12 +772,12 @@ class OracleSystem:
             if email:
                 events_dir = Path.home() / ".zen" / "game" / "nostr" / email
                 events_dir.mkdir(parents=True, exist_ok=True)
-                print(f"📁 Saving event to MULTIPASS directory: {email}")
+                logging.info(f"📁 Saving event to MULTIPASS directory: {email}")
             else:
                 # Fallback to default location if email not found
                 events_dir = Path.home() / ".zen" / "tmp" / "nostr_events"
                 events_dir.mkdir(exist_ok=True)
-                print(f"⚠️  Could not find email for {signer_npub}, using default location")
+                logging.info(f"⚠️  Could not find email for {signer_npub}, using default location")
         else:
             # Default location for events without signer
             events_dir = self.data_dir / "nostr_events"
@@ -776,7 +789,7 @@ class OracleSystem:
         with open(event_file, 'w') as f:
             json.dump(event_data, f, indent=2)
         
-        print(f"📡 NOSTR event saved: {event_file}")
+        logging.info(f"📡 NOSTR event saved: {event_file}")
         
         # Publish to NOSTR using nostr_send_note.py
         try:
@@ -784,7 +797,7 @@ class OracleSystem:
             nostr_script = Path.home() / ".zen" / "Astroport.ONE" / "tools" / "nostr_send_note.py"
             
             if not nostr_script.exists():
-                print(f"⚠️  nostr_send_note.py not found at {nostr_script}")
+                logging.info(f"⚠️  nostr_send_note.py not found at {nostr_script}")
                 return
             
             # Determine which keyfile to use
@@ -792,7 +805,7 @@ class OracleSystem:
                 # Use oracle key (myswarm_secret.nostr or UPLANETNAME_G1 for primary)
                 keyfile = self._get_oracle_keyfile()
                 if not keyfile:
-                    print("⚠️  Oracle keyfile not found (myswarm_secret.nostr or uplanet.G1.nostr)")
+                    logging.info("⚠️  Oracle keyfile not found (myswarm_secret.nostr or uplanet.G1.nostr)")
                     return
             elif signer_npub:
                 # Try to find keyfile by email/npub
@@ -800,14 +813,14 @@ class OracleSystem:
                 if email:
                     keyfile = Path.home() / ".zen" / "game" / "nostr" / email / ".secret.nostr"
                 else:
-                    print(f"⚠️  Could not find keyfile for {signer_npub}")
+                    logging.info(f"⚠️  Could not find keyfile for {signer_npub}")
                     return
             else:
-                print("⚠️  No signer specified")
+                logging.info("⚠️  No signer specified")
                 return
             
             if not keyfile.exists():
-                print(f"⚠️  Keyfile not found: {keyfile}")
+                logging.info(f"⚠️  Keyfile not found: {keyfile}")
                 return
             
             # Prepare event content and tags
@@ -832,12 +845,12 @@ class OracleSystem:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             
             if result.returncode == 0:
-                print(f"✅ Event published to NOSTR (kind {kind})")
+                logging.info(f"✅ Event published to NOSTR (kind {kind})")
             else:
-                print(f"⚠️  Failed to publish event: {result.stderr}")
+                logging.info(f"⚠️  Failed to publish event: {result.stderr}")
         
         except Exception as e:
-            print(f"⚠️  Error publishing to NOSTR: {e}")
+            logging.info(f"⚠️  Error publishing to NOSTR: {e}")
     
     def emit_badge_for_credential(self, credential: PermitCredential, definition: PermitDefinition):
         """Emit NIP-58 badge for a credential (kind 30503)
@@ -857,13 +870,13 @@ class OracleSystem:
             # Get oracle pubkey for badge issuer
             oracle_keyfile = self._get_oracle_keyfile()
             if not oracle_keyfile:
-                print("⚠️  Cannot emit badge: Oracle keyfile not found")
+                logging.info("⚠️  Cannot emit badge: Oracle keyfile not found")
                 return
             
             # Read oracle pubkey from keyfile
             oracle_pubkey = self._get_pubkey_from_keyfile(oracle_keyfile)
             if not oracle_pubkey:
-                print("⚠️  Cannot emit badge: Could not read oracle pubkey")
+                logging.info("⚠️  Cannot emit badge: Could not read oracle pubkey")
                 return
             
             # 1. Create badge definition (kind 30009) if it doesn't exist
@@ -872,12 +885,12 @@ class OracleSystem:
             # 2. Emit badge award (kind 8)
             self._emit_badge_award(badge_id, credential, oracle_pubkey, oracle_keyfile)
             
-            print(f"✅ Badge {badge_id} emitted for credential {credential.credential_id}")
+            logging.info(f"✅ Badge {badge_id} emitted for credential {credential.credential_id}")
             
         except Exception as e:
-            print(f"⚠️  Error emitting badge: {e}")
+            logging.info(f"⚠️  Error emitting badge: {e}")
             import traceback
-            traceback.print_exc()
+            logging.error("Exception", exc_info=True)
     
     def _get_badge_id_from_permit(self, permit_id: str) -> str:
         """Convert permit ID to badge ID
@@ -919,7 +932,7 @@ class OracleSystem:
                     # For now, try to find HEX
                     continue
         except Exception as e:
-            print(f"⚠️  Error reading keyfile: {e}")
+            logging.info(f"⚠️  Error reading keyfile: {e}")
         return None
     
     def _ensure_badge_definition(self, badge_id: str, definition: PermitDefinition, oracle_pubkey: str, oracle_keyfile: Path):
@@ -972,7 +985,7 @@ class OracleSystem:
         }
         
         self._publish_to_nostr(event_data, None, use_oracle_key=True)
-        print(f"📜 Badge definition {badge_id} created/updated")
+        logging.info(f"📜 Badge definition {badge_id} created/updated")
     
     def _generate_badge_images(self, badge_id: str, permit_name: str, permit_description: str, 
                                level: str = "", label: str = "") -> tuple:
@@ -986,8 +999,8 @@ class OracleSystem:
             script_path = Path.home() / ".zen" / "Astroport.ONE" / "IA" / "generate_badge_image.sh"
             
             if not script_path.exists():
-                print(f"⚠️  Badge generation script not found: {script_path}")
-                print("   Using fallback static URLs")
+                logging.info(f"⚠️  Badge generation script not found: {script_path}")
+                logging.info("   Using fallback static URLs")
                 return self._get_fallback_badge_urls(badge_id)
             
             # Prepare arguments for the script
@@ -1008,8 +1021,8 @@ class OracleSystem:
             if label:
                 args.append(label)
             
-            print(f"🎨 Generating badge images for: {badge_id}")
-            print(f"   Calling: {script_path}")
+            logging.info(f"🎨 Generating badge images for: {badge_id}")
+            logging.info(f"   Calling: {script_path}")
             
             # Execute the script
             result = subprocess.run(
@@ -1024,26 +1037,26 @@ class OracleSystem:
                 try:
                     badge_data = json.loads(result.stdout)
                     if badge_data.get("success") and badge_data.get("badge_image_url"):
-                        print(f"✅ Badge images generated successfully")
+                        logging.info(f"✅ Badge images generated successfully")
                         return (
                             badge_data.get("badge_image_url", ""),
                             badge_data.get("badge_thumb_256", ""),
                             badge_data.get("badge_thumb_64", "")
                         )
                 except json.JSONDecodeError:
-                    print(f"⚠️  Failed to parse badge generation JSON")
-                    print(f"   Output: {result.stdout[:200]}")
+                    logging.info(f"⚠️  Failed to parse badge generation JSON")
+                    logging.info(f"   Output: {result.stdout[:200]}")
             
-            print(f"⚠️  Badge generation failed (exit code: {result.returncode})")
+            logging.info(f"⚠️  Badge generation failed (exit code: {result.returncode})")
             if result.stderr:
-                print(f"   Error: {result.stderr[:200]}")
+                logging.info(f"   Error: {result.stderr[:200]}")
             
         except subprocess.TimeoutExpired:
-            print(f"⚠️  Badge generation timed out after 5 minutes")
+            logging.info(f"⚠️  Badge generation timed out after 5 minutes")
         except Exception as e:
-            print(f"⚠️  Error generating badge images: {e}")
+            logging.info(f"⚠️  Error generating badge images: {e}")
             import traceback
-            traceback.print_exc()
+            logging.error("Exception", exc_info=True)
         
         # Fallback to static URLs if generation fails
         return self._get_fallback_badge_urls(badge_id)
@@ -1096,7 +1109,7 @@ class OracleSystem:
         }
         
         self._publish_to_nostr(event_data, None, use_oracle_key=True)
-        print(f"🏅 Badge award emitted for {credential.holder_npub}")
+        logging.info(f"🏅 Badge award emitted for {credential.holder_npub}")
     
     def get_request_status(self, request_id: str) -> Optional[Dict[str, Any]]:
         """Get the status of a permit request"""
@@ -1179,8 +1192,8 @@ class OracleSystem:
             nostr_script = Path.home() / ".zen" / "Astroport.ONE" / "tools" / "nostr_get_events.sh"
             
             if not nostr_script.exists():
-                print(f"⚠️  nostr_get_events.sh not found at {nostr_script}")
-                print(f"⚠️  Cannot query NOSTR events - strfry query tool missing")
+                logging.info(f"⚠️  nostr_get_events.sh not found at {nostr_script}")
+                logging.info(f"⚠️  Cannot query NOSTR events - strfry query tool missing")
                 return []
             
             # Build command
@@ -1196,7 +1209,7 @@ class OracleSystem:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             
             if result.returncode != 0:
-                print(f"⚠️  Error querying strfry: {result.stderr}")
+                logging.info(f"⚠️  Error querying strfry: {result.stderr}")
                 return []
             
             # Parse JSON events (one per line)
@@ -1207,17 +1220,17 @@ class OracleSystem:
                         event = json.loads(line)
                         events.append(event)
                     except json.JSONDecodeError as e:
-                        print(f"⚠️  Error parsing event JSON: {e}")
+                        logging.info(f"⚠️  Error parsing event JSON: {e}")
             
-            print(f"✅ Fetched {len(events)} events of kind {kind} from strfry")
+            logging.info(f"✅ Fetched {len(events)} events of kind {kind} from strfry")
             return events
         
         except subprocess.TimeoutExpired:
-            print(f"⚠️  Query timeout for kind {kind}")
+            logging.info(f"⚠️  Query timeout for kind {kind}")
             return []
         
         except Exception as e:
-            print(f"⚠️  Error fetching NOSTR events: {e}")
+            logging.info(f"⚠️  Error fetching NOSTR events: {e}")
             return []
     
     def fetch_permit_definitions_from_nostr(self) -> List[PermitDefinition]:
@@ -1240,7 +1253,7 @@ class OracleSystem:
                             if event.get('kind') == 30500:
                                 events.append(event)
                     except Exception as e:
-                        print(f"⚠️  Error reading event from {event_file}: {e}")
+                        logging.info(f"⚠️  Error reading event from {event_file}: {e}")
         
         definitions = []
         seen_ids = set()  # Avoid duplicates
@@ -1274,7 +1287,7 @@ class OracleSystem:
                     definitions.append(definition)
             
             except Exception as e:
-                print(f"⚠️  Error parsing permit definition: {e}")
+                logging.info(f"⚠️  Error parsing permit definition: {e}")
         
         return definitions
     
@@ -1318,7 +1331,7 @@ class OracleSystem:
                     requests.append(permit_request)
             
             except Exception as e:
-                print(f"⚠️  Error parsing permit request: {e}")
+                logging.info(f"⚠️  Error parsing permit request: {e}")
         
         return requests
     
@@ -1362,7 +1375,7 @@ class OracleSystem:
                     credentials.append(credential)
             
             except Exception as e:
-                print(f"⚠️  Error parsing permit credential: {e}")
+                logging.info(f"⚠️  Error parsing permit credential: {e}")
         
         return credentials
 
@@ -1456,17 +1469,17 @@ def main():
     elif args.command == 'status':
         status = oracle.get_request_status(args.request_id)
         if status:
-            print(json.dumps(status, indent=2))
+            logging.info(json.dumps(status, indent=2))
         else:
-            print(f"❌ Request {args.request_id} not found")
+            logging.info(f"❌ Request {args.request_id} not found")
     
     elif args.command == 'list':
         if args.type == 'requests':
             results = oracle.list_requests(applicant_npub=args.npub)
-            print(json.dumps(results, indent=2))
+            logging.info(json.dumps(results, indent=2))
         elif args.type == 'credentials':
             results = oracle.list_credentials(holder_npub=args.npub)
-            print(json.dumps(results, indent=2))
+            logging.info(json.dumps(results, indent=2))
     
     else:
         parser.print_help()
