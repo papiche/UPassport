@@ -35,6 +35,22 @@ async def lifespan(app: FastAPI):
     # Startup
     logging.info("Starting up application...")
     
+    # Initialize required directories
+    import os
+    from pathlib import Path
+    
+    directories_to_create = [
+        "tmp",
+        "uploads",
+        str(Path.home() / ".zen" / "game" / "permits"),
+        str(Path.home() / ".zen" / "tmp" / "swarm"),
+        str(Path.home() / ".zen" / "game" / "nostr")
+    ]
+    
+    for directory in directories_to_create:
+        os.makedirs(directory, exist_ok=True)
+        logging.info(f"Ensured directory exists: {directory}")
+    
     if ORACLE_ENABLED:
         app_state.oracle_system = OracleSystem()
         app.state.oracle = app_state.oracle_system

@@ -50,7 +50,7 @@ async def send_server_side_analytics(analytics_data: dict, request: Request) -> 
     except Exception as e:
         logging.debug(f"Server-side analytics error: {e}")
 
-@router.get("/theater", response_class=HTMLResponse)
+@router.get("/theater", response_class=HTMLResponse, summary="Theater Modal", description="Theater mode modal for immersive video viewing.")
 async def theater_modal_route(request: Request, video: Optional[str] = None):
     use_local_js = settings.USE_LOCAL_JS
     video_metadata = None
@@ -105,7 +105,7 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
         "theater_url": theater_url
     })
 
-@router.get("/mp3-modal", response_class=HTMLResponse)
+@router.get("/mp3-modal", response_class=HTMLResponse, summary="MP3 Modal", description="MP3 modal for immersive music listening.")
 async def mp3_modal_route(request: Request, track: Optional[str] = None):
     use_local_js = settings.USE_LOCAL_JS
     return render_page(request, "mp3-modal.html", {
@@ -113,19 +113,19 @@ async def mp3_modal_route(request: Request, track: Optional[str] = None):
         "track_id": track
     })
 
-@router.get("/playlist", response_class=HTMLResponse)
+@router.get("/playlist", response_class=HTMLResponse, summary="Playlist Manager", description="Playlist manager for creating and managing video playlists.")
 async def playlist_manager_route(request: Request, id: Optional[str] = None):
     return render_page(request, "playlist-manager.html", {
         "playlist_id": id
     })
 
-@router.get("/tags", response_class=HTMLResponse)
+@router.get("/tags", response_class=HTMLResponse, summary="Tags Management", description="Tags management page for NOSTR videos.")
 async def tags_route(request: Request, video: Optional[str] = None):
     return render_page(request, "tags.html", {
         "video_id": video
     })
 
-@router.get("/contrib", response_class=HTMLResponse)
+@router.get("/contrib", response_class=HTMLResponse, summary="Contribution Page", description="TMDB metadata enrichment contribution page for NOSTR videos.")
 async def contrib_route(request: Request, video: Optional[str] = None, kind: Optional[str] = None):
     return render_page(request, "contrib.html", {
         "video_id": video,

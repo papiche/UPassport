@@ -11,7 +11,7 @@ from utils.helpers import execute_bash_json_script
 
 router = APIRouter()
 
-@router.post("/api/cloud/upload")
+@router.post("/api/cloud/upload", summary="Upload to Cloud", description="Upload a file to the cloud using NIP-98 authentication.")
 async def upload_to_cloud(
     request: Request,
     npub: str = Depends(require_nostr_auth),

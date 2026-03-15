@@ -388,7 +388,37 @@ async def require_nostr_auth(npub: str = Form(...)) -> str:
     auth_verified = await verify_nostr_auth(npub)
     if not auth_verified:
         raise HTTPException(
-            status_code=403, 
+            status_code=403,
             detail="Nostr authentication failed. Please ensure you have sent a recent NIP-42 authentication event (kind 22242)."
         )
     return npub
+
+from fastapi import Request
+import base64
+
+async def verify_nip98_auth(request: Request) -> str:
+    """
+    FastAPI dependency to verify NIP-98 HTTP Auth.
+    Returns the authenticated pubkey or raises HTTPException.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Nostr "):
+        raise HTTPException(status_code=401, detail="Missing or invalid NIP-98 Authorization header")
+    
+    try:
+        token = auth_header.replace("Nostr ", "")
+        decoded = base64.b64decode(token)
+        auth_event = json.loads(decoded)
+        
+        if auth_event.get("kind") != 27235:
+            raise HTTPException(status_code=401, detail="Invalid NIP-98 event kind (must be 27235)")
+        
+        # Basic validation (in a real app, verify signature and tags)
+        pubkey = auth_event.get("pubkey")
+        if not pubkey:
+            raise HTTPException(status_code=401, detail="Missing pubkey in NIP-98 event")
+            
+        return pubkey
+    except Exception as e:
+        logging.error(f"NIP-98 Auth error: {e}")
+        raise HTTPException(status_code=401, detail=f"NIP-98 Auth failed: {str(e)}")

@@ -26,21 +26,21 @@ for route_path, template_name in SIMPLE_UI_ROUTES.items():
     async def _simple_route(request: Request, _tpl=template_name):
         return render_page(request, _tpl)
 
-@router.get("/video")
+@router.get("/video", summary="Video Redirect", description="Redirect to the YouTube video page.")
 async def video_route(): return RedirectResponse(url="/youtube?html=1", status_code=302)
 
-@router.get("/audio")
+@router.get("/audio", summary="Audio Redirect", description="Redirect to the MP3 audio page.")
 async def audio_route(): return RedirectResponse(url="/mp3?html=1", status_code=302)
 
-@router.get("/astro_base", response_class=HTMLResponse)
+@router.get("/astro_base", response_class=HTMLResponse, summary="Astro Base", description="Display the Astro Base template.")
 async def get_astro_base(request: Request):
     return render_page(request, "astro_base.html")
 
-@router.get("/cookie", response_class=HTMLResponse)
+@router.get("/cookie", response_class=HTMLResponse, summary="Cookie Guide", description="Serve cookie export guide template.")
 async def get_cookie_guide(request: Request):
     return render_page(request, "cookie.html")
 
-@router.get("/terms", response_class=HTMLResponse)
+@router.get("/terms", response_class=HTMLResponse, summary="Terms of Service", description="Serve Terms of Service template.")
 async def get_terms_of_service(request: Request):
     from datetime import datetime
     current_date = datetime.now().strftime("%B %d, %Y")
@@ -50,11 +50,11 @@ async def get_terms_of_service(request: Request):
         "current_year": current_year
     })
 
-@router.get("/n8n", response_class=HTMLResponse)
+@router.get("/n8n", response_class=HTMLResponse, summary="N8N Workflow Builder", description="N8N-style workflow builder for cookie-based automation.")
 async def get_n8n_workflow_builder(request: Request):
     return render_page(request, "n8n.html")
 
-@router.get("/12345")
+@router.get("/12345", summary="Proxy 12345", description="Proxy route for 12345.")
 async def proxy_12345(request: Request):
     import httpx
     
@@ -86,7 +86,7 @@ async def proxy_12345(request: Request):
             content={"error": f"Proxy error: {str(e)}"}
         )
 
-@router.get("/oracle")
+@router.get("/oracle", summary="Oracle System", description="Oracle System Interface - Multi-signature permit management.")
 async def get_oracle(
     request: Request, 
     html: Optional[str] = None,

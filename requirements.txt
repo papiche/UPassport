@@ -9,4 +9,5 @@ python-magic
 websockets
 email-validator
 cachetools
-nostr
+bech32
+python-nostr

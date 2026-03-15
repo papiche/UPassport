@@ -8,7 +8,7 @@ from utils.helpers import render_page
 
 router = APIRouter()
 
-@router.get("/nostr")
+@router.get("/nostr", summary="NOSTR Page", description="Route NOSTR avec support de différents types de templates.")
 async def get_nostr(request: Request, type: str = "default"):
     """
     Route NOSTR avec support de différents types de templates
