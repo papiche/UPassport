@@ -2457,7 +2457,7 @@
             // Try to get email from npub
             getEmailFromNpub(userHEX).then(email => {
                 if (email) {
-                    const udriveUrl = `${myIPFS}/ipns/${email}/APP/uDRIVE`;
+                    const udriveUrl = `{{ myIPFS }}/ipns/${email}/APP/uDRIVE`;
                     console.log('[WoTx2] 📁 Opening uDRIVE:', udriveUrl);
                     window.open(udriveUrl, '_blank');
                 } else {
@@ -2478,7 +2478,7 @@
                 openProfileModal(userHEX, 'Mon Profil');
             } else {
                 // Fallback: open in new tab
-                const profileUrl = `${myIPFS}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${userHEX}`;
+                const profileUrl = `{{ myIPFS }}/ipns/copylaradio.com/nostr_profile_viewer.html?hex=${userHEX}`;
                 window.open(profileUrl, '_blank');
             }
         }

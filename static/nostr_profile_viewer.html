@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil Nostr</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; text-align: center; }
+        .profile { border: 1px solid #ccc; padding: 20px; border-radius: 10px; max-width: 400px; margin: 0 auto; }
+        img { max-width: 100px; border-radius: 50%; }
+    </style>
+</head>
+<body>
+    <div class="profile">
+        <h1>Profil Nostr</h1>
+        <p id="pubkey">Chargement...</p>
+    </div>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const hex = urlParams.get('hex');
+        if (hex) {
+            document.getElementById('pubkey').innerText = "Clé publique : " + hex;
+        } else {
+            document.getElementById('pubkey').innerText = "Aucune clé publique fournie.";
+        }
+    </script>
+</body>
+</html>

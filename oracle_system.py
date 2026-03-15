@@ -68,8 +68,9 @@ def canonicalize_json(data: Any) -> str:
     )
 
 # Configuration
-NOSTR_RELAYS = os.getenv("NOSTR_RELAYS", "ws://127.0.0.1:7777 wss://relay.copylaradio.com").split()
-TOOLS_PATH = Path(os.path.expandvars(os.path.expanduser("$HOME"))) / "Astroport.ONE" / "tools"
+from core.config import settings
+NOSTR_RELAYS = settings.NOSTR_RELAYS.split()
+TOOLS_PATH = settings.TOOLS_PATH
 
 # NOSTR Event Kinds for Permit System
 class PermitEventKind(Enum):
@@ -149,7 +150,7 @@ class OracleSystem:
     """Core permit management system"""
     
     def __init__(self, data_dir: Path = None):
-        self.data_dir = data_dir or Path.home() / ".zen" / "game" / "permits"
+        self.data_dir = data_dir or settings.ZEN_PATH / "game" / "permits"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         
         self.definitions_file = self.data_dir / "definitions.json"
@@ -425,7 +426,7 @@ class OracleSystem:
         
         Returns True if IPFSNODEID matches the first STRAP in A_boostrap_nodes.txt
         """
-        ipfs_node_id = os.getenv("IPFSNODEID", "")
+        ipfs_node_id = settings.IPFSNODEID
         if not ipfs_node_id:
             return False
         
@@ -485,7 +486,7 @@ class OracleSystem:
         """
         # Primary station uses UPLANETNAME_G1
         if self._is_primary_station():
-            g1_hex = os.getenv("UPLANETNAME_G1", "")
+            g1_hex = settings.UPLANETNAME_G1
             if g1_hex:
                 return g1_hex
         
@@ -497,14 +498,14 @@ class OracleSystem:
                 return pubkey
         
         # Fallback: try to get from environment
-        return os.getenv("UPLANETNAME_G1", "")
+        return settings.UPLANETNAME_G1
     
     def sign_credential(self, request: PermitRequest, definition: PermitDefinition) -> Dict[str, Any]:
         """Sign a credential with oracle authority key (myswarm_secret.nostr or UPLANETNAME_G1 for primary)"""
         # Get oracle key for signing (myswarm_secret.nostr or UPLANETNAME_G1)
         oracle_key = ""
         if self._is_primary_station():
-            oracle_key = os.getenv("UPLANETNAME_G1", "")
+            oracle_key = settings.UPLANETNAME_G1
         else:
             # Read HEX from myswarm_secret.nostr
             myswarm_secret = Path.home() / ".zen/game/myswarm_secret.nostr"
@@ -603,7 +604,7 @@ class OracleSystem:
     
     def get_email_from_npub(self, npub: str) -> Optional[str]:
         """Get email from NOSTR pubkey (scan ~/.zen/game/nostr)"""
-        nostr_dir = Path.home() / ".zen" / "game" / "nostr"
+        nostr_dir = settings.ZEN_PATH / "game" / "nostr"
         if not nostr_dir.exists():
             return None
         
@@ -636,7 +637,7 @@ class OracleSystem:
         ]
         
         # Add IPFSNODEID tag to filter events by Astroport (prevents conflicts in multi-station constellations)
-        ipfs_node_id = os.getenv("IPFSNODEID", "")
+        ipfs_node_id = settings.IPFSNODEID
         if ipfs_node_id:
             tags.append(["ipfs_node", ipfs_node_id])
         
@@ -662,7 +663,7 @@ class OracleSystem:
         ]
         
         # Add IPFSNODEID tag to filter events by Astroport (prevents conflicts in multi-station constellations)
-        ipfs_node_id = os.getenv("IPFSNODEID", "")
+        ipfs_node_id = settings.IPFSNODEID
         if ipfs_node_id:
             tags.append(["ipfs_node", ipfs_node_id])
         
@@ -698,7 +699,7 @@ class OracleSystem:
         if request:
             tags.append(["permit", request.permit_definition_id])
         # Add IPFSNODEID tag to filter events by Astroport (prevents conflicts in multi-station constellations)
-        ipfs_node_id = os.getenv("IPFSNODEID", "")
+        ipfs_node_id = settings.IPFSNODEID
         if ipfs_node_id:
             tags.append(["ipfs_node", ipfs_node_id])
         
@@ -731,7 +732,7 @@ class OracleSystem:
         ]
         
         # Add IPFSNODEID tag to filter events by Astroport (prevents conflicts in multi-station constellations)
-        ipfs_node_id = os.getenv("IPFSNODEID", "")
+        ipfs_node_id = settings.IPFSNODEID
         if ipfs_node_id:
             tags.append(["ipfs_node", ipfs_node_id])
         
@@ -770,12 +771,12 @@ class OracleSystem:
         if signer_npub:
             email = self.get_email_from_npub(signer_npub)
             if email:
-                events_dir = Path.home() / ".zen" / "game" / "nostr" / email
+                events_dir = settings.ZEN_PATH / "game" / "nostr" / email
                 events_dir.mkdir(parents=True, exist_ok=True)
                 logging.info(f"📁 Saving event to MULTIPASS directory: {email}")
             else:
                 # Fallback to default location if email not found
-                events_dir = Path.home() / ".zen" / "tmp" / "nostr_events"
+                events_dir = settings.ZEN_PATH / "tmp" / "nostr_events"
                 events_dir.mkdir(exist_ok=True)
                 logging.info(f"⚠️  Could not find email for {signer_npub}, using default location")
         else:
@@ -794,7 +795,7 @@ class OracleSystem:
         # Publish to NOSTR using nostr_send_note.py
         try:
             # Find the nostr_send_note.py script
-            nostr_script = Path.home() / ".zen" / "Astroport.ONE" / "tools" / "nostr_send_note.py"
+            nostr_script = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "nostr_send_note.py"
             
             if not nostr_script.exists():
                 logging.info(f"⚠️  nostr_send_note.py not found at {nostr_script}")
@@ -811,7 +812,7 @@ class OracleSystem:
                 # Try to find keyfile by email/npub
                 email = self.get_email_from_npub(signer_npub)
                 if email:
-                    keyfile = Path.home() / ".zen" / "game" / "nostr" / email / ".secret.nostr"
+                    keyfile = settings.ZEN_PATH / "game" / "nostr" / email / ".secret.nostr"
                 else:
                     logging.info(f"⚠️  Could not find keyfile for {signer_npub}")
                     return
@@ -996,7 +997,7 @@ class OracleSystem:
         """
         try:
             # Path to badge generation script
-            script_path = Path.home() / ".zen" / "Astroport.ONE" / "IA" / "generate_badge_image.sh"
+            script_path = settings.ZEN_PATH / "Astroport.ONE" / "IA" / "generate_badge_image.sh"
             
             if not script_path.exists():
                 logging.info(f"⚠️  Badge generation script not found: {script_path}")
@@ -1063,7 +1064,7 @@ class OracleSystem:
     
     def _get_fallback_badge_urls(self, badge_id: str) -> tuple[str, str, str]:
         """Get fallback badge URLs (static IPFS paths)"""
-        myipfs = os.getenv("myIPFS", "https://ipfs.copylaradio.com")
+        myipfs = settings.myIPFS
         badge_image_url = f"{myipfs}/ipns/copylaradio.com/badges/{badge_id}.png"
         badge_thumb_256 = f"{myipfs}/ipns/copylaradio.com/badges/{badge_id}_256x256.png"
         badge_thumb_64 = f"{myipfs}/ipns/copylaradio.com/badges/{badge_id}_64x64.png"
@@ -1189,7 +1190,7 @@ class OracleSystem:
         
         try:
             # Find the nostr_get_events.sh script
-            nostr_script = Path.home() / ".zen" / "Astroport.ONE" / "tools" / "nostr_get_events.sh"
+            nostr_script = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "nostr_get_events.sh"
             
             if not nostr_script.exists():
                 logging.info(f"⚠️  nostr_get_events.sh not found at {nostr_script}")
@@ -1239,7 +1240,7 @@ class OracleSystem:
         events = self.fetch_nostr_events(kind=30500)
         
         # Also scan MULTIPASS directories for local events
-        nostr_dir = Path.home() / ".zen" / "game" / "nostr"
+        nostr_dir = settings.ZEN_PATH / "game" / "nostr"
         if nostr_dir.exists():
             for email_dir in nostr_dir.iterdir():
                 if not email_dir.is_dir():

@@ -3,40 +3,14 @@ import time
 import logging
 import asyncio
 import websockets
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from fastapi import HTTPException, Form, Depends
 
 from core.config import settings
 from core.state import app_state
 
-def convert_nostr_key(key: str, to_format: str) -> Optional[str]:
-    """Convertit une clé NOSTR entre bech32 (npub) et hexadécimal."""
-    if not key: return None
-    key = key.lower().strip()
-    
-    try:
-        if to_format == "hex":
-            if len(key) == 64: return key # Déjà en hex
-            if not key.startswith('npub1'): return None
-            # Logique bech32 simplifiée via librairie externe si dispo, sinon votre implémentation
-            import bech32
-            _, data = bech32.bech32_decode(key)
-            decoded = bech32.convertbits(data, 5, 8, False)
-            return bytes(decoded).hex() if decoded else None
-            
-        elif to_format == "npub":
-            if key.startswith('npub1'): return key
-            if len(key) != 64: return None
-            import bech32
-            data = bech32.convertbits(bytes.fromhex(key), 8, 5)
-            return bech32.bech32_encode('npub', data)
-    except Exception as e:
-        logging.error(f"Erreur conversion clé NOSTR ({key} -> {to_format}): {e}")
-        return None
 
-def npub_to_hex(npub: str) -> Optional[str]: return convert_nostr_key(npub, "hex")
-def hex_to_npub(hex_key: str) -> Optional[str]: return convert_nostr_key(hex_key, "npub")
 
 def get_nostr_relay_url() -> str:
     """Obtenir l'URL du relai NOSTR local"""
@@ -291,6 +265,7 @@ async def check_nip42_auth(npub: str, timeout: int = 5) -> bool:
     if not npub:
         return False
     
+    from utils.crypto import npub_to_hex
     hex_pubkey = npub_to_hex(npub)
     if not hex_pubkey:
         return False
@@ -365,9 +340,11 @@ async def verify_nostr_auth(npub: Optional[str], force_check: bool = False) -> b
         return app_state.nostr_auth_cache[npub]
     
     if len(npub) == 64:
-        hex_pubkey = npub_to_hex(npub)
+        from utils.crypto import npub_to_hex
+    hex_pubkey = npub_to_hex(npub)
     elif npub.startswith('npub1'):
-        hex_pubkey = npub_to_hex(npub)
+        from utils.crypto import npub_to_hex
+    hex_pubkey = npub_to_hex(npub)
     else:
         return False
     
@@ -422,3 +399,310 @@ async def verify_nip98_auth(request: Request) -> str:
     except Exception as e:
         logging.error(f"NIP-98 Auth error: {e}")
         raise HTTPException(status_code=401, detail=f"NIP-98 Auth failed: {str(e)}")
+
+# Cache pour les profils NOSTR (évite les requêtes répétées)
+# Maps pubkey (hex) -> (profile_data, timestamp)
+nostr_profile_cache = {}
+NOSTR_PROFILE_CACHE_TTL = 3600  # 1 hour
+
+async def fetch_nostr_profiles(pubkeys: List[str]) -> Dict[str, Dict[str, Any]]:
+    """
+    Fetch NOSTR profiles (kind 0) for a list of pubkeys with caching (1 hour TTL)
+    Returns a dictionary mapping pubkey -> profile data
+    """
+    profiles = {}
+    if not pubkeys:
+        return profiles
+    
+    # Check cache first
+    current_time = time.time()
+    pubkeys_to_fetch = []
+    for pubkey in pubkeys:
+        if pubkey in nostr_profile_cache:
+            cached_data, cached_time = nostr_profile_cache[pubkey]
+            if current_time - cached_time < NOSTR_PROFILE_CACHE_TTL:
+                profiles[pubkey] = cached_data
+                logging.debug(f"✅ Profile cache hit for {pubkey[:12]}...")
+                continue
+        pubkeys_to_fetch.append(pubkey)
+    
+    if not pubkeys_to_fetch:
+        logging.info(f"✅ All {len(pubkeys)} profiles found in cache")
+        return profiles
+    
+    logging.info(f"📡 Fetching {len(pubkeys_to_fetch)} profiles from NOSTR (cache: {len(profiles)})")
+    
+    try:
+        from pathlib import Path
+        import json
+        
+        # Path to nostr_get_events.sh
+        nostr_script_path = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "nostr_get_events.sh"
+        
+        if not nostr_script_path.exists():
+            logging.warning(f"nostr_get_events.sh not found, skipping profile enrichment")
+            return profiles
+        
+        # Fetch profiles in batches to avoid command line length issues
+        batch_size = 50
+        for i in range(0, len(pubkeys), batch_size):
+            batch = pubkeys[i:i + batch_size]
+            
+            # Build command to fetch profile events (kind 0) for these pubkeys
+            cmd = [
+                str(nostr_script_path),
+                "--kind", "0",
+                "--authors", ",".join(batch),
+                "--output", "json"
+            ]
+            
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=str(nostr_script_path.parent)
+                )
+                
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=10.0
+                )
+                
+                if process.returncode == 0 and stdout:
+                    # Parse JSON events (one per line)
+                    for line in stdout.decode('utf-8', errors='ignore').strip().split('\n'):
+                        if not line.strip():
+                            continue
+                        
+                        try:
+                            event = json.loads(line)
+                            pubkey = event.get('pubkey', '')
+                            
+                            if pubkey and pubkey in batch:
+                                # Parse profile content (JSON string)
+                                content = event.get('content', '{}')
+                                try:
+                                    profile_data = json.loads(content) if content else {}
+                                    
+                                    # Convert hex pubkey to npub (bech32)
+                                    from utils.crypto import hex_to_npub
+                                    npub = hex_to_npub(pubkey)
+                                    
+                                    profile_data_dict = {
+                                        'npub': npub,
+                                        'email': profile_data.get('email') or profile_data.get('lud16') or profile_data.get('lud06'),
+                                        'display_name': profile_data.get('display_name') or profile_data.get('displayName'),
+                                        'name': profile_data.get('name'),
+                                        'picture': profile_data.get('picture'),
+                                        'about': profile_data.get('about')
+                                    }
+                                    profiles[pubkey] = profile_data_dict
+                                    # Cache the profile
+                                    nostr_profile_cache[pubkey] = (profile_data_dict, current_time)
+                                except json.JSONDecodeError:
+                                    # Profile content is not valid JSON, skip
+                                    pass
+                        except json.JSONDecodeError:
+                            # Invalid event JSON, skip
+                            continue
+                            
+            except asyncio.TimeoutError:
+                logging.warning(f"Timeout fetching profiles for batch {i//batch_size + 1}")
+            except Exception as e:
+                logging.warning(f"Error fetching profiles batch: {e}")
+        
+        logging.info(f"✅ Fetched {len(profiles)} profiles (cached: {len([p for p in profiles if p in nostr_profile_cache])}, new: {len([p for p in profiles if p not in nostr_profile_cache])})")
+        
+    except Exception as e:
+        logging.warning(f"Error in fetch_nostr_profiles: {e}")
+    
+    return profiles
+
+async def get_n1_follows(pubkey_hex: str) -> List[str]:
+    """Récupérer la liste N1 (personnes suivies) d'une clé publique"""
+    try:
+        from core.config import settings
+        script_path = settings.TOOLS_PATH / "nostr_get_N1.sh"
+        
+        if not os.path.exists(script_path):
+            logging.error(f"Script nostr_get_N1.sh non trouvé: {script_path}")
+            return []
+        
+        process = await asyncio.create_subprocess_exec(
+            script_path, pubkey_hex,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode == 0:
+            follows = [line.strip() for line in stdout.decode().strip().split('\n') if line.strip()]
+            logging.info(f"N1 follows pour {pubkey_hex[:12]}...: {len(follows)} clés")
+            return follows
+        else:
+            logging.error(f"Erreur nostr_get_N1.sh: {stderr.decode()}")
+            return []
+            
+    except Exception as e:
+        logging.error(f"Erreur lors de la récupération N1: {e}")
+        return []
+
+async def get_followers(pubkey_hex: str) -> List[str]:
+    """Récupérer la liste des followers d'une clé publique"""
+    try:
+        from core.config import settings
+        script_path = settings.TOOLS_PATH / "nostr_followers.sh"
+        
+        if not os.path.exists(script_path):
+            logging.error(f"Script nostr_followers.sh non trouvé: {script_path}")
+            return []
+        
+        process = await asyncio.create_subprocess_exec(
+            script_path, pubkey_hex,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode == 0:
+            followers = [line.strip() for line in stdout.decode().strip().split('\n') if line.strip()]
+            logging.info(f"Followers pour {pubkey_hex[:12]}...: {len(followers)} clés")
+            return followers
+        else:
+            logging.error(f"Erreur nostr_followers.sh: {stderr.decode()}")
+            return []
+            
+    except Exception as e:
+        logging.error(f"Erreur lors de la récupération des followers: {e}")
+        return []
+
+async def analyze_n2_network(center_pubkey: str, range_mode: str = "default") -> Dict[str, Any]:
+    """Analyser le réseau N2 d'une clé publique"""
+    start_time = time.time()
+    
+    # Récupérer N1 (personnes suivies par le centre)
+    n1_follows_raw = await get_n1_follows(center_pubkey)
+    
+    # Filtrer le nœud central de sa propre liste (éviter l'auto-référence)
+    n1_follows = [pubkey for pubkey in n1_follows_raw if pubkey != center_pubkey]
+    
+    # Récupérer les followers du centre
+    center_followers = await get_followers(center_pubkey)
+    
+    # Créer les nœuds N1
+    nodes = {}
+    connections = []
+    
+    from models.schemas import N2NetworkNode
+    
+    # Nœud central
+    nodes[center_pubkey] = N2NetworkNode(
+        pubkey=center_pubkey,
+        level=0,
+        is_follower=False,
+        is_followed=False,
+        mutual=False,
+        connections=n1_follows.copy()
+    )
+    
+    # Ajouter les connexions du centre vers N1
+    for follow in n1_follows:
+        connections.append({"from": center_pubkey, "to": follow})
+    
+    # Traiter les nœuds N1 (exclure le nœud central)
+    for pubkey in n1_follows:
+        if pubkey != center_pubkey:  # Éviter d'écraser le nœud central
+            is_follower = pubkey in center_followers
+            nodes[pubkey] = N2NetworkNode(
+                pubkey=pubkey,
+                level=1,
+                is_follower=is_follower,
+                is_followed=True,
+                mutual=is_follower,
+                connections=[]
+            )
+    
+    # Déterminer quelles clés N1 explorer pour N2
+    if range_mode == "full":
+        # Explorer toutes les clés N1
+        keys_to_explore = n1_follows
+        logging.info(f"Mode full: exploration de {len(keys_to_explore)} clés N1")
+    else:
+        # Explorer seulement les clés N1 qui sont aussi followers (mutuelles)
+        keys_to_explore = [key for key in n1_follows if key in center_followers]
+        logging.info(f"Mode default: exploration de {len(keys_to_explore)} clés mutuelles")
+    
+    # Analyser N2 pour chaque clé sélectionnée
+    n2_keys = set()
+    
+    for n1_key in keys_to_explore:
+        try:
+            # Récupérer les follows de cette clé N1
+            n1_key_follows = await get_n1_follows(n1_key)
+            
+            # Ajouter les connexions N1 -> N2
+            nodes[n1_key].connections = n1_key_follows.copy()
+            
+            for n2_key in n1_key_follows:
+                # Éviter d'ajouter le centre, les clés déjà en N1, ou l'auto-référence
+                if (n2_key != center_pubkey and 
+                    n2_key not in n1_follows and 
+                    n2_key != n1_key):
+                    n2_keys.add(n2_key)
+                    connections.append({"from": n1_key, "to": n2_key})
+                    
+        except Exception as e:
+            logging.warning(f"Erreur lors de l'analyse N2 pour {n1_key[:12]}...: {e}")
+    
+    # Créer les nœuds N2
+    for n2_key in n2_keys:
+        if n2_key not in nodes:
+            nodes[n2_key] = N2NetworkNode(
+                pubkey=n2_key,
+                level=2,
+                is_follower=False,
+                is_followed=False,
+                mutual=False,
+                connections=[]
+            )
+    
+    # Enrich nodes with profile information for vocals messaging
+    all_pubkeys = list(nodes.keys())
+    profiles = await fetch_nostr_profiles(all_pubkeys)
+    
+    # Enrich each node with profile data
+    enriched_nodes = []
+    for node in nodes.values():
+        profile = profiles.get(node.pubkey, {})
+        enriched_node = N2NetworkNode(
+            pubkey=node.pubkey,
+            level=node.level,
+            is_follower=node.is_follower,
+            is_followed=node.is_followed,
+            mutual=node.mutual,
+            connections=node.connections,
+            npub=profile.get('npub'),
+            email=profile.get('email'),
+            display_name=profile.get('display_name'),
+            name=profile.get('name'),
+            picture=profile.get('picture'),
+            about=profile.get('about')
+        )
+        enriched_nodes.append(enriched_node)
+    
+    processing_time_ms = int((time.time() - start_time) * 1000)
+    
+    return {
+        "center_pubkey": center_pubkey,
+        "total_n1": len(n1_follows),
+        "total_n2": len(n2_keys),
+        "total_nodes": len(nodes),
+        "range_mode": range_mode,
+        "nodes": enriched_nodes,
+        "connections": connections,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "processing_time_ms": processing_time_ms
+    }

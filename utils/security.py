@@ -2,6 +2,7 @@ import os
 import re
 import magic
 import logging
+import threading
 import unicodedata
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -29,6 +30,37 @@ def is_safe_email(email: str) -> bool:
     
     return True
 
+def is_multipass_user(hex_pubkey: str) -> bool:
+    """
+    Verify if a user is recognized as MULTIPASS by checking if their account exists in ~/.zen/game/nostr/.
+    Uses an in-memory cache (built once) for O(1) lookup instead of scanning all directories.
+    """
+    if not hex_pubkey:
+        return False
+    
+    hex_pubkey = hex_pubkey.lower().strip()
+    
+    from core.state import app_state
+    
+    if hex_pubkey in app_state.hex_to_email_cache:
+        email = app_state.hex_to_email_cache[hex_pubkey]
+        logging.info(f"✅ User is recognized MULTIPASS (650MB quota) - found in {email}")
+        return True
+    
+    logging.debug(f"ℹ️  User is not recognized MULTIPASS (100MB quota) - hex not in index")
+    return False
+
+def get_max_file_size_for_user(npub: str) -> int:
+    """
+    Get the maximum file size limit for a user according to UPlanet_FILE_CONTRACT.md.
+    """
+    from utils.crypto import npub_to_hex
+    hex_pubkey = npub_to_hex(npub) if npub else None
+    if hex_pubkey and is_multipass_user(hex_pubkey):
+        return 681574400  # 650MB
+    else:
+        return 104857600  # 100MB
+
 def is_safe_g1pub(g1pub: str) -> bool:
     """Valider qu'une g1pub est sûre et ne contient pas de caractères dangereux."""
     if not g1pub or len(g1pub) > 100:
@@ -43,7 +75,8 @@ def get_safe_user_path(user_type: str, email: str, filename: str) -> Optional[st
         if not is_safe_email(email) or not filename or '/' in filename or '\\' in filename:
             return None
         
-        base_path = os.path.expanduser(f"~/.zen/game/{user_type}")
+        from core.config import settings
+        base_path = settings.GAME_PATH / user_type
         user_dir = os.path.join(base_path, email)
         
         final_path = os.path.join(user_dir, filename)
@@ -82,7 +115,8 @@ def get_safe_swarm_path(node_id: str, filename: str) -> Optional[str]:
         if not is_safe_node_id(node_id) or not filename or '/' in filename or '\\' in filename:
             return None
         
-        base_path = os.path.expanduser("~/.zen/tmp/swarm")
+        from core.config import settings
+        base_path = settings.ZEN_PATH / "tmp" / "swarm"
         node_dir = os.path.join(base_path, node_id)
         
         final_path = os.path.join(node_dir, filename)
@@ -98,6 +132,37 @@ def get_safe_swarm_path(node_id: str, filename: str) -> Optional[str]:
     except Exception as e:
         logging.error(f"Erreur construction chemin swarm sûr: {e}")
         return None
+
+def detect_file_type(file_content: bytes, filename: str) -> str:
+    """
+    Détecte le type de fichier basé sur le contenu ou l'extension.
+    """
+    ext = filename.split('.')[-1].lower()
+
+    if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff']:
+        return "image"
+    elif ext in ['mp4', 'avi', 'mov', 'webm', 'wmv', 'flv', 'mkv', 'm4v']:
+        return "video"
+    elif ext in ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma']:
+        return "audio"
+    elif ext in ['html', 'htm']:
+        return "html"
+    elif ext in ['js', 'mjs']:
+        return "javascript"
+    elif ext in ['css']:
+        return "stylesheet"
+    elif ext in ['json']:
+        return "json"
+    elif ext in ['txt', 'md', 'rst', 'log', 'conf', 'ini', 'cfg', 'yaml', 'yml']:
+        return "text"
+    elif ext in ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']:
+        return "document"
+    elif ext in ['zip', 'tar', 'gz', '7z', 'rar']:
+        return "archive"
+    elif ext in ['py', 'sh', 'bash', 'pl', 'rb', 'php', 'c', 'cpp', 'java', 'go', 'rs']:
+        return "script"
+    else:
+        return "file"
 
 def sanitize_filename_python(filename: str) -> str:
     """Sanitizes a filename to prevent directory traversal and invalid characters."""
@@ -248,3 +313,193 @@ def extract_nsec_from_keyfile(keyfile_path: str) -> str:
             raise ValueError(f"Invalid NSEC format in keyfile: {nsec[:15]}...")
     
     raise ValueError("No NSEC key found in keyfile")
+
+# Cache pour le mapping hex -> email (MULTIPASS detection)
+# Maps hex_pubkey (lowercase) -> email directory name
+hex_to_email_cache = {}
+# Cache pour les répertoires utilisateur (évite les scans répétés)
+# Maps hex_pubkey (lowercase) -> Path to user directory
+hex_to_directory_cache = {}
+hex_cache_lock = threading.Lock()
+hex_cache_built = False
+
+def _build_hex_index() -> None:
+    """
+    Build the hex -> email cache by scanning ~/.zen/game/nostr/ directories.
+    This is called once (lazy initialization) and the cache is reused for all subsequent calls.
+    Thread-safe with lock.
+    """
+    global hex_to_email_cache, hex_cache_built
+    
+    with hex_cache_lock:
+        # Double-check pattern: another thread might have built it while we waited
+        if hex_cache_built:
+            return
+        
+        logging.info("🔍 Building hex -> email index cache for MULTIPASS detection...")
+        from core.config import settings
+        nostr_base_path = settings.GAME_PATH / "nostr"
+        
+        if not nostr_base_path.exists():
+            logging.debug(f"ℹ️  NOSTR directory not found: {nostr_base_path}")
+            hex_cache_built = True
+            return
+        
+        count = 0
+        for email_dir in nostr_base_path.iterdir():
+            if email_dir.is_dir() and '@' in email_dir.name:
+                hex_file_path = email_dir / "HEX"
+                
+                if hex_file_path.exists():
+                    try:
+                        with open(hex_file_path, 'r') as f:
+                            stored_hex = f.read().strip().lower()
+                        
+                        if stored_hex:
+                            hex_to_email_cache[stored_hex] = email_dir.name
+                            count += 1
+                            
+                    except Exception as e:
+                        logging.warning(f"⚠️  Error reading {hex_file_path}: {e}")
+                        continue
+        
+        hex_cache_built = True
+        logging.info(f"✅ Hex index cache built: {count} users indexed")
+
+def is_multipass_user(hex_pubkey: str) -> bool:
+    """
+    Verify if a user is recognized as MULTIPASS by checking if their account exists in ~/.zen/game/nostr/.
+    A user is considered MULTIPASS if their hex pubkey is found in any ~/.zen/game/nostr/{email}/HEX file.
+    
+    Uses an in-memory cache (built once) for O(1) lookup instead of scanning all directories.
+    This is optimized for systems with thousands of users (e.g., 2500+ directories).
+    
+    Args:
+        hex_pubkey: User's hexadecimal public key
+        
+    Returns:
+        bool: True if user is MULTIPASS (exists in ~/.zen/game/nostr/), False otherwise
+    """
+    if not hex_pubkey:
+        return False
+    
+    # Normalize the hex key
+    hex_pubkey = hex_pubkey.lower().strip()
+    
+    # Build cache on first call (lazy initialization)
+    if not hex_cache_built:
+        _build_hex_index()
+    
+    # O(1) lookup in cache
+    if hex_pubkey in hex_to_email_cache:
+        email = hex_to_email_cache[hex_pubkey]
+        logging.info(f"✅ User is recognized MULTIPASS (650MB quota) - found in {email}")
+        return True
+    
+    # User not found in cache (not in ~/.zen/game/nostr/)
+    logging.debug(f"ℹ️  User is not recognized MULTIPASS (100MB quota) - hex not in index")
+    return False
+
+def find_user_directory_by_hex(hex_pubkey: str) -> Path:
+    """Trouver le répertoire utilisateur correspondant à la clé publique hex (with caching)"""
+    from fastapi import HTTPException
+    if not hex_pubkey:
+        raise HTTPException(status_code=400, detail="Clé publique hex manquante")
+    
+    # Normaliser la clé hex
+    hex_pubkey = hex_pubkey.lower().strip()
+    
+    from core.state import app_state
+    from core.config import settings
+    
+    # Check cache first
+    if hex_pubkey in app_state.hex_to_directory_cache:
+        cached_dir = app_state.hex_to_directory_cache[hex_pubkey]
+        # Verify cache is still valid (directory still exists)
+        if cached_dir.exists():
+            logging.info(f"✅ Répertoire trouvé dans le cache pour {hex_pubkey}: {cached_dir}")
+            return cached_dir
+        else:
+            # Cache invalid, remove it
+            del app_state.hex_to_directory_cache[hex_pubkey]
+            logging.warning(f"Cache invalide pour {hex_pubkey}, répertoire n'existe plus")
+    
+    # Chemin de base pour les utilisateurs NOSTR
+    nostr_base_path = settings.GAME_PATH / "nostr"
+    
+    if not nostr_base_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Répertoire NOSTR non trouvé: {nostr_base_path}"
+        )
+    
+    logging.info(f"Recherche du répertoire pour la clé hex: {hex_pubkey}")
+    logging.info(f"Recherche dans: {nostr_base_path}")
+    
+    # Parcourir tous les dossiers email dans nostr/
+    for email_dir in nostr_base_path.iterdir():
+        if email_dir.is_dir() and '@' in email_dir.name:
+            hex_file_path = email_dir / "HEX"
+            
+            if hex_file_path.exists():
+                try:
+                    with open(hex_file_path, 'r') as f:
+                        stored_hex = f.read().strip().lower()
+                    
+                    logging.info(f"Vérification {email_dir.name}: {stored_hex}")
+                    
+                    if stored_hex == hex_pubkey:
+                        logging.info(f"✅ Répertoire trouvé pour {hex_pubkey}: {email_dir}")
+                        
+                        # S'assurer que le répertoire APP/uDRIVE existe
+                        app_dir = email_dir / "APP/uDRIVE"
+                        app_dir.mkdir(parents=True, exist_ok=True)
+                        
+                        # Vérifier la présence du script IPFS et le copier si nécessaire
+                        user_script = app_dir / "generate_ipfs_structure.sh"
+                        if not user_script.exists():
+                            generic_script = settings.TOOLS_PATH / "generate_ipfs_structure.sh"
+                            if generic_script.exists():
+                                # Créer un lien symbolique
+                                user_script.symlink_to(generic_script)
+                                logging.info(f"Lien symbolique créé vers {user_script}")
+                            else:
+                                logging.warning(f"Script générique non trouvé dans {generic_script}")
+                        
+                        # Cache the result
+                        app_state.hex_to_directory_cache[hex_pubkey] = email_dir
+                        
+                        return email_dir
+                        
+                except Exception as e:
+                    logging.warning(f"Erreur lors de la lecture de {hex_file_path}: {e}")
+                    continue
+    
+    # Si aucun répertoire trouvé
+    raise HTTPException(
+        status_code=404,
+        detail=f"Aucun répertoire utilisateur trouvé pour la clé publique: {hex_pubkey}. "
+               f"Vérifiez que l'utilisateur est enregistré dans ~/.zen/game/nostr/"
+    )
+
+def get_authenticated_user_directory(npub: str) -> Path:
+    """Obtenir le répertoire APP de l'utilisateur authentifié basé sur sa clé publique NOSTR uniquement"""
+    from utils.crypto import npub_to_hex
+    
+    # Convertir npub en hex
+    hex_pubkey = npub_to_hex(npub)
+    if not hex_pubkey:
+        raise HTTPException(
+            status_code=400, 
+            detail="Impossible de convertir la clé publique en format hexadécimal"
+        )
+    
+    # Trouver le répertoire correspondant à cette clé
+    user_root_dir = find_user_directory_by_hex(hex_pubkey)
+    
+    # Retourner le répertoire APP (où doivent aller les fichiers uploadés)
+    app_dir = user_root_dir
+    app_dir.mkdir(exist_ok=True)  # S'assurer que APP/ existe
+    
+    logging.info(f"Répertoire APP utilisateur (sécurisé): {app_dir}")
+    return app_dir

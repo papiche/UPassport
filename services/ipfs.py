@@ -52,7 +52,7 @@ async def run_uDRIVE_generation_script(source_dir: Path, enable_logging: bool = 
     app_udrive_path.mkdir(parents=True, exist_ok=True)
     
     if not script_path.exists() or not script_path.is_symlink():
-        generic_script_path = Path.home() / ".zen" / "Astroport.ONE" / "tools" / "generate_ipfs_structure.sh"
+        generic_script_path = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "generate_ipfs_structure.sh"
         
         if generic_script_path.exists():
             if script_path.exists():

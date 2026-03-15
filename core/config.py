@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     
     # Paths
     BASE_DIR: Path = Path(__file__).parent.parent
+    ZEN_PATH: Path = Path.home() / ".zen"
+    GAME_PATH: Path = Path.home() / ".zen" / "game"
+    TOOLS_PATH: Path = Path.home() / ".zen" / "Astroport.ONE" / "tools"
     
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 20
@@ -41,6 +44,12 @@ class Settings(BaseSettings):
     CAPTAINEMAIL: str = ""
     IPFSNODEID: str = ""
     USE_LOCAL_JS: bool = False
+    UPASSPORT_URL: str = ""
+    OCAPIKEY: str = ""
+    uSPOT: str = "http://127.0.0.1:54321"
+    myRELAY: str = "ws://127.0.0.1:7777"
+    NOSTR_RELAYS: str = "ws://127.0.0.1:7777 wss://relay.copylaradio.com"
+    myIPFS: str = "https://ipfs.copylaradio.com"
     
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
