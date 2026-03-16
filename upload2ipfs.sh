@@ -15,6 +15,11 @@ ME="${0##*/}"
 [[ -s "${HOME}/.zen/Astroport.ONE/tools/my.sh" ]] \
     && source "${HOME}/.zen/Astroport.ONE/tools/my.sh"
 
+## ─── Répertoire temporaire unique + nettoyage garanti ───────────────────────
+TMP_WORK_DIR=$(mktemp -d /tmp/upassport.XXXXXX)
+trap 'rm -rf "$TMP_WORK_DIR"' EXIT
+## ─────────────────────────────────────────────────────────────────────────────
+
 ################################################################################
 # Helper function: Calculate Greatest Common Divisor (GCD) using Euclidean algorithm
 ################################################################################
@@ -633,38 +638,35 @@ reduce_video_if_needed() {
     
     echo "DEBUG: Target resolution: ${new_width}x${new_height}" >&2
     
-    # Create temporary output file
-    local temp_output="${video_file}.resized.$$"
-    
-    # Build ffmpeg command optimized for speed
-    # Use ultrafast preset, hardware acceleration if available, and fast encoding settings
-    local ffmpeg_cmd="ffmpeg -loglevel error -i \"$video_file\""
-    
-    # Try hardware acceleration first (NVIDIA CUDA)
+    # Fichier de sortie temporaire unique via mktemp (évite les collisions)
+    local temp_output
+    temp_output=$(mktemp "${TMP_WORK_DIR}/upassport_resize_XXXXXX.mp4")
+
+    # Appel direct à ffmpeg sans eval (sécurité : pas d'injection de commande)
+    local ffmpeg_ok=0
     if command -v nvidia-smi &> /dev/null && nvidia-smi &>/dev/null; then
         echo "DEBUG: Using NVIDIA CUDA hardware acceleration for faster encoding..." >&2
-        # Use nvenc encoder with ultrafast preset (p1 = fastest)
-        # Note: We use software scaling (-vf scale) as it's more reliable than GPU scaling
-        ffmpeg_cmd="$ffmpeg_cmd -c:v h264_nvenc -preset p1 -tune ll -crf 23"
+        ffmpeg -loglevel error \
+            -i "$video_file" \
+            -c:v h264_nvenc -preset p1 -tune ll -crf 23 \
+            -c:a aac -b:a 128k \
+            -vf "scale=${new_width}:${new_height}" \
+            -y "$temp_output" 2>&1
+        ffmpeg_ok=$?
     else
-        # Software encoding with ultrafast preset for maximum speed
         echo "DEBUG: Using software encoding with ultrafast preset..." >&2
-        ffmpeg_cmd="$ffmpeg_cmd -c:v libx264 -preset ultrafast -tune fastdecode -crf 23"
+        ffmpeg -loglevel error \
+            -i "$video_file" \
+            -c:v libx264 -preset ultrafast -tune fastdecode -crf 23 \
+            -c:a aac -b:a 128k \
+            -vf "scale=${new_width}:${new_height}" \
+            -y "$temp_output" 2>&1
+        ffmpeg_ok=$?
     fi
-    
-    # Audio: copy if possible, otherwise re-encode with fast settings
-    ffmpeg_cmd="$ffmpeg_cmd -c:a aac -b:a 128k"
-    
-    # Scale filter
-    ffmpeg_cmd="$ffmpeg_cmd -vf \"scale=${new_width}:${new_height}\""
-    
-    # Output file
-    ffmpeg_cmd="$ffmpeg_cmd -y \"$temp_output\""
-    
-    echo "DEBUG: Executing: $ffmpeg_cmd" >&2
-    
-    # Execute ffmpeg command
-    if eval "$ffmpeg_cmd" 2>&1; then
+
+    echo "DEBUG: ffmpeg exit code: $ffmpeg_ok" >&2
+
+    if [ "$ffmpeg_ok" -eq 0 ]; then
         # Check if output file was created and is smaller
         if [[ -f "$temp_output" ]] && [[ -s "$temp_output" ]]; then
             local new_size=$(stat -c%s "$temp_output" 2>/dev/null || echo "0")

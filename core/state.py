@@ -1,18 +1,14 @@
 import logging
-from typing import Optional
+from typing import Optional, Any
 from cachetools import TTLCache
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
 from core.config import settings
 
-# Import oracle_system for permit management
-try:
-    from oracle_system import OracleSystem
-    ORACLE_ENABLED = True
-except ImportError as e:
-    logging.warning(f"Oracle system not available: {e}")
-    ORACLE_ENABLED = False
+# NOTE : OracleSystem est importé en mode lazy (à l'intérieur du lifespan)
+# pour éviter les dépendances circulaires :
+#   core.state → oracle_system → core.config → core.state
 
 class AppState:
     def __init__(self):
@@ -25,8 +21,8 @@ class AppState:
         self.hex_to_directory_cache = TTLCache(maxsize=1000, ttl=3600)
         self.hex_cache_built = False
         
-        # Oracle System
-        self.oracle_system: Optional['OracleSystem'] = None
+        # Oracle System — typage générique pour éviter l'import circulaire
+        self.oracle_system: Optional[Any] = None
 
 app_state = AppState()
 
@@ -76,25 +72,34 @@ async def lifespan(app: FastAPI):
         logging.debug(f"ℹ️  NOSTR directory not found: {nostr_base_path}")
         app_state.hex_cache_built = True
 
-    if ORACLE_ENABLED:
-        app_state.oracle_system = OracleSystem()
+    # Import lazy de OracleSystem pour éviter la dépendance circulaire
+    # oracle_system.py peut importer core.config ; on diffère l'import au démarrage
+    try:
+        from oracle_system import OracleSystem  # noqa: PLC0415
+        oracle_instance = OracleSystem()
+        app_state.oracle_system = oracle_instance
         app.state.oracle = app_state.oracle_system
-        
+
         # Load permit definitions from NOSTR if definitions are empty
-        if len(app_state.oracle_system.definitions) == 0:
+        if len(oracle_instance.definitions) == 0:
             try:
-                definitions = app_state.oracle_system.fetch_permit_definitions_from_nostr()
+                definitions = oracle_instance.fetch_permit_definitions_from_nostr()
                 for definition in definitions:
-                    app_state.oracle_system.definitions[definition.id] = definition
-                
+                    oracle_instance.definitions[definition.id] = definition
+
                 if definitions:
-                    app_state.oracle_system.save_data()
+                    oracle_instance.save_data()
                     logging.info(f"✅ Loaded {len(definitions)} permit definitions from NOSTR")
                 else:
                     logging.info("ℹ️  No permit definitions found in NOSTR (will load on demand)")
             except Exception as e:
                 logging.warning(f"⚠️  Could not load permit definitions from NOSTR: {e}")
-    else:
+
+    except ImportError as e:
+        logging.warning(f"⚠️  Oracle system not available (import skipped): {e}")
+        app.state.oracle = None
+    except Exception as e:
+        logging.error(f"❌ Failed to initialise OracleSystem: {e}")
         app.state.oracle = None
     
     yield

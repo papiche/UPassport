@@ -1,6 +1,26 @@
+# ==================== SCRIPT DÉSACTIVÉ ====================
+# Ce script était utilisé pour injecter du code dans routers/media.py via append.
+# PROBLÈME : auto-modification du code = source d'erreurs d'indentation et de duplications.
+# SOLUTION : Les fonctions ont été intégrées définitivement dans routers/media_upload.py.
+# Ce fichier est conservé uniquement à titre de référence historique.
+# NE PAS EXÉCUTER CE SCRIPT.
+# ===========================================================
+
 import os
 
 def add_upload_image():
+    """
+    ATTENTION : Fonction désactivée.
+    Les fonctions d'upload d'image sont définitivement intégrées dans routers/media_upload.py.
+    Ne plus appeler cette fonction pour modifier des fichiers sources à la volée.
+    """
+    raise RuntimeError(
+        "add_upload_image() est désactivéé. Les fonctions sont dans routers/media_upload.py. "
+        "Ne pas utiliser de scripts append pour modifier le code source."
+    )
+
+def _reference_only_add_upload_image():
+    """Référence historique - NE PAS APPELER"""
     with open("routers/media.py", "a") as f:
         f.write("""
 # ==================== IMAGE UPLOAD (TrocZen/ZENBOX compatible) ====================
@@ -64,7 +84,7 @@ async def _upload_image_to_ipfs(filepath: str) -> tuple:
                 if response.status == 200:
                     result = await response.json()
                     cid = result['Hash']
-                    ipfs_gateway = await get_myipfs_gateway().rstrip('/')
+                    ipfs_gateway = (await get_myipfs_gateway()).rstrip('/')
                     ipfs_url = f"{ipfs_gateway}/ipfs/{cid}"
                     return cid, ipfs_url
         return None, None
@@ -145,4 +165,4 @@ async def serve_upload(filename: str):
     return FileResponse(str(filepath))
 """)
 
-add_upload_image()
+# add_upload_image()  # DÉSACTIVÉ - ne plus appeler ce script automatiquement

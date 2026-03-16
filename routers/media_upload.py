@@ -1351,7 +1351,9 @@ async def upload_image(
                             detail=f"File size ({len(content) // 1024}KB) exceeds maximum (5MB)")
 
     original_name = sanitize_filename_python(file.filename)
-    ext = original_name.rsplit('.', 1)[1].lower()
+    # Gestion sécurisée de l'extension : éviter IndexError si absent
+    _parts = original_name.rsplit('.', 1)
+    ext = _parts[1].lower() if len(_parts) == 2 and _parts[1] else 'bin'
     timestamp = int(datetime.now().timestamp())
     npub_short = npub[:16] if len(npub) > 16 else npub
     new_filename = f"{npub_short}_{image_type}_{timestamp}.{ext}"
