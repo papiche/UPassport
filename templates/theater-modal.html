@@ -217,7 +217,7 @@
             min-width: 0;
         }
         
-        /* Video player wrapper */
+        /* Video player wrapper — cadre cinématographique */
         .theater-video-wrapper {
             flex: 1;
             display: flex;
@@ -225,6 +225,9 @@
             justify-content: center;
             min-height: 0;
             position: relative;
+            /* Fond légèrement dégradé pour faire ressortir la vidéo */
+            background: radial-gradient(ellipse at center, #1a1a1a 0%, #000000 100%);
+            padding: 8px;
         }
 
         .theater-video-player {
@@ -234,8 +237,26 @@
             max-height: 100%;
             object-fit: contain;
             background: #000000;
+            /* Cadre lumineux subtil autour de la vidéo */
+            box-shadow:
+                0 0 0 1px rgba(255, 255, 255, 0.06),
+                0 0 24px rgba(0, 0, 0, 0.8),
+                0 0 60px rgba(59, 165, 255, 0.04);
+            border-radius: 2px;
             /* Better touch controls on mobile */
             touch-action: pan-x pan-y pinch-zoom;
+        }
+
+        /* Réduction du cadre sur mobile pour maximiser la surface */
+        @media (max-width: 767.98px) {
+            .theater-video-wrapper {
+                padding: 4px;
+                background: #000000;
+            }
+            .theater-video-player {
+                box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
+                border-radius: 0;
+            }
         }
         
         /* Comments section - responsive */
