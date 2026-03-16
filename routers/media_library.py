@@ -17,7 +17,7 @@ from fastapi import APIRouter, Request, Form, UploadFile, File, HTTPException, D
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from utils.helpers import run_script, get_myipfs_gateway, as_form
+from utils.helpers import run_script, get_myipfs_gateway, as_form, render_page
 from core.middleware import get_client_ip
 from utils.security import (
     get_authenticated_user_directory,

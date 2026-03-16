@@ -1,4 +1,5 @@
 import logging
+import importlib.util
 from typing import Optional, Any
 from cachetools import TTLCache
 from fastapi import FastAPI
@@ -9,6 +10,10 @@ from core.config import settings
 # NOTE : OracleSystem est importé en mode lazy (à l'intérieur du lifespan)
 # pour éviter les dépendances circulaires :
 #   core.state → oracle_system → core.config → core.state
+#
+# ORACLE_ENABLED est détecté via find_spec() : vérifie la présence du module
+# SANS l'importer, donc pas de risque de dépendance circulaire.
+ORACLE_ENABLED: bool = importlib.util.find_spec("oracle_system") is not None
 
 class AppState:
     def __init__(self):
