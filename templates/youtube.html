@@ -655,8 +655,8 @@
         
         .videos {
             display: grid;
-            /* ≥1280px : 4 colonnes min 260px */
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            /* ≥992px avec sidebar 240px : 3+ colonnes min 220px */
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
             gap: 16px;
             padding: 24px 32px 48px 32px;
             flex: 1;
@@ -1777,20 +1777,21 @@
             }
         }
 
-        /* Tablettes (768px–1023px) : 2–3 colonnes */
-        @media (min-width: 768px) and (max-width: 1023.98px) {
+        /* Tablettes sans sidebar (768px–991px) : grille pleine largeur, 3-4 colonnes */
+        @media (min-width: 768px) and (max-width: 991.98px) {
             .videos {
-                grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
                 padding: 16px 24px 40px 24px;
                 gap: 14px;
             }
         }
 
-        /* Tablettes larges (1024px–1279px) : 3 colonnes confortables */
-        @media (min-width: 1024px) and (max-width: 1279.98px) {
+        /* Desktop avec sidebar (992px–1279px) : colonnes compactes */
+        @media (min-width: 992px) and (max-width: 1279.98px) {
             .videos {
-                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
                 padding: 20px 28px 44px 28px;
+                gap: 14px;
             }
         }
         
@@ -1800,7 +1801,14 @@
             width: calc(100% - 240px);
         }
         
-        @media (max-width: 767.98px) {
+        /* ≤991px : pas de sidebar desktop (d-none d-lg-block) → supprimer le décalage de 240px */
+        @media (max-width: 991.98px) {
+            .main-content {
+                margin-left: 0 !important;
+            }
+            .map-view {
+                left: 0 !important;
+            }
             footer {
                 margin-left: 0 !important;
                 width: 100% !important;
