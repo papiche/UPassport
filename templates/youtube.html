@@ -1587,49 +1587,72 @@
                 padding: 1rem 1.25rem;
             }
             
-            /* Stack header elements vertically on mobile */
+            /* Header compact en ligne sur mobile - pas d'empilement */
             .header .d-flex.justify-content-between {
-                flex-direction: column;
-                align-items: stretch !important;
-                gap: 1rem !important;
+                flex-direction: row !important;
+                align-items: center !important;
+                gap: 0.35rem !important;
             }
             
             .header .d-flex.gap-4 {
-                justify-content: space-around;
+                justify-content: flex-end;
             }
             
-            /* Header buttons responsive - keep larger size on mobile for easier clicking */
+            /* Header padding ultra-compact sur mobile */
+            .header {
+                padding: 0.4rem 0.6rem;
+            }
+            
+            /* Header buttons responsive - compact sur mobile */
             .header .btn,
             .header .btn-group .btn {
-                padding: 0.5rem 0.75rem;
-                font-size: 0.9rem;
-                min-height: 38px;
-                min-width: 38px;
+                padding: 0.25rem 0.5rem;
+                font-size: 0.8rem;
+                min-height: 32px;
+                min-width: 32px;
             }
             
             #webcam-upload-btn {
-                padding: 0.5rem 1rem;
-                font-size: 0.95rem;
-                min-height: 40px;
+                padding: 0.25rem 0.6rem;
+                font-size: 0.85rem;
+                min-height: 32px;
             }
             
-            #webcam-upload-btn span {
-                display: inline !important; /* Show text on mobile too */
+            /* Sur mobile, cacher le texte des boutons webcam/playlist (garder icône) */
+            #webcam-upload-btn span,
+            #playlist-manager-btn span {
+                display: none !important;
             }
             
-            #nostr-header-status {
-                justify-content: center;
+            /* Connection badge très compact sur mobile */
+            .connection-badge {
+                padding: 0.15rem 0.4rem;
+                min-height: 28px;
+                gap: 0.25rem;
+                max-width: 140px;
+            }
+            
+            /* Sur mobile, cacher le texte de statut dans le badge de connexion */
+            .connection-badge .status-text {
+                display: none;
+            }
+            
+            /* Sur mobile, cacher le texte user email si trop long */
+            .user-email {
+                max-width: 70px;
+                font-size: 0.65rem;
+            }
+            
+            .btn-connect {
+                padding: 0.15rem 0.4rem;
+                font-size: 0.7rem;
+                min-height: 24px;
+                gap: 0.15rem;
             }
             
             .upload-btn {
                 font-size: 0.85rem;
                 padding: 0.375rem 0.75rem;
-            }
-            
-            #nostr-header-status {
-                flex-direction: column;
-                gap: 0.25rem;
-                align-items: flex-start;
             }
             
             #nostr-status-text {
@@ -1716,11 +1739,32 @@
                 padding: 12px 12px 32px 12px;
                 gap: 20px;
             }
+            /* Header encore plus compact sur très petit écran */
             .header {
-                padding: 0.75rem 1rem;
+                padding: 0.3rem 0.5rem;
             }
             .search-bar {
-                padding: 0.5rem 0.75rem;
+                padding: 0.4rem 0.5rem;
+            }
+            /* Cacher les stats même sur sm sur très petit écran */
+            .d-none.d-sm-flex.gap-2.small {
+                display: none !important;
+            }
+            /* Connection badge minimaliste */
+            .connection-badge {
+                padding: 0.1rem 0.3rem;
+                min-height: 26px;
+                max-width: 110px;
+            }
+            /* Cacher l'email utilisateur sur très petit écran */
+            .user-email,
+            .user-npub,
+            .user-pubkey-copy {
+                display: none !important;
+            }
+            /* Cacher le texte "Connect" sur très petit écran, garder l'icône */
+            .btn-connect span:not(.bi) {
+                display: none;
             }
         }
 
@@ -2143,23 +2187,20 @@
     <div class="container">
         <!-- Main content -->
         <main class="main-content">
-            <!-- Mobile menu toggle (visible uniquement sur mobile) -->
-            <button class="btn btn-primary d-lg-none position-fixed" 
-                    style="top: 10px; left: 10px; z-index: 1040;" 
-                    type="button" 
-                    data-bs-toggle="offcanvas" 
-                    data-bs-target="#sidebarOffcanvas" 
-                    aria-controls="sidebarOffcanvas">
-                <i class="bi bi-list"></i>
-            </button>
-            
-            <!-- Desktop sidebar toggle removed - not needed with offcanvas -->
             <div class="header">
                 <div class="container-fluid px-0">
                     <nav class="navbar navbar-expand-lg navbar-dark p-0">
-                        <div class="d-flex align-items-center gap-3 flex-grow-1 flex-wrap">
-                            <!-- Stats compacts -->
-                            <div class="d-flex gap-3 small">
+                        <div class="d-flex align-items-center gap-2 gap-md-3 flex-grow-1 flex-nowrap overflow-hidden">
+                            <!-- Mobile menu toggle - intégré dans le header -->
+                            <button class="btn btn-sm btn-outline-light d-lg-none flex-shrink-0 p-1 px-2"
+                                    type="button"
+                                    data-bs-toggle="offcanvas"
+                                    data-bs-target="#sidebarOffcanvas"
+                                    aria-controls="sidebarOffcanvas">
+                                <i class="bi bi-list fs-5"></i>
+                            </button>
+                            <!-- Stats compacts (masqués sur très petit écran) -->
+                            <div class="d-none d-sm-flex gap-2 small flex-shrink-0">
                                 <span class="badge bg-primary">
                                     <i class="bi bi-play-circle-fill"></i> <span id="header-video-count">{{ youtube_data.total_videos }}</span>
                                 </span>
@@ -2240,22 +2281,22 @@
                             </div>
                             
                             <!-- Action buttons compacts -->
-                            <div class="d-flex gap-1 ms-auto align-items-center">
-                                <!-- Theater Mode Switch -->
-                                <div class="d-flex align-items-center gap-2 me-2">
-                                    <span class="small text-secondary" style="white-space: nowrap;">
+                            <div class="d-flex gap-1 ms-auto align-items-center flex-shrink-0">
+                                <!-- Theater Mode Switch (masqué sur mobile) -->
+                                <div class="d-none d-md-flex align-items-center gap-1 me-1">
+                                    <span class="small text-secondary">
                                         <i class="bi bi-film"></i>
                                     </span>
                                     <div class="btn-group" role="group" aria-label="Theater mode">
-                                        <button type="button" 
-                                                class="btn btn-outline-secondary" 
+                                        <button type="button"
+                                                class="btn btn-outline-secondary btn-sm"
                                                 id="theater-mode-tab-btn"
                                                 onclick="setTheaterMode('tab')"
                                                 title="Ouvrir en nouvel onglet">
                                             <i class="bi bi-window"></i>
                                         </button>
-                                        <button type="button" 
-                                                class="btn btn-outline-secondary" 
+                                        <button type="button"
+                                                class="btn btn-outline-secondary btn-sm"
                                                 id="theater-mode-modal-btn"
                                                 onclick="setTheaterMode('modal')"
                                                 title="Ouvrir en modal">
@@ -2264,11 +2305,11 @@
                                     </div>
                                 </div>
                                 
-                                <button id="webcam-upload-btn" onclick="openWebcamModal()" class="btn btn-success d-none" title="📹 Créer une vidéo">
-                                    <i class="bi bi-camera-video"></i> <span class="d-none d-md-inline"></span>
+                                <button id="webcam-upload-btn" onclick="openWebcamModal()" class="btn btn-sm btn-success d-none" title="📹 Créer une vidéo">
+                                    <i class="bi bi-camera-video"></i> <span>📹</span>
                                 </button>
-                                <button id="playlist-manager-btn" onclick="openPlaylistManager()" class="btn btn-warning d-none" title="Playlists">
-                                    <i class="bi bi-list-ul"></i> <span class="d-none d-md-inline"></span>
+                                <button id="playlist-manager-btn" onclick="openPlaylistManager()" class="btn btn-sm btn-warning d-none" title="Playlists">
+                                    <i class="bi bi-list-ul"></i>
                                 </button>
                             </div>
                         </div>
@@ -2278,7 +2319,7 @@
             
             <div class="search-bar mt-3">
                 <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
-                    <input type="text" class="form-control flex-grow-1" style="min-width: 250px;" data-i18n-placeholder="search_videos" placeholder="Rechercher des vidéos..." id="searchInput">
+                    <input type="text" class="form-control flex-grow-1" style="min-width: min(250px, 100%);" data-i18n-placeholder="search_videos" placeholder="Rechercher des vidéos..." id="searchInput">
                     <div class="btn-group" role="group" aria-label="Sort buttons">
                         <button class="btn btn-outline-secondary" onclick="sortVideosBy('likes')" title="Trier par likes" id="sort-likes-btn" data-bs-toggle="tooltip">
                             <i class="bi bi-hand-thumbs-up"></i>
