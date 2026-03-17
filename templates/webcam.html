@@ -56,1202 +56,534 @@
     <script src="{{ myIPFS }}/ipns/copylaradio.com/leaflet.js"></script>
     
     <style>
-        * {
-            box-sizing: border-box;
+        /* ─── Design System Tokens ─────────────────────────────────────────── */
+        :root {
+            --c-bg:          #0a0a0f;
+            --c-surface:     #111118;
+            --c-surface-2:   #1a1a24;
+            --c-border:      rgba(255,255,255,0.08);
+            --c-border-hover:rgba(255,255,255,0.18);
+            --c-text:        #f0f0f8;
+            --c-text-muted:  #8888aa;
+            --c-accent:      #3b82f6;
+            --c-accent-glow: rgba(59,130,246,0.35);
+            --c-danger:      #ef4444;
+            --c-success:     #22c55e;
+            --c-warning:     #f59e0b;
+            --c-record:      #ff3333;
+            --c-record-glow: rgba(255,51,51,0.4);
+            --c-timer:       #ff4444;
+            --radius-sm:     0.5rem;
+            --radius-md:     0.875rem;
+            --radius-lg:     1.25rem;
+            --radius-xl:     1.75rem;
+            --shadow-sm:     0 2px  8px rgba(0,0,0,0.4);
+            --shadow-md:     0 6px 24px rgba(0,0,0,0.55);
+            --shadow-lg:     0 12px 48px rgba(0,0,0,0.7);
+            --blur-glass:    blur(16px) saturate(1.4);
+            --header-h:      52px;
+            --trans:         0.22s cubic-bezier(.4,0,.2,1);
         }
-        
+
+        /* ─── Reset & Base ─────────────────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
         body {
-            font-family: 'Roboto', 'Arial', sans-serif;
-            background: #0f0f0f;
-            color: #ffffff;
-            min-height: 100vh;
+            font-family: 'Inter', 'Roboto', system-ui, -apple-system, sans-serif;
+            background: var(--c-bg);
+            color: var(--c-text);
+            min-height: 100svh;
             margin: 0;
-            padding: 0;
             overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
         }
-        
-        /* Compact Header - YouTube Style */
-        /* Header - Using Bootstrap utilities */
-        .header {
-            background: #212121;
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid #3f3f3f;
-            padding: 0.75rem 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
+
+        /* ─── Header ────────────────────────────────────────────────────────── */
+        .app-header {
+            height: var(--header-h);
+            background: rgba(17,17,24,0.88);
+            backdrop-filter: var(--blur-glass);
+            -webkit-backdrop-filter: var(--blur-glass);
+            border-bottom: 1px solid var(--c-border);
             position: sticky;
             top: 0;
-            z-index: 100;
-        }
-        
-        .header-left {
+            z-index: 200;
             display: flex;
             align-items: center;
-            gap: 16px;
-        }
-        
-        .header h1 {
-            color: #ffffff;
-            margin: 0;
-            font-size: 1.3em;
-            font-weight: 400;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        /* Links - Using Bootstrap btn utilities */
-        .youtube-link {
-            padding: 0.5rem 1rem;
-            background: transparent;
-            border: 1px solid #3f3f3f;
-            color: #f1f1f1;
-            border-radius: 1.125rem;
-            font-size: 0.85rem;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-            font-weight: 500;
-            min-height: 36px; /* Better touch target */
-        }
-        
-        .youtube-link:hover {
-            background-color: #3f3f3f;
-            border-color: #ff0000;
-            color: #ffffff;
+            padding: 0 1rem;
+            gap: 0.75rem;
         }
 
-        .nostrify-link {
-            padding: 0.5rem 1rem;
-            background: transparent;
-            border: 1px solid #3f3f3f;
-            color: #f1f1f1;
-            border-radius: 1.125rem;
-            font-size: 0.85rem;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            display: inline-flex;
+        .app-header .nav-links {
+            display: flex;
+            gap: 0.5rem;
             align-items: center;
-            gap: 0.375rem;
-            font-weight: 500;
-            min-height: 36px; /* Better touch target */
-        }
-        
-        .nostrify-link:hover {
-            background-color: #3f3f3f;
-            border-color: #ff0000;
-            color: #ffffff;
+            flex-shrink: 0;
         }
 
-        /* Compact NOSTR Auth in Header */
-        .nostr-header {
+        .app-header .nav-links .btn {
+            border-radius: var(--radius-xl);
+            font-size: 0.78rem;
+            padding: 0.3rem 0.85rem;
+            min-height: 34px;
+            border-color: var(--c-border-hover);
+            color: var(--c-text-muted);
+            transition: background var(--trans), color var(--trans), border-color var(--trans);
+        }
+        .app-header .nav-links .btn:hover {
+            background: rgba(255,255,255,0.07);
+            border-color: var(--c-accent);
+            color: var(--c-text);
+        }
+
+        .app-header .header-actions {
+            margin-left: auto;
             display: flex;
             align-items: center;
-            gap: 6px;
-            flex-wrap: wrap;
+            gap: 0.5rem;
         }
-        
-        .nostr-header .auth-status {
-            font-size: 0.75em;
-            color: #94a3b8;
-            padding: 3px 6px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 4px;
-            white-space: nowrap;
+
+        /* ─── Main layout ────────────────────────────────────────────────────── */
+        #main-content {
+            height: calc(100svh - var(--header-h));
+            overflow: hidden;
+            display: flex;
+            align-items: stretch;
         }
-        
-        .nostr-header button {
-            padding: 5px 10px;
-            font-size: 0.75em;
-            margin: 0;
-            border-radius: 4px;
-        }
-        
-        /* Main Container - Using Bootstrap utilities */
-        .main-container {
-            max-width: 100%;
-            padding: 1.5rem;
-            height: 100vh;
-            height: 100dvh; /* Dynamic viewport for mobile */
-            overflow-y: auto;
-            background: #0f0f0f;
-        }
-        
-        /* Compact layout for webcam section */
+
+        /* Card that holds everything */
         #webcam-section {
-            max-height: calc(100vh - 100px);
+            display: flex;
+            flex-direction: column;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            overflow: hidden;
+            height: 100%;
         }
-        
+
         #webcam-section .card-body {
+            flex: 1 1 auto;
             overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--c-border) transparent;
         }
-        
-        /* Webcam Section - Using Bootstrap utilities */
-        .webcam-section {
-            background: #181818;
-            backdrop-filter: blur(10px);
-            border: 1px solid #3f3f3f;
-            padding: 1.5rem;
-            border-radius: 0.75rem;
-            text-align: center;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-            max-width: 56.25rem;
-            margin: 0 auto;
+        #webcam-section .card-body::-webkit-scrollbar { width: 4px; }
+        #webcam-section .card-body::-webkit-scrollbar-thumb {
+            background: var(--c-border-hover);
+            border-radius: 2px;
         }
-        
-        .webcam-title {
-            color: #ffffff;
-            font-size: 1.5rem;
-            margin-bottom: 1.25rem;
-            font-weight: 500;
-        }
-        
-        #video-preview {
-            width: 100%;
-            max-width: 100%;
-            height: auto;
-            aspect-ratio: 16/9;
-            max-height: 25vh;
-            border: 2px solid #3f3f3f;
-            border-radius: 12px;
-            margin: 10px auto;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-            background: #000;
-            object-fit: contain;
-            transition: all 0.3s ease;
-        }
-        
-        /* Video preview container - fixed height to prevent layout shift */
+
+        /* ─── Video preview ─────────────────────────────────────────────────── */
         #video-preview-container {
-            min-height: 25vh;
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.3s ease;
+            background: #000;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            min-height: 22vh;
+            max-height: 38vh;
+            border: 1px solid var(--c-border);
+            box-shadow: var(--shadow-sm);
+            transition: max-height var(--trans), border-color var(--trans);
         }
-        
-        /* Main content wrapper - adapts layout based on orientation */
-        #main-content-wrapper {
-            transition: all 0.3s ease;
+        #video-preview-container:has(video[srcObject]) {
+            border-color: rgba(59,130,246,0.4);
         }
-        
-        /* Portrait mode: side-by-side layout */
-        #main-content-wrapper.portrait-mode {
-            flex-direction: row !important;
-            display: flex !important;
-        }
-        
-        #main-content-wrapper.portrait-mode #video-preview-container {
-            flex: 0 0 50%;
-            min-width: 300px;
-            width: 50%;
-            min-height: 50vh;
-            max-height: 70vh;
-            display: flex !important;
-        }
-        
-        #main-content-wrapper.portrait-mode #video-preview {
-            max-height: 70vh;
-            max-width: 100%;
+
+        #video-preview {
             width: 100%;
-            height: auto;
+            height: 100%;
+            max-height: 38vh;
             object-fit: contain;
+            background: #000;
+            display: block;
+            transition: max-height var(--trans);
         }
-        
-        #main-content-wrapper.portrait-mode #controls-container {
-            flex: 1 1 auto;
-            min-width: 250px;
-            max-width: 50%;
-            width: 50%;
-        }
-        
-        /* Landscape mode: vertical layout (default) */
-        #main-content-wrapper.landscape-mode {
-            flex-direction: column !important;
-        }
-        
-        #main-content-wrapper.landscape-mode #video-preview-container {
-            width: 100%;
-            min-height: 25vh;
-            max-height: 40vh;
-        }
-        
-        #main-content-wrapper.landscape-mode #video-preview {
-            max-height: 40vh;
-            width: 100%;
-        }
-        
-        #main-content-wrapper.landscape-mode #controls-container {
-            width: 100%;
-        }
-        
+
+        /* Timer overlay */
         #timer {
-            font-size: 2.5em;
-            margin: 10px 0;
-            color: #ff0000;
-            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
-            font-weight: bold;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: clamp(2rem, 6vw, 3.5rem);
+            font-weight: 800;
+            color: var(--c-timer);
+            text-shadow: 0 0 20px var(--c-record-glow), 0 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+            letter-spacing: -1px;
+            z-index: 10;
         }
-        
-        .controls {
+
+        /* ─── Orientation modes ─────────────────────────────────────────────── */
+        /* Portrait mode: side-by-side on md+ */
+        @media (min-width: 768px) {
+            #main-content-wrapper.portrait-mode {
+                flex-direction: row !important;
+            }
+            #main-content-wrapper.portrait-mode #video-preview-container {
+                flex: 0 0 48%;
+                max-height: 72vh;
+                min-height: 45vh;
+            }
+            #main-content-wrapper.portrait-mode #video-preview {
+                max-height: 72vh;
+                object-fit: contain;
+            }
+            #main-content-wrapper.portrait-mode #controls-container {
+                flex: 1 1 auto;
+                min-width: 240px;
+            }
+        }
+
+        #main-content-wrapper.landscape-mode #video-preview-container {
+            max-height: 38vh;
+        }
+
+        /* ─── Controls ──────────────────────────────────────────────────────── */
+        #controls-container {
+            min-height: 0;
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 12px;
-            margin: 15px 0;
+            gap: 0.6rem;
+            scrollbar-width: thin;
+            scrollbar-color: var(--c-border) transparent;
         }
-        
-        .duration-control {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin: 8px 0;
-            flex-wrap: wrap;
-            justify-content: center;
+
+        /* Duration range */
+        .form-range {
+            accent-color: var(--c-success);
         }
-        
-        input[type="range"] {
-            width: 180px;
-            height: 6px;
-            border-radius: 5px;
-            background: rgba(255, 255, 255, 0.2);
-            outline: none;
+        .form-range::-webkit-slider-thumb {
+            box-shadow: 0 0 8px rgba(34,197,94,0.5);
         }
-        
-        input[type="range"]::-webkit-slider-thumb {
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #4ade80;
-            cursor: pointer;
-            box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
-        }
-        
+
         #duration-display {
-            font-size: 1em;
-            color: #4ade80;
-            font-weight: 600;
-            min-width: 100px;
-        }
-        
-        button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 18px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .btn-primary {
-            background: #065fd4;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background: #0556c2;
-            transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(6, 95, 212, 0.3);
-        }
-        
-        .btn-secondary {
-            background: #3f3f3f;
-            color: white;
-        }
-        
-        .btn-secondary:hover {
-            background: #606060;
-            transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(255, 255, 255, 0.1);
-        }
-        
-        .btn-danger {
-            background: #ff0000;
-            color: white;
-        }
-        
-        .btn-danger:hover {
-            background: #cc0000;
-            transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(255, 0, 0, 0.3);
-        }
-        
-        button:disabled {
-            background: rgba(148, 163, 184, 0.5);
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        
-        /* .hidden replaced by Bootstrap .d-none */
-        
-        /* Video upload section - YouTube style */
-        .video-upload-section {
-            margin: 10px 0;
-            padding: 16px;
-            background: rgba(63, 63, 63, 0.3);
-            border-radius: 12px;
-            border: 1px solid #3f3f3f;
-        }
-        
-        .video-upload-section label {
-            display: block;
-            margin-bottom: 8px;
-            color: #e2e8f0;
-            font-weight: 600;
-            font-size: 0.9em;
-        }
-        
-        .video-upload-section input[type="file"] {
-            width: 100%;
-            padding: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 6px;
-            background: rgba(255, 255, 255, 0.05);
-            color: #e2e8f0;
-            cursor: pointer;
-            font-size: 0.85em;
-        }
-        
-        .video-upload-section small {
-            color: #94a3b8;
-            font-size: 0.75em;
-            display: block;
-            margin-top: 4px;
-        }
-        
-        .or-separator {
+            color: var(--c-success);
+            font-weight: 700;
+            font-size: 0.9rem;
+            min-width: 3.5rem;
             text-align: center;
-            margin: 10px 0;
-            color: #94a3b8;
-            font-size: 0.85em;
         }
-        
-        /* Modal Styles - Now using Bootstrap Modal */
-        /* Removed custom modal styles to avoid conflicts with Bootstrap */
-        
-        .modal-video-preview {
+
+        /* Recording buttons */
+        #start-recording {
+            background: linear-gradient(135deg, var(--c-accent), #1d4ed8);
+            border: none;
+            box-shadow: 0 4px 16px var(--c-accent-glow);
+            transition: box-shadow var(--trans), transform var(--trans), filter var(--trans);
+        }
+        #start-recording:hover:not(:disabled) {
+            box-shadow: 0 6px 24px var(--c-accent-glow);
+            transform: translateY(-1px);
+            filter: brightness(1.1);
+        }
+
+        #stop-recording {
+            background: linear-gradient(135deg, var(--c-danger), #b91c1c);
+            border: none;
+            box-shadow: 0 4px 16px rgba(239,68,68,0.35);
+            animation: pulse-record 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse-record {
+            0%, 100% { box-shadow: 0 4px 16px rgba(239,68,68,0.35); }
+            50%       { box-shadow: 0 4px 28px rgba(239,68,68,0.65); }
+        }
+
+        /* Upload area */
+        #video-upload-section,
+        #audio-upload-section {
+            background: rgba(255,255,255,0.03);
+            border: 1px dashed var(--c-border-hover);
+            border-radius: var(--radius-md);
+            padding: 0.75rem;
+            transition: border-color var(--trans), background var(--trans);
+        }
+        #video-upload-section:hover,
+        #audio-upload-section:hover {
+            border-color: var(--c-accent);
+            background: rgba(59,130,246,0.04);
+        }
+
+        /* OR separator */
+        .or-separator {
+            position: relative;
+            text-align: center;
+            color: var(--c-text-muted);
+            font-size: 0.78rem;
             width: 100%;
-            max-height: 35vh;
-            border-radius: 10px;
-            margin: 10px auto;
-            display: block;
         }
-        
-        .form-group {
-            margin: 12px 0;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: #e2e8f0;
-            font-size: 0.9em;
-        }
-        
-        .form-group input, .form-group textarea {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 6px;
-            font-size: 14px;
-            background: rgba(255, 255, 255, 0.05);
-            color: #e2e8f0;
-            transition: all 0.3s ease;
-        }
-        
-        .form-group input:focus, .form-group textarea:focus {
-            outline: none;
-            border-color: #4ade80;
-            box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.1);
-        }
-        
-        .form-group textarea {
-            resize: vertical;
-            min-height: 60px;
-        }
-        
-        .location-section {
-            background: rgba(63, 63, 63, 0.3);
-            border: 1px solid #3f3f3f;
-            padding: 16px;
-            border-radius: 12px;
-            margin: 12px 0;
-        }
-        
-        .location-section > label {
-            display: block;
-            margin-bottom: 8px;
-            color: #ffffff;
-            font-weight: 600;
-            font-size: 0.9em;
-        }
-        
-        .location-controls {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap;
-            margin-top: 10px;
-        }
-        
-        .coord-input {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            flex: 1;
-            min-width: 120px;
-        }
-        
-        .coord-input label {
-            font-weight: bold;
-            color: #e2e8f0;
-            margin: 0;
-            min-width: 28px;
-            font-size: 0.85em;
-        }
-        
-        .coord-input input {
-            flex: 1;
-            padding: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
-            font-size: 0.85em;
-        }
-        
-        .modal-map {
-            height: 200px;
-            width: 100%;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            margin-top: 10px;
-        }
-        
-        .modal-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-            margin-top: 15px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            flex-wrap: wrap;
-        }
-        
-        .modal-actions button {
-            flex: 1;
-            min-width: 120px;
-        }
-        
-        /* Expanded NOSTR Section (when clicking expand) */
-        .nostr-section {
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 15px;
-            display: none;
+        .or-separator::before,
+        .or-separator::after {
+            content: '';
             position: absolute;
-            top: 100%;
-            right: 0;
-            min-width: 300px;
-            z-index: 200;
-            margin-top: 10px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            top: 50%;
+            width: 38%;
+            height: 1px;
+            background: var(--c-border);
         }
-        
-        .nostr-section.expanded {
-            display: block;
-        }
-        
-        .auth-mode {
-            margin: 10px 0;
-        }
-        
-        .kind-options {
-            display: flex;
-            gap: 15px;
-            margin-top: 10px;
-        }
-        
-        .kind-option {
-            display: flex;
-            align-items: center;
-                gap: 5px;
-            }
-            
-        .kind-option input[type="radio"] {
-            width: auto;
-            margin: 0;
-        }
-        
-        .nsec-input {
-            display: none;
-            margin-top: 10px;
-        }
-        
-        .nsec-input.visible {
-            display: block;
-        }
-        
-        /* Notification Modal */
+        .or-separator::before { left: 0; }
+        .or-separator::after  { right: 0; }
+
+        /* ─── Notification Modal ─────────────────────────────────────────────── */
         .notification-modal {
             display: none;
             position: fixed;
+            inset: 0;
             z-index: 2000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(8px);
-            animation: fadeIn 0.3s ease;
+            background: rgba(0,0,0,0.72);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
-        
         .notification-modal.active {
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 1.25rem;
+            animation: fadeIn 0.22s ease both;
         }
-        
+
         .notification-content {
-            background: #181818;
-            border-radius: 12px;
-            padding: 25px;
-            max-width: 450px;
+            background: var(--c-surface-2);
+            border-radius: var(--radius-lg);
+            padding: 1.75rem 2rem;
+            max-width: 440px;
             width: 100%;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
-            border: 2px solid;
-            animation: slideIn 0.3s ease;
-            position: relative;
+            border: 1.5px solid var(--c-border);
+            box-shadow: var(--shadow-lg);
+            animation: slideUp 0.28s cubic-bezier(.4,0,.2,1) both;
         }
-        
-        .notification-content.success {
-            border-color: #065fd4;
-        }
-        
-        .notification-content.error {
-            border-color: #ff0000;
-        }
-        
-        .notification-content.info {
-            border-color: #3f3f3f;
-        }
-        
-        .notification-content.warning {
-            border-color: #f59e0b;
-        }
-        
+        .notification-content.success { border-color: var(--c-success); }
+        .notification-content.error   { border-color: var(--c-danger);  }
+        .notification-content.warning { border-color: var(--c-warning); }
+        .notification-content.info    { border-color: var(--c-accent);  }
+
         .notification-icon {
-            font-size: 3em;
+            font-size: 2.6rem;
             text-align: center;
-            margin-bottom: 15px;
-            animation: bounce 0.6s ease;
+            margin-bottom: 0.9rem;
+            animation: popIn 0.4s cubic-bezier(.34,1.56,.64,1) both;
         }
-        
         .notification-title {
-            font-size: 1.4em;
+            font-size: 1.2rem;
             font-weight: 700;
             text-align: center;
-            margin-bottom: 10px;
-            color: #e8e8e8;
+            color: var(--c-text);
+            margin-bottom: 0.6rem;
         }
-        
         .notification-message {
-            font-size: 1em;
+            font-size: 0.92rem;
             text-align: center;
-            margin-bottom: 20px;
-            color: #cbd5e1;
-            line-height: 1.5;
-            word-wrap: break-word;
+            color: var(--c-text-muted);
+            line-height: 1.55;
+            word-break: break-word;
+            margin-bottom: 1.25rem;
         }
-        
-        .notification-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-        }
-        
+        .notification-actions { display: flex; gap: 0.75rem; justify-content: center; }
+
         .notification-btn {
-            padding: 10px 25px;
+            padding: 0.55rem 1.5rem;
             border: none;
-            border-radius: 8px;
-            font-size: 0.95em;
+            border-radius: var(--radius-xl);
+            font-size: 0.88rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            min-width: 100px;
+            transition: transform var(--trans), box-shadow var(--trans), filter var(--trans);
+            min-width: 90px;
         }
-        
         .notification-btn.primary {
-            background: #065fd4;
-            color: white;
+            background: linear-gradient(135deg, var(--c-accent), #1d4ed8);
+            color: #fff;
         }
-        
         .notification-btn.primary:hover {
-            background: #0556c2;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(6, 95, 212, 0.4);
+            box-shadow: 0 6px 20px var(--c-accent-glow);
         }
-        
         .notification-btn.secondary {
-            background: #3f3f3f;
-            color: white;
+            background: rgba(255,255,255,0.08);
+            color: var(--c-text);
+            border: 1px solid var(--c-border-hover);
         }
-        
         .notification-btn.secondary:hover {
-            background: #606060;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-30px) scale(0.9);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
-        }
-        
-        @keyframes bounce {
-            0%, 100% { transform: scale(1); }
-            25% { transform: scale(0.9); }
-            50% { transform: scale(1.1); }
-            75% { transform: scale(0.95); }
-        }
-        
-        /* Responsive - Using Bootstrap breakpoints */
-        @media (max-width: 767.98px) {
-            .header {
-                padding: 6px 10px;
-            }
-            
-            .header h1 {
-                font-size: 1em;
-            }
-            
-            .nostr-header .auth-status {
-                font-size: 0.7em;
-                padding: 2px 4px;
-            }
-            
-            .nostr-header button {
-                padding: 4px 8px;
-                font-size: 0.7em;
-            }
-            
-            .main-container {
-                padding: 0.3125rem;
-                height: 100vh;
-                height: 100dvh; /* Dynamic viewport for mobile */
-            }
-            
-            .webcam-section {
-                padding: 0.625rem;
-                border-radius: 0.625rem;
-            }
-            
-            .webcam-title {
-                font-size: 1.1rem;
-                margin-bottom: 0.625rem;
-            }
-            
-            #video-preview {
-                max-height: 35vh;
-                max-height: 35dvh; /* Dynamic viewport for mobile */
-                border-width: 2px;
-                border-radius: 0.5rem;
-                margin: 0.5rem auto;
-            }
-            
-            /* Mobile: always use vertical layout (column) for better UX */
-            #main-content-wrapper.portrait-mode {
-                flex-direction: column !important;
-                position: relative;
-            }
-            
-            #main-content-wrapper.portrait-mode #video-preview-container {
-                width: 100%;
-                min-height: 40vh;
-                max-height: 50vh;
-                position: relative;
-                z-index: 1;
-            }
-            
-            #main-content-wrapper.portrait-mode #video-preview {
-                max-height: 50vh;
-                width: 100%;
-            }
-            
-            #main-content-wrapper.portrait-mode #controls-container {
-                width: 100%;
-                max-width: 100%;
-                position: relative;
-                z-index: 10;
-                background: rgba(15, 15, 15, 0.95);
-                backdrop-filter: blur(10px);
-                padding: 12px;
-                border-radius: 12px 12px 0 0;
-                margin-top: -20px; /* Overlap with preview */
-                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
-            }
-            
-            #main-content-wrapper.landscape-mode {
-                position: relative;
-            }
-            
-            #main-content-wrapper.landscape-mode #video-preview-container {
-                max-height: 35vh;
-                position: relative;
-                z-index: 1;
-            }
-            
-            #main-content-wrapper.landscape-mode #video-preview {
-                max-height: 35vh;
-            }
-            
-            #main-content-wrapper.landscape-mode #controls-container {
-                position: relative;
-                z-index: 10;
-                background: rgba(15, 15, 15, 0.95);
-                backdrop-filter: blur(10px);
-                padding: 12px;
-                border-radius: 12px 12px 0 0;
-                margin-top: -10px; /* Slight overlap */
-                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
-            }
-            
-            .camera-controls {
-                display: flex;
-                gap: 0.5rem;
-                margin-bottom: 0.625rem;
-                justify-content: center;
-                align-items: center;
-                flex-wrap: wrap;
-            }
-            
-            .camera-controls button {
-                padding: 0.5rem 1rem;
-                font-size: 0.75rem;
-                min-height: 44px; /* Better touch target */
-            }
-            
-            .camera-selector {
-                display: none;
-                margin: 10px 0;
-                text-align: center;
-            }
-            
-            .camera-selector select {
-                padding: 6px 10px;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                border-radius: 5px;
-                background-color: rgba(255, 255, 255, 0.05);
-                color: #e2e8f0;
-                margin-right: 8px;
-                min-width: 180px;
-                font-size: 12px;
-            }
-            
-            .camera-selector button {
-                padding: 6px 12px;
-                font-size: 12px;
-            }
-            
-            #timer {
-                font-size: 2em;
-                margin: 8px 0;
-            }
-            
-            .controls {
-                gap: 8px;
-                margin: 10px 0;
-            }
-            
-            .duration-control {
-                gap: 6px;
-                margin: 6px 0;
-            }
-            
-            .duration-control label {
-                font-size: 0.85em;
-            }
-            
-            input[type="range"] {
-                width: 140px;
-                height: 5px;
-            }
-            
-            input[type="range"]::-webkit-slider-thumb {
-                width: 14px;
-                height: 14px;
-            }
-            
-            #duration-display {
-                font-size: 0.9em;
-                min-width: 80px;
-            }
-            
-            button {
-                padding: 8px 16px;
-                font-size: 12px;
-            }
-            
-            .video-upload-section {
-                padding: 8px;
-                margin: 8px 0;
-            }
-            
-            .video-upload-section label {
-                font-size: 0.85em;
-                margin-bottom: 6px;
-            }
-            
-            .video-upload-section input[type="file"] {
-                padding: 5px;
-                font-size: 0.8em;
-            }
-            
-            .video-upload-section small {
-                font-size: 0.7em;
-            }
-            
-            .or-separator {
-                margin: 8px 0;
-                font-size: 0.8em;
-            }
-            
-            /* Modal responsive */
-            .modal.active {
-                padding: 5px;
-                align-items: flex-start;
-            }
-            
-            .modal-content {
-                padding: 12px;
-                border-radius: 10px;
-                max-height: 95vh;
-                margin-top: 5px;
-            }
-            
-            .modal-header {
-                margin-bottom: 10px;
-                padding-bottom: 8px;
-            }
-            
-            .modal-header h2 {
-                font-size: 1.1em;
-            }
-            
-            .close-modal {
-                font-size: 1.3em;
-                width: 30px;
-                height: 30px;
-            }
-            
-            .modal-video-preview {
-                max-height: 30vh;
-                border-radius: 8px;
-                margin: 8px auto;
-            }
-            
-            .form-group {
-                margin: 10px 0;
-            }
-            
-            .form-group label {
-                margin-bottom: 4px;
-                font-size: 0.85em;
-            }
-            
-            .form-group input, .form-group textarea {
-                padding: 6px;
-                font-size: 13px;
-                border-radius: 5px;
-            }
-            
-            .form-group textarea {
-                min-height: 50px;
-            }
-            
-            .location-section {
-                padding: 10px;
-                border-radius: 8px;
-                margin: 10px 0;
-            }
-            
-            .location-section > label {
-                font-size: 0.85em;
-                margin-bottom: 6px;
-            }
-            
-            .location-controls {
-                gap: 6px;
-                margin-top: 8px;
-            }
-            
-            .coord-input {
-                min-width: 100px;
-            }
-            
-            .coord-input label {
-                font-size: 0.8em;
-                min-width: 24px;
-            }
-            
-            .coord-input input {
-                padding: 5px;
-                font-size: 0.8em;
-            }
-            
-            .location-controls .btn-secondary {
-                width: 100%;
-                padding: 6px 12px;
-                font-size: 0.8em;
-            }
-            
-            .modal-map {
-                height: 180px;
-                border-radius: 6px;
-                margin-top: 8px;
-            }
-            
-            .modal-actions {
-                gap: 8px;
-                margin-top: 12px;
-                padding-top: 10px;
-            }
-            
-            .modal-actions button {
-                min-width: 100px;
-                padding: 8px 12px;
-                font-size: 12px;
-            }
-            
-            /* NOSTR expanded section mobile */
-            .nostr-section {
-                min-width: 250px;
-                padding: 12px;
-                font-size: 0.9em;
-            }
-            
-            .nostr-section h3 {
-                font-size: 0.95em;
-            }
-            
-            .kind-options {
-                gap: 10px;
-            }
-            
-            .kind-option label {
-                font-size: 0.8em;
-            }
-            
-            #nsec-input-container input {
-                padding: 6px;
-                font-size: 0.8em;
-            }
-            
-            #nsec-input-container small {
-                font-size: 0.7em;
-            }
-            
-            /* Notification modal responsive */
-            .notification-content {
-                padding: 20px;
-                max-width: 90%;
-            }
-            
-            .notification-icon {
-                font-size: 2.5em;
-                margin-bottom: 12px;
-            }
-            
-            .notification-title {
-                font-size: 1.2em;
-                margin-bottom: 8px;
-            }
-            
-            .notification-message {
-                font-size: 0.9em;
-                margin-bottom: 15px;
-            }
-            
-            .notification-btn {
-                padding: 8px 20px;
-                font-size: 0.85em;
-                min-width: 90px;
-            }
-        }
-        
-        /* Central Connection Page - Full screen overlay */
-        #central-connection {
-            background: rgba(15, 15, 15, 0.98);
-            backdrop-filter: blur(10px);
-        }
-        
-        /* Compact header when connected */
-        header.compact-header {
-            padding: 0.5rem 1rem;
-        }
-        
-        header.compact-header h1 {
-            font-size: 1rem;
-        }
-        
-        header.compact-header .btn {
-            padding: 0.25rem 0.75rem;
-            font-size: 0.75rem;
-        }
-        
-        .central-connect-btn {
-            padding: 20px 40px;
-            font-size: 1.3em;
-            font-weight: 700;
-            background: #065fd4;
-            color: white;
-            border: none;
-            border-radius: 30px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            box-shadow: 0 4px 20px rgba(6, 95, 212, 0.4);
-            min-width: 300px;
-        }
-        
-        .central-connect-btn:hover {
-            background: #0556c2;
-            transform: translateY(-3px);
-            box-shadow: 0 6px 30px rgba(6, 95, 212, 0.6);
-        }
-        
-        .central-connect-btn:active {
+            background: rgba(255,255,255,0.13);
             transform: translateY(-1px);
         }
-        
-        @media (max-width: 767.98px) {
-            .central-connection-title {
-                font-size: 2rem;
-            }
-            
-            .central-connection-subtitle {
-                font-size: 1rem;
-                margin-bottom: 1.875rem;
-            }
-            
-            .central-connect-btn {
-                padding: 1rem 2rem;
-                font-size: 1.1rem;
-                min-width: 15.625rem;
-                min-height: 44px; /* Better touch target */
-            }
+
+        /* ─── Map ────────────────────────────────────────────────────────────── */
+        .modal-map {
+            height: 200px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--c-border);
+            overflow: hidden;
         }
-        
-        /* Extra small mobile devices - Bootstrap xs breakpoint */
-        @media (max-width: 575.98px) {
-            .header h1 {
-                font-size: 0.9em;
+
+        /* ─── Central connection overlay ───────────────────────────────────── */
+        #central-connection {
+            background: rgba(10,10,15,0.96);
+            backdrop-filter: var(--blur-glass);
+            -webkit-backdrop-filter: var(--blur-glass);
+        }
+
+        /* ─── Keyframes ──────────────────────────────────────────────────────── */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(24px) scale(0.96); }
+            to   { opacity: 1; transform: translateY(0)    scale(1);    }
+        }
+        @keyframes popIn {
+            0%   { transform: scale(0.5); opacity: 0; }
+            70%  { transform: scale(1.15); }
+            100% { transform: scale(1);   opacity: 1; }
+        }
+
+        /* ─── Bootstrap tweaks for dark theme ──────────────────────────────── */
+        .card.bg-dark { background: var(--c-surface) !important; }
+
+        .form-control.bg-dark,
+        .form-select.bg-dark {
+            background: rgba(255,255,255,0.04) !important;
+            border-color: var(--c-border-hover) !important;
+            color: var(--c-text) !important;
+            transition: border-color var(--trans), box-shadow var(--trans);
+        }
+        .form-control.bg-dark:focus,
+        .form-select.bg-dark:focus {
+            border-color: var(--c-accent) !important;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.18) !important;
+        }
+
+        .btn-outline-secondary {
+            border-color: var(--c-border-hover);
+            color: var(--c-text-muted);
+        }
+        .btn-outline-secondary:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: var(--c-accent);
+            color: var(--c-text);
+        }
+
+        .btn-check:checked + .btn-outline-primary {
+            background: var(--c-accent);
+            border-color: var(--c-accent);
+            box-shadow: 0 0 12px var(--c-accent-glow);
+        }
+
+        /* ─── Responsive — tablet (md) ──────────────────────────────────────── */
+        @media (max-width: 991.98px) {
+            #video-preview-container {
+                min-height: 20vh;
+                max-height: 34vh;
             }
-            
-            .webcam-title {
-                font-size: 1em;
+            #video-preview { max-height: 34vh; }
+        }
+
+        /* ─── Responsive — mobile (< 768px) ────────────────────────────────── */
+        @media (max-width: 767.98px) {
+            :root { --header-h: 48px; }
+
+            #main-content {
+                height: calc(100dvh - var(--header-h));
             }
-            
-            #video-preview {
-                max-height: 30vh;
+
+            /* Full-bleed card on mobile */
+            .row.justify-content-center { margin: 0; }
+            .col-12 { padding: 0; }
+            #webcam-section {
+                border-radius: 0;
+                border-left: none;
+                border-right: none;
             }
-            
-            #timer {
-                font-size: 1.8em;
+
+            #video-preview-container {
+                border-radius: 0;
+                min-height: 30dvh;
+                max-height: 42dvh;
+                border-left: none;
+                border-right: none;
             }
-            
-            input[type="range"] {
-                width: 120px;
+            #video-preview { max-height: 42dvh; }
+
+            /* Controls slide up over preview */
+            #controls-container {
+                background: rgba(10,10,15,0.92);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                padding: 0.75rem;
+                border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+                margin-top: -1.25rem;
+                box-shadow: 0 -6px 24px rgba(0,0,0,0.5);
+                position: relative;
+                z-index: 10;
             }
-            
-            #duration-display {
-                font-size: 0.85em;
-                min-width: 70px;
+
+            /* Always column on mobile regardless of orientation setting */
+            #main-content-wrapper.portrait-mode {
+                flex-direction: column !important;
             }
-            
-            /* Compact buttons on small screens */
-            #select-camera-btn,
-            #apply-camera-btn,
-            #start-recording,
-            #stop-recording,
-            .btn-group-sm .btn {
-                padding: 0.25rem 0.5rem;
-                font-size: 0.75rem;
-                line-height: 1.2;
+            #main-content-wrapper.portrait-mode #video-preview-container {
+                width: 100%;
+                min-height: 35dvh;
+                max-height: 45dvh;
             }
-            
-            button:not(.btn-sm):not(.btn-lg) {
-                padding: 0.375rem 0.75rem;
-                font-size: 0.875rem;
+            #main-content-wrapper.portrait-mode #controls-container,
+            #main-content-wrapper.landscape-mode #controls-container {
+                max-width: 100%;
+                width: 100%;
             }
-            
-            .modal-video-preview {
-                max-height: 25vh;
-            }
-            
-            .modal-map {
-                height: 150px;
-            }
-            
-            .coord-input {
-                min-width: 90px;
-            }
-            
-            /* Notification modal extra small */
+
+            /* Btn sizes */
+            .btn-sm { min-height: 40px; font-size: 0.8rem; }
+
+            #timer { font-size: 2rem; }
+
+            .modal-map { height: 170px; }
+
             .notification-content {
-                padding: 18px;
+                padding: 1.25rem 1.1rem;
                 max-width: 95%;
             }
-            
-            .notification-icon {
-                font-size: 2.2em;
-                margin-bottom: 10px;
+            .notification-icon { font-size: 2.2rem; }
+            .notification-title { font-size: 1.05rem; }
+            .notification-message { font-size: 0.84rem; }
+            .notification-btn { padding: 0.45rem 1.1rem; font-size: 0.82rem; }
+        }
+
+        /* ─── Responsive — small mobile (< 576px) ───────────────────────────── */
+        @media (max-width: 575.98px) {
+            :root { --header-h: 44px; }
+
+            .app-header .nav-links .btn span.d-sm-none { display: inline !important; }
+
+            #video-preview-container {
+                min-height: 28dvh;
+                max-height: 40dvh;
             }
-            
-            .notification-title {
-                font-size: 1.1em;
-                margin-bottom: 8px;
-            }
-            
-            .notification-message {
-                font-size: 0.85em;
-                margin-bottom: 12px;
-            }
-            
-            .notification-btn {
-                padding: 7px 18px;
-                font-size: 0.8em;
-                min-width: 80px;
+            #video-preview { max-height: 40dvh; }
+
+            #timer { font-size: 1.75rem; }
+
+            .modal-map { height: 145px; }
+
+            .notification-content {
+                padding: 1rem;
+                border-radius: var(--radius-md);
+                max-width: 98%;
             }
         }
-        
-        /* Audio mode - hide all video/webcam related elements */
+
+        /* ─── Audio mode ─────────────────────────────────────────────────────── */
         body.audio-mode #select-camera-btn,
         body.audio-mode #camera-selector,
         body.audio-mode #video-preview-container,
@@ -1264,87 +596,87 @@
         body.audio-mode #duration-display {
             display: none !important;
         }
-        
-        /* Hide camera button container - handled by JavaScript */
-        
-        /* Hide Video Orientation section container in audio mode */
-        body.audio-mode #controls-container > div.d-flex.flex-column.align-items-center.gap-1.w-100:first-of-type {
+
+        body.audio-mode #video-orientation-section,
+        body.audio-mode #duration-section,
+        body.audio-mode #record-buttons-section,
+        body.audio-mode #upload-separator {
             display: none !important;
         }
-        
-        /* Hide Duration section container in audio mode */
-        body.audio-mode #controls-container > div.d-flex.flex-column.flex-sm-row.align-items-center.gap-2.w-100 {
-            display: none !important;
-        }
-        
-        /* Hide recording buttons container in audio mode */
-        body.audio-mode #controls-container > div.d-flex.gap-1.flex-wrap.justify-content-center {
-            display: none !important;
-        }
-        
-        /* Hide separator in audio mode */
-        body.audio-mode #controls-container > div.text-secondary.my-1.small {
-            display: none !important;
-        }
-        
-        /* Show audio upload section in audio mode */
+
         body.audio-mode #audio-upload-section {
             display: block !important;
+        }
+
+        /* ─── Accessibility ──────────────────────────────────────────────────── */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--c-accent);
+            outline-offset: 2px;
         }
     </style>
 </head>
 <body class="bg-dark text-white">
-    <!-- Header with Connection Status -->
-    <header class="header bg-dark border-bottom border-secondary sticky-top" id="main-header" style="--header-height: 80px;">
-        <div class="container-fluid">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 py-2">
-                <div class="d-flex align-items-center gap-3 flex-wrap">
-                    <a href="/youtube?html=1" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2">
-                        <span>📺 NostrTube</span>
-                    </a>
-                    <a href="/mp3?html=1" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2">
-                        <span>🎧 NostrIfy</span>
-                    </a>
-                </div>
-                
-                <!-- NOSTR Connection Status -->
-                <div class="d-flex align-items-center gap-2 flex-wrap" id="nostr-header">
-                    <button id="connect-btn" class="btn btn-primary btn-sm" onclick="handleNostrConnect()">
-                        🔌 Connect
-                    </button>
-                    <button id="verify-auth-btn" class="btn btn-outline-secondary btn-sm d-none" onclick="handleVerifyAuth()" title="Required for uDRIVE upload">
-                        🔐 Auth for Upload
-                    </button>
-                </div>
-            </div>
+
+    <!-- ── Header ─────────────────────────────────────────────────────────── -->
+    <header class="app-header" id="main-header">
+        <div class="nav-links">
+            <a href="/youtube?html=1" class="btn btn-outline-secondary btn-sm">
+                <span class="d-none d-sm-inline">📺 NostrTube</span>
+                <span class="d-sm-none" aria-label="NostrTube">📺</span>
+            </a>
+            <a href="/mp3?html=1" class="btn btn-outline-secondary btn-sm">
+                <span class="d-none d-sm-inline">🎧 NostrIfy</span>
+                <span class="d-sm-none" aria-label="NostrIfy">🎧</span>
+            </a>
+        </div>
+
+        <!-- NOSTR Connection Status -->
+        <div class="header-actions" id="nostr-header">
+            <button id="connect-btn" class="btn btn-primary btn-sm" onclick="handleNostrConnect()">
+                🔌 <span class="d-none d-sm-inline">Connect</span>
+            </button>
+            <button id="verify-auth-btn" class="btn btn-outline-secondary btn-sm d-none"
+                    onclick="handleVerifyAuth()" title="Required for uDRIVE upload">
+                🔐 <span class="d-none d-sm-inline">Auth for Upload</span>
+            </button>
         </div>
     </header>
-    
-    <!-- Central Connection Page (covers full screen when visible) -->
-    <div class="d-none position-fixed top-0 start-0 w-100 h-100 bg-dark d-flex align-items-center justify-content-center z-index-1050" id="central-connection" style="z-index: 1050;">
-        <div class="text-center px-3">
-            <h2 class="h2 text-white mb-3">▶️ Multimedia Recorder</h2>
-            <p class="text-secondary mb-4">
-                Connect to NOSTR to start recording and publishing your audios/videos on UPlanet
+
+    <!-- ── Central Connection Overlay ───────────────────────────────────── -->
+    <div class="d-none position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+         id="central-connection" style="z-index:1050;">
+        <div class="text-center px-4" style="max-width:460px;">
+            <div style="font-size:3.5rem;margin-bottom:1rem;">▶️</div>
+            <h2 class="h3 fw-bold text-white mb-3">Multimedia Recorder</h2>
+            <p class="text-secondary mb-4 lh-base">
+                Connect to NOSTR to start recording and publishing your audios&nbsp;&amp;&nbsp;videos on UPlanet
             </p>
-            <button class="btn btn-primary btn-lg mb-3" onclick="handleNostrConnect()">
+            <button class="btn btn-primary btn-lg w-100 mb-3"
+                    style="border-radius:2rem;font-size:1rem;" onclick="handleNostrConnect()">
                 🔌 Connect with NOSTR Extension
             </button>
             <p class="text-secondary small">
-                You'll need a NOSTR browser extension filled with your UPlanet <a href="/g1" class="text-success text-decoration-underline">MULTIPASS nsec key</a>
+                You'll need a NOSTR browser extension with your UPlanet
+                <a href="/g1" class="text-success text-decoration-underline">MULTIPASS nsec key</a>
             </p>
         </div>
     </div>
-    
-    <!-- Main Container - Centered -->
-    <main class="container-fluid py-2" id="main-content" style="height: calc(100vh - var(--header-height, 80px)); overflow: hidden;">
-        <!-- Webcam Recording Section (shown by default) -->
-        <div class="row justify-content-center h-100 g-0">
+
+    <!-- ── Main ───────────────────────────────────────────────────────────── -->
+    <main class="container-fluid p-0 p-sm-2" id="main-content">
+        <div class="row justify-content-center h-100 g-0 g-sm-2">
             <div class="col-12 col-lg-10 col-xl-8 d-flex flex-column h-100">
-                <div class="card bg-dark border-secondary shadow-lg flex-grow-1 d-flex flex-column h-100" id="webcam-section" style="min-height: 0;">
-                    <div class="card-body p-2 p-sm-3 d-flex flex-column flex-grow-1" style="min-height: 0; overflow-y: auto;">
-                        <h2 class="card-title text-center text-white mb-2 small" id="webcam-title">🎥 Record Video</h2>
-                        
+                <div class="card bg-dark border-secondary flex-grow-1 d-flex flex-column" id="webcam-section" style="min-height:0;">
+                    <div class="card-body p-2 p-sm-3 d-flex flex-column flex-grow-1" style="min-height:0;overflow-y:auto;">
+                        <h2 class="card-title text-center text-white mb-2 small fw-semibold" id="webcam-title">🎥 Record Video</h2>
+
                         <!-- Camera Controls -->
                         <div class="d-flex justify-content-center mb-1">
                             <button type="button" id="select-camera-btn" class="btn btn-outline-secondary btn-sm">
@@ -1352,101 +684,99 @@
                                 <span class="d-sm-none">📷 Camera</span>
                             </button>
                         </div>
-                        
+
                         <!-- Camera Selector (hidden by default) -->
                         <div class="d-none mb-1" id="camera-selector">
                             <div class="row g-1 align-items-end">
                                 <div class="col">
                                     <select id="camera-select" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                        <option value="">Select camera...</option>
+                                        <option value="">Select camera…</option>
                                     </select>
                                 </div>
                                 <div class="col-auto">
-                                    <button type="button" id="apply-camera-btn" class="btn btn-primary btn-sm">
-                                        ✓ Apply
-                                    </button>
+                                    <button type="button" id="apply-camera-btn" class="btn btn-primary btn-sm">✓ Apply</button>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Main content wrapper - changes layout based on orientation -->
-                        <div id="main-content-wrapper" class="d-flex flex-column flex-md-row gap-2 flex-grow-1" style="min-height: 0;">
-                            <!-- Video Preview Container -->
-                            <div class="text-center flex-shrink-0 position-relative" id="video-preview-container" style="min-height: 25vh; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;">
-                                <video id="video-preview" class="rounded border border-secondary" autoplay muted style="max-height: 25vh; width: 100%; object-fit: contain; background: #000; transition: all 0.3s ease;"></video>
-                                <div id="timer" class="d-none position-absolute top-50 start-50 translate-middle fs-2 fw-bold text-danger" style="text-shadow: 0 0 10px rgba(255, 0, 0, 0.5); z-index: 10;">16</div>
+                        <!-- Main content wrapper -->
+                        <div id="main-content-wrapper" class="d-flex flex-column flex-md-row gap-2 flex-grow-1" style="min-height:0;">
+
+                            <!-- Video Preview -->
+                            <div id="video-preview-container" class="flex-shrink-0">
+                                <video id="video-preview" autoplay muted playsinline></video>
+                                <div id="timer" class="d-none">16</div>
                             </div>
 
-                            <!-- Controls Container - adapts to orientation -->
-                            <div class="d-flex flex-column align-items-center gap-1 flex-grow-1" id="controls-container" style="min-height: 0; overflow-y: auto; transition: all 0.3s ease;">
-                                <!-- Video Orientation Selection -->
-                                <div class="d-flex flex-column align-items-center gap-1 w-100" style="max-width: 500px;">
-                                    <label class="mb-0 text-white small">Video Orientation:</label>
-                                    <div class="btn-group btn-group-sm" role="group" aria-label="Video orientation">
+                            <!-- Controls -->
+                            <div class="flex-grow-1 d-flex flex-column align-items-center gap-2 pt-1" id="controls-container">
+
+                                <!-- Video Orientation -->
+                                <div id="video-orientation-section" class="d-flex flex-column align-items-center gap-1 w-100" style="max-width:480px;">
+                                    <label class="mb-0 text-white small fw-medium">🖼️ Video Orientation</label>
+                                    <div class="btn-group btn-group-sm w-100" role="group" aria-label="Video orientation">
                                         <input type="radio" class="btn-check" name="video-orientation" id="orientation-landscape" value="landscape" checked>
-                                        <label class="btn btn-outline-primary" for="orientation-landscape">
-                                            📱 Landscape
-                                        </label>
-                                        
+                                        <label class="btn btn-outline-primary" for="orientation-landscape">⬛ Landscape</label>
+
                                         <input type="radio" class="btn-check" name="video-orientation" id="orientation-portrait" value="portrait">
-                                        <label class="btn btn-outline-primary" for="orientation-portrait">
-                                            📱 Portrait
-                                        </label>
+                                        <label class="btn btn-outline-primary" for="orientation-portrait">📱 Portrait</label>
                                     </div>
                                 </div>
-                                
-                                <!-- Recording Option -->
-                                <div class="d-flex flex-column flex-sm-row align-items-center gap-2 w-100" style="max-width: 500px;">
-                                    <label for="duration-slider" class="mb-0 text-white small">Duration:</label>
+
+                                <!-- Duration -->
+                                <div id="duration-section" class="d-flex align-items-center gap-2 w-100" style="max-width:480px;">
+                                    <label for="duration-slider" class="mb-0 text-white small fw-medium text-nowrap">⏱ Duration</label>
                                     <input type="range" class="form-range flex-grow-1" id="duration-slider" min="3" max="30" value="10">
-                                    <div id="duration-display" class="text-success fw-semibold small" style="min-width: 80px;">10s</div>
+                                    <div id="duration-display" class="text-success fw-bold small text-nowrap" style="min-width:3rem;">10s</div>
                                 </div>
-                                
+
                                 <input type="hidden" id="player" name="player" value="">
-                                
-                                <div class="d-flex gap-1 flex-wrap justify-content-center">
-                                    <button id="start-recording" class="btn btn-primary btn-sm">
-                                        <span class="d-none d-sm-inline">🎬 Start Recording</span>
-                                        <span class="d-sm-none">🎬 Start</span>
+
+                                <!-- Record buttons -->
+                                <div id="record-buttons-section" class="d-flex gap-2 flex-wrap justify-content-center">
+                                    <button id="start-recording" class="btn btn-primary btn-sm px-3">
+                                        🎬 <span class="d-none d-sm-inline">Start Recording</span><span class="d-sm-none">Start</span>
                                     </button>
-                                    <button id="stop-recording" class="btn btn-danger btn-sm d-none">
+                                    <button id="stop-recording" class="btn btn-danger btn-sm px-3 d-none">
                                         ⏹️ Stop
                                     </button>
                                 </div>
 
-                                <div class="text-secondary my-1 small">
-                                    — <span title="Upload a video file" class="fs-6">📤</span> — 
-                                </div>
+                                <!-- Separator -->
+                                <div id="upload-separator" class="or-separator w-100 py-1" style="max-width:480px;">📤 Upload</div>
 
-                                <!-- Video Upload Option -->
-                                <div class="w-100" id="video-upload-section">
+                                <!-- Video Upload -->
+                                <div class="w-100" id="video-upload-section" style="max-width:480px;">
                                     <label for="video-upload" class="form-label text-white d-block text-center mb-1 small">
-                                        📁 Upload Video File (.mp4, .webm, .mov)
+                                        📁 Upload Video File <span class="text-secondary">(.mp4 .webm .mov)</span>
                                     </label>
-                                    <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" id="video-upload" accept="video/*,.mp4,.webm,.mov" capture="environment">
-                                    <small id="video-upload-hint" class="form-text text-secondary d-block text-center mt-1 small">
-                                        MP4, WebM, MOV (max 500MB)
-                                        <span class="mobile-hint d-none text-info d-block">
-                                            📱 On mobile: Use your camera app, then select the video file
+                                    <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" id="video-upload"
+                                           accept="video/*,.mp4,.webm,.mov" capture="environment">
+                                    <small id="video-upload-hint" class="form-text text-secondary d-block text-center mt-1">
+                                        MP4, WebM, MOV · max 500MB
+                                        <span class="mobile-hint d-none text-info d-block mt-1">
+                                            📱 On mobile: use your camera app, then select the video file
                                         </span>
                                     </small>
                                 </div>
-                                
-                                <!-- Audio Upload Option (hidden by default, shown in audio mode) -->
-                                <div class="w-100 d-none" id="audio-upload-section">
+
+                                <!-- Audio Upload (shown in audio mode) -->
+                                <div class="w-100 d-none" id="audio-upload-section" style="max-width:480px;">
                                     <label for="audio-upload" class="form-label text-success fw-semibold d-block text-center mb-1 small">
                                         🎵 Upload Audio File
                                     </label>
-                                    <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" id="audio-upload" accept="audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a">
-                                    <small id="audio-upload-hint" class="form-text text-secondary d-block text-center mt-1 small">
-                                        <strong class="text-white">Formats:</strong> MP3, WAV, OGG, FLAC, AAC, M4A<br>
-                                        <strong class="text-white">Max:</strong> 500MB
+                                    <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary" id="audio-upload"
+                                           accept="audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a">
+                                    <small id="audio-upload-hint" class="form-text text-secondary d-block text-center mt-1">
+                                        MP3, WAV, OGG, FLAC, AAC, M4A · max 500MB
                                         <span class="mobile-hint d-none text-info mt-1 d-block">
-                                            📱 On mobile: Select an audio file from your device
+                                            📱 On mobile: select an audio file from your device
                                         </span>
                                     </small>
-                                    <div class="alert alert-success mt-2 py-1 small" role="alert" style="background: rgba(29, 185, 84, 0.1); border-color: rgba(29, 185, 84, 0.3);">
-                                        <strong class="text-success">💡 Tip:</strong> After uploading, you can suggest this track in Mixxx mode!
+                                    <div class="rounded-2 mt-2 p-2 small"
+                                         style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);">
+                                        <span class="text-success fw-semibold">💡 Tip:</span>
+                                        <span class="text-secondary"> After uploading, you can suggest this track in Mixxx mode!</span>
                                     </div>
                                 </div>
                             </div>
@@ -1457,18 +787,21 @@
         </div>
     </main>
                 
-    <!-- Modal for Video/Audio Preview and Publishing -->
-    <div class="modal fade" id="video-modal" tabindex="-1" aria-labelledby="video-modal-title" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
+    <!-- ── Modal : Video/Audio Preview & Publish ──────────────────────────── -->
+    <div class="modal fade" id="video-modal" tabindex="-1" aria-labelledby="video-modal-title" aria-hidden="true"
+         data-bs-backdrop="true" data-bs-keyboard="true">
         <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
-            <div class="modal-content bg-dark border-secondary">
-                <div class="modal-header border-secondary">
-                    <h5 class="modal-title text-white" id="video-modal-title">📹 Video Preview & Publish</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" onclick="closeModal()"></button>
+            <div class="modal-content border-0" style="background:var(--c-surface-2,#1a1a24);border-radius:var(--radius-lg,1.25rem);">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title text-white fw-semibold" id="video-modal-title">📹 Video Preview &amp; Publish</h5>
+                    <button type="button" class="btn-close btn-close-white opacity-50" data-bs-dismiss="modal"
+                            aria-label="Close" onclick="closeModal()"></button>
                 </div>
-                <div class="modal-body">
-                    <div class="text-center mb-3">
-                        <video id="modal-video-preview" class="img-fluid rounded border border-secondary" controls style="max-width: 100%; max-height: 50vh; background: #000;"></video>
-                        <audio id="modal-audio-preview" class="w-100 d-none" controls style="max-height: 60px;"></audio>
+                <div class="modal-body pt-2">
+                    <div class="text-center mb-3 rounded-2 overflow-hidden" style="background:#000;border:1px solid rgba(255,255,255,.08);">
+                        <video id="modal-video-preview" class="img-fluid d-block" controls
+                               style="max-width:100%;max-height:48vh;background:#000;"></video>
+                        <audio id="modal-audio-preview" class="w-100 d-none" controls style="max-height:56px;"></audio>
                     </div>
                     
                     <form id="publish-form">
