@@ -1324,22 +1324,27 @@ async def _upload_image_to_ipfs(filepath: str) -> tuple:
 @router.post("/api/upload/image")
 async def upload_image(
     file: UploadFile = File(...),
-    npub: str = Form(...),
-    type: str = Form(default="avatar"),
+    npub: Optional[str] = Form(default=None),   # optionnel : Coracle n'envoie pas npub
+    type: str = Form(default="media"),
 ):
+    """Upload d'image générique depuis Coracle (éditeur de notes) ou autre client.
+
+    Le champ `npub` est optionnel : lorsque Coracle envoie juste le fichier via
+    FormData, on accepte l'upload anonyme et on génère un nom de fichier basé sur
+    le hash SHA-256. Le résultat est toujours de la forme ``{"url": "<url>", ...}``
+    pour être compatible avec le format attendu par l'éditeur Coracle.
+    """
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
-    image_type = type.lower()
-    if image_type not in ('avatar', 'banner', 'logo'):
-        raise HTTPException(status_code=400,
-                            detail="Invalid image type (must be avatar, banner, or logo)")
-
-    if not npub:
-        raise HTTPException(status_code=400, detail="Missing npub")
-
+    # Lire l'en-tête pour la validation magique
     file_header = await file.read(12)
     await file.seek(0)
+
+    # Pour les uploads génériques (hors avatar/banner/logo), on accepte tout type
+    # d'image sans restriction stricte sur le type
+    valid_image_types = ('avatar', 'banner', 'logo', 'media', 'note')
+    image_type = type.lower() if type.lower() in valid_image_types else "media"
 
     is_valid, error_msg = _validate_image_file(file.filename, file_header)
     if not is_valid:
@@ -1350,13 +1355,15 @@ async def upload_image(
         raise HTTPException(status_code=413,
                             detail=f"File size ({len(content) // 1024}KB) exceeds maximum (5MB)")
 
+    file_hash = hashlib.sha256(content).hexdigest()
     original_name = sanitize_filename_python(file.filename)
-    # Gestion sécurisée de l'extension : éviter IndexError si absent
     _parts = original_name.rsplit('.', 1)
     ext = _parts[1].lower() if len(_parts) == 2 and _parts[1] else 'bin'
     timestamp = int(datetime.now().timestamp())
-    npub_short = npub[:16] if len(npub) > 16 else npub
-    new_filename = f"{npub_short}_{image_type}_{timestamp}.{ext}"
+
+    # Préfixe : npub court si fourni, sinon les 16 premiers chars du hash du fichier
+    prefix = (npub[:16] if npub and len(npub) >= 16 else npub) if npub else file_hash[:16]
+    new_filename = f"{prefix}_{image_type}_{timestamp}.{ext}"
 
     uploads_dir = Path("uploads")
     uploads_dir.mkdir(exist_ok=True)
@@ -1365,10 +1372,7 @@ async def upload_image(
     async with aiofiles.open(str(filepath), 'wb') as f:
         await f.write(content)
 
-    file_hash = hashlib.sha256(content).hexdigest()
-
     local_url = f"/uploads/{new_filename}"
-
     cid, ipfs_url = await _upload_image_to_ipfs(str(filepath))
 
     return JSONResponse(content={
@@ -1386,6 +1390,97 @@ async def upload_image(
         'type': image_type,
         'mime_type': IMAGE_MIME_TYPES.get(ext, 'application/octet-stream'),
     }, status_code=201)
+
+
+# ---------------------------------------------------------------------------
+# Blossom-compatible endpoint (NIP-24242)
+# PUT /upload  – utilisé par Coracle comme fallback Blossom si l'upload UPlanet échoue
+# Authorization: Nostr <base64url(signed kind-24242 event)>
+# Body: raw file bytes
+# ---------------------------------------------------------------------------
+
+@router.put("/upload")
+async def blossom_upload(request: Request):
+    """Endpoint de dépôt compatible Blossom (NIP-24242).
+
+    Accepte les uploads via ``PUT /upload`` avec un header
+    ``Authorization: Nostr <base64url(event)>``.  Le fichier est transmis
+    en corps brut.  Retourne un objet ``{url, sha256, size, type, ...}``
+    conforme au protocole Blossom.
+    """
+    # ── 1. Lire le header d'autorisation ──────────────────────────────────
+    auth_header = request.headers.get("Authorization", "")
+    pubkey_hex: Optional[str] = None
+    expected_sha256: Optional[str] = None
+
+    if auth_header.startswith("Nostr "):
+        try:
+            raw = auth_header[6:]
+            # base64url ou base64 standard
+            padded = raw + "=" * (-len(raw) % 4)
+            event_json = base64.urlsafe_b64decode(padded).decode("utf-8")
+            event = json.loads(event_json)
+            pubkey_hex = event.get("pubkey")
+            # Le tag ["x", "<sha256>"] contient le hash attendu du fichier
+            for tag in event.get("tags", []):
+                if tag[0] == "x" and len(tag) > 1:
+                    expected_sha256 = tag[1]
+                    break
+            logging.info(f"[Blossom] Auth event from pubkey={pubkey_hex[:16] if pubkey_hex else 'unknown'}…")
+        except Exception as e:
+            logging.warning(f"[Blossom] Could not parse Authorization header: {e}")
+
+    # ── 2. Lire le corps brut ─────────────────────────────────────────────
+    content = await request.body()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty body — file content required")
+
+    # ── 3. Vérifier le SHA-256 si fourni dans l'event ────────────────────
+    file_hash = hashlib.sha256(content).hexdigest()
+    if expected_sha256 and file_hash != expected_sha256:
+        logging.warning(f"[Blossom] SHA-256 mismatch: expected={expected_sha256} got={file_hash}")
+        raise HTTPException(status_code=400, detail="File hash does not match authorization")
+
+    # ── 4. Déterminer le type MIME depuis les headers ────────────────────
+    content_type = request.headers.get("Content-Type", "application/octet-stream")
+    # Déduire l'extension depuis le Content-Type
+    _ct_ext_map = {
+        "image/jpeg": "jpg", "image/png": "png", "image/gif": "gif",
+        "image/webp": "webp", "image/avif": "avif", "image/svg+xml": "svg",
+        "video/mp4": "mp4", "video/webm": "webm",
+        "audio/mpeg": "mp3", "audio/ogg": "ogg",
+    }
+    ext = _ct_ext_map.get(content_type.split(";")[0].strip(), "bin")
+
+    # ── 5. Construire le nom de fichier ───────────────────────────────────
+    prefix = pubkey_hex[:16] if pubkey_hex else file_hash[:16]
+    timestamp = int(datetime.now().timestamp())
+    new_filename = f"{prefix}_blossom_{timestamp}.{ext}"
+
+    uploads_dir = Path("uploads")
+    uploads_dir.mkdir(exist_ok=True)
+    filepath = uploads_dir / new_filename
+
+    async with aiofiles.open(str(filepath), 'wb') as f_out:
+        await f_out.write(content)
+
+    logging.info(f"[Blossom] Saved {len(content)} bytes → {filepath}")
+
+    # ── 6. Uploader sur IPFS ──────────────────────────────────────────────
+    cid, ipfs_url = await _upload_image_to_ipfs(str(filepath))
+    final_url = ipfs_url or f"/uploads/{new_filename}"
+
+    # ── 7. Réponse format Blossom ─────────────────────────────────────────
+    return JSONResponse(content={
+        "url": final_url,
+        "sha256": file_hash,
+        "size": len(content),
+        "type": content_type.split(";")[0].strip(),
+        "uploaded": timestamp,
+        # Extensions non-standard utiles pour Coracle
+        "ipfs_cid": cid,
+        "ipfs_url": ipfs_url,
+    }, status_code=200)
 
 @router.get("/uploads/{filename}")
 async def serve_upload(filename: str):
