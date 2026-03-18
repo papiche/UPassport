@@ -951,7 +951,51 @@
                 // Variables not accessible, only sync to window
             }
         }
-        
+
+        /**
+         * Safely read state from the parent window.
+         * Returns null when access is denied (cross-origin restriction).
+         */
+        function safeGetParentState() {
+            try {
+                if (window.parent && window.parent !== window) {
+                    return {
+                        userPubkey: window.parent.userPubkey || null,
+                        nostrRelay: window.parent.nostrRelay || null,
+                        isNostrConnected: window.parent.isNostrConnected || false
+                    };
+                }
+            } catch (e) {
+                // Cross-origin: direct property access is forbidden.
+                // The coracle Vocaux.svelte bridge will push state via postMessage.
+            }
+            return null;
+        }
+
+        /**
+         * Listen for nostr-state messages sent by the coracle parent (cross-origin).
+         * Vocaux.svelte sends this message both on iframe load and in response to
+         * a 'nostr-state-request' message.
+         */
+        window.addEventListener('message', function(event) {
+            if (!event.data || event.data.type !== 'nostr-state') return;
+            const pk = event.data.userPubkey;
+            if (!pk) return;
+            localUserPubkey = pk;
+            localIsNostrConnected = event.data.isNostrConnected !== false;
+            if (event.data.nostrRelay) localNostrRelay = event.data.nostrRelay;
+            syncToCommonJS();
+            console.log('✅ [vocals-read] Received nostr-state from parent via postMessage:', pk.substring(0, 8) + '...');
+            // Initialize pool and trigger auto-load if we were waiting for the pubkey
+            if (!nostrPool && typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                nostrPool = new NostrTools.SimplePool();
+            }
+            if (typeof window._vocalsReadPendingLoad === 'function') {
+                window._vocalsReadPendingLoad();
+                window._vocalsReadPendingLoad = null;
+            }
+        });
+
         // Initial sync (with delays to ensure common.js is loaded)
         syncFromCommonJS();
         setTimeout(syncFromCommonJS, 100);
@@ -1006,17 +1050,24 @@
                 const isInIframe = window.self !== window.top;
                 
                 // Always try parent window first if in iframe
-                if (isInIframe && window.parent && window.parent.userPubkey) {
+                const parentState = safeGetParentState();
+                if (isInIframe && parentState && parentState.userPubkey) {
                     console.log('✅ Using existing connection from parent window');
-                    localUserPubkey = window.parent.userPubkey;
-                    if (window.parent.nostrRelay) {
-                        localNostrRelay = window.parent.nostrRelay;
+                    localUserPubkey = parentState.userPubkey;
+                    if (parentState.nostrRelay) {
+                        localNostrRelay = parentState.nostrRelay;
                     }
-                    if (window.parent.isNostrConnected) {
-                        localIsNostrConnected = window.parent.isNostrConnected;
+                    if (parentState.isNostrConnected) {
+                        localIsNostrConnected = parentState.isNostrConnected;
                     }
                     // Sync with window scope and common.js
                     syncToCommonJS();
+                } else if (isInIframe && !parentState) {
+                    // Cross-origin parent: request state via postMessage and use
+                    // the already-connected extension directly as fallback
+                    console.log('🔄 [vocals-read] Cross-origin parent – requesting nostr-state via postMessage');
+                    window.parent.postMessage({type: 'nostr-state-request'}, '*');
+                    // Also try the nostr extension directly (nos2x-fox is available in the iframe too)
                 } else {
                     // Standalone mode - connect to NOSTR + relay
                     console.log('🔌 Connecting to NOSTR extension...');
@@ -4219,15 +4270,16 @@
             const isInIframe = window.self !== window.top;
             let shouldAutoLoad = false;
             
-            if (isInIframe && window.parent && window.parent.userPubkey) {
-                // Iframe mode: use parent's connection
+            const parentState = safeGetParentState();
+            if (isInIframe && parentState && parentState.userPubkey) {
+                // Same-origin iframe (or relaxed cross-origin): use parent's connection directly
                 console.log('✅ Using existing connection from parent window');
-                localUserPubkey = window.parent.userPubkey;
-                if (window.parent.nostrRelay) {
-                    localNostrRelay = window.parent.nostrRelay;
+                localUserPubkey = parentState.userPubkey;
+                if (parentState.nostrRelay) {
+                    localNostrRelay = parentState.nostrRelay;
                 }
-                if (window.parent.isNostrConnected) {
-                    localIsNostrConnected = window.parent.isNostrConnected;
+                if (parentState.isNostrConnected) {
+                    localIsNostrConnected = parentState.isNostrConnected;
                 }
                 // Initialize pool if not already done
                 if (!nostrPool && typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
@@ -4235,6 +4287,24 @@
                 }
                 syncToCommonJS();
                 shouldAutoLoad = true;
+            } else if (isInIframe && !parentState) {
+                // Cross-origin parent (e.g. coracle on ipfs.copylaradio.com embedding this page).
+                // We cannot read window.parent properties directly. Request state via postMessage;
+                // the nostr-state listener above will pick up the response and set localUserPubkey.
+                console.log('🔄 [vocals-read] Cross-origin iframe – requesting nostr-state from coracle parent');
+                window.parent.postMessage({type: 'nostr-state-request'}, '*');
+                // Defer auto-load until the pubkey arrives via the postMessage listener
+                window._vocalsReadPendingLoad = function() {
+                    syncToCommonJS();
+                    if (!nostrPool && typeof NostrTools !== 'undefined' && NostrTools.SimplePool) {
+                        nostrPool = new NostrTools.SimplePool();
+                    }
+                    // Re-run the check that triggers loadVoiceMessages
+                    if (localUserPubkey && localIsNostrConnected) {
+                        if (typeof applyCurrentViewMode === 'function') applyCurrentViewMode();
+                        else if (typeof loadVoiceMessages === 'function') loadVoiceMessages();
+                    }
+                };
             } else {
                 // Check if already connected via common.js
                 syncFromCommonJS();
