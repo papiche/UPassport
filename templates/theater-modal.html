@@ -4856,8 +4856,50 @@
                     }
                 }
                 
-                const event = videoEvent;
+                let event = videoEvent;
                 
+                // ── Local relay fallback ──────────────────────────────────────────
+                // If the external relay (wss://relay.copylaradio.com) didn't return
+                // the event, try the LOCAL relay (ws://127.0.0.1:7777) via a raw
+                // WebSocket query.  This covers events published only on the local
+                // relay (e.g., films / series added via ajouter_media.sh).
+                if (!event) {
+                    console.log('📡 Event not on external relay – trying local relay ws://127.0.0.1:7777...');
+                    try {
+                        event = await new Promise((resolve) => {
+                            const localWs = new WebSocket('ws://127.0.0.1:7777');
+                            const localTimeout = setTimeout(() => {
+                                localWs.close();
+                                resolve(null);
+                            }, 5000);
+                            localWs.onopen = () => {
+                                localWs.send(JSON.stringify([
+                                    'REQ', 'local_' + Date.now(),
+                                    { kinds: [21, 22], ids: [eventId], limit: 1 }
+                                ]));
+                            };
+                            localWs.onmessage = (msg) => {
+                                try {
+                                    const data = JSON.parse(msg.data);
+                                    if (data[0] === 'EVENT' && data[2] && data[2].id === eventId) {
+                                        clearTimeout(localTimeout);
+                                        localWs.close();
+                                        console.log('✅ Video event found on LOCAL relay!');
+                                        resolve(data[2]);
+                                    } else if (data[0] === 'EOSE') {
+                                        clearTimeout(localTimeout);
+                                        localWs.close();
+                                        resolve(null);
+                                    }
+                                } catch (_e) {}
+                            };
+                            localWs.onerror = () => { clearTimeout(localTimeout); resolve(null); };
+                        });
+                    } catch (_localErr) {
+                        console.warn('⚠️ Local relay query failed:', _localErr);
+                    }
+                }
+
                 if (!event) {
                     // Provide more helpful error message
                     const errorMsg = `Vidéo non trouvée sur le relay après ${maxAttempts} tentative(s). ` +
