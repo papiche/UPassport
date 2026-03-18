@@ -3298,9 +3298,13 @@
             nostrVars.nostrRelay = relay;
             nostrVars.isNostrConnected = true;
             
-            // Get current timestamp if available
+            // Get current video position (only used if user explicitly chose to timestamp)
             const currentTime = videoPlayer.currentTime;
             const timestamp = Math.floor(currentTime);
+            // Only include the timestamp tag if the user explicitly clicked the ⏱️ Timestamp
+            // button (which inserts "⏱️ mm:ss" into the textarea).  Publishing a comment
+            // must NOT silently attach the current video position; the user should opt-in.
+            const userWantsTimestamp = content.includes('⏱️');
             
             try {
                 // Get relay URL hint
@@ -3329,8 +3333,8 @@
                     ['p', authorId || '', relayHint] // Parent author (video creator)
                 ];
                 
-                // Add timestamp if available
-                if (timestamp > 0) {
+                // Add timestamp tag only if the user explicitly opted-in (clicked ⏱️ Timestamp)
+                if (userWantsTimestamp && timestamp > 0) {
                     tags.push(['timestamp', timestamp.toString()]);
                 }
                 
