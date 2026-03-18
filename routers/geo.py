@@ -8,14 +8,14 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from core.config import settings
 from utils.helpers import get_myipfs_gateway, get_env_from_mysh
-from services.nostr import verify_nostr_auth
-from utils.crypto import hex_to_npub
+from services.nostr import verify_nostr_auth, generate_nip42_challenge, NIP42_CHALLENGE_TTL
+from utils.crypto import hex_to_npub, npub_to_hex
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -205,20 +205,86 @@ async def get_umap_geolinks_api(lat: float, lon: float):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
+@router.get("/api/nip42/challenge")
+async def get_nip42_challenge(npub: str):
+    """
+    Issue a one-time NIP-42 challenge (nonce) for the given *npub*.
+
+    **Flow:**
+    1. The JS app (or shell script) calls ``GET /api/nip42/challenge?npub=<npub>``.
+    2. The API generates a cryptographically random 32-byte nonce (64-char hex)
+       and stores it in memory bound to this pubkey (TTL = 120 s).
+    3. The client builds a kind-22242 event with ``["challenge", "<nonce>"]`` in
+       the tags, signs it, and sends it to the local relay.
+    4. The relay write-policy plugin (``filter/22242.sh``) creates the secure marker
+       ``~/.zen/game/nostr/<email>/.nip42_auth_<hex_pubkey>`` containing the event
+       JSON (including the challenge and event_id).
+    5. The client then calls the protected endpoint (e.g. ``/api/myGPS``).  The API
+       reads the marker, verifies the embedded challenge matches the issued nonce,
+       and grants access.
+
+    Returns ``{"challenge": "<nonce>", "expires_in": 120}``.
+    """
+    try:
+        hex_pubkey = npub_to_hex(npub) if npub.startswith("npub1") else npub
+        if not hex_pubkey or len(hex_pubkey) != 64:
+            raise HTTPException(status_code=400, detail="Invalid npub/hex pubkey")
+
+        nonce = generate_nip42_challenge(hex_pubkey)
+        logging.info(f"🔑 NIP-42 challenge issued via /api/nip42/challenge for {hex_pubkey[:16]}…")
+        return JSONResponse({
+            "challenge": nonce,
+            "expires_in": NIP42_CHALLENGE_TTL,
+            "pubkey_hex": hex_pubkey,
+            "instruction": (
+                "Include this challenge in a kind-22242 Nostr event tag "
+                "[\"challenge\", \"<nonce>\"] signed with your private key, "
+                "then call the protected endpoint."
+            )
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error generating NIP-42 challenge: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/api/myGPS")
 async def get_my_gps_coordinates(npub: str):
-    """Get GPS coordinates for authenticated user"""
+    """Get GPS coordinates for authenticated user.
+
+    If the user is not yet authenticated the response is HTTP 403 with a fresh
+    NIP-42 challenge embedded, so the client can sign and retry in one round-trip::
+
+        {
+          "error": "authentication_required",
+          "nip42_challenge": "<nonce>",
+          "expires_in": 120
+        }
+    """
     try:
         is_authenticated = await verify_nostr_auth(npub, force_check=True)
-        
+
         if not is_authenticated:
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    "error": "authentication_required",
-                    "message": "NIP-42 authentication required to access GPS coordinates"
-                }
-            )
+            # Issue a fresh challenge so the client can authenticate immediately
+            try:
+                hex_pubkey = npub_to_hex(npub) if npub.startswith("npub1") else npub
+                nonce = generate_nip42_challenge(hex_pubkey) if hex_pubkey else None
+            except Exception:
+                nonce = None
+
+            detail: Dict[str, Any] = {
+                "error": "authentication_required",
+                "message": "NIP-42 authentication required to access GPS coordinates",
+            }
+            if nonce:
+                detail["nip42_challenge"] = nonce
+                detail["expires_in"] = NIP42_CHALLENGE_TTL
+                detail["hint"] = (
+                    "Sign a kind-22242 Nostr event with this challenge and "
+                    "send it to ws://127.0.0.1:7777, then retry this request."
+                )
+            raise HTTPException(status_code=403, detail=detail)
         
         pubkey_hex = npub
         if npub.startswith('npub1'):

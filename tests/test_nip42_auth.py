@@ -9,13 +9,25 @@ subscribers but do NOT persist them in the database.  Querying the relay
 via REQ or via `strfry scan` for kind-22242 events therefore always returns
 empty results.
 
-Fix
-───
-• ajouter_media.sh creates a local marker file
-  ~/.zen/game/nostr/<email>/.nip42_auth  after sending the NIP-42 event.
-• check_nip42_auth_local_marker() checks for that marker file (max age 1 h).
-• check_nip42_auth() tries the local marker FIRST, then falls back to
-  nostr_get_events.sh (strfry scan) and finally to a WebSocket REQ.
+Fix (hardened 2026-03)
+───────────────────────
+A. **Pubkey-bound marker** – named ``.nip42_auth_<hex_pubkey>`` so a marker for
+   Alice cannot authenticate Bob (pubkey-confusion attack).
+
+B. **Short TTL** – 300 s (5 min) vs the old 1 h makes replay attacks harder.
+
+C. **JSON content** – marker contains ``{"pubkey": "<hex>", "event_hash": "<id>",
+   "created_at": <unix>}``; the embedded pubkey is cross-checked against the
+   filename so a mis-placed or copied marker is rejected.
+
+D. **Dynamic challenge** – ``GET /api/nip42/challenge?npub=<npub>`` returns a
+   one-time nonce the client must embed in the kind-22242 ``challenge`` tag.
+
+• ``filter/22242.sh`` (relay write-policy plugin) creates the marker.
+• ``ajouter_media.sh`` also creates it as a fallback for direct uploads.
+• ``check_nip42_auth_local_marker()`` checks for that marker file (max 300 s).
+• ``check_nip42_auth()`` tries the local marker FIRST, then falls back to
+  ``nostr_get_events.sh`` (strfry scan) and finally to a WebSocket REQ.
 
 These tests verify the whole chain without needing a live relay.
 """
@@ -103,8 +115,26 @@ class TestValidateNip42Event:
 # 2. Unit tests for check_nip42_auth_local_marker
 # ════════════════════════════════════════════════════════════════════════════
 
+# ── Marker helpers ────────────────────────────────────────────────────────────
+
+def _marker_name(hex_pubkey: str) -> str:
+    """Return the expected marker filename for *hex_pubkey*."""
+    return f".nip42_auth_{hex_pubkey}"
+
+
+def _write_secure_marker(path, hex_pubkey: str, event_hash: str = "b" * 64) -> None:
+    """Write a properly-formatted JSON marker at *path*."""
+    path.write_text(json.dumps({
+        "pubkey": hex_pubkey,
+        "event_hash": event_hash,
+        "created_at": int(time.time()),
+    }))
+
+
 class TestCheckNip42AuthLocalMarker:
     """check_nip42_auth_local_marker(hex_pubkey) → bool  (async)"""
+
+    HEX = "d" * 64
 
     def _run(self, coro):
         return asyncio.get_event_loop().run_until_complete(coro)
@@ -113,51 +143,113 @@ class TestCheckNip42AuthLocalMarker:
         from services.nostr import check_nip42_auth_local_marker
         self.check = check_nip42_auth_local_marker
 
+    # ── A. pubkey-bound filename ───────────────────────────────────────────────
+
     def test_fresh_marker_returns_true(self, tmp_path):
-        marker = tmp_path / ".nip42_auth"
-        marker.touch()
-        hex_pubkey = "d" * 64
+        """A fresh, correctly-named JSON marker must be accepted."""
+        marker = tmp_path / _marker_name(self.HEX)
+        _write_secure_marker(marker, self.HEX)
 
         with patch("utils.security.find_user_directory_by_hex", return_value=tmp_path):
-            result = self._run(self.check(hex_pubkey))
+            result = self._run(self.check(self.HEX))
         assert result is True
 
-    def test_expired_marker_returns_false(self, tmp_path):
-        marker = tmp_path / ".nip42_auth"
-        marker.touch()
-        # Backdate the marker by > 1 hour
-        old_mtime = time.time() - 3700
-        os.utime(marker, (old_mtime, old_mtime))
-        hex_pubkey = "d" * 64
+    def test_old_generic_marker_is_rejected(self, tmp_path):
+        """Legacy .nip42_auth (without hex suffix) must NOT grant access."""
+        old_marker = tmp_path / ".nip42_auth"
+        old_marker.touch()   # old format – no pubkey in name, no JSON
 
         with patch("utils.security.find_user_directory_by_hex", return_value=tmp_path):
-            result = self._run(self.check(hex_pubkey))
+            result = self._run(self.check(self.HEX))
+        assert result is False, "Old generic marker must not authenticate"
+
+    def test_marker_for_different_pubkey_is_rejected(self, tmp_path):
+        """Marker for Alice must not authenticate Bob (pubkey-confusion guard)."""
+        alice_hex = "a" * 64
+        bob_hex   = "b" * 64
+        # Write Alice's marker but try to auth as Bob
+        marker = tmp_path / _marker_name(alice_hex)
+        _write_secure_marker(marker, alice_hex)
+
+        with patch("utils.security.find_user_directory_by_hex", return_value=tmp_path):
+            result = self._run(self.check(bob_hex))
+        assert result is False, "Alice's marker must not authenticate Bob"
+
+    # ── B. TTL (300 s) ────────────────────────────────────────────────────────
+
+    def test_expired_marker_returns_false(self, tmp_path):
+        """Marker older than 300 s (5 min) must be rejected."""
+        marker = tmp_path / _marker_name(self.HEX)
+        _write_secure_marker(marker, self.HEX)
+        # Backdate by more than TTL (310 s > 300 s)
+        old_mtime = time.time() - 310
+        os.utime(marker, (old_mtime, old_mtime))
+
+        with patch("utils.security.find_user_directory_by_hex", return_value=tmp_path):
+            result = self._run(self.check(self.HEX))
         assert result is False
 
-    def test_no_marker_returns_false(self, tmp_path):
-        hex_pubkey = "d" * 64
+    def test_marker_within_300s_is_valid(self, tmp_path):
+        """Marker aged 299 s (just under 5 min) must still be valid."""
+        marker = tmp_path / _marker_name(self.HEX)
+        _write_secure_marker(marker, self.HEX)
+        recent = time.time() - 299
+        os.utime(marker, (recent, recent))
+
         with patch("utils.security.find_user_directory_by_hex", return_value=tmp_path):
-            result = self._run(self.check(hex_pubkey))
+            result = self._run(self.check(self.HEX))
+        assert result is True
+
+    # ── C. JSON content validation ────────────────────────────────────────────
+
+    def test_pubkey_mismatch_in_json_rejected(self, tmp_path):
+        """Marker whose JSON pubkey doesn't match the filename pubkey is rejected."""
+        marker = tmp_path / _marker_name(self.HEX)
+        # Write JSON with a *different* pubkey than the filename
+        marker.write_text(json.dumps({
+            "pubkey": "e" * 64,   # different from self.HEX ("d" * 64)
+            "event_hash": "b" * 64,
+            "created_at": int(time.time()),
+        }))
+
+        with patch("utils.security.find_user_directory_by_hex", return_value=tmp_path):
+            result = self._run(self.check(self.HEX))
+        assert result is False, "JSON pubkey mismatch must be rejected"
+
+    def test_invalid_event_hash_rejected(self, tmp_path):
+        """A marker with a malformed event_hash must be rejected."""
+        marker = tmp_path / _marker_name(self.HEX)
+        marker.write_text(json.dumps({
+            "pubkey": self.HEX,
+            "event_hash": "not-a-valid-hex-string!!!",
+            "created_at": int(time.time()),
+        }))
+
+        with patch("utils.security.find_user_directory_by_hex", return_value=tmp_path):
+            result = self._run(self.check(self.HEX))
+        assert result is False, "Invalid event_hash must be rejected"
+
+    def test_empty_marker_accepted_with_legacy_warning(self, tmp_path):
+        """An empty marker (legacy/shell fallback) is accepted but logs a warning."""
+        marker = tmp_path / _marker_name(self.HEX)
+        marker.write_text("")   # empty – legacy format
+
+        with patch("utils.security.find_user_directory_by_hex", return_value=tmp_path):
+            result = self._run(self.check(self.HEX))
+        assert result is True, "Empty legacy marker should still be accepted"
+
+    # ── Other edge cases ──────────────────────────────────────────────────────
+
+    def test_no_marker_returns_false(self, tmp_path):
+        with patch("utils.security.find_user_directory_by_hex", return_value=tmp_path):
+            result = self._run(self.check(self.HEX))
         assert result is False
 
     def test_nonexistent_directory_returns_false(self):
-        hex_pubkey = "d" * 64
         with patch("utils.security.find_user_directory_by_hex",
                    side_effect=Exception("user not found")):
-            result = self._run(self.check(hex_pubkey))
+            result = self._run(self.check(self.HEX))
         assert result is False
-
-    def test_marker_within_3600s_is_valid(self, tmp_path):
-        marker = tmp_path / ".nip42_auth"
-        marker.touch()
-        # Set mtime to 3599 seconds ago (just under 1 hour)
-        recent = time.time() - 3599
-        os.utime(marker, (recent, recent))
-        hex_pubkey = "d" * 64
-
-        with patch("utils.security.find_user_directory_by_hex", return_value=tmp_path):
-            result = self._run(self.check(hex_pubkey))
-        assert result is True
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -181,8 +273,8 @@ class TestCheckNip42Auth:
 
     def test_local_marker_shortcircuits_relay_check(self, tmp_path):
         """A fresh local marker should succeed without touching the relay."""
-        marker = tmp_path / ".nip42_auth"
-        marker.touch()
+        marker = tmp_path / _marker_name(self.VALID_HEX)
+        _write_secure_marker(marker, self.VALID_HEX)
 
         # Pass hex directly (as verify_nostr_auth does)
         with patch("services.nostr.check_nip42_auth_local_marker",
@@ -300,12 +392,12 @@ class TestFileUploadNip42:
         import httpx
         from httpx import ASGITransport
 
-        # Create a fresh marker
-        marker = tmp_path / ".nip42_auth"
-        marker.touch()
-
         NPUB = "npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6"
         HEX  = "3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d"
+
+        # Create a fresh pubkey-bound JSON marker (new secure format)
+        marker = tmp_path / f".nip42_auth_{HEX}"
+        _write_secure_marker(marker, HEX)
 
         # Patch so that:
         # - check_nip42_auth → True (auth passes)
@@ -438,14 +530,15 @@ class TestKind22242RelayBehaviour:
     @pytest.mark.live_relay
     def test_local_marker_auth_works_end_to_end(self, tmp_path):
         """
-        Create the .nip42_auth marker (as ajouter_media.sh does), then call
-        check_nip42_auth and expect True without relay access.
+        Create the secure `.nip42_auth_<hex>` marker JSON (as filter/22242.sh
+        or ajouter_media.sh does), then call check_nip42_auth and expect True
+        without relay access.
         """
-        marker = tmp_path / ".nip42_auth"
-        marker.touch()
+        marker = tmp_path / f".nip42_auth_{self.HEX}"
+        _write_secure_marker(marker, self.HEX)
 
         with patch("utils.security.find_user_directory_by_hex", return_value=tmp_path):
             from services.nostr import check_nip42_auth
             result = self._run(check_nip42_auth(self.HEX))
 
-        assert result is True, "Expected True with fresh local marker"
+        assert result is True, "Expected True with fresh secure local marker"

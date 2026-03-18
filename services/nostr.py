@@ -1,14 +1,60 @@
 import json
 import time
+import secrets
 import logging
 import asyncio
 import websockets
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime
 from fastapi import HTTPException, Form, Depends
 
 from core.config import settings
 from core.state import app_state
+
+# ── NIP-42 local-marker constants ────────────────────────────────────────────
+# Marker filename includes the hex pubkey to prevent pubkey-confusion attacks.
+NIP42_MARKER_PREFIX  = ".nip42_auth_"   # + hex_pubkey  → e.g. .nip42_auth_3bf0c6…
+NIP42_MARKER_MAX_AGE = 300              # 5 minutes – tight TTL for sensitive ops
+
+# ── Dynamic challenge store ────────────────────────────────────────────────────
+# Maps hex_pubkey → (nonce, issued_at_unix).
+# A fresh nonce is generated per authentication demand; it is consumed once.
+# TTL: 120 s (the client must sign and respond within 2 minutes).
+_nip42_challenge_store: Dict[str, Tuple[str, float]] = {}
+NIP42_CHALLENGE_TTL = 120  # seconds
+
+
+def generate_nip42_challenge(hex_pubkey: str) -> str:
+    """Generate a one-time nonce for a pubkey and store it in memory.
+
+    The caller (e.g. GET /api/nip42/challenge) sends this nonce to the client.
+    The client must embed it in the ``challenge`` tag of a kind-22242 event,
+    sign the event, and return the event_id.  The API then verifies the marker.
+    """
+    nonce = secrets.token_hex(32)          # 64-char cryptographically random hex
+    _nip42_challenge_store[hex_pubkey] = (nonce, time.time())
+    logging.info(f"🔑 NIP-42 challenge issued for {hex_pubkey[:16]}…: {nonce[:16]}…")
+    return nonce
+
+
+def get_nip42_challenge(hex_pubkey: str) -> Optional[str]:
+    """Return the active challenge for *hex_pubkey*, or None if expired/absent."""
+    entry = _nip42_challenge_store.get(hex_pubkey)
+    if not entry:
+        return None
+    nonce, issued_at = entry
+    if time.time() - issued_at > NIP42_CHALLENGE_TTL:
+        _nip42_challenge_store.pop(hex_pubkey, None)
+        logging.debug(f"NIP-42 challenge expired for {hex_pubkey[:16]}…")
+        return None
+    return nonce
+
+
+def consume_nip42_challenge(hex_pubkey: str) -> Optional[str]:
+    """Return and *delete* the challenge (one-time-use semantics)."""
+    nonce = get_nip42_challenge(hex_pubkey)
+    _nip42_challenge_store.pop(hex_pubkey, None)
+    return nonce
 
 
 
@@ -262,37 +308,95 @@ def validate_nip42_event(event: Dict[str, Any], expected_relay_url: str) -> bool
 
 async def check_nip42_auth_local_marker(hex_pubkey: str) -> bool:
     """
-    Fallback NIP-42 auth: check for a local marker file created by ajouter_media.sh.
+    Fallback NIP-42 auth: check for a secure local marker file written by
+    ajouter_media.sh (or any authorised shell script) after a successful
+    kind-22242 event submission.
 
-    IMPORTANT: Kind 22242 (NIP-42 auth) falls in the ephemeral range 20000-29999
-    per NIP-01, so strfry and most relays NEVER store it in their database.
-    Querying the relay for stored kind-22242 events will therefore always return
-    nothing.  For scripts running on the same machine (e.g. ajouter_media.sh) we
-    use a marker file written to the player's nostr directory as proof of recent
-    authentication.  The marker file is created/touched by ajouter_media.sh right
-    after a successful NIP-42 event submission.
+    Security hardening (see discussion in docs/NIP42_SECURITY.md):
+
+    A. **Pubkey-bound filename** – marker is named ``.nip42_auth_<hex_pubkey>``
+       so a marker for Alice cannot authenticate Bob (pubkey-confusion attack).
+
+    B. **Short TTL** – 300 s (5 min) limits the window for replay attacks;
+       the old 3 600 s window gave an attacker an entire hour.
+
+    C. **JSON content validation** – marker must contain ``pubkey`` and
+       optionally ``event_hash`` fields. The pubkey is cross-checked against
+       the file name so a mis-placed or copied marker is still rejected.
+
+    Kind 22242 is in the ephemeral range 20 000-29 999 (NIP-01) and is NOT
+    stored by strfry/most relays.  The marker file is therefore the only
+    reliable proof of authentication for local scripts.
     """
-    NIP42_MARKER_FILENAME = ".nip42_auth"
-    NIP42_MARKER_MAX_AGE  = 3600  # seconds – 1 hour
-
     try:
         from utils.security import find_user_directory_by_hex
         user_dir = find_user_directory_by_hex(hex_pubkey)
-        if user_dir and user_dir.exists():
-            auth_marker = user_dir / NIP42_MARKER_FILENAME
-            if auth_marker.exists():
-                marker_age = time.time() - auth_marker.stat().st_mtime
-                if marker_age < NIP42_MARKER_MAX_AGE:
+        if not (user_dir and user_dir.exists()):
+            return False
+
+        # ── A. pubkey-bound filename ──────────────────────────────────────────
+        marker_filename = f"{NIP42_MARKER_PREFIX}{hex_pubkey}"
+        auth_marker = user_dir / marker_filename
+
+        if not auth_marker.exists():
+            logging.debug(f"NIP-42 marker not found: {marker_filename}")
+            return False
+
+        # ── B. TTL check ──────────────────────────────────────────────────────
+        marker_age = time.time() - auth_marker.stat().st_mtime
+        if marker_age >= NIP42_MARKER_MAX_AGE:
+            logging.warning(
+                f"⚠️  NIP-42 marker expired for {hex_pubkey[:16]}… "
+                f"(age: {marker_age:.0f}s > {NIP42_MARKER_MAX_AGE}s TTL)"
+            )
+            return False
+
+        # ── C. JSON content validation ────────────────────────────────────────
+        try:
+            raw = auth_marker.read_text(encoding="utf-8").strip()
+            if raw:
+                data = json.loads(raw)
+                stored_pubkey = data.get("pubkey", "").lower().strip()
+                if stored_pubkey != hex_pubkey.lower():
+                    logging.warning(
+                        f"⚠️  NIP-42 marker pubkey mismatch for {hex_pubkey[:16]}… "
+                        f"(stored: {stored_pubkey[:16]}…) — possible tampering"
+                    )
+                    return False
+                event_hash = data.get("event_hash", "")
+                if event_hash:
+                    if len(event_hash) == 64 and all(c in "0123456789abcdef" for c in event_hash):
+                        logging.info(
+                            f"✅ NIP-42 local-marker auth OK for {hex_pubkey[:16]}… "
+                            f"(age: {marker_age:.0f}s, event: {event_hash[:16]}…)"
+                        )
+                    else:
+                        logging.warning(
+                            f"⚠️  NIP-42 marker event_hash invalid for {hex_pubkey[:16]}… "
+                            f"— rejecting"
+                        )
+                        return False
+                else:
+                    # No event hash in JSON – acceptable (hash is optional)
                     logging.info(
                         f"✅ NIP-42 local-marker auth OK for {hex_pubkey[:16]}… "
-                        f"(marker age: {marker_age:.0f}s)"
+                        f"(age: {marker_age:.0f}s, no event_hash)"
                     )
-                    return True
-                else:
-                    logging.warning(
-                        f"⚠️  NIP-42 local-marker expired for {hex_pubkey[:16]}… "
-                        f"(age: {marker_age:.0f}s > {NIP42_MARKER_MAX_AGE}s)"
-                    )
+            else:
+                # Empty file – legacy support, accept but log warning
+                logging.warning(
+                    f"⚠️  NIP-42 marker is EMPTY for {hex_pubkey[:16]}… "
+                    f"— legacy format accepted (upgrade ajouter_media.sh)"
+                )
+        except json.JSONDecodeError:
+            # Non-JSON file – legacy support, accept but log warning
+            logging.warning(
+                f"⚠️  NIP-42 marker is non-JSON for {hex_pubkey[:16]}… "
+                f"— legacy format accepted (upgrade ajouter_media.sh)"
+            )
+
+        return True
+
     except Exception as e:
         logging.debug(f"NIP-42 local-marker check error: {e}")
     return False

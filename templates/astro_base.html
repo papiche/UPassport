@@ -1223,25 +1223,48 @@
             const pubkey = window.NostrState?.userPubkey || window.userPubkey;
             const relay = window.NostrState?.nostrRelay || window.nostrRelay;
             const connected = window.NostrState?.isNostrConnected || window.isNostrConnected;
-            
+
             if (!pubkey || !relay || !connected || !userPrivkey) {
                 console.warn('Cannot send NIP-42 auth: missing requirements');
                 return;
             }
-            
+
             try {
                 console.log('📝 Sending NIP-42 authentication event (nsec mode)...');
-                
-                const relayUrl = window.RelayManager?.getPrimaryRelay() || 
-                               (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) || 
+
+                const relayUrl = window.RelayManager?.getPrimaryRelay() ||
+                               (window.DEFAULT_RELAYS && window.DEFAULT_RELAYS[0]) ||
                                'wss://relay.copylaradio.com';
-                
+
+                // ── Fetch a dynamic server-issued challenge (nonce) ──────────
+                // Prevents replay attacks: the API stores the nonce per pubkey
+                // and the relay plugin (filter/22242.sh) embeds it in the marker.
+                let nip42Challenge = 'auth-' + Date.now(); // fallback
+                try {
+                    const upassportBase = window.upassportUrl || window.NostrState?.upassportUrl || '';
+                    if (upassportBase) {
+                        const challengeRes = await fetch(
+                            `${upassportBase}/api/nip42/challenge?npub=${encodeURIComponent(pubkey)}`,
+                            { method: 'GET', signal: AbortSignal.timeout(3000) }
+                        );
+                        if (challengeRes.ok) {
+                            const challengeData = await challengeRes.json();
+                            if (challengeData.challenge && challengeData.challenge.length === 64) {
+                                nip42Challenge = challengeData.challenge;
+                                console.log('🔑 Dynamic NIP-42 challenge (nsec mode):', nip42Challenge.substring(0, 16) + '…');
+                            }
+                        }
+                    }
+                } catch (challengeFetchErr) {
+                    console.warn('⚠️ Could not fetch dynamic challenge for nsec mode, using local nonce:', challengeFetchErr.message);
+                }
+
                 const authEvent = {
                     kind: 22242,
                     created_at: Math.floor(Date.now() / 1000),
                     tags: [
                         ['relay', relayUrl],
-                        ['challenge', 'auth-' + Date.now()]
+                        ['challenge', nip42Challenge]
                     ],
                     content: '',
                     pubkey: pubkey
