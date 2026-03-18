@@ -1491,16 +1491,37 @@
                                     <!-- Contact Search and Selection -->
                                     <div class="mb-2 p-2 bg-dark border border-secondary rounded">
                                         <label class="form-label text-white small mb-1">🔍 Search contacts:</label>
-                                        <div class="input-group input-group-sm mb-2">
-                                            <input type="text" class="form-control bg-dark text-white border-secondary" 
+                                        <!-- Search input -->
+                                        <div class="mb-2">
+                                            <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary"
                                                    id="recipient-search" placeholder="Type name or email to search...">
-                                            <button class="btn btn-outline-primary" type="button" id="load-follows-btn" title="Load your NOSTR follows (kind 3)">
-                                                👥 Load Follows
-                                            </button>
-                                            <button class="btn btn-outline-secondary" type="button" id="load-contacts-btn" title="Load contacts from network">
-                                                📋 Load Network
+                                        </div>
+                                        <!-- P2P / N1 / N2 filter buttons -->
+                                        <div class="d-flex gap-1 flex-wrap align-items-center mb-2">
+                                            <span class="text-secondary small me-1">N1:</span>
+                                            <div class="btn-group btn-group-sm" role="group" aria-label="N1 direct network filter">
+                                                <button type="button" class="btn btn-outline-info active" id="filter-n1-p21"
+                                                        title="People I follow (me → them / p21)">
+                                                    ➡️ p21
+                                                </button>
+                                                <button type="button" class="btn btn-outline-info" id="filter-n1-12p"
+                                                        title="People who follow me (them → me / 12p)">
+                                                    ⬅️ 12p
+                                                </button>
+                                                <button type="button" class="btn btn-outline-info" id="filter-n1-p2p"
+                                                        title="Mutual connections (p2p)">
+                                                    ↔️ p2p
+                                                </button>
+                                            </div>
+                                            <span class="text-secondary small mx-1">|</span>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" id="filter-n2"
+                                                    title="Extended network – follows of follows (N2)">
+                                                🌐 N2
                                             </button>
                                         </div>
+                                        <!-- Legacy hidden buttons (kept for backward compatibility) -->
+                                        <button type="button" id="load-follows-btn" class="d-none">👥 Load Follows</button>
+                                        <button type="button" id="load-contacts-btn" class="d-none">📋 Load Network</button>
                                         <div id="contacts-list-container" class="d-none">
                                             <select class="form-select form-select-sm bg-dark text-white border-secondary mb-2" 
                                                     id="contacts-select" size="5" style="max-height: 150px;">
@@ -2898,6 +2919,180 @@
         let contactsList = [];
         let selectedRecipients = new Set(); // Track selected npubs to avoid duplicates
         
+        // ─── Network data cache (shared between filter views) ────────────────
+        let _cachedNetworkData = null;
+
+        /**
+         * Highlight the active P2P/N filter button.
+         * @param {string} activeId - element id of the active button
+         */
+        function setActiveNetworkFilter(activeId) {
+            ['filter-n1-p21', 'filter-n1-12p', 'filter-n1-p2p', 'filter-n2'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                btn.classList.toggle('active', id === activeId);
+                // Sync outline colours: info for N1 buttons, secondary for N2
+                if (id === 'filter-n2') {
+                    btn.classList.toggle('btn-secondary', id === activeId);
+                    btn.classList.toggle('btn-outline-secondary', id !== activeId);
+                } else {
+                    btn.classList.toggle('btn-info', id === activeId);
+                    btn.classList.toggle('btn-outline-info', id !== activeId);
+                }
+            });
+        }
+
+        /**
+         * Fetch /api/getN2 once and cache the result.
+         * Returns the parsed JSON or throws on error.
+         */
+        async function fetchAndCacheNetwork() {
+            if (_cachedNetworkData) return _cachedNetworkData;
+
+            let userHex = null;
+            if (userPubkey && userPubkey.length === 64 && /^[0-9a-fA-F]{64}$/.test(userPubkey)) {
+                userHex = userPubkey.toLowerCase();
+            } else if (userPubkey && userPubkey.startsWith('npub1')) {
+                if (typeof npubToHex === 'function') {
+                    userHex = npubToHex(userPubkey);
+                } else if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
+                    try {
+                        const decoded = NostrTools.nip19.decode(userPubkey);
+                        if (decoded.type === 'npub') {
+                            const d = decoded.data;
+                            userHex = d instanceof Uint8Array
+                                ? Array.from(d).map(b => b.toString(16).padStart(2, '0')).join('')
+                                : d;
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+            } else {
+                userHex = userPubkey;
+            }
+
+            if (!userHex || userHex.length !== 64) {
+                throw new Error('Invalid pubkey — please connect to NOSTR first.');
+            }
+
+            const response = await fetch(`/api/getN2?hex=${userHex}&range=default&output=json`);
+            if (!response.ok) throw new Error(`API error: ${response.statusText}`);
+            const data = await response.json();
+            _cachedNetworkData = data;
+            return data;
+        }
+
+        /**
+         * Load contacts into the select list using a P2P / N network filter.
+         *
+         * filter values (same semantics as nostr_profile_viewer.js):
+         *   'p21' - people I follow (is_followed === true)    — N1 direction P→2
+         *   '12p' - people who follow me (is_follower === true) — N1 direction 2→P
+         *   'p2p' - mutual connections (mutual === true)
+         *   'n2'  - full extended network (all nodes, including pure N2)
+         */
+        async function loadNetworkFiltered(filter) {
+            if (!userPubkey) {
+                showError('Please connect to NOSTR first.', 'Not Connected');
+                return;
+            }
+
+            const contactsSelect = document.getElementById('contacts-select');
+            const contactsContainer = document.getElementById('contacts-list-container');
+            if (!contactsSelect || !contactsContainer) return;
+
+            // Show loading state on the active button
+            const activeBtn = document.getElementById(
+                filter === 'n2' ? 'filter-n2'
+                : filter === '12p' ? 'filter-n1-12p'
+                : filter === 'p2p' ? 'filter-n1-p2p'
+                : 'filter-n1-p21'
+            );
+            const originalText = activeBtn?.innerHTML;
+            if (activeBtn) { activeBtn.disabled = true; activeBtn.textContent = '⏳'; }
+
+            try {
+                const network = await fetchAndCacheNetwork();
+                if (!network.nodes || !Array.isArray(network.nodes)) {
+                    throw new Error('Invalid network data');
+                }
+
+                // Helper to convert hex pubkey to npub
+                const toNpub = (node) => {
+                    if (node.npub && node.npub.startsWith('npub1')) return node.npub;
+                    if (node.pubkey && node.pubkey.length === 64) {
+                        if (typeof hexToNpub === 'function') return hexToNpub(node.pubkey);
+                        if (typeof NostrTools !== 'undefined' && NostrTools.nip19?.npubEncode) {
+                            try { return NostrTools.nip19.npubEncode(node.pubkey); } catch (e) {}
+                        }
+                    }
+                    return null;
+                };
+
+                // Apply filter
+                let filtered;
+                switch (filter) {
+                    case 'p21': filtered = network.nodes.filter(n => n.is_followed); break;
+                    case '12p': filtered = network.nodes.filter(n => n.is_follower); break;
+                    case 'p2p': filtered = network.nodes.filter(n => n.mutual);       break;
+                    case 'n2':  filtered = network.nodes;                              break;
+                    default:    filtered = network.nodes.filter(n => n.is_followed);
+                }
+
+                // Build contacts list
+                contactsList = filtered
+                    .map(node => ({
+                        npub: toNpub(node),
+                        name: node.display_name || node.name || 'Unknown',
+                        email: node.email || '',
+                        picture: node.picture || '',
+                        mutual: node.mutual || false,
+                        is_follower: node.is_follower || false,
+                        is_followed: node.is_followed || false,
+                    }))
+                    .filter(c => c.npub)
+                    .sort((a, b) => {
+                        if (a.mutual && !b.mutual) return -1;
+                        if (!a.mutual && b.mutual) return 1;
+                        return a.name.localeCompare(b.name);
+                    });
+
+                // Populate select
+                contactsSelect.innerHTML = '';
+                if (contactsList.length === 0) {
+                    const label = {
+                        p21: 'No one you follow was found.',
+                        '12p': 'No followers found.',
+                        p2p: 'No mutual connections found.',
+                        n2:  'Extended network is empty.',
+                    }[filter] || 'No contacts found.';
+                    contactsSelect.innerHTML = `<option value="" disabled>${label}</option>`;
+                } else {
+                    contactsList.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.npub;
+                        const badge = c.mutual ? '🤝 ' : c.is_follower ? '⬅️ ' : c.is_followed ? '➡️ ' : '';
+                        opt.textContent = `${badge}${c.name}${c.email ? ` (${c.email})` : ''}`;
+                        opt.dataset.name = c.name;
+                        opt.dataset.email = c.email;
+                        contactsSelect.appendChild(opt);
+                    });
+                }
+
+                contactsContainer.classList.remove('d-none');
+                filterContacts('');
+
+                const counts = { p21: 'I follow', '12p': 'follow me', p2p: 'mutual', n2: 'N2 extended' };
+                console.log(`✅ ${contactsList.length} contacts — filter: ${counts[filter] || filter}`);
+
+            } catch (error) {
+                console.error('❌ loadNetworkFiltered:', error);
+                showError(`Failed to load contacts: ${error.message}`, 'Load Error');
+                contactsSelect.innerHTML = '<option value="" disabled>Error loading contacts</option>';
+            } finally {
+                if (activeBtn) { activeBtn.disabled = false; activeBtn.innerHTML = originalText; }
+            }
+        }
+
         async function initializeRecipientSelection() {
             const loadContactsBtn = document.getElementById('load-contacts-btn');
             const loadFollowsBtn = document.getElementById('load-follows-btn');
@@ -2906,23 +3101,44 @@
             const addSelectedBtn = document.getElementById('add-selected-contact-btn');
             const contactsContainer = document.getElementById('contacts-list-container');
             
-            if (!loadContactsBtn || !recipientSearch || !contactsSelect || !addSelectedBtn) {
+            if (!recipientSearch || !contactsSelect || !addSelectedBtn) {
                 console.warn('⚠️ Recipient selection UI elements not found');
                 return;
             }
             
-            // Load follows button (NOSTR kind 3)
+            // Legacy hidden buttons (kept for backward compat)
             if (loadFollowsBtn) {
-                loadFollowsBtn.addEventListener('click', async () => {
-                    await loadNostrFollows();
-                });
+                loadFollowsBtn.addEventListener('click', async () => { await loadNostrFollows(); });
+            }
+            if (loadContactsBtn) {
+                loadContactsBtn.addEventListener('click', async () => { await loadContactsFromNetwork(); });
             }
             
-            // Load contacts button (Network N2)
-            loadContactsBtn.addEventListener('click', async () => {
-                await loadContactsFromNetwork();
+            // ── New P2P / N1 / N2 filter buttons ──────────────────────────────
+            setActiveNetworkFilter('filter-n1-p21'); // default selection
+
+            document.getElementById('filter-n1-p21')?.addEventListener('click', async () => {
+                setActiveNetworkFilter('filter-n1-p21');
+                await loadNetworkFiltered('p21');
             });
-            
+            document.getElementById('filter-n1-12p')?.addEventListener('click', async () => {
+                setActiveNetworkFilter('filter-n1-12p');
+                await loadNetworkFiltered('12p');
+            });
+            document.getElementById('filter-n1-p2p')?.addEventListener('click', async () => {
+                setActiveNetworkFilter('filter-n1-p2p');
+                await loadNetworkFiltered('p2p');
+            });
+            document.getElementById('filter-n2')?.addEventListener('click', async () => {
+                setActiveNetworkFilter('filter-n2');
+                await loadNetworkFiltered('n2');
+            });
+
+            // Auto-load the default filter (p21) when the section opens
+            // We defer slightly so the modal is fully shown first
+            setTimeout(() => loadNetworkFiltered('p21'), 300);
+            // ──────────────────────────────────────────────────────────────────
+
             // Search filter
             recipientSearch.addEventListener('input', (e) => {
                 filterContacts(e.target.value);
