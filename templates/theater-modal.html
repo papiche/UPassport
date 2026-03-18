@@ -4727,6 +4727,27 @@
             await initNostrConnectionStandalone();
         });
         
+        // ── Server-preloaded NIP-71 data (injected by theater_modal_route) ──────────
+        // When the server successfully fetched the video event from the LOCAL relay,
+        // it renders the full NIP-71 tag data as JSON into the page.
+        // We use it to pre-populate window.videoData so that the client-side code
+        // skips the external-relay fetch (loadVideoFromEventIdStandalone), which
+        // would fail for events published only to the local relay (ws://127.0.0.1:7777).
+        {% if server_video_data %}
+        (function () {
+            try {
+                const _svd = {{ server_video_data | safe }};
+                if (_svd && _svd.ipfs_url && !window.videoData) {
+                    console.log('📺 Theater: using server-preloaded video data (local relay bypass)',
+                                _svd.event_id ? _svd.event_id.substring(0, 16) + '…' : '');
+                    window.videoData = _svd;
+                }
+            } catch (e) {
+                console.warn('⚠️ Could not parse server_video_data:', e);
+            }
+        })();
+        {% endif %}
+
         // Initialize theater mode if videoData is passed
         if (window.videoData) {
             if (typeof initializeTheaterMode === 'function') {
@@ -4746,6 +4767,9 @@
             console.log('🎬 Loading video from URL parameter:', videoId);
             
             // Load video directly (standalone mode - not in modal)
+            // NOTE: this path queries the EXTERNAL relay (wss://relay.copylaradio.com).
+            // It will fail for events that exist only on the local relay. In that case
+            // the server should have injected server_video_data above.
             loadVideoFromEventIdStandalone(videoId);
         }
         

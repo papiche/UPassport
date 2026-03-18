@@ -1977,6 +1977,50 @@
         let availableCameras = [];
         let selectedCameraId = null;
         // userPubkey and userPrivateKey are declared in common.js
+
+        /**
+         * Safely read state from the parent window.
+         * Returns null when access is denied (cross-origin restriction).
+         * The coracle Vocaux.svelte bridge will push the state via postMessage
+         * as a 'nostr-state' message when direct access is not possible.
+         */
+        function safeGetParentState() {
+            try {
+                if (window.parent && window.parent !== window) {
+                    return {
+                        userPubkey: window.parent.userPubkey || null,
+                        nostrRelay: window.parent.nostrRelay || null,
+                        isNostrConnected: window.parent.isNostrConnected || false
+                    };
+                }
+            } catch (e) {
+                // Cross-origin: direct property access is forbidden.
+            }
+            return null;
+        }
+
+        /**
+         * Listen for nostr-state messages sent by the coracle parent (cross-origin).
+         * Vocaux.svelte sends this on iframe load and in response to 'nostr-state-request'.
+         */
+        window.addEventListener('message', function(event) {
+            if (!event.data || event.data.type !== 'nostr-state') return;
+            const pk = event.data.userPubkey;
+            if (!pk) return;
+            if (typeof userPubkey !== 'undefined') userPubkey = pk;
+            window.userPubkey = pk;
+            const connected = event.data.isNostrConnected !== false;
+            if (typeof isNostrConnected !== 'undefined') isNostrConnected = connected;
+            window.isNostrConnected = connected;
+            if (event.data.nostrRelay) {
+                if (typeof nostrRelay !== 'undefined') nostrRelay = event.data.nostrRelay;
+                window.nostrRelay = event.data.nostrRelay;
+            }
+            console.log('✅ [vocals] Received nostr-state from parent via postMessage:', pk.substring(0, 8) + '...');
+            if (typeof onConnectionSuccess === 'function') {
+                onConnectionSuccess();
+            }
+        });
         
         // Mobile detection
         let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -5305,6 +5349,10 @@
                         if (attempts >= maxAttempts) {
                             console.warn('⚠️ Cannot access parent window variables:', e.message);
                         }
+                        // Request state via postMessage for cross-origin iframes
+                        if (window.parent) {
+                            window.parent.postMessage({type: 'nostr-state-request'}, '*');
+                        }
                         return false;
                     }
                 } else {
@@ -5403,15 +5451,23 @@
                 const isInIframe = window.self !== window.top;
                 
                 // Always try parent window first if in iframe
-                if (isInIframe && window.parent && window.parent.userPubkey) {
+                const parentState = safeGetParentState();
+                if (isInIframe && parentState && parentState.userPubkey) {
                     console.log('✅ Using existing connection from parent window');
-                    userPubkey = window.parent.userPubkey;
-                    if (window.parent.nostrRelay) {
-                        nostrRelay = window.parent.nostrRelay;
+                    userPubkey = parentState.userPubkey;
+                    if (parentState.nostrRelay) {
+                        nostrRelay = parentState.nostrRelay;
                     }
-                    if (window.parent.isNostrConnected) {
-                        isNostrConnected = window.parent.isNostrConnected;
+                    if (parentState.isNostrConnected) {
+                        isNostrConnected = parentState.isNostrConnected;
                     }
+                } else if (isInIframe && !parentState) {
+                    // Cross-origin parent: request state via postMessage
+                    // (handled by the 'nostr-state' listener above)
+                    console.log('🔄 [vocals] Cross-origin parent – requesting nostr-state via postMessage');
+                    window.parent.postMessage({type: 'nostr-state-request'}, '*');
+                    // Fall through to connectNostr() as a parallel approach
+                    // (nos2x-fox extension is also available directly inside the iframe)
                 } else {
                     // Standalone mode - connect to NOSTR + relay
                     console.log('🔌 Connecting to NOSTR extension...');

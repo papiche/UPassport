@@ -40,6 +40,7 @@ from utils.helpers import send_server_side_analytics
 
 @router.get("/theater", response_class=HTMLResponse)
 async def theater_modal_route(request: Request, video: Optional[str] = None):
+    import json as _json
     use_local_js = True
     video_metadata = None
     video_title = "Unknown"
@@ -48,37 +49,105 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
     video_duration = 0
     video_channel = ""
     video_source_type = ""
-    
+    server_video_data = None   # pre-rendered NIP-71 data for client JS
+
     if video:
         try:
             from services.nostr import fetch_video_event_from_nostr, parse_video_metadata
             video_event = await fetch_video_event_from_nostr(video, timeout=5)
             if video_event:
                 video_metadata = await parse_video_metadata(video_event)
-                video_title = video_metadata.get('title', 'Unknown')
+                video_title  = video_metadata.get('title', 'Unknown')
                 video_author = video_metadata.get('author_id', '')
-                video_kind = video_metadata.get('kind', 21)
-                
+                video_kind   = video_metadata.get('kind', 21)
+
+                # ── Extract full NIP-71 tags for client-side rendering ──────
+                # This lets theater-modal.html set window.videoData directly
+                # from server-rendered JSON and skip the external-relay fetch,
+                # which would fail for events published only to the local relay.
                 tags = video_event.get("tags", [])
+                ipfs_url      = ""
+                thumbnail_ipfs = ""
+                gifanim_ipfs  = ""
+                info_cid      = ""
+                file_hash     = ""
+                upload_chain  = ""
+                duration_tag  = 0
+                dimensions    = ""
+                source_type   = "webcam"
+                uploader_tag  = ""
+
                 for tag in tags:
-                    if isinstance(tag, list) and len(tag) >= 2:
-                        if tag[0] == "t" and tag[1] not in ["analytics", "encrypted", "ipfs"]:
-                            video_channel = tag[1]
-                        elif tag[0] == "source":
-                            video_source_type = tag[1]
+                    if not isinstance(tag, list) or len(tag) < 2:
+                        continue
+                    t, v = tag[0], tag[1]
+                    if t == "url" and ("/ipfs/" in v or "ipfs://" in v):
+                        ipfs_url = v.replace("ipfs://", "/ipfs/")
+                    elif t == "thumbnail_ipfs" and not thumbnail_ipfs:
+                        thumbnail_ipfs = v.split("/ipfs/")[-1] if v.startswith("/ipfs/") else v
+                    elif t == "image" and not thumbnail_ipfs:
+                        thumbnail_ipfs = v
+                    elif t == "gifanim_ipfs":
+                        gifanim_ipfs = v.split("/ipfs/")[-1] if v.startswith("/ipfs/") else v
+                    elif t == "info":
+                        info_cid = v
+                    elif t == "x":
+                        file_hash = v
+                    elif t == "upload_chain":
+                        upload_chain = v
+                    elif t == "duration":
+                        try:
+                            duration_tag = int(float(v))
+                        except (ValueError, TypeError):
+                            pass
+                    elif t == "dim":
+                        dimensions = v
+                    elif t == "t" and v.startswith("Channel-"):
+                        video_channel = v
+                    elif t == "uploader":
+                        uploader_tag = v
+                    elif t == "i" and v.startswith("source:"):
+                        source_type = v.replace("source:", "")
+                    elif t == "t" and t[1:] not in ["analytics", "encrypted", "ipfs"]:
+                        pass  # other topic tags – collected above for channel
+
+                if ipfs_url:  # only inject pre-rendered data when we have a playable URL
+                    server_video_data = _json.dumps({
+                        "event_id":      video,
+                        "ipfs_url":      ipfs_url,
+                        "thumbnail_ipfs": thumbnail_ipfs,
+                        "gifanim_ipfs":  gifanim_ipfs,
+                        "info_cid":      info_cid,
+                        "file_hash":     file_hash,
+                        "upload_chain":  upload_chain,
+                        "title":         video_title,
+                        "duration":      duration_tag,
+                        "dimensions":    dimensions,
+                        "channel":       video_channel,
+                        "uploader":      uploader_tag or video_author or "",
+                        "source_type":   source_type,
+                        "author_id":     video_author or "",
+                        "kind":          video_kind or 21,
+                    }, ensure_ascii=False)
+                    logging.info(
+                        f"✅ Theater server-preloaded video data for {video[:16]}… "
+                        f"(ipfs_url={ipfs_url[:40]}…)"
+                    )
+
         except Exception as e:
             logging.warning(f"⚠️ Could not fetch video metadata for Open Graph: {e}")
-    
+
     base_url = str(request.base_url).rstrip('/')
     theater_url = f"{base_url}/theater"
     if video:
         theater_url = f"{theater_url}?video={video}"
-    
+
     return render_page(request, "theater-modal.html", {
-        "use_local_js": use_local_js,
-        "video_id": video,
-        "video_metadata": video_metadata,
-        "theater_url": theater_url
+        "use_local_js":      use_local_js,
+        "video_id":          video,
+        "video_metadata":    video_metadata,
+        "theater_url":       theater_url,
+        "server_video_data": server_video_data,   # JSON string or None
     })
 
 @router.get("/mp3-modal", response_class=HTMLResponse)

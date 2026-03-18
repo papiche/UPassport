@@ -260,22 +260,123 @@ def validate_nip42_event(event: Dict[str, Any], expected_relay_url: str) -> bool
         logging.error(f"Erreur lors de la validation de l'événement NIP42: {e}")
         return False
 
+async def check_nip42_auth_local_marker(hex_pubkey: str) -> bool:
+    """
+    Fallback NIP-42 auth: check for a local marker file created by ajouter_media.sh.
+
+    IMPORTANT: Kind 22242 (NIP-42 auth) falls in the ephemeral range 20000-29999
+    per NIP-01, so strfry and most relays NEVER store it in their database.
+    Querying the relay for stored kind-22242 events will therefore always return
+    nothing.  For scripts running on the same machine (e.g. ajouter_media.sh) we
+    use a marker file written to the player's nostr directory as proof of recent
+    authentication.  The marker file is created/touched by ajouter_media.sh right
+    after a successful NIP-42 event submission.
+    """
+    NIP42_MARKER_FILENAME = ".nip42_auth"
+    NIP42_MARKER_MAX_AGE  = 3600  # seconds – 1 hour
+
+    try:
+        from utils.security import find_user_directory_by_hex
+        user_dir = find_user_directory_by_hex(hex_pubkey)
+        if user_dir and user_dir.exists():
+            auth_marker = user_dir / NIP42_MARKER_FILENAME
+            if auth_marker.exists():
+                marker_age = time.time() - auth_marker.stat().st_mtime
+                if marker_age < NIP42_MARKER_MAX_AGE:
+                    logging.info(
+                        f"✅ NIP-42 local-marker auth OK for {hex_pubkey[:16]}… "
+                        f"(marker age: {marker_age:.0f}s)"
+                    )
+                    return True
+                else:
+                    logging.warning(
+                        f"⚠️  NIP-42 local-marker expired for {hex_pubkey[:16]}… "
+                        f"(age: {marker_age:.0f}s > {NIP42_MARKER_MAX_AGE}s)"
+                    )
+    except Exception as e:
+        logging.debug(f"NIP-42 local-marker check error: {e}")
+    return False
+
+
 async def check_nip42_auth(npub: str, timeout: int = 5) -> bool:
-    """Vérifier l'authentification NIP42 sur le relai NOSTR local"""
+    """Vérifier l'authentification NIP42 sur le relai NOSTR local.
+
+    NOTE: kind 22242 is in the ephemeral range (20000-29999) per NIP-01, so
+    relay queries will always return empty.  We therefore fall back to a local
+    marker file written by ajouter_media.sh.
+    """
     if not npub:
         return False
-    
+
     from utils.crypto import npub_to_hex
     hex_pubkey = npub_to_hex(npub)
     if not hex_pubkey:
         return False
-    
+
+    # ── 1. Try local marker file first (fast path, always works for local scripts) ──
+    if await check_nip42_auth_local_marker(hex_pubkey):
+        return True
+
+    # ── 2. Try nostr_get_events.sh (strfry scan – direct DB, more reliable) ──
+    # NOTE: kind 22242 is ephemeral (NIP-01 range 20000-29999) and strfry does
+    # NOT persist it.  This path works for hypothetical relay configs that DO
+    # store it.  In practice, the local-marker path (step 1) is the operative one.
     relay_url = get_nostr_relay_url()
-    
+
+    try:
+        since_timestamp = int(time.time()) - (24 * 60 * 60)
+        script_path = settings.TOOLS_PATH / "nostr_get_events.sh"
+
+        if script_path.exists():
+            process = await asyncio.create_subprocess_exec(
+                str(script_path),
+                "--kind", "22242",
+                "--author", hex_pubkey,
+                "--since", str(since_timestamp),
+                "--limit", "5",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            try:
+                stdout, _stderr = await asyncio.wait_for(process.communicate(), timeout=10)
+            except asyncio.TimeoutError:
+                process.kill()
+                stdout = b""
+
+            if stdout:
+                events_text = stdout.decode("utf-8", errors="ignore").strip()
+                if events_text:
+                    valid_events = []
+                    for line in events_text.splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            event = json.loads(line)
+                            if validate_nip42_event(event, relay_url):
+                                valid_events.append(event)
+                        except json.JSONDecodeError:
+                            continue
+
+                    if valid_events:
+                        logging.info(
+                            f"✅ NIP-42 auth via nostr_get_events.sh for {hex_pubkey[:16]}…"
+                        )
+                        return True
+
+        logging.debug(
+            f"NIP-42 nostr_get_events.sh returned no valid kind-22242 events for "
+            f"{hex_pubkey[:16]}… (expected if kind 22242 is treated as ephemeral)"
+        )
+
+    except Exception as e:
+        logging.debug(f"nostr_get_events.sh NIP-42 check error: {e}")
+
+    # ── 3. WebSocket REQ fallback (last resort) ──
     try:
         async with websockets.connect(relay_url, timeout=timeout) as websocket:
             since_timestamp = int(time.time()) - (24 * 60 * 60)
-            
+
             subscription_id = f"auth_check_{int(time.time())}"
             auth_filter = {
                 "kinds": [22242],
@@ -283,50 +384,47 @@ async def check_nip42_auth(npub: str, timeout: int = 5) -> bool:
                 "since": since_timestamp,
                 "limit": 5
             }
-            
+
             req_message = json.dumps(["REQ", subscription_id, auth_filter])
             await websocket.send(req_message)
-            
+
             events_found = []
             end_received = False
-            
+
             try:
                 while not end_received:
                     response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
                     parsed_response = json.loads(response)
-                    
+
                     if parsed_response[0] == "EVENT":
                         if len(parsed_response) >= 3:
                             event = parsed_response[2]
                             events_found.append(event)
-                    
+
                     elif parsed_response[0] == "EOSE":
                         if parsed_response[1] == subscription_id:
                             end_received = True
-                        
+
             except asyncio.TimeoutError:
                 pass
-            
+
             try:
                 close_message = json.dumps(["CLOSE", subscription_id])
                 await websocket.send(close_message)
                 await asyncio.sleep(0.1)
             except Exception:
                 pass
-            
+
             if not events_found:
                 return False
-            
+
             valid_events = []
             for event in events_found:
                 if validate_nip42_event(event, relay_url):
                     valid_events.append(event)
-            
-            if valid_events:
-                return True
-            else:
-                return False
-                
+
+            return bool(valid_events)
+
     except Exception as e:
         logging.error(f"Erreur lors de la vérification NIP42: {e}")
         return False
