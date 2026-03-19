@@ -115,10 +115,11 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     ### SEARCH FOR EXISTING NOSTR CARD
     if [[ ! -s ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ]]; then
         ### CREATING NOSTR CARD with SALT PEPPER
-        ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$LANG" "${LAT}" "${LON}" "${SALT}" "${PEPPER}"
+        ## NOMAIL=1 : mailjet called below with custom subject (avoid double send)
+        NOMAIL=1 ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$LANG" "${LAT}" "${LON}" "${SALT}" "${PEPPER}"
         ## MAILJET SEND NOSTR CARD
         YOUSER=$(${HOME}/.zen/Astroport.ONE/tools/clyuseryomail.sh ${EMAIL})
-        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "MULTIPASS[Ğ1] [UPlanet:${UPLANETG1PUB:0:8}:${LAT}:${LON}]"
+        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh --expire 0s "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "MULTIPASS[Ğ1] [UPlanet:${UPLANETG1PUB:0:8}:${LAT}:${LON}]"
         write_multipass_json "${EMAIL}" "${SALT}" "${PEPPER}"
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
         exit 0

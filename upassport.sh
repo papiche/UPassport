@@ -295,10 +295,11 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
         #########################################################""
         ### NEW USER : CREATING NOSTR CARD MULTIPASS ZINE
         #########################################################""
-        ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE" "${ZLAT}" "${ZLON}"
+        ## NOMAIL=1 : mailjet called below with custom subject (avoid double send)
+        NOMAIL=1 ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE" "${ZLAT}" "${ZLON}"
         ## MAILJET SEND NOSTR CARD
         YOUSER=$(${HOME}/.zen/Astroport.ONE/tools/clyuseryomail.sh ${EMAIL})
-        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "MULTIPASS [UPlanet:${UPLANETG1PUB:0:8}:${ZLAT}:${ZLON}]"
+        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh --expire 0s "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "MULTIPASS [UPlanet:${UPLANETG1PUB:0:8}:${ZLAT}:${ZLON}]"
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
         exit 0
         #########################################################""
@@ -1328,7 +1329,7 @@ if [[ -n "$CAPTAINEMAIL" && -s "${MY_PATH}/pdf/${PUBKEY}/_index.html" ]]; then
         > "$PASSPORT_MESSAGE"
 
     # Envoyer l'email HTML avec le passport
-    if $HOME/.zen/Astroport.ONE/tools/mailjet.sh "$CAPTAINEMAIL" "$PASSPORT_MESSAGE" "🎫 New UPlanet Passport - ${MEMBERUID}" 2>/dev/null; then
+    if $HOME/.zen/Astroport.ONE/tools/mailjet.sh --expire 7d "$CAPTAINEMAIL" "$PASSPORT_MESSAGE" "🎫 New UPlanet Passport - ${MEMBERUID}" 2>/dev/null; then
         echo "✅ Passport envoyé avec succès au CAPITAINE : $CAPTAINEMAIL"
     else
         echo "⚠️  Erreur lors de l'envoi du passport au CAPITAINE : $CAPTAINEMAIL"

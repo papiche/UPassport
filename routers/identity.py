@@ -54,14 +54,32 @@ async def scan_qr(
     Supports both regular users and swarm subscription aliases.
     """
     
+    # DISCO format: /?salt=<SALT>&nostr=<PEPPER>  — max 56 chars each (ssss 128-byte limit)
+    # SALT and PEPPER must be ≤ 56 chars to fit in DISCO and allow ssss-combine recovery.
+    _DISCO_MAX = 56
+
     # Generate random salt and pepper if not provided or empty
     if not salt or salt.strip() == "":
-        salt = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(42))
+        salt = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_MAX))
         logging.info(f"Generated random salt for {email}: {salt[:10]}...")
     
     if not pepper or pepper.strip() == "":
-        pepper = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(42))
+        pepper = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_MAX))
         logging.info(f"Generated random pepper for {email}: {pepper[:10]}...")
+
+    # Reject salt/pepper that would exceed the ssss storage limit
+    if len(salt) > _DISCO_MAX:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Identifiant (salt) trop long : {len(salt)} caractères, maximum {_DISCO_MAX}. "
+                   f"Utilisez un identifiant plus court pour activer votre MULTIPASS."
+        )
+    if len(pepper) > _DISCO_MAX:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Mot de passe (pepper) trop long : {len(pepper)} caractères, maximum {_DISCO_MAX}. "
+                   f"Utilisez un mot de passe de {_DISCO_MAX} caractères maximum pour activer votre MULTIPASS."
+        )
     
     # Détecter si c'est un email d'abonnement inter-node (contient un +)
     is_swarm_subscription = '+' in email and '-' in email.split('@')[0]

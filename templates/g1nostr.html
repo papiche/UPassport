@@ -691,11 +691,11 @@
                         🎲 Générer aléatoirement
                     </button>
                 </div>
-                <label for="salt">Identifiant :</label>
-                <input type="text" id="salt" name="salt" placeholder="Laissez vide pour génération automatique">
+                <label for="salt">Identifiant <small style="color:#888;">(max 56 car.)</small> :</label>
+                <input type="text" id="salt" name="salt" maxlength="56" placeholder="Laissez vide pour génération automatique">
 
-                <label for="pepper">Password :</label>
-                <input type="password" id="pepper" name="pepper" placeholder="Laissez vide pour génération automatique">
+                <label for="pepper">Password <small style="color:#888;">(max 56 car.)</small> :</label>
+                <input type="password" id="pepper" name="pepper" maxlength="56" placeholder="Laissez vide pour génération automatique">
 
                 <p style="margin-top: 10px; font-size: 0.9em;"><a href="/earth/keygen.html" target="_blank" rel="noopener">🔑 FORGEZ VOTRE CLEF v2 🔑</a></p>
             </div>
@@ -921,15 +921,18 @@
                 credentialsContent.classList.toggle('active');
             });
 
+            // DISCO ssss limit : salt and pepper must be ≤ 56 chars
+            const DISCO_MAX = 56;
+
             // Generate random credentials
             function generateRandomCredentials() {
-                // Generate a random 42-character alphanumeric string for salt
-                const salt = Array.from({length: 42}, () => 
+                // Generate a random 56-character alphanumeric string for salt
+                const salt = Array.from({length: DISCO_MAX}, () =>
                     'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 62)]
                 ).join('');
                 
-                // Generate a random 42-character alphanumeric string for pepper
-                const pepper = Array.from({length: 42}, () => 
+                // Generate a random 56-character alphanumeric string for pepper
+                const pepper = Array.from({length: DISCO_MAX}, () =>
                     'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 62)]
                 ).join('');
                 
@@ -953,6 +956,21 @@
                 // Reset UI
                 errorMessageDiv.style.display = 'none';
                 errorMessageDiv.innerText = '';
+
+                // Validate salt/pepper length (ssss DISCO limit = 56 chars each)
+                const saltVal   = saltInput.value.trim();
+                const pepperVal = pepperInput.value;
+                if (saltVal && saltVal.length > DISCO_MAX) {
+                    errorMessageDiv.innerText = `⚠️ Identifiant trop long (${saltVal.length} car., max ${DISCO_MAX}). Raccourcissez votre identifiant.`;
+                    errorMessageDiv.style.display = 'block';
+                    return;
+                }
+                if (pepperVal && pepperVal.length > DISCO_MAX) {
+                    errorMessageDiv.innerText = `⚠️ Mot de passe trop long (${pepperVal.length} car., max ${DISCO_MAX}). Utilisez un mot de passe plus court.`;
+                    errorMessageDiv.style.display = 'block';
+                    return;
+                }
+
                 loaderContainer.style.display = 'flex';
                 resultModal.style.display = 'none';
 
