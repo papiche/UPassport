@@ -349,14 +349,24 @@ get_NOSTRNS_directory() {
     local key_file
     local found_dir=""
 
+    # 1. Chercher dans le répertoire local (station courante)
     while IFS= read -r -d $'\0' key_file; do
         if [[ "/ipns/$ipnskey" == "$(cat "$key_file")" ]]; then
-            # Extraire le dernier répertoire du chemin
             KNAME=$(basename "$(dirname "$key_file")")
-            echo $KNAME
+            echo "$KNAME"
             return 0
         fi
     done < <(find "$HOME/.zen/game/nostr" -type f -name "NOSTRNS" -print0)
+
+    # 2. Chercher dans le cache de l'essaim (~/.zen/tmp/*/TW/*/NOSTRNS)
+    #    Chaque station de l'essaim publie son cache NOSTRNS via NOSTRCARD.refresh.sh
+    while IFS= read -r -d $'\0' key_file; do
+        if [[ "/ipns/$ipnskey" == "$(cat "$key_file")" ]]; then
+            KNAME=$(basename "$(dirname "$key_file")")
+            echo "$KNAME"
+            return 0
+        fi
+    done < <(find "$HOME/.zen/tmp" -type f -name "NOSTRNS" -print0 2>/dev/null)
 }
 ########################################################################
 ############ MULTIPASS SSSS M-base58(1-xxx):ipns KEY QRCODE RECEIVED
@@ -451,15 +461,11 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
             # Default    = Open nostr.html (simple message interface)
             
             if [[ "$IMAGE" == "1111" ]]; then
-                ### PASS 1111: Open astro_base.html with nsec pre-filled and auto-connect
-                echo "PASS 1111: Opening Astro Base interface with authenticated nsec..."
+                ### PASS 1111: Open nostr.html (#BRO terminal) with nsec auto-injected
+                echo "PASS 1111: Opening nostr.html terminal with authenticated nsec..."
                 
-                # Generate astro_base.html from template with nsec injected
-                cat ~/.zen/UPassport/templates/astro_base.html \
-                    | sed -e "s~http://127.0.0.1:8080~${myIPFS}~g" \
-                          -e "s~https://ipfs.copylaradio.com~${myIPFS}~g" \
-                          -e "s~{{ myIPFS }}~${myIPFS}~g" \
-                          -e "s~const AUTO_CONNECT_NSEC = null;~const AUTO_CONNECT_NSEC = '${NSEC}';~g" \
+                # nostr.html has 'const AUTO_CONNECT_NSEC = null;' (added for this injection)
+                cat ~/.zen/UPassport/templates/nostr.html \
                     > ${MY_PATH}/tmp/${MOATS}.out.html
                 
                 echo "${MY_PATH}/tmp/${MOATS}.out.html"
@@ -535,8 +541,10 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
                 exit 0
                 
             else
-                ### Default: Open nostr.html (simple interface)
-                cat ~/.zen/UPassport/templates/nostr.html \
+                ### Default: nos2x_setup.html — page pédagogique d'installation de l'extension
+                ## Affiche la nsec à copier + liens nos2x/nos2x-fox/Alby selon navigateur
+                ## Le sed injecte la vraie nsec du MULTIPASS dans 'const userNsec = '';'
+                cat ~/.zen/UPassport/templates/nos2x_setup.html \
                     | sed "s/const userNsec = '';/const userNsec = '${NSEC}';/" \
                     > ${MY_PATH}/tmp/${MOATS}.out.html
                 echo "${MY_PATH}/tmp/${MOATS}.out.html"
@@ -828,13 +836,13 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
 
         ### EXTEND IPNS QR with CAPTAIN ssss key part
         $HOME/.zen/Astroport.ONE/tools/natools.py decrypt -f pubsec -i ${MY_PATH}/pdf/${PUBKEY}/ssss.tail.2U.enc -k ~/.zen/game/players/.current/secret.dunikey -o ${MY_PATH}/tmp/${PUBKEY}.2U
-            amzqr "$(cat ${MY_PATH}/tmp/${PUBKEY}.2U)" -l H -n ${PUBKEY}.2U.png -d ${MY_PATH}/tmp/ 2>/dev/null
+        amzqr "$(cat ${MY_PATH}/tmp/${PUBKEY}.2U)" -l H -n ${PUBKEY}.2U.png -d ${MY_PATH}/tmp/ 2>/dev/null
 
-            CAPTAINTAIL=$(ipfs add -q ${MY_PATH}/tmp/${PUBKEY}.2U.png)
-            ipfs pin rm $CAPTAINTAIL
-            # Clean up temporary files
-            rm ${MY_PATH}/tmp/${PUBKEY}.captain.png
-            rm ${MY_PATH}/tmp/${PUBKEY}.captain
+        CAPTAINTAIL=$(ipfs add -q ${MY_PATH}/tmp/${PUBKEY}.2U.png)
+        ipfs pin rm $CAPTAINTAIL
+        # Clean up temporary files
+        rm ${MY_PATH}/tmp/${PUBKEY}.captain.png
+        rm ${MY_PATH}/tmp/${PUBKEY}.captain
 
         ## IPFSPORTAL = DATA ipfs link
         amzqr "${myIPFS}/ipfs/${IPFSPORTAL}" -l H -p ${MY_PATH}/static/img/server.png -c -n ${PUBKEY}.ipfs.png -d ${MY_PATH}/tmp/

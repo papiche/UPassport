@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔑 Installer votre MULTIPASS dans le navigateur</title>
+    <style>
+        :root {
+            --bg: #0a0a12;
+            --panel: #111827;
+            --green: #00ff88;
+            --cyan: #00d4ff;
+            --purple: #9966ff;
+            --orange: #ff9500;
+            --red: #ff4466;
+            --text: #e0e6ed;
+            --muted: #5a6270;
+            --border: rgba(0,212,255,0.2);
+            --glow: 0 0 12px rgba(0,255,136,0.4);
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-image:
+                radial-gradient(circle at 80% 20%, rgba(0,255,136,0.05) 0%, transparent 50%),
+                radial-gradient(circle at 20% 80%, rgba(0,212,255,0.05) 0%, transparent 50%);
+        }
+        .container {
+            max-width: 700px;
+            width: 100%;
+        }
+        .header {
+            text-align: center;
+            padding: 30px 0 20px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 1.8rem;
+            color: var(--green);
+            text-shadow: var(--glow);
+            margin-bottom: 8px;
+        }
+        .header p {
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+        /* Nsec display */
+        .nsec-box {
+            background: var(--panel);
+            border: 2px solid var(--green);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 0 20px rgba(0,255,136,0.15);
+        }
+        .nsec-label {
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+        .nsec-value {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: #ff9999;
+            word-break: break-all;
+            background: rgba(0,0,0,0.4);
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,68,102,0.3);
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: all;
+        }
+        .nsec-value:hover {
+            background: rgba(255,68,102,0.1);
+            border-color: var(--red);
+        }
+        .copy-btn {
+            width: 100%;
+            margin-top: 10px;
+            padding: 10px;
+            background: transparent;
+            border: 1px solid var(--green);
+            color: var(--green);
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover {
+            background: var(--green);
+            color: #000;
+            box-shadow: var(--glow);
+        }
+        .copy-btn.copied {
+            background: var(--green);
+            color: #000;
+        }
+        /* Warning */
+        .warning {
+            background: rgba(255,68,102,0.08);
+            border: 1px solid rgba(255,68,102,0.3);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+            font-size: 0.82rem;
+            color: #ffaabb;
+        }
+        /* Steps */
+        .steps-title {
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 16px;
+        }
+        .step {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            align-items: flex-start;
+        }
+        .step-num {
+            min-width: 36px;
+            height: 36px;
+            background: var(--cyan);
+            color: #000;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1rem;
+            flex-shrink: 0;
+            box-shadow: 0 0 10px rgba(0,212,255,0.4);
+        }
+        .step-content h3 {
+            color: var(--cyan);
+            font-size: 1rem;
+            margin-bottom: 6px;
+        }
+        .step-content p {
+            color: var(--text);
+            font-size: 0.87rem;
+            line-height: 1.6;
+        }
+        .step-content code {
+            background: rgba(0,0,0,0.5);
+            color: var(--green);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.82rem;
+        }
+        /* Extension links */
+        .ext-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 12px 0;
+        }
+        .ext-link {
+            display: block;
+            padding: 10px 14px;
+            background: rgba(0,212,255,0.07);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--cyan);
+            text-decoration: none;
+            font-size: 0.85rem;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .ext-link:hover {
+            background: rgba(0,212,255,0.15);
+            border-color: var(--cyan);
+            box-shadow: 0 0 10px rgba(0,212,255,0.2);
+        }
+        .ext-link.recommended {
+            border-color: var(--green);
+            color: var(--green);
+            background: rgba(0,255,136,0.07);
+        }
+        .ext-link.recommended:hover {
+            background: rgba(0,255,136,0.15);
+        }
+        /* Coracle CTA */
+        .coracle-cta {
+            margin-top: 30px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+        }
+        .coracle-btn {
+            display: inline-block;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #7c3aed, var(--purple));
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: bold;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(153,102,255,0.3);
+        }
+        .coracle-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(153,102,255,0.4);
+        }
+        .coracle-cta p {
+            color: var(--muted);
+            font-size: 0.82rem;
+            margin-top: 10px;
+        }
+        /* Browser detection badge */
+        .browser-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.72rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-left: 6px;
+        }
+        .badge-chrome { background: rgba(255,193,7,0.2); color: #ffc107; border: 1px solid #ffc107; }
+        .badge-firefox { background: rgba(255,149,0,0.2); color: var(--orange); border: 1px solid var(--orange); }
+        /* Responsive */
+        @media (max-width: 500px) {
+            .ext-grid { grid-template-columns: 1fr; }
+            .header h1 { font-size: 1.4rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <h1>🔑 Installer votre MULTIPASS</h1>
+        <p>Configurez votre identité décentralisée dans votre navigateur</p>
+    </div>
+
+    <!-- NSEC Display -->
+    <div class="nsec-box">
+        <div class="nsec-label">🔑 Votre clef privée NOSTR (nsec…)</div>
+        <div class="nsec-value" id="nsec-display" onclick="copyNsec()" title="Cliquer pour copier">
+            <!-- nsec injecté par upassport.sh -->
+        </div>
+        <button class="copy-btn" id="copy-btn" onclick="copyNsec()">
+            📋 Copier la clef
+        </button>
+    </div>
+
+    <!-- Security warning -->
+    <div class="warning">
+        ⚠️ <strong>Ne partagez jamais cette clef.</strong>
+        Copiez-la uniquement pour la coller dans votre extension NOSTR.
+        Fermez cette page dès que c'est fait.
+    </div>
+
+    <!-- Steps -->
+    <div class="steps-title">📋 Étapes d'installation</div>
+
+    <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+            <h3>Installez l'extension NOSTR</h3>
+            <p>Choisissez selon votre navigateur :</p>
+            <div class="ext-grid">
+                <a href="https://chromewebstore.google.com/detail/nos2x/kpgefcfmnafjgpblomihpgmejjdanjjp"
+                   target="_blank" class="ext-link recommended" id="link-chrome">
+                    🟡 nos2x<br><small>Chrome / Brave / Edge</small>
+                </a>
+                <a href="https://addons.mozilla.org/fr/firefox/addon/nos2x-fox/"
+                   target="_blank" class="ext-link" id="link-firefox">
+                    🦊 nos2x-fox<br><small>Firefox</small>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+            <h3>Ouvrez les options de l'extension</h3>
+            <p>Cliquez sur l'icône de l'extension dans la barre du navigateur, puis ouvrez <strong>«&nbsp;Options&nbsp;»</strong> ou <strong>«&nbsp;Settings&nbsp;»</strong>.</p>
+        </div>
+    </div>
+
+    <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+            <h3>Collez votre clef <code>nsec…</code></h3>
+            <p>Dans le champ «&nbsp;Private key&nbsp;» ou «&nbsp;Clef privée&nbsp;», collez la clef copiée à l'étape précédente (<kbd>Ctrl+V</kbd> / <kbd>Cmd+V</kbd>). Enregistrez.</p>
+        </div>
+    </div>
+
+    <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+            <h3>Accédez à votre réseau N²</h3>
+            <p>L'extension est prête. Ouvrez <strong>Coracle</strong> et connectez-vous — l'extension signera automatiquement votre identité sans jamais exposer votre clef.</p>
+        </div>
+    </div>
+
+    <!-- Coracle CTA -->
+    <div class="coracle-cta">
+        <a href="/ipns/coracle.copylaradio.com" target="_blank" class="coracle-btn">
+            💬 Ouvrir Coracle — Réseau N²
+        </a>
+        <p>Une fois l'extension configurée, vous pouvez fermer cette page.</p>
+    </div>
+
+</div>
+
+<script>
+    // Inject nsec from upassport.sh (sed replaces this line)
+    const userNsec = '';
+
+    // Display nsec
+    const display = document.getElementById('nsec-display');
+    if (userNsec && userNsec.trim()) {
+        display.textContent = userNsec;
+    } else {
+        display.textContent = '⚠️ Erreur : clef non fournie. Rescannez le QR Code SSSS.';
+        display.style.color = 'var(--orange)';
+    }
+
+    // Copy nsec
+    function copyNsec() {
+        if (!userNsec || !userNsec.trim()) return;
+        navigator.clipboard.writeText(userNsec).then(() => {
+            const btn = document.getElementById('copy-btn');
+            btn.textContent = '✅ Copié !';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.textContent = '📋 Copier la clef';
+                btn.classList.remove('copied');
+            }, 2500);
+        }).catch(() => {
+            // Fallback: select text
+            const range = document.createRange();
+            range.selectNode(display);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+        });
+    }
+
+    // Detect browser and highlight appropriate extension
+    (function detectBrowser() {
+        const ua = navigator.userAgent.toLowerCase();
+        const isFirefox = ua.includes('firefox');
+        const isBrave   = navigator.brave !== undefined;
+
+        const linkChrome  = document.getElementById('link-chrome');
+        const linkFirefox = document.getElementById('link-firefox');
+
+        if (isFirefox) {
+            linkFirefox.classList.add('recommended');
+            linkChrome.classList.remove('recommended');
+            linkFirefox.innerHTML = '🦊 nos2x-fox <span style="font-size:0.65rem;background:rgba(0,255,136,0.2);color:#00ff88;padding:1px 5px;border-radius:8px;">✓ Votre navigateur</span><br><small>Firefox</small>';
+        } else if (isBrave) {
+            linkChrome.innerHTML = '🦁 nos2x <span style="font-size:0.65rem;background:rgba(0,255,136,0.2);color:#00ff88;padding:1px 5px;border-radius:8px;">✓ Votre navigateur</span><br><small>Brave</small>';
+        } else if (ua.includes('edg/')) {
+            linkChrome.innerHTML = '🔷 nos2x <span style="font-size:0.65rem;background:rgba(0,255,136,0.2);color:#00ff88;padding:1px 5px;border-radius:8px;">✓ Votre navigateur</span><br><small>Edge</small>';
+        }
+        // Chrome is already highlighted by default
+    })();
+</script>
+</body>
+</html>
