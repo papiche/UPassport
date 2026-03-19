@@ -54,17 +54,20 @@ async def scan_qr(
     Supports both regular users and swarm subscription aliases.
     """
     
-    # DISCO format: /?salt=<SALT>&nostr=<PEPPER>  — max 56 chars each (ssss 128-byte limit)
+    # DISCO format: /?salt=<SALT>&nostr=<PEPPER>  — max 56 chars each (ssss 127-byte limit)
     # SALT and PEPPER must be ≤ 56 chars to fit in DISCO and allow ssss-combine recovery.
-    _DISCO_MAX = 56
+    # QR CODE weight: auto-generated use 24 chars → DISCO≈62 bytes → lighter QR code on MULTIPASS
+    #                 user-provided  up to 56 chars → heavier QR (user's explicit choice)
+    _DISCO_MAX  = 56   # hard limit for user-provided values
+    _DISCO_RAND = 24   # length for auto-generated values → lightweight QR
 
     # Generate random salt and pepper if not provided or empty
     if not salt or salt.strip() == "":
-        salt = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_MAX))
+        salt = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
         logging.info(f"Generated random salt for {email}: {salt[:10]}...")
     
     if not pepper or pepper.strip() == "":
-        pepper = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_MAX))
+        pepper = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
         logging.info(f"Generated random pepper for {email}: {pepper[:10]}...")
 
     # Reject salt/pepper that would exceed the ssss storage limit
