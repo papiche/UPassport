@@ -1,9 +1,12 @@
 import os
+import re
 import json
 import time
 import uuid
+import asyncio
 import logging
 import subprocess
+import httpx
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -370,9 +373,82 @@ def _is_origin_mode():
     return not uplanet_name or uplanet_name == "0000000000000000000000000000000000000000000000000000000000000000"
 
 def _get_oc_api_url():
+    ## Priorité : OC_API depuis .env → sinon auto-detect via swarm.key
+    oc_env = _get_oc_env()
+    if oc_env.get("OC_API"):
+        return oc_env["OC_API"]
     if _is_origin_mode():
         return "https://api-staging.opencollective.com/graphql/v2"
     return "https://api.opencollective.com/graphql/v2"
+
+async def _resolve_g1pubnostr_from_swarm(email: str) -> str:
+    """
+    Résout le G1PUBNOSTR d'un email dans le swarm IPFS.
+
+    Stratégie en 3 étapes (comme search_for_this_email_in_nostr.sh) :
+      1. Cache swarm local  : ~/.zen/tmp/*/TW/{email}/G1PUBNOSTR
+      2. Script Astroport   : search_for_this_email_in_nostr.sh (lookup CACHE + SWARM_DIR)
+      3. IPFS gateway IPNS  : http://localhost:8080/ipns/{IPFSNODEID}/TW/{email}/G1PUBNOSTR
+    Retourne le G1PUBNOSTR (str) si trouvé, sinon chaîne vide.
+    """
+    import glob
+
+    home = os.path.expanduser("~")
+
+    # 1. Swarm cache local : ~/.zen/tmp/*/TW/{email}/G1PUBNOSTR
+    pattern = os.path.join(home, ".zen", "tmp", "*", "TW", email, "G1PUBNOSTR")
+    for fpath in glob.glob(pattern):
+        try:
+            g1pub = Path(fpath).read_text().strip()
+            if g1pub:
+                logging.info(f"🔍 G1PUBNOSTR trouvé en cache swarm local pour {email}: {g1pub[:12]}…")
+                return g1pub
+        except Exception:
+            continue
+
+    # 2. Script search_for_this_email_in_nostr.sh (lookup étendu swarm)
+    from core.config import settings
+    search_script = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "search_for_this_email_in_nostr.sh"
+    if search_script.exists():
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "bash", str(search_script), email,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+                cwd=str(search_script.parent)
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=20)
+            output = stdout.decode()
+            ## Parse : "export source=… G1PUBNOSTR=XYZ …"
+            m = re.search(r'G1PUBNOSTR=(\S+)', output)
+            if m:
+                g1pub = m.group(1)
+                logging.info(f"🔍 G1PUBNOSTR trouvé via search_for_this_email_in_nostr.sh pour {email}: {g1pub[:12]}…")
+                return g1pub
+        except Exception as e:
+            logging.warning(f"search_for_this_email_in_nostr.sh indisponible ou timeout: {e}")
+
+    # 3. IPFS gateway — interrogation des nœuds swarm connus
+    swarm_ids_dir = os.path.join(home, ".zen", "tmp")
+    if os.path.isdir(swarm_ids_dir):
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                for node_id in os.listdir(swarm_ids_dir):
+                    ipns_url = f"http://localhost:8080/ipns/{node_id}/TW/{email}/G1PUBNOSTR"
+                    try:
+                        resp = await client.get(ipns_url)
+                        if resp.status_code == 200:
+                            g1pub = resp.text.strip()
+                            if g1pub:
+                                logging.info(f"🔍 G1PUBNOSTR trouvé via IPFS IPNS ({node_id[:12]}…) pour {email}")
+                                return g1pub
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
+    logging.warning(f"❌ G1PUBNOSTR introuvable dans le swarm pour {email}")
+    return ""
 
 def _get_oc_env():
     env_vars = {}
@@ -387,10 +463,40 @@ def _get_oc_env():
                     env_vars[key.strip()] = val.strip().strip('"').strip("'")
     return env_vars
 
+def _get_coop_config(key: str) -> str:
+    """
+    Lit une valeur depuis le DID NOSTR coopératif (kind 30800) via cooperative_config.sh.
+    Permet à toutes les stations du même essaim (même swarm.key) de partager OCAPIKEY/OCSLUG
+    sans avoir besoin d'un .env local.
+    Retourne la valeur déchiffrée ou chaîne vide.
+    """
+    from core.config import settings
+    coop_script = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "cooperative_config.sh"
+    if not coop_script.exists():
+        return ""
+    try:
+        result = subprocess.run(
+            ["bash", "-c", f'source "{coop_script}" 2>/dev/null && coop_config_get "{key}" 2>/dev/null'],
+            capture_output=True, text=True, timeout=15
+        )
+        value = result.stdout.strip()
+        if value and result.returncode == 0:
+            logging.info(f"✅ {key} lu depuis le DID NOSTR coopératif")
+            return value
+    except Exception as e:
+        logging.debug(f"cooperative_config.sh indisponible ou timeout pour {key}: {e}")
+    return ""
+
 def _get_oc_token():
+    """Retourne l'OCAPIKEY : .env local → DID NOSTR coopératif → settings."""
     oc_env = _get_oc_env()
     from core.config import settings
-    return oc_env.get("OCAPIKEY", settings.OCAPIKEY)
+    token = oc_env.get("OCAPIKEY") or getattr(settings, "OCAPIKEY", "")
+    if not token:
+        ## Fallback : DID NOSTR coopératif (kind 30800, chiffré avec $UPLANETNAME)
+        ## Partage automatique entre toutes les stations du même essaim IPFS
+        token = _get_coop_config("OCAPIKEY")
+    return token
 
 @router.post("/oc_webhook")
 async def oc_webhook(request: Request):
@@ -495,8 +601,46 @@ async def oc_webhook(request: Request):
 
     from core.config import settings
     multipass_dir = settings.GAME_PATH / "nostr" / email
+
+    ## Si le MULTIPASS n'est pas en local → tenter une résolution IPFS swarm
     if not os.path.isdir(multipass_dir):
-        return JSONResponse({"status": "no_multipass", "email": email}, status_code=200)
+        g1pubnostr = await _resolve_g1pubnostr_from_swarm(email)
+        if g1pubnostr:
+            ## Créer le répertoire temporaire avec le G1PUBNOSTR trouvé dans le swarm
+            logging.info(f"✅ G1PUBNOSTR résolu depuis le swarm pour {email}: {g1pubnostr}")
+            os.makedirs(multipass_dir, exist_ok=True)
+            (multipass_dir / "G1PUBNOSTR").write_text(g1pubnostr)
+        else:
+            ## MULTIPASS introuvable ni localement ni dans le swarm → file d'attente
+            pending_file = settings.ZEN_PATH / "tmp" / "oc_webhook_pending.json"
+            pending_entry = {
+                "email": email,
+                "amount": amount_eur,
+                "tier_slug": tier_slug,
+                "slug": slug,
+                "webhook_id": webhook_id,
+                "queued_at": datetime.now().isoformat(),
+                "tx_id": tx_id
+            }
+            os.makedirs(pending_file.parent, exist_ok=True)
+            pending_list = []
+            if pending_file.exists():
+                try:
+                    with open(pending_file, 'r') as f:
+                        pending_list = json.load(f)
+                except Exception:
+                    pending_list = []
+            if not any(p.get("tx_id") == tx_id for p in pending_list):
+                pending_list.append(pending_entry)
+                with open(pending_file, 'w') as f:
+                    json.dump(pending_list, f, indent=2)
+                logging.warning(f"⏳ OC webhook pending — MULTIPASS introuvable localement ni en swarm: {email}")
+            return JSONResponse({
+                "status": "pending_multipass",
+                "email": email,
+                "message": "MULTIPASS introuvable localement — transaction mise en file d'attente pour traitement swarm",
+                "pending_file": str(pending_file)
+            }, status_code=200)
 
     zen_amount = f"{amount_eur:.2f}"
     from core.config import settings
