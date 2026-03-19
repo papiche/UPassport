@@ -54,35 +54,24 @@ async def scan_qr(
     Supports both regular users and swarm subscription aliases.
     """
     
-    # DISCO format: /?salt=<SALT>&nostr=<PEPPER>  — max 56 chars each (ssss 127-byte limit)
-    # SALT and PEPPER must be ≤ 56 chars to fit in DISCO and allow ssss-combine recovery.
-    # QR CODE weight: auto-generated use 24 chars → DISCO≈62 bytes → lighter QR code on MULTIPASS
-    #                 user-provided  up to 56 chars → heavier QR (user's explicit choice)
-    _DISCO_MAX  = 56   # hard limit for user-provided values
-    _DISCO_RAND = 24   # length for auto-generated values → lightweight QR
+    # ARCHITECTURE MULTIPASS v1→v2 :
+    # • salt/pepper fournis → créent la ZEN Card (VISA/astronaute) via make_NOSTRCARD.sh → VISA.new.sh
+    #   Pas de limite SSSS : ces clés ne vont PAS dans le DISCO du MULTIPASS
+    # • MULTIPASS DISCO → toujours aléatoire (généré dans make_NOSTRCARD.sh)
+    # • Si salt/pepper vides → on génère des valeurs aléatoires de 24 chars pour la ZEN Card aussi
+    _DISCO_RAND = 24   # longueur auto-générée si non fournis
 
     # Generate random salt and pepper if not provided or empty
     if not salt or salt.strip() == "":
         salt = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
-        logging.info(f"Generated random salt for {email}: {salt[:10]}...")
-    
+        logging.info(f"Generated random ZEN Card salt for {email}: {salt[:10]}...")
+
     if not pepper or pepper.strip() == "":
         pepper = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
-        logging.info(f"Generated random pepper for {email}: {pepper[:10]}...")
+        logging.info(f"Generated random ZEN Card pepper for {email}: {pepper[:10]}...")
 
-    # Reject salt/pepper that would exceed the ssss storage limit
-    if len(salt) > _DISCO_MAX:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Identifiant (salt) trop long : {len(salt)} caractères, maximum {_DISCO_MAX}. "
-                   f"Utilisez un identifiant plus court pour activer votre MULTIPASS."
-        )
-    if len(pepper) > _DISCO_MAX:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Mot de passe (pepper) trop long : {len(pepper)} caractères, maximum {_DISCO_MAX}. "
-                   f"Utilisez un mot de passe de {_DISCO_MAX} caractères maximum pour activer votre MULTIPASS."
-        )
+    # Aucune limite de taille : salt/pepper vont vers la ZEN Card (VISA), pas le DISCO SSSS
+    logging.info(f"ZEN Card credentials: salt={len(salt)} chars, pepper={len(pepper)} chars")
     
     # Détecter si c'est un email d'abonnement inter-node (contient un +)
     is_swarm_subscription = '+' in email and '-' in email.split('@')[0]

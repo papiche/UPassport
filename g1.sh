@@ -26,7 +26,10 @@ source "$HOME/.zen/Astroport.ONE/tools/my.sh"
 ####################################################################
 ## Write .multipass.json sidecar with credentials + MULTIPASS data
 write_multipass_json() {
-    local _EMAIL="$1" _SALT="$2" _PEPPER="$3"
+    # ARCHITECTURE v1→v2 :
+    # _SALT/_PEPPER = clés ZEN Card (user-provided, mémorisables)
+    # MULTIPASS NSEC = aléatoire → lu depuis .secret.nostr (DISCO protégé par SSSS QR)
+    local _EMAIL="$1" _ZENCARD_SALT="$2" _ZENCARD_PEPPER="$3"
     local NOSTR_DIR="${HOME}/.zen/game/nostr/${_EMAIL}"
     local JSON_FILE="${NOSTR_DIR}/.multipass.json"
     [[ ! -d "$NOSTR_DIR" ]] && return 1
@@ -38,15 +41,18 @@ write_multipass_json() {
     local _LAT=$(echo "$_GPS" | grep -oP 'LAT=\K[^;]+')
     local _LON=$(echo "$_GPS" | grep -oP 'LON=\K[^;]+')
     local _SSSS_PLAYER=$(cat "${NOSTR_DIR}/.ssss.player.key" 2>/dev/null)
-    ## Generate nsec from salt/pepper
-    local _NSEC=""
-    [[ -n "$_SALT" && -n "$_PEPPER" ]] \
-        && _NSEC=$(${HOME}/.zen/Astroport.ONE/tools/keygen -t nostr "${_SALT}" "${_PEPPER}" -s 2>/dev/null)
+    ## MULTIPASS NSEC : toujours aléatoire → lu depuis .secret.nostr (pas dérivé du ZEN Card SALT/PEPPER)
+    local _NSEC=$(grep -oP 'NSEC=\K[^;]+' "${NOSTR_DIR}/.secret.nostr" 2>/dev/null)
+    ## ZEN Card G1 wallet (dérivé des clés mémorisables de l'utilisateur)
+    local _ZENCARD_G1PUB=""
+    [[ -z "$_ZENCARD_G1PUB" ]] \
+        && _ZENCARD_G1PUB=$(cat "${HOME}/.zen/game/players/${_EMAIL}/.g1pub" 2>/dev/null)
     cat > "$JSON_FILE" <<EOJSON
 {
   "email": "${_EMAIL}",
-  "salt": "${_SALT}",
-  "pepper": "${_PEPPER}",
+  "zencard_salt": "${_ZENCARD_SALT}",
+  "zencard_pepper": "${_ZENCARD_PEPPER}",
+  "zencard_g1pub": "${_ZENCARD_G1PUB}",
   "nsec": "${_NSEC}",
   "g1pub": "${_G1PUB}",
   "npub": "${_NPUB}",
@@ -101,15 +107,23 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             exit 0
         fi
     fi
-    # Generate random salt and pepper if not provided
+    ## Générer diceware ZEN Card si non fournis — via diceware.sh (wordlist officielle)
+    DICEWARE_SH="${HOME}/.zen/Astroport.ONE/tools/diceware.sh"
     if [[ -z "$SALT" ]]; then
-        SALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
-        echo "Generated random salt: ${SALT:0:10}..." >&2
+        if [[ -x "$DICEWARE_SH" ]]; then
+            SALT=$("$DICEWARE_SH" 4 | tr -d '\n' | sed 's/ *$//' | tr ' ' '-')
+        else
+            SALT=$(tr -dc 'a-z0-9' < /dev/urandom | fold -w20 | head -n1)
+        fi
+        echo "🎲 ZEN Card SALT diceware auto : ${SALT}" >&2
     fi
-
     if [[ -z "$PEPPER" ]]; then
-        PEPPER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w42 | head -n1)
-        echo "Generated random pepper: ${PEPPER:0:10}..." >&2
+        if [[ -x "$DICEWARE_SH" ]]; then
+            PEPPER=$("$DICEWARE_SH" 4 | tr -d '\n' | sed 's/ *$//' | tr ' ' '-')
+        else
+            PEPPER=$(tr -dc 'a-z0-9' < /dev/urandom | fold -w20 | head -n1)
+        fi
+        echo "🎲 ZEN Card PEPPER diceware auto : ${PEPPER}" >&2
     fi
 
     ### SEARCH FOR EXISTING NOSTR CARD
