@@ -653,10 +653,10 @@ async def oc_webhook(request: Request):
     emission_type = "locataire"
     cmd_args = ["bash", script, "-l", email, "-m", zen_amount]
 
-    if any(k in tier_slug for k in ["128-go", "extension-128", "satellite"]):
+    if any(k in tier_slug for k in ["128-go", "extension-128", "satellite", "love-box-le-claude", "love-box-claude"]):
         emission_type = "societaire_satellite"
         cmd_args = ["bash", script, "-s", email, "-t", "satellite", "-m", zen_amount]
-    elif any(k in tier_slug for k in ["gpu", "module-gpu", "constellation"]):
+    elif any(k in tier_slug for k in ["gpu", "module-gpu", "constellation", "love-box-deluxe", "love-box-gpu"]):
         emission_type = "societaire_constellation"
         cmd_args = ["bash", script, "-s", email, "-t", "constellation", "-m", zen_amount]
     elif any(k in tier_slug for k in ["cotisation", "cloud-usage", "services-cloud"]):
