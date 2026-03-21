@@ -23,49 +23,6 @@ ME="${0##*/}"
     && exit 1
 source "$HOME/.zen/Astroport.ONE/tools/my.sh"
 
-####################################################################
-## Write .multipass.json sidecar with credentials + MULTIPASS data
-write_multipass_json() {
-    # ARCHITECTURE v1→v2 :
-    # _SALT/_PEPPER = clés ZEN Card (user-provided, mémorisables)
-    # MULTIPASS NSEC = aléatoire → lu depuis .secret.nostr (DISCO protégé par SSSS QR)
-    local _EMAIL="$1" _ZENCARD_SALT="$2" _ZENCARD_PEPPER="$3"
-    local NOSTR_DIR="${HOME}/.zen/game/nostr/${_EMAIL}"
-    local JSON_FILE="${NOSTR_DIR}/.multipass.json"
-    [[ ! -d "$NOSTR_DIR" ]] && return 1
-    local _G1PUB=$(cat "${NOSTR_DIR}/G1PUBNOSTR" 2>/dev/null)
-    local _NPUB=$(cat "${NOSTR_DIR}/NPUB" 2>/dev/null)
-    local _HEX=$(cat "${NOSTR_DIR}/HEX" 2>/dev/null)
-    local _NOSTRNS=$(cat "${NOSTR_DIR}/NOSTRNS" 2>/dev/null)
-    local _GPS=$(cat "${NOSTR_DIR}/GPS" 2>/dev/null)
-    local _LAT=$(echo "$_GPS" | grep -oP 'LAT=\K[^;]+')
-    local _LON=$(echo "$_GPS" | grep -oP 'LON=\K[^;]+')
-    local _SSSS_PLAYER=$(cat "${NOSTR_DIR}/.ssss.player.key" 2>/dev/null)
-    ## MULTIPASS NSEC : toujours aléatoire → lu depuis .secret.nostr (pas dérivé du ZEN Card SALT/PEPPER)
-    local _NSEC=$(grep -oP 'NSEC=\K[^;]+' "${NOSTR_DIR}/.secret.nostr" 2>/dev/null)
-    ## ZEN Card G1 wallet (dérivé des clés mémorisables de l'utilisateur)
-    local _ZENCARD_G1PUB=""
-    [[ -z "$_ZENCARD_G1PUB" ]] \
-        && _ZENCARD_G1PUB=$(cat "${HOME}/.zen/game/players/${_EMAIL}/.g1pub" 2>/dev/null)
-    cat > "$JSON_FILE" <<EOJSON
-{
-  "email": "${_EMAIL}",
-  "zencard_salt": "${_ZENCARD_SALT}",
-  "zencard_pepper": "${_ZENCARD_PEPPER}",
-  "zencard_g1pub": "${_ZENCARD_G1PUB}",
-  "nsec": "${_NSEC}",
-  "g1pub": "${_G1PUB}",
-  "npub": "${_NPUB}",
-  "hex": "${_HEX}",
-  "nostrns": "${_NOSTRNS}",
-  "lat": "${_LAT}",
-  "lon": "${_LON}",
-  "ssss_player": "${_SSSS_PLAYER}"
-}
-EOJSON
-    echo "Wrote ${JSON_FILE}" >&2
-}
-
 EMAIL="$1"
 LANG="$2"
 LAT="$3"
@@ -101,12 +58,12 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
             exit 0
         else
-            ## Same-day re-request - salt/pepper still in params
-            write_multipass_json "${EMAIL}" "${SALT}" "${PEPPER}"
+            ## Same-day re-reques
             echo ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
             exit 0
         fi
     fi
+
     ## Générer diceware ZEN Card si non fournis — via diceware.sh (wordlist officielle)
     DICEWARE_SH="${HOME}/.zen/Astroport.ONE/tools/diceware.sh"
     if [[ -z "$SALT" ]]; then
@@ -129,17 +86,11 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
     ### SEARCH FOR EXISTING NOSTR CARD
     if [[ ! -s ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ]]; then
         ### CREATING NOSTR CARD with SALT PEPPER
-        ## NOMAIL=1 : mailjet called below with custom subject (avoid double send)
-        NOMAIL=1 ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$LANG" "${LAT}" "${LON}" "${SALT}" "${PEPPER}"
-        ## MAILJET SEND NOSTR CARD
-        YOUSER=$(${HOME}/.zen/Astroport.ONE/tools/clyuseryomail.sh ${EMAIL})
-        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh --expire 0s "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "MULTIPASS[Ğ1] [UPlanet:${UPLANETG1PUB:0:8}:${LAT}:${LON}]"
-        write_multipass_json "${EMAIL}" "${SALT}" "${PEPPER}"
+        ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$LANG" "${LAT}" "${LON}" "${SALT}" "${PEPPER}"
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
         exit 0
     else
         if [[ "$(cat ${HOME}/.zen/game/nostr/${EMAIL}/TODATE)" == "$TODATE" ]]; then
-            write_multipass_json "${EMAIL}" "${SALT}" "${PEPPER}"
             echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
             exit 0
         fi

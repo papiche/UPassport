@@ -295,17 +295,13 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
         #########################################################""
         ### NEW USER : CREATING NOSTR CARD MULTIPASS ZINE
         #########################################################""
-        ## NOMAIL=1 : mailjet called below with custom subject (avoid double send)
-        NOMAIL=1 ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE" "${ZLAT}" "${ZLON}"
-        ## MAILJET SEND NOSTR CARD
-        YOUSER=$(${HOME}/.zen/Astroport.ONE/tools/clyuseryomail.sh ${EMAIL})
-        ${HOME}/.zen/Astroport.ONE/tools/mailjet.sh --expire 0s "${EMAIL}" "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html" "MULTIPASS [UPlanet:${UPLANETG1PUB:0:8}:${ZLAT}:${ZLON}]"
+        ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$IMAGE" "${ZLAT}" "${ZLON}"
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
         exit 0
         #########################################################""
         #########################################################""
     else
-        ## DID SEND "0000" FOR DELETION ?
+        ## DID SEND "0000" FOR DELETION ? only email provided !! Unsure !
         if [[ "$IMAGE" == "0000" ]]; then
             echo "## 0000 => CHECKING FOR DELETION ${EMAIL}"
             ## Check if account was created today (TODATE matches current date)
@@ -384,7 +380,8 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
     
     if [[ ${ipnsk51} != "" ]]; then
         VAULTNS="k51qzi5uqu5d"$ipnsk51
-        ## SEARCHING FOR LOCAL MULTIPASS NOSTR CARD : todo extend search to all swarm => allow MULTIPASS on all Astroport
+        ## SEARCHING FOR LOCAL MULTIPASS NOSTR CARD
+        ## TODO extend search to all swarm => allow MULTIPASS access on all Astroport
         PLAYER=$(get_NOSTRNS_directory ${VAULTNS})
         #################################################### NOT FOUND #
         if [[ -z $PLAYER ]]; then
@@ -426,6 +423,7 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
             exit 0
         fi
+
         ##################################################### DISCO DECODED
         ### CASH BACK => EMPTY WALLET CLOSE ACCOUNT
         if [[ "$IMAGE" == "0000" ]]; then
@@ -452,8 +450,8 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
             ### Filling UPassport API template with nsec
             NSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${salt}" "${pepper}" -s)
             
-            ### PASS CODE HANDLER ###
-            # PASS "1111" = Open astro_base.html (full Nostr messenger interface)
+            ### PASS CODE HANDLER ### TODO : make it programmable by MULTIPASS user
+            # PASS "1111" = Open nostr.html (full DEMO : BRO/Blog/NOSTRTube mixed interface)
             # PASS "9999" = Open scan_multipass_payment.html (MULTIPASS Payment Terminal)
             # PASS "7777" = Open webcam.html (Webcam Recorder with NOSTR authentication)
             # PASS "8888" = Open vocals.html (Voice Messages Recorder with NOSTR authentication)
@@ -494,10 +492,11 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
                 TW=""
                 if [[ -s ~/.zen/game/nostr/${PLAYER}/TW ]]; then
                     TWNS=$(cat ~/.zen/game/nostr/${PLAYER}/TW)
-                    TW="<p style='text-align: center; margin-top: 15px;'><a href='${myIPFS}/ipns/${TWNS}' target='_blank' style='color: #4fc3f7; text-decoration: none; font-weight: bold;'>📖 My TiddlyWiki</a></p>"
+                    TW="<p style='text-align: center; margin-top: 15px;'><a href='${myIPFS}/ipns/${TWNS}' target='_blank' style='color: #4fc3f7; text-decoration: none; font-weight: bold;'>📖 TW</a></p>"
                 fi
                 
-                # Generate payment terminal from template
+                # Generate payment terminal from template -- 
+                # TODO payment terminal need more testing
                 cat ${MY_PATH}/templates/scan_multipass_payment.html \
                     | sed -e "s~_EMAIL_~${PLAYER}~g" \
                           -e "s~_G1SOURCE_~${G1PUBNOSTR}~g" \
@@ -564,14 +563,16 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
     fi
 fi
 
-# CHECK G1 PUBKEY FORMAT
+# CHECK G1 v1 & v2 PUBKEY FORMAT
 if [[ -z $($HOME/.zen/Astroport.ONE/tools/g1_to_ipfs.py ${PUBKEY} 2>/dev/null) ]]; then
-    cat ${MY_PATH}/templates/message.html \
-    | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
-         -e "s~_MESSAGE_~QR CODE Error<br><a target=_new href=https://pad.p2p.legal/HELP>HELP</a>?!~g" \
-        > ${MY_PATH}/tmp/${MOATS}.out.html
-    echo "${MY_PATH}/tmp/${MOATS}.out.html"
-    exit 0
+    if [[ -z $($HOME/.zen/Astroport.ONE/tools/ss58_to_g1pubv1.py ${PUBKEY} 2>/dev/null) ]]; then
+        cat ${MY_PATH}/templates/message.html \
+        | sed -e "s~_TITLE_~$(date -u) <br> ${PUBKEY}~g" \
+            -e "s~_MESSAGE_~QR CODE Error<br><a target=_new href=https://pad.p2p.legal/HELP>HELP</a>?!~g" \
+            > ${MY_PATH}/tmp/${MOATS}.out.html
+        echo "${MY_PATH}/tmp/${MOATS}.out.html"
+        exit 0
+    fi
 fi
 
 TOT=0
@@ -586,14 +587,6 @@ generate_qr_with_uid() {
     ## Extract wallet balance using G1check.sh
     if [[ ! -s ${MY_PATH}/tmp/${pubkey}.solde ]]; then
         solde=$($HOME/.zen/Astroport.ONE/tools/G1check.sh ${pubkey} | tail -n 1)
-        # Fallback to jaklis if G1check.sh fails
-        [ -z "$solde" ] || [[ "$solde" == "" ]] \
-            && echo "G1check.sh failed, falling back to jaklis..." \
-            && GVA=$(~/.zen/Astroport.ONE/tools/duniter_getnode.sh | tail -n 1) \
-            && [[ ! -z $GVA ]] && sed -i '/^NODE=/d' $HOME/.zen/Astroport.ONE/tools/jaklis/.env \
-            && echo "NODE=$GVA" >> $HOME/.zen/Astroport.ONE/tools/jaklis/.env \
-            && echo "GVA RELAY: $GVA" \
-            && solde=$($HOME/.zen/Astroport.ONE/tools/timeout.sh -t 5 $HOME/.zen/Astroport.ONE/tools/jaklis/jaklis.py balance -p ${pubkey})
         echo "$solde" > ${MY_PATH}/tmp/${pubkey}.solde
         sleep 2
     else
@@ -674,7 +667,7 @@ find ${MY_PATH}/tmp -mtime +3 -type f -exec rm '{}' \;
 # Detect older than 7 days "fac-simile" from ${MY_PATH}/pdf (not ls with game/passport)
 find ${MY_PATH}/pdf -type d -mtime +7 -not -xtype l -exec rm -r {} \;
 
-## GET PUBKEY TX HISTORY : using silkaj via G1history.sh
+## GET PUBKEY TX HISTORY : using G1history.sh
 echo "LOADING WALLET HISTORY"
 $HOME/.zen/Astroport.ONE/tools/timeout.sh -t 30 $HOME/.zen/Astroport.ONE/tools/G1history.sh ${PUBKEY} 25 > ${MY_PATH}/tmp/$PUBKEY.TX.json
 
@@ -693,7 +686,7 @@ else
     if [[ ! -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]]; then
         ERROR_MSG="TX HISTORY FILE MISSING OR EMPTY<br>Check network connection"
     elif ! jq empty ${MY_PATH}/tmp/$PUBKEY.TX.json >/dev/null 2>&1; then
-        ERROR_MSG="INVALID JSON RESPONSE<br>silkaj/jaklis returned malformed data"
+        ERROR_MSG="INVALID JSON RESPONSE<br> G1history.sh returned malformed data"
     else
         ERROR_MSG="PRIMAL EXTRACT ERROR<br>╭∩╮ (òÓ,) ╭∩╮"
     fi
@@ -710,7 +703,7 @@ echo "$AMOUNT G1 ($ZCHK) $ZEN ẑ€N"
 echo "--------------------------------------"
 echo
 ##################################### SCAN N°
-## CHECK LAST TX IF ZEROCARD EXISTING
+## CHECK LAST TX IF ZEROCARD EXISTING (UPassport wallet)
 if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
     ZEROCARD=$(cat ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD)
     echo "G1 ZEROCARD FOUND: ${ZEROCARD}"
@@ -878,15 +871,15 @@ if [[ -s ${MY_PATH}/pdf/${PUBKEY}/ZEROCARD ]]; then
                         CURRENT_G1PUB=$(cat "$HOME/.zen/game/nostr/${WOT_AUTHENTICATED_EMAIL}/G1PUBNOSTR")
                     fi
                     
-                    # Create new G1PUB value: current:source_pubkey
-                    NEW_G1PUB="${CURRENT_G1PUB}:${PUBKEY}"
+                    # Create new G1PUB value: member_pubkey
+                    NEW_G1PUB="${PUBKEY}"
                     
                     # Update NOSTR profile using nostr_update_profile.py
                     echo "📝 Updating G1PUB during activation: $NEW_G1PUB"
                     $HOME/.zen/Astroport.ONE/tools/nostr_update_profile.py \
                         "$NSEC_VALUE" \
                         "ws://127.0.0.1:7777" \
-                        --g1pub "$NEW_G1PUB" 2>/dev/null
+                        --g1member "${NEW_G1PUB}" 2>/dev/null
                     
                     if [[ $? -eq 0 ]]; then
                         echo "✅ NOSTR profile updated successfully during activation"
