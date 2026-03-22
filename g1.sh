@@ -58,8 +58,8 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
             exit 0
         else
-            ## Same-day re-reques
-            echo ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
+            ## Same-day re-request
+            echo ${HOME}/.zen/game/nostr/${EMAIL}/.multipass.json
             exit 0
         fi
     fi
