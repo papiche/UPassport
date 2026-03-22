@@ -5,13 +5,6 @@
 # License: AGPL-3.0 (https://choosealicense.com/licenses/agpl-3.0/)
 ################################################################################
 # Output is an HTML file - sent back to user through 54321 API
-echo "Usage: $0 <email> <lang> <lat> <lon> [salt] [pepper]"
-echo "  email:   Email address (required)"
-echo "  lang:    Language code (required)"
-echo "  lat:     Latitude (required)"
-echo "  lon:     Longitude (required)"
-echo "  salt:    Salt for key generation (optional, auto-generated if not provided)"
-echo "  pepper:  Pepper for key generation (optional, auto-generated if not provided)"
 MOATS=$(date -u +"%Y%m%d%H%M%S%4N")
 MY_PATH="`dirname \"$0\"`"              # relative
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"  # absolutized and normalized
@@ -31,6 +24,7 @@ SALT="$5"
 PEPPER="$6"
 
 if [[ "$#" -lt 4 ]]; then
+    echo "Usage: $0 <email> <lang> <lat> <lon> [salt] [pepper]"
     echo "Error: Missing required parameters (email, lang, lat, lon)." >&2
     cat ${MY_PATH}/templates/message.html \
     | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
@@ -59,7 +53,44 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             exit 0
         else
             ## Same-day re-request
-            echo ${HOME}/.zen/game/nostr/${EMAIL}/.multipass.json
+            # Check if .multipass.json exists, if not try to reconstruct it
+            JSON_FILE="${HOME}/.zen/game/nostr/${EMAIL}/.multipass.json"
+            if [[ ! -f "$JSON_FILE" ]]; then
+                # Reconstruct .multipass.json from existing files
+                G1PUB=$(cat "${HOME}/.zen/game/nostr/${EMAIL}/G1PUBNOSTR" 2>/dev/null)
+                NOSTRNS=$(cat "${HOME}/.zen/game/nostr/${EMAIL}/NOSTRNS" 2>/dev/null)
+                
+                # Extract keys from .secret.nostr
+                if [[ -f "${HOME}/.zen/game/nostr/${EMAIL}/.secret.nostr" ]]; then
+                    source "${HOME}/.zen/game/nostr/${EMAIL}/.secret.nostr"
+                    # This loads NSEC, NPUB, HEX
+                fi
+                
+                # Extract SSSS from .ssss.player.key (format M-...)
+                SSSS_KEY=$(cat "${HOME}/.zen/game/nostr/${EMAIL}/.ssss.player.key" 2>/dev/null)
+                
+                # Extract SALT/PEPPER from .secret.disco
+                if [[ -f "${HOME}/.zen/game/nostr/${EMAIL}/.secret.disco" ]]; then
+                    DISCO_CONTENT=$(cat "${HOME}/.zen/game/nostr/${EMAIL}/.secret.disco")
+                    # Format: /?salt=...&nostr=...
+                    SALT=$(echo "$DISCO_CONTENT" | grep -o 'salt=[^&]*' | cut -d= -f2)
+                    PEPPER=$(echo "$DISCO_CONTENT" | grep -o 'nostr=[^&]*' | cut -d= -f2)
+                fi
+                
+                cat > "$JSON_FILE" <<EOFJSON
+{
+  "g1pub": "${G1PUB}",
+  "nsec": "${NSEC}",
+  "npub": "${NPUB}",
+  "ssss": "${SSSS_KEY}",
+  "nostrns": "${NOSTRNS}",
+  "salt": "${SALT}",
+  "pepper": "${PEPPER}"
+}
+EOFJSON
+            fi
+
+            echo ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html
             exit 0
         fi
     fi
