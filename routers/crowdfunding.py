@@ -6,15 +6,20 @@ from typing import List, Dict, Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 router = APIRouter()
 
 from core.config import settings
+from utils.security import is_safe_email
 
 # Path to CROWDFUNDING.sh script
 CROWDFUNDING_SCRIPT = settings.TOOLS_PATH / "CROWDFUNDING.sh"
 CROWDFUNDING_DIR = settings.GAME_PATH / "crowdfunding"
+
+import re
+
+PROJECT_ID_PATTERN = r"^CF-\d{8}-[A-F0-9]{8}$"
 
 class CrowdfundingCreateRequest(BaseModel):
     lat: float
@@ -23,13 +28,26 @@ class CrowdfundingCreateRequest(BaseModel):
     description: str = ""
     npub: str  # Creator's NOSTR pubkey for verification
 
+    @field_validator('name', 'description')
+    @classmethod
+    def sanitize_strings(cls, v: str) -> str:
+        # Escape quotes to prevent JSON injection in shell script
+        return v.replace('"', '\\"')
+
 class CrowdfundingAddOwnerRequest(BaseModel):
-    project_id: str
+    project_id: str = Field(..., pattern=PROJECT_ID_PATTERN)
     email: str
     mode: str  # "commons" or "cash"
     amount: float
     currency: str = "ZEN"  # or "EUR"
     npub: str
+
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        if not is_safe_email(v):
+            raise ValueError("Invalid email format")
+        return v
 
 async def run_crowdfunding_command(args: List[str], timeout: int = 30) -> Dict[str, Any]:
     """Execute CROWDFUNDING.sh with given arguments and return result"""
@@ -59,7 +77,15 @@ async def run_crowdfunding_command(args: List[str], timeout: int = 30) -> Dict[s
 
 def parse_project_json(project_id: str) -> Optional[Dict[str, Any]]:
     """Read project.json for a given project ID"""
+    # Validate project_id to prevent path traversal
+    if not re.match(PROJECT_ID_PATTERN, project_id):
+        return None
+        
     project_file = os.path.join(CROWDFUNDING_DIR, project_id, "project.json")
+    # Ensure path is within CROWDFUNDING_DIR
+    if not os.path.abspath(project_file).startswith(os.path.abspath(CROWDFUNDING_DIR)):
+        return None
+
     if os.path.exists(project_file):
         try:
             with open(project_file, 'r') as f:
@@ -138,6 +164,9 @@ async def crowdfunding_list(status: str = "all"):
 @router.get("/api/crowdfunding/status/{project_id}")
 async def crowdfunding_status(project_id: str):
     """Get detailed status of a crowdfunding project"""
+    if not re.match(PROJECT_ID_PATTERN, project_id):
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
     project_data = parse_project_json(project_id)
     
     if not project_data:
@@ -200,6 +229,9 @@ async def crowdfunding_add_owner(request: CrowdfundingAddOwnerRequest):
 @router.get("/api/crowdfunding/bien-balance/{project_id}")
 async def crowdfunding_bien_balance(project_id: str):
     """Get the Bien wallet balance"""
+    if not re.match(PROJECT_ID_PATTERN, project_id):
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
     project_data = parse_project_json(project_id)
     
     if not project_data:

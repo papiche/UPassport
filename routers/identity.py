@@ -12,6 +12,7 @@ from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from core.config import settings
 from utils.helpers import run_script, get_myipfs_gateway, is_origin_mode, get_oc_tier_urls, get_uplanet_home_url
 from utils.security import is_multipass_user
 from utils.crypto import npub_to_hex, hex_to_npub

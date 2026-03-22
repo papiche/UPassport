@@ -891,6 +891,9 @@ async def check_society_route(request: Request, html: Optional[str] = None, nost
 async def check_revenue_route(request: Request, html: Optional[str] = None, year: Optional[str] = None):
     """Check revenue history from ZENCOIN transactions (Chiffre d'Affaires)"""
     try:
+        if year and year != "all" and not re.match(r"^\d{4}$", year):
+             raise HTTPException(status_code=400, detail="Invalid year format")
+
         from core.config import settings
         script_path = settings.TOOLS_PATH / "G1revenue.sh"
         
@@ -935,6 +938,9 @@ async def check_zencard_route(request: Request, email: str, html: Optional[str] 
         if not email:
             raise HTTPException(status_code=400, detail="Email parameter is required")
         
+        if not is_safe_email(email):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+
         from core.config import settings
         script_path = settings.TOOLS_PATH / "G1zencard_history.sh"
         import asyncio
