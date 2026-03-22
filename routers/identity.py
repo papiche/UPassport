@@ -82,16 +82,40 @@ async def scan_qr(
         # JSON format: return MULTIPASS data for app onboarding
         if format == "json":
             multipass_json = settings.GAME_PATH / "nostr" / email / ".multipass.json"
-            if os.path.exists(multipass_json):
-                with open(multipass_json, 'r') as f:
-                    data = json.load(f)
+            logging.info(f"Checking for JSON sidecar at: {multipass_json}")
+            
+            # Retry logic for file existence (in case of FS latency)
+            import asyncio
+            for i in range(5):
+                if os.path.exists(multipass_json):
+                    break
+                logging.warning(f"JSON sidecar not found, retrying ({i+1}/5)...")
+                await asyncio.sleep(0.5)
                 
-                data["is_origin"] = is_origin_mode()
-                data["oc_urls"] = get_oc_tier_urls()
-                data["uplanet_home"] = await get_uplanet_home_url()
-                return JSONResponse(data)
+            if os.path.exists(multipass_json):
+                try:
+                    with open(multipass_json, 'r') as f:
+                        data = json.load(f)
+                    
+                    data["is_origin"] = is_origin_mode()
+                    data["oc_urls"] = get_oc_tier_urls()
+                    data["uplanet_home"] = await get_uplanet_home_url()
+                    return JSONResponse(data)
+                except Exception as e:
+                    logging.error(f"Error reading JSON sidecar: {e}")
+                    raise HTTPException(status_code=500, detail=f"Error reading JSON sidecar: {str(e)}")
             else:
-                raise HTTPException(status_code=500, detail="MULTIPASS created but JSON sidecar not found")
+                # Check if directory exists to give better error
+                parent_dir = multipass_json.parent
+                dir_exists = os.path.exists(parent_dir)
+                logging.error(f"JSON sidecar not found at {multipass_json}. Parent dir exists: {dir_exists}")
+                if dir_exists:
+                    try:
+                        logging.error(f"Contents of {parent_dir}: {os.listdir(parent_dir)}")
+                    except Exception as e:
+                        logging.error(f"Could not list directory contents: {e}")
+                
+                raise HTTPException(status_code=500, detail=f"MULTIPASS created but JSON sidecar not found at {multipass_json}")
 
         return FileResponse(returned_file_path)
     else:
