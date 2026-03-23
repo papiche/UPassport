@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     TOOLS_PATH: Path = Path.home() / ".zen" / "Astroport.ONE" / "tools"
     
     # Rate Limiting
-    RATE_LIMIT_REQUESTS: int = 20
+    RATE_LIMIT_REQUESTS: int = 60
     RATE_LIMIT_WINDOW: int = 60
     RATE_LIMIT_CLEANUP_INTERVAL: int = 300
     

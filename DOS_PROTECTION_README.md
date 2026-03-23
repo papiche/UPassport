@@ -9,7 +9,7 @@ Ce système protège l'API UPassport contre les attaques de déni de service (DO
 ### Paramètres de rate limiting
 
 ```python
-RATE_LIMIT_REQUESTS = 12  # Maximum requests per minute
+RATE_LIMIT_REQUESTS = 60  # Maximum requests per minute
 RATE_LIMIT_WINDOW = 60    # Time window in seconds (1 minute)
 RATE_LIMIT_CLEANUP_INTERVAL = 300  # Cleanup old entries every 5 minutes
 ```
@@ -91,7 +91,7 @@ Statut du rate limiting pour l'IP du client
 {
   "client_ip": "192.168.1.100",
   "remaining_requests": 8,
-  "rate_limit": 12,
+  "rate_limit": 60,
   "window_seconds": 60,
   "reset_time": 1640995200,
   "reset_time_iso": "2024-01-01T12:01:00",
