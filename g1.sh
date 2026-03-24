@@ -95,25 +95,6 @@ EOFJSON
         fi
     fi
 
-    ## Générer diceware ZEN Card si non fournis — via diceware.sh (wordlist officielle)
-    DICEWARE_SH="${HOME}/.zen/Astroport.ONE/tools/diceware.sh"
-    if [[ -z "$SALT" ]]; then
-        if [[ -x "$DICEWARE_SH" ]]; then
-            SALT=$("$DICEWARE_SH" 4 | tr -d '\n' | sed 's/ *$//' | tr ' ' '-')
-        else
-            SALT=$(tr -dc 'a-z0-9' < /dev/urandom | fold -w20 | head -n1)
-        fi
-        echo "🎲 ZEN Card SALT diceware auto : ${SALT}" >&2
-    fi
-    if [[ -z "$PEPPER" ]]; then
-        if [[ -x "$DICEWARE_SH" ]]; then
-            PEPPER=$("$DICEWARE_SH" 4 | tr -d '\n' | sed 's/ *$//' | tr ' ' '-')
-        else
-            PEPPER=$(tr -dc 'a-z0-9' < /dev/urandom | fold -w20 | head -n1)
-        fi
-        echo "🎲 ZEN Card PEPPER diceware auto : ${PEPPER}" >&2
-    fi
-
     ### SEARCH FOR EXISTING NOSTR CARD
     if [[ ! -s ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ]]; then
         ### CREATING NOSTR CARD with SALT PEPPER
