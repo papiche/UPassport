@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import time
 import hashlib
@@ -20,9 +21,12 @@ from utils.crypto import npub_to_hex, hex_to_npub
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from utils.helpers import as_form
+
+# Caractères autorisés dans salt/pepper : alphanumérique, tiret, underscore, point
+_SAFE_CREDENTIAL_RE = re.compile(r'^[a-zA-Z0-9_\-\.]{0,512}$')
 
 @as_form
 class G1NostrForm(BaseModel):
@@ -33,6 +37,16 @@ class G1NostrForm(BaseModel):
     salt: str = ""
     pepper: str = ""
     format: str = "html"
+
+    @field_validator('salt', 'pepper', mode='before')
+    @classmethod
+    def validate_no_shell_injection(cls, v: str) -> str:
+        """Rejette tout salt/pepper contenant des métacaractères shell dangereux."""
+        if v and not _SAFE_CREDENTIAL_RE.match(v):
+            raise ValueError(
+                "Caractères non autorisés (autorisés : a-z A-Z 0-9 _ - . ; max 512 chars)"
+            )
+        return v
 
 from fastapi import Depends
 

@@ -150,8 +150,12 @@ async def get_env_from_mysh(var_name: str, default: str = "") -> str:
             return default
         
         import asyncio
+        # Utiliser les arguments positionnels pour éviter toute injection shell :
+        # $1 = chemin vers my.sh, $2 = nom de la variable (jamais interprété comme code)
+        # ${!2} est l'expansion indirecte bash : lit la variable dont le nom est dans $2
         process = await asyncio.create_subprocess_exec(
-            "bash", "-c", f"source {my_sh_path} && echo ${var_name}",
+            "bash", "-c", 'source "$1" && echo "${!2}"', "--",
+            str(my_sh_path), var_name,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
