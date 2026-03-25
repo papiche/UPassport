@@ -425,23 +425,21 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
         fi
 
         ##################################################### DISCO DECODED
-        ### CASH BACK => EMPTY WALLET CLOSE ACCOUNT
+        ### WALLET RELOCATION (0000) => FULL DESTROY + ENCRYPTED BACKUP + CASH BACK
         if [[ "$IMAGE" == "0000" ]]; then
-            ## DUNIKEY PRIVATE KEY for CASH BACK
-            $HOME/.zen/Astroport.ONE/tools/keygen -t duniter -o ~/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey "${salt}" "${pepper}"
-            G1PUBNOSTR=$(cat ~/.zen/game/nostr/${PLAYER}/G1PUBNOSTR) ## NOSTR G1PUB READING
-            G1PRIME=$(cat ~/.zen/tmp/coucou/$G1PUBNOSTR.primal) ## NOSTR G1PRIME READING
-            AMOUNT=$(~/.zen/Astroport.ONE/tools/G1check.sh ${G1PUBNOSTR} | tail -n 1)
-            echo "______ AMOUNT = ${AMOUNT} G1"
-            ## EMPTY AMOUNT G1 to PRIMAL
-            ~/.zen/Astroport.ONE/tools/PAYforSURE.sh "${HOME}/.zen/tmp/$MOATS/$IPNSVAULT/nostr.dunikey" "$AMOUNT" "${G1PRIME}" "NOSTR:EXIT"
-
-            ## UPDATE TODATE - one day to reactivate...
-            echo ${TODATE} > ${HOME}/.zen/game/nostr/${PLAYER}/TODATE 2>/dev/null
+            echo "## MULTIPASS RELOCATION INITIATED for ${PLAYER}"
+            ## Trigger full NOSTR account destruction + migration backup
+            ## nostr_DESTROY_TW.sh handles:
+            ##   1. Export all NOSTR events to IPFS (encrypted backup)
+            ##   2. Transfer G1 balance to PRIMAL (cash back) via PAYforSURE.sh
+            ##   3. Generate .next.disco for restoration on new relay
+            ##   4. Update NOSTR profile to "deactivated" state
+            ##   5. Clean local cache and NOSTR directory
+            ${HOME}/.zen/Astroport.ONE/tools/nostr_DESTROY_TW.sh "${PLAYER}"
 
             cat ${MY_PATH}/templates/message.html \
-            | sed -e "s~_TITLE_~$(date -u) <br> ${G1PRIME}~g" \
-                  -e "s~_MESSAGE_~PRIMAL PAY BACK <br> $AMOUNT~g" \
+            | sed -e "s~_TITLE_~$(date -u) <br> MULTIPASS RELOCATION : ${PLAYER}~g" \
+                  -e "s~_MESSAGE_~BACKUP CREATED AND BALANCE RETURNED <br> USE nostr_RESTORE_TW.sh ON YOUR NEW RELAY~g" \
                 > ${MY_PATH}/tmp/${MOATS}.out.html
             echo "${MY_PATH}/tmp/${MOATS}.out.html"
             exit 0
