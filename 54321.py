@@ -56,4 +56,4 @@ app.include_router(robohash.router)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("54321:app", host=settings.HOST, port=settings.PORT, reload=True)
+    uvicorn.run("54321:app", host="0.0.0.0", port=54321, reload=True)
