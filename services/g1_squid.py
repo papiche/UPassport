@@ -1,22 +1,28 @@
 """
 services/g1_squid.py
 ────────────────────
-Service Python natif pour interroger l'indexeur Squid Duniter v2.
-Remplace les appels shell à G1history.sh et G1balance.sh par des
-requêtes httpx asynchrones directes — 10× plus rapides (pas de fork OS).
+Service Python natif pour interroger Duniter v2 (Squid GraphQL + RPC).
+Remplace G1history.sh, G1balance.sh et gcli par des appels Python directs.
+
+Chaîne de résolution de la balance (ordre de priorité) :
+  1. Squid GraphQL     (httpx, ~100ms si le compte est indexé)
+  2. SubstrateInterface Python RPC  (websocket natif, ~800ms, sans gcli)
+  3. gcli subprocess  (PATH étendu ~/.astro/bin, si installé)
+  4. G1check.sh       (super-fallback garanti, source + PATH étendu)
 
 Gestion des nœuds
 -----------------
-1. Lit ~/.zen/tmp/duniter_nodes.json (généré par duniter_getnode.sh, TTL 1h)
-   → liste Squid déjà health-checkée et triée par latence croissante.
-2. Si le cache est absent / expiré → utilise settings.SQUID_FALLBACKS.
+- Lit ~/.zen/tmp/duniter_nodes.json (généré par duniter_getnode.sh, TTL 1h)
+  → listes Squid et RPC déjà health-checkées et triées par latence.
+- Si le cache est absent / expiré → utilise settings.SQUID_FALLBACKS / G1_RPC_FALLBACKS.
 
 API publique
 ------------
-  g1pub_to_ss58(g1pub)                   → str  (SS58, synchrone)
-  get_squid_urls()                       → list[str]  (ordre latence)
-  get_g1_history_native(g1pub, limit)    → dict {"history": [...]}
-  get_g1_balance_native(g1pub)           → dict {"balances": {...}}
+  g1pub_to_ss58(g1pub)                         → str   (SS58)
+  get_squid_urls()                             → list[str]  (ordre latence)
+  get_g1_history_native(g1pub, limit)          → dict  {"history": [...]}
+  get_g1_balance_native(g1pub)                 → dict  {"balances": {...}}
+  get_g1_balance_rpc_native(g1pub)             → dict  (SubstrateInterface direct)
 """
 
 import asyncio
@@ -27,11 +33,16 @@ import os
 import random
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# ── Cache SubstrateInterface : connexions WebSocket réutilisées ───────────────
+# { url → (SubstrateInterface, created_at) }
+_substrate_pool: Dict[str, tuple] = {}
+_SUBSTRATE_POOL_TTL = 300   # 5 minutes — fermer les connexions inutilisées
 
 # ── Constantes ────────────────────────────────────────────────────────────────
 _CACHE_FILE = Path.home() / ".zen" / "tmp" / "duniter_nodes.json"
@@ -485,23 +496,145 @@ async def get_g1_balance_native(g1pub: str) -> dict:
                 # inutile d'essayer les autres Squids pour ce compte
                 break
 
-    # ── Fallback gcli puis G1check.sh ─────────────────────────────────────────
+    # ── Fallback niveau 2 : SubstrateInterface Python RPC (sans gcli) ─────────
+    logger.info(
+        "G1balance : Squid sans données pour %s…, tentative RPC Python natif",
+        g1pub[:12],
+    )
+    result = await get_g1_balance_rpc_native(g1pub)
+    if result["balances"]["total"] > 0:
+        return result
+
+    # ── Fallback niveau 3 : gcli subprocess ───────────────────────────────────
     logger.warning(
-        "G1balance : Squid ne contient pas le compte %s…, fallback gcli/G1check.sh",
+        "G1balance : RPC Python échoué pour %s…, fallback gcli/G1check.sh",
         g1pub[:12],
     )
     return await _get_g1_balance_gcli_fallback(g1pub, ss58)
+
+
+def _get_substrate_interface(url: str):
+    """
+    Retourne une instance SubstrateInterface depuis le pool de connexions (TTL 5min).
+    Crée une nouvelle connexion si absente ou expirée.
+    """
+    now = time.time()
+    if url in _substrate_pool:
+        substrate, created_at = _substrate_pool[url]
+        if now - created_at < _SUBSTRATE_POOL_TTL:
+            return substrate
+        # Connexion expirée : fermer
+        try:
+            substrate.close()
+        except Exception:
+            pass
+        del _substrate_pool[url]
+
+    from substrateinterface import SubstrateInterface
+    substrate = SubstrateInterface(url=url)
+    _substrate_pool[url] = (substrate, now)
+    logger.debug("SubstrateInterface nouvelle connexion : %s", url)
+    return substrate
+
+
+async def get_g1_balance_rpc_native(g1pub: str) -> dict:
+    """
+    Interroge directement les nœuds RPC Duniter v2 via SubstrateInterface Python.
+    Équivalent de `gcli account balance` — sans subprocess, ~800ms premier appel,
+    réutilise les connexions WebSocket du pool (_substrate_pool, TTL 5min).
+
+    Source de vérité on-chain : System.Account[ss58].data.free + reserved
+    (identique à ce que lit gcli-v2s via subxt).
+
+    Retourne {"balances": {"pending": 0, "blockchain": <centimes>, "total": <centimes>}}.
+    """
+    _empty = {"balances": {"pending": 0, "blockchain": 0, "total": 0}}
+
+    try:
+        from substrateinterface import SubstrateInterface  # noqa — import test
+    except ImportError:
+        logger.debug("substrate-interface non installé — pip install substrate-interface")
+        return _empty
+
+    ss58 = g1pub_to_ss58(g1pub)
+    loop = asyncio.get_event_loop()
+
+    for node in get_rpc_nodes():
+        def _query(url=node, addr=ss58):
+            substrate = _get_substrate_interface(url)
+            result = substrate.query("System", "Account", [addr])
+            if result is None or result.value is None:
+                return None
+            data = result.value.get("data", {})
+            free     = int(data.get("free", 0))
+            reserved = int(data.get("reserved", 0))
+            return free + reserved
+
+        try:
+            total = await asyncio.wait_for(
+                loop.run_in_executor(None, _query),
+                timeout=12.0,
+            )
+            if total is not None:
+                logger.info(
+                    "G1balance RPC Python OK pour %s… : %d centimes via %s",
+                    g1pub[:12], total, node,
+                )
+                return {
+                    "balances": {
+                        "pending": 0,
+                        "blockchain": total,
+                        "total": total,
+                    }
+                }
+        except asyncio.TimeoutError:
+            logger.debug("SubstrateInterface timeout sur %s", node)
+            # Supprimer la connexion potentiellement bloquée du pool
+            if node in _substrate_pool:
+                try:
+                    _substrate_pool[node][0].close()
+                except Exception:
+                    pass
+                del _substrate_pool[node]
+        except Exception as exc:
+            logger.debug("SubstrateInterface erreur sur %s : %s", node, exc)
+            if node in _substrate_pool:
+                del _substrate_pool[node]
+
+    logger.warning("G1balance RPC Python : tous les nœuds ont échoué pour %s…", g1pub[:12])
+    return _empty
+
+
+def _get_extended_env() -> dict:
+    """
+    Retourne os.environ enrichi avec les chemins des outils Astroport.ONE.
+    Nécessaire en contexte systemd où le PATH est restreint (pas de gcli, jq…).
+    """
+    user_home = str(Path.home())
+    env = os.environ.copy()
+    extra_paths = [
+        f"{user_home}/.astro/bin",
+        f"{user_home}/.local/bin",
+        f"{user_home}/.zen/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+    ]
+    env["PATH"] = ":".join(extra_paths) + ":" + env.get("PATH", "")
+    env["HOME"] = user_home
+    return env
 
 
 async def _get_g1_balance_gcli_fallback(g1pub: str, ss58: str) -> dict:
     """
     Fallback : appelle gcli via subprocess asyncio si le Squid est indisponible.
     Utilise le cache duniter_nodes.json pour choisir le meilleur nœud RPC.
-    Détecte automatiquement le bon path /ws / /ws/ via _resolve_rpc_url()
-    (probe HTTP JSON-RPC mis en cache en mémoire).
+    Détecte automatiquement le bon path /ws / /ws/ via _resolve_rpc_url().
+    Passe le PATH étendu pour que gcli (~/.astro/bin) soit trouvé en contexte systemd.
     """
     _empty = {"balances": {"pending": 0, "blockchain": 0, "total": 0}}
     rpc_nodes = get_rpc_nodes()
+    env = _get_extended_env()
 
     for node in rpc_nodes:
         try:
@@ -515,6 +648,7 @@ async def _get_g1_balance_gcli_fallback(g1pub: str, ss58: str) -> dict:
                 "account", "balance",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=env,
             )
             try:
                 stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=12)
@@ -571,22 +705,9 @@ async def _get_g1_balance_g1check_fallback(g1pub: str) -> dict:
             logger.error("G1check.sh introuvable : %s", g1check)
             return _empty
 
-        # Étendre le PATH pour inclure les outils utilisateur (gcli, jq, etc.)
-        # qui ne sont pas dans le PATH restreint du service systemd.
-        user_home = str(Path.home())
-        env = os.environ.copy()
-        extra_paths = [
-            f"{user_home}/.astro/bin",
-            f"{user_home}/.local/bin",
-            f"{user_home}/.zen/bin",
-            "/usr/local/bin",
-            "/usr/bin",
-            "/bin",
-        ]
-        env["PATH"] = ":".join(extra_paths) + ":" + env.get("PATH", "")
-        env["HOME"] = user_home
+        env = _get_extended_env()
 
-        # Commande : source my.sh pour charger les variables Astroport,
+        # Commande : source my.sh pour charger les variables Astroport (GCLI, RPC_URL…),
         # puis exécuter G1check.sh avec la pubkey en argument positionnel
         if my_sh.exists():
             cmd_str = f'source "{my_sh}" 2>/dev/null; exec "{g1check}" "$1"'

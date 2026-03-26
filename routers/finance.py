@@ -75,11 +75,12 @@ def verify_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
 from utils.helpers import check_balance
-# Service natif Python : remplace G1history.sh et G1balance.sh (httpx → Squid,
-# avec cache duniter_nodes.json pour load-balancing automatique des nœuds)
+# Service natif Python : remplace G1history.sh, G1balance.sh et gcli
+# Chaîne : Squid GraphQL → SubstrateInterface RPC → gcli → G1check.sh
 from services.g1_squid import (
     get_g1_history_native,
     get_g1_balance_native,
+    get_g1_balance_rpc_native,
     get_squid_urls,
     g1pub_to_ss58,
 )
