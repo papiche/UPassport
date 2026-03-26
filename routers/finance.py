@@ -10,6 +10,8 @@ import httpx
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
+from cachetools import TTLCache
+app_state.balance_cache = TTLCache(maxsize=2000, ttl=30) # Cache de 30 secondes
 
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
@@ -69,6 +71,14 @@ def verify_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
 from utils.helpers import check_balance
+# Service natif Python : remplace G1history.sh et G1balance.sh (httpx → Squid,
+# avec cache duniter_nodes.json pour load-balancing automatique des nœuds)
+from services.g1_squid import (
+    get_g1_history_native,
+    get_g1_balance_native,
+    get_squid_urls,
+    g1pub_to_ss58,
+)
 
 def convert_g1_to_zen(g1_balance: str) -> str:
     """Convertir une balance Ğ1 en ẐEN en utilisant la formule (balance - 1) * 10"""
@@ -348,7 +358,10 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
         else:
             if not is_safe_g1pub(g1pub):
                 raise HTTPException(status_code=400, detail="Format de g1pub invalide")
-            
+
+            if g1pub in app_state.balance_cache:
+                return app_state.balance_cache[g1pub]
+
             balance = await check_balance(g1pub)
             result = {"balance": balance, "g1pub": g1pub}
             
@@ -395,8 +408,8 @@ async def _resolve_g1pubnostr_from_swarm(email: str) -> str:
 
     home = os.path.expanduser("~")
 
-    # 1. Swarm cache local : ~/.zen/tmp/*/TW/{email}/G1PUBNOSTR
-    pattern = os.path.join(home, ".zen", "tmp", "*", "TW", email, "G1PUBNOSTR")
+    # 1. Swarm cache local : ~/.zen/tmp/swarm/*/TW/{email}/G1PUBNOSTR
+    pattern = os.path.join(home, ".zen", "tmp", "swarm", "*", "TW", email, "G1PUBNOSTR")
     for fpath in glob.glob(pattern):
         try:
             g1pub = Path(fpath).read_text().strip()
@@ -524,7 +537,7 @@ async def oc_webhook(request: Request):
     amount_eur = amount_raw / 100.0 if isinstance(amount_raw, int) and amount_raw > 99 else amount_raw
 
     from core.config import settings
-    processed_file = settings.ZEN_PATH / "tmp" / "oc_webhook_processed.log"
+    processed_file = settings.ZEN_PATH / "game" / "oc_webhook_processed.log"
     tx_id = f"{webhook_id}:{slug}:{amount_eur}"
     if os.path.exists(processed_file):
         with open(processed_file, 'r') as f:
@@ -612,7 +625,7 @@ async def oc_webhook(request: Request):
             (multipass_dir / "G1PUBNOSTR").write_text(g1pubnostr)
         else:
             ## MULTIPASS introuvable ni localement ni dans le swarm → file d'attente
-            pending_file = settings.ZEN_PATH / "tmp" / "oc_webhook_pending.json"
+            pending_file = settings.ZEN_PATH / "game" / "oc_webhook_pending.json"
             pending_entry = {
                 "email": email,
                 "amount": amount_eur,

@@ -50,7 +50,34 @@ class Settings(BaseSettings):
     myRELAY: str = "ws://127.0.0.1:7777"
     NOSTR_RELAYS: str = "ws://127.0.0.1:7777 wss://relay.copylaradio.com"
     myIPFS: str = "https://ipfs.copylaradio.com"
-    
+
+    # ── Duniter v2 — Indexeur Squid GraphQL ──────────────────────────────────
+    # Nœud primaire (surchargeable via SQUID_URL= dans .env)
+    # Bootstraps issus de duniter_getnode.sh (hardcodés comme toujours valides)
+    SQUID_URL: str = "https://squid.g1.gyroi.de/v1/graphql"
+    # Nœuds Squid de secours — triés par disponibilité historique
+    SQUID_FALLBACKS: List[str] = [
+        "https://squid.g1.gyroi.de/v1/graphql",
+        "https://g1-squid.axiom-team.fr/v1/graphql",
+        "https://squid.g1.coinduf.eu/v1/graphql",
+        "https://indexer.duniter.org/v1/graphql",
+        "https://g1-squid.cgeek.fr/v1/graphql",
+    ]
+
+    # ── Duniter v2 — Nœuds RPC WebSocket (gcli / fallback balance) ───────────
+    # Nœud primaire (surchargeable via G1_WS_NODE= dans .env)
+    G1_WS_NODE: str = "wss://g1.1000i100.fr/ws"
+    # Nœuds RPC de secours — bootstraps duniter_getnode.sh
+    G1_RPC_FALLBACKS: List[str] = [
+        "wss://g1.1000i100.fr/ws",
+        "wss://g1-v2s.cgeek.fr",
+        "wss://g1.coinduf.eu",
+        "wss://g1.gyroi.de",
+        "wss://g1.p2p.legal/ws",
+        "wss://rpc.duniter.org",
+        "wss://g1.axiom-team.fr:443/ws/",
+    ]
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()

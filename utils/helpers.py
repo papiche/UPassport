@@ -274,23 +274,24 @@ async def get_uplanet_home_url():
             return f"https://ipfs.{domain}/ipns/{domain}"
     return ""
 
-async def check_balance(g1pub: str):
-    """Vérifier le solde d'une g1pub donnée"""
+async def check_balance(g1pub: str) -> str:
+    """
+    Vérifier le solde d'une g1pub donnée.
+
+    Implémentation native Python (httpx → Squid Duniter v2) via
+    services.g1_squid.get_g1_balance_native — pas de processus OS, ~10× plus rapide
+    que l'ancien appel à G1check.sh / G1balance.sh.
+
+    Retourne une chaîne "2.48 Ğ1" compatible avec convert_g1_to_zen().
+    Utilise le cache ~/.zen/tmp/duniter_nodes.json (TTL 1h) produit par
+    duniter_getnode.sh pour sélectionner le Squid le plus réactif.
+    """
     try:
-        import asyncio
-        process = await asyncio.create_subprocess_exec(
-            str(settings.TOOLS_PATH / "G1check.sh"), g1pub,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
-        if process.returncode != 0:
-            raise ValueError("Erreur dans G1check.sh: " + stderr.decode())
-        balance_line = stdout.decode().strip().splitlines()[-1]
-        return balance_line
-    except asyncio.TimeoutError:
-        logging.error(f"Timeout lors de la vérification du solde pour {g1pub}")
-        raise ValueError("Timeout lors de la vérification du solde")
+        from services.g1_squid import get_g1_balance_native
+        result = await get_g1_balance_native(g1pub)
+        centimes = result.get("balances", {}).get("total", 0)
+        g1_value = centimes / 100
+        return f"{g1_value:.2f} Ğ1"
     except Exception as e:
-        logging.error(f"Erreur lors de la vérification du solde: {e}")
+        logging.error(f"Erreur check_balance natif pour {g1pub}: {e}")
         raise ValueError(f"Erreur: {e}")
