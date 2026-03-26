@@ -11,11 +11,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
 from cachetools import TTLCache
-app_state.balance_cache = TTLCache(maxsize=2000, ttl=30) # Cache de 30 secondes
 
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
+
+from core.config import settings
+from core.state import app_state
 
 from utils.helpers import run_script, get_myipfs_gateway, get_env_from_mysh
 from utils.security import (
@@ -35,13 +37,15 @@ from models.schemas import (
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
+# Cache balance : TTL 30 s, max 2000 entrées
+app_state.balance_cache = TTLCache(maxsize=2000, ttl=30)
+
 # --- Coinflip server-authoritative state ---
 import base64
 import hmac
 import hashlib
 import secrets
 
-from core.config import settings
 COINFLIP_SECRET = settings.COINFLIP_SECRET
 COINFLIP_SESSIONS: Dict[str, Dict[str, Any]] = {}
 
