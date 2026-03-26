@@ -68,6 +68,8 @@ class Settings(BaseSettings):
     # Nœud primaire (surchargeable via G1_WS_NODE= dans .env)
     G1_WS_NODE: str = "wss://g1.1000i100.fr/ws"
     # Nœuds RPC de secours — bootstraps duniter_getnode.sh
+    # Le suffixe /ws ou /ws/ est détecté automatiquement par _resolve_rpc_url()
+    # lors de la première utilisation (probe HTTP JSON-RPC mis en cache mémoire).
     G1_RPC_FALLBACKS: List[str] = [
         "wss://g1.1000i100.fr/ws",
         "wss://g1-v2s.cgeek.fr",

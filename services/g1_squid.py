@@ -50,8 +50,13 @@ _BOOTSTRAP_RPC = [
     "wss://g1-v2s.cgeek.fr",
     "wss://g1.coinduf.eu",
     "wss://g1.gyroi.de",
+    "wss://g1.p2p.legal/ws",
     "wss://rpc.duniter.org",
+    "wss://g1.axiom-team.fr:443/ws/",
 ]
+
+# Cache en mémoire : url_base → url_résolue (path /ws détecté automatiquement)
+_rpc_url_cache: dict = {}
 
 # ── Alphabet Base58 Bitcoin (identique à Substrate / Duniter) ─────────────────
 _B58_ALPHABET = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -214,6 +219,55 @@ def get_rpc_nodes() -> List[str]:
         return list(_BOOTSTRAP_RPC)
 
 
+async def _resolve_rpc_url(url: str) -> str:
+    """
+    Détecte automatiquement le bon path WebSocket d'un nœud Duniter RPC.
+
+    Stratégie : tente une requête HTTP JSON-RPC (system_chain) sur les variantes
+    https://host, https://host/ws, https://host/ws/ en ordre, puis
+    retourne l'URL wss:// correspondante qui répond.
+    Le résultat est mis en cache en mémoire (_rpc_url_cache) pour la durée
+    de vie du processus — aucune re-probe inutile.
+    """
+    if url in _rpc_url_cache:
+        return _rpc_url_cache[url]
+
+    base = url.rstrip("/")
+    # Génère toutes les variantes wss://, avec probe via https://
+    variants_ws = [base]
+    if not base.endswith("/ws"):
+        variants_ws += [base + "/ws", base + "/ws/"]
+    else:
+        variants_ws += [base + "/"]
+
+    _probe_payload = {"jsonrpc": "2.0", "method": "system_chain", "params": [], "id": 1}
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            for ws_url in variants_ws:
+                # Convertit wss:// → https:// pour le probe HTTP
+                http_url = ws_url.replace("wss://", "https://").replace("ws://", "http://")
+                # Retire /ws ou /ws/ en fin pour l'endpoint HTTP JSON-RPC
+                http_probe = http_url.rstrip("/")
+                if http_probe.endswith("/ws"):
+                    http_probe = http_probe[:-3]
+                try:
+                    resp = await client.post(http_probe, json=_probe_payload)
+                    if resp.status_code == 200 and resp.json().get("result"):
+                        _rpc_url_cache[url] = ws_url
+                        logger.info("RPC URL résolue : %s → %s", url, ws_url)
+                        return ws_url
+                except Exception:
+                    continue
+    except Exception as exc:
+        logger.debug("_resolve_rpc_url probe échec pour %s : %s", url, exc)
+
+    # Aucun ne répond via HTTP : conserver l'URL originale
+    _rpc_url_cache[url] = url
+    logger.debug("RPC URL non résolue, fallback original : %s", url)
+    return url
+
+
 # ── Requêtes GraphQL ──────────────────────────────────────────────────────────
 
 _HISTORY_QUERY = """
@@ -363,18 +417,21 @@ async def get_g1_balance_native(g1pub: str) -> dict:
 async def _get_g1_balance_gcli_fallback(g1pub: str, ss58: str) -> dict:
     """
     Fallback : appelle gcli via subprocess asyncio si le Squid est indisponible.
-    Utilise le cache duniter_nodes.json pour choisir le meilleur nœud RPC,
-    reproduisant la logique de G1balance.sh (gcli account balance -o json).
+    Utilise le cache duniter_nodes.json pour choisir le meilleur nœud RPC.
+    Détecte automatiquement le bon path /ws / /ws/ via _resolve_rpc_url()
+    (probe HTTP JSON-RPC mis en cache en mémoire).
     """
     _empty = {"balances": {"pending": 0, "blockchain": 0, "total": 0}}
     rpc_nodes = get_rpc_nodes()
 
     for node in rpc_nodes:
         try:
+            # Résolution automatique du path /ws ou /ws/ (mis en cache)
+            resolved = await _resolve_rpc_url(node)
             proc = await asyncio.create_subprocess_exec(
                 "gcli", "--no-password",
                 "-a", ss58,
-                "-u", node,
+                "-u", resolved,
                 "-o", "json",
                 "account", "balance",
                 stdout=asyncio.subprocess.PIPE,
@@ -404,10 +461,59 @@ async def _get_g1_balance_gcli_fallback(g1pub: str, ss58: str) -> dict:
                         }
                     }
         except FileNotFoundError:
-            logger.warning("gcli introuvable — balance indisponible pour %s…", g1pub[:12])
+            logger.warning("gcli introuvable — balance indisponible pour %s…, fallback G1check.sh", g1pub[:12])
             break
         except Exception as exc:
             logger.debug("gcli échec sur %s : %s", node, exc)
 
-    logger.error("G1balance : tous les nœuds ont échoué pour %s…", g1pub[:12])
-    return _empty
+    # ── Super-fallback : G1check.sh (toujours disponible, fetch parallèle RPC) ─
+    logger.warning(
+        "G1balance : gcli et Squid échoués pour %s…, super-fallback G1check.sh", g1pub[:12]
+    )
+    return await _get_g1_balance_g1check_fallback(g1pub)
+
+
+async def _get_g1_balance_g1check_fallback(g1pub: str) -> dict:
+    """
+    Super-fallback : appelle G1check.sh (fetch parallèle RPC multi-nœuds).
+    G1check.sh retourne le solde en Ğ1 sur la dernière ligne (ex: "881.00").
+    Convertit en centimes pour uniformiser avec le reste du service.
+    """
+    _empty = {"balances": {"pending": 0, "blockchain": 0, "total": 0}}
+    try:
+        from core.config import settings
+        g1check = settings.TOOLS_PATH / "G1check.sh"
+        if not g1check.exists():
+            logger.error("G1check.sh introuvable : %s", g1check)
+            return _empty
+
+        proc = await asyncio.create_subprocess_exec(
+            str(g1check), g1pub,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+        except asyncio.TimeoutError:
+            proc.kill()
+            logger.error("G1check.sh timeout pour %s…", g1pub[:12])
+            return _empty
+
+        # G1check.sh écrit la valeur numérique seule sur la dernière ligne
+        last_line = stdout.decode().strip().splitlines()[-1].split()[0]
+        g1_value = float(last_line)
+        centimes = int(round(g1_value * 100))
+        logger.info(
+            "G1balance G1check.sh OK pour %s… : %.2f Ğ1 = %d centimes",
+            g1pub[:12], g1_value, centimes,
+        )
+        return {
+            "balances": {
+                "pending": 0,
+                "blockchain": centimes,
+                "total": centimes,
+            }
+        }
+    except Exception as exc:
+        logger.error("G1balance G1check.sh échec pour %s… : %s", g1pub[:12], exc)
+        return _empty
