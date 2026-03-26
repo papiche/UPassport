@@ -84,29 +84,48 @@ def _b58encode(b: bytes) -> str:
     return (b"1" * pad + b"".join(result)).decode()
 
 
-def g1pub_to_ss58(g1pub: str, network_prefix: int = 42) -> str:
-    """
-    Convertit une pubkey Ğ1 v1 (Base58 Bitcoin, 32 octets Ed25519)
-    en format SS58 Substrate (préfixe réseau 42 pour Ğ1).
+# Préfixe SS58 officiel du réseau Ğ1 Duniter v2
+# Source : https://github.com/duniter/duniter-v2s — les adresses commencent par "g1"
+_G1_SS58_PREFIX = 4450
 
-    Si la pubkey est déjà SS58 (raw décodé ≠ 32 octets), elle est renvoyée telle quelle.
+
+def g1pub_to_ss58(g1pub: str) -> str:
+    """
+    Convertit une pubkey Ğ1 en format SS58 Duniter v2 (préfixe réseau 4450).
+
+    Détection du format d'entrée :
+      - Déjà SS58 Duniter v2 : commence par "g1" et longueur > 44 chars
+        → retourné tel quel (les adresses v2 ont 48-50 chars)
+      - Clé publique Ed25519 v1 : 32 bytes en Base58 Bitcoin (43-44 chars)
+        → conversion vers SS58 avec préfixe 4450 (2 octets SCALE)
+      - Autre format non reconnu → renvoyé tel quel
+
     Ne lève jamais d'exception.
+    Implémentation identique à g1pub_to_ss58.py (Astroport.ONE/tools).
     """
     if not g1pub:
         return g1pub
+
+    # Détection SS58 Duniter v2 : commence par "g1" et plus long qu'une pubkey v1
+    if g1pub.startswith("g1") and len(g1pub) > 44:
+        logger.debug("g1pub_to_ss58 : déjà SS58 Duniter v2 (%s…)", g1pub[:12])
+        return g1pub
+
     try:
         raw = _b58decode(g1pub)
         if len(raw) != 32:
-            # Clé déjà en SS58 ou format inconnu
+            # Format inconnu (ni v1 pur 32 bytes, ni déjà SS58 détecté ci-dessus)
+            logger.debug(
+                "g1pub_to_ss58 : %d bytes, format inconnu, renvoi brut (%s…)",
+                len(raw), g1pub[:12],
+            )
             return g1pub
 
-        # Encodage SCALE du préfixe réseau
-        if network_prefix < 64:
-            prefix_bytes = bytes([network_prefix])
-        else:
-            first = ((network_prefix & 0xFC) >> 2) | 0x40
-            second = (network_prefix >> 8) | ((network_prefix & 0x3) << 6)
-            prefix_bytes = bytes([first, second])
+        # Clé publique Ed25519 v1 (32 bytes) → SS58 avec préfixe 4450
+        # Encodage SCALE 2-octets (préfixe >= 64)
+        first  = ((_G1_SS58_PREFIX & 0xFC) >> 2) | 0x40
+        second = (_G1_SS58_PREFIX >> 8) | ((_G1_SS58_PREFIX & 0x3) << 6)
+        prefix_bytes = bytes([first, second])
 
         # Checksum SS58 : BLAKE2b-512(b"SS58PRE" + prefix + pubkey)[0:2]
         checksum = hashlib.blake2b(
@@ -114,7 +133,7 @@ def g1pub_to_ss58(g1pub: str, network_prefix: int = 42) -> str:
         ).digest()[:2]
 
         encoded = _b58encode(prefix_bytes + raw + checksum)
-        logger.debug("g1pub_to_ss58 : %s… → %s…", g1pub[:12], encoded[:12])
+        logger.debug("g1pub_to_ss58 : %s… (v1→SS58) → %s…", g1pub[:12], encoded[:12])
         return encoded
     except Exception as exc:
         logger.debug("g1pub_to_ss58 échec (%s), renvoi brut : %s", exc, g1pub[:16])
@@ -281,12 +300,31 @@ query($a: String!, $n: Int!) {
 }
 """
 
+# Requête principale — schéma singulier Subquery/Duniter v2
 _BALANCE_QUERY = """
 query($a: String!) {
   account(id: $a) {
     id
     balance
     linkedAccount
+  }
+}
+"""
+
+# Requête alternative — schéma pluriel (autres déploiements Squid)
+_BALANCE_QUERY_PLURAL = """
+query($a: String!) {
+  accounts(condition: {id: $a}) {
+    nodes { id balance linkedAccount }
+  }
+}
+"""
+
+# Requête via linkedAccount (la pubkey originale peut être stockée comme linkedAccount)
+_BALANCE_QUERY_LINKED = """
+query($a: String!) {
+  accounts(condition: {linkedAccount: $a}) {
+    nodes { id balance linkedAccount }
   }
 }
 """
@@ -381,34 +419,69 @@ async def get_g1_balance_native(g1pub: str) -> dict:
         return _empty
 
     ss58 = g1pub_to_ss58(g1pub)
-    payload = {"query": _BALANCE_QUERY, "variables": {"a": ss58}}
+
+    # Variantes de requêtes à essayer, dans l'ordre de priorité :
+    # 1. account(id) singulier        → schéma standard Subquery Duniter v2
+    # 2. accounts(condition) pluriel  → schéma alternatif
+    # 3. accounts(linkedAccount)      → la pubkey v1 stockée comme linkedAccount
+    # Pour chaque variante, on essaie avec ss58 ET la pubkey originale brute
+    queries_to_try = [
+        (_BALANCE_QUERY,        "account",      ss58,   "account(id=SS58)"),
+        (_BALANCE_QUERY,        "account",      g1pub,  "account(id=v1)"),
+        (_BALANCE_QUERY_PLURAL, "accounts_nodes", ss58, "accounts(cond.id=SS58)"),
+        (_BALANCE_QUERY_PLURAL, "accounts_nodes", g1pub,"accounts(cond.id=v1)"),
+        (_BALANCE_QUERY_LINKED, "accounts_nodes", g1pub,"accounts(linkedAccount=v1)"),
+        (_BALANCE_QUERY_LINKED, "accounts_nodes", ss58, "accounts(linkedAccount=SS58)"),
+    ]
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         for url in get_squid_urls():
-            try:
-                resp = await client.post(url, json=payload)
-                if resp.status_code == 200:
+            squid_ok = False
+            for query, result_key, param, variant_label in queries_to_try:
+                try:
+                    resp = await client.post(url, json={"query": query, "variables": {"a": param}})
+                    if resp.status_code != 200:
+                        continue
+                    squid_ok = True
                     data = resp.json()
-                    account = (data.get("data") or {}).get("account")
-                    if account is not None:
-                        raw_balance = int(account.get("balance") or 0)
-                        logger.info(
-                            "G1balance natif squid OK pour %s… : %d centimes via %s",
-                            g1pub[:12], raw_balance, url,
-                        )
-                        return {
-                            "balances": {
-                                "pending": 0,
-                                "blockchain": raw_balance,
-                                "total": raw_balance,
-                            }
-                        }
-            except Exception as exc:
-                logger.debug("G1balance squid échec sur %s : %s", url, exc)
 
-    # ── Fallback gcli (source de vérité on-chain) ─────────────────────────────
-    logger.info(
-        "G1balance natif : tous les Squids indisponibles pour %s…, fallback gcli",
+                    # Extraction selon le type de requête
+                    if result_key == "account":
+                        account = (data.get("data") or {}).get("account")
+                        if account is not None:
+                            raw_balance = int(account.get("balance") or 0)
+                            logger.info(
+                                "G1balance squid OK [%s] pour %s… : %d centimes via %s",
+                                variant_label, g1pub[:12], raw_balance, url,
+                            )
+                            return {"balances": {"pending": 0, "blockchain": raw_balance, "total": raw_balance}}
+                    else:  # accounts_nodes
+                        nodes = ((data.get("data") or {}).get("accounts") or {}).get("nodes") or []
+                        if nodes:
+                            raw_balance = int((nodes[0].get("balance") or 0))
+                            logger.info(
+                                "G1balance squid OK [%s] pour %s… : %d centimes via %s",
+                                variant_label, g1pub[:12], raw_balance, url,
+                            )
+                            return {"balances": {"pending": 0, "blockchain": raw_balance, "total": raw_balance}}
+
+                    # Log diagnostic : le Squid répond mais le compte est absent
+                    logger.warning(
+                        "G1balance squid [%s] null pour %s… (param=%s…) via %s — réponse: %s",
+                        variant_label, g1pub[:12], param[:16], url,
+                        json.dumps(data)[:300],
+                    )
+                except Exception as exc:
+                    logger.debug("G1balance squid [%s] exception sur %s : %s", variant_label, url, exc)
+
+            if squid_ok:
+                # Le Squid a répondu sur toutes les variantes mais aucune n'a retourné de balance →
+                # inutile d'essayer les autres Squids pour ce compte
+                break
+
+    # ── Fallback gcli puis G1check.sh ─────────────────────────────────────────
+    logger.warning(
+        "G1balance : Squid ne contient pas le compte %s…, fallback gcli/G1check.sh",
         g1pub[:12],
     )
     return await _get_g1_balance_gcli_fallback(g1pub, ss58)
