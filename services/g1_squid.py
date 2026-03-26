@@ -300,30 +300,30 @@ query($a: String!, $n: Int!) {
 }
 """
 
-# Requête principale — schéma singulier Subquery/Duniter v2
-_BALANCE_QUERY = """
-query($a: String!) {
-  account(id: $a) {
-    id
-    balance
-    linkedAccount
-  }
-}
-"""
-
-# Requête alternative — schéma pluriel (autres déploiements Squid)
+# Requête principale — identique à G1check.sh parallel_squid_fetch :
+#   accounts(condition:{id:$w}){nodes{totalBalance}}
+# Champ : totalBalance (pas "balance") — confirmé par G1check.sh ligne 204
 _BALANCE_QUERY_PLURAL = """
 query($a: String!) {
   accounts(condition: {id: $a}) {
-    nodes { id balance linkedAccount }
+    nodes { id totalBalance linkedAccount }
   }
 }
 """
 
-# Requête via linkedAccount (la pubkey originale peut être stockée comme linkedAccount)
+# Variante : compte par linkedAccount (pubkey originale stockée comme linkedAccount)
 _BALANCE_QUERY_LINKED = """
 query($a: String!) {
   accounts(condition: {linkedAccount: $a}) {
+    nodes { id totalBalance linkedAccount }
+  }
+}
+"""
+
+# Variante legacy : champ "balance" (anciens déploiements Squid avant renommage)
+_BALANCE_QUERY_LEGACY = """
+query($a: String!) {
+  accounts(condition: {id: $a}) {
     nodes { id balance linkedAccount }
   }
 }
@@ -420,18 +420,21 @@ async def get_g1_balance_native(g1pub: str) -> dict:
 
     ss58 = g1pub_to_ss58(g1pub)
 
-    # Variantes de requêtes à essayer, dans l'ordre de priorité :
-    # 1. account(id) singulier        → schéma standard Subquery Duniter v2
-    # 2. accounts(condition) pluriel  → schéma alternatif
-    # 3. accounts(linkedAccount)      → la pubkey v1 stockée comme linkedAccount
-    # Pour chaque variante, on essaie avec ss58 ET la pubkey originale brute
+    # Variantes de requêtes à essayer, dans l'ordre de priorité.
+    # Source de référence : G1check.sh parallel_squid_fetch (ligne 202) :
+    #   accounts(condition:{id:$w}){nodes{totalBalance}}
+    # Le champ correct est "totalBalance" (pas "balance").
     queries_to_try = [
-        (_BALANCE_QUERY,        "account",      ss58,   "account(id=SS58)"),
-        (_BALANCE_QUERY,        "account",      g1pub,  "account(id=v1)"),
-        (_BALANCE_QUERY_PLURAL, "accounts_nodes", ss58, "accounts(cond.id=SS58)"),
-        (_BALANCE_QUERY_PLURAL, "accounts_nodes", g1pub,"accounts(cond.id=v1)"),
-        (_BALANCE_QUERY_LINKED, "accounts_nodes", g1pub,"accounts(linkedAccount=v1)"),
-        (_BALANCE_QUERY_LINKED, "accounts_nodes", ss58, "accounts(linkedAccount=SS58)"),
+        # Priorité 1 : requête exacte de G1check.sh (totalBalance, pluriel, SS58)
+        (_BALANCE_QUERY_PLURAL, "total", ss58,   "accounts(id=SS58, totalBalance)"),
+        # Priorité 2 : même requête avec pubkey originale brute
+        (_BALANCE_QUERY_PLURAL, "total", g1pub,  "accounts(id=v1, totalBalance)"),
+        # Priorité 3 : via linkedAccount (pubkey originale stockée en lien)
+        (_BALANCE_QUERY_LINKED, "total", g1pub,  "accounts(linkedAccount=v1)"),
+        (_BALANCE_QUERY_LINKED, "total", ss58,   "accounts(linkedAccount=SS58)"),
+        # Priorité 4 : anciens Squids qui utilisent "balance" au lieu de "totalBalance"
+        (_BALANCE_QUERY_LEGACY, "legacy", ss58,  "accounts(id=SS58, balance legacy)"),
+        (_BALANCE_QUERY_LEGACY, "legacy", g1pub, "accounts(id=v1, balance legacy)"),
     ]
 
     async with httpx.AsyncClient(timeout=15.0) as client:
@@ -445,25 +448,28 @@ async def get_g1_balance_native(g1pub: str) -> dict:
                     squid_ok = True
                     data = resp.json()
 
-                    # Extraction selon le type de requête
-                    if result_key == "account":
-                        account = (data.get("data") or {}).get("account")
-                        if account is not None:
-                            raw_balance = int(account.get("balance") or 0)
+                    # Extraction : tous les result_key utilisent accounts.nodes
+                    # "total"  → champ totalBalance (G1check.sh référence)
+                    # "legacy" → champ balance (anciens Squids)
+                    nodes = ((data.get("data") or {}).get("accounts") or {}).get("nodes") or []
+                    if nodes:
+                        node = nodes[0]
+                        if result_key == "total":
+                            raw_balance = int(node.get("totalBalance") or 0)
+                        else:  # legacy
+                            raw_balance = int(node.get("balance") or 0)
+                        if raw_balance > 0:
                             logger.info(
                                 "G1balance squid OK [%s] pour %s… : %d centimes via %s",
                                 variant_label, g1pub[:12], raw_balance, url,
                             )
                             return {"balances": {"pending": 0, "blockchain": raw_balance, "total": raw_balance}}
-                    else:  # accounts_nodes
-                        nodes = ((data.get("data") or {}).get("accounts") or {}).get("nodes") or []
-                        if nodes:
-                            raw_balance = int((nodes[0].get("balance") or 0))
-                            logger.info(
-                                "G1balance squid OK [%s] pour %s… : %d centimes via %s",
-                                variant_label, g1pub[:12], raw_balance, url,
-                            )
-                            return {"balances": {"pending": 0, "blockchain": raw_balance, "total": raw_balance}}
+                        # balance == 0 peut être valide (compte vide) → on retourne quand même
+                        logger.info(
+                            "G1balance squid OK [%s] pour %s… : solde 0 via %s",
+                            variant_label, g1pub[:12], url,
+                        )
+                        return {"balances": {"pending": 0, "blockchain": 0, "total": 0}}
 
                     # Log diagnostic : le Squid répond mais le compte est absent
                     logger.warning(
@@ -551,30 +557,62 @@ async def _get_g1_balance_g1check_fallback(g1pub: str) -> dict:
     Super-fallback : appelle G1check.sh (fetch parallèle RPC multi-nœuds).
     G1check.sh retourne le solde en Ğ1 sur la dernière ligne (ex: "881.00").
     Convertit en centimes pour uniformiser avec le reste du service.
+
+    Problème systemd : le service a un PATH restreint sans gcli/jq.
+    Solution : on lance G1check.sh via `bash -c 'source my.sh && G1check.sh'`
+    pour hériter de l'environnement complet de l'utilisateur (gcli, jq, etc.)
     """
     _empty = {"balances": {"pending": 0, "blockchain": 0, "total": 0}}
     try:
         from core.config import settings
         g1check = settings.TOOLS_PATH / "G1check.sh"
+        my_sh   = settings.TOOLS_PATH / "my.sh"
         if not g1check.exists():
             logger.error("G1check.sh introuvable : %s", g1check)
             return _empty
 
+        # Étendre le PATH pour inclure les outils utilisateur (gcli, jq, etc.)
+        # qui ne sont pas dans le PATH restreint du service systemd.
+        user_home = str(Path.home())
+        env = os.environ.copy()
+        extra_paths = [
+            f"{user_home}/.astro/bin",
+            f"{user_home}/.local/bin",
+            f"{user_home}/.zen/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+        ]
+        env["PATH"] = ":".join(extra_paths) + ":" + env.get("PATH", "")
+        env["HOME"] = user_home
+
+        # Commande : source my.sh pour charger les variables Astroport,
+        # puis exécuter G1check.sh avec la pubkey en argument positionnel
+        if my_sh.exists():
+            cmd_str = f'source "{my_sh}" 2>/dev/null; exec "{g1check}" "$1"'
+        else:
+            cmd_str = f'exec "{g1check}" "$1"'
+
         proc = await asyncio.create_subprocess_exec(
-            str(g1check), g1pub,
+            "bash", "-c", cmd_str, "--", g1pub,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
         try:
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
         except asyncio.TimeoutError:
             proc.kill()
-            logger.error("G1check.sh timeout pour %s…", g1pub[:12])
+            logger.error("G1check.sh timeout (30s) pour %s…", g1pub[:12])
             return _empty
 
         # G1check.sh écrit la valeur numérique seule sur la dernière ligne
-        last_line = stdout.decode().strip().splitlines()[-1].split()[0]
-        g1_value = float(last_line)
+        lines = stdout.decode().strip().splitlines()
+        if not lines:
+            logger.warning("G1check.sh sortie vide pour %s…", g1pub[:12])
+            return _empty
+        last_token = lines[-1].split()[0]
+        g1_value = float(last_token)
         centimes = int(round(g1_value * 100))
         logger.info(
             "G1balance G1check.sh OK pour %s… : %.2f Ğ1 = %d centimes",
