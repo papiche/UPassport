@@ -59,7 +59,7 @@ async def ustats(request: Request, lat: str = None, lon: str = None, deg: str = 
                 logging.error(f"Error parsing JSON: {e}")
                 raise HTTPException(status_code=500, detail=f"Error parsing JSON: {str(e)}")
     else:
-        raise HTTPException(status_code=500, detail="Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ./tmp/api.log.")
+        raise HTTPException(status_code=500, detail="Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ./tmp/54321.log.")
 
 @router.get("/video", summary="Video Redirect", description="Redirect to the YouTube video page.")
 async def video_route(): return RedirectResponse(url="/youtube?html=1", status_code=302)

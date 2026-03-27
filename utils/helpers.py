@@ -65,7 +65,7 @@ def render_page(request: Request, template_name: str, context: dict = None):
 async def run_script(script_path, *args, log_file_path=None):
     if log_file_path is None:
         from core.config import settings
-        log_file_path = settings.ZEN_PATH / "tmp" / "api.log"
+        log_file_path = settings.ZEN_PATH / "tmp" / "54321.log"
     """
     Fonction générique pour exécuter des scripts shell avec gestion des logs
     """

@@ -6,7 +6,7 @@ from core.config import settings
 import os
 
 def setup_logging():
-    log_file = settings.ZEN_PATH / "tmp" / "api.log"
+    log_file = settings.ZEN_PATH / "tmp" / "54321.log"
     os.makedirs(settings.ZEN_PATH / "tmp", exist_ok=True)
     log_file.parent.mkdir(parents=True, exist_ok=True)
     
