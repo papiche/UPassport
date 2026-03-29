@@ -3616,102 +3616,108 @@
             
             // Set video source
             if (videoPlayer && videoData.ipfsUrl) {
-                // Ensure IPFS_GATEWAY is defined
-                if (!window.IPFS_GATEWAY) {
-                    if (typeof detectIPFSGatewayGlobal === 'function') {
-                        detectIPFSGatewayGlobal();
-                    } else {
-                        // Fallback: detect from current URL
-                        const currentURL = new URL(window.location.href);
-                        const hostname = currentURL.hostname;
-                        if (hostname === '127.0.0.1' || hostname === 'localhost') {
-                            window.IPFS_GATEWAY = 'http://127.0.0.1:8080';
-                        } else if (hostname.startsWith('u.')) {
-                            const baseDomain = hostname.substring('u.'.length);
-                            window.IPFS_GATEWAY = `${currentURL.protocol}//ipfs.${baseDomain}`;
+                // ── Guard: if initializeTheaterMode (youtube.enhancements.js) already set a
+                // source, DO NOT reset the player – that would abort the ongoing media fetch
+                // and trigger "DOMException: The fetching process for the media resource was
+                // aborted by the user agent at the user's request."
+                // currentSrc is non-empty as soon as the browser starts fetching the resource.
+                const alreadyHasSource = videoPlayer.currentSrc &&
+                                         videoPlayer.currentSrc !== '' &&
+                                         videoPlayer.currentSrc !== window.location.href;
+                
+                if (alreadyHasSource) {
+                    // Video already loaded/loading by initializeTheaterMode – only set data attributes
+                    console.log('🎥 Video already loading via initializeTheaterMode, skipping reload');
+                    if (videoData.eventId) videoPlayer.setAttribute('data-event-id', videoData.eventId);
+                    if (videoData.authorId) videoPlayer.setAttribute('data-author-id', videoData.authorId);
+                    if (videoData.ipfsUrl) videoPlayer.setAttribute('data-ipfs-url', videoData.ipfsUrl);
+                    videoPlayer.setAttribute('data-video-kind', videoData.kind ? String(videoData.kind) : '21');
+                } else {
+                    // No source yet – load it here (fallback when youtube.enhancements.js is absent)
+                    
+                    // Ensure IPFS_GATEWAY is defined
+                    if (!window.IPFS_GATEWAY) {
+                        if (typeof detectIPFSGatewayGlobal === 'function') {
+                            detectIPFSGatewayGlobal();
                         } else {
-                            window.IPFS_GATEWAY = 'https://ipfs.copylaradio.com';
+                            // Fallback: detect from current URL
+                            const currentURL = new URL(window.location.href);
+                            const hostname = currentURL.hostname;
+                            if (hostname === '127.0.0.1' || hostname === 'localhost') {
+                                window.IPFS_GATEWAY = 'http://127.0.0.1:8080';
+                            } else if (hostname.startsWith('u.')) {
+                                const baseDomain = hostname.substring('u.'.length);
+                                window.IPFS_GATEWAY = `${currentURL.protocol}//ipfs.${baseDomain}`;
+                            } else {
+                                window.IPFS_GATEWAY = 'https://ipfs.copylaradio.com';
+                            }
                         }
                     }
-                }
-                
-                // Convert IPFS URL if needed
-                let videoUrl = videoData.ipfsUrl;
-                
-                console.log('🎥 Original IPFS URL:', videoUrl);
-                console.log('🌐 IPFS Gateway:', window.IPFS_GATEWAY);
-                
-                // Decode URL first if it's already encoded (to avoid double-encoding)
-                // The browser will re-encode it automatically when making the request
-                let decodedUrl = videoUrl;
-                try {
-                    decodedUrl = decodeURIComponent(videoUrl);
-                } catch (e) {
-                    // If decoding fails, use original URL
-                    console.warn('Failed to decode video URL:', videoUrl, e);
-                }
-                
-                if (typeof convertIPFSUrlGlobal !== 'undefined') {
-                    videoUrl = convertIPFSUrlGlobal(decodedUrl);
-                } else if (window.IPFS_GATEWAY && decodedUrl.includes('/ipfs/')) {
-                    const match = decodedUrl.match(/\/ipfs\/[^?"#]+/);
-                    if (match) {
-                        videoUrl = window.IPFS_GATEWAY + match[0];
+                    
+                    // Convert IPFS URL if needed
+                    let videoUrl = videoData.ipfsUrl;
+                    
+                    console.log('🎥 Original IPFS URL:', videoUrl);
+                    console.log('🌐 IPFS Gateway:', window.IPFS_GATEWAY);
+                    
+                    // Decode URL first if it's already encoded (to avoid double-encoding)
+                    let decodedUrl = videoUrl;
+                    try {
+                        decodedUrl = decodeURIComponent(videoUrl);
+                    } catch (e) {
+                        console.warn('Failed to decode video URL:', videoUrl, e);
                     }
-                } else {
-                    videoUrl = decodedUrl;
+                    
+                    if (typeof convertIPFSUrlGlobal !== 'undefined') {
+                        videoUrl = convertIPFSUrlGlobal(decodedUrl);
+                    } else if (window.IPFS_GATEWAY && decodedUrl.includes('/ipfs/')) {
+                        const match = decodedUrl.match(/\/ipfs\/[^?"#]+/);
+                        if (match) {
+                            videoUrl = window.IPFS_GATEWAY + match[0];
+                        }
+                    } else {
+                        videoUrl = decodedUrl;
+                    }
+                    
+                    console.log('🎥 Final video URL:', videoUrl);
+                    
+                    // Clear existing sources first - IMPORTANT for video switching
+                    videoPlayer.innerHTML = '';
+                    videoPlayer.removeAttribute('src');
+                    videoPlayer.load(); // Force reset of media element
+                    
+                    // Create new source element
+                    const source = document.createElement('source');
+                    source.src = videoUrl;
+                    const videoType = videoUrl.toLowerCase().endsWith('.webm') ? 'video/webm' : 'video/mp4';
+                    source.type = videoType;
+                    videoPlayer.appendChild(source);
+                    
+                    console.log('🎥 Video source type:', videoType);
+                    console.log('🎥 Video player ready to load');
+                    
+                    // Store metadata before loading
+                    if (videoData.eventId) videoPlayer.setAttribute('data-event-id', videoData.eventId);
+                    if (videoData.authorId) videoPlayer.setAttribute('data-author-id', videoData.authorId);
+                    if (videoData.ipfsUrl) videoPlayer.setAttribute('data-ipfs-url', videoData.ipfsUrl);
+                    videoPlayer.setAttribute('data-video-kind', videoData.kind ? String(videoData.kind) : '21');
+                    
+                    // Load then play (wait for canplay event to avoid race condition)
+                    videoPlayer.load();
+                    videoPlayer.addEventListener('canplay', function onCanPlay() {
+                        videoPlayer.removeEventListener('canplay', onCanPlay);
+                        videoPlayer.play().then(() => {
+                            console.log('✅ Video playing automatically');
+                        }).catch((error) => {
+                            console.log('⚠️ Autoplay blocked, user interaction required:', error.message);
+                        });
+                    }, { once: true });
+                    
+                    // Ensure video is visible and on top
+                    videoPlayer.style.display = 'block';
+                    videoPlayer.style.zIndex = '1';
+                    videoPlayer.style.position = 'relative';
                 }
-                
-                console.log('🎥 Final video URL:', videoUrl);
-                
-                // Clear existing sources first - IMPORTANT for video switching
-                videoPlayer.innerHTML = '';
-                videoPlayer.removeAttribute('src'); // Clear src attribute too
-                videoPlayer.load(); // Force reset of media element
-                
-                // Create new source element
-                const source = document.createElement('source');
-                source.src = videoUrl;
-                // Detect video type from URL
-                const videoType = videoUrl.toLowerCase().endsWith('.webm') ? 'video/webm' : 'video/mp4';
-                source.type = videoType;
-                videoPlayer.appendChild(source);
-                
-                console.log('🎥 Video source type:', videoType);
-                console.log('🎥 Video player ready to load');
-                
-                // Store metadata before loading
-                if (videoData.eventId) {
-                    videoPlayer.setAttribute('data-event-id', videoData.eventId);
-                }
-                if (videoData.authorId) {
-                    videoPlayer.setAttribute('data-author-id', videoData.authorId);
-                }
-                if (videoData.ipfsUrl) {
-                    videoPlayer.setAttribute('data-ipfs-url', videoData.ipfsUrl);
-                }
-                // Store video kind (21 for regular videos, 22 for shorts)
-                if (videoData.kind) {
-                    videoPlayer.setAttribute('data-video-kind', String(videoData.kind));
-                } else {
-                    // Default to 21 if not specified
-                    videoPlayer.setAttribute('data-video-kind', '21');
-                }
-                
-                // Load and play video
-                videoPlayer.load();
-                
-                // Try to play automatically (may be blocked by browser autoplay policy)
-                videoPlayer.play().then(() => {
-                    console.log('✅ Video playing automatically');
-                }).catch((error) => {
-                    console.log('⚠️ Autoplay blocked, user interaction required:', error.message);
-                });
-                
-                // Ensure video is visible and on top
-                videoPlayer.style.display = 'block';
-                videoPlayer.style.zIndex = '1';
-                videoPlayer.style.position = 'relative';
             }
             
             // Set duration
