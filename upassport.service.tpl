@@ -1,6 +1,7 @@
 [Unit]
 Description=UPasport - UPlanet 54321 - Service
-After=network.target
+After=network.target strfry.service
+Wants=strfry.service
 
 [Service]
 User=_USER_
