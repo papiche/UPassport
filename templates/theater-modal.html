@@ -1052,11 +1052,11 @@
             <!-- Video player (left side) -->
             <div class="theater-video-container">
                 <div class="theater-video-wrapper">
-                    <video 
-                        id="theaterVideoPlayer" 
+                    <video
+                        id="theaterVideoPlayer"
                         class="theater-video-player"
-                        controls 
-                        autoplay>
+                        controls
+                        preload="none">
                         Votre navigateur ne supporte pas la lecture vidéo.
                     </video>
                 </div>
@@ -4750,7 +4750,20 @@
                 if (_svd && _svd.ipfs_url && !window.videoData) {
                     console.log('📺 Theater: using server-preloaded video data (local relay bypass)',
                                 _svd.event_id ? _svd.event_id.substring(0, 16) + '…' : '');
-                    window.videoData = _svd;
+                    // ── Normalize snake_case keys (from Python/server) to camelCase
+                    // so that initializeTheaterModeLocal (which expects camelCase) can use them.
+                    window.videoData = {
+                        ..._svd,
+                        ipfsUrl:       _svd.ipfs_url        || _svd.ipfsUrl       || '',
+                        eventId:       _svd.event_id        || _svd.eventId       || '',
+                        authorId:      _svd.author_id       || _svd.authorId      || '',
+                        infoCid:       _svd.info_cid        || _svd.infoCid       || '',
+                        fileHash:      _svd.file_hash       || _svd.fileHash      || '',
+                        uploadChain:   _svd.upload_chain    || _svd.uploadChain   || '',
+                        sourceType:    _svd.source_type     || _svd.sourceType    || 'webcam',
+                        thumbnailIpfs: _svd.thumbnail_ipfs  || _svd.thumbnailIpfs || '',
+                        gifanimIpfs:   _svd.gifanim_ipfs    || _svd.gifanimIpfs   || '',
+                    };
                 }
             } catch (e) {
                 console.warn('⚠️ Could not parse server_video_data:', e);
