@@ -28,7 +28,7 @@ from utils.helpers import as_form
 # Caractères autorisés dans salt/pepper : tout caractère imprimable sauf ceux dangereux pour le shell
 # Exclus : guillemets simples/doubles, backtick, $, \, retours à la ligne, null
 # Permet : espaces, ponctuation courante (;!?.,()+-=*%&#@~), BIP39, emails…
-_SAFE_CREDENTIAL_RE = re.compile(r'^[^\x00-\x1f"\'`$\\]{0,512}$')
+_SAFE_CREDENTIAL_RE = re.compile(r'^[^\x00-\x1f"\'`$\\]{0,56}$')
 
 @as_form
 class G1NostrForm(BaseModel):
