@@ -77,7 +77,7 @@ if [[ "$SSSS" =~ ^[1-3]-[a-f0-9]{100,} ]]; then
                     DISCO=$(echo -e "$SSSS\n$PART_UPLANET" | ssss-combine -t 2 -q 2>&1 | tail -n 1)
 
                     # 7. Vérifier si le DISCO est valide
-                    if [[ "$DISCO" == *"salt="* && "$DISCO" == *"pepper="* ]]; then
+                    if [[ "$DISCO" == *"salt="* && "$DISCO" == *"nostr="* ]]; then
                         VALID="VALID"
                         
                         # ====================================================================
