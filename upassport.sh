@@ -448,6 +448,46 @@ if [[ ( ${PUBKEY:0:2} == "M-" || ${PUBKEY:0:2} == "1-" ) && ${ZCHK:0:6} == "k51q
             ### Filling UPassport API template with nsec
             NSEC=$($HOME/.zen/Astroport.ONE/tools/keygen -t nostr "${salt}" "${pepper}" -s)
             
+            ### RECONSTRUCT/UPDATE .multipass.json for Zelkova
+            G1PUB=$(cat "${HOME}/.zen/game/nostr/${PLAYER}/G1PUBNOSTR" 2>/dev/null)
+            # Ensure G1PUB is V2 (SS58)
+            if [[ -x "${HOME}/.zen/Astroport.ONE/tools/g1pub_to_ss58.py" ]]; then
+                _g1v2=$(python3 "${HOME}/.zen/Astroport.ONE/tools/g1pub_to_ss58.py" "$G1PUB" 2>/dev/null)
+                [[ -n "$_g1v2" ]] && G1PUB="$_g1v2"
+            fi
+            
+            NOSTRNS=$(cat "${HOME}/.zen/game/nostr/${PLAYER}/NOSTRNS" 2>/dev/null)
+            if [[ -f "${HOME}/.zen/game/nostr/${PLAYER}/.secret.nostr" ]]; then
+                source "${HOME}/.zen/game/nostr/${PLAYER}/.secret.nostr"
+            fi
+            SSSS_KEY=$(cat "${HOME}/.zen/game/nostr/${PLAYER}/.ssss.player.key" 2>/dev/null)
+            
+            # GPS from GPS file or defaults
+            ZLAT="$LAT"
+            ZLON="$LON"
+            if [[ -f "${HOME}/.zen/game/nostr/${PLAYER}/GPS" ]]; then
+                ZLAT=$(grep -o 'LAT=[^;]*' "${HOME}/.zen/game/nostr/${PLAYER}/GPS" | cut -d= -f2)
+                ZLON=$(grep -o 'LON=[^;]*' "${HOME}/.zen/game/nostr/${PLAYER}/GPS" | cut -d= -f2)
+            fi
+
+            JSON_FILE="${HOME}/.zen/game/nostr/${PLAYER}/.multipass.json"
+            cat > "$JSON_FILE" <<EOFJSON
+{
+  "g1pub": "${G1PUB}",
+  "nsec": "${NSEC}",
+  "npub": "${NPUB}",
+  "hex": "${HEX}",
+  "ssss": "${SSSS_KEY}",
+  "nostrns": "${NOSTRNS}",
+  "salt": "${salt}",
+  "pepper": "${pepper}",
+  "email": "${PLAYER}",
+  "lat": "${ZLAT}",
+  "lon": "${ZLON}",
+  "uplanetname_g1": "${UPLANETNAME_G1}"
+}
+EOFJSON
+
             ### PASS CODE HANDLER ### TODO : make it programmable by MULTIPASS user
             # PASS "1111" = Open nostr.html (full DEMO : BRO/Blog/NOSTRTube mixed interface)
             # PASS "9999" = Open scan_multipass_payment.html (MULTIPASS Payment Terminal)

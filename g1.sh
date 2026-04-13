@@ -53,11 +53,29 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
             exit 0
         else
             ## Same-day re-request
-            # Check if .multipass.json exists, if not try to reconstruct it
+            # Check if .multipass.json exists and contains all fields (like email/lat/lon) 
+            # and ensure G1PUB is V2 (starts with g1). If not, reconstruct it.
             JSON_FILE="${HOME}/.zen/game/nostr/${EMAIL}/.multipass.json"
+            RECONSTRUCT="no"
             if [[ ! -f "$JSON_FILE" ]]; then
+                RECONSTRUCT="yes"
+            else
+                # Check for missing fields (email) or V1 address
+                if [[ "$(grep -c "email" "$JSON_FILE")" -eq 0 ]]; then RECONSTRUCT="yes"; fi
+                G1PUB_JSON=$(grep -o '"g1pub": *"[^"]*"' "$JSON_FILE" 2>/dev/null | cut -d'"' -f4)
+                if [[ "${G1PUB_JSON:0:2}" != "g1" ]]; then RECONSTRUCT="yes"; fi
+            fi
+
+            if [[ "$RECONSTRUCT" == "yes" ]]; then
                 # Reconstruct .multipass.json from existing files
                 G1PUB=$(cat "${HOME}/.zen/game/nostr/${EMAIL}/G1PUBNOSTR" 2>/dev/null)
+                # Ensure G1PUB is V2 (SS58) if possible
+                if [[ -x "${MY_PATH}/../Astroport.ONE/tools/g1pub_to_ss58.py" ]]; then
+                    _g1v2=$(python3 "${MY_PATH}/../Astroport.ONE/tools/g1pub_to_ss58.py" "$G1PUB" 2>/dev/null)
+                    [[ -n "$_g1v2" ]] && G1PUB="$_g1v2"
+                fi
+
+
                 NOSTRNS=$(cat "${HOME}/.zen/game/nostr/${EMAIL}/NOSTRNS" 2>/dev/null)
                 
                 # Extract keys from .secret.nostr
@@ -77,15 +95,29 @@ if [[ $EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
                     PEPPER=$(echo "$DISCO_CONTENT" | grep -o 'nostr=[^&]*' | cut -d= -f2)
                 fi
                 
+                # Read lat/lon from GPS file if available
+                ZLAT="$LAT"
+                ZLON="$LON"
+                if [[ -f "${HOME}/.zen/game/nostr/${EMAIL}/GPS" ]]; then
+                    # GPS file format: LAT=...; LON=...;
+                    ZLAT=$(grep -o 'LAT=[^;]*' "${HOME}/.zen/game/nostr/${EMAIL}/GPS" | cut -d= -f2)
+                    ZLON=$(grep -o 'LON=[^;]*' "${HOME}/.zen/game/nostr/${EMAIL}/GPS" | cut -d= -f2)
+                fi
+
                 cat > "$JSON_FILE" <<EOFJSON
 {
   "g1pub": "${G1PUB}",
   "nsec": "${NSEC}",
   "npub": "${NPUB}",
+  "hex": "${HEX}",
   "ssss": "${SSSS_KEY}",
   "nostrns": "${NOSTRNS}",
   "salt": "${SALT}",
-  "pepper": "${PEPPER}"
+  "pepper": "${PEPPER}",
+  "email": "${EMAIL}",
+  "lat": "${ZLAT}",
+  "lon": "${ZLON}",
+  "uplanetname_g1": "${UPLANETNAME_G1}"
 }
 EOFJSON
             fi

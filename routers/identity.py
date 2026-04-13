@@ -116,11 +116,30 @@ async def scan_qr(
                     data["is_origin"] = is_origin_mode()
                     data["oc_urls"] = get_oc_tier_urls()
                     data["uplanet_home"] = await get_uplanet_home_url()
+                    data["uplanetname_g1"] = settings.UPLANETNAME_G1
+                    
+                    # Mark as consumed (one-time retrieval ideally)
+                    consumed_marker = str(multipass_json) + ".consumed"
+                    try:
+                        from datetime import datetime
+                        with open(consumed_marker, 'w') as f:
+                            f.write(datetime.now().isoformat())
+                        os.remove(multipass_json)
+                        logging.info(f"MULTIPASS JSON for {email} consumed and deleted.")
+                    except Exception as e:
+                        logging.error(f"Error marking MULTIPASS as consumed: {e}")
+
                     return JSONResponse(data)
                 except Exception as e:
                     logging.error(f"Error reading JSON sidecar: {e}")
                     raise HTTPException(status_code=500, detail=f"Error reading JSON sidecar: {str(e)}")
             else:
+                # Check if it was already consumed
+                consumed_marker = str(multipass_json) + ".consumed"
+                if os.path.exists(consumed_marker):
+                    logging.warning(f"MULTIPASS JSON for {email} was already consumed.")
+                    raise HTTPException(status_code=403, detail="MULTIPASS data already retrieved. Use SSSS recovery if needed.")
+                
                 # Check if directory exists to give better error
                 parent_dir = multipass_json.parent
                 dir_exists = os.path.exists(parent_dir)
@@ -145,6 +164,7 @@ class UPassportForm(BaseModel):
     imageData: Optional[str] = None
     zlat: Optional[str] = None
     zlon: Optional[str] = None
+    format: str = "html"
 
 @router.post("/upassport")
 async def scan_qr_upassport(
