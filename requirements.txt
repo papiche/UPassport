@@ -1,4 +1,4 @@
-fastapi==0.110.0
+fastapi==0.110.0    # assurer @as_form et RateLimitMiddleware 
 uvicorn[standard]
 pydantic-settings
 aiofiles
@@ -7,5 +7,10 @@ python-magic
 websockets
 httpx
 cachetools
-bech32
 jinja2
+bech32
+pynostr          # Indispensable pour signer les events NIP-42 et Jukebox
+robohash         # Utilisé dans routers/robohash.py
+base58           # Utilisé par ipfs_to_g1.py et autres conversions de clés
+ecdsa            # Fallback cryptographique (pour nostr_nsec2npub2hex.py)
+nostr-sdk        # Librairie Rust (utilisée dans get_my_gps_coordinates geo.py)
