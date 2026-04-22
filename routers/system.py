@@ -371,7 +371,6 @@ async def get_wotx2(request: Request, npub: Optional[str] = None, permit_id: Opt
         is_primary_station = False
         ipfs_node_id = await get_env_from_mysh("IPFSNODEID", "")
         if not ipfs_node_id:
-            from core.config import settings
             ipfs_node_id = settings.IPFSNODEID
         if ipfs_node_id:
             strapfile = None
