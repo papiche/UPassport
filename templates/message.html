@@ -5,63 +5,109 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>_TITLE_</title>
     <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            margin: 0;
-            padding: 0;
-            background-color: #000;
-            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #e8e8e8;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            padding: 14px 20px;
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            font-size: 0.82em;
+            color: #94a3b8;
+            word-break: break-all;
+            line-height: 1.5;
+        }
+        main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 16px;
+        }
+        .content {
+            width: 100%;
+            max-width: 640px;
+        }
+        footer {
+            padding: 10px 20px;
+            text-align: center;
+            font-size: 0.72em;
+            color: rgba(255,255,255,0.25);
+            border-top: 1px solid rgba(255,255,255,0.05);
         }
 
-        header, footer {
-            height: 80px;
-            line-height: 50px;
-            padding-left: 20px;
-            padding-right: 20px;
+        /* Carte générique */
+        .ucard {
+            border-radius: 16px;
+            padding: 22px 20px;
+            color: white;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+            text-align: center;
+        }
+        .ucard h3 {
+            font-size: 0.95em;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        .ucard .balance {
+            font-size: 2.6em;
+            font-weight: 800;
+            line-height: 1.1;
+            margin: 6px 0 4px;
+        }
+        .ucard .unit {
+            font-size: 0.8em;
+            opacity: 0.75;
+            margin-bottom: 12px;
+        }
+        .ucard .g1pub {
+            font-size: 0.7em;
+            font-family: 'Courier New', monospace;
+            opacity: 0.55;
+            margin-bottom: 14px;
+            word-break: break-all;
+        }
+        .ucard a.btn {
+            display: inline-block;
             color: #fff;
+            text-decoration: none;
+            background: rgba(255,255,255,0.18);
+            padding: 7px 16px;
+            border-radius: 20px;
+            font-size: 0.82em;
+            font-weight: 600;
+            transition: background 0.2s;
         }
+        .ucard a.btn:hover { background: rgba(255,255,255,0.32); }
 
-        .circle-container {
-            position: relative;
-            width: 300px;
-            height: 300px;
-            margin: auto;
-            border-radius: 50%;
-            overflow: hidden;
-            background-color: #fff;
+        /* Grille 2 cartes */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
         }
-
-        .wallet-amount {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 1.6em;
-            font-weight: bold;
-        }
-
-        /* Media queries for responsive design */
-        @media (max-width: 768px) {
-            .circle-container {
-                width: 240px;
-                height: 240px;
-            }
-
-            .wallet-amount {
-                font-size: 1.2em;
-            }
-
-            header, footer {
-                font-size: 0.8em;
-            }
+        @media (max-width: 480px) {
+            .cards-grid { grid-template-columns: 1fr; }
+            .ucard .balance { font-size: 2em; }
         }
     </style>
 </head>
 <body>
     <header>_TITLE_</header>
-    <div class="circle-container">
-        <div class="wallet-amount">_MESSAGE_</div>
-    </div>
-    <footer></footer>
+    <main>
+        <div class="content">_MESSAGE_</div>
+    </main>
+    <footer>UPlanet · Ğ1 / Ẑen</footer>
 <!-- 📄 Source: UPassport/templates/message.html -->
 </body>
 </html>

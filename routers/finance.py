@@ -106,17 +106,17 @@ async def generate_balance_html_page(identifier: str, balance_data: Dict[str, An
         with open(template_path, 'r', encoding='utf-8') as f:
             template_content = f.read()
         
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
         if "@" in identifier:
-            title_parts = [f"{timestamp} - {identifier}"]
+            badges = []
             if "balance" in balance_data:
-                zen_balance = convert_g1_to_zen(balance_data['balance'])
-                title_parts.append(f"👛 {zen_balance}")
+                badges.append(f"👛 {convert_g1_to_zen(balance_data['balance'])} Ẑ")
             if "balance_zencard" in balance_data:
-                title_parts.append(f"💳")
-            title = " / ".join(title_parts)
+                badges.append(f"💳 {convert_g1_to_zen(balance_data['balance_zencard'])} Ẑ")
+            suffix = "  ·  ".join(badges)
+            title = f"{identifier}  ·  {suffix}  ·  {timestamp}"
         else:
-            title = f"{timestamp} - {identifier}"
+            title = f"{identifier[:32]}…  ·  {timestamp}" if len(identifier) > 32 else f"{identifier}  ·  {timestamp}"
         
         message_parts = []
         has_multiple_balances = "balance_zencard" in balance_data
@@ -149,48 +149,58 @@ async def generate_balance_html_page(identifier: str, balance_data: Dict[str, An
             else:
                 return f"{ipfs_gateway}/ipns/copylaradio.com/nostr_profile_viewer.html"
         
+        email_param = identifier if "@" in identifier else balance_data.get('email', identifier)
+
         if not has_multiple_balances:
             zen_balance = convert_g1_to_zen(balance_data['balance'])
-            email_param = identifier if "@" in identifier else balance_data.get('email', identifier)
             nostr_url = await get_nostr_profile_url(email_param)
-            
+            g1pub_display = balance_data.get('g1pub', '')
+            g1pub_html = f'<div class="g1pub">{g1pub_display[:24]}…{g1pub_display[-8:]}</div>' if g1pub_display else ''
+
             message_parts.append(f"""
-            <div style="text-align: center; margin: 10px 0; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white; box-shadow: 0 4px 16px rgba(0,0,0,0.2); max-width: 300px; margin-left: auto; margin-right: auto;">
-                <h2 style="margin: 0 0 8px 0; font-size: 1.2em;">👛 MULTIPASS</h2>
-                <div style="font-size: 1.6em; font-weight: bold; margin: 8px 0;">{zen_balance}</div>
-                <a href='{nostr_url}' target='_blank' style='color: #fff; text-decoration: none; background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 15px; display: inline-block; margin-top: 8px; font-size: 0.85em;'>🔗 Profil MULTIPASS</a>
+            <div class="ucard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); max-width: 320px; margin: 0 auto;">
+                <h3>👛 MULTIPASS</h3>
+                <div class="balance">{zen_balance}</div>
+                <div class="unit">Ẑen</div>
+                {g1pub_html}
+                <a class="btn" href="{nostr_url}" target="_blank">🔗 Profil NOSTR</a>
             </div>
             """)
         else:
-            message_parts.append("""
-            <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin: 10px 0; max-width: 600px; margin-left: auto; margin-right: auto;">
-            """)
-            
+            nostr_url = await get_nostr_profile_url(email_param)
+            message_parts.append('<div class="cards-grid">')
+
             if "balance" in balance_data:
                 zen_balance = convert_g1_to_zen(balance_data['balance'])
-                email_param = identifier if "@" in identifier else balance_data.get('email', identifier)
-                nostr_url = await get_nostr_profile_url(email_param)
-                
+                g1pub_display = balance_data.get('g1pub', '')
+                g1pub_html = f'<div class="g1pub">{g1pub_display[:24]}…{g1pub_display[-8:]}</div>' if g1pub_display else ''
+
                 message_parts.append(f"""
-                <div style="flex: 1; min-width: 200px; text-align: center; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white; box-shadow: 0 6px 24px rgba(0,0,0,0.2);">
-                    <h3 style="margin: 0 0 10px 0; font-size: 1.1em;">MULTIPASS 👛</h3>
-                    <div style="font-size: 1.4em; font-weight: bold; margin: 6px 0;">{zen_balance}</div>
-                    <a href='{nostr_url}' target='_blank' style='color: #fff; text-decoration: none; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px; display: inline-block; margin-top: 5px; font-size: 0.8em;'>🔗 Profil NOSTR</a>
+                <div class="ucard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <h3>👛 MULTIPASS</h3>
+                    <div class="balance">{zen_balance}</div>
+                    <div class="unit">Ẑen</div>
+                    {g1pub_html}
+                    <a class="btn" href="{nostr_url}" target="_blank">🔗 Profil NOSTR</a>
                 </div>
                 """)
-            
+
             if "balance_zencard" in balance_data:
                 zen_balance_zencard = convert_g1_to_zen(balance_data['balance_zencard'])
-                email_param = identifier if "@" in identifier else balance_data.get('email', identifier)
-                
+                g1pub_zc = balance_data.get('g1pub_zencard', '')
+                g1pub_zc_html = f'<div class="g1pub">{g1pub_zc[:24]}…{g1pub_zc[-8:]}</div>' if g1pub_zc else ''
+
                 message_parts.append(f"""
-                <div style="flex: 1; min-width: 180px; text-align: center; padding: 15px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px; color: white; box-shadow: 0 4px 16px rgba(0,0,0,0.2);">
-                    <h3 style="margin: 0 0 15px 0; font-size: 1.1em;">💳 ZEN Card</h3>
-                    <a href='/check_zencard?email={email_param}&html=1' target='_blank' style='color: #fff; text-decoration: none; background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 10px; display: inline-block; margin-top: 5px; font-size: 0.8em;'>📊 Historique</a>
+                <div class="ucard" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <h3>💳 ZEN Card</h3>
+                    <div class="balance">{zen_balance_zencard}</div>
+                    <div class="unit">Ẑen</div>
+                    {g1pub_zc_html}
+                    <a class="btn" href="/check_zencard?email={email_param}&html=1" target="_blank">📊 Historique</a>
                 </div>
                 """)
-            
-            message_parts.append("</div>")
+
+            message_parts.append('</div>')
         
         message = "".join(message_parts)
         html_content = template_content.replace("_TITLE_", title).replace("_MESSAGE_", message)
