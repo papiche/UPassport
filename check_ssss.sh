@@ -129,6 +129,20 @@ if [[ "$SSSS" =~ ^[1-3]-[a-f0-9]{100,} ]]; then
                         touch "$ROAMING_DIR/.roaming"
                         chmod 600 "$ROAMING_DIR/.roaming"
 
+                        # Pré-téléchargement asynchrone du uDRIVE depuis la home station.
+                        # Ne bloque pas la réponse SSSS ; NOSTRCARD.refresh.sh publie ensuite.
+                        (
+                            _udrive_cid=$(ipfs resolve -r --timeout=20s "${CARDNS}/${EMAIL}/APP/uDRIVE" 2>/dev/null | sed 's|/ipfs/||')
+                            if [[ -n "$_udrive_cid" ]]; then
+                                mkdir -p "$ROAMING_DIR/APP"
+                                if timeout 60 ipfs get "/ipfs/$_udrive_cid" \
+                                        -o "$ROAMING_DIR/APP/uDRIVE" 2>/dev/null; then
+                                    echo "$_udrive_cid" > "$ROAMING_DIR/.udrive"
+                                    touch "$ROAMING_DIR/.udrive"  # .udrive > uDRIVE/ mtime
+                                fi
+                            fi
+                        ) &
+
                         echo "Hydration complete. Welcome $EMAIL." >&2
                     else
                         VALID="INVALID (SSSS mismatch)"
