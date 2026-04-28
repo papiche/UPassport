@@ -703,12 +703,13 @@ def transform_youtube_metadata_to_structured(flat_metadata: Dict[str, Any]) -> D
 @router.post("/api/fileupload", response_model=UploadResponse)
 @router.post("/api/upload", response_model=UploadResponse)
 async def upload_file_to_ipfs(
+    request: Request,
     file: UploadFile = File(...),
     npub: str = Form(...),
     youtube_metadata: Optional[UploadFile] = File(None)
 ):
-    """Upload file to IPFS with NIP-42 authentication."""
-    npub = await require_nostr_auth(npub, force_check=True)
+    """Upload file to IPFS with NIP-42 or NIP-98 authentication."""
+    npub = await require_nostr_auth(request, npub, force_check=True)
 
     if not file:
         raise HTTPException(status_code=400, detail="No file uploaded.")
@@ -1021,14 +1022,14 @@ async def upload_file_to_ipfs(
 from models.schemas import UploadFromDriveRequest, UploadFromDriveResponse
 
 @router.post("/api/upload_from_drive", response_model=UploadFromDriveResponse)
-async def upload_from_drive(request: UploadFromDriveRequest):
-    if request.owner_hex_pubkey or request.owner_email:
-        logging.info(f"Sync from drive - Source owner: {request.owner_email} (hex: {request.owner_hex_pubkey[:12] if request.owner_hex_pubkey else 'N/A'}...)")
+async def upload_from_drive(request: Request, payload: UploadFromDriveRequest):
+    if payload.owner_hex_pubkey or payload.owner_email:
+        logging.info(f"Sync from drive - Source owner: {payload.owner_email} (hex: {payload.owner_hex_pubkey[:12] if payload.owner_hex_pubkey else 'N/A'}...)")
     
-    request.npub = await require_nostr_auth(request.npub)
+    payload.npub = await require_nostr_auth(request, payload.npub)
 
     try:
-        user_NOSTR_path = get_authenticated_user_directory(request.npub)
+        user_NOSTR_path = get_authenticated_user_directory(payload.npub)
         user_drive_path = user_NOSTR_path / "APP" / "uDRIVE"
 
     except HTTPException as e:
@@ -1036,7 +1037,7 @@ async def upload_from_drive(request: UploadFromDriveRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error determining user directory: {e}")
 
-    parts = request.ipfs_link.split('/')
+    parts = payload.ipfs_link.split('/')
     extracted_filename = parts[-1] if parts else "downloaded_file"
 
     sanitized_filename = sanitize_filename_python(extracted_filename)
@@ -1060,7 +1061,7 @@ async def upload_from_drive(request: UploadFromDriveRequest):
         raise HTTPException(status_code=400, detail="Invalid file path operation: attempted to write outside user's directory.")
 
     try:
-        full_ipfs_url = f"/ipfs/{request.ipfs_link}"
+        full_ipfs_url = f"/ipfs/{payload.ipfs_link}"
         logging.info(f"Attempting to download IPFS link: {full_ipfs_url} to {target_file_path}")
 
         import asyncio

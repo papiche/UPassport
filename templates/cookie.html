@@ -909,7 +909,10 @@
             if (!file) return;
 
             // Get userNpub from common.js or window scope
-            const npub = window.userNpub || (typeof userNpub !== 'undefined' ? userNpub : null);
+            let npub = window.userNpub || (typeof userNpub !== 'undefined' ? userNpub : null);
+            if (!npub) {
+                npub = window.userPubkey || (typeof userPubkey !== 'undefined' ? userPubkey : null);
+            }
             
             if (!npub) {
                 alert(i18n.t('upload_connecting_first'));
@@ -917,8 +920,24 @@
             }
 
             const uploadStatus = document.getElementById('upload-status');
-            
             uploadStatus.style.display = 'block';
+
+            // Check NIP-42 authentication before upload (prevents 403 Expired marker)
+            if (typeof verifyAuthenticationWithAPI === 'function') {
+                uploadStatus.innerHTML = `<div class="alert alert-info">⏳ Vérification de l'authentification...</div>`;
+                try {
+                    let authStatus = await verifyAuthenticationWithAPI(npub);
+                    if (!authStatus || !authStatus.auth_verified) {
+                        uploadStatus.innerHTML = `<div class="alert alert-warning">⏳ Renouvellement de l'authentification (NIP-42)...</div>`;
+                        await connectNostr(true); // Force send kind 22242
+                        // Give time for the relay script to write the marker file
+                        await new Promise(r => setTimeout(r, 1500));
+                    }
+                } catch (e) {
+                    console.warn("Auth check failed:", e);
+                }
+            }
+            
             uploadStatus.innerHTML = `<div class="alert alert-info">⏳ ${i18n.t('upload_in_progress')}</div>`;
 
             try {
