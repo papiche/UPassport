@@ -65,11 +65,16 @@ templates/        ← Jinja2 HTML templates
 - `GET  /health` — Health check
 - `GET  /credentials/v1` — Contexte JSON-LD Verifiable Credentials
 
+### feedback.py
+- `POST /api/feedback` — Crée une issue Git (GitHub ou GitLab) depuis n'importe quelle app.
+  Routing : `source="coracle"` → `{GIT_OWNER}/coracle`. Config via kind 30800 : `GIT_HOST`, `GIT_TOKEN`, `GIT_OWNER`.
+  Dégradation gracieuse si token absent. Voir `docs/FEEDBACK_INTEGRATION.md`.
+
 ### Autres routers
 - `analytics.py` — Statistiques d'usage
 - `ipfs.py` — Opérations IPFS directes
 - `crowdfunding.py` — Financement participatif ẐEN
-- `geo.py` — Géolocalisation UMAP
+- `geo.py` — Géolocalisation UMAP + `GET /api/nip42/challenge` (auth NIP-42)
 - `permits.py` — Permissions (add_permits.py)
 - `robohash.py` — Génération d'avatars robohash
 
