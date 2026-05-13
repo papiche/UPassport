@@ -559,10 +559,11 @@ async def verify_nostr_auth(npub: Optional[str], force_check: bool = False) -> b
     
     return auth_result
 
-async def require_nostr_auth(request: Request, npub: str = Form(...), force_check: bool = False) -> str:
+async def require_nostr_auth(request: Request, npub: Optional[str] = Form(None), force_check: bool = False) -> str:
     """
     FastAPI dependency to require NOSTR authentication.
     Returns the authenticated npub or raises HTTPException.
+    Accepts npub=None when NIP-98 Authorization header is present (roaming clients).
     """
     # 1. Try NIP-98 Auth first
     try:
@@ -570,23 +571,32 @@ async def require_nostr_auth(request: Request, npub: str = Form(...), force_chec
         if auth_header.startswith("Nostr "):
             import base64
             auth_base64 = auth_header.replace("Nostr ", "").strip()
-            # Padding for base64url or base64
             padded = auth_base64 + "=" * (-len(auth_base64) % 4)
             auth_json = base64.urlsafe_b64decode(padded).decode('utf-8')
             auth_event = json.loads(auth_json)
             if auth_event.get("kind") == 27235 and "pubkey" in auth_event:
                 user_pubkey_hex = auth_event["pubkey"]
-                
-                # Check if it matches npub
-                from utils.crypto import npub_to_hex
-                expected_hex = npub_to_hex(npub) if npub and npub.startswith("npub") else npub
-                if expected_hex and user_pubkey_hex.lower() == expected_hex.lower():
-                    logging.info(f"✅ NIP-98 Auth verified in require_nostr_auth for: {user_pubkey_hex[:16]}...")
-                    return npub
+                from utils.crypto import npub_to_hex, hex_to_npub
+                if npub is None:
+                    # Roaming: npub not sent in form — derive it from NIP-98 pubkey
+                    derived_npub = hex_to_npub(user_pubkey_hex)
+                    if derived_npub:
+                        logging.info(f"✅ NIP-98 Auth: npub derived from header for {user_pubkey_hex[:16]}...")
+                        return derived_npub
+                else:
+                    expected_hex = npub_to_hex(npub) if npub.startswith("npub") else npub
+                    if expected_hex and user_pubkey_hex.lower() == expected_hex.lower():
+                        logging.info(f"✅ NIP-98 Auth verified in require_nostr_auth for: {user_pubkey_hex[:16]}...")
+                        return npub
     except Exception as e:
         logging.warning(f"⚠️ NIP-98 Auth check failed: {e}")
 
-    # 2. Fallback to NIP-42 Auth
+    # 2. Fallback to NIP-42 Auth (requires npub)
+    if not npub:
+        raise HTTPException(
+            status_code=422,
+            detail="npub required when no valid NIP-98 Authorization header is present"
+        )
     auth_verified = await verify_nostr_auth(npub, force_check=force_check)
     if not auth_verified:
         raise HTTPException(

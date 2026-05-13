@@ -705,7 +705,7 @@ def transform_youtube_metadata_to_structured(flat_metadata: Dict[str, Any]) -> D
 async def upload_file_to_ipfs(
     request: Request,
     file: UploadFile = File(...),
-    npub: str = Form(...),
+    npub: Optional[str] = Form(None),
     youtube_metadata: Optional[UploadFile] = File(None)
 ):
     """Upload file to IPFS with NIP-42 or NIP-98 authentication."""
@@ -729,9 +729,22 @@ async def upload_file_to_ipfs(
         if not validation_result["is_valid"]:
             raise HTTPException(status_code=400, detail=validation_result["error"])
         
-        user_NOSTR_path = get_authenticated_user_directory(npub)
-        user_drive_path = user_NOSTR_path  / "APP" / "uDRIVE"
-        
+        try:
+            user_NOSTR_path = get_authenticated_user_directory(npub)
+        except HTTPException:
+            # Roaming user authenticated via NIP-98 only (no NIP-42 → no email dir created
+            # by 22242.sh).  We cannot update the manifest on their behalf because:
+            #   1. We don't have their email → can't create an @-based dir that
+            #      NOSTRCARD.refresh.sh's roaming loop would process.
+            #   2. We don't have their IPNS key → can't publish.
+            # The safest response is to refuse the upload so the client knows to retry
+            # on the home station rather than silently losing the manifest entry.
+            raise HTTPException(
+                status_code=403,
+                detail="User not registered on this station. Upload directly to your home station or authenticate with NIP-42 first."
+            )
+        user_drive_path = user_NOSTR_path / "APP" / "uDRIVE"
+
         file_content = await file.read()
         file_type = detect_file_type(file_content, file.filename or "untitled")
         
@@ -984,14 +997,27 @@ async def upload_file_to_ipfs(
                 
                 if os.path.exists(temp_file_path):
                     os.remove(temp_file_path)
-                
+
+                # Regénérer immédiatement la structure uDRIVE complète (manifest.json +
+                # index.html) pour que le client atterrisse sur le drive mis à jour.
+                # On conserve le CID du fichier seul en fallback si le script échoue.
+                file_cid = json_output.get('cid')
+                udrive_cid = file_cid
+                try:
+                    from services.ipfs import run_uDRIVE_generation_script
+                    ipfs_result = await run_uDRIVE_generation_script(user_drive_path)
+                    udrive_cid = ipfs_result.get("final_cid") or file_cid
+                    logging.info(f"uDRIVE regenerated after upload: {udrive_cid}")
+                except Exception as gen_err:
+                    logging.warning(f"uDRIVE generation failed, returning file CID: {gen_err}")
+
                 return UploadResponse(
                     success=True,
                     message=f"File uploaded successfully to IPFS",
                     file_path=str(file_path),
                     file_type=file_type,
                     target_directory=str(target_dir),
-                    new_cid=json_output.get('cid'),
+                    new_cid=udrive_cid,
                     timestamp=datetime.now().isoformat(),
                     auth_verified=True,
                     fileName=response_fileName,
