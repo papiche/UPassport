@@ -1335,11 +1335,11 @@
                             <ol class="mb-0 mt-2">
                                 <li>Vous créez votre demande avec la compétence que vous voulez apprendre</li>
                                 <li>Votre demande apparaît dans "Apprentis Cherchant un Maître"</li>
-                                <li>Un maître certifié valide vos compétences - il vous faut <strong id="requestRequiredAttestations">1</strong> validation(s)</li>
-                                <li>Vous recevez automatiquement votre certificat de maîtrise</li>
-                                <li>Vous apparaissez dans "Maîtres Certifiés" et pouvez à votre tour enseigner</li>
+                                <li><strong>Règle A :</strong> obtenez 3 likes Kind 7 de pairs distincts → signez vous-même votre niveau X1</li>
+                                <li><strong>Règle B :</strong> obtenez 1 adoubement Kind 30502 d'un pair X1+ → montée directe de niveau</li>
+                                <li>Vous apparaissez dans "Maîtres Certifiés" et pouvez à votre tour adouber d'autres apprentis</li>
                             </ol>
-                            <p class="mb-0 mt-2"><strong>💡 Progression automatique :</strong> Une fois certifié niveau X1, le système crée automatiquement le niveau X2, puis X3, X4... Vous progressez naturellement !</p>
+                            <p class="mb-0 mt-2"><strong>💡 100 % P2P :</strong> Pas d'Oracle — ce sont vos pairs qui certifient votre progression.</p>
                             <p class="mb-0 mt-2"><small><strong>📍 Géolocalisation :</strong> Votre position permet aux maîtres près de chez vous de vous trouver et de créer des rencontres locales.</small></p>
                         </div>
                     </form>
@@ -1397,14 +1397,14 @@
                         </div>
                         
                         <div class="alert alert-success">
-                            <i class="bi bi-star"></i> 
-                            <strong>🎯 Niveau X1 - Votre Point de Départ :</strong> 
+                            <i class="bi bi-star"></i>
+                            <strong>🎯 Comment progresser — 100 % P2P :</strong>
                             <ul class="mb-0 mt-2">
-                                <li><strong>1 validation</strong> suffit pour obtenir votre certificat X1</li>
-                                <li><strong>Progression automatique :</strong> Après X1, le système crée X2 (2 compétences), puis X3, X4...</li>
-                                <li><strong>Illimité :</strong> Vous pouvez progresser jusqu'au niveau maître (X4) et au-delà</li>
+                                <li><strong>Règle A :</strong> 3 likes Kind 7 de pairs distincts → vous pouvez auto-signer votre niveau X1 (Kind 30503)</li>
+                                <li><strong>Règle B :</strong> 1 adoubement Kind 30502 d'un pair X1+ → montée directe de niveau</li>
+                                <li>Chaque niveau suivant (X2, X3…) s'obtient de la même façon auprès de nouveaux pairs</li>
                             </ul>
-                            <p class="mb-0 mt-2"><strong>💡 Avantage :</strong> Plus vous progressez, plus votre maîtrise devient riche en compétences et reconnue par la communauté !</p>
+                            <p class="mb-0 mt-2"><strong>💡 Pas d'Oracle :</strong> c'est la communauté qui valide, personne d'autre.</p>
                         </div>
                     </form>
                 </div>
@@ -1503,7 +1503,10 @@
     
     <!-- Common.js - UPlanet NOSTR utilities -->
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
-    
+
+    <!-- WoTx2 — Web of Trust P2P (conforme TrocZen) -->
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/wotx2.js"></script>
+
     <!-- UPlanet Gamification Library (reusable for all apps) -->
     <script src="/static/js/uplanet-gamification.js"></script>
     
@@ -2941,40 +2944,42 @@
                             </div>
                             <div class="mt-3">
                                 <div class="d-flex justify-content-between mb-1">
-                                    <small>Attestations: ${request.attestations_count} / ${reqAttest}</small>
+                                    <small>Adoubements Règle B (Kind 30502) : ${request.attestations_count} / ${reqAttest}</small>
                                     <small>${Math.round(progress)}%</small>
                                 </div>
-                                <div class="progress">
-                                    <div class="progress-bar ${progress >= 100 ? 'bg-success' : ''}" style="width: ${Math.min(progress, 100)}%"></div>
+                                <div class="progress" title="Règle B : adoubements Kind 30502 reçus">
+                                    <div class="progress-bar bg-warning ${progress >= 100 ? 'bg-success' : ''}" style="width: ${Math.min(progress, 100)}%"></div>
                                 </div>
                             </div>
                             ${isMyRequest ? `
                                 <div class="alert alert-info mt-3 mb-0">
                                     <i class="bi bi-info-circle"></i> 
-                                    <strong>Votre demande</strong> - Déclarant (X0) : obtenez 3 likes de pairs (Règle A) ou un adoubement X1+ (Règle B) !
+                                    <strong>Votre demande</strong> — Déclarant X0 : obtenez <strong>3 likes Kind 7 distincts</strong> (Règle A) ou <strong>1 adoubement Kind 30502</strong> d'un pair X1+ (Règle B).
                                     ${request.attestations_count >= reqAttest ?
-                                        ' <strong>✅ Seuil atteint !</strong> Règle A : encore ${reqAttest - request.attestations_count} like(s) de pairs distincts requis.' :
-                                        ' Règle A : encore ' + (reqAttest - request.attestations_count) + ' like(s) de pairs distincts requis.'
+                                        ' <strong>✅ Seuil Règle B atteint !</strong>' :
+                                        ' Règle B : encore ' + (reqAttest - request.attestations_count) + ' adoubement(s) X1+ requis.'
                                     }
                                 </div>
                             ` : ''}
                             ${canAttest ? `
-                                <div class="mt-3">
-                                    <button class="btn btn-sm btn-success" onclick="showAttestModal('${request.applicant_npub}', '${request.id}')"
-                                            data-bs-toggle="tooltip" 
-                                            data-bs-placement="top"
-                                            title="Règle B : en tant que pair X1+, vous pouvez adouber ce déclarant et lui transférer vos compétences">
-                                        <i class="bi bi-check-circle"></i> 
-                                        ${request.attestations_count < reqAttest ?
-                                            '👍 Like (Règle A)' :
-                                            'Valider cette Demande'}
+                                <div class="mt-3 d-flex flex-wrap gap-2 align-items-center">
+                                    <!-- Règle A : Kind 7 vote (any peer) -->
+                                    <button class="btn btn-sm btn-success"
+                                            onclick="publishKind7Reaction('${request.applicant_npub}', '+', '${request.permit_definition_id}')"
+                                            title="Règle A : vote Kind 7 — 3 likes distincts permettent au déclarant de monter de niveau">
+                                        <i class="bi bi-hand-thumbs-up"></i> Like (Règle A)
                                     </button>
-                                    <small class="text-muted d-block mt-1">
-                                        ${request.attestations_count < reqAttest ?
-                                            '💡 <strong>Déclarant (X0) cherche pairs</strong> - Donnez votre avis (Règle A) ou adoubez directement si vous êtes X1+ (Règle B). Vous enrichissez la toile de confiance !' :
-                                            'En adoubant ce pair, vous lui permettez d\'obtenir son niveau directement (Règle B). Vous contribuez à construire une communauté de compétences reconnues.'}
-                                    </small>
+                                    <!-- Règle B : Kind 30502 attestation (X1+ peers only) -->
+                                    <button class="btn btn-sm btn-warning"
+                                            onclick="showAttestModal('${request.applicant_npub}', '${request.id}')"
+                                            title="Règle B : adoubement Kind 30502 — réservé aux pairs X1+, transfert de compétences">
+                                        <i class="bi bi-patch-check"></i> Adouber (Règle B)
+                                    </button>
                                 </div>
+                                <small class="text-muted d-block mt-1">
+                                    💡 <strong>Règle A</strong> : 3 likes Kind 7 distincts → montée de niveau automatique.<br>
+                                    🏅 <strong>Règle B</strong> : Adoubement Kind 30502 par un pair X1+ → montée directe.
+                                </small>
                             ` : ''}
                             ${!userHEX ? `
                                 <div class="mt-3">
@@ -5037,43 +5042,19 @@
             };
 
             try {
-                // Force NIP-42 re-auth avant l'appel API (TTL = 300s côté serveur)
-                if (typeof connectNostr === 'function') {
-                    console.log('[WoTx2] 🔐 Rafraîchissement NIP-42 avant création du permit...');
-                    await connectNostr(true);
-                }
-
                 const apiBaseUrl = getWoTx2APIBaseUrl();
 
-                // Appel API avec retry automatique sur 401
-                async function callPermitDefine() {
-                    const r = await fetch(`${apiBaseUrl}/api/permit/define`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(requestData)
-                    });
-                    if (r.status === 401) {
-                        console.warn('[WoTx2] 401 NIP-42 expiré — re-auth et retry...');
-                        if (typeof connectNostr === 'function') await connectNostr(true);
-                        const r2 = await fetch(`${apiBaseUrl}/api/permit/define`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(requestData)
-                        });
-                        if (!r2.ok) {
-                            const e = await r2.json().catch(() => ({}));
-                            throw new Error(e.detail || `Erreur ${r2.status} — authentification NIP-42 requise`);
-                        }
-                        return r2.json();
-                    }
-                    if (!r.ok) {
-                        const e = await r.json().catch(() => ({}));
-                        throw new Error(e.detail || `Erreur ${r.status}`);
-                    }
-                    return r.json();
-                }
+                // callAPIWithAuth (common.js) : NIP-42 re-auth + retry 401 automatiques
+                const callFn = typeof window.callAPIWithAuth === 'function'
+                    ? window.callAPIWithAuth
+                    : async (url, opts) => {
+                        // fallback si common.js pas encore chargé
+                        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, ...opts });
+                        if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `Erreur ${r.status}`); }
+                        return r.json();
+                    };
 
-                const result = await callPermitDefine();
+                const result = await callFn(`${apiBaseUrl}/api/permit/define`, { body: JSON.stringify(requestData) });
 
                 if (result.success) {
                     console.log('[WoTx2] ✅ Permit 30500 créé:', permitId);
@@ -5344,13 +5325,13 @@
                     content: `
                         <p>Vous avez un talent unique? <strong>Créez votre propre maîtrise!</strong></p>
                         <ol>
-                            <li>Cliquez sur <strong>"Créer Maîtrise"</strong></li>
-                            <li>Nommez votre savoir-faire</li>
-                            <li>Le système crée automatiquement le niveau X1</li>
-                            <li>Partagez votre expertise avec la communauté!</li>
+                            <li>Cliquez sur <strong>"Créer Maîtrise"</strong> et nommez votre savoir-faire</li>
+                            <li>Déclarez-vous apprenti (X0) et cherchez 3 pairs qui likent votre savoir-faire (Règle A)</li>
+                            <li>Ou trouvez un pair X1+ qui vous adoube directement (Règle B)</li>
+                            <li>Une fois le seuil atteint, signez vous-même votre certificat Kind 30503</li>
                         </ol>
-                        <div class="alert alert-warning mt-3">
-                            <i class="bi bi-lightbulb"></i> <strong>Astuce :</strong> Votre maîtrise évoluera automatiquement vers X2, X3... au fur et à mesure des validations!
+                        <div class="alert alert-info mt-3">
+                            <i class="bi bi-people"></i> <strong>WoTx2 :</strong> La communauté valide — pas un serveur central. Chaque like Kind 7 ou adoubement Kind 30502 renforce la toile de confiance.
                         </div>
                     `
                 }
@@ -6066,56 +6047,15 @@
             }, 1000);
         };
 
-        // P2P WoTx2 — Publier une réaction Kind 7 (Like/Dislike) sur un pair
+        // P2P WoTx2 — délégué à wotx2.js (window.publishWoTx2Reaction)
         async function publishKind7Reaction(targetNpub, reaction, permitId) {
-            if (!userHEX) {
-                alert('Connectez votre MULTIPASS pour donner votre avis.');
-                return;
-            }
-            if (targetNpub === userHEX) {
-                alert('Vous ne pouvez pas évaluer votre propre compétence.');
-                return;
-            }
-            if (!window.nostr) {
-                alert('Extension NOSTR requise.');
-                return;
-            }
-            try {
-                const skillTag = permitId.replace(/^PERMIT_/, '').replace(/_X\d+$/, '').toLowerCase().replace(/_/g, '-');
-                const kind7Event = {
-                    kind: 7,
-                    content: reaction, // '+' ou '-'
-                    tags: [
-                        ['p', targetNpub],
-                        ['t', 'wotx-review'],
-                        ['t', skillTag],
-                        ['k', '30500']
-                    ],
-                    created_at: Math.floor(Date.now() / 1000)
-                };
-                const signed = await window.nostr.signEvent(kind7Event);
-                // Publier sur le relay
-                if (typeof nostrRelay !== 'undefined' && nostrRelay && isNostrConnected) {
-                    await nostrRelay.publish(signed);
-                } else if (window.nostr && typeof window.nostr.getRelays === 'function') {
-                    const relays = await window.nostr.getRelays();
-                    for (const relayUrl of Object.keys(relays)) {
-                        try {
-                            const r = new Relay(relayUrl);
-                            await r.connect();
-                            await r.publish(signed);
-                            r.close();
-                        } catch(e) {}
-                    }
-                }
-                const label = reaction === '+' ? '👍 Like envoyé !' : '👎 Dislike envoyé.';
-                const detail = reaction === '+'
-                    ? '\n3 likes distincts sur ce skill → le pair peut monter de niveau (Règle A).'
-                    : '\n2 dislikers avec niveau → bifurcation de toile détectée.';
-                alert(label + detail);
-            } catch (e) {
-                console.error('[WoTx2] Error publishing Kind 7:', e);
-                alert('Erreur lors de la publication de la réaction : ' + e.message);
+            // Dériver le tag de compétence depuis l'identifiant permit (ex: PERMIT_PLOMBIER_X1 → plombier)
+            const skillTag = permitId.replace(/^PERMIT_/, '').replace(/_X\d+$/, '').replace(/_/g, '-').toLowerCase();
+            if (typeof window.publishWoTx2Reaction === 'function') {
+                await window.publishWoTx2Reaction(targetNpub, reaction, skillTag, '');
+            } else {
+                console.error('[WoTx2] wotx2.js non chargé — window.publishWoTx2Reaction introuvable.');
+                alert('Erreur : module WoTx2 non chargé.');
             }
         }
     </script>
