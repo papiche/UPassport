@@ -5037,17 +5037,43 @@
             };
 
             try {
-                // Use getAPIBaseUrl() from common.js to detect correct API URL
-                const apiBaseUrl = getWoTx2APIBaseUrl();
-                const response = await fetch(`${apiBaseUrl}/api/permit/define`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(requestData)
-                });
+                // Force NIP-42 re-auth avant l'appel API (TTL = 300s côté serveur)
+                if (typeof connectNostr === 'function') {
+                    console.log('[WoTx2] 🔐 Rafraîchissement NIP-42 avant création du permit...');
+                    await connectNostr(true);
+                }
 
-                const result = await response.json();
+                const apiBaseUrl = getWoTx2APIBaseUrl();
+
+                // Appel API avec retry automatique sur 401
+                async function callPermitDefine() {
+                    const r = await fetch(`${apiBaseUrl}/api/permit/define`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestData)
+                    });
+                    if (r.status === 401) {
+                        console.warn('[WoTx2] 401 NIP-42 expiré — re-auth et retry...');
+                        if (typeof connectNostr === 'function') await connectNostr(true);
+                        const r2 = await fetch(`${apiBaseUrl}/api/permit/define`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(requestData)
+                        });
+                        if (!r2.ok) {
+                            const e = await r2.json().catch(() => ({}));
+                            throw new Error(e.detail || `Erreur ${r2.status} — authentification NIP-42 requise`);
+                        }
+                        return r2.json();
+                    }
+                    if (!r.ok) {
+                        const e = await r.json().catch(() => ({}));
+                        throw new Error(e.detail || `Erreur ${r.status}`);
+                    }
+                    return r.json();
+                }
+
+                const result = await callPermitDefine();
 
                 if (result.success) {
                     console.log('[WoTx2] ✅ Permit 30500 créé:', permitId);
