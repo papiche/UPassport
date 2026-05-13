@@ -19,6 +19,8 @@
             --light: #f7fafc;
             --water-blue: #0ea5e9;
             --water-dark: #0284c7;
+            --troczen-amber: #FFB347;
+            --troczen-amber-light: rgba(255,179,71,0.15);
         }
         
         body {
@@ -1009,6 +1011,18 @@
                 <span id="permitTitle">Savoir Faire - WoTx2</span>
                 <span id="permitLevelBadge" class="badge bg-primary ms-2" style="display: none;"></span>
             </h1>
+            <div class="alert mt-3 mb-0" style="background: rgba(255,179,71,0.15); border: 1px solid #FFB347; border-radius: 10px;">
+                <div class="row text-center">
+                    <div class="col-md-6 border-end">
+                        <strong style="color:#FFB347;">⚡ Règle A — Consensus des Pairs</strong><br>
+                        <small>3 <i class="bi bi-hand-thumbs-up"></i> <strong>Likes</strong> de 3 pairs distincts → montée de niveau automatique</small>
+                    </div>
+                    <div class="col-md-6">
+                        <strong style="color:#FFB347;">🏅 Règle B — Adoubement</strong><br>
+                        <small>1 <i class="bi bi-patch-check"></i> <strong>Attestation</strong> d'un pair de niveau supérieur → montée de niveau directe</small>
+                    </div>
+                </div>
+            </div>
             <p class="lead" id="permitDescription">
                 <strong>Apprenez et enseignez librement, sans écoles ni diplômes</strong><br>
                 Créez votre maîtrise, trouvez des maîtres près de chez vous, partagez vos savoir-faire, 
@@ -1127,7 +1141,7 @@
                     <div class="col-md-6">
                         <div class="alert alert-success">
                             <strong>✅ Option Simple (Recommandée) :</strong>
-                            <p class="mb-0 mt-2">Créez votre maîtrise ci-dessus → Le système crée automatiquement votre demande et votre auto-attestation. Vous êtes prêt !</p>
+                            <p class="mb-0 mt-2">Créez votre maîtrise ci-dessus → Obtenez 3 likes de pairs (Règle A) ou 1 adoubement X1+ (Règle B). Pas d'auto-attestation — tout est P2P !</p>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -1353,15 +1367,15 @@
                 <div class="modal-body">
                     <div class="alert alert-warning mb-3">
                         <i class="bi bi-info-circle"></i> 
-                        <strong>Maîtrise Auto-Proclamée :</strong> Si aucun permit n'existe pour votre maîtrise, 
-                        vous pouvez créer une maîtrise auto-proclamée qui démarrera au niveau X1 (1 signature requise).
-                        Le système évoluera automatiquement vers X2, X3, etc. au fur et à mesure des validations.
+                        <strong>Maîtrise Déclarée (X0) :</strong> Si aucun permit n'existe pour votre maîtrise,
+                        vous pouvez déclarer votre compétence. Vous démarrez en niveau X0 et progressez
+                        par les pairs : 3 likes (Règle A) ou 1 adoubement X1+ (Règle B) pour passer au niveau X1.
                     </div>
                     
                     <form id="newPermitForm">
                         <div class="mb-3">
                             <label class="form-label">
-                                <strong>Maîtrise Auto-Proclamée</strong> (ID généré automatiquement)
+                                <strong>Maîtrise Déclarée (X0)</strong> (ID généré automatiquement)
                             </label>
                             <small class="text-muted d-block mt-1">
                                 L'ID sera calculé automatiquement : <code id="autoPermitIdPreview">PERMIT_X1</code>
@@ -2636,7 +2650,7 @@
                     if (statsCard) {
                         statsCard.innerHTML = `
                             <div class="number" id="minAttestations">${requiredAttestations}</div>
-                            <div class="label">Attestations requises <span class="badge bg-warning">Bootstrap</span></div>
+                            <div class="label">Likes requis (Règle A) <span class="badge bg-warning">P2P</span></div>
                         `;
                     }
                     // Show bootstrap instructions
@@ -2701,7 +2715,7 @@
                                 <div style="flex: 1;">
                                     <h5 class="mb-2">
                                         <i class="bi bi-person-badge text-primary"></i>
-                                        Maître Certifié
+                                        Pair Certifié
                                         ${levelBadge}
                                     </h5>
                                     <p class="text-muted mb-1">
@@ -2715,7 +2729,7 @@
                                         <div class="mt-2">
                                             <small class="text-muted">
                                                 <i class="bi bi-info-circle"></i> 
-                                                Maîtrise auto-proclamée - Peut attester d'autres apprentis
+                                                Déclarant (X0) - Peut recevoir des likes de pairs (Règle A)
                                     </small>
                                         </div>
                                     ` : ''}
@@ -2734,9 +2748,16 @@
                                 </div>
                                 <div class="text-end">
                                     ${userHEX && userHEX !== holder.holder_npub ? `
-                                        <button class="btn btn-sm btn-success" onclick="showAttestModal('${holder.holder_npub}')">
-                                            <i class="bi bi-chat-dots"></i> Contacter
-                                        </button>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm btn-success" onclick="publishKind7Reaction('${holder.holder_npub}', '+', '${holder.permit_definition_id}')"
+                                                title="Règle A : 3 likes distincts → niveau supérieur">
+                                                <i class="bi bi-hand-thumbs-up"></i> Like
+                                            </button>
+                                            <button class="btn btn-sm btn-danger" onclick="publishKind7Reaction('${holder.holder_npub}', '-', '${holder.permit_definition_id}')"
+                                                title="Dislike (bifurcation de toile)">
+                                                <i class="bi bi-hand-thumbs-down"></i> Dislike
+                                            </button>
+                                        </div>
                                     ` : ''}
                                 </div>
                             </div>
@@ -2930,10 +2951,10 @@
                             ${isMyRequest ? `
                                 <div class="alert alert-info mt-3 mb-0">
                                     <i class="bi bi-info-circle"></i> 
-                                    <strong>Votre demande</strong> - Vous êtes apprenti, cherchez un maître !
-                                    ${request.attestations_count >= reqAttest ? 
-                                        ' <strong>✅ Seuil atteint !</strong> Votre certificat sera délivré automatiquement dans les prochaines heures.' : 
-                                        ' Il vous reste ' + (reqAttest - request.attestations_count) + ' validation(s) à obtenir pour recevoir votre certificat.'
+                                    <strong>Votre demande</strong> - Déclarant (X0) : obtenez 3 likes de pairs (Règle A) ou un adoubement X1+ (Règle B) !
+                                    ${request.attestations_count >= reqAttest ?
+                                        ' <strong>✅ Seuil atteint !</strong> Règle A : encore ${reqAttest - request.attestations_count} like(s) de pairs distincts requis.' :
+                                        ' Règle A : encore ' + (reqAttest - request.attestations_count) + ' like(s) de pairs distincts requis.'
                                     }
                                 </div>
                             ` : ''}
@@ -2942,16 +2963,16 @@
                                     <button class="btn btn-sm btn-success" onclick="showAttestModal('${request.applicant_npub}', '${request.id}')"
                                             data-bs-toggle="tooltip" 
                                             data-bs-placement="top"
-                                            title="En tant que maître certifié, vous pouvez attester cet apprenti et transférer vos compétences">
+                                            title="Règle B : en tant que pair X1+, vous pouvez adouber ce déclarant et lui transférer vos compétences">
                                         <i class="bi bi-check-circle"></i> 
-                                        ${request.attestations_count < reqAttest ? 
-                                            '👨‍🏫 Valider cet Apprenti' : 
+                                        ${request.attestations_count < reqAttest ?
+                                            '👍 Like (Règle A)' :
                                             'Valider cette Demande'}
                                     </button>
                                     <small class="text-muted d-block mt-1">
-                                        ${request.attestations_count < reqAttest ? 
-                                            '💡 <strong>Apprenti cherche maître</strong> - Validez ses compétences et révélez de nouveaux talents que vous avez observés. Vous enrichissez la maîtrise pour toute la communauté !' : 
-                                            'En validant cet apprenti, vous lui permettez d\'obtenir son certificat automatiquement. Vous contribuez à construire une communauté de compétences reconnues.'}
+                                        ${request.attestations_count < reqAttest ?
+                                            '💡 <strong>Déclarant (X0) cherche pairs</strong> - Donnez votre avis (Règle A) ou adoubez directement si vous êtes X1+ (Règle B). Vous enrichissez la toile de confiance !' :
+                                            'En adoubant ce pair, vous lui permettez d\'obtenir son niveau directement (Règle B). Vous contribuez à construire une communauté de compétences reconnues.'}
                                     </small>
                                 </div>
                             ` : ''}
@@ -3787,11 +3808,11 @@
                 const message = `✅ Votre demande d'apprentissage a été créée !\n\n` +
                     `🎯 Maîtrise : ${selectedPermit.name}\n\n` +
                     `📋 Prochaines étapes :\n` +
-                    `1. Votre demande apparaît dans "Apprentis Cherchant un Maître"\n` +
-                    `2. Un maître certifié validera vos compétences\n` +
-                    `3. Vous devez obtenir ${reqAttest} validation(s)\n` +
-                    `4. Votre certificat sera délivré automatiquement\n\n` +
-                    `💡 Avantage : Une fois certifié, vous pourrez à votre tour enseigner et valider d'autres apprentis !`;
+                    `1. Votre demande apparaît dans "Déclarants (X0) Cherchant des Pairs"\n` +
+                    `2. Obtenez 3 likes de pairs distincts (Règle A)\n` +
+                    `3. Ou faites-vous adouber par un pair de niveau X1+ (Règle B)\n` +
+                    `4. Votre progression est pilotée par les pairs, sans Oracle\n\n` +
+                    `💡 Une fois X1, vous pourrez à votre tour adouber d'autres déclarants (Règle B) !`;
                 
                 alert(message);
                 bootstrap.Modal.getInstance(document.getElementById('requestModal')).hide();
@@ -4059,11 +4080,11 @@
                 }
                 
                 message += `📋 Prochaines étapes :\n` +
-                    `1. Votre validation est maintenant visible\n` +
-                    `2. Si le seuil est atteint, le certificat sera délivré automatiquement\n` +
-                    `3. L'apprenti apparaîtra dans "Maîtres Certifiés"\n` +
+                    `1. Votre like/adoubement est maintenant visible\n` +
+                    `2. Règle A : 3 likes distincts → le pair monte de niveau automatiquement\n` +
+                    `3. Règle B : votre adoubement seul suffit si vous êtes X1+\n` +
                     `4. Actualisez la page pour voir les mises à jour\n\n` +
-                    `💡 Merci de contribuer à construire une communauté de compétences reconnues !`;
+                    `💡 Merci de contribuer à construire la toile de confiance P2P !`;
                 
                 alert(message);
                 bootstrap.Modal.getInstance(document.getElementById('attestModal')).hide();
@@ -4772,7 +4793,7 @@
                         progressText.textContent = Math.round(progress) + '%';
                     }
                     if (progressDetails) {
-                        progressDetails.textContent = `Il vous reste ${requiredAttestations - request.attestations_count} attestation(s) pour obtenir votre credential X1`;
+                        progressDetails.textContent = `Il vous reste ${requiredAttestations - request.attestations_count} like(s) de pairs distincts pour passer au niveau suivant (Règle A)`;
                     }
                 } else {
                     indicator.style.display = 'none';
@@ -4791,7 +4812,7 @@
                 const progress = (parseInt(level) / maxLevel) * 100;
                 
                 if (currentLevelEl) {
-                    currentLevelEl.textContent = `Maître certifié niveau X${level}`;
+                    currentLevelEl.textContent = `Pair Certifié niveau X${level}`;
                 }
                 if (progressBar) {
                     progressBar.style.width = progress + '%';
@@ -5162,132 +5183,16 @@
                         
                         console.log('[WoTx2] ✅ Request 30501 created automatically');
                         
-                        // For X1 bootstrap: Create automatic self-attestation (30502)
-                        // Oracle allows creator to attest for X1 in bootstrap mode (ORACLE.refresh.sh line 294-309)
-                        try {
-                            // Generate attestation ID
-                            const attestationId = await window.nostr.getPublicKey().then(pubkey => {
-                                return btoa(pubkey + ':' + requestId + ':' + Date.now() + '_bootstrap').substring(0, 16);
-                            });
-                            
-                            const bootstrapStatement = `Auto-attestation bootstrap X1 : En tant que créateur de cette maîtrise ${permitName}, je m'atteste pour démarrer le système. Cette attestation est valide uniquement pour le niveau X1 en mode bootstrap.`;
-                            
-                            // Create permit attestation event (kind 30502) - self-attestation for bootstrap
-                            const attestationContent = {
-                                attestation_id: attestationId,
-                                request_id: requestId,
-                                attester_did: `did:nostr:${userHEX}`,
-                                statement: bootstrapStatement,
-                                competencies_transferred: [],
-                                revealed_competencies: [defaultCompetency], // Reveal the competency from the request
-                                location: location,
-                                signature: await window.nostr.getPublicKey().then(pubkey => {
-                                    return btoa(pubkey + ':' + bootstrapStatement + ':' + Date.now()).substring(0, 32);
-                                })
-                            };
-                            
-                            // CRITICAL: Tag 'e' must reference the 30501 event ID (64-char hex), not the request_id
-                            // The request_id is stored in the content, but the tag 'e' needs the Nostr event ID
-                            const attestationTags = [
-                                ['d', attestationId],
-                                ['e', signedRequestEvent.id], // Use the 30501 event ID, not requestId
-                                ['p', userHEX],
-                                ['t', 'permit'],
-                                ['t', 'attestation'],
-                                ['t', 'bootstrap'] // Tag to indicate bootstrap mode
-                            ];
-                            
-                            // Add IPFSNODEID tag
-                            if (IPFSNODEID) {
-                                attestationTags.push(['ipfs_node', IPFSNODEID]);
-                            }
-                            
-                            // Add geolocation tags if available
-                            if (location) {
-                                attestationTags.push(['g', location.latitude.toString(), location.longitude.toString()]);
-                            }
-                            
-                            const attestationEvent = {
-                                kind: 30502,
-                                content: JSON.stringify(attestationContent),
-                                tags: attestationTags,
-                                created_at: Math.floor(Date.now() / 1000)
-                            };
-                            
-                            // Sign and publish 30502 event (self-attestation for bootstrap)
-                            const signedAttestationEvent = await window.nostr.signEvent(attestationEvent);
-                            
-                            // Publish to relays
-                            if (typeof nostrRelay !== 'undefined' && nostrRelay && isNostrConnected) {
-                                try {
-                                    await nostrRelay.publish(signedAttestationEvent);
-                                    console.log('[WoTx2] ✅ Event 30502 (bootstrap) published to relay');
-                                } catch (e) {
-                                    console.error('[WoTx2] Error publishing 30502 to relay:', e);
-                                    // Fallback to user's relays
-                                    if (window.nostr && typeof window.nostr.getRelays === 'function') {
-                                        const relays = await window.nostr.getRelays();
-                                        const relayUrls = Object.keys(relays);
-                                        for (const relayUrl of relayUrls) {
-                                            try {
-                                                const relay = new Relay(relayUrl);
-                                                await relay.connect();
-                                                await relay.publish(signedAttestationEvent);
-                                                relay.close();
-                                            } catch (err) {
-                                                console.warn(`[WoTx2] Failed to publish 30502 to ${relayUrl}:`, err);
-                                            }
-                                        }
-                                    }
-                                }
-                            } else if (window.nostr && typeof window.nostr.getRelays === 'function') {
-                                // Use user's configured relays
-                                const relays = await window.nostr.getRelays();
-                                const relayUrls = Object.keys(relays);
-                                
-                                for (const relayUrl of relayUrls) {
-                                    try {
-                                        const relay = new Relay(relayUrl);
-                                        await relay.connect();
-                                        await relay.publish(signedAttestationEvent);
-                                        relay.close();
-                                    } catch (e) {
-                                        console.warn(`[WoTx2] Failed to publish 30502 to ${relayUrl}:`, e);
-                                    }
-                                }
-                            }
-                            
-                            console.log('[WoTx2] ✅ Attestation 30502 (bootstrap) created automatically');
-                            
-                let message = `✅ Maîtrise "${permitName}" créée avec succès !\n\n`;
-                message += `🎯 Niveau X1 - Votre Point de Départ\n`;
-                message += `📝 1 validation requise pour obtenir votre certificat\n\n`;
-                message += `✅ Tout est prêt !\n`;
-                message += `   • Votre demande d'apprentissage a été créée\n`;
-                message += `   • Votre auto-validation a été enregistrée\n`;
-                message += `   • Compétence révélée : ${defaultCompetency}\n\n`;
-                message += `🔄 Prochaines étapes automatiques :\n`;
-                message += `   • Votre certificat X1 sera délivré dans les prochaines heures\n`;
-                message += `   • Le niveau X2 sera créé automatiquement\n`;
-                message += `   • Vous pourrez progresser vers X3, X4...\n\n`;
-                message += `💡 Avantage : Votre maîtrise est maintenant visible par toute la communauté UPlanet !`;
-                alert(message);
-                            
-                        } catch (e) {
-                            console.error('[WoTx2] Error creating automatic 30502:', e);
-                            // Still show success message even if 30502 creation failed
-                            let message = `✅ Maîtrise "${permitName}" créée avec succès !\n\n`;
-                    message += `📋 Niveau X1 - Démarrage\n`;
-                            message += `📝 1 validation requise pour votre certificat\n\n`;
-                            message += `✅ Votre demande d'apprentissage a été créée !\n`;
-                            message += `   • Compétence : ${defaultCompetency}\n\n`;
-                            message += `💡 Prochaine étape : Trouvez un maître qui validera vos compétences, ou créez une validation manuellement.\n\n`;
-                            message += `🔄 Progression automatique :\n`;
-                            message += `   • X1 → X2 : Après validation (2 compétences)\n`;
-                            message += `   • X2 → X3 : Après validation (3 compétences)\n`;
-                            message += `   • X3 → X4 : Niveau maître atteint`;
-                            alert(message);
-                        }
+                        // P2P WoTx2: pas d'auto-attestation. Demande des avis à tes pairs !
+                        let message = `✅ Maîtrise "${permitName}" créée avec succès !\n\n`;
+                        message += `🎯 Niveau X0 → X1 : obtiens 3 👍 de pairs distincts (Règle A)\n`;
+                        message += `⚡ Raccourci X0 → X1 : 1 adoubement d'un pair déjà X1+ (Règle B)\n\n`;
+                        message += `📋 Prochaines étapes :\n`;
+                        message += `   • Fais-toi connaître pour que des pairs te donnent leur avis\n`;
+                        message += `   • 3 likes de pairs différents → tu auto-publies ton Kind 30503\n`;
+                        message += `   • Un pair de niveau X1+ peut t'adouber directement\n\n`;
+                        message += `💡 Astuce TrocZen : scanne le QR d'un pair dans l'app mobile !`;
+                        alert(message);
                         
                     } catch (e) {
                         console.error('[WoTx2] Error creating automatic 30501:', e);
@@ -6134,6 +6039,59 @@
                 updateUserLevelBadge();
             }, 1000);
         };
+
+        // P2P WoTx2 — Publier une réaction Kind 7 (Like/Dislike) sur un pair
+        async function publishKind7Reaction(targetNpub, reaction, permitId) {
+            if (!userHEX) {
+                alert('Connectez votre MULTIPASS pour donner votre avis.');
+                return;
+            }
+            if (targetNpub === userHEX) {
+                alert('Vous ne pouvez pas évaluer votre propre compétence.');
+                return;
+            }
+            if (!window.nostr) {
+                alert('Extension NOSTR requise.');
+                return;
+            }
+            try {
+                const skillTag = permitId.replace(/^PERMIT_/, '').replace(/_X\d+$/, '').toLowerCase().replace(/_/g, '-');
+                const kind7Event = {
+                    kind: 7,
+                    content: reaction, // '+' ou '-'
+                    tags: [
+                        ['p', targetNpub],
+                        ['t', 'wotx-review'],
+                        ['t', skillTag],
+                        ['k', '30500']
+                    ],
+                    created_at: Math.floor(Date.now() / 1000)
+                };
+                const signed = await window.nostr.signEvent(kind7Event);
+                // Publier sur le relay
+                if (typeof nostrRelay !== 'undefined' && nostrRelay && isNostrConnected) {
+                    await nostrRelay.publish(signed);
+                } else if (window.nostr && typeof window.nostr.getRelays === 'function') {
+                    const relays = await window.nostr.getRelays();
+                    for (const relayUrl of Object.keys(relays)) {
+                        try {
+                            const r = new Relay(relayUrl);
+                            await r.connect();
+                            await r.publish(signed);
+                            r.close();
+                        } catch(e) {}
+                    }
+                }
+                const label = reaction === '+' ? '👍 Like envoyé !' : '👎 Dislike envoyé.';
+                const detail = reaction === '+'
+                    ? '\n3 likes distincts sur ce skill → le pair peut monter de niveau (Règle A).'
+                    : '\n2 dislikers avec niveau → bifurcation de toile détectée.';
+                alert(label + detail);
+            } catch (e) {
+                console.error('[WoTx2] Error publishing Kind 7:', e);
+                alert('Erreur lors de la publication de la réaction : ' + e.message);
+            }
+        }
     </script>
 <!-- 📄 Source: UPassport/templates/wotx2.html -->
 </body>
