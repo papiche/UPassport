@@ -5049,14 +5049,16 @@
          * Uses VideoStats class from youtube.enhancements.js
          * Limits concurrent requests to avoid "too many concurrent REQs" errors
          */
+        let _loadingAllStats = false;
         async function loadAllVideoStats() {
+            if (_loadingAllStats) return; // prevent concurrent invocations
             // Wait a bit for NOSTR to be ready
             if (typeof VideoStats === 'undefined' || typeof fetchReactions === 'undefined') {
-                console.log('Waiting for VideoStats to be available...');
                 setTimeout(() => loadAllVideoStats(), 1000);
                 return;
             }
-            
+            _loadingAllStats = true;
+            try {
             // Establish relay connection once before processing batches
             // This avoids multiple simultaneous connection attempts
             if (typeof connectToRelay === 'function' && (!isNostrConnected || !nostrRelay)) {
@@ -5069,8 +5071,8 @@
             }
             
             const videoCards = document.querySelectorAll('.video');
-            const CONCURRENT_LIMIT = 3; // Limit to 3 concurrent requests
-            const DELAY_BETWEEN_BATCHES = 500; // 500ms delay between batches
+            const CONCURRENT_LIMIT = 1; // sequential: one video at a time to stay under relay REQ limit
+            const DELAY_BETWEEN_BATCHES = 1500; // 1500ms between each video
             
             // First, set default values for all videos
             videoCards.forEach(card => {
@@ -5139,8 +5141,11 @@
                     await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
                 }
             }
+            } finally {
+                _loadingAllStats = false;
+            }
         }
-        
+
         // ========================================
         // LOAD VIDEO TAGS (kind 1985)
         // ========================================
@@ -5176,8 +5181,8 @@
             }
             
             const videoTagContainers = document.querySelectorAll('.video-tags[data-event-id]');
-            const CONCURRENT_LIMIT = 5; // Limit to 5 concurrent requests
-            const DELAY_BETWEEN_BATCHES = 300; // 300ms delay between batches
+            const CONCURRENT_LIMIT = 2; // max 2 concurrent to stay under relay limit
+            const DELAY_BETWEEN_BATCHES = 800; // 800ms between batches
             
             // Process in batches to avoid too many concurrent requests
             for (let i = 0; i < videoTagContainers.length; i += CONCURRENT_LIMIT) {
@@ -5418,15 +5423,16 @@
         /**
          * Load videos from user's N² network
          */
+        let _loadingNetworkVideos = false;
         async function loadNetworkVideos() {
+            if (_loadingNetworkVideos) return;
             const section = document.getElementById('networkVideosSection');
             const grid = document.getElementById('networkVideosGrid');
-            
+
             if (!section || !grid) return;
-            
+
             // Check if getNetworkVideos is available
             if (typeof getNetworkVideos === 'undefined') {
-                console.log('getNetworkVideos not available yet, retrying...');
                 setTimeout(() => loadNetworkVideos(), 2000);
                 return;
             }
@@ -5454,9 +5460,11 @@
             } catch (error) {
                 console.error('Error loading network videos:', error);
                 section.style.display = 'none';
+            } finally {
+                _loadingNetworkVideos = false;
             }
         }
-        
+
         /**
          * Show video recommendations based on search
          */
