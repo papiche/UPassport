@@ -150,7 +150,22 @@ async def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
                     title = title.replace("  ", " ")
                 metadata["title"] = title
                 break
-    
+
+    # Fallback: extract filename from url tag when title tag is empty
+    if not metadata["title"]:
+        for tag in tags:
+            if isinstance(tag, list) and len(tag) >= 2 and tag[0] == "url":
+                url_path = tag[1]
+                # Extract filename without extension from /ipfs/CID/filename.ext
+                filename = url_path.rstrip("/").split("/")[-1]
+                if "." in filename:
+                    filename = filename.rsplit(".", 1)[0]
+                # Replace underscores/hyphens with spaces for readability
+                title_from_url = filename.replace("_", " ").replace("-", " ")
+                if title_from_url:
+                    metadata["title"] = title_from_url
+                break
+
     if content:
         description = content
         if description.startswith("🎬"):

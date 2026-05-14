@@ -44,6 +44,7 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
     use_local_js = True
     video_metadata = None
     video_title = "Unknown"
+    video_description = ""
     video_author = None
     video_kind = None
     video_duration = 0
@@ -57,9 +58,10 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
             video_event = await fetch_video_event_from_nostr(video, timeout=5)
             if video_event:
                 video_metadata = await parse_video_metadata(video_event)
-                video_title  = video_metadata.get('title', 'Unknown')
-                video_author = video_metadata.get('author_id', '')
-                video_kind   = video_metadata.get('kind', 21)
+                video_title       = video_metadata.get('title', 'Unknown')
+                video_description = video_metadata.get('description', '')
+                video_author      = video_metadata.get('author_id', '')
+                video_kind        = video_metadata.get('kind', 21)
 
                 # ── Extract full NIP-71 tags for client-side rendering ──────
                 # This lets theater-modal.html set window.videoData directly
@@ -121,6 +123,7 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
                         "file_hash":     file_hash,
                         "upload_chain":  upload_chain,
                         "title":         video_title,
+                        "description":   video_description,
                         "duration":      duration_tag,
                         "dimensions":    dimensions,
                         "channel":       video_channel,
