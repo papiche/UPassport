@@ -427,8 +427,8 @@ async def process_webcam_video(
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
-                
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=90)
+
                 if process.returncode == 0:
                     try:
                         result_json = safe_json_load(stdout.decode().strip())
