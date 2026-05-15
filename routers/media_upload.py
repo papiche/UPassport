@@ -959,7 +959,7 @@ async def upload_file_to_ipfs(
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                desc_stdout, desc_stderr = await desc_process.communicate()
+                desc_stdout, desc_stderr = await asyncio.wait_for(desc_process.communicate(), timeout=60)
                 
                 if desc_process.returncode == 0:
                     try:
@@ -1226,7 +1226,7 @@ async def upload_from_drive(request: Request, payload: UploadFromDriveRequest):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await process.communicate()
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
 
         if process.returncode != 0:
             error_message = stderr.decode().strip()

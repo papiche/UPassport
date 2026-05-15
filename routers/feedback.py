@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import re
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -22,18 +21,21 @@ _SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9\-\.]{0,98}$')
 
 # ─── Kind 30800 helpers ───────────────────────────────────────────────────────
 
-def _get_coop_config(key: str) -> str:
+async def _get_coop_config(key: str) -> str:
     """Lit une valeur depuis le DID NOSTR coopératif (kind 30800) via cooperative_config.sh."""
     coop_script = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "cooperative_config.sh"
     if not coop_script.exists():
         return ""
     try:
-        result = subprocess.run(
-            ["bash", "-c", f'source "{coop_script}" 2>/dev/null && coop_config_get "{key}" 2>/dev/null'],
-            capture_output=True, text=True, timeout=15
+        proc = await asyncio.create_subprocess_exec(
+            "bash", "-c", 'source "$1" 2>/dev/null && coop_config_get "$2" 2>/dev/null',
+            "--", str(coop_script), key,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
         )
-        value = result.stdout.strip()
-        if value and result.returncode == 0:
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+        value = stdout.decode().strip()
+        if value and proc.returncode == 0:
             return value
     except Exception as e:
         logger.debug(f"cooperative_config.sh indisponible pour {key}: {e}")
@@ -101,7 +103,7 @@ async def _send_mailjet_fallback(title: str, body_html: str, repo: str) -> bool:
         logger.debug("[feedback] mailjet.sh introuvable")
         return False
 
-    dest_email = _get_coop_config("MJ_SENDER_EMAIL")
+    dest_email = await _get_coop_config("MJ_SENDER_EMAIL")
     if not dest_email:
         logger.debug("[feedback] MJ_SENDER_EMAIL absent, mailjet.sh ignoré")
         return False
@@ -154,9 +156,9 @@ async def post_feedback(
 
     **Routing** : `source="coracle"` → `{GIT_OWNER}/coracle`
     """
-    git_host = _get_coop_config("GIT_HOST") or "https://github.com"
-    git_token = _get_coop_config("GIT_TOKEN")
-    git_owner = _get_coop_config("GIT_OWNER") or "papiche"
+    git_host = await _get_coop_config("GIT_HOST") or "https://github.com"
+    git_token = await _get_coop_config("GIT_TOKEN")
+    git_owner = await _get_coop_config("GIT_OWNER") or "papiche"
     repo = _resolve_repo(source, git_owner)
 
     # Build issue body (shared between Git and email)

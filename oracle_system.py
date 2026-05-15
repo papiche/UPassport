@@ -545,16 +545,15 @@ class OracleSystem:
         
         try:
             from nostr.key import PrivateKey
+        except ImportError as exc:
+            raise RuntimeError("python-nostr requis pour signer les credentials (pip install nostr)") from exc
+
+        try:
             pk = PrivateKey(bytes.fromhex(oracle_key))
-            # Sign the sha256 hash of the data
             data_hash = hashlib.sha256(data_str.encode()).digest()
             signature = pk.sign(data_hash).hex()
-        except ImportError:
-            logging.info("⚠️  python-nostr not found, falling back to basic hash (NOT SECURE)")
-            signature = hashlib.sha256(f"{data_str}:{oracle_key}".encode()).hexdigest()
         except Exception as e:
-            logging.info(f"⚠️  Error signing credential: {e}")
-            signature = hashlib.sha256(f"{data_str}:{oracle_key}".encode()).hexdigest()
+            raise RuntimeError(f"Échec de signature cryptographique du credential: {e}") from e
             
         proof["proofValue"] = signature
         

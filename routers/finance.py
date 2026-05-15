@@ -517,7 +517,7 @@ def _get_oc_env():
                     env_vars[key.strip()] = val.strip().strip('"').strip("'")
     return env_vars
 
-def _get_coop_config(key: str) -> str:
+async def _get_coop_config(key: str) -> str:
     """
     Lit une valeur depuis le DID NOSTR coopératif (kind 30800) via cooperative_config.sh.
     Permet à toutes les stations du même essaim (même swarm.key) de partager OCAPIKEY/OCSLUG
@@ -529,19 +529,22 @@ def _get_coop_config(key: str) -> str:
     if not coop_script.exists():
         return ""
     try:
-        result = subprocess.run(
-            ["bash", "-c", f'source "{coop_script}" 2>/dev/null && coop_config_get "{key}" 2>/dev/null'],
-            capture_output=True, text=True, timeout=15
+        proc = await asyncio.create_subprocess_exec(
+            "bash", "-c", 'source "$1" 2>/dev/null && coop_config_get "$2" 2>/dev/null',
+            "--", str(coop_script), key,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
         )
-        value = result.stdout.strip()
-        if value and result.returncode == 0:
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+        value = stdout.decode().strip()
+        if value and proc.returncode == 0:
             logging.info(f"✅ {key} lu depuis le DID NOSTR coopératif")
             return value
     except Exception as e:
         logging.debug(f"cooperative_config.sh indisponible ou timeout pour {key}: {e}")
     return ""
 
-def _get_oc_token():
+async def _get_oc_token():
     """Retourne l'OCAPIKEY : .env local → DID NOSTR coopératif → settings."""
     oc_env = _get_oc_env()
     from core.config import settings
@@ -549,7 +552,7 @@ def _get_oc_token():
     if not token:
         ## Fallback : DID NOSTR coopératif (kind 30800, chiffré avec $UPLANETNAME)
         ## Partage automatique entre toutes les stations du même essaim IPFS
-        token = _get_coop_config("OCAPIKEY")
+        token = await _get_coop_config("OCAPIKEY")
     return token
 
 @router.post("/oc_webhook")
@@ -587,7 +590,7 @@ async def oc_webhook(request: Request):
 
     email = None
     tier_slug = ""
-    oc_token = _get_oc_token()
+    oc_token = await _get_oc_token()
     if oc_token and slug:
         import httpx
         oc_api = _get_oc_api_url()
