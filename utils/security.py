@@ -30,26 +30,6 @@ def is_safe_email(email: str) -> bool:
     
     return True
 
-def is_multipass_user(hex_pubkey: str) -> bool:
-    """
-    Verify if a user is recognized as MULTIPASS by checking if their account exists in ~/.zen/game/nostr/.
-    Uses an in-memory cache (built once) for O(1) lookup instead of scanning all directories.
-    """
-    if not hex_pubkey:
-        return False
-    
-    hex_pubkey = hex_pubkey.lower().strip()
-    
-    from core.state import app_state
-    
-    if hex_pubkey in app_state.hex_to_email_cache:
-        email = app_state.hex_to_email_cache[hex_pubkey]
-        logging.info(f"✅ User is recognized MULTIPASS (650MB quota) - found in {email}")
-        return True
-    
-    logging.debug(f"ℹ️  User is not recognized MULTIPASS (100MB quota) - hex not in index")
-    return False
-
 def get_max_file_size_for_user(npub: str) -> int:
     """
     Get the maximum file size limit for a user according to UPlanet_FILE_CONTRACT.md.

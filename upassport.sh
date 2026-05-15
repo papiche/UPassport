@@ -705,14 +705,16 @@ find ${MY_PATH}/tmp -mtime +3 -type f -exec rm '{}' \;
 # Detect older than 7 days "fac-simile" from ${MY_PATH}/pdf (not ls with game/passport)
 find ${MY_PATH}/pdf -type d -mtime +7 -not -xtype l -exec rm -r {} \;
 
-## GET PUBKEY TX HISTORY : using G1history.sh
+## GET PUBKEY TX HISTORY + BALANCE in parallel
 echo "LOADING WALLET HISTORY"
-$HOME/.zen/Astroport.ONE/tools/timeout.sh -t 30 $HOME/.zen/Astroport.ONE/tools/G1history.sh ${PUBKEY} 25 > ${MY_PATH}/tmp/$PUBKEY.TX.json
+$HOME/.zen/Astroport.ONE/tools/timeout.sh -t 30 $HOME/.zen/Astroport.ONE/tools/G1history.sh ${PUBKEY} 25 > ${MY_PATH}/tmp/$PUBKEY.TX.json &
+$HOME/.zen/Astroport.ONE/tools/G1check.sh ${PUBKEY} > ${MY_PATH}/tmp/$PUBKEY.SOLDE 2>/dev/null &
+wait
 
 ## EXTRACT SOLDE & ZEN
 # Validate JSON file exists and is valid JSON
 if [[ -s ${MY_PATH}/tmp/$PUBKEY.TX.json ]] && jq empty ${MY_PATH}/tmp/$PUBKEY.TX.json >/dev/null 2>&1; then
-    SOLDE=$($HOME/.zen/Astroport.ONE/tools/G1check.sh ${PUBKEY} | tail -n 1)
+    SOLDE=$(cat ${MY_PATH}/tmp/$PUBKEY.SOLDE | tail -n 1)
     ZEN=$(echo "($SOLDE - 1) * 10" | bc | cut -d '.' -f 1)
 
     AMOUNT="$SOLDE Ğ1"

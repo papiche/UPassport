@@ -686,6 +686,88 @@ async def _get_g1_balance_gcli_fallback(g1pub: str, ss58: str) -> dict:
     return await _get_g1_balance_g1check_fallback(g1pub)
 
 
+_BATCH_BALANCE_QUERY = """
+query($ids: [String!]!) {
+  accounts(filter: {id: {in: $ids}}) {
+    nodes { id totalBalance linkedAccount }
+  }
+}
+"""
+
+
+async def get_g1_balances_batch(g1pubs: List[str]) -> Dict[str, dict]:
+    """
+    Récupère les balances de plusieurs pubkeys en une seule requête Squid GraphQL.
+
+    Utilise le filtre PostGraphile `accounts(filter:{id:{in:$ids}})`.
+    Si le Squid ne supporte pas ce filtre, bascule sur asyncio.gather()
+    avec des requêtes individuelles get_g1_balance_native().
+
+    Retourne {g1pub: {"pending": 0, "blockchain": <centimes>, "total": <centimes>}}.
+    WebSocket RPC : les connexions SubstrateInterface restent dans le pool (_substrate_pool)
+    et ne sont PAS fermées entre les appels (TTL 5 min).
+    """
+    _empty = {"pending": 0, "blockchain": 0, "total": 0}
+    if not g1pubs:
+        return {}
+
+    # Conversion v1 → SS58 + table de correspondance ss58 → g1pub original
+    ss58_to_g1: Dict[str, str] = {}
+    ss58_list: List[str] = []
+    for g1pub in g1pubs:
+        ss58 = g1pub_to_ss58(g1pub)
+        ss58_to_g1[ss58] = g1pub
+        if ss58 != g1pub:
+            ss58_to_g1[g1pub] = g1pub  # aussi mapper l'original au cas où
+        ss58_list.append(ss58)
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        for url in get_squid_urls():
+            try:
+                resp = await client.post(
+                    url,
+                    json={"query": _BATCH_BALANCE_QUERY, "variables": {"ids": ss58_list}},
+                )
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                accounts_data = (data.get("data") or {}).get("accounts")
+                if accounts_data is None:
+                    # Ce Squid ne supporte pas le filtre `in` → sortir de la boucle
+                    logger.debug("Batch filter non supporté sur %s", url)
+                    break
+                nodes = accounts_data.get("nodes") or []
+                result = {g1pub: dict(_empty) for g1pub in g1pubs}
+                for node in nodes:
+                    orig = ss58_to_g1.get(node.get("id", ""))
+                    if orig:
+                        result[orig] = {
+                            "pending": 0,
+                            "blockchain": int(node.get("totalBalance") or 0),
+                            "total": int(node.get("totalBalance") or 0),
+                        }
+                logger.info(
+                    "G1balance batch OK via %s : %d/%d comptes trouvés",
+                    url, len(nodes), len(g1pubs),
+                )
+                return result
+            except Exception as exc:
+                logger.debug("Batch balance erreur sur %s : %s", url, exc)
+
+    # Fallback : requêtes individuelles en parallèle (connexions WS réutilisées)
+    logger.info("G1balance batch : fallback gather pour %d pubkeys", len(g1pubs))
+    tasks = [get_g1_balance_native(g1pub) for g1pub in g1pubs]
+    results_list = await asyncio.gather(*tasks, return_exceptions=True)
+    return {
+        g1pub: (
+            r.get("balances", dict(_empty))
+            if not isinstance(r, Exception)
+            else dict(_empty)
+        )
+        for g1pub, r in zip(g1pubs, results_list)
+    }
+
+
 async def _get_g1_balance_g1check_fallback(g1pub: str) -> dict:
     """
     Super-fallback : appelle G1check.sh (fetch parallèle RPC multi-nœuds).

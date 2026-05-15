@@ -12,6 +12,7 @@ router = APIRouter()
 
 from core.config import settings
 from utils.security import is_safe_email
+from services.g1_squid import get_g1_balance_native
 
 # Path to CROWDFUNDING.sh script
 CROWDFUNDING_SCRIPT = settings.TOOLS_PATH / "CROWDFUNDING.sh"
@@ -177,20 +178,12 @@ async def crowdfunding_status(project_id: str):
     
     if bien_g1pub:
         try:
-            g1check_script = settings.TOOLS_PATH / "G1check.sh"
-            if os.path.exists(g1check_script):
-                import asyncio
-                process = await asyncio.create_subprocess_exec(
-                    str(g1check_script), bien_g1pub,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
-                if process.returncode == 0:
-                    bien_balance = stdout.decode().strip()
+            result = await get_g1_balance_native(bien_g1pub)
+            centimes = result.get("balances", {}).get("total", 0)
+            bien_balance = f"{centimes / 100:.2f}"
         except Exception:
             pass
-    
+
     return JSONResponse({
         "success": True,
         "project": project_data,
@@ -243,27 +236,16 @@ async def crowdfunding_bien_balance(project_id: str):
         raise HTTPException(status_code=400, detail="Project has no Bien wallet")
     
     try:
-        g1check_script = settings.TOOLS_PATH / "G1check.sh"
-        if os.path.exists(g1check_script):
-            import asyncio
-            process = await asyncio.create_subprocess_exec(
-                str(g1check_script), bien_g1pub,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
-            if process.returncode == 0:
-                g1_balance = float(stdout.decode().strip() or "0")
-                zen_balance = max(0, (g1_balance - 1) * 10)
-                
-                return JSONResponse({
-                    "success": True,
-                    "project_id": project_id,
-                    "bien_g1pub": bien_g1pub,
-                    "g1_balance": g1_balance,
-                    "zen_balance": zen_balance
-                })
+        result = await get_g1_balance_native(bien_g1pub)
+        centimes = result.get("balances", {}).get("total", 0)
+        g1_balance = centimes / 100
+        zen_balance = max(0.0, (g1_balance - 1) * 10)
+        return JSONResponse({
+            "success": True,
+            "project_id": project_id,
+            "bien_g1pub": bien_g1pub,
+            "g1_balance": g1_balance,
+            "zen_balance": zen_balance
+        })
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Balance check failed: {str(e)}")
-    
-    raise HTTPException(status_code=500, detail="G1check script not available")

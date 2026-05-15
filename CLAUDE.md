@@ -38,6 +38,7 @@ templates/        ← Jinja2 HTML templates
 ### finance.py
 - `POST /zen_send` — Envoi ẐEN entre comptes (transaction G1)
 - `GET  /check_balance` — Solde G1 d'une clé publique
+- `GET  /check_balances` — Solde G1 batch (g1pubs=pub1,pub2,… max 20) — une seule requête Squid GraphQL
 - `POST /oc_webhook` — Webhook OpenCollective (recharge MULTIPASS immédiate)
 - `GET  /check_society` — Vérification sociétaire (Satellite/Constellation)
 - `GET  /check_revenue` — Revenus coopératifs

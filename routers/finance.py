@@ -81,6 +81,7 @@ from services.g1_squid import (
     get_g1_history_native,
     get_g1_balance_native,
     get_g1_balance_rpc_native,
+    get_g1_balances_batch,
     get_squid_urls,
     g1pub_to_ss58,
 )
@@ -90,7 +91,7 @@ def convert_g1_to_zen(g1_balance: str) -> str:
     try:
         clean_balance = g1_balance.replace('Ğ1', '').replace('G1', '').strip()
         balance_float = float(clean_balance)
-        zen_amount = (balance_float - 1) * 10
+        zen_amount = max(0, (balance_float - 1) * 10)
         return f"{int(zen_amount)} Ẑ"
     except (ValueError, TypeError):
         return g1_balance
@@ -388,6 +389,31 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
+
+@router.get("/check_balances")
+async def check_balances_route(g1pubs: str):
+    """
+    Balance batch pour plusieurs clés G1 (séparées par virgule, max 20).
+    Utilise une seule requête Squid GraphQL via get_g1_balances_batch().
+    Réponse : {"balances": {"<g1pub>": {"balance": "2.48", "zen": "14.80"}, ...}}
+    """
+    pubkey_list = [p.strip() for p in g1pubs.split(",") if p.strip()][:20]
+    valid = [p for p in pubkey_list if is_safe_g1pub(p)]
+    if not valid:
+        raise HTTPException(status_code=400, detail="Aucune g1pub valide")
+
+    batch_raw = await get_g1_balances_batch(valid)
+
+    result = {}
+    for g1pub in valid:
+        b = batch_raw.get(g1pub, {"pending": 0, "blockchain": 0, "total": 0})
+        centimes = b.get("total", 0)
+        g1_val = centimes / 100
+        zen = max(0.0, (g1_val - 1) * 10)
+        result[g1pub] = {"balance": f"{g1_val:.2f}", "zen": f"{zen:.2f}"}
+
+    return {"balances": result}
+
 
 def _is_origin_mode():
     from core.config import settings
