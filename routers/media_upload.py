@@ -83,6 +83,28 @@ async def _maybe_send_roaming_dm(
                 except Exception:
                     pass
 
+    # Fallback : HOME_IPFSNODEID sauvegardé par 22242.sh (amisOfAmis_roaming)
+    if not home_node_hex or len(home_node_hex) != 64:
+        home_ipfsnodeid_file = user_dir / "HOME_IPFSNODEID"
+        if home_ipfsnodeid_file.exists():
+            home_ipfsnodeid = home_ipfsnodeid_file.read_text().strip()
+            if home_ipfsnodeid:
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        "ipfs", "--timeout", "10s", "cat",
+                        f"/ipns/{home_ipfsnodeid}/{user_email}/home.station",
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    out, _ = await asyncio.wait_for(proc.communicate(), timeout=12)
+                    content = out.decode().strip()
+                    if ":" in content:
+                        home_node_hex = content.split(":", 1)[1].strip()
+                        home_station_file.write_text(content + "\n")
+                        logging.info(f"Roaming DM: home.station récupéré via HOME_IPFSNODEID pour {user_email}")
+                except Exception:
+                    pass
+
     if not home_node_hex or len(home_node_hex) != 64:
         logging.warning(f"Roaming DM: home_node_hex introuvable pour {user_email}")
         return False
@@ -1132,7 +1154,28 @@ async def upload_file_to_ipfs(
                             duration=int(duration) if duration is not None else None,
                             dimensions=dimensions if dimensions else None,
                         )
-                    # DM échoué → conserver le fichier localement (retry au prochain upload)
+                    # DM échoué → conserver le fichier localement, retourner le CID brut
+                    # La home station seule publie l'IPNS — pas de régénération locale
+                    return UploadResponse(
+                        success=True,
+                        message="Fichier IPFS uploadé. Sync home station en attente (DM différé).",
+                        file_path=str(file_path),
+                        file_type=file_type,
+                        target_directory=str(target_dir),
+                        new_cid=file_cid,
+                        timestamp=datetime.now().isoformat(),
+                        auth_verified=True,
+                        fileName=sanitized_filename,
+                        description=description,
+                        info=info_cid,
+                        cidirect=cidirect if cidirect else None,
+                        thumbnail_ipfs=thumbnail_cid if thumbnail_cid else None,
+                        gifanim_ipfs=gifanim_cid if gifanim_cid else None,
+                        fileHash=file_hash if file_hash else None,
+                        mimeType=mime_type if mime_type else None,
+                        duration=int(duration) if duration is not None else None,
+                        dimensions=dimensions if dimensions else None,
+                    )
 
                 # ── Régénérer la structure uDRIVE (utilisateurs locaux uniquement) ──
                 # On conserve le CID du fichier seul en fallback si le script échoue.
