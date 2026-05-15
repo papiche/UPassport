@@ -18,8 +18,10 @@ from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse, File
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from utils.helpers import run_script, get_myipfs_gateway, as_form
+from utils.helpers import run_script, get_myipfs_gateway, as_form, safe_json_load
 from core.middleware import get_client_ip
+from core.config import settings
+from services.ipfs import run_uDRIVE_generation_script
 from utils.security import (
     get_authenticated_user_directory,
     get_max_file_size_for_user,
@@ -36,6 +38,108 @@ from models.schemas import UploadResponse, UploadFromDriveResponse
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+
+async def _maybe_send_roaming_dm(
+    user_dir: Path, file_cid: str, sanitized_filename: str, file_type: str
+) -> bool:
+    """Si l'utilisateur est en roaming, envoie un DM NIP-04 (kind 4) à la home station.
+
+    Retourne True si le DM a été envoyé avec succès.
+    En cas d'échec, laisser le fichier en place — NOSTRCARD.refresh.sh le reprendra.
+    """
+
+    if not (user_dir / ".roaming").exists():
+        return False
+
+    user_email = user_dir.name
+
+    # ── Lire home.station : IPFSNODEID:NODE_HEX ─────────────────────────────
+    home_node_hex = ""
+    home_station_file = user_dir / "home.station"
+    if home_station_file.exists():
+        content = home_station_file.read_text().strip()
+        if ":" in content:
+            home_node_hex = content.split(":", 1)[1].strip()
+
+    # Fallback : récupérer depuis IPFS via NOSTRNS
+    if not home_node_hex or len(home_node_hex) != 64:
+        nostrns_file = user_dir / "NOSTRNS"
+        if nostrns_file.exists():
+            nostrns = nostrns_file.read_text().strip()
+            if nostrns:
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        "ipfs", "--timeout", "10s", "cat",
+                        f"{nostrns}/{user_email}/home.station",
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    out, _ = await asyncio.wait_for(proc.communicate(), timeout=12)
+                    content = out.decode().strip()
+                    if ":" in content:
+                        home_node_hex = content.split(":", 1)[1].strip()
+                        home_station_file.write_text(content + "\n")
+                except Exception:
+                    pass
+
+    if not home_node_hex or len(home_node_hex) != 64:
+        logging.warning(f"Roaming DM: home_node_hex introuvable pour {user_email}")
+        return False
+
+    # ── NSEC du NODE de cette station ────────────────────────────────────────
+    node_nsec = ""
+    secret_path = settings.GAME_PATH / "secret.nostr"
+    if secret_path.exists():
+        for line in secret_path.read_text().splitlines():
+            if line.startswith("NSEC="):
+                node_nsec = line[5:].strip()
+                break
+
+    if not node_nsec:
+        logging.warning(f"Roaming DM: secret.nostr absent pour {user_email}")
+        return False
+
+    # ── Relays WSS publics ───────────────────────────────────────────────────
+    relays = [r for r in settings.NOSTR_RELAYS.split() if r.startswith("wss://")]
+    if not relays:
+        relays = ["wss://relay.copylaradio.com"]
+
+    ft_map = {"image": "image", "video": "video", "audio": "audio", "document": "document"}
+    filetype_arg = ft_map.get(file_type, "file")
+
+    intercom = settings.TOOLS_PATH / "nostr_node_intercom.py"
+    cmd = [
+        "python3", str(intercom), "send-udrive",
+        "--nsec", node_nsec,
+        "--to", home_node_hex,
+        "--email", user_email,
+        "--cid", file_cid,
+        "--filename", sanitized_filename,
+        "--filetype", filetype_arg,
+        "--relays", *relays,
+    ]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
+        if proc.returncode == 0:
+            logging.info(
+                f"✈️ Roaming DM OK: {user_email} → {home_node_hex[:12]}… "
+                f"file={sanitized_filename} cid={file_cid[:12]}…"
+            )
+            return True
+        logging.warning(
+            f"✈️ Roaming DM échec (code {proc.returncode}): {stderr.decode()[:200]}"
+        )
+    except asyncio.TimeoutError:
+        logging.warning(f"✈️ Roaming DM timeout pour {user_email}")
+    except Exception as e:
+        logging.warning(f"✈️ Roaming DM erreur: {e}")
+    return False
 
 @as_form
 class WebcamForm(BaseModel):
@@ -144,7 +248,7 @@ async def process_webcam_video(
                                 duration = float(media["duration"])
                             if file_size == 0 and media.get("file_size"):
                                 try: file_size = int(media["file_size"])
-                                except: pass
+                                except (ValueError, TypeError): pass
                             
                             if not thumbnail_ipfs:
                                 if is_v2 and media.get("thumbnails"):
@@ -164,10 +268,10 @@ async def process_webcam_video(
                         
                         if file_size == 0 and info_data.get("file_size"):
                             try: file_size = int(info_data["file_size"])
-                            except: pass
+                            except (ValueError, TypeError): pass
                         if file_size == 0 and info_data.get("fileSize"):
                             try: file_size = int(info_data["fileSize"])
-                            except: pass
+                            except (ValueError, TypeError): pass
             except Exception as e:
                 logging.warning(f"Could not load metadata from info.json: {e}")
         
@@ -251,11 +355,10 @@ async def process_webcam_video(
                 try:
                     lat = float(latitude) if latitude else 0.00
                     lon = float(longitude) if longitude else 0.00
-                except:
+                except (ValueError, TypeError):
                     lat = 0.00
                     lon = 0.00
                 
-                from core.config import settings
                 publish_script = settings.TOOLS_PATH / "publish_nostr_video.sh"
                 if not os.path.exists(publish_script):
                     return templates.TemplateResponse("webcam.html", {
@@ -316,10 +419,9 @@ async def process_webcam_video(
                         if isinstance(genres_json, list) and len(genres_json) > 0:
                             genres_compact = json.dumps(genres_json, ensure_ascii=False, separators=(',', ':'))
                             publish_cmd.extend(["--genres", genres_compact])
-                    except:
+                    except (json.JSONDecodeError, ValueError):
                         pass
                 
-                import asyncio
                 process = await asyncio.create_subprocess_exec(
                     *publish_cmd,
                     stdout=asyncio.subprocess.PIPE,
@@ -328,7 +430,6 @@ async def process_webcam_video(
                 stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
                 
                 if process.returncode == 0:
-                    from utils.helpers import safe_json_load
                     try:
                         result_json = safe_json_load(stdout.decode().strip())
                         nostr_event_id = result_json.get('event_id', '')
@@ -452,7 +553,6 @@ async def process_vocals_message(
             user_dir = get_authenticated_user_directory(npub)
             secret_file = user_dir / ".secret.nostr"
         except Exception:
-            from core.config import settings
             user_dir = settings.GAME_PATH / "nostr" / player
             secret_file = os.path.join(user_dir, ".secret.dunikey")
             if not os.path.exists(secret_file):
@@ -468,22 +568,21 @@ async def process_vocals_message(
         try:
             lat = float(latitude) if latitude else 0.00
             lon = float(longitude) if longitude else 0.00
-        except:
+        except (ValueError, TypeError):
             lat = 0.00
             lon = 0.00
-        
+
         try:
             voice_kind = int(kind) if kind else 1222
             if voice_kind not in [1222, 1244]:
                 voice_kind = 1222
-        except:
+        except (ValueError, TypeError):
             voice_kind = 1222
         
         if voice_kind == 1244:
             if not reply_to_event_id or not reply_to_event_id.strip() or not reply_to_pubkey or not reply_to_pubkey.strip():
                 voice_kind = 1222
         
-        from core.config import settings
         publish_script = settings.TOOLS_PATH / "publish_nostr_vocal.sh"
         if not os.path.exists(publish_script):
             return templates.TemplateResponse("vocals.html", {
@@ -525,7 +624,7 @@ async def process_vocals_message(
                 exp_timestamp = int(expiration)
                 if exp_timestamp > 0:
                     publish_cmd.extend(["--expiration", str(exp_timestamp)])
-            except:
+            except (ValueError, TypeError):
                 pass
         
         if is_encrypted:
@@ -535,8 +634,7 @@ async def process_vocals_message(
                 publish_cmd.extend(["--recipients", recipients])
         
         publish_cmd.extend(["--channel", player])
-        
-        import asyncio
+
         process = await asyncio.create_subprocess_exec(
             *publish_cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -545,7 +643,6 @@ async def process_vocals_message(
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
         
         if process.returncode == 0:
-            from utils.helpers import safe_json_load
             try:
                 result_json = safe_json_load(stdout.decode().strip())
                 nostr_event_id = result_json.get('event_id', '')
@@ -827,8 +924,8 @@ async def upload_file_to_ipfs(
             except UnicodeDecodeError:
                 pass
             except Exception as e:
-                pass
-        
+                logging.warning(f"Cookie file processing error: {e}")
+
         if file_type == 'image':
             target_dir = user_drive_path / "Images"
         elif file_type == 'video':
@@ -854,7 +951,6 @@ async def upload_file_to_ipfs(
                 async with aiofiles.open(temp_image_path, 'wb') as out_file:
                     await out_file.write(file_content)
                 
-                from core.config import settings
                 describe_script = settings.ZEN_PATH / "Astroport.ONE" / "IA" / "describe_image.py"
                 
                 custom_prompt = "Décris ce qui se trouve sur cette image en 10-30 mots clés concis et précis. Ne génère qu'une description courte sans phrase complète, ni introduction."
@@ -866,7 +962,6 @@ async def upload_file_to_ipfs(
                 desc_stdout, desc_stderr = await desc_process.communicate()
                 
                 if desc_process.returncode == 0:
-                    from utils.helpers import safe_json_load
                     try:
                         desc_json = safe_json_load(desc_stdout.decode())
                         description = desc_json.get('description', '')
@@ -885,7 +980,6 @@ async def upload_file_to_ipfs(
         async with aiofiles.open(file_path, 'wb') as out_file:
             await out_file.write(file_content)
         
-        from core.config import settings
         tmp_dir = settings.ZEN_PATH / "tmp"
         os.makedirs(tmp_dir, exist_ok=True)
         temp_file_path = os.path.join(tmp_dir, f"temp_{uuid.uuid4()}.json")
@@ -963,7 +1057,6 @@ async def upload_file_to_ipfs(
                         secret_file = user_dir / ".secret.nostr"
                         
                         if secret_file.exists():
-                            from core.config import settings
                             publish_script = settings.TOOLS_PATH / "publish_nostr_file.sh"
                             
                             if os.path.exists(publish_script):
@@ -985,7 +1078,6 @@ async def upload_file_to_ipfs(
                                     "--json"
                                 ]
                                 
-                                import asyncio
                                 process = await asyncio.create_subprocess_exec(
                                     *publish_cmd,
                                     stdout=asyncio.subprocess.PIPE,
@@ -998,13 +1090,51 @@ async def upload_file_to_ipfs(
                 if os.path.exists(temp_file_path):
                     os.remove(temp_file_path)
 
-                # Regénérer immédiatement la structure uDRIVE complète (manifest.json +
-                # index.html) pour que le client atterrisse sur le drive mis à jour.
-                # On conserve le CID du fichier seul en fallback si le script échoue.
                 file_cid = json_output.get('cid')
                 udrive_cid = file_cid
+
+                # ── Roaming : DM direct vers la home station ─────────────────
+                # Pour un utilisateur itinérant, on envoie le CID via DM NIP-04
+                # à sa home station qui se charge de la publication IPNS.
+                # On ne régénère PAS le uDRIVE local (la home station le fera).
+                if (user_NOSTR_path / ".roaming").exists() and file_cid:
+                    dm_sent = await _maybe_send_roaming_dm(
+                        user_dir=user_NOSTR_path,
+                        file_cid=file_cid,
+                        sanitized_filename=sanitized_filename,
+                        file_type=file_type,
+                    )
+                    if dm_sent:
+                        try:
+                            file_path.unlink(missing_ok=True)
+                        except Exception:
+                            pass
+                        if os.path.exists(temp_file_path):
+                            os.remove(temp_file_path)
+                        return UploadResponse(
+                            success=True,
+                            message="Fichier relayé à la home station via DM",
+                            file_path=str(file_path),
+                            file_type=file_type,
+                            target_directory=str(target_dir),
+                            new_cid=file_cid,
+                            timestamp=datetime.now().isoformat(),
+                            auth_verified=True,
+                            fileName=sanitized_filename,
+                            description=description,
+                            info=info_cid,
+                            thumbnail_ipfs=thumbnail_cid if thumbnail_cid else None,
+                            gifanim_ipfs=gifanim_cid if gifanim_cid else None,
+                            fileHash=file_hash if file_hash else None,
+                            mimeType=mime_type if mime_type else None,
+                            duration=int(duration) if duration is not None else None,
+                            dimensions=dimensions if dimensions else None,
+                        )
+                    # DM échoué → conserver le fichier localement (retry au prochain upload)
+
+                # ── Régénérer la structure uDRIVE (utilisateurs locaux uniquement) ──
+                # On conserve le CID du fichier seul en fallback si le script échoue.
                 try:
-                    from services.ipfs import run_uDRIVE_generation_script
                     ipfs_result = await run_uDRIVE_generation_script(user_drive_path)
                     udrive_cid = ipfs_result.get("final_cid") or file_cid
                     logging.info(f"uDRIVE regenerated after upload: {udrive_cid}")
@@ -1090,7 +1220,6 @@ async def upload_from_drive(request: Request, payload: UploadFromDriveRequest):
         full_ipfs_url = f"/ipfs/{payload.ipfs_link}"
         logging.info(f"Attempting to download IPFS link: {full_ipfs_url} to {target_file_path}")
 
-        import asyncio
         ipfs_get_command = ["ipfs", "get", "-o", str(target_file_path), full_ipfs_url]
         process = await asyncio.create_subprocess_exec(
             *ipfs_get_command,
@@ -1107,7 +1236,6 @@ async def upload_from_drive(request: Request, payload: UploadFromDriveRequest):
         file_size = target_file_path.stat().st_size
         logging.info(f"File '{sanitized_filename}' downloaded from IPFS and saved to '{target_file_path}' (Size: {file_size} bytes)")
 
-        from services.ipfs import run_uDRIVE_generation_script
         ipfs_result = await run_uDRIVE_generation_script(user_drive_path)
         new_cid_info = ipfs_result.get("final_cid")
         logging.info(f"New IPFS CID generated: {new_cid_info}")
@@ -1181,7 +1309,7 @@ async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
         return_code, last_line = await run_script(script_path, file_location, temp_file_path, user_pubkey_hex)
 
         if return_code == 0:
-          try:
+            try:
                 async with aiofiles.open(temp_file_path, mode="r") as temp_file:
                     json_content = await temp_file.read()
                 json_output = json.loads(json_content.strip())
@@ -1196,54 +1324,40 @@ async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
                 thumbnail_ipfs = json_output.get("thumbnail_ipfs") or ""
                 gifanim_ipfs = json_output.get("gifanim_ipfs") or ""
                 upload_chain = json_output.get("upload_chain") or ""
-                
-                ipfs_gateway = (await get_myipfs_gateway()).rstrip('/')
+
                 if new_cid and file_name:
                     ipfs_url = f"/ipfs/{new_cid}/{file_name}"
                 elif new_cid:
                     ipfs_url = f"/ipfs/{new_cid}"
                 else:
                     ipfs_url = ""
-                
+
                 tags = []
-                
                 if ipfs_url:
                     tags.append(["url", ipfs_url])
-                
                 if file_hash:
                     tags.append(["ox", file_hash])
                     tags.append(["x", file_hash])
-                
                 if mime_type:
                     tags.append(["m", mime_type])
-                
                 if file_size:
                     tags.append(["size", str(file_size)])
-                
                 if dimensions:
                     tags.append(["dim", dimensions])
-                
                 if info_cid:
                     tags.append(["info", info_cid])
-                
                 if thumbnail_ipfs:
                     tags.append(["thumbnail_ipfs", thumbnail_ipfs])
-                
                 if gifanim_ipfs:
                     tags.append(["gifanim_ipfs", gifanim_ipfs])
-                
                 if upload_chain:
                     tags.append(["upload_chain", upload_chain])
-                
+
                 nip96_response = {
                     "status": "success",
                     "message": json_output.get("message", "File uploaded successfully"),
-                    "nip94_event": {
-                        "tags": tags,
-                        "content": ""
-                    }
+                    "nip94_event": {"tags": tags, "content": ""}
                 }
-                
                 if new_cid:
                     nip96_response["new_cid"] = new_cid
                 if file_hash:
@@ -1260,23 +1374,27 @@ async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
                     nip96_response["dimensions"] = dimensions
                 if json_output.get("duration"):
                     nip96_response["duration"] = json_output.get("duration")
-                
-                os.remove(temp_file_path)
-                os.remove(file_location)
+
                 return JSONResponse(content=nip96_response)
-          except (json.JSONDecodeError, FileNotFoundError) as e:
+            except (json.JSONDecodeError, FileNotFoundError) as e:
                 logging.error(f"Failed to decode JSON from temp file: {temp_file_path}, Error: {e}")
-                raise HTTPException(status_code=500, detail="Failed to process script output, JSON decode error.")
-          finally:
+                raise HTTPException(status_code=500, detail="Failed to process script output.")
+            finally:
                 if os.path.exists(temp_file_path):
-                   os.remove(temp_file_path)
+                    os.remove(temp_file_path)
                 if os.path.exists(file_location):
-                  os.remove(file_location)
+                    os.remove(file_location)
         else:
-           logging.error(f"Script execution failed: {last_line.strip()}")
-           raise HTTPException(status_code=500, detail="Script execution failed.")
+            logging.error(f"Script execution failed: {last_line.strip()}")
+            if os.path.exists(file_location):
+                os.remove(file_location)
+            raise HTTPException(status_code=500, detail="Script execution failed.")
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"An unexpected error occurred: {e}")
+        if os.path.exists(file_location):
+            os.remove(file_location)
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 # ==================== IMAGE UPLOAD (TrocZen/ZENBOX compatible) ====================

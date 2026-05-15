@@ -304,11 +304,12 @@ async def get_my_gps_coordinates(npub: str):
         
         gps_file_path = None
         user_email = None
-        
+        user_dir = None
+
         for email_dir in game_nostr_path.iterdir():
             if not email_dir.is_dir():
                 continue
-            
+
             pub_key_file = email_dir / "HEX"
             if pub_key_file.exists():
                 try:
@@ -318,44 +319,65 @@ async def get_my_gps_coordinates(npub: str):
                         if gps_file.exists():
                             gps_file_path = gps_file
                             user_email = email_dir.name
+                            user_dir = email_dir
                             break
                 except Exception:
                     continue
-        
+
         if not gps_file_path:
             raise HTTPException(
                 status_code=404,
                 detail={"error": "gps_not_found", "message": "GPS coordinates not found for this user"}
             )
-        
+
         try:
             gps_content = gps_file_path.read_text().strip()
             lat = None
             lon = None
-            
+
             for part in gps_content.split(';'):
                 part = part.strip()
                 if part.startswith('LAT='):
                     lat = float(part.replace('LAT=', ''))
                 elif part.startswith('LON='):
                     lon = float(part.replace('LON=', ''))
-            
+
             if lat is None or lon is None:
                 raise ValueError(f"Invalid GPS format: {gps_content}")
-            
+
             lat_rounded = round(lat, 2)
             lon_rounded = round(lon, 2)
             umap_key = f"{lat_rounded:.2f},{lon_rounded:.2f}"
-            
+
             ipfs_node_id = await get_env_from_mysh("IPFSNODEID", "")
             if not ipfs_node_id:
                 ipfs_node_id = settings.IPFSNODEID
-            
+
+            # Determine source: local / swarm from SOURCE file or .roaming flag
+            source = "local"
+            home_station_url = None
+            if user_dir:
+                source_file = user_dir / "SOURCE"
+                roaming_flag = user_dir / ".roaming"
+                if source_file.exists():
+                    raw = source_file.read_text().strip().lower()
+                    source = "swarm" if "swarm" in raw else raw
+                elif roaming_flag.exists():
+                    source = "swarm"
+                # home station URL from NOSTRNS (IPNS identifier saved by 22242.sh)
+                nostrns_file = user_dir / "NOSTRNS"
+                if nostrns_file.exists():
+                    nostrns = nostrns_file.read_text().strip()
+                    if nostrns:
+                        home_station_url = f"https://ipfs.copylaradio.com/ipns/{nostrns}"
+
             return {
                 "success": True,
                 "coordinates": {"lat": lat_rounded, "lon": lon_rounded},
                 "umap_key": umap_key,
                 "email": user_email,
+                "source": source,
+                "home_station_url": home_station_url,
                 "ipfsnodeid": ipfs_node_id,
                 "message": "GPS coordinates retrieved successfully",
                 "timestamp": datetime.now().isoformat()
