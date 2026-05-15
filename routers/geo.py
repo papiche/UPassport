@@ -315,16 +315,16 @@ async def get_my_gps_coordinates(npub: str):
                 try:
                     stored_pubkey = pub_key_file.read_text().strip()
                     if stored_pubkey == pubkey_hex or stored_pubkey == npub:
+                        user_email = email_dir.name
+                        user_dir = email_dir
                         gps_file = email_dir / "GPS"
                         if gps_file.exists():
                             gps_file_path = gps_file
-                            user_email = email_dir.name
-                            user_dir = email_dir
-                            break
+                        break
                 except Exception:
                     continue
 
-        if not gps_file_path:
+        if not user_dir:
             return {
                 "success": True,
                 "coordinates": {"lat": 0.00, "lon": 0.00},
@@ -333,6 +333,42 @@ async def get_my_gps_coordinates(npub: str):
                 "source": "unknown",
                 "home_station_url": None,
                 "ipfsnodeid": None,
+                "message": "GPS not yet set for this user",
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        if not gps_file_path:
+            # Répertoire trouvé mais pas de GPS — retourner source correcte avec 0,0
+            source = "local"
+            home_station_url = None
+            source_file = user_dir / "SOURCE"
+            roaming_flag = user_dir / ".roaming"
+            if source_file.exists():
+                raw = source_file.read_text().strip().lower()
+                if "swarm" in raw:
+                    source = "swarm"
+                elif "amis" in raw:
+                    source = "amisOfAmis"
+                else:
+                    source = raw
+            elif roaming_flag.exists():
+                source = "swarm"
+            nostrns_file = user_dir / "NOSTRNS"
+            if nostrns_file.exists():
+                nostrns = nostrns_file.read_text().strip()
+                if nostrns:
+                    home_station_url = f"https://ipfs.copylaradio.com/ipns/{nostrns}"
+            ipfs_node_id = await get_env_from_mysh("IPFSNODEID", "")
+            if not ipfs_node_id:
+                ipfs_node_id = settings.IPFSNODEID
+            return {
+                "success": True,
+                "coordinates": {"lat": 0.00, "lon": 0.00},
+                "umap_key": "0.00,0.00",
+                "email": user_email,
+                "source": source,
+                "home_station_url": home_station_url,
+                "ipfsnodeid": ipfs_node_id,
                 "message": "GPS not yet set for this user",
                 "timestamp": datetime.now().isoformat(),
             }
@@ -368,7 +404,12 @@ async def get_my_gps_coordinates(npub: str):
                 roaming_flag = user_dir / ".roaming"
                 if source_file.exists():
                     raw = source_file.read_text().strip().lower()
-                    source = "swarm" if "swarm" in raw else raw
+                    if "swarm" in raw:
+                        source = "swarm"
+                    elif "amis" in raw:
+                        source = "amisOfAmis"
+                    else:
+                        source = raw
                 elif roaming_flag.exists():
                     source = "swarm"
                 # home station URL from NOSTRNS (IPNS identifier saved by 22242.sh)
