@@ -325,10 +325,17 @@ async def get_my_gps_coordinates(npub: str):
                     continue
 
         if not gps_file_path:
-            raise HTTPException(
-                status_code=404,
-                detail={"error": "gps_not_found", "message": "GPS coordinates not found for this user"}
-            )
+            return {
+                "success": True,
+                "coordinates": {"lat": 0.00, "lon": 0.00},
+                "umap_key": "0.00,0.00",
+                "email": None,
+                "source": "unknown",
+                "home_station_url": None,
+                "ipfsnodeid": None,
+                "message": "GPS not yet set for this user",
+                "timestamp": datetime.now().isoformat(),
+            }
 
         try:
             gps_content = gps_file_path.read_text().strip()
