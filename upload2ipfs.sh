@@ -1374,22 +1374,36 @@ echo "$INFO_JSON_CONTENT" > "$INFO_JSON_FILE"
 # CRITICAL: Canonicalize JSON according to RFC 8785 (JCS) before IPFS upload
 # This ensures signature consistency and deterministic CID generation
 CANONICALIZE_SCRIPT="${HOME}/.zen/Astroport.ONE/tools/canonicalize_json.py"
+CANONICAL_TEMP="${INFO_JSON_FILE}.canonical"
+CANONICALIZED=false
+
 if [ -f "$CANONICALIZE_SCRIPT" ]; then
     echo "DEBUG: Canonicalizing info.json according to RFC 8785 (JCS)..." >&2
-    # Create temporary file for canonical JSON
-    CANONICAL_TEMP="${INFO_JSON_FILE}.canonical"
     python3 "$CANONICALIZE_SCRIPT" "$INFO_JSON_FILE" "$CANONICAL_TEMP" 2>/dev/null
-    if [ -f "$CANONICAL_TEMP" ]; then
-        # Replace original with canonical version
+    if [ -f "$CANONICAL_TEMP" ] && [ -s "$CANONICAL_TEMP" ]; then
         mv "$CANONICAL_TEMP" "$INFO_JSON_FILE"
-        echo "DEBUG: ✅ info.json canonicalized (RFC 8785)" >&2
+        CANONICALIZED=true
+        echo "DEBUG: ✅ info.json canonicalized (RFC 8785 via canonicalize_json.py)" >&2
     else
-        echo "WARNING: Failed to canonicalize info.json, using original" >&2
+        rm -f "$CANONICAL_TEMP"
+        echo "WARNING: canonicalize_json.py failed, trying jq fallback..." >&2
     fi
-else
-    echo "WARNING: canonicalize_json.py not found at $CANONICALIZE_SCRIPT" >&2
-    echo "WARNING: info.json will not be canonicalized (RFC 8785 compliance not guaranteed)" >&2
 fi
+
+if [ "$CANONICALIZED" != "true" ] && command -v jq &> /dev/null; then
+    echo "DEBUG: Canonicalizing info.json via jq (sorted keys, compact)..." >&2
+    if jq -S -c '.' "$INFO_JSON_FILE" > "$CANONICAL_TEMP" 2>/dev/null && [ -s "$CANONICAL_TEMP" ]; then
+        mv "$CANONICAL_TEMP" "$INFO_JSON_FILE"
+        CANONICALIZED=true
+        echo "DEBUG: ✅ info.json canonicalized (jq sorted keys — partial RFC 8785)" >&2
+    else
+        rm -f "$CANONICAL_TEMP"
+        echo "WARNING: jq canonicalization failed" >&2
+    fi
+fi
+
+[ "$CANONICALIZED" != "true" ] \
+    && echo "WARNING: info.json NOT canonicalized — CID deduplication across swarm not guaranteed" >&2
 
 # Add info.json to IPFS
 INFO_CID_OUTPUT=$(ipfs add -q "$INFO_JSON_FILE" 2>&1)
