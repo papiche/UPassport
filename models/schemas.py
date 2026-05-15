@@ -23,6 +23,7 @@ class UploadResponse(BaseModel):
     fileName: Optional[str] = None
     description: Optional[str] = None
     info: Optional[str] = None
+    cidirect: Optional[str] = None
     thumbnail_ipfs: Optional[str] = None
     gifanim_ipfs: Optional[str] = None
     fileHash: Optional[str] = None

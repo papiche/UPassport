@@ -1039,6 +1039,7 @@ async def upload_file_to_ipfs(
                 
                 response_fileName = json_output.get('fileName') or sanitized_filename
                 info_cid = json_output.get('info')
+                cidirect = json_output.get('cidirect') or ''
                 thumbnail_cid = json_output.get('thumbnail_ipfs') or ''
                 gifanim_cid = json_output.get('gifanim_ipfs') or ''
                 file_hash = json_output.get('fileHash') or ''
@@ -1094,10 +1095,10 @@ async def upload_file_to_ipfs(
                 udrive_cid = file_cid
 
                 # ── Roaming : DM direct vers la home station ─────────────────
-                # Pour un utilisateur itinérant, on envoie le CID via DM NIP-04
-                # à sa home station qui se charge de la publication IPNS.
-                # On ne régénère PAS le uDRIVE local (la home station le fera).
-                if (user_NOSTR_path / ".roaming").exists() and file_cid:
+                # Activer si : marqueur .roaming explicite OU pas de uDRIVE local.
+                # Dans les deux cas, la home station se charge du manifest et de la publication IPNS.
+                is_roaming = (user_NOSTR_path / ".roaming").exists() or not user_drive_path.exists()
+                if is_roaming and file_cid:
                     dm_sent = await _maybe_send_roaming_dm(
                         user_dir=user_NOSTR_path,
                         file_cid=file_cid,
@@ -1123,6 +1124,7 @@ async def upload_file_to_ipfs(
                             fileName=sanitized_filename,
                             description=description,
                             info=info_cid,
+                            cidirect=cidirect if cidirect else None,
                             thumbnail_ipfs=thumbnail_cid if thumbnail_cid else None,
                             gifanim_ipfs=gifanim_cid if gifanim_cid else None,
                             fileHash=file_hash if file_hash else None,
@@ -1153,6 +1155,7 @@ async def upload_file_to_ipfs(
                     fileName=response_fileName,
                     description=description,
                     info=info_cid,
+                    cidirect=cidirect if cidirect else None,
                     thumbnail_ipfs=thumbnail_cid if thumbnail_cid else None,
                     gifanim_ipfs=gifanim_cid if gifanim_cid else None,
                     fileHash=file_hash if file_hash else None,

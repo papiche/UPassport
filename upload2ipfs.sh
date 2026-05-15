@@ -828,14 +828,21 @@ elif [[ "$FILE_TYPE" == "image/"* ]]; then
         # ImageMagick can extract some EXIF but less comprehensive
         IDENTIFY_OUTPUT=$(identify -verbose "$FILE_PATH" 2>/dev/null)
         
-        # Extract GPS from ImageMagick output (format: "exif:GPSLatitude: 43.6")
-        GPS_LATITUDE=$(echo "$IDENTIFY_OUTPUT" | grep -i "exif:GPSLatitude" | head -n 1 | sed 's/.*exif:GPSLatitude: *//' | sed 's/ .*//')
-        GPS_LONGITUDE=$(echo "$IDENTIFY_OUTPUT" | grep -i "exif:GPSLongitude" | head -n 1 | sed 's/.*exif:GPSLongitude: *//' | sed 's/ .*//')
-        
+        # Extract GPS from ImageMagick output (format: "exif:GPSLatitude: 44/1, 0/1, 0/1")
+        # Strip everything after the first comma (DMS triplet) and convert rational N/D to decimal
+        GPS_LATITUDE_RAW=$(echo "$IDENTIFY_OUTPUT" | grep -i "exif:GPSLatitude:" | grep -iv "Ref" | head -n 1 | sed 's/.*exif:GPSLatitude: *//' | sed 's/,.*//' | tr -d '[:space:]')
+        GPS_LONGITUDE_RAW=$(echo "$IDENTIFY_OUTPUT" | grep -i "exif:GPSLongitude:" | grep -iv "Ref" | head -n 1 | sed 's/.*exif:GPSLongitude: *//' | sed 's/,.*//' | tr -d '[:space:]')
+        GPS_LATITUDE=$(echo "$GPS_LATITUDE_RAW" | awk -F'/' '{if (NF==2 && $2+0!=0) printf "%.6f", $1/$2; else if ($1~/^-?[0-9]+(\.[0-9]*)?$/) print $1}')
+        GPS_LONGITUDE=$(echo "$GPS_LONGITUDE_RAW" | awk -F'/' '{if (NF==2 && $2+0!=0) printf "%.6f", $1/$2; else if ($1~/^-?[0-9]+(\.[0-9]*)?$/) print $1}')
+
         if [[ -n "$GPS_LATITUDE" ]] && [[ -n "$GPS_LONGITUDE" ]]; then
-            IMAGE_EXIF_JSON=", \"gps\": {\"latitude\": $GPS_LATITUDE, \"longitude\": $GPS_LONGITUDE}"
-            NIP94_TAGS="$NIP94_TAGS, [\"g\", \"$GPS_LATITUDE,$GPS_LONGITUDE\"]"
-            echo "DEBUG: ✅ Extracted GPS from ImageMagick: $GPS_LATITUDE,$GPS_LONGITUDE" >&2
+            if [[ "$GPS_LATITUDE" =~ ^-?[0-9]+\.?[0-9]*$ ]] && [[ "$GPS_LONGITUDE" =~ ^-?[0-9]+\.?[0-9]*$ ]]; then
+                IMAGE_EXIF_JSON=", \"gps\": {\"latitude\": $GPS_LATITUDE, \"longitude\": $GPS_LONGITUDE}"
+                NIP94_TAGS="$NIP94_TAGS, [\"g\", \"$GPS_LATITUDE,$GPS_LONGITUDE\"]"
+                echo "DEBUG: ✅ Extracted GPS from ImageMagick: $GPS_LATITUDE,$GPS_LONGITUDE" >&2
+            else
+                echo "WARNING: GPS values non-numériques ignorés: lat=$GPS_LATITUDE_RAW lon=$GPS_LONGITUDE_RAW" >&2
+            fi
         fi
     fi
     
