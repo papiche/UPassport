@@ -843,6 +843,10 @@
                     <i class="bi bi-person-badge-fill"></i>
                     <span>Mon Profil</span>
                 </div>
+                <div class="quick-action-btn" onclick="toggleAtelier()">
+                    <i class="bi bi-radioactive"></i>
+                    <span>Atelier ⚗️</span>
+                </div>
             </div>
         </div>
         
@@ -931,6 +935,24 @@
             </div>
         </div>
         
+        <!-- Atelier — Composites (Collapsible) -->
+        <div class="gaming-section" id="atelierSection" style="display: none;">
+            <div class="gaming-section-header">
+                <i class="bi bi-radioactive"></i>
+                <h5>Atelier ⚗️</h5>
+                <small class="text-muted ms-auto me-2" id="atelierSubtitle">Recettes de maîtrises composites</small>
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleAtelier()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div id="atelier-content">
+                <div class="text-center text-muted py-3" id="atelierLoading">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                    <span class="ms-2">Chargement des recettes...</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Quest Board (Collapsible) -->
         <div class="gaming-section" id="questBoardSection" style="display: none;">
             <div class="gaming-section-header">
@@ -1809,20 +1831,50 @@
                     // Continue with empty requests
                 }
                 
-                // Build filters for credentials
-                const credentialFilters = {
-                    '#l': [permitData.id, 'permit_type']
-                };
+                // Dériver le skill tag normalisé depuis le permit ID
+                // Ex: PERMIT_LINUX_X1 → "linux" | PERMIT_MAITRE_NAGEUR_X1 → "maitre-nageur"
+                const permitSkillTag = (() => {
+                    const raw = permitData.id
+                        .replace(/^PERMIT_/, '')      // enlever préfixe
+                        .replace(/_X\d+$/, '')        // enlever suffixe _Xn
+                        .toLowerCase()
+                        .replace(/_/g, '-');          // underscores → tirets
+                    return raw;
+                })();
+                const permitLevel = parseInt((permitData.id.match(/_X(\d+)$/) || [])[1] || '1');
+
+                // Build filters for credentials — agnostique sur le signataire
+                // Source 1 : Oracle 30503 → tag ["l", permit_id, "permit_type"]
+                const credentialFiltersOracle = { '#l': [permitData.id, 'permit_type'] };
+                // Source 2 : TrocZen P2P → tag ["d", "PERMIT_*_Xn"] (permit ID exact)
+                const credentialFiltersP2P = { '#d': [permitData.id] };
+                // Source 3 : TrocZen folksonomie libre → tag ["t", skillTag] (tous niveaux)
+                const credentialFiltersTag = { '#t': [permitSkillTag] };
                 if (viewMode === 'local' && IPFSNODEID) {
-                    credentialFilters['#ipfs_node'] = [IPFSNODEID];
+                    credentialFiltersOracle['#ipfs_node'] = [IPFSNODEID];
+                    credentialFiltersP2P['#ipfs_node'] = [IPFSNODEID];
+                    credentialFiltersTag['#ipfs_node'] = [IPFSNODEID];
                 }
-                // In global mode, don't filter by IPFSNODEID
-                
-                // Load permit credentials (kind 30503) for selected permit
+
+                // Load permit credentials (kind 30503) — fusion toutes sources
                 let credentials = [];
                 try {
-                    const credentialsRaw = await fetchNostrEvents(30503, credentialFilters);
-                    permitCredentials = credentialsRaw.map(parsePermitCredential).filter(c => c !== null);
+                    const [oracleRaw, p2pRaw, tagRaw] = await Promise.all([
+                        fetchNostrEvents(30503, credentialFiltersOracle).catch(() => []),
+                        fetchNostrEvents(30503, credentialFiltersP2P).catch(() => []),
+                        fetchNostrEvents(30503, credentialFiltersTag).catch(() => [])
+                    ]);
+                    // Dédupliquer par event_id
+                    const seen = new Set();
+                    const allRaw = [...oracleRaw, ...p2pRaw, ...tagRaw].filter(ev => {
+                        if (seen.has(ev.id)) return false;
+                        seen.add(ev.id);
+                        return true;
+                    });
+                    // Filtrer : garder ceux dont le niveau correspond au permit actuel
+                    permitCredentials = allRaw
+                        .map(parsePermitCredential)
+                        .filter(c => c !== null && c.level >= permitLevel);
                     credentials = permitCredentials;
                 } catch (error) {
                     console.error('[WoTx2] Error loading credentials:', error);
@@ -2061,17 +2113,68 @@
         }
         
         // Parse permit credential event (kind 30503)
+        // Agnostique sur le signataire : supporte Oracle, TrocZen P2P auto-signé, et tout format intermédiaire
         function parsePermitCredential(event) {
             try {
-                const content = JSON.parse(event.content);
+                let content = {};
+                try { content = JSON.parse(event.content); } catch (_) {}
+
+                const tags = event.tags || [];
+                const getTag = (name) => (tags.find(t => t[0] === name) || [])[1];
+                const getAllTags = (name) => tags.filter(t => t[0] === name).map(t => t[1]);
+
+                // Déterminer le permit_definition_id (toutes sources)
+                // 1. Oracle: content.permit_definition_id
+                // 2. Oracle: tag ["l", permit_id, "permit_type"]
+                // 3. TrocZen P2P: tag ["d", "PERMIT_NOM_X2"] (d = permit ID directement)
+                // 4. TrocZen P2P: construire depuis tag ["t", skill] + tag ["level", n]
+                let permit_definition_id = content.permit_definition_id;
+                if (!permit_definition_id) {
+                    const lTag = tags.find(t => t[0] === 'l' && t[2] === 'permit_type');
+                    if (lTag) permit_definition_id = lTag[1];
+                }
+                if (!permit_definition_id) {
+                    const dTag = getTag('d');
+                    // d tag est permit ID si format PERMIT_*_X{n}
+                    if (dTag && /^PERMIT_.*_X\d+$/.test(dTag)) permit_definition_id = dTag;
+                }
+                if (!permit_definition_id) {
+                    const skill = getTag('t');
+                    const level = getTag('level');
+                    if (skill && level) {
+                        permit_definition_id = `PERMIT_${skill.toUpperCase().replace(/-/g, '_')}_X${level}`;
+                    }
+                }
+                if (!permit_definition_id) return null;
+
+                // Déterminer holder_npub (toutes sources)
+                // 1. Oracle: content.holder_npub
+                // 2. Oracle: tag ["p", npub]
+                // 3. TrocZen P2P: event.pubkey (auto-signé par le titulaire)
+                const holder_npub = content.holder_npub || getTag('p') || event.pubkey;
+
+                // Niveau depuis le tag ou depuis le permit ID
+                const levelMatch = permit_definition_id.match(/_X(\d+)$/);
+                const level = levelMatch ? parseInt(levelMatch[1]) : (parseInt(getTag('level')) || 1);
+
+                // Compétences révélées (Oracle content ou TrocZen justifications)
+                const competencies = content.credentialSubject?.competencies
+                    || content.competencies_transferred
+                    || getAllTags('competency')
+                    || [];
+
                 return {
                     id: content.credential_id || event.id,
-                    holder_npub: content.holder_npub || event.pubkey,
-                    permit_definition_id: content.permit_definition_id,
-                    issued_at: content.issued_at,
-                    expires_at: content.expires_at,
-                    attestations_count: content.attestations || 0,
-                    event_id: event.id
+                    holder_npub,
+                    permit_definition_id,
+                    issued_at: content.issued_at || content.timestamp || new Date(event.created_at * 1000).toISOString(),
+                    expires_at: content.expires_at || null,
+                    attestations_count: content.attestations || content.attestations_count || 0,
+                    level,
+                    competencies,
+                    is_p2p: content.type === 'skill_achievement',
+                    event_id: event.id,
+                    signer_npub: event.pubkey
                 };
             } catch (e) {
                 console.error('Error parsing permit credential:', e);
@@ -5825,8 +5928,8 @@
             // EXTENSIONS UPLANET - Savoir-faire modernes
             // ========================================
             
-            // NUMÉRIQUE - Technologies de l'information
-            if (/program|develop|dév|code|coding|web|design|ux|ui|admin.*syst|devops|cloud|cybers|hacking|ia|intelligence.*artif|machine.*learn|data|blockchain|crypto|smart.*contract|nft|bitcoin|ethereum|linux|serveur|réseau|network|robot|iot|drone|impress.*3d|print.*3d|réalité.*virtuel|vr|ar/.test(text)) {
+            // NUMÉRIQUE - Technologies de l'information (+ compétences Capitaine Astroport)
+            if (/program|develop|dév|code|coding|web|design|ux|ui|admin.*syst|devops|cloud|cybers|hacking|ia|intelligence.*artif|machine.*learn|data|blockchain|crypto|smart.*contract|nft|bitcoin|ethereum|linux|serveur|réseau|network|robot|iot|drone|impress.*3d|print.*3d|réalité.*virtuel|vr|ar|astroport|uplanet|nostr|ipfs|docker|bash|shell|dart|flutter|python|rust|golang|git|ci.*cd|kubernetes|ansible/.test(text)) {
                 return 'numerique';
             }
             
@@ -6046,6 +6149,185 @@
                 updateUserLevelBadge();
             }, 1000);
         };
+
+        // ─── Atelier ⚗️ ───────────────────────────────────────────────────────────
+
+        const CAPTAIN_COMPOSITES = [
+            {id:'PERMIT_DEVOPS_X1', name:'DevOps', skill:'devops',
+             recipe:[{skill:'linux',min:2},{skill:'docker',min:1},{skill:'bash',min:2}]},
+            {id:'PERMIT_ASTROPORT_OPERATOR_X1', name:'Opérateur Astroport', skill:'astroport-operator',
+             recipe:[{skill:'astroport',min:1},{skill:'linux',min:1},{skill:'docker',min:1}]},
+            {id:'PERMIT_MOBILE_WEB3_X1', name:'Mobile Web3', skill:'mobile-web3',
+             recipe:[{skill:'dart',min:2},{skill:'flutter',min:2},{skill:'nostr',min:1}]},
+            {id:'PERMIT_WEB3_CAPTAIN_X1', name:'Capitaine Web3', skill:'web3-captain',
+             recipe:[{skill:'astroport-operator',min:1},{skill:'nostr',min:2},{skill:'ipfs',min:2}]},
+        ];
+
+        function toggleAtelier() {
+            const section = document.getElementById('atelierSection');
+            if (!section) return;
+            const visible = section.style.display !== 'none';
+            section.style.display = visible ? 'none' : 'block';
+            if (!visible) loadAtelier();
+        }
+
+        async function loadAtelier() {
+            const container = document.getElementById('atelier-content');
+            const loading = document.getElementById('atelierLoading');
+            if (!container) return;
+
+            let composites = [];
+            try {
+                const url = `/api/permit/composites${userHEX ? '?npub=' + userHEX : ''}`;
+                const resp = await fetch(url);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    composites = data.composites || [];
+                }
+            } catch(e) {
+                console.warn('[Atelier] API unavailable, using static fallback:', e);
+            }
+
+            if (composites.length === 0) {
+                composites = CAPTAIN_COMPOSITES.map(c => {
+                    const user_levels = {};
+                    c.recipe.forEach(r => { user_levels[r.skill] = 0; });
+                    const missing = c.recipe.filter(r => (user_levels[r.skill]||0) < r.min)
+                        .map(r => ({skill:r.skill, min_level:r.min, user_level:0}));
+                    return {
+                        permit_id: c.id,
+                        name: c.name,
+                        skill_tag: c.skill,
+                        recipe: c.recipe.map(r => ({skill:r.skill, min_level:r.min})),
+                        eligible: missing.length === 0,
+                        missing,
+                        user_levels,
+                        nostr_event_id: ''
+                    };
+                });
+            }
+
+            if (loading) loading.style.display = 'none';
+
+            const html = composites.map(comp => renderCompositeCard(comp)).join('');
+            container.innerHTML = html || '<p class="text-muted text-center py-3">Aucune recette composite disponible.</p>';
+        }
+
+        function renderCompositeCard(comp) {
+            const total = comp.recipe.length;
+            const done = comp.recipe.filter(r => (comp.user_levels[r.skill]||0) >= r.min_level).length;
+            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+            const progressWidth = pct + '%';
+            const progressColor = comp.eligible ? 'bg-success' : (pct > 0 ? 'bg-warning' : 'bg-secondary');
+
+            const ingredientBadges = comp.recipe.map(r => {
+                const have = comp.user_levels[r.skill] || 0;
+                const ok = have >= r.min_level;
+                const cls = ok ? 'bg-success' : 'bg-danger';
+                const icon = ok ? '✓' : '✗';
+                return `<span class="badge ${cls} me-1 mb-1" title="${r.skill} X${r.min_level} requis, vous avez X${have}">`
+                    + `${r.skill} X${r.min_level} ${icon}</span>`;
+            }).join('');
+
+            const btnDisabled = comp.eligible ? '' : 'disabled';
+            const btnTitle = comp.eligible ? 'Synthétiser ce composite' : 'Ingrédients manquants';
+
+            return `<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex align-items-center mb-2">
+      <span class="fs-4 me-2">⚗️</span>
+      <div>
+        <strong>${escapeHtml(comp.skill_tag)}</strong>
+        <div class="text-muted small">${escapeHtml(comp.name)}</div>
+      </div>
+    </div>
+    <div class="mb-2"><small class="text-muted">Ingrédients :</small><br>${ingredientBadges}</div>
+    <div class="mb-2">
+      <div class="d-flex justify-content-between small text-muted mb-1">
+        <span>Progression</span><span>${done}/${total}</span>
+      </div>
+      <div class="progress" style="height:8px;">
+        <div class="progress-bar ${progressColor}" style="width:${progressWidth};"></div>
+      </div>
+    </div>
+    <button class="btn btn-sm btn-primary w-100 mt-1" ${btnDisabled}
+        title="${btnTitle}"
+        onclick="synthesizeComposite('${escapeHtml(comp.permit_id)}','${escapeHtml(comp.skill_tag)}',${JSON.stringify(comp.recipe)})">
+      Synthétiser
+    </button>
+  </div>
+</div>`;
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        async function synthesizeComposite(compositePermitId, skillTag, recipe) {
+            if (!userHEX) { alert('Connectez-vous avec votre MULTIPASS pour synthétiser.'); return; }
+            if (!window.nostr) { alert('Extension NOSTR (NIP-07) requise.'); return; }
+
+            try {
+                const ingredientEventIds = [];
+                for (const r of recipe) {
+                    const evs = await fetchNostrEvents(30503, { authors: [userHEX] });
+                    for (const ev of evs) {
+                        const tTags = (ev.tags||[]).filter(t => t[0]==='t' && t[1]===r.skill);
+                        if (tTags.length > 0 && ev.id) ingredientEventIds.push(ev.id);
+                    }
+                }
+
+                const eTags = ingredientEventIds.map(eid => ['e', eid, '', 'ingredient']);
+
+                const event = {
+                    kind: 30503,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [
+                        ['d', compositePermitId],
+                        ['t', 'permit'],
+                        ['t', 'composite'],
+                        ['t', skillTag],
+                        ['skill', skillTag],
+                        ...eTags
+                    ],
+                    content: JSON.stringify({
+                        permit_id: compositePermitId,
+                        skill: skillTag,
+                        composite: true,
+                        recipe,
+                        synthesized_at: new Date().toISOString()
+                    })
+                };
+
+                const signed = await window.nostr.signEvent(event);
+                if (!signed) { alert('Signature annulée.'); return; }
+
+                if (typeof nostrRelay !== 'undefined' && nostrRelay) {
+                    await nostrRelay.publish(signed);
+                    alert(`✅ Composite "${skillTag}" synthétisé et publié sur le relay.`);
+                } else {
+                    console.warn('[Atelier] nostrRelay non disponible — événement signé mais non publié:', signed);
+                    alert('⚠️ Relay non connecté. Événement signé mais non publié.');
+                }
+
+                loadAtelier();
+            } catch(e) {
+                console.error('[Atelier] synthesizeComposite error:', e);
+                alert('Erreur lors de la synthèse : ' + e.message);
+            }
+        }
+
+        // Auto-load atelier when user connects
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                if (userHEX) {
+                    const section = document.getElementById('atelierSection');
+                    if (section && section.style.display !== 'none') loadAtelier();
+                }
+            }, 3000);
+        });
+
+        // ─── fin Atelier ⚗️ ────────────────────────────────────────────────────────
 
         // P2P WoTx2 — délégué à wotx2.js (window.publishWoTx2Reaction)
         async function publishKind7Reaction(targetNpub, reaction, permitId) {

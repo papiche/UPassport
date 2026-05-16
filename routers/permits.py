@@ -158,6 +158,131 @@ async def get_permit_credential(credential_id: str):
         logging.error(f"Error getting credential: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/api/permit/composites")
+async def get_composites_eligibility(npub: Optional[str] = None):
+    """
+    Récupère les permits composites (Kind 30500 avec tag "composite" et tags "requires")
+    et pour chaque composite, vérifie si le npub fourni est éligible (a les niveaux requis).
+
+    Returns:
+        {composites: [{permit_id, name, skill_tag, recipe: [{skill, min_level}],
+                       eligible: bool, missing: [...],
+                       user_levels: {skill: level}}]}
+    """
+    from core.state import app_state, ORACLE_ENABLED
+    if not ORACLE_ENABLED or app_state.oracle_system is None:
+        raise HTTPException(status_code=503, detail="Oracle system not available")
+
+    try:
+        raw_events = app_state.oracle_system.fetch_nostr_events(kind=30500)
+
+        composite_events = []
+        for event in raw_events:
+            tags = event.get('tags', [])
+            tag_names = [t[0] for t in tags]
+            tag_values = [t[1] if len(t) > 1 else '' for t in tags]
+            if 't' in tag_names:
+                t_values = [t[1] for t in tags if t[0] == 't' and len(t) > 1]
+                if 'composite' in t_values:
+                    composite_events.append(event)
+
+        user_levels: Dict[str, int] = {}
+        if npub:
+            cred_events = app_state.oracle_system.fetch_nostr_events(kind=30503, author_hex=npub)
+            if not cred_events:
+                cred_events = app_state.oracle_system.fetch_nostr_events(kind=30503)
+                cred_events = [e for e in cred_events if e.get('pubkey') == npub or
+                               any(t[0] == 'p' and len(t) > 1 and t[1] == npub for t in e.get('tags', []))]
+            for ev in cred_events:
+                skill_tag = None
+                level_val = 0
+                for t in ev.get('tags', []):
+                    if t[0] == 't' and len(t) > 1 and t[1] not in ('permit', 'composite'):
+                        skill_tag = t[1]
+                    if t[0] == 'level' and len(t) > 1:
+                        try:
+                            level_val = int(t[1])
+                        except ValueError:
+                            pass
+                if not skill_tag:
+                    import re
+                    d_tags = [t[1] for t in ev.get('tags', []) if t[0] == 'd' and len(t) > 1]
+                    if d_tags:
+                        m = re.search(r'_X(\d+)', d_tags[0], re.IGNORECASE)
+                        if m:
+                            level_val = level_val or int(m.group(1))
+                        skill_tag = re.sub(r'^PERMIT_', '', d_tags[0], flags=re.IGNORECASE)
+                        skill_tag = re.sub(r'_X\d+$', '', skill_tag, flags=re.IGNORECASE)
+                        skill_tag = skill_tag.replace('_', '-').lower()
+                if skill_tag:
+                    user_levels[skill_tag] = max(user_levels.get(skill_tag, 0), level_val or 1)
+
+        import json as _json
+        composites = []
+        for event in composite_events:
+            tags = event.get('tags', [])
+            permit_id = next((t[1] for t in tags if t[0] == 'd' and len(t) > 1), event.get('id', ''))
+            skill_tag = next((t[1] for t in tags if t[0] == 'skill' and len(t) > 1), None)
+            if not skill_tag:
+                import re
+                skill_tag = re.sub(r'^PERMIT_', '', permit_id, flags=re.IGNORECASE)
+                skill_tag = re.sub(r'_X\d+$', '', skill_tag, flags=re.IGNORECASE)
+                skill_tag = skill_tag.replace('_', '-').lower()
+
+            recipe: List[Dict[str, Any]] = []
+            for t in tags:
+                if t[0] == 'requires' and len(t) >= 3:
+                    try:
+                        recipe.append({'skill': t[1], 'min_level': int(t[2])})
+                    except (ValueError, IndexError):
+                        pass
+            if not recipe:
+                try:
+                    content = _json.loads(event.get('content', '{}'))
+                    metadata = content.get('metadata', content)
+                    for item in metadata.get('recipe', []):
+                        if isinstance(item, dict) and 'skill' in item:
+                            recipe.append({'skill': item['skill'], 'min_level': int(item.get('min_level', item.get('min', 1)))})
+                except Exception:
+                    pass
+
+            try:
+                content_obj = _json.loads(event.get('content', '{}'))
+                name = content_obj.get('name', permit_id)
+            except Exception:
+                name = permit_id
+
+            missing = []
+            eligible = False
+            if npub and recipe:
+                missing = [
+                    {'skill': r['skill'], 'min_level': r['min_level'], 'user_level': user_levels.get(r['skill'], 0)}
+                    for r in recipe if user_levels.get(r['skill'], 0) < r['min_level']
+                ]
+                eligible = len(missing) == 0
+            elif not recipe:
+                eligible = False
+
+            composites.append({
+                'permit_id': permit_id,
+                'name': name,
+                'skill_tag': skill_tag,
+                'recipe': recipe,
+                'eligible': eligible,
+                'missing': missing,
+                'user_levels': {r['skill']: user_levels.get(r['skill'], 0) for r in recipe},
+                'nostr_event_id': event.get('id', '')
+            })
+
+        return JSONResponse({'success': True, 'count': len(composites), 'composites': composites})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error fetching composites: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/api/permit/definitions")
 async def list_permit_definitions():
     from core.state import app_state, ORACLE_ENABLED
