@@ -1870,7 +1870,14 @@ const hex = npubToHex(npub);</code></pre>
                                             <td><strong>30503</strong></td>
                                             <td>Permit Credential</td>
                                             <td><span class="badge bg-warning">Oracle</span></td>
-                                            <td>W3C Verifiable Credential issued after validation</td>
+                                            <td>W3C Verifiable Credential issued after validation (Oracle / P2P / Folksonomy)</td>
+                                            <td>NIP-101</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>30504</strong></td>
+                                            <td>Training Resource</td>
+                                            <td><span class="badge bg-warning">WoTx2</span></td>
+                                            <td>Multimedia training resource linked to a skill (video/audio/document/cours) — MineLife</td>
                                             <td>NIP-101</td>
                                         </tr>
                                         <tr>
@@ -2077,12 +2084,14 @@ sub.on('event', (event) => {
                             <h4 class="mb-0"><i class="bi bi-gear"></i> UPlanet Systems Overview</h4>
                         </div>
                         <div class="card-body">
-                            <h5 class="mt-3"><i class="bi bi-shield-check"></i> Oracle/Permits System</h5>
-                            <p>Web of Trust (WoT) multi-signature permit management. Users can request permits, receive attestations from existing permit holders, and automatically receive W3C Verifiable Credentials.</p>
+                            <h5 class="mt-3"><i class="bi bi-shield-check"></i> Oracle/Permits System — MineLife WoTx2</h5>
+                            <p>Web of Trust (WoT) multi-signature permit management. <strong>MineLife</strong> is the Minecraft-inspired UI for crafting decentralized skill certificates — any community can create its own permit recipes without central authority.</p>
                             <ul>
-                                <li><strong>Event Flow:</strong> 30500 (Definition) → 30501 (Request) → 30502 (Attestations) → 30503 (Credential)</li>
-                                <li><strong>WoTx2 System:</strong> Self-proclaimed masteries with unlimited automatic progression (X1 → X2 → ... → X144 → ...)</li>
-                                <li><strong>Documentation:</strong> <a href="/docs/WOTX2_SYSTEM.md" target="_blank">WoTx2 System</a> | <a href="/docs/ORACLE_SYSTEM.md" target="_blank">Oracle System</a></li>
+                                <li><strong>Event Flow:</strong> 30500 (Permit def) → 30501 (Request) → 30502 (Attestation, Règle B) / 3× kind 7 (Règle A) → 30503 (Credential) + 30504 (Training resource)</li>
+                                <li><strong>Validation modes:</strong> Oracle (UPLANETNAME_G1 cosign), P2P Règle A (3× kind 7), P2P Règle B (1× kind 30502 X1+ peer), Folksonomy (auto-proclaimed, offline)</li>
+                                <li><strong>BRO AI:</strong> Kind 4 encrypted DM to NODE_HEX_64 from <code>home_station</code> → <code>bro_dm_daemon.sh</code> (Ollama/ComfyUI). Commands: <code>#badge skill</code>, <code>#rec skill</code>, <code>#mem note</code></li>
+                                <li><strong>Interface:</strong> <a href="/earth/minelife.html">minelife.html</a> — WYSIWYG craft editor, formation browser, N² peer contact</li>
+                                <li><strong>Documentation:</strong> <a href="/docs/MINELIFE.md" target="_blank">MINELIFE.md</a> | <a href="/docs/WOTX2_SYSTEM.md" target="_blank">WoTx2 System</a> | <a href="/docs/ORACLE_SYSTEM.md" target="_blank">Oracle System</a></li>
                             </ul>
                             
                             <h5 class="mt-4"><i class="bi bi-tree"></i> ORE Environmental System</h5>
@@ -2127,9 +2136,37 @@ sub.on('event', (event) => {
                                 <li><strong>Voting:</strong> Tag <code>["t", "vote-assets"]</code> for governance votes</li>
                                 <li><strong>Documentation:</strong> <a href="/docs/ZEN.ECONOMY.readme.md" target="_blank">ZEN Economy</a></li>
                             </ul>
+
+                            <h5 class="mt-4"><i class="bi bi-globe"></i> NIP-42 Roaming — Inter-Station Auth</h5>
+                            <p>A MULTIPASS holder can authenticate on any constellation station, even if their account is hosted elsewhere. The 9-step flow verifies the identity through three escalating sources.</p>
+                            <ul>
+                                <li><strong>Auth chain:</strong> GET <code>/api/nip42/challenge</code> → sign kind 22242 → <code>["EVENT", event]</code> via WebSocket → <code>filter/22242.sh</code> checks local → swarm → amisOfAmis</li>
+                                <li><strong>Roaming marker:</strong> Creates ephemeral directory <code>~/.zen/game/nostr/EMAIL/.roaming</code> + routes DMs (kind 4) back to <code>home_station</code></li>
+                                <li><strong>Source field:</strong> <code>GET /api/myGPS?npub=…</code> returns <code>source</code> (local/swarm/amisOfAmis) and <code>home_station_url</code></li>
+                                <li><strong>Live test:</strong> <a href="/earth/roaming.html">roaming.html</a> — interactive 9-step walkthrough</li>
+                            </ul>
+
+                            <h5 class="mt-4"><i class="bi bi-bug"></i> Feedback System — AGPL-3.0 Developer Commitment</h5>
+                            <p>All UPlanet applications are published under <strong>AGPL-3.0</strong>. By choosing this license, developers commit to their users: everyone can contact the team and access the source code. <code>feedback.js</code> puts this commitment into practice: every page automatically shows an AGPL badge and a "🐛 Report a problem" button.</p>
+                            <ul>
+                                <li><strong>Console capture:</strong> Intercepts <code>console.log/warn/error</code> → sessionStorage — logs from the source page are snapshotted at click time (before feedback.html adds its own init logs)</li>
+                                <li><strong>NOSTR-signed reports:</strong> <code>POST /api/feedback</code> with NIP-07 signature → creates GitHub/GitLab issue (config via kind 30800: <code>GIT_HOST</code>, <code>GIT_TOKEN</code>, <code>GIT_OWNER</code>)</li>
+                                <li><strong>Relay auto-derived:</strong> URL hostname mapped <code>u.domain → relay.domain</code> — no hardcoded external relays</li>
+                                <li><strong>Connection persistence:</strong> Reuses existing NOSTR session (NostrState / window.userPubkey) when loaded as modal or on same page</li>
+                                <li><strong>Live form:</strong> <a href="/earth/feedback.html">feedback.html</a></li>
+                            </ul>
+
+                            <h5 class="mt-4"><i class="bi bi-cpu"></i> Power-Score &amp; astrosystemctl</h5>
+                            <p>P2P cloud CLI for discovering and connecting to Brain-Node stations in the constellation.</p>
+                            <ul>
+                                <li><strong>Formula:</strong> <code>GPU_VRAM_GB × 4 + CPU_cores × 2 + RAM_GB × 0.5</code></li>
+                                <li><strong>Tiers:</strong> 🌿 Light (0–10), ⚡ Standard (11–40), 🔥 Brain (41+, GPU provider)</li>
+                                <li><strong>Published:</strong> <code>12345.json → capacities.power_score</code>, read by <code>astrosystemctl list-remote</code></li>
+                                <li><strong>Tunnel:</strong> <code>astrosystemctl connect ollama</code> → IPFS P2P tunnel to remote port 11434. <code>enable</code> makes it persistent (watchdog)</li>
+                            </ul>
                         </div>
                     </div>
-                    
+
                     <!-- Section 5: Resources -->
                     <div class="card mt-4">
                         <div class="card-header">
@@ -2145,12 +2182,21 @@ sub.on('event', (event) => {
                             
                             <h5 class="mt-3">System Documentation</h5>
                             <ul>
+                                <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/MINELIFE.md" target="_blank">MineLife WoTx2</a> - Decentralized skill crafting (kinds 30500–30504)</li>
                                 <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/WOTX2_SYSTEM.md" target="_blank">WoTx2 System</a> - Self-proclaimed masteries with automatic progression</li>
                                 <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/ORACLE_SYSTEM.md" target="_blank">Oracle System</a> - Permit management and credentials</li>
                                 <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/ORE_SYSTEM.md" target="_blank">ORE System</a> - Environmental obligations and verification</li>
                                 <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/CROWDFUNDING_COMMUNS.md" target="_blank">Crowdfunding System</a> - Commons acquisition</li>
                                 <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/ZEN.ECONOMY.readme.md" target="_blank">ZEN Economy</a> - Economic system documentation</li>
                                 <li><a href="https://github.com/papiche/Astroport.ONE/blob/master/docs/COLLABORATIVE_COMMONS_SYSTEM.md" target="_blank">Collaborative Commons</a> - Collaborative document system</li>
+                            </ul>
+
+                            <h5 class="mt-3">Live Test Pages</h5>
+                            <ul>
+                                <li><a href="/earth/roaming.html"><strong>roaming.html</strong></a> - Interactive 9-step NIP-42 Roaming walkthrough</li>
+                                <li><a href="/earth/minelife.html"><strong>minelife.html</strong></a> - MineLife WoTx2 skill crafting interface</li>
+                                <li><a href="/earth/contribute-3D-dev.html"><strong>contribute-3D-dev.html</strong></a> - Developer portal 3D (AWS→UPlanet migration guide)</li>
+                                <li><a href="/earth/feedback.html"><strong>feedback.html</strong></a> - Feedback form (NOSTR-signed bug reports)</li>
                             </ul>
                             
                             <h5 class="mt-3">Extension Specifications</h5>
