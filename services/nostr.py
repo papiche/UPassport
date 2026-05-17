@@ -15,7 +15,7 @@ from core.state import app_state
 # ── NIP-42 local-marker constants ────────────────────────────────────────────
 # Marker filename includes the hex pubkey to prevent pubkey-confusion attacks.
 NIP42_MARKER_PREFIX  = ".nip42_auth_"   # + hex_pubkey  → e.g. .nip42_auth_3bf0c6…
-NIP42_MARKER_MAX_AGE = 300              # 5 minutes – tight TTL for sensitive ops
+NIP42_MARKER_MAX_AGE = 3600             # 1 heure – délai raisonnable pour uploads volumineux
 
 # ── Dynamic challenge store ────────────────────────────────────────────────────
 # Maps hex_pubkey → (nonce, issued_at_unix).
