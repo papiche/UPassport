@@ -107,43 +107,44 @@ def _generate_qr_png(
     )
 
     # ── amzqr — auto-monte la version si overflow ─────────────────
-    try:
-        import amzqr as _amzqr
+    import subprocess as _sp
+    _astro_amzqr = os.path.expanduser("~/.astro/bin/amzqr")
+    _amzqr_bin = shutil.which("amzqr") or (_astro_amzqr if os.path.isfile(_astro_amzqr) else None)
+    if _amzqr_bin:
         for v in range(version, 41):
             tmp = tempfile.mkdtemp()
             out = os.path.join(tmp, "qr.png")
             try:
-                logger.debug("amzqr.run v%s picture=%s colorized=%s", v, use_picture, colorized and use_picture)
-                _amzqr.run(
-                    data,
-                    version=v,
-                    level=level,
-                    picture=picture_path if use_picture else None,
-                    colorized=bool(colorized and use_picture),
-                    contrast=float(contrast),
-                    brightness=float(brightness),
-                    save_name="qr.png",
-                    save_dir=tmp,
-                    verbose=False,
-                )
+                cmd = [_amzqr_bin, data, "-v", str(v), "-l", level, "-n", "qr.png", "-d", tmp]
+                if use_picture:
+                    cmd += ["-p", picture_path]
+                    if colorized:
+                        cmd += ["-c"]
+                if contrast != 1.0:
+                    cmd += ["-con", str(contrast)]
+                if brightness != 1.0:
+                    cmd += ["-bri", str(brightness)]
+                logger.debug("amzqr v%s picture=%s colorized=%s", v, use_picture, colorized and use_picture)
+                result_proc = _sp.run(cmd, capture_output=True, text=True)
                 if os.path.isfile(out):
                     result = Path(out).read_bytes()
                     shutil.rmtree(tmp, ignore_errors=True)
                     logger.info("amzqr OK v%s → %d bytes", v, len(result))
                     return result, "amzqr"
-                logger.debug("amzqr v%s: fichier absent après run", v)
+                stderr = result_proc.stderr.lower()
+                if "overflow" in stderr or "too long" in stderr or "capacity" in stderr:
+                    logger.debug("amzqr v%s overflow → essai v%s", v, v + 1)
+                    shutil.rmtree(tmp, ignore_errors=True)
+                    continue
+                logger.warning("amzqr v%s échec: %s", v, result_proc.stderr.strip())
+                shutil.rmtree(tmp, ignore_errors=True)
+                break
             except Exception as e:
                 shutil.rmtree(tmp, ignore_errors=True)
-                msg = str(e).lower()
-                if "overflow" in msg or "too long" in msg or "capacity" in msg:
-                    logger.debug("amzqr v%s overflow → essai v%s", v, v + 1)
-                    continue
                 logger.warning("amzqr v%s erreur inattendue: %s", v, e)
                 break
-            shutil.rmtree(tmp, ignore_errors=True)
-            break
-    except ImportError:
-        logger.warning("amzqr non installé — fallback qrencode (pip install amzqr)")
+    else:
+        logger.warning("amzqr non trouvé dans PATH — fallback qrencode")
 
     # ── qrencode fallback ─────────────────────────────────────────
     try:
