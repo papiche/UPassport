@@ -15,14 +15,13 @@
     {% endif %}
         
     <!-- Nostr integration -->
-    {% if use_local_js %}
     <script src="/earth/nostr.bundle.js"></script>
+    {% if use_local_js %}
     <script src="/earth/common.js"></script>
     <script src="/earth/nostrify.enhancements.js"></script>
     <link rel="stylesheet" href="/earth/nostrify.enhancements.css" />
     <script src="/earth/bootstrap.bundle.min.js"></script>
     {% else %}
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     <script src="{{ myIPFS }}/ipns/copylaradio.com/nostrify.enhancements.js"></script>
     <link rel="stylesheet" href="{{ myIPFS }}/ipns/copylaradio.com/nostrify.enhancements.css" />

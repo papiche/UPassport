@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+import httpx
+
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -337,39 +339,69 @@ async def get_my_gps_coordinates(npub: str):
                 "timestamp": datetime.now().isoformat(),
             }
 
-        if not gps_file_path:
-            # Répertoire trouvé mais pas de GPS — retourner source correcte avec 0,0
-            source = "local"
-            home_station_url = None
-            source_file = user_dir / "SOURCE"
-            roaming_flag = user_dir / ".roaming"
-            if source_file.exists():
-                raw = source_file.read_text().strip().lower()
-                if "swarm" in raw:
-                    source = "swarm"
-                elif "amis" in raw:
-                    source = "amisOfAmis"
-                else:
-                    source = raw
-            elif roaming_flag.exists():
+        # Determine source and NOSTRNS for all paths
+        source = "local"
+        home_station_url = None
+        nostrns = None
+        source_file = user_dir / "SOURCE"
+        roaming_flag = user_dir / ".roaming"
+        if source_file.exists():
+            raw = source_file.read_text().strip().lower()
+            if "swarm" in raw:
                 source = "swarm"
-            nostrns_file = user_dir / "NOSTRNS"
-            if nostrns_file.exists():
-                nostrns = nostrns_file.read_text().strip()
-                if nostrns:
-                    home_station_url = f"https://ipfs.copylaradio.com/ipns/{nostrns}"
+            elif "amis" in raw:
+                source = "amisOfAmis"
+            else:
+                source = raw
+        elif roaming_flag.exists():
+            source = "swarm"
+        nostrns_file = user_dir / "NOSTRNS"
+        if nostrns_file.exists():
+            nostrns = nostrns_file.read_text().strip() or None
+        if nostrns:
+            home_station_url = f"{settings.myIPFS}/ipns/{nostrns}"
+
+        if not gps_file_path:
+            # GPS absent localement — pour un utilisateur roaming, tenter IPFS home station
+            lat, lon = 0.00, 0.00
+            gps_message = "GPS not yet set for this user"
+            if source in ("swarm", "amisOfAmis") and nostrns and user_email:
+                ipfs_gps_url = f"{settings.IPFS_GATEWAY}/ipns/{nostrns}/{user_email}/GPS"
+                try:
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        resp = await client.get(ipfs_gps_url)
+                    if resp.status_code == 200:
+                        gps_text = resp.text.strip()
+                        _lat, _lon = None, None
+                        for part in gps_text.split(';'):
+                            part = part.strip()
+                            if part.startswith('LAT='):
+                                _lat = float(part[4:])
+                            elif part.startswith('LON='):
+                                _lon = float(part[4:])
+                        if _lat is not None and _lon is not None:
+                            lat = round(_lat, 2)
+                            lon = round(_lon, 2)
+                            gps_message = "GPS coordinates fetched from home station (roaming)"
+                            logging.info(f"[myGPS] Roaming GPS fetched for {user_email}: {lat},{lon}")
+                        else:
+                            logging.warning(f"[myGPS] Invalid GPS format from home station: {gps_text!r}")
+                except Exception as e:
+                    logging.warning(f"[myGPS] Could not fetch GPS from home station ({ipfs_gps_url}): {e}")
+
             ipfs_node_id = await get_env_from_mysh("IPFSNODEID", "")
             if not ipfs_node_id:
                 ipfs_node_id = settings.IPFSNODEID
+            umap_key = f"{lat:.2f},{lon:.2f}"
             return {
                 "success": True,
-                "coordinates": {"lat": 0.00, "lon": 0.00},
-                "umap_key": "0.00,0.00",
+                "coordinates": {"lat": lat, "lon": lon},
+                "umap_key": umap_key,
                 "email": user_email,
                 "source": source,
                 "home_station_url": home_station_url,
                 "ipfsnodeid": ipfs_node_id,
-                "message": "GPS not yet set for this user",
+                "message": gps_message,
                 "timestamp": datetime.now().isoformat(),
             }
 
@@ -396,28 +428,7 @@ async def get_my_gps_coordinates(npub: str):
             if not ipfs_node_id:
                 ipfs_node_id = settings.IPFSNODEID
 
-            # Determine source: local / swarm from SOURCE file or .roaming flag
-            source = "local"
-            home_station_url = None
-            if user_dir:
-                source_file = user_dir / "SOURCE"
-                roaming_flag = user_dir / ".roaming"
-                if source_file.exists():
-                    raw = source_file.read_text().strip().lower()
-                    if "swarm" in raw:
-                        source = "swarm"
-                    elif "amis" in raw:
-                        source = "amisOfAmis"
-                    else:
-                        source = raw
-                elif roaming_flag.exists():
-                    source = "swarm"
-                # home station URL from NOSTRNS (IPNS identifier saved by 22242.sh)
-                nostrns_file = user_dir / "NOSTRNS"
-                if nostrns_file.exists():
-                    nostrns = nostrns_file.read_text().strip()
-                    if nostrns:
-                        home_station_url = f"https://ipfs.copylaradio.com/ipns/{nostrns}"
+            # source and home_station_url already determined above
 
             return {
                 "success": True,

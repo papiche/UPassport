@@ -64,7 +64,14 @@ input[type=color]{width:36px;height:32px;border:none;border-radius:4px;cursor:po
 <header>
   <h1>🔲 QR Generator</h1>
   <span>// UPlanet — amzqr + qrencode</span>
+  <a id="dev-link" href="" target="_blank" style="margin-left:auto;color:var(--yellow);font-family:monospace;font-size:.75rem;text-decoration:none;opacity:.7;white-space:nowrap" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.7">👨‍💻 dev →</a>
 </header>
+<script>
+(function(){
+  var base = window.location.origin;
+  document.getElementById('dev-link').href = base + '/dev';
+})();
+</script>
 <div class="main">
 <div class="cfg">
 

@@ -41,74 +41,66 @@
             console.log('[UI] Initialized', moduleHeaders.length, 'collapsible modules');
         }
         
+        /* ── doNip42Auth : délégué à window.doNip42Auth (common.js) ─────── */
+        // common.js expose window.doNip42Auth(pubkeyHex?) — flux complet :
+        // challenge → sign kind 22242 → WebSocket relay → retourne bool
+        // Fallback inline si common.js non chargé (ne devrait pas arriver ici)
+        async function doNip42Auth(pubkeyHex, silent = false) {
+            const log = msg => {
+                console.log('[NIP42]', msg);
+                if (!silent) { const el = document.getElementById('authResult'); if (el) el.textContent += msg + '\n'; }
+            };
+            if (typeof window.doNip42Auth === 'function' && window.doNip42Auth !== doNip42Auth) {
+                log('🔐 Authentification NIP-42…');
+                const ok = await window.doNip42Auth(pubkeyHex);
+                log(ok ? '✅ Authentifié !' : '⚠️ Non confirmé (réessayez)');
+                return ok;
+            }
+            log('❌ common.js non chargé — window.doNip42Auth absent');
+            return false;
+        }
+
         // Check NOSTR connection on load
         window.addEventListener('load', async () => {
             console.log('[LOAD] Page loaded, initializing...');
-            
-            // Initialize collapsible module handlers
+
             initCollapseHandlers();
-            
-            // Initialize connection panel with default state
             updateConnectionPanel(false, false);
-            
+
             await checkConnection();
             await loadChatMessages();
             await loadRecentUploads();
             await loadPageInteractions();
-            
-            // Check if user is already connected (from previous session)
+
+            // Connexion automatique si extension NIP-07 présente
             if (typeof window.nostr !== 'undefined') {
                 try {
                     const pubkey = await window.nostr.getPublicKey();
                     if (pubkey) {
                         AstroportDemo.userPubkey = pubkey;
-                        if (typeof window.NostrTools !== 'undefined') {
+                        try {
                             AstroportDemo.userNpub = window.NostrTools.nip19.npubEncode(pubkey);
-                        }
+                        } catch(_) { AstroportDemo.userNpub = pubkey.slice(0,16) + '…'; }
                         updateConnectionBadge(true);
-                        console.log('[AUTH] User already connected:', pubkey.substring(0, 16) + '...');
-                        
-                        // Check authentication in background
+                        console.log('[AUTH] Extension NIP-07 détectée :', pubkey.substring(0, 16) + '…');
+
+                        // Lancer le flux NIP-42 complet en arrière-plan
                         setTimeout(async () => {
-                            console.log('[AUTH] Checking authentication status in background...');
-                            const authCheck = await fetch('/api/test-nostr', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/x-www-form-urlencoded',
-                                },
-                                body: new URLSearchParams({
-                                    'npub': pubkey
-                                })
-                            });
-                            
-                            if (authCheck.ok) {
-                                const authResult = await authCheck.json();
-                                if (!authResult.auth_verified) {
-                                    console.warn('[AUTH] ⚠️ User connected but not authenticated. NIP-42 event required.');
-                                    // Update badge and panel to show partial connection
-                                    updateConnectionBadge(true, false); // connected but not authenticated
-                                    updateConnectionPanel(true, false); // Enable "Verify" button
-                                    // Show subtle notification
-                                    const authResultDiv = document.getElementById('authResult');
-                                    if (authResultDiv) {
-                                        authResultDiv.textContent = '⚠️ You are connected but need to authenticate.\n';
-                                        authResultDiv.textContent += 'Click "Connect with MULTIPASS" to send authentication event.\n';
-                                        authResultDiv.textContent += 'This is required for file uploads.';
-                                    }
-                                } else {
-                                    console.log('[AUTH] ✅ User authenticated and ready to upload');
-                                    updateConnectionBadge(true, true); // connected and authenticated
-                                    updateConnectionPanel(true, true); // Mark as fully authenticated
-                                    const authResultDiv = document.getElementById('authResult');
-                                    if (authResultDiv) {
-                                        authResultDiv.textContent = '✅ Connected and authenticated! You can upload files.';
-                                    }
-                                }
+                            console.log('[AUTH] Lancement authentification NIP-42 automatique…');
+                            const ok = await doNip42Auth(pubkey, true);
+                            updateConnectionBadge(true, ok);
+                            updateConnectionPanel(true, ok);
+                            if (ok) {
+                                console.log('[AUTH] ✅ Authentifié automatiquement');
+                                setTimeout(() => checkAndShowUDriveButton().catch(()=>{}), 500);
+                                setTimeout(() => checkAndShowGPS().catch(()=>{}), 800);
+                            } else {
+                                console.warn('[AUTH] ⚠️ Auth automatique non confirmée — cliquer "Connect with MULTIPASS"');
                             }
-                        }, 1000);
+                        }, 800);
                     }
                 } catch (e) {
-                    console.log('[AUTH] No previous connection found');
+                    console.log('[AUTH] Pas de connexion précédente :', e.message);
                 }
             }
         });
@@ -679,95 +671,54 @@
         }
         
         async function testMultipassLogin() {
-            const resultEl = document.getElementById('authResult');
+            const resultEl  = document.getElementById('authResult');
             const userInfoEl = document.getElementById('userInfo');
-            
+
+            resultEl.textContent = '';
+
             try {
-                resultEl.textContent = '🔄 Connecting to NOSTR...\n';
-                
-                // Connect using common.js with forceAuth = true to send NIP-42 event
-                console.log('[AUTH] Connecting with forced NIP-42 authentication...');
-                AstroportDemo.userPubkey = await connectNostr(true); // Force NIP-42 auth
-                
-                if (!AstroportDemo.userPubkey) {
-                    throw new Error('No public key returned');
+                // 1. Vérifier extension NIP-07
+                if (typeof window.nostr === 'undefined' || typeof window.nostr.signEvent !== 'function') {
+                    throw new Error('Extension NOSTR absente (installer nos2x, Alby ou NOSTR Connect)');
                 }
-                
-                resultEl.textContent += '✅ Connected successfully!\n\n';
-                resultEl.textContent += `Public Key (hex):\n${AstroportDemo.userPubkey}\n\n`;
-                
-                // Convert to npub if possible
-                if (typeof window.NostrTools !== 'undefined') {
-                    AstroportDemo.userNpub = window.NostrTools.nip19.npubEncode(AstroportDemo.userPubkey);
-                    resultEl.textContent += `Public Key (npub):\n${AstroportDemo.userNpub}\n`;
-                }
-                
-                // Wait a bit for NIP-42 event to be sent and processed
-                resultEl.textContent += '\n⏳ Sending authentication event (NIP-42)...\n';
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                
-                // Verify authentication was successful
-                resultEl.textContent += '\n🔍 Verifying authentication...\n';
-                const authCheck = await fetch('/api/test-nostr', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        'npub': AstroportDemo.userPubkey
-                    })
-                });
-                
-                if (authCheck.ok) {
-                    const authResult = await authCheck.json();
-                    if (authResult.auth_verified) {
-                        resultEl.textContent += '✅ Authentication verified! You can now upload files.\n';
-                        updateConnectionBadge(true, true); // Fully authenticated
-                    } else {
-                        resultEl.textContent += '⚠️ Authentication pending. Please try again in a moment.\n';
-                        updateConnectionBadge(true, false); // Connected but not authenticated
-                    }
-                } else {
-                    updateConnectionBadge(true, false); // Connected but verification failed
-                }
-                
-                // Show user info
-                document.getElementById('userNpub').textContent = AstroportDemo.userNpub || 'N/A';
-                document.getElementById('userHex').textContent = AstroportDemo.userPubkey;
-                userInfoEl.style.display = 'block';
-                
-                // Update fixed connection badge
+
+                resultEl.textContent += '🔑 Récupération de la clé publique…\n';
+                const pubkey = await window.nostr.getPublicKey();
+                if (!pubkey || pubkey.length !== 64) throw new Error('Clé publique invalide');
+
+                AstroportDemo.userPubkey = pubkey;
+                AstroportDemo.userNpub = (typeof window.NostrTools !== 'undefined')
+                    ? window.NostrTools.nip19.npubEncode(pubkey)
+                    : hexToNpub(pubkey);
+
+                resultEl.textContent += `✅ Clé hex : ${pubkey.slice(0,16)}…\n`;
+                resultEl.textContent += `   npub    : ${AstroportDemo.userNpub.slice(0,16)}…\n\n`;
+
                 updateConnectionBadge(true);
-                
-                // Auto-check DID document in background
+
+                // 2. Flux NIP-42 complet (challenge → sign → WS relay → verify)
+                const ok = await doNip42Auth(pubkey, false);
+
+                updateConnectionBadge(true, ok);
+                updateConnectionPanel(true, ok);
+
+                // Afficher infos utilisateur
+                const npubEl = document.getElementById('userNpub');
+                const hexEl  = document.getElementById('userHex');
+                if (npubEl) npubEl.textContent = AstroportDemo.userNpub || 'N/A';
+                if (hexEl)  hexEl.textContent  = pubkey;
+                if (userInfoEl) userInfoEl.style.display = 'block';
+
+                // Post-auth : DID + uDRIVE + GPS
+                setTimeout(() => checkDIDDocument().catch(() => {}), 500);
                 setTimeout(() => {
-                    console.log('[AUTH] Auto-checking DID document...');
-                    checkDIDDocument().catch(err => {
-                        console.warn('[AUTH] Could not auto-check DID:', err);
-                    });
-                }, 1000);
-                
-                // Auto-check and show uDRIVE button
-                setTimeout(() => {
-                    console.log('[AUTH] Checking for uDRIVE link...');
-                    checkAndShowUDriveButton().catch(err => {
-                        console.warn('[AUTH] Could not check uDRIVE:', err);
-                    });
-                    
-                    // Also check and show GPS coordinates
-                    console.log('[AUTH] Checking for GPS coordinates...');
-                    checkAndShowGPS().catch(err => {
-                        console.warn('[AUTH] Could not check GPS:', err);
-                    });
-                }, 1500);
-                
+                    checkAndShowUDriveButton().catch(() => {});
+                    checkAndShowGPS().catch(() => {});
+                }, 900);
+
             } catch (error) {
-                resultEl.textContent = '❌ Connection failed\n\n';
-                resultEl.textContent += `Error: ${error.message}\n\n`;
-                resultEl.textContent += 'Make sure you have a NOSTR extension installed (nos2x, Alby, etc.)';
-                console.error('Auth error:', error);
-                
-                // Update badge to show error
+                resultEl.textContent += `\n❌ Échec : ${error.message}\n`;
+                console.error('[AUTH] testMultipassLogin error:', error);
                 updateConnectionBadge(false);
             }
         }

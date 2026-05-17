@@ -68,11 +68,7 @@
     {% endif %}
     
     <!-- Nostr integration -->
-    {% if use_local_js %}
     <script src="/earth/nostr.bundle.js"></script>
-    {% else %}
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
-    {% endif %}
     <!-- Common.js with NOSTR functions -->
     {% if use_local_js %}
     <script src="/earth/common.js"></script>

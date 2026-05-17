@@ -7,11 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>🎬 YouTube - NOSTR Video Library</title>
     <!-- Nostr integration -->
-    {% if use_local_js %}
     <script src="/earth/nostr.bundle.js"></script>
-    {% else %}
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/nostr.bundle.js"></script>
-    {% endif %}
     <!-- Common.js with NOSTR functions -->
     {% if use_local_js %}
     <script src="/earth/common.js"></script>
