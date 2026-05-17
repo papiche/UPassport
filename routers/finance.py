@@ -268,6 +268,15 @@ async def zen_send(request: Request):
         if script_output.startswith('{'):
             result = json.loads(script_output)
             if result.get("success"):
+                # Limite : une partie de coinflip par joueur par jour
+                today = datetime.now().strftime("%Y%m%d")
+                daily_marker = Path(settings.ZEN_PATH) / "tmp" / f"coinflip_{sender_hex}_{today}"
+                if daily_marker.exists():
+                    return JSONResponse({
+                        "ok": False,
+                        "error": "Une partie par jour autorisée. Revenez demain !",
+                        "type": "daily_limit"
+                    })
                 session_id = uuid.uuid4().hex
                 exp = int(time.time()) + 300
                 token = sign_token({"npub": sender_hex, "sid": session_id, "exp": exp})
@@ -277,6 +286,10 @@ async def zen_send(request: Request):
                     "paid": True,
                     "created_at": int(time.time()),
                 }
+                try:
+                    daily_marker.touch()
+                except Exception:
+                    pass
                 return JSONResponse({
                     "ok": True,
                     "zen_send_result": result,
