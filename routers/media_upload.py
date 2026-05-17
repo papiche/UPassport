@@ -40,6 +40,164 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 
+def _get_node_nsec() -> str:
+    """Lit le NSEC du NODE local depuis secret.nostr."""
+    secret_path = settings.GAME_PATH / "secret.nostr"
+    if secret_path.exists():
+        for line in secret_path.read_text().splitlines():
+            if line.startswith("NSEC="):
+                return line[5:].strip()
+    return ""
+
+
+def _get_node_relays() -> list:
+    relays = [r for r in settings.NOSTR_RELAYS.split() if r.startswith("wss://")]
+    return relays or ["wss://relay.copylaradio.com"]
+
+
+async def _resolve_home_node_hex(user_dir: Path) -> str:
+    """Résout le NODE HEX de la home station pour un utilisateur roaming.
+
+    Ordre de priorité (du plus rapide au plus lent) :
+      1. home.station local (cache d'une résolution précédente)
+      2. Scan strfry kind 0 du joueur → champ home_station (local, rapide)
+      3. Scan swarm TW : swarm/*/TW/{email}/ → 12345.json → NODEHEX
+      4. IPFS via NOSTRNS (réseau, peut échouer)
+      5. IPFS via HOME_IPFSNODEID (réseau, peut échouer)
+
+    Cache le résultat dans user_dir/home.station.
+    Retourne "" si introuvable.
+
+    Note : HOME_IPFSNODEID et NOSTRNS sauvegardés par 22242.sh pour
+    amisOfAmis_roaming contiennent la clé IPNS CIDv1 du joueur (k51…),
+    pas le peer ID libp2p de la home station — d'où la priorité au kind 0.
+    """
+    user_email = user_dir.name
+    home_station_file = user_dir / "home.station"
+
+    # 1. Cache local home.station
+    if home_station_file.exists():
+        content = home_station_file.read_text().strip()
+        if ":" in content:
+            candidate = content.split(":", 1)[1].strip()
+            if len(candidate) == 64:
+                return candidate
+
+    # 2. Scan strfry local : kind 0 du joueur → champ home_station
+    user_hex_file = user_dir / "HEX"
+    user_hex = user_hex_file.read_text().strip() if user_hex_file.exists() else ""
+    if len(user_hex) == 64:
+        strfry_dir = settings.ZEN_PATH / "strfry"
+        strfry_bin = strfry_dir / "strfry"
+        if strfry_bin.exists():
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    str(strfry_bin), "scan",
+                    json.dumps({"authors": [user_hex], "kinds": [0]}),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL,
+                    cwd=str(strfry_dir),
+                )
+                out, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+                events = []
+                for line in out.decode().splitlines():
+                    line = line.strip()
+                    if line:
+                        try:
+                            events.append(json.loads(line))
+                        except Exception:
+                            pass
+                if events:
+                    latest = max(events, key=lambda e: e.get("created_at", 0))
+                    try:
+                        profile = json.loads(latest.get("content", "{}"))
+                        hs = profile.get("home_station", "")
+                        if ":" in hs:
+                            candidate = hs.split(":", 1)[1].strip()
+                            if len(candidate) == 64:
+                                home_station_file.write_text(hs.strip() + "\n")
+                                logging.info(
+                                    f"Roaming: home_station résolu via kind 0 relay pour {user_email}"
+                                )
+                                return candidate
+                    except Exception:
+                        pass
+            except Exception as e:
+                logging.debug(f"Roaming: strfry scan kind 0 échec: {e}")
+
+    # 3. Scan swarm TW : trouver la station qui héberge cet email
+    swarm_dir = settings.ZEN_PATH / "tmp" / "swarm"
+    if swarm_dir.exists():
+        for station_dir in swarm_dir.iterdir():
+            if not station_dir.is_dir():
+                continue
+            if (station_dir / "TW" / user_email).exists():
+                station_12345 = station_dir / "12345.json"
+                if station_12345.exists():
+                    try:
+                        data = json.loads(station_12345.read_text())
+                        candidate = data.get("NODEHEX", "")
+                        if len(candidate) == 64:
+                            hid = data.get("ipfsnodeid", station_dir.name)
+                            home_station_file.write_text(f"{hid}:{candidate}\n")
+                            logging.info(
+                                f"Roaming: home_station résolu via swarm TW pour {user_email}"
+                            )
+                            return candidate
+                    except Exception:
+                        pass
+
+    # 4. IPFS via NOSTRNS (lent, peut échouer si non pinné)
+    nostrns_file = user_dir / "NOSTRNS"
+    if nostrns_file.exists():
+        nostrns = nostrns_file.read_text().strip()
+        if nostrns:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "ipfs", "--timeout", "10s", "cat",
+                    f"{nostrns}/{user_email}/home.station",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                out, _ = await asyncio.wait_for(proc.communicate(), timeout=12)
+                content = out.decode().strip()
+                if ":" in content:
+                    candidate = content.split(":", 1)[1].strip()
+                    if len(candidate) == 64:
+                        home_station_file.write_text(content + "\n")
+                        return candidate
+            except Exception:
+                pass
+
+    # 5. IPFS via HOME_IPFSNODEID (dernier recours)
+    home_ipfsnodeid_file = user_dir / "HOME_IPFSNODEID"
+    if home_ipfsnodeid_file.exists():
+        home_ipfsnodeid = home_ipfsnodeid_file.read_text().strip()
+        if home_ipfsnodeid:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "ipfs", "--timeout", "10s", "cat",
+                    f"/ipns/{home_ipfsnodeid}/{user_email}/home.station",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                out, _ = await asyncio.wait_for(proc.communicate(), timeout=12)
+                content = out.decode().strip()
+                if ":" in content:
+                    candidate = content.split(":", 1)[1].strip()
+                    if len(candidate) == 64:
+                        home_station_file.write_text(content + "\n")
+                        logging.info(
+                            f"Roaming: home.station récupéré via HOME_IPFSNODEID IPNS pour {user_email}"
+                        )
+                        return candidate
+            except Exception:
+                pass
+
+    logging.warning(f"Roaming: home_node_hex introuvable pour {user_email}")
+    return ""
+
+
 async def _maybe_send_roaming_dm(
     user_dir: Path, file_cid: str, sanitized_filename: str, file_type: str
 ) -> bool:
@@ -48,84 +206,18 @@ async def _maybe_send_roaming_dm(
     Retourne True si le DM a été envoyé avec succès.
     En cas d'échec, laisser le fichier en place — NOSTRCARD.refresh.sh le reprendra.
     """
-
     if not (user_dir / ".roaming").exists():
         return False
 
     user_email = user_dir.name
-
-    # ── Lire home.station : IPFSNODEID:NODE_HEX ─────────────────────────────
-    home_node_hex = ""
-    home_station_file = user_dir / "home.station"
-    if home_station_file.exists():
-        content = home_station_file.read_text().strip()
-        if ":" in content:
-            home_node_hex = content.split(":", 1)[1].strip()
-
-    # Fallback : récupérer depuis IPFS via NOSTRNS
-    if not home_node_hex or len(home_node_hex) != 64:
-        nostrns_file = user_dir / "NOSTRNS"
-        if nostrns_file.exists():
-            nostrns = nostrns_file.read_text().strip()
-            if nostrns:
-                try:
-                    proc = await asyncio.create_subprocess_exec(
-                        "ipfs", "--timeout", "10s", "cat",
-                        f"{nostrns}/{user_email}/home.station",
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.DEVNULL,
-                    )
-                    out, _ = await asyncio.wait_for(proc.communicate(), timeout=12)
-                    content = out.decode().strip()
-                    if ":" in content:
-                        home_node_hex = content.split(":", 1)[1].strip()
-                        home_station_file.write_text(content + "\n")
-                except Exception:
-                    pass
-
-    # Fallback : HOME_IPFSNODEID sauvegardé par 22242.sh (amisOfAmis_roaming)
-    if not home_node_hex or len(home_node_hex) != 64:
-        home_ipfsnodeid_file = user_dir / "HOME_IPFSNODEID"
-        if home_ipfsnodeid_file.exists():
-            home_ipfsnodeid = home_ipfsnodeid_file.read_text().strip()
-            if home_ipfsnodeid:
-                try:
-                    proc = await asyncio.create_subprocess_exec(
-                        "ipfs", "--timeout", "10s", "cat",
-                        f"/ipns/{home_ipfsnodeid}/{user_email}/home.station",
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.DEVNULL,
-                    )
-                    out, _ = await asyncio.wait_for(proc.communicate(), timeout=12)
-                    content = out.decode().strip()
-                    if ":" in content:
-                        home_node_hex = content.split(":", 1)[1].strip()
-                        home_station_file.write_text(content + "\n")
-                        logging.info(f"Roaming DM: home.station récupéré via HOME_IPFSNODEID pour {user_email}")
-                except Exception:
-                    pass
-
-    if not home_node_hex or len(home_node_hex) != 64:
-        logging.warning(f"Roaming DM: home_node_hex introuvable pour {user_email}")
+    home_node_hex = await _resolve_home_node_hex(user_dir)
+    if not home_node_hex:
         return False
 
-    # ── NSEC du NODE de cette station ────────────────────────────────────────
-    node_nsec = ""
-    secret_path = settings.GAME_PATH / "secret.nostr"
-    if secret_path.exists():
-        for line in secret_path.read_text().splitlines():
-            if line.startswith("NSEC="):
-                node_nsec = line[5:].strip()
-                break
-
+    node_nsec = _get_node_nsec()
     if not node_nsec:
         logging.warning(f"Roaming DM: secret.nostr absent pour {user_email}")
         return False
-
-    # ── Relays WSS publics ───────────────────────────────────────────────────
-    relays = [r for r in settings.NOSTR_RELAYS.split() if r.startswith("wss://")]
-    if not relays:
-        relays = ["wss://relay.copylaradio.com"]
 
     ft_map = {"image": "image", "video": "video", "audio": "audio", "document": "document"}
     filetype_arg = ft_map.get(file_type, "file")
@@ -139,7 +231,7 @@ async def _maybe_send_roaming_dm(
         "--cid", file_cid,
         "--filename", sanitized_filename,
         "--filetype", filetype_arg,
-        "--relays", *relays,
+        "--relays", *_get_node_relays(),
     ]
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -161,6 +253,54 @@ async def _maybe_send_roaming_dm(
         logging.warning(f"✈️ Roaming DM timeout pour {user_email}")
     except Exception as e:
         logging.warning(f"✈️ Roaming DM erreur: {e}")
+    return False
+
+
+async def _send_roaming_media_event_dm(
+    user_dir: Path, channel: str, payload: dict
+) -> bool:
+    """En roaming, envoie un DM au home NODE pour publier un event NOSTR media.
+
+    Channels : 'vocals' (kind 1222/1244), 'webcam' (kind 21/22).
+    La home station (NOSTRCARD.refresh.sh) reçoit le DM et publie l'event.
+    """
+    home_node_hex = await _resolve_home_node_hex(user_dir)
+    if not home_node_hex:
+        return False
+
+    node_nsec = _get_node_nsec()
+    if not node_nsec:
+        logging.warning(f"Roaming {channel} DM: secret.nostr absent")
+        return False
+
+    intercom = settings.TOOLS_PATH / "nostr_node_intercom.py"
+    cmd = [
+        "python3", str(intercom), "send",
+        "--nsec", node_nsec,
+        "--to", home_node_hex,
+        "--channel", channel,
+        "--payload", json.dumps(payload),
+        "--relays", *_get_node_relays(),
+    ]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
+        if proc.returncode == 0:
+            logging.info(
+                f"✈️ Roaming {channel} DM OK: {user_dir.name} → {home_node_hex[:12]}…"
+            )
+            return True
+        logging.warning(
+            f"✈️ Roaming {channel} DM échec (code {proc.returncode}): {stderr.decode()[:200]}"
+        )
+    except asyncio.TimeoutError:
+        logging.warning(f"✈️ Roaming {channel} DM timeout")
+    except Exception as e:
+        logging.warning(f"✈️ Roaming {channel} DM erreur: {e}")
     return False
 
 @as_form
@@ -368,9 +508,46 @@ async def process_webcam_video(
                 secret_file = user_dir / ".secret.nostr"
                 
                 if not secret_file.exists():
+                    # Roaming : déléguer la publication vidéo à la home station via DM
+                    if isinstance(user_dir, Path) and (user_dir / ".roaming").exists():
+                        try:
+                            _lat = float(latitude) if latitude else 0.00
+                            _lon = float(longitude) if longitude else 0.00
+                        except (ValueError, TypeError):
+                            _lat = 0.00
+                            _lon = 0.00
+                        _fname = filename or f"video_{int(time.time())}.webm"
+                        payload = {
+                            "email":          user_dir.name,
+                            "cid":            ipfs_cid,
+                            "filename":       _fname,
+                            "filetype":       "video",
+                            "mime_type":      mime_type or "video/webm",
+                            "duration":       str(duration),
+                            "title":          title,
+                            "description":    description or "",
+                            "dimensions":     str(video_dimensions),
+                            "file_size":      str(file_size),
+                            "thumbnail_ipfs": final_thumbnail_ipfs or "",
+                            "gifanim_ipfs":   final_gifanim_ipfs or "",
+                            "info_cid":       info_cid or "",
+                            "file_hash":      file_hash or "",
+                            "latitude":       str(_lat),
+                            "longitude":      str(_lon),
+                            "channel":        player,
+                        }
+                        dm_sent = await _send_roaming_media_event_dm(user_dir, "webcam", payload)
+                        if dm_sent:
+                            _ipfs_url = f"/ipfs/{ipfs_cid}/{_fname}"
+                            return templates.TemplateResponse("webcam.html", {
+                                "request": request,
+                                "message": f"Vidéo transmise à la home station (roaming). IPFS: {_ipfs_url}",
+                                "recording": False,
+                                "ipfs_url": _ipfs_url,
+                            })
                     return templates.TemplateResponse("webcam.html", {
-                        "request": request, 
-                        "error": "NOSTR secret file not found.", 
+                        "request": request,
+                        "error": "NOSTR secret file not found.",
                         "recording": False
                     })
                 
@@ -581,6 +758,41 @@ async def process_vocals_message(
                 secret_file = os.path.join(user_dir, ".secret.nostr")
         
         if not os.path.exists(secret_file):
+            # Roaming : déléguer la publication NOSTR à la home station via DM
+            if isinstance(user_dir, Path) and (user_dir / ".roaming").exists():
+                _fname = (file_name.strip() if file_name and file_name.strip()
+                          else f"voice_{int(time.time())}.{mime_type.split('/')[-1] if '/' in mime_type else 'mp3'}")
+                try:
+                    _vkind = int(kind) if kind else 1222
+                    if _vkind not in [1222, 1244]:
+                        _vkind = 1222
+                except (ValueError, TypeError):
+                    _vkind = 1222
+                payload = {
+                    "email":             user_dir.name,
+                    "cid":               ipfs_cid,
+                    "filename":          _fname,
+                    "filetype":          "audio",
+                    "mime_type":         mime_type,
+                    "duration":          str(duration),
+                    "title":             title,
+                    "description":       description or "",
+                    "waveform":          waveform or "",
+                    "kind":              str(_vkind),
+                    "file_hash":         file_hash or "",
+                    "info_cid":          info_cid or "",
+                }
+                if _vkind == 1244 and reply_to_event_id and reply_to_pubkey:
+                    payload["reply_to_event_id"] = reply_to_event_id
+                    payload["reply_to_pubkey"]   = reply_to_pubkey
+                dm_sent = await _send_roaming_media_event_dm(user_dir, "vocals", payload)
+                if dm_sent:
+                    return templates.TemplateResponse("vocals.html", {
+                        "request": request,
+                        "success": "Message vocal transmis à la home station (roaming).",
+                        "event_id": "",
+                        "myIPFS": await get_myipfs_gateway()
+                    })
             return templates.TemplateResponse("vocals.html", {
                 "request": request,
                 "error": "NOSTR authentication required.",
