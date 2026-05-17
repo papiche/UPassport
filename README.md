@@ -675,7 +675,7 @@ This endpoint is automatically called when a ZEN Card QR code (format `~~~~~...`
 ---
 
 ### See Also
-- [Astroport.ONE API & UPlanet Swarm – Developer Guide](../Astroport.ONE/API.NOSTRAuth.readme.md)
+- [Astroport.ONE API & UPlanet Swarm – Developer Guide](../Astroport.ONE/docs/how-to/API.NOSTRAuth.readme.md)
 - [NOSTR Protocol](https://github.com/nostr-protocol/nostr)
 - [NIP42 - Authentication](https://github.com/nostr-protocol/nips/blob/master/42.md)
 
@@ -1052,7 +1052,7 @@ Le terminal `/scan` d'UPassport (`upassport.sh`) traite plusieurs types de QR co
 En configurant UPassport, vous accédez à un terminal puissant pour interagir avec l'écosystème Ğ1 décentralisé, gérer votre identité numérique et tirer parti des capacités multimédias dans un cadre sécurisé et open source.
 
 ### Voir Aussi
-- [Guide Développeur API Astroport.ONE & UPlanet Swarm](../Astroport.ONE/API.NOSTRAuth.readme.md)
+- [Guide Développeur API Astroport.ONE & UPlanet Swarm](../Astroport.ONE/docs/how-to/API.NOSTRAuth.readme.md)
 - [Protocole NOSTR](https://github.com/nostr-protocol/nostr)
 - [NIP42 - Authentification](https://github.com/nostr-protocol/nips/blob/master/42.md)
 
@@ -1361,6 +1361,6 @@ Cet endpoint est automatiquement appelé lorsqu'un QR code ZEN Card (format `~~~
 ---
 
 ### Voir Aussi
-- [Guide Développeur API Astroport.ONE & UPlanet Swarm](../Astroport.ONE/API.NOSTRAuth.readme.md)
+- [Guide Développeur API Astroport.ONE & UPlanet Swarm](../Astroport.ONE/docs/how-to/API.NOSTRAuth.readme.md)
 - [Protocole NOSTR](https://github.com/nostr-protocol/nostr)
 - [NIP42 - Authentification](https://github.com/nostr-protocol/nips/blob/master/42.md)
