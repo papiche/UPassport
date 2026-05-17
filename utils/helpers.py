@@ -56,7 +56,7 @@ def render_page(request: Request, template_name: str, context: dict = None):
     """Raccourci pour rendre un template avec les variables de base (myIPFS)."""
     base_context = {
         "request": request,
-        "myIPFS": settings.IPFS_GATEWAY
+        "myIPFS": settings.myIPFS
     }
     if context:
         base_context.update(context)
