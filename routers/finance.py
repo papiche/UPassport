@@ -211,9 +211,13 @@ async def generate_balance_html_page(identifier: str, balance_data: Dict[str, An
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la génération HTML: {str(e)}")
 
-@router.post("/zen_send")
+@router.post("/zen_send", deprecated=True)
 async def zen_send(request: Request):
-    """Send ZEN using the sender's ZEN card. Nostr authentication (NIP-42) is mandatory."""
+    """Send ZEN using the sender's ZEN card. Nostr authentication (NIP-42) is mandatory.
+
+    DEPRECATED — use Kind 7 NOSTR reaction (+N content) instead.
+    The relay's 7.sh write-policy plugin processes G1 payments automatically.
+    """
     form_data = await request.form()
     zen = form_data.get("zen")
     g1source = form_data.get("g1source")
