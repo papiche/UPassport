@@ -455,6 +455,23 @@ def find_user_directory_by_hex(hex_pubkey: str) -> Path:
                     logging.warning(f"Erreur lors de la lecture de {hex_file_path}: {e}")
                     continue
     
+    # Chercher aussi dans les répertoires éphémères .pubkey_* créés par 22242.sh
+    # pour les utilisateurs inconnus (roaming sans email résolu)
+    for pubkey_dir in nostr_base_path.iterdir():
+        if pubkey_dir.is_dir() and pubkey_dir.name.startswith('.pubkey_'):
+            hex_file_path = pubkey_dir / "HEX"
+            if hex_file_path.exists():
+                try:
+                    with open(hex_file_path, 'r') as f:
+                        stored_hex = f.read().strip().lower()
+                    if stored_hex == hex_pubkey:
+                        logging.info(f"✅ Répertoire éphémère trouvé pour {hex_pubkey[:16]}: {pubkey_dir}")
+                        app_state.hex_to_directory_cache[hex_pubkey] = pubkey_dir
+                        return pubkey_dir
+                except Exception as e:
+                    logging.warning(f"Erreur lecture {hex_file_path}: {e}")
+                    continue
+
     # Si aucun répertoire trouvé
     raise HTTPException(
         status_code=404,

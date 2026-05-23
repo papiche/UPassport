@@ -570,9 +570,12 @@ async def verify_nostr_auth(npub: Optional[str], force_check: bool = False) -> b
         return False
     
     auth_result = await check_nip42_auth(hex_pubkey)
-    
-    app_state.nostr_auth_cache[npub] = auth_result
-    
+
+    # Ne mettre en cache que les résultats positifs : un False peut changer
+    # dès que le client envoie son kind 22242 (marker créé par 22242.sh)
+    if auth_result:
+        app_state.nostr_auth_cache[npub] = True
+
     return auth_result
 
 async def require_nostr_auth(request: Request, npub: Optional[str] = Form(None), force_check: bool = False) -> str:
