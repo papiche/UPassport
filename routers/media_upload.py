@@ -35,6 +35,7 @@ from services.nostr import verify_nostr_auth, require_nostr_auth
 from utils.crypto import npub_to_hex, hex_to_npub
 from services.nostr import fetch_video_event_from_nostr, parse_video_metadata
 from models.schemas import UploadResponse, UploadFromDriveResponse
+from services.cookie_store import store_cookie_encrypted
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -1138,22 +1139,32 @@ async def upload_file_to_ipfs(
                     
                     cookie_filename = f".{detected_domain}.cookie"
                     cookie_path = user_root_dir / cookie_filename
-                    
+
                     async with aiofiles.open(cookie_path, 'wb') as cookie_file:
                         await cookie_file.write(file_content)
-                    
+
                     os.chmod(cookie_path, 0o600)
-                    
+
+                    # Encrypt with user G1 key → IPFS pin → manifest + NOSTR kind 30078
+                    cid = None
+                    try:
+                        cid = await store_cookie_encrypted(user_root_dir, detected_domain, file_content)
+                    except Exception as _e:
+                        logging.warning(f"Cookie IPFS/NOSTR store failed (non-fatal): {_e}")
+
                     return UploadResponse(
                         success=True,
                         message=f"Cookie file uploaded successfully for {detected_domain}",
                         file_path=str(cookie_path.relative_to(user_root_dir.parent)),
                         file_type="netscape_cookies",
                         target_directory=str(user_root_dir),
-                        new_cid=None,
+                        new_cid=cid,
                         timestamp=datetime.now().isoformat(),
                         auth_verified=True,
-                        description=f"Domain: {detected_domain or 'unknown'}"
+                        description=(
+                            f"Domain: {detected_domain} — IPFS: {cid[:20]}…"
+                            if cid else f"Domain: {detected_domain or 'unknown'}"
+                        ),
                     )
             except UnicodeDecodeError:
                 pass
