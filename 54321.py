@@ -59,4 +59,4 @@ app.include_router(cookie.router)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("54321:app", host="0.0.0.0", port=54321, reload=True)
+    uvicorn.run("54321:app", host="0.0.0.0", port=54321, reload=False)

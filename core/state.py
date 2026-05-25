@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import importlib.util
 from typing import Optional, Any
@@ -107,8 +108,22 @@ async def lifespan(app: FastAPI):
         logging.error(f"❌ Failed to initialise OracleSystem: {e}")
         app.state.oracle = None
     
+    # Pré-chauffe du cache Ustats.sh en tâche de fond (évite les 30s+ au premier appel GET /)
+    async def _prewarm_ustats():
+        try:
+            from utils.helpers import run_script
+            script_path = settings.ZEN_PATH / "Astroport.ONE" / "Ustats.sh"
+            if script_path.exists():
+                logging.info("🔄 Pré-chauffe du cache Ustats.sh en arrière-plan...")
+                rc, _ = await run_script(script_path)
+                logging.info(f"✅ Cache Ustats.sh prêt (rc={rc})")
+        except Exception as e:
+            logging.warning(f"⚠️  Pré-chauffe Ustats.sh échouée : {e}")
+
+    asyncio.create_task(_prewarm_ustats())
+
     yield
-    
+
     # Shutdown
     logging.info("Shutting down application...")
     # Clean up resources if needed

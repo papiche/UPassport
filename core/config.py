@@ -83,3 +83,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()
+
+# Interpréteur Python du venv ~/.astro/ (contient duniterpy, libnacl, base58, pynostr, websocket-client)
+_astro_py = Path.home() / ".astro" / "bin" / "python3"
+ASTRO_PYTHON: str = str(_astro_py) if _astro_py.exists() else "python3"

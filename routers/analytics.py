@@ -123,8 +123,9 @@ async def get_webhook(request: Request):
         
         # Prepare command
         tags_json = json.dumps(tags)
+        from core.config import ASTRO_PYTHON
         cmd = [
-            "python3",
+            ASTRO_PYTHON,
             nostr_script,
             "--keyfile", str(captain_keyfile),
             "--content", message_content,

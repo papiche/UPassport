@@ -68,7 +68,7 @@ def canonicalize_json(data: Any) -> str:
     )
 
 # Configuration
-from core.config import settings
+from core.config import settings, ASTRO_PYTHON
 NOSTR_RELAYS = settings.NOSTR_RELAYS.split()
 TOOLS_PATH = settings.TOOLS_PATH
 
@@ -833,7 +833,7 @@ class OracleSystem:
             
             # Call nostr_send_note.py
             cmd = [
-                'python3',
+                ASTRO_PYTHON,
                 str(nostr_script),
                 '--keyfile', str(keyfile),
                 '--content', content,

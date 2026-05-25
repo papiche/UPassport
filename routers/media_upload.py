@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from utils.helpers import run_script, get_myipfs_gateway, as_form, safe_json_load
 from core.middleware import get_client_ip
-from core.config import settings
+from core.config import settings, ASTRO_PYTHON
 from services.ipfs import run_uDRIVE_generation_script
 from utils.security import (
     get_authenticated_user_directory,
@@ -225,7 +225,7 @@ async def _maybe_send_roaming_dm(
 
     intercom = settings.TOOLS_PATH / "nostr_node_intercom.py"
     cmd = [
-        "python3", str(intercom), "send-udrive",
+        ASTRO_PYTHON, str(intercom), "send-udrive",
         "--nsec", node_nsec,
         "--to", home_node_hex,
         "--email", user_email,
@@ -276,7 +276,7 @@ async def _send_roaming_media_event_dm(
 
     intercom = settings.TOOLS_PATH / "nostr_node_intercom.py"
     cmd = [
-        "python3", str(intercom), "send",
+        ASTRO_PYTHON, str(intercom), "send",
         "--nsec", node_nsec,
         "--to", home_node_hex,
         "--channel", channel,

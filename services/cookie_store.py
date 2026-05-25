@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from core.config import settings
+from core.config import settings, ASTRO_PYTHON
 
 NATOOLS    = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "natools.py"
 NOSTR_SEND = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "nostr_send_note.py"
@@ -51,7 +51,7 @@ async def encrypt_and_pin(content: bytes, pubkey: str) -> Optional[str]:
         plain.write_bytes(content)
 
         proc = await asyncio.create_subprocess_exec(
-            "python3", str(NATOOLS), "encrypt",
+            ASTRO_PYTHON, str(NATOOLS), "encrypt",
             "-p", pubkey, "-i", str(plain), "-o", str(enc),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -106,7 +106,7 @@ async def decrypt_from_ipfs(cid: str, user_dir: Path) -> Optional[bytes]:
             return None
 
         proc2 = await asyncio.create_subprocess_exec(
-            "python3", str(NATOOLS), "decrypt",
+            ASTRO_PYTHON, str(NATOOLS), "decrypt",
             "-f", "pubsec", "-k", str(dunikey),
             "-i", str(enc), "-o", str(plain),
             stdout=asyncio.subprocess.PIPE,
@@ -157,7 +157,7 @@ async def publish_to_nostr(user_dir: Path, domain: str, cid: str, private: bool 
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            "python3", str(NOSTR_SEND),
+            ASTRO_PYTHON, str(NOSTR_SEND),
             "--keyfile", str(nostr_key),
             "--content", content,
             "--tags", tags,
