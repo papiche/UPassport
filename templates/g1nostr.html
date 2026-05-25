@@ -679,27 +679,8 @@
         <h2>📧 Email</h2>
             <input type="text" id="email" name="email" placeholder="email@example.com" required>
         
-        <!-- Accordion for optional credentials -->
-        <div class="credentials-accordion">
-            <button type="button" class="accordion-toggle" id="credentials-toggle">
-                🔐 Login Ğ1 (v1) <span class="toggle-icon">▼</span>
-            </button>
-            <div class="accordion-content" id="credentials-content">
-                <div class="credentials-info">
-                    <p>💡 Si vous ne fournissez pas d'identifiant et mot de passe, ils seront générés automatiquement de manière sécurisée.</p>
-                    <button type="button" class="generate-credentials-btn" id="generate-credentials">
-                        🎲 Générer aléatoirement
-                    </button>
-                </div>
-                <label for="salt">Identifiant <small style="color:#888;">(max 56 car.)</small> :</label>
-                <input type="text" id="salt" name="salt" maxlength="56" placeholder="Laissez vide pour génération automatique">
-
-                <label for="pepper">Password <small style="color:#888;">(max 56 car.)</small> :</label>
-                <input type="password" id="pepper" name="pepper" maxlength="56" placeholder="Laissez vide pour génération automatique">
-
-                <p style="margin-top: 10px; font-size: 0.9em;"><a href="/earth/keygen.html" target="_blank" rel="noopener">🔑 FORGEZ VOTRE CLEF v2 🔑</a></p>
-            </div>
-        </div>
+        <input type="hidden" id="salt" name="salt" value="">
+        <input type="hidden" id="pepper" name="pepper" value="">
 
             <input type="submit" value="📝 INSCRIPTION">
         </form>
@@ -908,18 +889,9 @@
             // Auto-get location on page load
             getCurrentLocation();
 
-            // Credentials accordion functionality
-            const credentialsToggle = document.getElementById('credentials-toggle');
-            const credentialsContent = document.getElementById('credentials-content');
-            const generateCredentialsBtn = document.getElementById('generate-credentials');
+            // Credentials (inputs cachés — génération côté serveur si vides)
             const saltInput = document.getElementById('salt');
             const pepperInput = document.getElementById('pepper');
-
-            // Toggle accordion
-            credentialsToggle.addEventListener('click', function() {
-                credentialsToggle.classList.toggle('active');
-                credentialsContent.classList.toggle('active');
-            });
 
             // DISCO ssss limit : salt and pepper must be ≤ 56 chars
             const DISCO_MAX = 56;
@@ -948,7 +920,7 @@
                 }, 2000);
             }
 
-            generateCredentialsBtn.addEventListener('click', generateRandomCredentials);
+            // generateCredentialsBtn supprimé (accordion G1 v1 remplacé)
 
             form.addEventListener('submit', function(event) {
                 event.preventDefault();
