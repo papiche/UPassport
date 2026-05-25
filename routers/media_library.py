@@ -475,8 +475,7 @@ async def youtube_route(
             }
             await send_server_side_analytics(analytics_data, request)
             
-            return templates.TemplateResponse("youtube.html", {
-                "request": request,
+            return templates.TemplateResponse(request, "youtube.html", {
                 "youtube_data": response_data,
                 "myIPFS": ipfs_gateway,
                 "auto_open_video": auto_open_video,
@@ -680,8 +679,7 @@ async def mp3_route(
         
         if html is not None:
             use_local_js = True
-            return templates.TemplateResponse("mp3.html", {
-                "request": request,
+            return templates.TemplateResponse(request, "mp3.html", {
                 "mp3_data": response_data,
                 "myIPFS": ipfs_gateway if not use_local_js else "",
                 "use_local_js": use_local_js

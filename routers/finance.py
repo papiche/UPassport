@@ -857,8 +857,7 @@ def generate_society_html_page(request: Request, g1pub: str, society_data: Dict[
         nostr_did_data = society_data.get('nostr_did_data', [])
         has_nostr_data = len(nostr_did_data) > 0
         
-        return templates.TemplateResponse("society.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "society.html", {
             "g1pub": g1pub,
             "total_outgoing_zen": society_data['total_outgoing_zen'],
             "total_outgoing_g1": society_data['total_outgoing_g1'],
@@ -876,8 +875,7 @@ def generate_society_html_page(request: Request, g1pub: str, society_data: Dict[
 def generate_revenue_html_page(request: Request, g1pub: str, revenue_data: Dict[str, Any]):
     """Generate HTML page to display revenue history (Chiffre d'Affaires) using template"""
     try:
-        return templates.TemplateResponse("revenue.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "revenue.html", {
             "g1pub": g1pub,
             "filter_year": revenue_data.get('filter_year', 'all'),
             "total_revenue_zen": revenue_data['total_revenue_zen'],
@@ -894,8 +892,7 @@ def generate_revenue_html_page(request: Request, g1pub: str, revenue_data: Dict[
 def generate_impots_html_page(request: Request, impots_data: Dict[str, Any]):
     """Generate HTML page to display tax provisions history (TVA + IS) using template"""
     try:
-        return templates.TemplateResponse("impots.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "impots.html", {
             "g1pub": impots_data.get('wallet', 'N/A'),
             "total_provisions_zen": impots_data['total_provisions_zen'],
             "total_provisions_g1": impots_data['total_provisions_g1'],
@@ -915,8 +912,7 @@ def generate_impots_html_page(request: Request, impots_data: Dict[str, Any]):
 def generate_zencard_html_page(request: Request, email: str, zencard_data: Dict[str, Any]):
     """Generate HTML page to display ZEN Card social shares history using template"""
     try:
-        return templates.TemplateResponse("zencard_api.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "zencard_api.html", {
             "zencard_email": zencard_data.get('zencard_email', email),
             "zencard_g1pub": zencard_data.get('zencard_g1pub', 'N/A'),
             "filter_years": zencard_data.get('filter_years', 3),

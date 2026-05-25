@@ -329,8 +329,7 @@ class WebcamForm(BaseModel):
 @router.get("/webcam", response_class=HTMLResponse)
 async def get_webcam_page(request: Request):
     """Render the webcam recording page"""
-    return templates.TemplateResponse("webcam.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "webcam.html", {
         "myIPFS": await get_myipfs_gateway()
     })
 
@@ -360,8 +359,7 @@ async def process_webcam_video(
     genres = form_data.genres
     """Process webcam video and publish to NOSTR as NIP-71 video event"""
     if not ipfs_cid or not ipfs_cid.strip():
-        return templates.TemplateResponse("webcam.html", {
-            "request": request, 
+        return templates.TemplateResponse(request, "webcam.html", {
             "error": "No IPFS CID provided. Video must be uploaded via /api/fileupload first.", 
             "recording": False,
             "myIPFS": await get_myipfs_gateway()
@@ -465,16 +463,14 @@ async def process_webcam_video(
                             file_size = video_files[0].stat().st_size
             except Exception:
                 if not player or not re.match(r"[^@]+@[^@]+\.[^@]+", player) or not is_safe_email(player):
-                    return templates.TemplateResponse("webcam.html", {
-                        "request": request, 
+                    return templates.TemplateResponse(request, "webcam.html", {
                         "error": "Could not determine user email.", 
                         "recording": False,
                         "myIPFS": await get_myipfs_gateway()
                     })
         
         if not player or not re.match(r"[^@]+@[^@]+\.[^@]+", player) or not is_safe_email(player):
-            return templates.TemplateResponse("webcam.html", {
-                "request": request, 
+            return templates.TemplateResponse(request, "webcam.html", {
                 "error": "No valid email address could be determined.", 
                 "recording": False,
                 "myIPFS": await get_myipfs_gateway()
@@ -484,8 +480,7 @@ async def process_webcam_video(
             filename = f"video_{int(time.time())}.webm"
         
         if file_size == 0:
-            return templates.TemplateResponse("webcam.html", {
-                "request": request, 
+            return templates.TemplateResponse(request, "webcam.html", {
                 "error": "File size is missing or invalid.", 
                 "recording": False,
                 "myIPFS": await get_myipfs_gateway()
@@ -499,8 +494,7 @@ async def process_webcam_video(
         if publish_nostr.lower() == "true" and npub:
             try:
                 if not await verify_nostr_auth(npub):
-                    return templates.TemplateResponse("webcam.html", {
-                        "request": request, 
+                    return templates.TemplateResponse(request, "webcam.html", {
                         "error": "NOSTR authentication failed.", 
                         "recording": False
                     })
@@ -540,14 +534,12 @@ async def process_webcam_video(
                         dm_sent = await _send_roaming_media_event_dm(user_dir, "webcam", payload)
                         if dm_sent:
                             _ipfs_url = f"/ipfs/{ipfs_cid}/{_fname}"
-                            return templates.TemplateResponse("webcam.html", {
-                                "request": request,
+                            return templates.TemplateResponse(request, "webcam.html", {
                                 "message": f"Vidéo transmise à la home station (roaming). IPFS: {_ipfs_url}",
                                 "recording": False,
                                 "ipfs_url": _ipfs_url,
                             })
-                    return templates.TemplateResponse("webcam.html", {
-                        "request": request,
+                    return templates.TemplateResponse(request, "webcam.html", {
                         "error": "NOSTR secret file not found.",
                         "recording": False
                     })
@@ -561,8 +553,7 @@ async def process_webcam_video(
                 
                 publish_script = settings.TOOLS_PATH / "publish_nostr_video.sh"
                 if not os.path.exists(publish_script):
-                    return templates.TemplateResponse("webcam.html", {
-                        "request": request, 
+                    return templates.TemplateResponse(request, "webcam.html", {
                         "error": "NOSTR publish script not found.", 
                         "recording": False
                     })
@@ -648,8 +639,7 @@ async def process_webcam_video(
         if nostr_event_id:
             success_message += f" | NOSTR Event: {nostr_event_id}"
         
-        return templates.TemplateResponse("webcam.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "webcam.html", {
             "message": success_message,
             "recording": False,
             "ipfs_url": ipfs_url,
@@ -664,8 +654,7 @@ async def process_webcam_video(
 
     except Exception as e:
         logging.error(f"Error processing webcam video: {e}")
-        return templates.TemplateResponse("webcam.html", {
-            "request": request, 
+        return templates.TemplateResponse(request, "webcam.html", {
             "error": f"Error processing video: {str(e)}", 
             "recording": False
         })
@@ -723,8 +712,7 @@ async def process_vocals_message(
     expiration = form_data.expiration
     """Process voice message and publish to NOSTR as NIP-A0 voice event"""
     if not ipfs_cid or not ipfs_cid.strip():
-        return templates.TemplateResponse("vocals.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "vocals.html", {
             "error": "No IPFS CID provided.",
             "myIPFS": await get_myipfs_gateway()
         })
@@ -732,8 +720,7 @@ async def process_vocals_message(
     is_encrypted = encrypted.lower() == "true"
     if is_encrypted:
         if not recipients or not recipients.strip():
-            return templates.TemplateResponse("vocals.html", {
-                "request": request,
+            return templates.TemplateResponse(request, "vocals.html", {
                 "error": "Recipients required for encrypted voice messages.",
                 "myIPFS": await get_myipfs_gateway()
             })
@@ -742,8 +729,7 @@ async def process_vocals_message(
             if not isinstance(recipients_list, list) or len(recipients_list) == 0:
                 raise ValueError("Recipients must be a non-empty array")
         except Exception as e:
-            return templates.TemplateResponse("vocals.html", {
-                "request": request,
+            return templates.TemplateResponse(request, "vocals.html", {
                 "error": f"Invalid recipients format: {e}",
                 "myIPFS": await get_myipfs_gateway()
             })
@@ -788,14 +774,12 @@ async def process_vocals_message(
                     payload["reply_to_pubkey"]   = reply_to_pubkey
                 dm_sent = await _send_roaming_media_event_dm(user_dir, "vocals", payload)
                 if dm_sent:
-                    return templates.TemplateResponse("vocals.html", {
-                        "request": request,
+                    return templates.TemplateResponse(request, "vocals.html", {
                         "success": "Message vocal transmis à la home station (roaming).",
                         "event_id": "",
                         "myIPFS": await get_myipfs_gateway()
                     })
-            return templates.TemplateResponse("vocals.html", {
-                "request": request,
+            return templates.TemplateResponse(request, "vocals.html", {
                 "error": "NOSTR authentication required.",
                 "myIPFS": await get_myipfs_gateway()
             })
@@ -820,8 +804,7 @@ async def process_vocals_message(
         
         publish_script = settings.TOOLS_PATH / "publish_nostr_vocal.sh"
         if not os.path.exists(publish_script):
-            return templates.TemplateResponse("vocals.html", {
-                "request": request,
+            return templates.TemplateResponse(request, "vocals.html", {
                 "error": "NOSTR publish script not found.",
                 "myIPFS": await get_myipfs_gateway()
             })
@@ -881,28 +864,24 @@ async def process_vocals_message(
             try:
                 result_json = safe_json_load(stdout.decode().strip())
                 nostr_event_id = result_json.get('event_id', '')
-                return templates.TemplateResponse("vocals.html", {
-                    "request": request,
+                return templates.TemplateResponse(request, "vocals.html", {
                     "success": f"Voice message published successfully! Event ID: {nostr_event_id[:16]}...",
                     "event_id": nostr_event_id,
                     "myIPFS": await get_myipfs_gateway()
                 })
             except ValueError:
-                return templates.TemplateResponse("vocals.html", {
-                    "request": request,
+                return templates.TemplateResponse(request, "vocals.html", {
                     "error": "Voice message published but could not parse response.",
                     "myIPFS": await get_myipfs_gateway()
                 })
         else:
-            return templates.TemplateResponse("vocals.html", {
-                "request": request,
+            return templates.TemplateResponse(request, "vocals.html", {
                 "error": f"Failed to publish voice message: {stderr.decode()}",
                 "myIPFS": await get_myipfs_gateway()
             })
             
     except Exception as e:
-        return templates.TemplateResponse("vocals.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "vocals.html", {
             "error": f"Error processing voice message: {str(e)}",
             "myIPFS": await get_myipfs_gateway()
         })

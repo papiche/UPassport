@@ -168,8 +168,7 @@ async def chat_route(request: Request, room: Optional[str] = None):
                 if geolinks_result.get('regions'):
                     region_hex = geolinks_result['regions'].get('here')
         
-        return templates.TemplateResponse("chat.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "chat.html", {
             "myIPFS": myipfs_gateway,
             "room": room,
             "umap_lat": umap_lat,
