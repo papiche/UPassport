@@ -775,6 +775,32 @@ async def oc_webhook(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/coinflip/can_play")
+async def coinflip_can_play(pubkey: str):
+    """
+    Vérifie si un joueur peut jouer en mode live sur cette station.
+    Retourne is_local=True si le répertoire NIP-42 existe localement sans flag .roaming.
+    Remplace la vérification hostname côté client dans coinflip.html.
+    """
+    if not pubkey or len(pubkey) != 64 or not all(c in "0123456789abcdef" for c in pubkey.lower()):
+        return JSONResponse({"is_local": False, "source": "invalid_pubkey"})
+    try:
+        user_dir = find_user_directory_by_hex(pubkey.lower())
+        if not user_dir or not user_dir.exists():
+            return JSONResponse({"is_local": False, "source": "unknown"})
+        roaming_flag = user_dir / ".roaming"
+        source_file = user_dir / "SOURCE"
+        source = source_file.read_text().strip() if source_file.exists() else "LOCAL"
+        if roaming_flag.exists():
+            return JSONResponse({"is_local": False, "source": source})
+        return JSONResponse({"is_local": True, "source": source})
+    except HTTPException:
+        return JSONResponse({"is_local": False, "source": "unknown"})
+    except Exception as e:
+        logging.warning(f"[coinflip/can_play] {e}")
+        return JSONResponse({"is_local": False, "source": "error"})
+
+
 @router.post("/coinflip/start", response_model=CoinflipStartResponse)
 async def coinflip_start(payload: CoinflipStartRequest):
     data = verify_token(payload.token)
