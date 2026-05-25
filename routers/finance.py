@@ -112,15 +112,15 @@ async def generate_balance_html_page(identifier: str, balance_data: Dict[str, An
             badges = []
             if "balance" in balance_data:
                 badges.append(f"👛 {convert_g1_to_zen(balance_data['balance'])} Ẑ")
-            if "balance_zencard" in balance_data:
-                badges.append(f"💳 {convert_g1_to_zen(balance_data['balance_zencard'])} Ẑ")
+            if "g1pub_zencard" in balance_data:
+                badges.append("💳 ZenCard")
             suffix = "  ·  ".join(badges)
             title = f"{identifier}  ·  {suffix}  ·  {timestamp}"
         else:
             title = f"{identifier[:32]}…  ·  {timestamp}" if len(identifier) > 32 else f"{identifier}  ·  {timestamp}"
         
         message_parts = []
-        has_multiple_balances = "balance_zencard" in balance_data
+        has_multiple_balances = "g1pub_zencard" in balance_data
         
         async def get_nostr_profile_url(email_param):
             ipfs_gateway = await get_myipfs_gateway()
@@ -186,18 +186,17 @@ async def generate_balance_html_page(identifier: str, balance_data: Dict[str, An
                 </div>
                 """)
 
-            if "balance_zencard" in balance_data:
-                zen_balance_zencard = convert_g1_to_zen(balance_data['balance_zencard'])
+            if "g1pub_zencard" in balance_data:
+                # ZenCard : la valeur = ẐEN ayant transité via SOCIETY (pas le solde G1 = 1 Ğ1)
                 g1pub_zc = balance_data.get('g1pub_zencard', '')
                 g1pub_zc_html = f'<div class="g1pub">{g1pub_zc[:24]}…{g1pub_zc[-8:]}</div>' if g1pub_zc else ''
 
                 message_parts.append(f"""
                 <div class="ucard" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
                     <h3>💳 ZEN Card</h3>
-                    <div class="balance">{zen_balance_zencard}</div>
-                    <div class="unit">Ẑen</div>
+                    <div class="unit" style="font-size:0.85em;opacity:0.85;">ẐEN reçus via société</div>
                     {g1pub_zc_html}
-                    <a class="btn" href="/check_zencard?email={email_param}&html=1" target="_blank">📊 Historique</a>
+                    <a class="btn" href="/check_zencard?email={email_param}&html=1" target="_blank">📊 Historique transit</a>
                 </div>
                 """)
 
@@ -374,17 +373,9 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
                     })
             
             if zencard_g1pub:
-                try:
-                    zencard_balance = await check_balance(zencard_g1pub)
-                    result.update({
-                        "g1pub_zencard": zencard_g1pub,
-                        "balance_zencard": zencard_balance
-                    })
-                except Exception:
-                    result.update({
-                        "g1pub_zencard": zencard_g1pub,
-                        "balance_zencard": "error"
-                    })
+                # ZenCard : solde G1 toujours = 1 Ğ1 (PAF) — ne pas appeler check_balance.
+                # La valeur réelle = ẐEN ayant transité, exposée par /check_zencard (G1zencard_history.sh).
+                result["g1pub_zencard"] = zencard_g1pub
             
             return await generate_balance_html_page(email, result)
             
