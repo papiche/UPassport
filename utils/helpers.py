@@ -54,13 +54,10 @@ async def execute_bash_json_script(script_name: str, args: list = None, timeout:
 
 def render_page(request: Request, template_name: str, context: dict = None):
     """Raccourci pour rendre un template avec les variables de base (myIPFS)."""
-    base_context = {
-        "request": request,
-        "myIPFS": settings.myIPFS
-    }
+    base_context = {"myIPFS": settings.myIPFS}
     if context:
         base_context.update(context)
-    return templates.TemplateResponse(template_name, base_context)
+    return templates.TemplateResponse(request, template_name, base_context)
 
 async def run_script(script_path, *args, log_file_path=None):
     if log_file_path is None:
