@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 import secrets
 import logging
@@ -67,8 +68,10 @@ def get_nostr_relay_url() -> str:
 
 async def fetch_video_event_from_nostr(event_id: str, timeout: int = 5) -> Optional[Dict[str, Any]]:
     """Fetch video event (kind 21 or 22) from NOSTR relay by event ID"""
-    if not event_id or len(event_id) != 64:
-        logging.warning(f"Invalid event ID format: {event_id}")
+    if not event_id:
+        return None
+    if len(event_id) != 64 or not re.match(r'^[0-9a-fA-F]{64}$', event_id):
+        logging.warning(f"Invalid event ID format: {event_id[:32]}{'...' if len(event_id) > 32 else ''}")
         return None
     
     relay_url = get_nostr_relay_url()

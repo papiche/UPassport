@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any
 
 import aiofiles
 from fastapi import APIRouter, Request, Form, UploadFile, File, HTTPException, Depends
-from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from utils.helpers import run_script, get_myipfs_gateway, as_form, render_page
@@ -37,6 +37,10 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 from utils.helpers import send_server_side_analytics
+
+@router.head("/theater")
+async def theater_modal_head(request: Request, video: Optional[str] = None):
+    return Response(status_code=200)
 
 @router.get("/theater", response_class=HTMLResponse)
 async def theater_modal_route(request: Request, video: Optional[str] = None):
