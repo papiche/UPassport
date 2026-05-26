@@ -18,6 +18,7 @@ from core.config import settings
 from utils.helpers import get_myipfs_gateway, get_env_from_mysh
 from services.nostr import verify_nostr_auth, generate_nip42_challenge, NIP42_CHALLENGE_TTL
 from utils.crypto import hex_to_npub, npub_to_hex
+from utils.security import find_user_directory_by_hex
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -287,45 +288,20 @@ async def get_my_gps_coordinates(npub: str):
                 )
             raise HTTPException(status_code=403, detail=detail)
         
-        pubkey_hex = npub
-        if npub.startswith('npub1'):
-            try:
-                from nostr_sdk import PublicKey
-                pubkey_hex = PublicKey.from_bech32(npub).to_hex()
-            except:
-                pass
-        
-        game_nostr_path = settings.ZEN_PATH / "game" / "nostr"
-        
-        if not game_nostr_path.exists():
-            raise HTTPException(
-                status_code=404,
-                detail={"error": "directory_not_found", "message": "NOSTR game directory not found"}
-            )
-        
+        pubkey_hex = npub_to_hex(npub) if npub.startswith('npub1') else npub
+        if not pubkey_hex:
+            raise HTTPException(status_code=400, detail={"error": "invalid_npub", "message": "Impossible de décoder le npub."})
+
         gps_file_path = None
         user_email = None
         user_dir = None
-
-        for email_dir in game_nostr_path.iterdir():
-            if not email_dir.is_dir():
-                continue
-
-            pub_key_file = email_dir / "HEX"
-            if pub_key_file.exists():
-                try:
-                    stored_pubkey = pub_key_file.read_text().strip()
-                    if stored_pubkey == pubkey_hex or stored_pubkey == npub:
-                        user_email = email_dir.name
-                        user_dir = email_dir
-                        gps_file = email_dir / "GPS"
-                        if gps_file.exists():
-                            gps_file_path = gps_file
-                        break
-                except Exception:
-                    continue
-
-        if not user_dir:
+        try:
+            user_dir = find_user_directory_by_hex(pubkey_hex)
+            user_email = user_dir.name
+            gps_file = user_dir / "GPS"
+            if gps_file.exists():
+                gps_file_path = gps_file
+        except HTTPException:
             return {
                 "success": True,
                 "coordinates": {"lat": 0.00, "lon": 0.00},
@@ -334,7 +310,7 @@ async def get_my_gps_coordinates(npub: str):
                 "source": "unknown",
                 "home_station_url": None,
                 "ipfsnodeid": None,
-                "message": "GPS not yet set for this user",
+                "message": "User not registered on this station",
                 "timestamp": datetime.now().isoformat(),
             }
 
