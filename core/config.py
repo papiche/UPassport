@@ -80,6 +80,9 @@ class Settings(BaseSettings):
         "wss://g1.axiom-team.fr:443/ws/",
     ]
 
+    # Logging
+    LOG_LEVEL: str = "INFO"  # DEBUG | INFO | WARNING | ERROR
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()

@@ -1,5 +1,6 @@
 import os
 import logging
+logger = logging.getLogger(__name__)
 import asyncio
 from pathlib import Path
 from typing import Dict, Any
@@ -57,32 +58,32 @@ async def run_uDRIVE_generation_script(source_dir: Path, enable_logging: bool = 
         if generic_script_path.exists():
             if script_path.exists():
                 script_path.unlink()
-                logging.warning(f"Fichier existant non symlinké ou cassé supprimé: {script_path}")
+                logger.warning(f"Fichier existant non symlinké ou cassé supprimé: {script_path}")
 
             script_path.symlink_to(generic_script_path)
-            logging.info(f"Lien symbolique créé vers {script_path}")
+            logger.info(f"Lien symbolique créé vers {script_path}")
         else:
             fallback_script_path = settings.BASE_DIR / "generate_ipfs_structure.sh"
             if fallback_script_path.exists():
                 if script_path.exists():
                     script_path.unlink()
-                    logging.warning(f"Fichier existant non symlinké ou cassé supprimé: {script_path} (fallback)")
+                    logger.warning(f"Fichier existant non symlinké ou cassé supprimé: {script_path} (fallback)")
                 script_path.symlink_to(fallback_script_path)
-                logging.info(f"Lien symbolique créé (fallback) de {fallback_script_path} vers {script_path}")
+                logger.info(f"Lien symbolique créé (fallback) de {fallback_script_path} vers {script_path}")
             else:
                 raise HTTPException(
                     status_code=500, 
                     detail=f"Script generate_ipfs_structure.sh non trouvé dans {generic_script_path} ni dans {fallback_script_path}"
                 )
     else:
-        logging.info(f"Utilisation du script utilisateur existant (lien symbolique): {script_path}")
+        logger.info(f"Utilisation du script utilisateur existant (lien symbolique): {script_path}")
     
     if not os.access(script_path.resolve(), os.X_OK):
         try:
             os.chmod(script_path.resolve(), 0o755)
-            logging.info(f"Rendu exécutable le script cible: {script_path.resolve()}")
+            logger.info(f"Rendu exécutable le script cible: {script_path.resolve()}")
         except Exception as e:
-            logging.error(f"Impossible de rendre exécutable le script cible {script_path.resolve()}: {e}")
+            logger.error(f"Impossible de rendre exécutable le script cible {script_path.resolve()}: {e}")
             raise HTTPException(status_code=500, detail=f"Script IPFS non exécutable: {e}")
 
     cmd = [str(script_path)]
@@ -104,9 +105,9 @@ async def run_uDRIVE_generation_script(source_dir: Path, enable_logging: bool = 
         if return_code == 0:
             final_cid = stdout.decode().strip().split('\n')[-1] if stdout.strip() else None
             
-            logging.info(f"Script IPFS exécuté avec succès depuis {app_udrive_path}")
-            logging.info(f"Nouveau CID généré: {final_cid}")
-            logging.info(f"Répertoire traité: {source_dir}")
+            logger.info(f"Script IPFS exécuté avec succès depuis {app_udrive_path}")
+            logger.info(f"Nouveau CID généré: {final_cid}")
+            logger.info(f"Répertoire traité: {source_dir}")
             
             return {
                 "success": True,
@@ -118,15 +119,15 @@ async def run_uDRIVE_generation_script(source_dir: Path, enable_logging: bool = 
                 "processed_directory": str(source_dir)
             }
         else:
-            logging.error(f"Script failed with return code {return_code}")
-            logging.error(f"Stderr: {stderr.decode()}")
+            logger.error(f"Script failed with return code {return_code}")
+            logger.error(f"Stderr: {stderr.decode()}")
             raise HTTPException(
                 status_code=500,
                 detail=f"Erreur lors de l'exécution du script: {stderr.decode()}"
             )
             
     except Exception as e:
-        logging.error(f"Exception lors de l'exécution du script: {str(e)}")
+        logger.error(f"Exception lors de l'exécution du script: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 async def fetch_info_json(cid: str) -> Dict[str, Any]:
@@ -140,5 +141,5 @@ async def fetch_info_json(cid: str) -> Dict[str, Any]:
             if info_response.status_code == 200:
                 return info_response.json()
     except Exception as e:
-        logging.warning(f"⚠️ Could not fetch info.json from IPFS: {e}")
+        logger.warning(f"⚠️ Could not fetch info.json from IPFS: {e}")
     return {}

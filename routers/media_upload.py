@@ -5,6 +5,7 @@ import uuid
 import base64
 import hashlib
 import logging
+logger = logging.getLogger(__name__)
 import asyncio
 import traceback
 import re
@@ -117,14 +118,14 @@ async def _resolve_home_node_hex(user_dir: Path) -> str:
                             candidate = hs.split(":", 1)[1].strip()
                             if len(candidate) == 64:
                                 home_station_file.write_text(hs.strip() + "\n")
-                                logging.info(
+                                logger.info(
                                     f"Roaming: home_station résolu via kind 0 relay pour {user_email}"
                                 )
                                 return candidate
                     except Exception:
                         pass
             except Exception as e:
-                logging.debug(f"Roaming: strfry scan kind 0 échec: {e}")
+                logger.debug(f"Roaming: strfry scan kind 0 échec: {e}")
 
     # 3. Scan swarm TW : trouver la station qui héberge cet email
     swarm_dir = settings.ZEN_PATH / "tmp" / "swarm"
@@ -141,7 +142,7 @@ async def _resolve_home_node_hex(user_dir: Path) -> str:
                         if len(candidate) == 64:
                             hid = data.get("ipfsnodeid", station_dir.name)
                             home_station_file.write_text(f"{hid}:{candidate}\n")
-                            logging.info(
+                            logger.info(
                                 f"Roaming: home_station résolu via swarm TW pour {user_email}"
                             )
                             return candidate
@@ -188,14 +189,14 @@ async def _resolve_home_node_hex(user_dir: Path) -> str:
                     candidate = content.split(":", 1)[1].strip()
                     if len(candidate) == 64:
                         home_station_file.write_text(content + "\n")
-                        logging.info(
+                        logger.info(
                             f"Roaming: home.station récupéré via HOME_IPFSNODEID IPNS pour {user_email}"
                         )
                         return candidate
             except Exception:
                 pass
 
-    logging.warning(f"Roaming: home_node_hex introuvable pour {user_email}")
+    logger.warning(f"Roaming: home_node_hex introuvable pour {user_email}")
     return ""
 
 
@@ -217,7 +218,7 @@ async def _maybe_send_roaming_dm(
 
     node_nsec = _get_node_nsec()
     if not node_nsec:
-        logging.warning(f"Roaming DM: secret.nostr absent pour {user_email}")
+        logger.warning(f"Roaming DM: secret.nostr absent pour {user_email}")
         return False
 
     ft_map = {"image": "image", "video": "video", "audio": "audio", "document": "document"}
@@ -242,18 +243,18 @@ async def _maybe_send_roaming_dm(
         )
         _, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
         if proc.returncode == 0:
-            logging.info(
+            logger.info(
                 f"✈️ Roaming DM OK: {user_email} → {home_node_hex[:12]}… "
                 f"file={sanitized_filename} cid={file_cid[:12]}…"
             )
             return True
-        logging.warning(
+        logger.warning(
             f"✈️ Roaming DM échec (code {proc.returncode}): {stderr.decode()[:200]}"
         )
     except asyncio.TimeoutError:
-        logging.warning(f"✈️ Roaming DM timeout pour {user_email}")
+        logger.warning(f"✈️ Roaming DM timeout pour {user_email}")
     except Exception as e:
-        logging.warning(f"✈️ Roaming DM erreur: {e}")
+        logger.warning(f"✈️ Roaming DM erreur: {e}")
     return False
 
 
@@ -271,7 +272,7 @@ async def _send_roaming_media_event_dm(
 
     node_nsec = _get_node_nsec()
     if not node_nsec:
-        logging.warning(f"Roaming {channel} DM: secret.nostr absent")
+        logger.warning(f"Roaming {channel} DM: secret.nostr absent")
         return False
 
     intercom = settings.TOOLS_PATH / "nostr_node_intercom.py"
@@ -291,17 +292,17 @@ async def _send_roaming_media_event_dm(
         )
         _, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
         if proc.returncode == 0:
-            logging.info(
+            logger.info(
                 f"✈️ Roaming {channel} DM OK: {user_dir.name} → {home_node_hex[:12]}…"
             )
             return True
-        logging.warning(
+        logger.warning(
             f"✈️ Roaming {channel} DM échec (code {proc.returncode}): {stderr.decode()[:200]}"
         )
     except asyncio.TimeoutError:
-        logging.warning(f"✈️ Roaming {channel} DM timeout")
+        logger.warning(f"✈️ Roaming {channel} DM timeout")
     except Exception as e:
-        logging.warning(f"✈️ Roaming {channel} DM erreur: {e}")
+        logger.warning(f"✈️ Roaming {channel} DM erreur: {e}")
     return False
 
 @as_form
@@ -434,7 +435,7 @@ async def process_webcam_video(
                             try: file_size = int(info_data["fileSize"])
                             except (ValueError, TypeError): pass
             except Exception as e:
-                logging.warning(f"Could not load metadata from info.json: {e}")
+                logger.warning(f"Could not load metadata from info.json: {e}")
         
         final_thumbnail_ipfs = thumbnail_ipfs if thumbnail_ipfs else thumbnail_ipfs_from_info
         final_gifanim_ipfs = gifanim_ipfs if gifanim_ipfs else gifanim_ipfs_from_info
@@ -633,7 +634,7 @@ async def process_webcam_video(
                             if not re.match(r'^[a-f0-9]{64}$', nostr_event_id):
                                 nostr_event_id = ""
             except Exception as e:
-                logging.error(f"Error during NOSTR publishing: {e}")
+                logger.error(f"Error during NOSTR publishing: {e}")
 
         success_message = f"Video processed successfully! IPFS: {ipfs_url}"
         if nostr_event_id:
@@ -653,7 +654,7 @@ async def process_webcam_video(
         })
 
     except Exception as e:
-        logging.error(f"Error processing webcam video: {e}")
+        logger.error(f"Error processing webcam video: {e}")
         return templates.TemplateResponse(request, "webcam.html", {
             "error": f"Error processing video: {str(e)}", 
             "recording": False
@@ -1129,7 +1130,7 @@ async def upload_file_to_ipfs(
                     try:
                         cid = await store_cookie_encrypted(user_root_dir, detected_domain, file_content)
                     except Exception as _e:
-                        logging.warning(f"Cookie IPFS/NOSTR store failed (non-fatal): {_e}")
+                        logger.warning(f"Cookie IPFS/NOSTR store failed (non-fatal): {_e}")
 
                     return UploadResponse(
                         success=True,
@@ -1148,7 +1149,7 @@ async def upload_file_to_ipfs(
             except UnicodeDecodeError:
                 pass
             except Exception as e:
-                logging.warning(f"Cookie file processing error: {e}")
+                logger.warning(f"Cookie file processing error: {e}")
 
         if file_type == 'image':
             target_dir = user_drive_path / "Images"
@@ -1384,9 +1385,9 @@ async def upload_file_to_ipfs(
                 try:
                     ipfs_result = await run_uDRIVE_generation_script(user_drive_path)
                     udrive_cid = ipfs_result.get("final_cid") or file_cid
-                    logging.info(f"uDRIVE regenerated after upload: {udrive_cid}")
+                    logger.info(f"uDRIVE regenerated after upload: {udrive_cid}")
                 except Exception as gen_err:
-                    logging.warning(f"uDRIVE generation failed, returning file CID: {gen_err}")
+                    logger.warning(f"uDRIVE generation failed, returning file CID: {gen_err}")
 
                 return UploadResponse(
                     success=True,
@@ -1428,7 +1429,7 @@ from models.schemas import UploadFromDriveRequest, UploadFromDriveResponse
 @router.post("/api/upload_from_drive", response_model=UploadFromDriveResponse)
 async def upload_from_drive(request: Request, payload: UploadFromDriveRequest):
     if payload.owner_hex_pubkey or payload.owner_email:
-        logging.info(f"Sync from drive - Source owner: {payload.owner_email} (hex: {payload.owner_hex_pubkey[:12] if payload.owner_hex_pubkey else 'N/A'}...)")
+        logger.info(f"Sync from drive - Source owner: {payload.owner_email} (hex: {payload.owner_hex_pubkey[:12] if payload.owner_hex_pubkey else 'N/A'}...)")
     
     payload.npub = await require_nostr_auth(request, payload.npub)
 
@@ -1466,7 +1467,7 @@ async def upload_from_drive(request: Request, payload: UploadFromDriveRequest):
 
     try:
         full_ipfs_url = f"/ipfs/{payload.ipfs_link}"
-        logging.info(f"Attempting to download IPFS link: {full_ipfs_url} to {target_file_path}")
+        logger.info(f"Attempting to download IPFS link: {full_ipfs_url} to {target_file_path}")
 
         ipfs_get_command = ["ipfs", "get", "-o", str(target_file_path), full_ipfs_url]
         process = await asyncio.create_subprocess_exec(
@@ -1478,15 +1479,15 @@ async def upload_from_drive(request: Request, payload: UploadFromDriveRequest):
 
         if process.returncode != 0:
             error_message = stderr.decode().strip()
-            logging.error(f"IPFS download failed for {full_ipfs_url}: {error_message}")
+            logger.error(f"IPFS download failed for {full_ipfs_url}: {error_message}")
             raise Exception(f"IPFS download failed: {error_message}")
 
         file_size = target_file_path.stat().st_size
-        logging.info(f"File '{sanitized_filename}' downloaded from IPFS and saved to '{target_file_path}' (Size: {file_size} bytes)")
+        logger.info(f"File '{sanitized_filename}' downloaded from IPFS and saved to '{target_file_path}' (Size: {file_size} bytes)")
 
         ipfs_result = await run_uDRIVE_generation_script(user_drive_path)
         new_cid_info = ipfs_result.get("final_cid")
-        logging.info(f"New IPFS CID generated: {new_cid_info}")
+        logger.info(f"New IPFS CID generated: {new_cid_info}")
 
         return UploadFromDriveResponse(
             success=True,
@@ -1498,7 +1499,7 @@ async def upload_from_drive(request: Request, payload: UploadFromDriveRequest):
             auth_verified=True
         )
     except Exception as e:
-        logging.error(f"Error downloading from IPFS or saving file: {e}")
+        logger.error(f"Error downloading from IPFS or saving file: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to synchronize file: {e}")
 
 @router.post("/upload2ipfs")
@@ -1521,13 +1522,13 @@ async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
             if auth_event.get("kind") == 27235 and "pubkey" in auth_event:
                 user_pubkey_hex = auth_event["pubkey"]
                 user_npub = hex_to_npub(user_pubkey_hex) if user_pubkey_hex else None
-                logging.info(f"🔑 NIP-98 Auth: Provenance tracking enabled for user: {user_pubkey_hex[:16]}...")
+                logger.info(f"🔑 NIP-98 Auth: Provenance tracking enabled for user: {user_pubkey_hex[:16]}...")
             else:
-                logging.warning(f"⚠️ Invalid NIP-98 event: kind={auth_event.get('kind')}")
+                logger.warning(f"⚠️ Invalid NIP-98 event: kind={auth_event.get('kind')}")
         else:
-            logging.info(f"ℹ️ No NIP-98 Authorization header, uploading without provenance tracking")
+            logger.info(f"ℹ️ No NIP-98 Authorization header, uploading without provenance tracking")
     except Exception as e:
-        logging.warning(f"⚠️ Could not extract pubkey from NIP-98 Authorization header: {e}")
+        logger.warning(f"⚠️ Could not extract pubkey from NIP-98 Authorization header: {e}")
     
     if user_npub:
         max_size_bytes = get_max_file_size_for_user(user_npub)
@@ -1625,7 +1626,7 @@ async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
 
                 return JSONResponse(content=nip96_response)
             except (json.JSONDecodeError, FileNotFoundError) as e:
-                logging.error(f"Failed to decode JSON from temp file: {temp_file_path}, Error: {e}")
+                logger.error(f"Failed to decode JSON from temp file: {temp_file_path}, Error: {e}")
                 raise HTTPException(status_code=500, detail="Failed to process script output.")
             finally:
                 if os.path.exists(temp_file_path):
@@ -1633,14 +1634,14 @@ async def upload_to_ipfs(request: Request, file: UploadFile = File(...)):
                 if os.path.exists(file_location):
                     os.remove(file_location)
         else:
-            logging.error(f"Script execution failed: {last_line.strip()}")
+            logger.error(f"Script execution failed: {last_line.strip()}")
             if os.path.exists(file_location):
                 os.remove(file_location)
             raise HTTPException(status_code=500, detail="Script execution failed.")
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"An unexpected error occurred: {e}")
+        logger.error(f"An unexpected error occurred: {e}")
         if os.path.exists(file_location):
             os.remove(file_location)
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
@@ -1711,7 +1712,7 @@ async def _upload_image_to_ipfs(filepath: str) -> tuple:
                     return cid, ipfs_url
         return None, None
     except Exception as e:
-        logging.error(f"IPFS image upload error: {e}")
+        logger.error(f"IPFS image upload error: {e}")
         return None, None
 
 @router.post("/api/upload/image")
@@ -1819,9 +1820,9 @@ async def blossom_upload(request: Request):
                 if tag[0] == "x" and len(tag) > 1:
                     expected_sha256 = tag[1]
                     break
-            logging.info(f"[Blossom] Auth event from pubkey={pubkey_hex[:16] if pubkey_hex else 'unknown'}…")
+            logger.info(f"[Blossom] Auth event from pubkey={pubkey_hex[:16] if pubkey_hex else 'unknown'}…")
         except Exception as e:
-            logging.warning(f"[Blossom] Could not parse Authorization header: {e}")
+            logger.warning(f"[Blossom] Could not parse Authorization header: {e}")
 
     # ── 2. Lire le corps brut ─────────────────────────────────────────────
     content = await request.body()
@@ -1831,7 +1832,7 @@ async def blossom_upload(request: Request):
     # ── 3. Vérifier le SHA-256 si fourni dans l'event ────────────────────
     file_hash = hashlib.sha256(content).hexdigest()
     if expected_sha256 and file_hash != expected_sha256:
-        logging.warning(f"[Blossom] SHA-256 mismatch: expected={expected_sha256} got={file_hash}")
+        logger.warning(f"[Blossom] SHA-256 mismatch: expected={expected_sha256} got={file_hash}")
         raise HTTPException(status_code=400, detail="File hash does not match authorization")
 
     # ── 4. Déterminer le type MIME depuis les headers ────────────────────
@@ -1857,7 +1858,7 @@ async def blossom_upload(request: Request):
     async with aiofiles.open(str(filepath), 'wb') as f_out:
         await f_out.write(content)
 
-    logging.info(f"[Blossom] Saved {len(content)} bytes → {filepath}")
+    logger.info(f"[Blossom] Saved {len(content)} bytes → {filepath}")
 
     # ── 6. Uploader sur IPFS ──────────────────────────────────────────────
     cid, ipfs_url = await _upload_image_to_ipfs(str(filepath))

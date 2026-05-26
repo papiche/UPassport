@@ -1,5 +1,6 @@
 import os
 import logging
+logger = logging.getLogger(__name__)
 from typing import Optional
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -50,13 +51,13 @@ async def ustats(request: Request, lat: str = None, lon: str = None, deg: str = 
                     content = await f.read()
                 return JSONResponse(content=json.loads(content))
             except Exception as e:
-                logging.error(f"Error reading file: {e}")
+                logger.error(f"Error reading file: {e}")
                 raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
         else:
             try:
                 return JSONResponse(content=json.loads(last_line))
             except json.JSONDecodeError as e:
-                logging.error(f"Error parsing JSON: {e}")
+                logger.error(f"Error parsing JSON: {e}")
                 raise HTTPException(status_code=500, detail=f"Error parsing JSON: {str(e)}")
     else:
         raise HTTPException(status_code=500, detail="Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ./tmp/54321.log.")
@@ -253,7 +254,7 @@ async def get_oracle(
                     "issued_credential_id": None
                 })
         except Exception as e:
-            logging.warning(f"Could not fetch requests from Nostr: {e}")
+            logger.warning(f"Could not fetch requests from Nostr: {e}")
         
         credentials_list = []
         for cred_id, cred in oracle_system.credentials.items():
@@ -298,7 +299,7 @@ async def get_oracle(
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error in get_oracle: {e}", exc_info=True)
+        logger.error(f"Error in get_oracle: {e}", exc_info=True)
         if html is not None:
             return HTMLResponse(
                 content=f"<html><body><h1>Error</h1><p>{str(e)}</p></body></html>", 
@@ -366,7 +367,7 @@ async def get_wotx2(request: Request, npub: Optional[str] = None, permit_id: Opt
                         "metadata": selected_permit.metadata
                     }
             except Exception as e:
-                logging.warning(f"Error fetching permits from Nostr: {e}")
+                logger.warning(f"Error fetching permits from Nostr: {e}")
         
         is_primary_station = False
         ipfs_node_id = await get_env_from_mysh("IPFSNODEID", "")
@@ -392,9 +393,9 @@ async def get_wotx2(request: Request, npub: Optional[str] = None, permit_id: Opt
                         
                         if straps and straps[0] == ipfs_node_id:
                             is_primary_station = True
-                            logging.info(f"⭐ PRIMARY STATION DETECTED - IPFSNODEID {ipfs_node_id} matches first STRAP")
+                            logger.info(f"⭐ PRIMARY STATION DETECTED - IPFSNODEID {ipfs_node_id} matches first STRAP")
                 except Exception as e:
-                    logging.warning(f"Error reading bootstrap nodes file: {e}")
+                    logger.warning(f"Error reading bootstrap nodes file: {e}")
         
         return render_page(request, "wotx2.html", {
             "permit_data": selected_permit_data,
@@ -408,7 +409,7 @@ async def get_wotx2(request: Request, npub: Optional[str] = None, permit_id: Opt
         })
         
     except Exception as e:
-        logging.error(f"Error in get_wotx2: {e}", exc_info=True)
+        logger.error(f"Error in get_wotx2: {e}", exc_info=True)
         return HTMLResponse(
             content=f"<html><body><h1>Error</h1><p>{str(e)}</p></body></html>", 
             status_code=500
@@ -436,7 +437,7 @@ async def get_wotx2_renewal(
         })
         
     except Exception as e:
-        logging.error(f"Error in get_wotx2_renewal: {e}", exc_info=True)
+        logger.error(f"Error in get_wotx2_renewal: {e}", exc_info=True)
         return HTMLResponse(
             content=f"<html><body><h1>Error</h1><p>{str(e)}</p></body></html>", 
             status_code=500

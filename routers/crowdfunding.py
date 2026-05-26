@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+logger = logging.getLogger(__name__)
 import subprocess
 from typing import List, Dict, Any, Optional
 
@@ -98,7 +99,7 @@ def parse_project_json(project_id: str) -> Optional[Dict[str, Any]]:
 @router.post("/api/crowdfunding/create")
 async def crowdfunding_create(request: CrowdfundingCreateRequest):
     """Create a new crowdfunding project"""
-    logging.info(f"Creating crowdfunding project: {request.name} at ({request.lat}, {request.lon})")
+    logger.info(f"Creating crowdfunding project: {request.name} at ({request.lat}, {request.lon})")
     
     result = await run_crowdfunding_command([
         "create",
@@ -193,7 +194,7 @@ async def crowdfunding_status(project_id: str):
 @router.post("/api/crowdfunding/add-owner")
 async def crowdfunding_add_owner(request: CrowdfundingAddOwnerRequest):
     """Add an owner to a crowdfunding project"""
-    logging.info(f"Adding owner {request.email} to project {request.project_id}")
+    logger.info(f"Adding owner {request.email} to project {request.project_id}")
     
     args = [
         "add-owner",

@@ -4,6 +4,7 @@ import os
 import json
 import asyncio
 import logging
+logger = logging.getLogger(__name__)
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -59,10 +60,10 @@ async def encrypt_and_pin(content: bytes, pubkey: str) -> Optional[str]:
         try:
             _, err = await asyncio.wait_for(proc.communicate(), timeout=15)
         except asyncio.TimeoutError:
-            logging.warning("natools encrypt timed out")
+            logger.warning("natools encrypt timed out")
             return None
         if proc.returncode != 0 or not enc.exists():
-            logging.warning(f"natools encrypt failed: {err.decode()[:200]}")
+            logger.warning(f"natools encrypt failed: {err.decode()[:200]}")
             return None
 
         proc2 = await asyncio.create_subprocess_exec(
@@ -73,7 +74,7 @@ async def encrypt_and_pin(content: bytes, pubkey: str) -> Optional[str]:
         try:
             out, _ = await asyncio.wait_for(proc2.communicate(), timeout=30)
         except asyncio.TimeoutError:
-            logging.warning("ipfs add timed out for cookie")
+            logger.warning("ipfs add timed out for cookie")
             return None
         if proc2.returncode != 0:
             return None
@@ -100,7 +101,7 @@ async def decrypt_from_ipfs(cid: str, user_dir: Path) -> Optional[bytes]:
         try:
             await asyncio.wait_for(proc.communicate(), timeout=30)
         except asyncio.TimeoutError:
-            logging.warning(f"ipfs get timed out for CID {cid[:20]}")
+            logger.warning(f"ipfs get timed out for CID {cid[:20]}")
             return None
         if not enc.exists():
             return None
@@ -117,7 +118,7 @@ async def decrypt_from_ipfs(cid: str, user_dir: Path) -> Optional[bytes]:
         except asyncio.TimeoutError:
             return None
         if proc2.returncode != 0:
-            logging.warning(f"natools decrypt failed: {err.decode()[:200]}")
+            logger.warning(f"natools decrypt failed: {err.decode()[:200]}")
             return None
         return plain.read_bytes() if plain.exists() else None
 
@@ -126,7 +127,7 @@ async def publish_to_nostr(user_dir: Path, domain: str, cid: str, private: bool 
     """Publish NOSTR kind 31903 event for cookie CID to local relay (non-fatal)."""
     nostr_key = user_dir / ".secret.nostr"
     if not nostr_key.exists():
-        logging.debug(f"No .secret.nostr for {user_dir.name} — skipping NOSTR publish")
+        logger.debug(f"No .secret.nostr for {user_dir.name} — skipping NOSTR publish")
         return
 
     uploaded_at_str = datetime.now(timezone.utc).isoformat()
@@ -168,7 +169,7 @@ async def publish_to_nostr(user_dir: Path, domain: str, cid: str, private: bool 
         )
         await asyncio.wait_for(proc.communicate(), timeout=15)
     except Exception as e:
-        logging.warning(f"NOSTR kind 31903 publish for cookie:{domain} failed: {e}")
+        logger.warning(f"NOSTR kind 31903 publish for cookie:{domain} failed: {e}")
 
 
 async def store_cookie_encrypted(user_dir: Path, domain: str, content: bytes, private: bool = False) -> Optional[str]:
@@ -179,12 +180,12 @@ async def store_cookie_encrypted(user_dir: Path, domain: str, content: bytes, pr
     """
     pubkey = get_user_pubkey(user_dir)
     if not pubkey:
-        logging.info(f"No G1 pubkey for {user_dir.name} — cookie stored on disk only")
+        logger.info(f"No G1 pubkey for {user_dir.name} — cookie stored on disk only")
         return None
 
     cid = await encrypt_and_pin(content, pubkey)
     if not cid:
-        logging.warning(f"encrypt_and_pin failed for {domain} — disk-only fallback")
+        logger.warning(f"encrypt_and_pin failed for {domain} — disk-only fallback")
         return None
 
     manifest = load_manifest(user_dir)
@@ -195,7 +196,7 @@ async def store_cookie_encrypted(user_dir: Path, domain: str, content: bytes, pr
         "domain": domain,
     }
     save_manifest(user_dir, manifest)
-    logging.info(f"Cookie {domain} encrypted → IPFS {cid[:20]}… manifest updated")
+    logger.info(f"Cookie {domain} encrypted → IPFS {cid[:20]}… manifest updated")
 
     # NOSTR publish is fire-and-forget
     asyncio.create_task(publish_to_nostr(user_dir, domain, cid, private=private))

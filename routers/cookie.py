@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -90,7 +91,7 @@ async def get_cookie(
     # Fallback: disk plaintext (backward compat — still present after upload)
     disk = user_dir / f".{domain}.cookie"
     if disk.exists():
-        logging.info(f"Cookie {domain}: IPFS decrypt unavailable, serving disk fallback")
+        logger.info(f"Cookie {domain}: IPFS decrypt unavailable, serving disk fallback")
         return PlainTextResponse(disk.read_text())
 
     raise HTTPException(

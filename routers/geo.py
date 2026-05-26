@@ -2,6 +2,7 @@ import os
 import json
 import time
 import logging
+logger = logging.getLogger(__name__)
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -109,7 +110,7 @@ async def get_umap_geolinks(lat: float, lon: float) -> Dict[str, Any]:
         
     except Exception as e:
         processing_time = int((time.time() - start_time) * 1000)
-        logging.error(f"Erreur lors de la récupération des liens UMAP: {str(e)}")
+        logger.error(f"Erreur lors de la récupération des liens UMAP: {str(e)}")
         
         return {
             "success": False,
@@ -155,7 +156,7 @@ async def chat_route(request: Request, room: Optional[str] = None):
                         if geolinks_result.get('regions'):
                             region_hex = geolinks_result['regions'].get('here')
             except (ValueError, TypeError) as e:
-                logging.warning(f"⚠️ Error parsing room coordinates '{room}': {e}")
+                logger.warning(f"⚠️ Error parsing room coordinates '{room}': {e}")
         else:
             umap_lat = 0.00
             umap_lon = 0.00
@@ -179,7 +180,7 @@ async def chat_route(request: Request, room: Optional[str] = None):
             "region_hex": region_hex
         })
     except Exception as e:
-        logging.error(f"Error serving chat page: {e}")
+        logger.error(f"Error serving chat page: {e}")
         raise HTTPException(status_code=500, detail=f"Error loading chat page: {str(e)}")
 
 @router.get("/api/umap/geolinks", response_model=UmapGeolinksResponse)
@@ -233,7 +234,7 @@ async def get_nip42_challenge(npub: str):
             raise HTTPException(status_code=400, detail="Invalid npub/hex pubkey")
 
         nonce = generate_nip42_challenge(hex_pubkey)
-        logging.info(f"🔑 NIP-42 challenge issued via /api/nip42/challenge for {hex_pubkey[:16]}…")
+        logger.info(f"🔑 NIP-42 challenge issued via /api/nip42/challenge for {hex_pubkey[:16]}…")
         return JSONResponse({
             "challenge": nonce,
             "expires_in": NIP42_CHALLENGE_TTL,
@@ -247,7 +248,7 @@ async def get_nip42_challenge(npub: str):
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error generating NIP-42 challenge: {e}")
+        logger.error(f"Error generating NIP-42 challenge: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -320,8 +321,11 @@ async def get_my_gps_coordinates(npub: str):
         nostrns = None
         source_file = user_dir / "SOURCE"
         roaming_flag = user_dir / ".roaming"
+        logger.info(f"[myGPS] user_dir={user_dir} email={user_email}")
+        logger.info(f"[myGPS] SOURCE exists={source_file.exists()} .roaming exists={roaming_flag.exists()}")
         if source_file.exists():
             raw = source_file.read_text().strip().lower()
+            logger.info(f"[myGPS] SOURCE content: {raw!r}")
             if "swarm" in raw:
                 source = "swarm"
             elif "amis" in raw:
@@ -330,11 +334,14 @@ async def get_my_gps_coordinates(npub: str):
                 source = raw
         elif roaming_flag.exists():
             source = "swarm"
+            logger.info(f"[myGPS] .roaming flag found → source=swarm")
         nostrns_file = user_dir / "NOSTRNS"
         if nostrns_file.exists():
             nostrns = nostrns_file.read_text().strip() or None
+            logger.info(f"[myGPS] NOSTRNS={nostrns}")
         if nostrns:
             home_station_url = f"{settings.myIPFS}/ipns/{nostrns}"
+        logger.info(f"[myGPS] → source={source} home_station_url={home_station_url} gps_file={gps_file_path}")
 
         if not gps_file_path:
             # GPS absent localement — pour un utilisateur roaming, tenter IPFS home station
@@ -358,11 +365,11 @@ async def get_my_gps_coordinates(npub: str):
                             lat = round(_lat, 2)
                             lon = round(_lon, 2)
                             gps_message = "GPS coordinates fetched from home station (roaming)"
-                            logging.info(f"[myGPS] Roaming GPS fetched for {user_email}: {lat},{lon}")
+                            logger.info(f"[myGPS] Roaming GPS fetched for {user_email}: {lat},{lon}")
                         else:
-                            logging.warning(f"[myGPS] Invalid GPS format from home station: {gps_text!r}")
+                            logger.warning(f"[myGPS] Invalid GPS format from home station: {gps_text!r}")
                 except Exception as e:
-                    logging.warning(f"[myGPS] Could not fetch GPS from home station ({ipfs_gps_url}): {e}")
+                    logger.warning(f"[myGPS] Could not fetch GPS from home station ({ipfs_gps_url}): {e}")
 
             ipfs_node_id = await get_env_from_mysh("IPFSNODEID", "")
             if not ipfs_node_id:

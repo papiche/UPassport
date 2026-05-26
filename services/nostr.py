@@ -4,6 +4,7 @@ import re
 import time
 import secrets
 import logging
+logger = logging.getLogger(__name__)
 import asyncio
 import websockets
 from typing import Optional, Dict, Any, List, Tuple
@@ -35,7 +36,7 @@ def generate_nip42_challenge(hex_pubkey: str) -> str:
     """
     nonce = secrets.token_hex(32)          # 64-char cryptographically random hex
     _nip42_challenge_store[hex_pubkey] = (nonce, time.time())
-    logging.info(f"🔑 NIP-42 challenge issued for {hex_pubkey[:16]}…: {nonce[:16]}…")
+    logger.info(f"🔑 NIP-42 challenge issued for {hex_pubkey[:16]}…: {nonce[:16]}…")
     return nonce
 
 
@@ -47,7 +48,7 @@ def get_nip42_challenge(hex_pubkey: str) -> Optional[str]:
     nonce, issued_at = entry
     if time.time() - issued_at > NIP42_CHALLENGE_TTL:
         _nip42_challenge_store.pop(hex_pubkey, None)
-        logging.debug(f"NIP-42 challenge expired for {hex_pubkey[:16]}…")
+        logger.debug(f"NIP-42 challenge expired for {hex_pubkey[:16]}…")
         return None
     return nonce
 
@@ -71,11 +72,11 @@ async def fetch_video_event_from_nostr(event_id: str, timeout: int = 5) -> Optio
     if not event_id:
         return None
     if len(event_id) != 64 or not re.match(r'^[0-9a-fA-F]{64}$', event_id):
-        logging.warning(f"Invalid event ID format: {event_id[:32]}{'...' if len(event_id) > 32 else ''}")
+        logger.warning(f"Invalid event ID format: {event_id[:32]}{'...' if len(event_id) > 32 else ''}")
         return None
     
     relay_url = get_nostr_relay_url()
-    logging.info(f"Fetching video event {event_id[:16]}... from relay: {relay_url}")
+    logger.info(f"Fetching video event {event_id[:16]}... from relay: {relay_url}")
     
     try:
         async with websockets.connect(relay_url, timeout=timeout) as websocket:
@@ -102,29 +103,29 @@ async def fetch_video_event_from_nostr(event_id: str, timeout: int = 5) -> Optio
                             event = parsed_response[2]
                             if event.get("id") == event_id:
                                 event_found = event
-                                logging.info(f"✅ Video event found: {event_id[:16]}...")
+                                logger.info(f"✅ Video event found: {event_id[:16]}...")
                     
                     elif parsed_response[0] == "EOSE":
                         if parsed_response[1] == subscription_id:
                             end_received = True
                     
                     elif parsed_response[0] == "NOTICE":
-                        logging.warning(f"Relay notice: {parsed_response[1] if len(parsed_response) > 1 else 'N/A'}")
+                        logger.warning(f"Relay notice: {parsed_response[1] if len(parsed_response) > 1 else 'N/A'}")
             
             except asyncio.TimeoutError:
-                logging.warning("Timeout waiting for video event")
+                logger.warning("Timeout waiting for video event")
             
             try:
                 close_message = json.dumps(["CLOSE", subscription_id])
                 await websocket.send(close_message)
                 await asyncio.sleep(0.1)
             except Exception as e:
-                logging.warning(f"Error closing subscription: {e}")
+                logger.warning(f"Error closing subscription: {e}")
             
             return event_found
             
     except Exception as e:
-        logging.error(f"Error fetching video event: {e}")
+        logger.error(f"Error fetching video event: {e}")
         return None
 
 async def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -310,7 +311,7 @@ def validate_nip42_event(event: Dict[str, Any], expected_relay_url: str) -> bool
                     break
         
         if not relay_found:
-            logging.warning("Tag 'relay' manquant dans l'événement NIP42")
+            logger.warning("Tag 'relay' manquant dans l'événement NIP42")
         
         event_time = event.get('created_at', 0)
         current_time = int(time.time())
@@ -322,7 +323,7 @@ def validate_nip42_event(event: Dict[str, Any], expected_relay_url: str) -> bool
         return True
         
     except Exception as e:
-        logging.error(f"Erreur lors de la validation de l'événement NIP42: {e}")
+        logger.error(f"Erreur lors de la validation de l'événement NIP42: {e}")
         return False
 
 async def check_nip42_auth_local_marker(hex_pubkey: str) -> bool:
@@ -358,13 +359,13 @@ async def check_nip42_auth_local_marker(hex_pubkey: str) -> bool:
         auth_marker = user_dir / marker_filename
 
         if not auth_marker.exists():
-            logging.debug(f"NIP-42 marker not found: {marker_filename}")
+            logger.debug(f"NIP-42 marker not found: {marker_filename}")
             return False
 
         # ── B. TTL check ──────────────────────────────────────────────────────
         marker_age = time.time() - auth_marker.stat().st_mtime
         if marker_age >= NIP42_MARKER_MAX_AGE:
-            logging.warning(
+            logger.warning(
                 f"⚠️  NIP-42 marker expired for {hex_pubkey[:16]}… "
                 f"(age: {marker_age:.0f}s > {NIP42_MARKER_MAX_AGE}s TTL)"
             )
@@ -377,7 +378,7 @@ async def check_nip42_auth_local_marker(hex_pubkey: str) -> bool:
                 data = json.loads(raw)
                 stored_pubkey = data.get("pubkey", "").lower().strip()
                 if stored_pubkey != hex_pubkey.lower():
-                    logging.warning(
+                    logger.warning(
                         f"⚠️  NIP-42 marker pubkey mismatch for {hex_pubkey[:16]}… "
                         f"(stored: {stored_pubkey[:16]}…) — possible tampering"
                     )
@@ -385,31 +386,31 @@ async def check_nip42_auth_local_marker(hex_pubkey: str) -> bool:
                 event_hash = data.get("event_hash", "")
                 if event_hash:
                     if len(event_hash) == 64 and all(c in "0123456789abcdef" for c in event_hash):
-                        logging.info(
+                        logger.info(
                             f"✅ NIP-42 local-marker auth OK for {hex_pubkey[:16]}… "
                             f"(age: {marker_age:.0f}s, event: {event_hash[:16]}…)"
                         )
                     else:
-                        logging.warning(
+                        logger.warning(
                             f"⚠️  NIP-42 marker event_hash invalid for {hex_pubkey[:16]}… "
                             f"— rejecting"
                         )
                         return False
                 else:
                     # No event hash in JSON – acceptable (hash is optional)
-                    logging.info(
+                    logger.info(
                         f"✅ NIP-42 local-marker auth OK for {hex_pubkey[:16]}… "
                         f"(age: {marker_age:.0f}s, no event_hash)"
                     )
             else:
                 # Empty file – legacy support, accept but log warning
-                logging.warning(
+                logger.warning(
                     f"⚠️  NIP-42 marker is EMPTY for {hex_pubkey[:16]}… "
                     f"— legacy format accepted (upgrade ajouter_media.sh)"
                 )
         except json.JSONDecodeError:
             # Non-JSON file – legacy support, accept but log warning
-            logging.warning(
+            logger.warning(
                 f"⚠️  NIP-42 marker is non-JSON for {hex_pubkey[:16]}… "
                 f"— legacy format accepted (upgrade ajouter_media.sh)"
             )
@@ -417,7 +418,7 @@ async def check_nip42_auth_local_marker(hex_pubkey: str) -> bool:
         return True
 
     except Exception as e:
-        logging.debug(f"NIP-42 local-marker check error: {e}")
+        logger.debug(f"NIP-42 local-marker check error: {e}")
     return False
 
 
@@ -482,18 +483,18 @@ async def check_nip42_auth(npub: str, timeout: int = 5) -> bool:
                             continue
 
                     if valid_events:
-                        logging.info(
+                        logger.info(
                             f"✅ NIP-42 auth via nostr_get_events.sh for {hex_pubkey[:16]}…"
                         )
                         return True
 
-        logging.debug(
+        logger.debug(
             f"NIP-42 nostr_get_events.sh returned no valid kind-22242 events for "
             f"{hex_pubkey[:16]}… (expected if kind 22242 is treated as ephemeral)"
         )
 
     except Exception as e:
-        logging.debug(f"nostr_get_events.sh NIP-42 check error: {e}")
+        logger.debug(f"nostr_get_events.sh NIP-42 check error: {e}")
 
     # ── 3. WebSocket REQ fallback (last resort) ──
     try:
@@ -549,7 +550,7 @@ async def check_nip42_auth(npub: str, timeout: int = 5) -> bool:
             return bool(valid_events)
 
     except Exception as e:
-        logging.error(f"Erreur lors de la vérification NIP42: {e}")
+        logger.error(f"Erreur lors de la vérification NIP42: {e}")
         return False
 
 async def verify_nostr_auth(npub: Optional[str], force_check: bool = False) -> bool:
@@ -603,15 +604,15 @@ async def require_nostr_auth(request: Request, npub: Optional[str] = Form(None),
                     # Roaming: npub not sent in form — derive it from NIP-98 pubkey
                     derived_npub = hex_to_npub(user_pubkey_hex)
                     if derived_npub:
-                        logging.info(f"✅ NIP-98 Auth: npub derived from header for {user_pubkey_hex[:16]}...")
+                        logger.info(f"✅ NIP-98 Auth: npub derived from header for {user_pubkey_hex[:16]}...")
                         return derived_npub
                 else:
                     expected_hex = npub_to_hex(npub) if npub.startswith("npub") else npub
                     if expected_hex and user_pubkey_hex.lower() == expected_hex.lower():
-                        logging.info(f"✅ NIP-98 Auth verified in require_nostr_auth for: {user_pubkey_hex[:16]}...")
+                        logger.info(f"✅ NIP-98 Auth verified in require_nostr_auth for: {user_pubkey_hex[:16]}...")
                         return npub
     except Exception as e:
-        logging.warning(f"⚠️ NIP-98 Auth check failed: {e}")
+        logger.warning(f"⚠️ NIP-98 Auth check failed: {e}")
 
     # 2. Fallback to NIP-42 Auth (requires npub)
     if not npub:
@@ -654,7 +655,7 @@ async def verify_nip98_auth(request: Request) -> str:
             
         return pubkey
     except Exception as e:
-        logging.error(f"NIP-98 Auth error: {e}")
+        logger.error(f"NIP-98 Auth error: {e}")
         raise HTTPException(status_code=401, detail=f"NIP-98 Auth failed: {str(e)}")
 
 # Cache pour les profils NOSTR (évite les requêtes répétées)
@@ -679,15 +680,15 @@ async def fetch_nostr_profiles(pubkeys: List[str]) -> Dict[str, Dict[str, Any]]:
             cached_data, cached_time = nostr_profile_cache[pubkey]
             if current_time - cached_time < NOSTR_PROFILE_CACHE_TTL:
                 profiles[pubkey] = cached_data
-                logging.debug(f"✅ Profile cache hit for {pubkey[:12]}...")
+                logger.debug(f"✅ Profile cache hit for {pubkey[:12]}...")
                 continue
         pubkeys_to_fetch.append(pubkey)
     
     if not pubkeys_to_fetch:
-        logging.info(f"✅ All {len(pubkeys)} profiles found in cache")
+        logger.info(f"✅ All {len(pubkeys)} profiles found in cache")
         return profiles
     
-    logging.info(f"📡 Fetching {len(pubkeys_to_fetch)} profiles from NOSTR (cache: {len(profiles)})")
+    logger.info(f"📡 Fetching {len(pubkeys_to_fetch)} profiles from NOSTR (cache: {len(profiles)})")
     
     try:
         from pathlib import Path
@@ -697,7 +698,7 @@ async def fetch_nostr_profiles(pubkeys: List[str]) -> Dict[str, Dict[str, Any]]:
         nostr_script_path = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "nostr_get_events.sh"
         
         if not nostr_script_path.exists():
-            logging.warning(f"nostr_get_events.sh not found, skipping profile enrichment")
+            logger.warning(f"nostr_get_events.sh not found, skipping profile enrichment")
             return profiles
         
         # Fetch profiles in batches to avoid command line length issues
@@ -765,14 +766,14 @@ async def fetch_nostr_profiles(pubkeys: List[str]) -> Dict[str, Dict[str, Any]]:
                             continue
                             
             except asyncio.TimeoutError:
-                logging.warning(f"Timeout fetching profiles for batch {i//batch_size + 1}")
+                logger.warning(f"Timeout fetching profiles for batch {i//batch_size + 1}")
             except Exception as e:
-                logging.warning(f"Error fetching profiles batch: {e}")
+                logger.warning(f"Error fetching profiles batch: {e}")
         
-        logging.info(f"✅ Fetched {len(profiles)} profiles (cached: {len([p for p in profiles if p in nostr_profile_cache])}, new: {len([p for p in profiles if p not in nostr_profile_cache])})")
+        logger.info(f"✅ Fetched {len(profiles)} profiles (cached: {len([p for p in profiles if p in nostr_profile_cache])}, new: {len([p for p in profiles if p not in nostr_profile_cache])})")
         
     except Exception as e:
-        logging.warning(f"Error in fetch_nostr_profiles: {e}")
+        logger.warning(f"Error in fetch_nostr_profiles: {e}")
     
     return profiles
 
@@ -783,7 +784,7 @@ async def get_n1_follows(pubkey_hex: str) -> List[str]:
         script_path = settings.TOOLS_PATH / "nostr_get_N1.sh"
         
         if not os.path.exists(script_path):
-            logging.error(f"Script nostr_get_N1.sh non trouvé: {script_path}")
+            logger.error(f"Script nostr_get_N1.sh non trouvé: {script_path}")
             return []
         
         process = await asyncio.create_subprocess_exec(
@@ -796,14 +797,14 @@ async def get_n1_follows(pubkey_hex: str) -> List[str]:
         
         if process.returncode == 0:
             follows = [line.strip() for line in stdout.decode().strip().split('\n') if line.strip()]
-            logging.info(f"N1 follows pour {pubkey_hex[:12]}...: {len(follows)} clés")
+            logger.info(f"N1 follows pour {pubkey_hex[:12]}...: {len(follows)} clés")
             return follows
         else:
-            logging.error(f"Erreur nostr_get_N1.sh: {stderr.decode()}")
+            logger.error(f"Erreur nostr_get_N1.sh: {stderr.decode()}")
             return []
             
     except Exception as e:
-        logging.error(f"Erreur lors de la récupération N1: {e}")
+        logger.error(f"Erreur lors de la récupération N1: {e}")
         return []
 
 async def get_followers(pubkey_hex: str) -> List[str]:
@@ -813,7 +814,7 @@ async def get_followers(pubkey_hex: str) -> List[str]:
         script_path = settings.TOOLS_PATH / "nostr_followers.sh"
         
         if not os.path.exists(script_path):
-            logging.error(f"Script nostr_followers.sh non trouvé: {script_path}")
+            logger.error(f"Script nostr_followers.sh non trouvé: {script_path}")
             return []
         
         process = await asyncio.create_subprocess_exec(
@@ -826,14 +827,14 @@ async def get_followers(pubkey_hex: str) -> List[str]:
         
         if process.returncode == 0:
             followers = [line.strip() for line in stdout.decode().strip().split('\n') if line.strip()]
-            logging.info(f"Followers pour {pubkey_hex[:12]}...: {len(followers)} clés")
+            logger.info(f"Followers pour {pubkey_hex[:12]}...: {len(followers)} clés")
             return followers
         else:
-            logging.error(f"Erreur nostr_followers.sh: {stderr.decode()}")
+            logger.error(f"Erreur nostr_followers.sh: {stderr.decode()}")
             return []
             
     except Exception as e:
-        logging.error(f"Erreur lors de la récupération des followers: {e}")
+        logger.error(f"Erreur lors de la récupération des followers: {e}")
         return []
 
 async def analyze_n2_network(center_pubkey: str, range_mode: str = "default") -> Dict[str, Any]:
@@ -886,11 +887,11 @@ async def analyze_n2_network(center_pubkey: str, range_mode: str = "default") ->
     if range_mode == "full":
         # Explorer toutes les clés N1
         keys_to_explore = n1_follows
-        logging.info(f"Mode full: exploration de {len(keys_to_explore)} clés N1")
+        logger.info(f"Mode full: exploration de {len(keys_to_explore)} clés N1")
     else:
         # Explorer seulement les clés N1 qui sont aussi followers (mutuelles)
         keys_to_explore = [key for key in n1_follows if key in center_followers]
-        logging.info(f"Mode default: exploration de {len(keys_to_explore)} clés mutuelles")
+        logger.info(f"Mode default: exploration de {len(keys_to_explore)} clés mutuelles")
     
     # Analyser N2 pour chaque clé sélectionnée
     n2_keys = set()
@@ -912,7 +913,7 @@ async def analyze_n2_network(center_pubkey: str, range_mode: str = "default") ->
                     connections.append({"from": n1_key, "to": n2_key})
                     
         except Exception as e:
-            logging.warning(f"Erreur lors de l'analyse N2 pour {n1_key[:12]}...: {e}")
+            logger.warning(f"Erreur lors de l'analyse N2 pour {n1_key[:12]}...: {e}")
     
     # Créer les nœuds N2
     for n2_key in n2_keys:

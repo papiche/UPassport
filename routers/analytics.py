@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+logger = logging.getLogger(__name__)
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,31 +36,31 @@ async def get_webhook(request: Request):
                 # Extract email from directory name (the symlink points to a directory named with the email)
                 captain_email = target_path.name
                 if captain_email:
-                    logging.debug(f"📧 Using current player email from .current symlink: {captain_email}")
+                    logger.debug(f"📧 Using current player email from .current symlink: {captain_email}")
             except Exception as e:
-                logging.warning(f"⚠️ Could not read .current symlink: {e}")
+                logger.warning(f"⚠️ Could not read .current symlink: {e}")
         
         # Fallback to CAPTAINEMAIL from my.sh if .current is not available
         if not captain_email:
             captain_email = await get_env_from_mysh("CAPTAINEMAIL", "")
             if captain_email:
-                logging.debug(f"📧 Using CAPTAINEMAIL from my.sh: {captain_email}")
+                logger.debug(f"📧 Using CAPTAINEMAIL from my.sh: {captain_email}")
             else:
                 # Last fallback to environment variable
                 from core.config import settings
                 captain_email = settings.CAPTAINEMAIL
                 if captain_email:
-                    logging.debug(f"📧 Using CAPTAINEMAIL from environment variable: {captain_email}")
+                    logger.debug(f"📧 Using CAPTAINEMAIL from environment variable: {captain_email}")
         
         if not captain_email:
-            logging.warning("⚠️ No current player email found (.current symlink or CAPTAINEMAIL env var), skipping NOSTR notification")
+            logger.warning("⚠️ No current player email found (.current symlink or CAPTAINEMAIL env var), skipping NOSTR notification")
             return {"received": data, "referer": referer, "note": "Current player email not configured"}
         
         # Find keyfile for current player email: ~/.zen/game/nostr/{email}/.secret.nostr
         captain_keyfile = settings.GAME_PATH / "nostr" / captain_email / ".secret.nostr"
         
         if not captain_keyfile.exists():
-            logging.warning(f"⚠️ Keyfile not found for current player ({captain_email}): {captain_keyfile}")
+            logger.warning(f"⚠️ Keyfile not found for current player ({captain_email}): {captain_keyfile}")
             return {"received": data, "referer": referer, "note": f"Keyfile not found for {captain_email}"}
         
         # Format analytics data as JSON string for NOSTR message
@@ -118,7 +119,7 @@ async def get_webhook(request: Request):
         nostr_script = settings.TOOLS_PATH / "nostr_send_note.py"
         
         if not os.path.exists(nostr_script):
-            logging.error(f"❌ nostr_send_note.py not found at: {nostr_script}")
+            logger.error(f"❌ nostr_send_note.py not found at: {nostr_script}")
             return {"received": data, "referer": referer, "note": "nostr_send_note.py not found"}
         
         # Prepare command
@@ -146,17 +147,17 @@ async def get_webhook(request: Request):
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
             
             if process.returncode == 0:
-                logging.info(f"✅ Analytics sent to captain via NOSTR: {data.get('type', 'unknown')}")
+                logger.info(f"✅ Analytics sent to captain via NOSTR: {data.get('type', 'unknown')}")
             else:
-                logging.warning(f"⚠️ NOSTR send failed: {stderr.decode()}")
+                logger.warning(f"⚠️ NOSTR send failed: {stderr.decode()}")
                 
         except asyncio.TimeoutError:
-            logging.warning("⚠️ NOSTR send timeout")
+            logger.warning("⚠️ NOSTR send timeout")
         except Exception as e:
-            logging.warning(f"⚠️ NOSTR send error: {e}")
+            logger.warning(f"⚠️ NOSTR send error: {e}")
 
         return {"received": data, "referer": referer, "sent_via": "nostr"}
         
     except Exception as e:
-        logging.error(f"❌ Error in /ping endpoint: {e}", exc_info=True)
+        logger.error(f"❌ Error in /ping endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"Invalid request data: {e}")

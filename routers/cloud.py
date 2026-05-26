@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+logger = logging.getLogger(__name__)
 from typing import Optional
 from fastapi import APIRouter, Request, HTTPException, Form, Depends
 from fastapi.responses import JSONResponse

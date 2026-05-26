@@ -1,4 +1,5 @@
 import time
+import uuid
 import logging
 import threading
 import ipaddress
@@ -9,6 +10,9 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.config import settings
+from core.logging import request_id_var
+
+logger = logging.getLogger(__name__)
 
 def is_trusted_ip(ip: str) -> bool:
     if ip in settings.TRUSTED_IPS:
@@ -118,32 +122,64 @@ def check_rate_limit(request: Request) -> Dict[str, Any]:
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if request.url.path.startswith("/static"):
-            return await call_next(request)
-        
+        # Injecter un request ID unique pour corrélation dans tous les logs
+        req_id = str(uuid.uuid4())[:8]
+        token = request_id_var.set(req_id)
+
+        is_static = request.url.path.startswith("/static")
+        start = time.perf_counter()
+
         try:
-            rate_info = check_rate_limit(request)
+            if not is_static:
+                client_ip = get_client_ip(request)
+                logger.debug(
+                    "→ %s %s client=%s",
+                    request.method, request.url.path, client_ip,
+                )
+
+            if is_static:
+                response = await call_next(request)
+                return response
+
+            try:
+                rate_info = check_rate_limit(request)
+            except HTTPException as e:
+                if e.status_code == 429:
+                    elapsed = (time.perf_counter() - start) * 1000
+                    logger.warning(
+                        "← 429 RATE_LIMIT %s %s ip=%s (%.0fms)",
+                        request.method, request.url.path,
+                        e.detail.get("client_ip", "?"), elapsed,
+                    )
+                    response = JSONResponse(status_code=429, content=e.detail)
+                    response.headers["X-RateLimit-Limit"] = str(settings.RATE_LIMIT_REQUESTS)
+                    response.headers["X-RateLimit-Remaining"] = "0"
+                    if e.detail.get("reset_time"):
+                        response.headers["X-RateLimit-Reset"] = str(int(e.detail["reset_time"]))
+                    response.headers["X-RateLimit-Client-IP"] = e.detail.get("client_ip", "unknown")
+                    return response
+                raise e
+
             response = await call_next(request)
-            
+            elapsed = (time.perf_counter() - start) * 1000
+
             response.headers["X-RateLimit-Limit"] = str(settings.RATE_LIMIT_REQUESTS)
             if rate_info.get("trusted", False):
                 response.headers["X-RateLimit-Remaining"] = "unlimited"
             else:
                 response.headers["X-RateLimit-Remaining"] = str(rate_info["remaining_requests"])
-            
             if rate_info["reset_time"]:
                 response.headers["X-RateLimit-Reset"] = str(int(rate_info["reset_time"]))
             response.headers["X-RateLimit-Client-IP"] = rate_info["client_ip"]
-            
+
+            status = response.status_code
+            log_fn = logger.warning if status >= 400 else logger.info
+            log_fn(
+                "← %d %s %s ip=%s (%.0fms)",
+                status, request.method, request.url.path,
+                rate_info["client_ip"], elapsed,
+            )
             return response
-            
-        except HTTPException as e:
-            if e.status_code == 429:
-                response = JSONResponse(status_code=429, content=e.detail)
-                response.headers["X-RateLimit-Limit"] = str(settings.RATE_LIMIT_REQUESTS)
-                response.headers["X-RateLimit-Remaining"] = "0"
-                if e.detail.get("reset_time"):
-                    response.headers["X-RateLimit-Reset"] = str(int(e.detail["reset_time"]))
-                response.headers["X-RateLimit-Client-IP"] = e.detail.get("client_ip", "unknown")
-                return response
-            raise e
+
+        finally:
+            request_id_var.reset(token)

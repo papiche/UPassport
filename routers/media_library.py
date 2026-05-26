@@ -5,6 +5,7 @@ import uuid
 import base64
 import hashlib
 import logging
+logger = logging.getLogger(__name__)
 import asyncio
 import traceback
 import re
@@ -136,13 +137,13 @@ async def theater_modal_route(request: Request, video: Optional[str] = None):
                         "author_id":     video_author or "",
                         "kind":          video_kind or 21,
                     }, ensure_ascii=False)
-                    logging.info(
+                    logger.info(
                         f"✅ Theater server-preloaded video data for {video[:16]}… "
                         f"(ipfs_url={ipfs_url[:40]}…)"
                     )
 
         except Exception as e:
-            logging.warning(f"⚠️ Could not fetch video metadata for Open Graph: {e}")
+            logger.warning(f"⚠️ Could not fetch video metadata for Open Graph: {e}")
 
     base_url = str(request.base_url).rstrip('/')
     theater_url = f"{base_url}/theater"
@@ -229,7 +230,7 @@ async def youtube_route(
         try:
             from create_video_channel import fetch_and_process_nostr_events, create_channel_playlist
         except ImportError:
-            logging.error("Could not import create_video_channel")
+            logger.error("Could not import create_video_channel")
             if html is not None:
                 return HTMLResponse(content="<html><body><h1>Error</h1><p>Video channel module not found</p></body></html>", status_code=500)
             raise HTTPException(status_code=500, detail="Video channel module not found")
@@ -240,10 +241,10 @@ async def youtube_route(
                 timeout=15.0
             )
         except asyncio.TimeoutError:
-            logging.warning("⚠️ Timeout fetching NOSTR events, using empty list")
+            logger.warning("⚠️ Timeout fetching NOSTR events, using empty list")
             video_messages = []
         except Exception as fetch_error:
-            logging.error(f"❌ Error fetching NOSTR events: {fetch_error}")
+            logger.error(f"❌ Error fetching NOSTR events: {fetch_error}")
             video_messages = []
         
         validated_videos = []
@@ -495,7 +496,7 @@ async def youtube_route(
         return JSONResponse(content=response_data)
         
     except Exception as e:
-        logging.error(f"Error in youtube_route: {e}", exc_info=True)
+        logger.error(f"Error in youtube_route: {e}", exc_info=True)
         if html is not None:
             return HTMLResponse(content=f"<html><body><h1>Error</h1><p>{str(e)}</p></body></html>", status_code=500)
         raise HTTPException(status_code=500, detail=str(e))
@@ -688,7 +689,7 @@ async def mp3_route(
         return JSONResponse(content=response_data)
         
     except Exception as e:
-        logging.error(f"Error in mp3_route: {e}", exc_info=True)
+        logger.error(f"Error in mp3_route: {e}", exc_info=True)
         if html is not None:
             return HTMLResponse(content=f"<html><body><h1>Error</h1><p>{str(e)}</p></body></html>", status_code=500)
         raise HTTPException(status_code=500, detail=str(e))

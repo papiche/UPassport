@@ -1,4 +1,5 @@
 import logging
+logger = logging.getLogger(__name__)
 from typing import Optional
 from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException
@@ -25,14 +26,14 @@ async def get_nostr(request: Request, type: str = "default"):
         elif type == "uplanet":
             template_name = "nostr_uplanet.html"
         
-        logging.info(f"Serving NOSTR template: {template_name} (type={type})")
+        logger.info(f"Serving NOSTR template: {template_name} (type={type})")
         
         return render_page(request, template_name)
         
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Erreur lors du chargement du template NOSTR: {str(e)}")
+        logger.error(f"Erreur lors du chargement du template NOSTR: {str(e)}")
         raise HTTPException(
             status_code=500, 
             detail=f"Erreur interne lors du chargement du template: {str(e)}"
@@ -86,7 +87,7 @@ async def get_n2_network(
                 detail="Paramètre 'output' doit être 'json' ou 'html'"
             )
         
-        logging.info(f"Analyse N2 pour {hex[:12]}... (range={range}, output={output})")
+        logger.info(f"Analyse N2 pour {hex[:12]}... (range={range}, output={output})")
         
         network_data = await analyze_n2_network(hex, range)
         
@@ -122,7 +123,7 @@ async def get_n2_network(
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Erreur lors de l'analyse N2: {str(e)}")
+        logger.error(f"Erreur lors de l'analyse N2: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de l'analyse: {str(e)}")
 
 from pydantic import BaseModel
@@ -160,7 +161,7 @@ async def send_invitation_message(
     uid = form_data.uid
     """Envoyer une invitation UPlanet à un ami via email"""
     try:
-        logging.info(f"Invitation UPlanet pour: {friendEmail} de la part de: {yourName}")
+        logger.info(f"Invitation UPlanet pour: {friendEmail} de la part de: {yourName}")
         
         if not friendEmail or not friendEmail.strip():
             raise HTTPException(status_code=400, detail="Email de l'ami requis")
@@ -229,10 +230,10 @@ async def send_invitation_message(
         try:
             os.remove(temp_message_file)
         except Exception as e:
-            logging.warning(f"Erreur suppression fichier temp: {e}")
+            logger.warning(f"Erreur suppression fichier temp: {e}")
         
         if process.returncode == 0:
-            logging.info(f"✅ Invitation envoyée avec succès à {friendEmail}")
+            logger.info(f"✅ Invitation envoyée avec succès à {friendEmail}")
             return JSONResponse({
                 "success": True,
                 "message": f"Invitation envoyée avec succès à {friend_name} ({friendEmail}) !",
@@ -244,7 +245,7 @@ async def send_invitation_message(
             })
         else:
             error_msg = stderr.decode().strip() if stderr else "Erreur inconnue"
-            logging.error(f"❌ Erreur mailjet.sh: {error_msg}")
+            logger.error(f"❌ Erreur mailjet.sh: {error_msg}")
             raise HTTPException(
                 status_code=500, 
                 detail=f"Erreur lors de l'envoi: {error_msg}"
@@ -253,14 +254,14 @@ async def send_invitation_message(
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Erreur lors de l'envoi d'invitation: {str(e)}")
+        logger.error(f"Erreur lors de l'envoi d'invitation: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 @router.post("/api/test-nostr")
 async def test_nostr_auth(npub: str = Form(...)):
     """Test NOSTR authentication for a given npub"""
     try:
-        logging.info(f"Test d'authentification NOSTR pour: {npub}")
+        logger.info(f"Test d'authentification NOSTR pour: {npub}")
         
         # Validation du format plus flexible
         is_hex_format = len(npub) == 64
@@ -277,10 +278,10 @@ async def test_nostr_auth(npub: str = Form(...)):
         from utils.crypto import npub_to_hex
         # Convertir vers le format hex standardisé
         if is_hex_format:
-            logging.info("Format détecté: Clé publique hexadécimale")
+            logger.info("Format détecté: Clé publique hexadécimale")
             hex_pubkey = npub_to_hex(npub)  # Va valider et normaliser
         else:
-            logging.info("Format détecté: npub (bech32)")
+            logger.info("Format détecté: npub (bech32)")
             hex_pubkey = npub_to_hex(npub)
             
         if not hex_pubkey:
@@ -296,16 +297,16 @@ async def test_nostr_auth(npub: str = Form(...)):
         from datetime import datetime, timezone
         
         relay_url = get_nostr_relay_url()
-        logging.info(f"Test de connexion au relai: {relay_url}")
+        logger.info(f"Test de connexion au relai: {relay_url}")
         
         try:
             # Test de connexion basique
             async with websockets.connect(relay_url, timeout=5) as websocket:
                 relay_connected = True
-                logging.info("✅ Connexion au relai réussie")
+                logger.info("✅ Connexion au relai réussie")
         except Exception as e:
             relay_connected = False
-            logging.error(f"❌ Connexion au relai échouée: {e}")
+            logger.error(f"❌ Connexion au relai échouée: {e}")
         
         # Vérifier l'authentification NIP42
         auth_result = await verify_nostr_auth(hex_pubkey)  # Utiliser la clé hex validée
@@ -340,17 +341,17 @@ async def test_nostr_auth(npub: str = Form(...)):
                                         multipass_email = email_dir.name
                                         multipass_dir = str(email_dir)
                                         hex_file_path = str(hex_file)
-                                        logging.info(f"✅ MULTIPASS trouvé pour {hex_pubkey}: {email_dir}")
+                                        logger.info(f"✅ MULTIPASS trouvé pour {hex_pubkey}: {email_dir}")
                                         break
                                 except Exception as e:
-                                    logging.warning(f"Erreur lors de la lecture de {hex_file}: {e}")
+                                    logger.warning(f"Erreur lors de la lecture de {hex_file}: {e}")
                                     continue
             except Exception as e:
-                logging.warning(f"Erreur lors de la recherche du MULTIPASS: {e}")
+                logger.warning(f"Erreur lors de la recherche du MULTIPASS: {e}")
         else:
             # Si NIP-42 n'est pas valide, on ne révèle PAS si le MULTIPASS existe
             # Pour éviter l'énumération (sniffing)
-            logging.info(f"⚠️ NIP-42 non valide pour {hex_pubkey}, informations MULTIPASS non divulguées (sécurité)")
+            logger.info(f"⚠️ NIP-42 non valide pour {hex_pubkey}, informations MULTIPASS non divulguées (sécurité)")
         
         # Préparer la réponse détaillée
         response_data = {
@@ -424,7 +425,7 @@ async def test_nostr_auth(npub: str = Form(...)):
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Erreur lors du test NOSTR: {str(e)}")
+        logger.error(f"Erreur lors du test NOSTR: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors du test: {str(e)}")
 
 @router.get("/api/test-nostr")

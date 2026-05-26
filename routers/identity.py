@@ -4,6 +4,7 @@ import json
 import time
 import hashlib
 import logging
+logger = logging.getLogger(__name__)
 import secrets
 import string
 from pathlib import Path
@@ -79,33 +80,33 @@ async def scan_qr(
     # Generate random salt and pepper if not provided or empty
     if not salt or salt.strip() == "":
         salt = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
-        logging.info(f"Generated random ZEN Card salt for {email}: {salt[:10]}...")
+        logger.info(f"Generated random ZEN Card salt for {email}: {salt[:10]}...")
 
     if not pepper or pepper.strip() == "":
         pepper = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
-        logging.info(f"Generated random ZEN Card pepper for {email}: {pepper[:10]}...")
+        logger.info(f"Generated random ZEN Card pepper for {email}: {pepper[:10]}...")
 
     # Aucune limite de taille : salt/pepper vont vers la ZEN Card (VISA), pas le DISCO SSSS
-    logging.info(f"ZEN Card credentials: salt={len(salt)} chars, pepper={len(pepper)} chars")
+    logger.info(f"ZEN Card credentials: salt={len(salt)} chars, pepper={len(pepper)} chars")
     
     script_path = "./g1.sh" # Make sure g1.sh is in the same directory or adjust path
     return_code, last_line = await run_script(script_path, email, lang, lat, lon, salt, pepper)
 
     if return_code == 0:
         returned_file_path = last_line.strip()
-        logging.info(f"Returning file: {returned_file_path}")
+        logger.info(f"Returning file: {returned_file_path}")
 
         # JSON format: return MULTIPASS data for app onboarding
         if format == "json":
             multipass_json = settings.GAME_PATH / "nostr" / email / ".multipass.json"
-            logging.info(f"Checking for JSON sidecar at: {multipass_json}")
+            logger.info(f"Checking for JSON sidecar at: {multipass_json}")
             
             # Retry logic for file existence (in case of FS latency)
             import asyncio
             for i in range(5):
                 if os.path.exists(multipass_json):
                     break
-                logging.warning(f"JSON sidecar not found, retrying ({i+1}/5)...")
+                logger.warning(f"JSON sidecar not found, retrying ({i+1}/5)...")
                 await asyncio.sleep(0.5)
                 
             if os.path.exists(multipass_json):
@@ -125,37 +126,37 @@ async def scan_qr(
                         with open(consumed_marker, 'w') as f:
                             f.write(datetime.now().isoformat())
                         os.remove(multipass_json)
-                        logging.info(f"MULTIPASS JSON for {email} consumed and deleted.")
+                        logger.info(f"MULTIPASS JSON for {email} consumed and deleted.")
                     except Exception as e:
-                        logging.error(f"Error marking MULTIPASS as consumed: {e}")
+                        logger.error(f"Error marking MULTIPASS as consumed: {e}")
 
                     return JSONResponse(data)
                 except Exception as e:
-                    logging.error(f"Error reading JSON sidecar: {e}")
+                    logger.error(f"Error reading JSON sidecar: {e}")
                     raise HTTPException(status_code=500, detail=f"Error reading JSON sidecar: {str(e)}")
             else:
                 # Check if it was already consumed
                 consumed_marker = str(multipass_json) + ".consumed"
                 if os.path.exists(consumed_marker):
-                    logging.warning(f"MULTIPASS JSON for {email} was already consumed.")
+                    logger.warning(f"MULTIPASS JSON for {email} was already consumed.")
                     raise HTTPException(status_code=403, detail="MULTIPASS data already retrieved. Use SSSS recovery if needed.")
                 
                 # Check if directory exists to give better error
                 parent_dir = multipass_json.parent
                 dir_exists = os.path.exists(parent_dir)
-                logging.error(f"JSON sidecar not found at {multipass_json}. Parent dir exists: {dir_exists}")
+                logger.error(f"JSON sidecar not found at {multipass_json}. Parent dir exists: {dir_exists}")
                 if dir_exists:
                     try:
-                        logging.error(f"Contents of {parent_dir}: {os.listdir(parent_dir)}")
+                        logger.error(f"Contents of {parent_dir}: {os.listdir(parent_dir)}")
                     except Exception as e:
-                        logging.error(f"Could not list directory contents: {e}")
+                        logger.error(f"Could not list directory contents: {e}")
                 
                 raise HTTPException(status_code=500, detail=f"MULTIPASS created but JSON sidecar not found at {multipass_json}")
 
         return FileResponse(returned_file_path)
     else:
         error_message = f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs. Script output: {last_line}"
-        logging.error(error_message)
+        logger.error(error_message)
         raise HTTPException(status_code=500, detail=error_message)
 
 @as_form
@@ -185,7 +186,7 @@ async def scan_qr_upassport(
 
     # Vérification si imageData est un PIN de 4 chiffres
     if imageData and imageData.isdigit() and len(imageData) == 4:
-        logging.info(f"Received a PIN: {imageData}")
+        logger.info(f"Received a PIN: {imageData}")
         image_path = imageData
     else:
         # Génération du nom de fichier à partir du hash de parametre
@@ -203,13 +204,13 @@ async def scan_qr_upassport(
                 # Decode and save the image
                 with open(image_path, "wb") as image_file:
                     image_file.write(base64.b64decode(image_data))
-                    logging.info("Saved image to: %s", image_path)
+                    logger.info("Saved image to: %s", image_path)
 
             except Exception as e:
-                logging.error("Error saving image: %s", e)
+                logger.error("Error saving image: %s", e)
 
     # Log zlat and zlon values
-    logging.info(f"zlat: {zlat}, zlon: {zlon}")
+    logger.info(f"zlat: {zlat}, zlon: {zlon}")
 
     ## Running External Script > get last line > send file content back to client.
     script_path = "./upassport.sh"
@@ -217,18 +218,18 @@ async def scan_qr_upassport(
 
     if return_code == 0:
         returned_file_path = last_line.strip()
-        logging.info(f"Returning file: {returned_file_path}")
+        logger.info(f"Returning file: {returned_file_path}")
         
         # Vérifier si le fichier existe
         if not os.path.exists(returned_file_path):
             error_message = f"Le fichier {returned_file_path} n'existe pas"
-            logging.error(error_message)
+            logger.error(error_message)
             raise HTTPException(status_code=404, detail=error_message)
             
         # Vérifier si c'est bien un fichier HTML
         if not returned_file_path.endswith('.html'):
             error_message = f"Le fichier {returned_file_path} n'est pas un fichier HTML"
-            logging.error(error_message)
+            logger.error(error_message)
             raise HTTPException(status_code=400, detail=error_message)
             
         try:
@@ -239,11 +240,11 @@ async def scan_qr_upassport(
             )
         except Exception as e:
             error_message = f"Erreur lors de l'envoi du fichier: {str(e)}"
-            logging.error(error_message)
+            logger.error(error_message)
             raise HTTPException(status_code=500, detail=error_message)
     else:
         error_message = f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs."
-        logging.error(error_message)
+        logger.error(error_message)
         raise HTTPException(status_code=500, detail=error_message)
 
 @as_form
@@ -258,9 +259,9 @@ async def ssss(request: Request, form_data: SSSSForm = Depends(SSSSForm.as_form)
     ssss = form_data.ssss
     zerocard = form_data.zerocard
 
-    logging.info(f"Received Card NS: {cardns}")
-    logging.info(f"Received SSSS key: [REDACTED - {len(ssss)} chars]")
-    logging.info(f"ZEROCARD: {zerocard}")
+    logger.info(f"Received Card NS: {cardns}")
+    logger.info(f"Received SSSS key: [REDACTED - {len(ssss)} chars]")
+    logger.info(f"ZEROCARD: {zerocard}")
 
     script_path = "./check_ssss.sh"
     return_code, last_line = await run_script(script_path, cardns, ssss, zerocard)
@@ -297,14 +298,14 @@ async def nip96_discovery(request: Request):
             # Extract pubkey from the NIP-98 event (kind 27235)
             if auth_event.get("kind") == 27235 and "pubkey" in auth_event:
                 user_pubkey_hex = auth_event["pubkey"]
-                logging.info(f"🔑 NIP-96 Discovery: Checking MULTIPASS status for: {user_pubkey_hex[:16]}...")
+                logger.info(f"🔑 NIP-96 Discovery: Checking MULTIPASS status for: {user_pubkey_hex[:16]}...")
                 
                 # Check if user is recognized as MULTIPASS by UPlanet
                 is_multipass = is_multipass_user(user_pubkey_hex)
             else:
-                logging.warning(f"⚠️  NIP-96 Discovery: Invalid NIP-98 event: kind={auth_event.get('kind')}")
+                logger.warning(f"⚠️  NIP-96 Discovery: Invalid NIP-98 event: kind={auth_event.get('kind')}")
     except Exception as e:
-        logging.warning(f"⚠️  NIP-96 Discovery: Could not extract pubkey from NIP-98: {e}")
+        logger.warning(f"⚠️  NIP-96 Discovery: Could not extract pubkey from NIP-98: {e}")
     
     # Determine plans based on MULTIPASS status
     if is_multipass:

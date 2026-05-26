@@ -5,6 +5,7 @@ import time
 import uuid
 import asyncio
 import logging
+logger = logging.getLogger(__name__)
 import subprocess
 import httpx
 from datetime import datetime, timezone
@@ -463,7 +464,7 @@ async def _resolve_g1pubnostr_from_swarm(email: str) -> str:
         try:
             g1pub = Path(fpath).read_text().strip()
             if g1pub:
-                logging.info(f"🔍 G1PUBNOSTR trouvé en cache swarm local pour {email}: {g1pub[:12]}…")
+                logger.info(f"🔍 G1PUBNOSTR trouvé en cache swarm local pour {email}: {g1pub[:12]}…")
                 return g1pub
         except Exception:
             continue
@@ -485,10 +486,10 @@ async def _resolve_g1pubnostr_from_swarm(email: str) -> str:
             m = re.search(r'G1PUBNOSTR=(\S+)', output)
             if m:
                 g1pub = m.group(1)
-                logging.info(f"🔍 G1PUBNOSTR trouvé via search_for_this_email_in_nostr.sh pour {email}: {g1pub[:12]}…")
+                logger.info(f"🔍 G1PUBNOSTR trouvé via search_for_this_email_in_nostr.sh pour {email}: {g1pub[:12]}…")
                 return g1pub
         except Exception as e:
-            logging.warning(f"search_for_this_email_in_nostr.sh indisponible ou timeout: {e}")
+            logger.warning(f"search_for_this_email_in_nostr.sh indisponible ou timeout: {e}")
 
     # 3. IPFS gateway — interrogation des nœuds swarm connus
     swarm_ids_dir = os.path.join(home, ".zen", "tmp")
@@ -502,14 +503,14 @@ async def _resolve_g1pubnostr_from_swarm(email: str) -> str:
                         if resp.status_code == 200:
                             g1pub = resp.text.strip()
                             if g1pub:
-                                logging.info(f"🔍 G1PUBNOSTR trouvé via IPFS IPNS ({node_id[:12]}…) pour {email}")
+                                logger.info(f"🔍 G1PUBNOSTR trouvé via IPFS IPNS ({node_id[:12]}…) pour {email}")
                                 return g1pub
                     except Exception:
                         continue
         except Exception:
             pass
 
-    logging.warning(f"❌ G1PUBNOSTR introuvable dans le swarm pour {email}")
+    logger.warning(f"❌ G1PUBNOSTR introuvable dans le swarm pour {email}")
     return ""
 
 def _get_oc_env():
@@ -546,10 +547,10 @@ async def _get_coop_config(key: str) -> str:
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
         value = stdout.decode().strip()
         if value and proc.returncode == 0:
-            logging.info(f"✅ {key} lu depuis le DID NOSTR coopératif")
+            logger.info(f"✅ {key} lu depuis le DID NOSTR coopératif")
             return value
     except Exception as e:
-        logging.debug(f"cooperative_config.sh indisponible ou timeout pour {key}: {e}")
+        logger.debug(f"cooperative_config.sh indisponible ou timeout pour {key}: {e}")
     return ""
 
 async def _get_oc_token():
@@ -672,7 +673,7 @@ async def oc_webhook(request: Request):
         g1pubnostr = await _resolve_g1pubnostr_from_swarm(email)
         if g1pubnostr:
             ## Créer le répertoire temporaire avec le G1PUBNOSTR trouvé dans le swarm
-            logging.info(f"✅ G1PUBNOSTR résolu depuis le swarm pour {email}: {g1pubnostr}")
+            logger.info(f"✅ G1PUBNOSTR résolu depuis le swarm pour {email}: {g1pubnostr}")
             os.makedirs(multipass_dir, exist_ok=True)
             (multipass_dir / "G1PUBNOSTR").write_text(g1pubnostr)
         else:
@@ -699,7 +700,7 @@ async def oc_webhook(request: Request):
                 pending_list.append(pending_entry)
                 with open(pending_file, 'w') as f:
                     json.dump(pending_list, f, indent=2)
-                logging.warning(f"⏳ OC webhook pending — MULTIPASS introuvable localement ni en swarm: {email}")
+                logger.warning(f"⏳ OC webhook pending — MULTIPASS introuvable localement ni en swarm: {email}")
             return JSONResponse({
                 "status": "pending_multipass",
                 "email": email,
@@ -788,7 +789,7 @@ async def coinflip_can_play(pubkey: str):
     except HTTPException:
         return JSONResponse({"is_local": False, "source": "unknown"})
     except Exception as e:
-        logging.warning(f"[coinflip/can_play] {e}")
+        logger.warning(f"[coinflip/can_play] {e}")
         return JSONResponse({"is_local": False, "source": "error"})
 
 
@@ -869,7 +870,7 @@ def generate_society_html_page(request: Request, g1pub: str, society_data: Dict[
             "nostr_count": len(nostr_did_data)
         })
     except Exception as e:
-        logging.error(f"Error generating society HTML page: {e}")
+        logger.error(f"Error generating society HTML page: {e}")
         raise HTTPException(status_code=500, detail="Error generating HTML page")
 
 def generate_revenue_html_page(request: Request, g1pub: str, revenue_data: Dict[str, Any]):
@@ -886,7 +887,7 @@ def generate_revenue_html_page(request: Request, g1pub: str, revenue_data: Dict[
             "timestamp": revenue_data['timestamp']
         })
     except Exception as e:
-        logging.error(f"Error generating revenue HTML page: {e}")
+        logger.error(f"Error generating revenue HTML page: {e}")
         raise HTTPException(status_code=500, detail="Error generating HTML page")
 
 def generate_impots_html_page(request: Request, impots_data: Dict[str, Any]):
@@ -906,7 +907,7 @@ def generate_impots_html_page(request: Request, impots_data: Dict[str, Any]):
             "provisions": impots_data['provisions']
         })
     except Exception as e:
-        logging.error(f"Error generating impots HTML page: {e}")
+        logger.error(f"Error generating impots HTML page: {e}")
         raise HTTPException(status_code=500, detail="Error generating HTML page")
 
 def generate_zencard_html_page(request: Request, email: str, zencard_data: Dict[str, Any]):
@@ -927,7 +928,7 @@ def generate_zencard_html_page(request: Request, email: str, zencard_data: Dict[
             "timestamp": zencard_data.get('timestamp', '')
         })
     except Exception as e:
-        logging.error(f"Error generating ZEN Card HTML page: {e}")
+        logger.error(f"Error generating ZEN Card HTML page: {e}")
         raise HTTPException(status_code=500, detail="Error generating HTML page")
 
 @router.get("/check_society")

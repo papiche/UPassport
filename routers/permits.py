@@ -1,5 +1,6 @@
 
 import logging
+logger = logging.getLogger(__name__)
 import asyncio
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
@@ -101,7 +102,7 @@ async def create_permit_definition(request: PermitDefinitionCreateRequest):
                         response_data["bootstrap_initiated"] = True
                         response_data["bootstrap_emails"] = request.bootstrap_emails
                 except Exception as e:
-                    logging.error(f"Failed to initiate bootstrap: {e}")
+                    logger.error(f"Failed to initiate bootstrap: {e}")
                     response_data["bootstrap_error"] = str(e)
             
             return JSONResponse(response_data)
@@ -111,7 +112,7 @@ async def create_permit_definition(request: PermitDefinitionCreateRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error creating permit definition: {e}")
+        logger.error(f"Error creating permit definition: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/api/permit/credential/{credential_id}")
@@ -155,7 +156,7 @@ async def get_permit_credential(credential_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error getting credential: {e}")
+        logger.error(f"Error getting credential: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/api/permit/composites")
@@ -279,7 +280,7 @@ async def get_composites_eligibility(npub: Optional[str] = None):
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error fetching composites: {e}")
+        logger.error(f"Error fetching composites: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -299,7 +300,7 @@ async def list_permit_definitions():
                 if definitions_nostr:
                     app_state.oracle_system.save_data()
             except Exception as e:
-                logging.warning(f"⚠️  Could not fetch definitions from NOSTR: {e}")
+                logger.warning(f"⚠️  Could not fetch definitions from NOSTR: {e}")
         
         definitions = [
             {
@@ -321,7 +322,7 @@ async def list_permit_definitions():
         })
     
     except Exception as e:
-        logging.error(f"Error listing definitions: {e}")
+        logger.error(f"Error listing definitions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/api/permit/stats")
@@ -339,7 +340,7 @@ async def get_permit_statistics():
                 if definitions_nostr:
                     app_state.oracle_system.save_data()
             except Exception as e:
-                logging.warning(f"Could not fetch definitions from NOSTR: {e}")
+                logger.warning(f"Could not fetch definitions from NOSTR: {e}")
         
         permit_stats = []
         for def_id, permit_def in app_state.oracle_system.definitions.items():
@@ -398,7 +399,7 @@ async def get_permit_statistics():
         })
     
     except Exception as e:
-        logging.error(f"Error getting permit statistics: {e}")
+        logger.error(f"Error getting permit statistics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/api/permit/nostr/fetch")
@@ -488,7 +489,7 @@ async def fetch_permits_from_nostr(
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error fetching from NOSTR: {e}")
+        logger.error(f"Error fetching from NOSTR: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/permit/issue/{request_id}")
@@ -529,7 +530,7 @@ async def issue_permit_credential(request_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error issuing credential: {e}")
+        logger.error(f"Error issuing credential: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/permit/revoke/{credential_id}")
@@ -563,7 +564,7 @@ async def revoke_permit_credential(credential_id: str, reason: Optional[str] = N
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error revoking credential: {e}")
+        logger.error(f"Error revoking credential: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/api/permit/user/credentials")
@@ -638,7 +639,7 @@ async def get_user_credentials(
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error getting user credentials: {e}")
+        logger.error(f"Error getting user credentials: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/api/permit/masters")
@@ -705,7 +706,7 @@ async def get_available_masters(
                     if holder_hex in profiles:
                         profile_info = profiles[holder_hex]
             except Exception as e:
-                logging.debug(f"Could not fetch profile for {cred.holder_npub}: {e}")
+                logger.debug(f"Could not fetch profile for {cred.holder_npub}: {e}")
             
             masters.append({
                 "npub": cred.holder_npub,
@@ -731,7 +732,7 @@ async def get_available_masters(
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error getting available masters: {e}")
+        logger.error(f"Error getting available masters: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 class RenewalRequestData(BaseModel):
@@ -802,5 +803,5 @@ async def create_renewal_request(renewal_data: RenewalRequestData):
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error creating renewal request: {e}")
+        logger.error(f"Error creating renewal request: {e}")
         raise HTTPException(status_code=500, detail=str(e))
