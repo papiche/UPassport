@@ -318,6 +318,8 @@ async def get_my_gps_coordinates(npub: str):
         # Determine source and NOSTRNS for all paths
         source = "local"
         home_station_url = None
+        home_node_hex = None
+        home_ipfsnodeid = None
         nostrns = None
         source_file = user_dir / "SOURCE"
         roaming_flag = user_dir / ".roaming"
@@ -341,7 +343,15 @@ async def get_my_gps_coordinates(npub: str):
             logger.info(f"[myGPS] NOSTRNS={nostrns}")
         if nostrns:
             home_station_url = f"{settings.myIPFS}/ipns/{nostrns}"
-        logger.info(f"[myGPS] → source={source} home_station_url={home_station_url} gps_file={gps_file_path}")
+        # HOME_NODEHEX et HOME_IPFSNODEID sauvegardés par 22242.sh depuis le swarm
+        # Nécessaires à BRO_chat.js pour router les DMs NIP-44 via relay constellation
+        home_nodehex_file = user_dir / "HOME_NODEHEX"
+        if home_nodehex_file.exists():
+            home_node_hex = home_nodehex_file.read_text().strip() or None
+        home_ipfsnodeid_file = user_dir / "HOME_IPFSNODEID"
+        if home_ipfsnodeid_file.exists():
+            home_ipfsnodeid = home_ipfsnodeid_file.read_text().strip() or None
+        logger.info(f"[myGPS] → source={source} home_station_url={home_station_url} home_node_hex={home_node_hex and home_node_hex[:12]+'…'} gps_file={gps_file_path}")
 
         if not gps_file_path:
             # GPS absent localement — pour un utilisateur roaming, tenter IPFS home station
@@ -382,6 +392,8 @@ async def get_my_gps_coordinates(npub: str):
                 "email": user_email,
                 "source": source,
                 "home_station_url": home_station_url,
+                "home_node_hex": home_node_hex,
+                "home_ipfsnodeid": home_ipfsnodeid,
                 "ipfsnodeid": ipfs_node_id,
                 "message": gps_message,
                 "timestamp": datetime.now().isoformat(),
@@ -419,6 +431,8 @@ async def get_my_gps_coordinates(npub: str):
                 "email": user_email,
                 "source": source,
                 "home_station_url": home_station_url,
+                "home_node_hex": home_node_hex,
+                "home_ipfsnodeid": home_ipfsnodeid,
                 "ipfsnodeid": ipfs_node_id,
                 "message": "GPS coordinates retrieved successfully",
                 "timestamp": datetime.now().isoformat()
