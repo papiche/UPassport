@@ -298,31 +298,46 @@ async def get_my_gps_coordinates(npub: str):
         user_dir = None
         try:
             user_dir = find_user_directory_by_hex(pubkey_hex)
-            user_email = user_dir.name
-            gps_file = user_dir / "GPS"
-            if gps_file.exists():
-                gps_file_path = gps_file
         except HTTPException:
-            return {
-                "success": True,
-                "coordinates": {"lat": 0.00, "lon": 0.00},
-                "umap_key": "0.00,0.00",
-                "email": None,
-                "source": "unknown",
-                "home_station_url": None,
-                "ipfsnodeid": None,
-                "message": "User not registered on this station",
-                "timestamp": datetime.now().isoformat(),
-                "debug": {
-                    "user_dir": None,
-                    "gps_file_path": None,
-                    "gps_raw": None,
-                    "source_file_exists": False,
-                    "source_file_content": None,
-                    "roaming_flag_exists": False,
-                    "nostrns": None,
-                },
-            }
+            # Fallback : chercher via le marker .nip42_auth_<hex> créé par filter/22242.sh
+            # (le fichier HEX peut avoir été écrasé par la copie du TW swarm)
+            nostr_base = settings.GAME_PATH / "nostr"
+            auth_marker_name = f".nip42_auth_{pubkey_hex}"
+            try:
+                for d in nostr_base.iterdir():
+                    if d.is_dir() and (d / auth_marker_name).exists():
+                        user_dir = d
+                        # Réparer HEX pour les prochaines requêtes
+                        (d / "HEX").write_text(pubkey_hex + "\n")
+                        logger.info(f"[myGPS] Fallback marker trouvé : {d.name}, HEX réparé")
+                        break
+            except Exception as e:
+                logger.warning(f"[myGPS] Fallback marker search failed: {e}")
+            if user_dir is None:
+                return {
+                    "success": True,
+                    "coordinates": {"lat": 0.00, "lon": 0.00},
+                    "umap_key": "0.00,0.00",
+                    "email": None,
+                    "source": "unknown",
+                    "home_station_url": None,
+                    "ipfsnodeid": None,
+                    "message": "User not registered on this station",
+                    "timestamp": datetime.now().isoformat(),
+                    "debug": {
+                        "user_dir": None,
+                        "gps_file_path": None,
+                        "gps_raw": None,
+                        "source_file_exists": False,
+                        "source_file_content": None,
+                        "roaming_flag_exists": False,
+                        "nostrns": None,
+                    },
+                }
+        user_email = user_dir.name
+        gps_file = user_dir / "GPS"
+        if gps_file.exists():
+            gps_file_path = gps_file
 
         # Determine source and NOSTRNS for all paths
         source = "local"
