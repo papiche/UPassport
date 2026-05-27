@@ -1396,6 +1396,7 @@ async def upload_file_to_ipfs(
                     file_type=file_type,
                     target_directory=str(target_dir),
                     new_cid=udrive_cid,
+                    file_cid=file_cid if file_cid else None,
                     timestamp=datetime.now().isoformat(),
                     auth_verified=True,
                     fileName=response_fileName,

@@ -31,6 +31,7 @@ class UploadResponse(BaseModel):
     duration: Optional[int] = None
     dimensions: Optional[str] = None
     upload_chain: Optional[str] = None
+    file_cid: Optional[str] = None
 
 class CoinflipStartRequest(BaseModel):
     token: str

@@ -513,6 +513,7 @@ async def mp3_route(
 ):
     """MP3 music library from NOSTR events (kind 1063 - NIP-94)"""
     try:
+        from core.config import settings
         ipfs_gateway = await get_myipfs_gateway()
         nostr_script_path = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "nostr_get_events.sh"
         

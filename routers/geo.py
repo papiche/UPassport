@@ -313,6 +313,15 @@ async def get_my_gps_coordinates(npub: str):
                 "ipfsnodeid": None,
                 "message": "User not registered on this station",
                 "timestamp": datetime.now().isoformat(),
+                "debug": {
+                    "user_dir": None,
+                    "gps_file_path": None,
+                    "gps_raw": None,
+                    "source_file_exists": False,
+                    "source_file_content": None,
+                    "roaming_flag_exists": False,
+                    "nostrns": None,
+                },
             }
 
         # Determine source and NOSTRNS for all paths
@@ -397,6 +406,15 @@ async def get_my_gps_coordinates(npub: str):
                 "ipfsnodeid": ipfs_node_id,
                 "message": gps_message,
                 "timestamp": datetime.now().isoformat(),
+                "debug": {
+                    "user_dir": str(user_dir),
+                    "gps_file_path": None,
+                    "gps_raw": None,
+                    "source_file_exists": source_file.exists(),
+                    "source_file_content": source_file.read_text().strip() if source_file.exists() else None,
+                    "roaming_flag_exists": roaming_flag.exists(),
+                    "nostrns": nostrns,
+                },
             }
 
         try:
@@ -435,7 +453,16 @@ async def get_my_gps_coordinates(npub: str):
                 "home_ipfsnodeid": home_ipfsnodeid,
                 "ipfsnodeid": ipfs_node_id,
                 "message": "GPS coordinates retrieved successfully",
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "debug": {
+                    "user_dir": str(user_dir),
+                    "gps_file_path": str(gps_file_path),
+                    "gps_raw": gps_content,
+                    "source_file_exists": source_file.exists(),
+                    "source_file_content": source_file.read_text().strip() if source_file.exists() else None,
+                    "roaming_flag_exists": roaming_flag.exists(),
+                    "nostrns": nostrns,
+                },
             }
             
         except ValueError as e:
