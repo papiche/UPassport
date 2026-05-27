@@ -9,7 +9,7 @@ from core.logging import setup_logging
 from core.exceptions import setup_exception_handlers
 from core.middleware import RateLimitMiddleware
 
-from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, mailjet
+from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, mailjet, skills
 
 # Setup logging
 setup_logging()
@@ -57,6 +57,7 @@ app.include_router(feedback.router)
 app.include_router(qr.router)
 app.include_router(cookie.router)
 app.include_router(mailjet.router)
+app.include_router(skills.router)
 
 if __name__ == "__main__":
     import uvicorn

@@ -366,7 +366,12 @@ async def get_my_gps_coordinates(npub: str):
             nostrns = nostrns_file.read_text().strip() or None
             logger.info(f"[myGPS] NOSTRNS={nostrns}")
         if nostrns:
-            home_station_url = f"{settings.myIPFS}/ipns/{nostrns}"
+            # nostrns peut contenir soit "k51..." soit "/ipns/k51..." — normaliser
+            _nostrns_clean = nostrns.lstrip('/')
+            if _nostrns_clean.startswith('ipns/'):
+                home_station_url = f"{settings.myIPFS}/{_nostrns_clean}"
+            else:
+                home_station_url = f"{settings.myIPFS}/ipns/{_nostrns_clean}"
         # HOME_NODEHEX et HOME_IPFSNODEID sauvegardés par 22242.sh depuis le swarm
         # Nécessaires à BRO_chat.js pour router les DMs NIP-44 via relay constellation
         home_nodehex_file = user_dir / "HOME_NODEHEX"
@@ -382,7 +387,9 @@ async def get_my_gps_coordinates(npub: str):
             lat, lon = 0.00, 0.00
             gps_message = "GPS not yet set for this user"
             if source in ("swarm", "amisOfAmis") and nostrns and user_email:
-                ipfs_gps_url = f"{settings.IPFS_GATEWAY}/ipns/{nostrns}/{user_email}/GPS"
+                _ns = nostrns.lstrip('/')
+                _ns = _ns if _ns.startswith('ipns/') else f"ipns/{_ns}"
+                ipfs_gps_url = f"{settings.IPFS_GATEWAY}/{_ns}/{user_email}/GPS"
                 try:
                     async with httpx.AsyncClient(timeout=5.0) as client:
                         resp = await client.get(ipfs_gps_url)
@@ -409,6 +416,7 @@ async def get_my_gps_coordinates(npub: str):
             if not ipfs_node_id:
                 ipfs_node_id = settings.IPFSNODEID
             umap_key = f"{lat:.2f},{lon:.2f}"
+            _udrive_url = f"{home_station_url}/{user_email}/APP/uDRIVE" if home_station_url and user_email else None
             return {
                 "success": True,
                 "coordinates": {"lat": lat, "lon": lon},
@@ -416,6 +424,8 @@ async def get_my_gps_coordinates(npub: str):
                 "email": user_email,
                 "source": source,
                 "home_station_url": home_station_url,
+                "nostrns": nostrns,
+                "udrive_url": _udrive_url,
                 "home_node_hex": home_node_hex,
                 "home_ipfsnodeid": home_ipfsnodeid,
                 "ipfsnodeid": ipfs_node_id,
@@ -457,6 +467,7 @@ async def get_my_gps_coordinates(npub: str):
 
             # source and home_station_url already determined above
 
+            _udrive_url = f"{home_station_url}/{user_email}/APP/uDRIVE" if home_station_url and user_email else None
             return {
                 "success": True,
                 "coordinates": {"lat": lat_rounded, "lon": lon_rounded},
@@ -464,6 +475,8 @@ async def get_my_gps_coordinates(npub: str):
                 "email": user_email,
                 "source": source,
                 "home_station_url": home_station_url,
+                "nostrns": nostrns,
+                "udrive_url": _udrive_url,
                 "home_node_hex": home_node_hex,
                 "home_ipfsnodeid": home_ipfsnodeid,
                 "ipfsnodeid": ipfs_node_id,

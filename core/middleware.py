@@ -3,8 +3,9 @@ import uuid
 import logging
 import threading
 import ipaddress
-from collections import defaultdict, deque
+from collections import deque
 from typing import Optional, Dict, Any
+from cachetools import TTLCache
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -28,52 +29,38 @@ def is_trusted_ip(ip: str) -> bool:
 
 class RateLimiter:
     def __init__(self):
-        self.requests = defaultdict(deque)
+        # TTLCache borne la mémoire (maxsize IPs max) et expire automatiquement
+        # les IPs inactives après RATE_LIMIT_WINDOW secondes — sans cleanup manuel.
+        self.requests: TTLCache = TTLCache(maxsize=10_000, ttl=settings.RATE_LIMIT_WINDOW)
         self.lock = threading.Lock()
-        self.last_cleanup = time.time()
-    
+
     def is_allowed(self, ip: str) -> bool:
         current_time = time.time()
         with self.lock:
-            if current_time - self.last_cleanup > settings.RATE_LIMIT_CLEANUP_INTERVAL:
-                self._cleanup_old_entries(current_time)
-                self.last_cleanup = current_time
-            
-            timestamps = self.requests[ip]
+            timestamps = self.requests.get(ip, deque())
             while timestamps and timestamps[0] < current_time - settings.RATE_LIMIT_WINDOW:
                 timestamps.popleft()
-            
+
             if len(timestamps) < settings.RATE_LIMIT_REQUESTS:
                 timestamps.append(current_time)
+                self.requests[ip] = timestamps  # réinitialise le TTL à chaque requête
                 return True
             return False
-    
+
     def get_remaining_requests(self, ip: str) -> int:
         current_time = time.time()
         with self.lock:
-            timestamps = self.requests[ip]
+            timestamps = self.requests.get(ip, deque())
             while timestamps and timestamps[0] < current_time - settings.RATE_LIMIT_WINDOW:
                 timestamps.popleft()
             return max(0, settings.RATE_LIMIT_REQUESTS - len(timestamps))
-    
+
     def get_reset_time(self, ip: str) -> Optional[float]:
         with self.lock:
-            timestamps = self.requests[ip]
+            timestamps = self.requests.get(ip, deque())
             if not timestamps:
                 return None
             return timestamps[0] + settings.RATE_LIMIT_WINDOW
-    
-    def _cleanup_old_entries(self, current_time: float):
-        cutoff_time = current_time - settings.RATE_LIMIT_WINDOW
-        ips_to_remove = []
-        for ip, timestamps in self.requests.items():
-            while timestamps and timestamps[0] < cutoff_time:
-                timestamps.popleft()
-            if not timestamps:
-                ips_to_remove.append(ip)
-        
-        for ip in ips_to_remove:
-            del self.requests[ip]
 
 rate_limiter = RateLimiter()
 

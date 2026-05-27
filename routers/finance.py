@@ -48,7 +48,35 @@ import hashlib
 import secrets
 
 COINFLIP_SECRET = settings.COINFLIP_SECRET
-COINFLIP_SESSIONS: Dict[str, Dict[str, Any]] = {}
+_COINFLIP_SESSION_TTL = 300  # secondes, identique au TTL du token
+
+def _session_path(sid: str) -> Path:
+    return Path(settings.ZEN_PATH) / "tmp" / f"coinflip_session_{sid}.json"
+
+def _load_session(sid: str) -> Optional[Dict[str, Any]]:
+    path = _session_path(sid)
+    try:
+        if not path.exists():
+            return None
+        data = json.loads(path.read_text())
+        if int(time.time()) - data.get("created_at", 0) > _COINFLIP_SESSION_TTL:
+            path.unlink(missing_ok=True)
+            return None
+        return data
+    except Exception:
+        return None
+
+def _save_session(sid: str, data: Dict[str, Any]) -> None:
+    try:
+        _session_path(sid).write_text(json.dumps(data))
+    except Exception as e:
+        logger.warning(f"[coinflip] save session failed: {e}")
+
+def _delete_session(sid: str) -> None:
+    try:
+        _session_path(sid).unlink(missing_ok=True)
+    except Exception:
+        pass
 
 def sign_token(payload: Dict[str, Any]) -> str:
     body = json.dumps(payload, separators=(",", ":")).encode()
@@ -284,12 +312,12 @@ async def zen_send(request: Request):
                 session_id = uuid.uuid4().hex
                 exp = int(time.time()) + 300
                 token = sign_token({"npub": sender_hex, "sid": session_id, "exp": exp})
-                COINFLIP_SESSIONS[session_id] = {
+                _save_session(session_id, {
                     "npub": sender_hex,
                     "consecutive": 1,
                     "paid": True,
                     "created_at": int(time.time()),
-                }
+                })
                 try:
                     daily_marker.touch()
                 except Exception:
@@ -385,11 +413,26 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
                 raise HTTPException(status_code=400, detail="Format de g1pub invalide")
 
             if g1pub in app_state.balance_cache:
-                return app_state.balance_cache[g1pub]
+                cached = app_state.balance_cache[g1pub]
+                # Invalider le cache s'il n'a pas encore le champ zen
+                if "zen" not in cached:
+                    del app_state.balance_cache[g1pub]
+                else:
+                    return cached
 
             balance = await check_balance(g1pub)
+            # Calcul zen : (solde_Ğ1 - 1_PAF) × 10, min 0
+            zen_float = None
+            try:
+                clean = balance.replace('Ğ1', '').replace('G1', '').strip()
+                zen_float = round(max(0.0, (float(clean) - 1.0) * 10.0), 2)
+            except (ValueError, TypeError):
+                pass
             result = {"balance": balance, "g1pub": g1pub}
-            
+            if zen_float is not None:
+                result["zen"] = zen_float
+
+            app_state.balance_cache[g1pub] = result
             return result
             
     except HTTPException:
@@ -799,9 +842,9 @@ async def coinflip_start(payload: CoinflipStartRequest):
     if not data:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     sid = data.get("sid")
-    if not sid or sid not in COINFLIP_SESSIONS:
+    sess = _load_session(sid) if sid else None
+    if not sess:
         raise HTTPException(status_code=400, detail="Unknown session")
-    sess = COINFLIP_SESSIONS[sid]
     exp = int(time.time()) + 300
     token = sign_token({"npub": sess["npub"], "sid": sid, "exp": exp})
     return CoinflipStartResponse(ok=True, sid=sid, exp=exp)
@@ -812,14 +855,15 @@ async def coinflip_flip(payload: CoinflipFlipRequest):
     if not data:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     sid = data.get("sid")
-    if not sid or sid not in COINFLIP_SESSIONS:
+    sess = _load_session(sid) if sid else None
+    if not sess:
         raise HTTPException(status_code=400, detail="Unknown session")
-    sess = COINFLIP_SESSIONS[sid]
     if not sess.get("paid"):
         raise HTTPException(status_code=402, detail="Payment required")
     result = 'Heads' if secrets.randbits(1) == 0 else 'Tails'
     if result == 'Heads':
         sess["consecutive"] = int(sess.get("consecutive", 1)) + 1
+        _save_session(sid, sess)
     return CoinflipFlipResponse(ok=True, sid=sid, result=result, consecutive=int(sess["consecutive"]))
 
 @router.post("/coinflip/payout", response_model=CoinflipPayoutResponse)
@@ -828,9 +872,9 @@ async def coinflip_payout(payload: CoinflipPayoutRequest):
     if not data:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     sid = data.get("sid")
-    if not sid or sid not in COINFLIP_SESSIONS:
+    sess = _load_session(sid) if sid else None
+    if not sess:
         raise HTTPException(status_code=400, detail="Unknown session")
-    sess = COINFLIP_SESSIONS[sid]
     if not sess.get("paid"):
         raise HTTPException(status_code=402, detail="Payment required")
     consecutive = int(sess.get("consecutive", 1))
@@ -846,10 +890,7 @@ async def coinflip_payout(payload: CoinflipPayoutRequest):
     return_code, last_line = await run_script(script_path, *args)
     if return_code != 0:
         raise HTTPException(status_code=500, detail="Payout script failed")
-    try:
-        del COINFLIP_SESSIONS[sid]
-    except Exception:
-        pass
+    _delete_session(sid)
     return CoinflipPayoutResponse(ok=True, sid=sid, zen=zen_amount, g1_amount=g1_amount, tx=last_line.strip())
 
 def generate_society_html_page(request: Request, g1pub: str, society_data: Dict[str, Any]):

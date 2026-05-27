@@ -62,6 +62,10 @@ async def ustats(request: Request, lat: str = None, lon: str = None, deg: str = 
     else:
         raise HTTPException(status_code=500, detail="Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs dans ./tmp/54321.log.")
 
+@router.get("/api/ustats", summary="Station stats (alias)", description="Alias de GET / pour les widgets frontend.")
+async def api_ustats(request: Request, lat: str = None, lon: str = None, deg: str = None):
+    return await ustats(request, lat, lon, deg)
+
 @router.get("/video", summary="Video Redirect", description="Redirect to the YouTube video page.")
 async def video_route(): return RedirectResponse(url="/youtube?html=1", status_code=302)
 
