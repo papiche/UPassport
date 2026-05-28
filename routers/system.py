@@ -32,11 +32,18 @@ for route_path, template_name in SIMPLE_UI_ROUTES.items():
 async def ustats(request: Request, lat: str = None, lon: str = None, deg: str = None):
     import os
     import json
+    import time
     import aiofiles
     from utils.helpers import run_script
-    
+
     from core.config import settings
     script_path = settings.ZEN_PATH / "Astroport.ONE" / "Ustats.sh"
+
+    # Servir depuis le cache RAM si disponible et récent (< 60s), sans paramètre de grille
+    if lat is None and lon is None:
+        age = time.time() - app_state.ustats_cache_time
+        if app_state.ustats_cache is not None and age < app_state.USTATS_CACHE_TTL:
+            return JSONResponse(content=app_state.ustats_cache)
 
     args = []
     if lat is not None and lon is not None:
@@ -49,13 +56,22 @@ async def ustats(request: Request, lat: str = None, lon: str = None, deg: str = 
             try:
                 async with aiofiles.open(last_line.strip(), 'r') as f:
                     content = await f.read()
-                return JSONResponse(content=json.loads(content))
+                data = json.loads(content)
+                # Mettre à jour le cache si pas de filtre géographique
+                if lat is None:
+                    app_state.ustats_cache = data
+                    app_state.ustats_cache_time = time.time()
+                return JSONResponse(content=data)
             except Exception as e:
                 logger.error(f"Error reading file: {e}")
                 raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
         else:
             try:
-                return JSONResponse(content=json.loads(last_line))
+                data = json.loads(last_line)
+                if lat is None:
+                    app_state.ustats_cache = data
+                    app_state.ustats_cache_time = time.time()
+                return JSONResponse(content=data)
             except json.JSONDecodeError as e:
                 logger.error(f"Error parsing JSON: {e}")
                 raise HTTPException(status_code=500, detail=f"Error parsing JSON: {str(e)}")

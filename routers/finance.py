@@ -842,7 +842,7 @@ async def coinflip_start(payload: CoinflipStartRequest):
     if not data:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     sid = data.get("sid")
-    sess = _load_session(sid) if sid else None
+    sess = await asyncio.to_thread(_load_session, sid) if sid else None
     if not sess:
         raise HTTPException(status_code=400, detail="Unknown session")
     exp = int(time.time()) + 300
@@ -855,7 +855,7 @@ async def coinflip_flip(payload: CoinflipFlipRequest):
     if not data:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     sid = data.get("sid")
-    sess = _load_session(sid) if sid else None
+    sess = await asyncio.to_thread(_load_session, sid) if sid else None
     if not sess:
         raise HTTPException(status_code=400, detail="Unknown session")
     if not sess.get("paid"):
@@ -863,7 +863,7 @@ async def coinflip_flip(payload: CoinflipFlipRequest):
     result = 'Heads' if secrets.randbits(1) == 0 else 'Tails'
     if result == 'Heads':
         sess["consecutive"] = int(sess.get("consecutive", 1)) + 1
-        _save_session(sid, sess)
+        await asyncio.to_thread(_save_session, sid, sess)
     return CoinflipFlipResponse(ok=True, sid=sid, result=result, consecutive=int(sess["consecutive"]))
 
 @router.post("/coinflip/payout", response_model=CoinflipPayoutResponse)
@@ -872,7 +872,7 @@ async def coinflip_payout(payload: CoinflipPayoutRequest):
     if not data:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     sid = data.get("sid")
-    sess = _load_session(sid) if sid else None
+    sess = await asyncio.to_thread(_load_session, sid) if sid else None
     if not sess:
         raise HTTPException(status_code=400, detail="Unknown session")
     if not sess.get("paid"):
@@ -890,7 +890,7 @@ async def coinflip_payout(payload: CoinflipPayoutRequest):
     return_code, last_line = await run_script(script_path, *args)
     if return_code != 0:
         raise HTTPException(status_code=500, detail="Payout script failed")
-    _delete_session(sid)
+    await asyncio.to_thread(_delete_session, sid)
     return CoinflipPayoutResponse(ok=True, sid=sid, zen=zen_amount, g1_amount=g1_amount, tx=last_line.strip())
 
 def generate_society_html_page(request: Request, g1pub: str, society_data: Dict[str, Any]):

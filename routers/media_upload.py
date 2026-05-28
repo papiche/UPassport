@@ -42,6 +42,15 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 
+def _safe_arg(val: str) -> str:
+    """Prevent option injection: strip leading dashes from user-supplied subprocess args.
+    Values starting with '--' could be misinterpreted as flags by bash arg parsers."""
+    if val.startswith('-'):
+        stripped = val.lstrip('-')
+        return stripped if stripped else val
+    return val
+
+
 def _get_node_nsec() -> str:
     """Lit le NSEC du NODE local depuis secret.nostr."""
     secret_path = settings.GAME_PATH / "secret.nostr"
@@ -563,12 +572,12 @@ async def process_webcam_video(
                     "bash", publish_script,
                     "--nsec", str(secret_file),
                     "--ipfs-cid", ipfs_cid,
-                    "--filename", filename,
-                    "--title", title,
+                    "--filename", _safe_arg(filename),
+                    "--title", _safe_arg(title),
                     "--json"
                 ]
-                
-                if description: publish_cmd.extend(["--description", description])
+
+                if description: publish_cmd.extend(["--description", _safe_arg(description)])
                 if final_thumbnail_ipfs: publish_cmd.extend(["--thumbnail-cid", final_thumbnail_ipfs])
                 if final_gifanim_ipfs: publish_cmd.extend(["--gifanim-cid", final_gifanim_ipfs])
                 if info_cid: publish_cmd.extend(["--info-cid", info_cid])
@@ -820,13 +829,13 @@ async def process_vocals_message(
             "bash", publish_script,
             "--nsec", str(secret_file),
             "--ipfs-cid", ipfs_cid,
-            "--filename", actual_filename,
-            "--title", title,
+            "--filename", _safe_arg(actual_filename),
+            "--title", _safe_arg(title),
             "--json",
             "--kind", str(voice_kind)
         ]
-        
-        if description: publish_cmd.extend(["--description", description])
+
+        if description: publish_cmd.extend(["--description", _safe_arg(description)])
         if file_hash: publish_cmd.extend(["--file-hash", file_hash])
         if mime_type: publish_cmd.extend(["--mime-type", mime_type])
         if duration: publish_cmd.extend(["--duration", str(duration)])
@@ -1299,8 +1308,8 @@ async def upload_file_to_ipfs(
                                     "bash", publish_script,
                                     "--auto", temp_file_path,
                                     "--nsec", str(secret_file),
-                                    "--title", response_fileName,
-                                    "--description", event_description,
+                                    "--title", _safe_arg(response_fileName),
+                                    "--description", _safe_arg(event_description),
                                     "--json"
                                 ]
                                 

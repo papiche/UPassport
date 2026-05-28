@@ -21,14 +21,19 @@ class AppState:
         # Caches
         self.nostr_auth_cache = TTLCache(maxsize=1000, ttl=settings.NOSTR_CACHE_TTL)
         self.nostr_profile_cache = TTLCache(maxsize=1000, ttl=settings.NOSTR_PROFILE_CACHE_TTL)
-        
+
         # Hex to Email cache (built once)
         self.hex_to_email_cache = {}
         self.hex_to_directory_cache = TTLCache(maxsize=1000, ttl=3600)
         self.hex_cache_built = False
-        
+
         # Oracle System — typage générique pour éviter l'import circulaire
         self.oracle_system: Optional[Any] = None
+
+        # Cache Ustats.sh — réponse GET / servie depuis RAM, rafraîchie toutes les 60s
+        self.ustats_cache: Optional[Any] = None
+        self.ustats_cache_time: float = 0.0
+        self.USTATS_CACHE_TTL: int = 60
 
 app_state = AppState()
 
@@ -108,19 +113,33 @@ async def lifespan(app: FastAPI):
         logging.error(f"❌ Failed to initialise OracleSystem: {e}")
         app.state.oracle = None
     
-    # Pré-chauffe du cache Ustats.sh en tâche de fond (évite les 30s+ au premier appel GET /)
-    async def _prewarm_ustats():
-        try:
-            from utils.helpers import run_script
-            script_path = settings.ZEN_PATH / "Astroport.ONE" / "Ustats.sh"
-            if script_path.exists():
-                logging.info("🔄 Pré-chauffe du cache Ustats.sh en arrière-plan...")
-                rc, _ = await run_script(script_path)
-                logging.info(f"✅ Cache Ustats.sh prêt (rc={rc})")
-        except Exception as e:
-            logging.warning(f"⚠️  Pré-chauffe Ustats.sh échouée : {e}")
+    # Cache Ustats.sh : boucle de rafraîchissement toutes les 60 secondes
+    async def _refresh_ustats_loop():
+        import json as _json
+        import os as _os
+        import time as _time
+        from utils.helpers import run_script as _run_script
+        script_path = settings.ZEN_PATH / "Astroport.ONE" / "Ustats.sh"
+        if not script_path.exists():
+            logging.warning("⚠️  Ustats.sh introuvable — cache désactivé")
+            return
+        while True:
+            try:
+                rc, last_line = await _run_script(script_path)
+                if rc == 0:
+                    if _os.path.exists(last_line.strip()):
+                        with open(last_line.strip(), 'r') as f:
+                            data = _json.load(f)
+                    else:
+                        data = _json.loads(last_line)
+                    app_state.ustats_cache = data
+                    app_state.ustats_cache_time = _time.time()
+                    logging.info("✅ Cache Ustats.sh rafraîchi")
+            except Exception as e:
+                logging.warning(f"⚠️  Rafraîchissement Ustats.sh échoué : {e}")
+            await asyncio.sleep(app_state.USTATS_CACHE_TTL)
 
-    asyncio.create_task(_prewarm_ustats())
+    asyncio.create_task(_refresh_ustats_loop())
 
     yield
 
