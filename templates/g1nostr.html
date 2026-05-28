@@ -431,7 +431,51 @@
         .accordion-content.active {
             max-height: 500px;
         }
-        
+
+        .accordion-content.bio-active {
+            max-height: 900px;
+        }
+
+        .crowdfunding-note {
+            background: rgba(134,239,172,.08);
+            border: 1px solid rgba(134,239,172,.2);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin: 10px 0;
+            font-size: 13px;
+            color: #86efac;
+            line-height: 1.5;
+        }
+
+        .bio-section label {
+            display: block;
+            margin-top: 10px;
+            margin-bottom: 4px;
+            font-size: 13px;
+            color: #bbb;
+        }
+
+        .bio-section input[type="datetime-local"],
+        .bio-section input[type="text"],
+        .bio-section input[type="number"] {
+            width: 100%;
+            padding: 8px 10px;
+            background: #383838;
+            border: 1px solid #555;
+            border-radius: 5px;
+            color: #e0e0e0;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .bio-section h3 {
+            background: linear-gradient(to right, #ff9a9e, #fad0c4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 1em;
+            margin: 14px 0 6px 0;
+        }
+
         .credentials-info {
             padding: 15px 20px;
             background-color: #2a2a2a;
@@ -681,6 +725,37 @@
         
         <input type="hidden" id="salt" name="salt" value="">
         <input type="hidden" id="pepper" name="pepper" value="">
+        <input type="hidden" id="birth_datetime" name="birth_datetime" value="">
+        <input type="hidden" id="birth_place" name="birth_place" value="">
+        <input type="hidden" id="birth_weight" name="birth_weight" value="">
+        <input type="hidden" id="conception_datetime" name="conception_datetime" value="">
+        <input type="hidden" id="conception_place" name="conception_place" value="">
+
+        <div class="crowdfunding-note" id="crowdfunding-note" style="display:none">
+            💎 Votre portefeuille Ğ1 sera versé au collectif pour alimenter en Ẑen votre UPlanet de choix — c'est un crowdfunding coopératif !
+        </div>
+
+        <div class="credentials-accordion" style="margin-top:15px;margin-bottom:10px">
+            <button type="button" class="accordion-toggle" id="bio-toggle">
+                🌀 Kin Maya — Empreinte Natale <span style="font-size:11px;font-weight:normal;opacity:.7">(optionnel)</span>
+                <span class="toggle-icon">▼</span>
+            </button>
+            <div class="accordion-content" id="bio-content">
+                <div class="credentials-info">
+                    <p>Votre <strong>Kin Maya</strong> est une signature unique calculée depuis votre date de naissance dans le calendrier Tzolkin (cycle de 260 jours). Il associe un <em>Sceau Solaire</em> et une <em>Tonalité Galactique</em> — deux archétypes méso-américains qui enrichissent votre MULTIPASS d'une dimension temporelle universelle, partagée avec votre constellation UPlanet.</p>
+                    <p style="margin-bottom:8px"><a href="/earth/kin.html" target="_blank" style="color:#86efac;text-decoration:none">🌀 Découvrir le système Kin Maya et ses bénéfices →</a></p>
+                    <div class="bio-section">
+                        <label for="vis_birth_datetime">📅 Date de naissance</label>
+                        <input type="datetime-local" id="vis_birth_datetime">
+                        <label for="vis_birth_place">📍 Lieu de naissance <span style="font-weight:normal;opacity:.6">(ville ou GPS)</span></label>
+                        <input type="text" id="vis_birth_place" placeholder="Paris, France ou 48.85, 2.35" maxlength="100">
+                        <label for="vis_birth_weight">⚖️ Poids de naissance <span style="font-weight:normal;opacity:.6">(kg, optionnel)</span></label>
+                        <input type="number" id="vis_birth_weight" placeholder="3.5" step="0.1" min="0" max="10">
+                    </div>
+                    <div id="kin-preview" style="display:none;margin-top:12px;padding:10px 12px;background:rgba(134,239,172,.07);border:1px solid rgba(134,239,172,.2);border-radius:8px;font-size:13px;color:#86efac;line-height:1.8"></div>
+                </div>
+            </div>
+        </div>
 
             <input type="submit" value="📝 INSCRIPTION">
         </form>
@@ -743,6 +818,71 @@
             const userLanguage = navigator.language || navigator.languages[0];
             const shortLanguageCode = userLanguage.substring(0, 2);
             document.getElementById('lang').value = shortLanguageCode.toLowerCase();
+
+            // Pré-remplir l'email depuis le paramètre URL ?email= (envoyé par UPlanet Header)
+            const _urlParams = new URLSearchParams(window.location.search);
+            const _preEmail = _urlParams.get('email');
+            if (_preEmail) {
+                const _emailEl = document.getElementById('email');
+                if (_emailEl) { _emailEl.value = _preEmail; _emailEl.focus(); }
+            }
+
+            // Récupérer identifiants G1v1 depuis UPlanet Header (TTL 30s)
+            try {
+                const _uphCreds = localStorage.getItem('uph_g1creds');
+                if (_uphCreds) {
+                    const _creds = JSON.parse(_uphCreds);
+                    if (_creds && _creds.ts && (Date.now() - _creds.ts < 30000)) {
+                        const _saltEl   = document.getElementById('salt');
+                        const _pepperEl = document.getElementById('pepper');
+                        if (_saltEl   && _creds.salt)   _saltEl.value   = String(_creds.salt).slice(0, 56);
+                        if (_pepperEl && _creds.pepper) _pepperEl.value = String(_creds.pepper).slice(0, 56);
+                        // Afficher la note crowdfunding uniquement quand le portefeuille G1v1 est identifié
+                        const _cfNote = document.getElementById('crowdfunding-note');
+                        if (_cfNote) _cfNote.style.display = '';
+                    }
+                    localStorage.removeItem('uph_g1creds');
+                }
+            } catch(e) {}
+
+            // Accordéon Kin Maya
+            const bioToggle  = document.getElementById('bio-toggle');
+            const bioContent = document.getElementById('bio-content');
+            if (bioToggle && bioContent) {
+                bioToggle.addEventListener('click', function() {
+                    bioToggle.classList.toggle('active');
+                    bioContent.classList.toggle('bio-active');
+                });
+            }
+
+            // Calculateur Kin Maya inline (prévisualisation avant soumission)
+            const _KIN_GLYPHS = ['Imix','Ik','Akbal','Kan','Chicchan','Cimi','Manik','Lamat','Muluc','Oc','Chuen','Eb','Ben','Ix','Men','Cib','Caban','Etznab','Cauac','Ahau'];
+            const _KIN_TONES  = ['Magnétique','Lunaire','Électrique','Auto-existante','Harmonique','Rythmique','Résonnante','Galactique','Solaire','Planétaire','Spectrale','Cristal','Cosmique'];
+            const _KIN_COLORS = ['🔴 Rouge','⚪ Blanc','🔵 Bleu','🟡 Jaune','🟢 Vert'];
+            const _SUMA = {30:2,35:7,40:12,45:17,50:22,3:27,8:32,13:37,18:42,23:47,28:52,32:57,38:62,42:67,48:72,1:76,6:82,11:87,16:92,21:97,26:102,31:107,36:112,41:117,46:122,51:127,4:132,9:137,14:142,19:147,24:152,29:157,34:162,39:167,44:172,49:177,2:182,7:187,12:192,17:197,22:202,27:207,37:217,47:227,0:232,5:237,10:242,15:247,20:252,25:257};
+            const _MESES = [0,31,59,90,120,151,181,212,243,13,44,74];
+            function _calcKin(dateStr) {
+                const d = new Date(dateStr);
+                if (isNaN(d)) return null;
+                const y = d.getFullYear(), mo = d.getMonth()+1, day = d.getDate();
+                const sumaAnio = _SUMA[y % 52] || 0;
+                let kin = day + _MESES[mo-1] + sumaAnio;
+                if (kin > 260) kin -= 260;
+                return {kin, glyph:_KIN_GLYPHS[(kin-1)%20], tone:_KIN_TONES[(kin-1)%13], color:_KIN_COLORS[Math.floor((kin-1)/13)%5]};
+            }
+            const visBirthDt = document.getElementById('vis_birth_datetime');
+            const kinPreview = document.getElementById('kin-preview');
+            if (visBirthDt && kinPreview) {
+                visBirthDt.addEventListener('change', function() {
+                    const k = _calcKin(visBirthDt.value);
+                    if (k) {
+                        kinPreview.style.display = '';
+                        kinPreview.innerHTML = '🌀 Kin <strong>' + k.kin + '</strong> — ' + k.color + ' <strong>' + k.glyph + '</strong>, Tonalité <strong>' + k.tone + '</strong>';
+                    } else {
+                        kinPreview.style.display = 'none';
+                    }
+                });
+            }
 
             const form = document.getElementById('nostr-form');
             const errorMessageDiv = document.getElementById('error-message');
@@ -924,6 +1064,14 @@
 
             form.addEventListener('submit', function(event) {
                 event.preventDefault();
+
+                // Sync champs bio visibles → champs cachés du formulaire
+                const _g = id => document.getElementById(id);
+                const _v = id => (_g(id) ? _g(id).value : '');
+                _g('birth_datetime').value = _v('vis_birth_datetime');
+                _g('birth_place').value    = _v('vis_birth_place');
+                _g('birth_weight').value   = _v('vis_birth_weight');
+                // conception_datetime et conception_place : capturés par une autre app, resteront vides
 
                 // Reset UI
                 errorMessageDiv.style.display = 'none';

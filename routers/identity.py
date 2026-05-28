@@ -40,6 +40,11 @@ class G1NostrForm(BaseModel):
     salt: str = ""
     pepper: str = ""
     format: str = "html"
+    birth_datetime: str = ""
+    birth_place: str = ""
+    birth_weight: str = ""
+    conception_datetime: str = ""
+    conception_place: str = ""
 
     @field_validator('salt', 'pepper', mode='before')
     @classmethod
@@ -65,6 +70,11 @@ async def scan_qr(
     salt = form_data.salt
     pepper = form_data.pepper
     format = form_data.format
+    birth_datetime      = form_data.birth_datetime or ""
+    birth_place         = form_data.birth_place or ""
+    birth_weight        = form_data.birth_weight or ""
+    conception_datetime = form_data.conception_datetime or ""
+    conception_place    = form_data.conception_place or ""
     """
     Endpoint to execute the g1.sh script and return the generated file.
     Supports both regular users and swarm subscription aliases.
@@ -90,7 +100,10 @@ async def scan_qr(
     logger.info(f"ZEN Card credentials: salt={len(salt)} chars, pepper={len(pepper)} chars")
     
     script_path = "./g1.sh" # Make sure g1.sh is in the same directory or adjust path
-    return_code, last_line = await run_script(script_path, email, lang, lat, lon, salt, pepper)
+    return_code, last_line = await run_script(
+        script_path, email, lang, lat, lon, salt, pepper,
+        birth_datetime, birth_place, birth_weight, conception_datetime, conception_place
+    )
 
     if return_code == 0:
         returned_file_path = last_line.strip()
