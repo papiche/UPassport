@@ -436,17 +436,6 @@
             max-height: 900px;
         }
 
-        .crowdfunding-note {
-            background: rgba(134,239,172,.08);
-            border: 1px solid rgba(134,239,172,.2);
-            border-radius: 8px;
-            padding: 10px 14px;
-            margin: 10px 0;
-            font-size: 13px;
-            color: #86efac;
-            line-height: 1.5;
-        }
-
         .bio-section label {
             display: block;
             margin-top: 10px;
@@ -731,18 +720,14 @@
         <input type="hidden" id="conception_datetime" name="conception_datetime" value="">
         <input type="hidden" id="conception_place" name="conception_place" value="">
 
-        <div class="crowdfunding-note" id="crowdfunding-note" style="display:none">
-            💎 Votre portefeuille Ğ1 sera versé au collectif pour alimenter en Ẑen votre UPlanet de choix — c'est un crowdfunding coopératif !
-        </div>
-
         <div class="credentials-accordion" style="margin-top:15px;margin-bottom:10px">
             <button type="button" class="accordion-toggle" id="bio-toggle">
-                🌀 Kin Maya — Empreinte Natale <span style="font-size:11px;font-weight:normal;opacity:.7">(optionnel)</span>
+                [🔴|⚪|🔵|🟡|🟢] <span style="font-size:14px;font-weight:normal;opacity:.7">🌀 Kin Maya</span>
                 <span class="toggle-icon">▼</span>
             </button>
             <div class="accordion-content" id="bio-content">
                 <div class="credentials-info">
-                    <p>Votre <strong>Kin Maya</strong> est une signature unique calculée depuis votre date de naissance dans le calendrier Tzolkin (cycle de 260 jours). Il associe un <em>Sceau Solaire</em> et une <em>Tonalité Galactique</em> — deux archétypes méso-américains qui enrichissent votre MULTIPASS d'une dimension temporelle universelle, partagée avec votre constellation UPlanet.</p>
+                    <p> — Empreinte Natale — Le <strong>Kin Maya</strong> est calculée à partir de votre date de naissance dans le calendrier Tzolkin (cycle de 260 jours). Il associe un <em>Sceau Solaire</em> et une <em>Tonalité Galactique</em> — deux archétypes méso-américains qui enrichissent votre MULTIPASS d'une dimension temporelle universelle, partagée avec votre constellation UPlanet.</p>
                     <p style="margin-bottom:8px"><a href="/earth/kin.html" target="_blank" style="color:#86efac;text-decoration:none">🌀 Découvrir le système Kin Maya et ses bénéfices →</a></p>
                     <div class="bio-section">
                         <label for="vis_birth_datetime">📅 Date de naissance</label>
@@ -837,9 +822,6 @@
                         const _pepperEl = document.getElementById('pepper');
                         if (_saltEl   && _creds.salt)   _saltEl.value   = String(_creds.salt).slice(0, 56);
                         if (_pepperEl && _creds.pepper) _pepperEl.value = String(_creds.pepper).slice(0, 56);
-                        // Afficher la note crowdfunding uniquement quand le portefeuille G1v1 est identifié
-                        const _cfNote = document.getElementById('crowdfunding-note');
-                        if (_cfNote) _cfNote.style.display = '';
                     }
                     localStorage.removeItem('uph_g1creds');
                 }
