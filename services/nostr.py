@@ -67,66 +67,67 @@ def get_nostr_relay_url() -> str:
     port = "7777"  # Port strfry par défaut
     return f"ws://{host}:{port}"
 
+async def _fetch_event_from_relay(relay_url: str, event_id: str, timeout: int) -> Optional[Dict[str, Any]]:
+    """Try to fetch a single NOSTR event from one relay. Returns None on any failure."""
+    try:
+        async with websockets.connect(relay_url, open_timeout=timeout) as websocket:
+            subscription_id = f"video_fetch_{int(time.time())}"
+            req_message = json.dumps(["REQ", subscription_id, {
+                "kinds": [21, 22], "ids": [event_id], "limit": 1
+            }])
+            await websocket.send(req_message)
+
+            event_found = None
+            try:
+                while True:
+                    response = await asyncio.wait_for(websocket.recv(), timeout=timeout)
+                    parsed = json.loads(response)
+                    if parsed[0] == "EVENT" and len(parsed) >= 3:
+                        ev = parsed[2]
+                        if ev.get("id") == event_id:
+                            event_found = ev
+                    elif parsed[0] == "EOSE" and parsed[1] == subscription_id:
+                        break
+            except asyncio.TimeoutError:
+                pass
+
+            try:
+                await websocket.send(json.dumps(["CLOSE", subscription_id]))
+                await asyncio.sleep(0.1)
+            except Exception:
+                pass
+
+            return event_found
+    except Exception as e:
+        logger.debug(f"Relay {relay_url} unreachable: {e}")
+        return None
+
+
 async def fetch_video_event_from_nostr(event_id: str, timeout: int = 5) -> Optional[Dict[str, Any]]:
-    """Fetch video event (kind 21 or 22) from NOSTR relay by event ID"""
+    """Fetch video event (kind 21 or 22) from NOSTR relay by event ID.
+    Tries the local relay first, then falls back to NOSTR_RELAYS."""
     if not event_id:
         return None
     if len(event_id) != 64 or not re.match(r'^[0-9a-fA-F]{64}$', event_id):
-        logger.warning(f"Invalid event ID format: {event_id[:32]}{'...' if len(event_id) > 32 else ''}")
+        logger.warning(f"Invalid event ID format: {event_id[:32]}...")
         return None
-    
-    relay_url = get_nostr_relay_url()
-    logger.info(f"Fetching video event {event_id[:16]}... from relay: {relay_url}")
-    
-    try:
-        async with websockets.connect(relay_url, timeout=timeout) as websocket:
-            subscription_id = f"video_fetch_{int(time.time())}"
-            video_filter = {
-                "kinds": [21, 22],
-                "ids": [event_id],
-                "limit": 1
-            }
-            
-            req_message = json.dumps(["REQ", subscription_id, video_filter])
-            await websocket.send(req_message)
-            
-            event_found = None
-            end_received = False
-            
-            try:
-                while not end_received:
-                    response = await asyncio.wait_for(websocket.recv(), timeout=timeout)
-                    parsed_response = json.loads(response)
-                    
-                    if parsed_response[0] == "EVENT":
-                        if len(parsed_response) >= 3:
-                            event = parsed_response[2]
-                            if event.get("id") == event_id:
-                                event_found = event
-                                logger.info(f"✅ Video event found: {event_id[:16]}...")
-                    
-                    elif parsed_response[0] == "EOSE":
-                        if parsed_response[1] == subscription_id:
-                            end_received = True
-                    
-                    elif parsed_response[0] == "NOTICE":
-                        logger.warning(f"Relay notice: {parsed_response[1] if len(parsed_response) > 1 else 'N/A'}")
-            
-            except asyncio.TimeoutError:
-                logger.warning("Timeout waiting for video event")
-            
-            try:
-                close_message = json.dumps(["CLOSE", subscription_id])
-                await websocket.send(close_message)
-                await asyncio.sleep(0.1)
-            except Exception as e:
-                logger.warning(f"Error closing subscription: {e}")
-            
-            return event_found
-            
-    except Exception as e:
-        logger.error(f"Error fetching video event: {e}")
-        return None
+
+    # Build ordered relay list: local first, then constellation relays (deduped)
+    local_relay = get_nostr_relay_url()
+    relay_list = [local_relay]
+    for r in settings.NOSTR_RELAYS.split():
+        if r and r not in relay_list:
+            relay_list.append(r)
+
+    for relay_url in relay_list:
+        logger.info(f"Fetching video event {event_id[:16]}... from {relay_url}")
+        event = await _fetch_event_from_relay(relay_url, event_id, timeout)
+        if event:
+            logger.info(f"✅ Video event found on {relay_url}")
+            return event
+
+    logger.warning(f"Video event {event_id[:16]}... not found on any relay")
+    return None
 
 async def parse_video_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
     """Parse video event tags to extract metadata for Open Graph/Twitter Cards"""

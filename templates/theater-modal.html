@@ -4796,7 +4796,7 @@
                 console.log('🔌 Ensuring NOSTR relay connection (anonymous)...');
                 const currentRelay = await ensureRelayConnected();
                 if (!currentRelay) {
-                    throw new Error('NOSTR relay not connected or invalid');
+                    throw new Error('SORRY! Relay is not aware about this Video...');
                 }
                 
                 console.log('📡 Fetching video event from NOSTR:', eventId);
