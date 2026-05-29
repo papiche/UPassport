@@ -4728,11 +4728,19 @@
             await ensureRelayConnected();
         }
         
-        // Initialize NOSTR connection on page load
+        // Initialize NOSTR connection on page load, then load video from URL if present
         document.addEventListener('DOMContentLoaded', async function() {
             await initNostrConnectionStandalone();
+
+            // Load video from URL parameter AFTER relay is connected
+            const _urlParams = new URLSearchParams(window.location.search);
+            const _videoId = _urlParams.get('video') || '{{ video_id if video_id else "" }}';
+            if (_videoId && !window.videoData) {
+                console.log('🎬 Loading video from URL parameter:', _videoId);
+                loadVideoFromEventIdStandalone(_videoId);
+            }
         });
-        
+
         // ── Server-preloaded NIP-71 data (injected by theater_modal_route) ──────────
         // When the server successfully fetched the video event from the LOCAL relay,
         // it renders the full NIP-71 tag data as JSON into the page.
@@ -4776,20 +4784,6 @@
             } else {
                 initializeTheaterModeLocal(window.videoData);
             }
-        }
-        
-        // Check if video parameter is in URL and load it automatically
-        const urlParams = new URLSearchParams(window.location.search);
-        const videoId = urlParams.get('video') || '{{ video_id if video_id else "" }}';
-        
-        if (videoId && !window.videoData) {
-            console.log('🎬 Loading video from URL parameter:', videoId);
-            
-            // Load video directly (standalone mode - not in modal)
-            // NOTE: this path queries the EXTERNAL relay (wss://relay.copylaradio.com).
-            // It will fail for events that exist only on the local relay. In that case
-            // the server should have injected server_video_data above.
-            loadVideoFromEventIdStandalone(videoId);
         }
         
         /**
