@@ -3,10 +3,12 @@ skills.py — Endpoints pour le système de compétences WoTx2
 
 GET  /api/skill/session       — Dernière session install (install_session.json)
 GET  /api/skill/media/{skill} — Médias Kind 30504 partagés pour un skill (relay NOSTR)
+GET  /api/skill/oracles       — Pubkeys NOSTR hex des oracles WoTx2 (nœud + constellation)
 """
 import json
 import glob
 import os
+import re
 import asyncio
 import websockets
 import logging
@@ -125,6 +127,37 @@ async def get_skill_media(skill: str, limit: int = 20):
             deduped.append(item)
 
     return JSONResponse(content={"skill": skill_norm, "media": deduped, "count": len(deduped)})
+
+
+@router.get("/api/skill/oracles", summary="Pubkeys NOSTR des oracles WoTx2 (Nœud + Constellation)")
+async def get_oracle_pubkeys():
+    """
+    Retourne les pubkeys hex NOSTR (64 chars) des deux oracles WoTx2 :
+    - node          : ~/.zen/game/secret.nostr           — clé NOSTR locale du nœud
+    - constellation : ~/.zen/game/uplanet.G1.nostr       — clé du 1er bootstrap IPFS (primaire)
+
+    Les événements Kind 30503 oracle sont identifiables par le tag ["l","PERMIT_SKILL_Xn","permit_type"].
+    Ces pubkeys permettent aux clients de filtrer les vues oracle dans le widget SkillCloud.
+    """
+    hex_re = re.compile(r'^[0-9a-fA-F]{64}$')
+    keyfiles = {
+        "node":          "~/.zen/game/secret.nostr",
+        "constellation": "~/.zen/game/uplanet.G1.nostr",
+    }
+    result = {}
+    for name, path in keyfiles.items():
+        try:
+            content = open(os.path.expanduser(path)).read()
+            for segment in re.split(r'[;\n]', content):
+                segment = segment.strip()
+                if segment.startswith('HEX='):
+                    val = segment[4:].strip().rstrip(';').strip()
+                    if hex_re.match(val):
+                        result[name] = val
+                    break
+        except Exception:
+            pass
+    return JSONResponse(content=result)
 
 
 def _safe_content(content: str) -> dict:

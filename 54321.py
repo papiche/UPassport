@@ -2,6 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 
 from core.config import settings
 from core.state import lifespan
@@ -25,7 +26,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 earth_path = settings.ZEN_PATH / "workspace" / "UPlanet" / "earth"
 if os.path.exists(earth_path):
-    app.mount("/earth", StaticFiles(directory=earth_path), name="earth")
+    # html=True : /earth/ → /earth/index.html (et /earth/foo/ → /earth/foo/index.html)
+    app.mount("/earth", StaticFiles(directory=earth_path, html=True), name="earth")
 
 # Add Rate Limiting Middleware
 app.add_middleware(RateLimitMiddleware)
@@ -38,6 +40,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Redirect /index.html → /earth/index.html (page d'accueil UPlanet)
+# NB: GET / est géré par system.router (uStats JSON) — ne pas toucher
+@app.get("/index.html", include_in_schema=False)
+async def index_redirect():
+    return RedirectResponse(url="/earth/index.html", status_code=302)
 
 # Include routers
 app.include_router(system.router)

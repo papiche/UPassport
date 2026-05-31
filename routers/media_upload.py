@@ -1115,8 +1115,19 @@ async def upload_file_to_ipfs(
                                 detail=f"Multi-domain cookie files are not supported."
                             )
                         
-                        sorted_domains = sorted(domains, key=len)
-                        detected_domain = sorted_domains[0]
+                        # LCA : sous-domaine commun le plus spécifique
+                        # ex: {notebooklm.google.com} → "notebooklm.google.com"
+                        #     {notebooklm.google.com, google.com} → "google.com"
+                        _parts_list = [list(reversed(d.split("."))) for d in domains]
+                        _common = []
+                        _min_len = min(len(p) for p in _parts_list)
+                        for _i in range(_min_len):
+                            _labels = {p[_i] for p in _parts_list}
+                            if len(_labels) == 1:
+                                _common.append(next(iter(_labels)))
+                            else:
+                                break
+                        detected_domain = ".".join(reversed(_common)) if _common else next(iter(domains))
                     else:
                         raise HTTPException(
                             status_code=400, 
@@ -1134,16 +1145,47 @@ async def upload_file_to_ipfs(
 
                     os.chmod(cookie_path, 0o600)
 
-                    # Encrypt with user G1 key → IPFS pin → manifest + NOSTR kind 30078
+                    # ── Split sous-domaines (flag=FALSE = host-only) ───────────────────
+                    # Ex: fichier avec .google.com (TRUE) + notebooklm.google.com (FALSE)
+                    # → crée aussi .notebooklm.google.com.cookie pour sessions privées
+                    _subdomains: dict[str, list[str]] = {}
+                    _header_lines = []
+                    for _line in content_text.split('\n'):
+                        _ls = _line.strip()
+                        if not _ls or _ls.startswith('#'):
+                            _header_lines.append(_line)
+                            continue
+                        _parts = _ls.split('\t')
+                        if len(_parts) < 7:
+                            continue
+                        _col_domain = _parts[0].lstrip('.')
+                        _col_flag   = _parts[1].strip().upper()
+                        if _col_flag == 'FALSE' and _col_domain != detected_domain:
+                            _subdomains.setdefault(_col_domain, []).append(_line)
+
+                    for _subdomain, _lines in _subdomains.items():
+                        _sub_path = user_root_dir / f".{_subdomain}.cookie"
+                        _sub_bytes = ('\n'.join(_header_lines) + '\n' + '\n'.join(_lines) + '\n').encode()
+                        async with aiofiles.open(_sub_path, 'wb') as _sf:
+                            await _sf.write(_sub_bytes)
+                        os.chmod(_sub_path, 0o600)
+                        logger.info(f"Cookie sous-domaine {_subdomain} → {_sub_path.name}")
+                        try:
+                            await store_cookie_encrypted(user_root_dir, _subdomain, _sub_bytes)
+                        except Exception as _e:
+                            logger.warning(f"Cookie subdomain IPFS store failed (non-fatal): {_e}")
+
+                    # Encrypt with user G1 key → IPFS pin → manifest + NOSTR kind 31903
                     cid = None
                     try:
                         cid = await store_cookie_encrypted(user_root_dir, detected_domain, file_content)
                     except Exception as _e:
                         logger.warning(f"Cookie IPFS/NOSTR store failed (non-fatal): {_e}")
 
+                    _sub_info = f" + sous-domaines: {', '.join(_subdomains)}" if _subdomains else ""
                     return UploadResponse(
                         success=True,
-                        message=f"Cookie file uploaded successfully for {detected_domain}",
+                        message=f"Cookie file uploaded successfully for {detected_domain}{_sub_info}",
                         file_path=str(cookie_path.relative_to(user_root_dir.parent)),
                         file_type="netscape_cookies",
                         target_directory=str(user_root_dir),

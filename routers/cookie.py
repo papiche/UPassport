@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from core.config import settings
-from services.cookie_store import decrypt_from_ipfs, load_manifest, save_manifest
+from services.cookie_store import decrypt_from_ipfs, load_manifest, save_manifest, publish_manifest_to_nostr
 from services.nostr import require_nostr_auth
 from utils.crypto import npub_to_hex
 from utils.security import find_user_directory_by_hex
@@ -77,10 +77,23 @@ async def get_cookie(
     user_dir = _user_dir(auth_npub)
     manifest = load_manifest(user_dir)
 
+    # Résolution avec fallback parent-domain :
+    # GET /cookie/notebooklm.google.com → cherche d'abord "notebooklm.google.com"
+    # puis "google.com" si absent du manifest (LCA lors de l'upload).
+    resolved = domain
     if domain not in manifest:
-        raise HTTPException(status_code=404, detail=f"No cookie stored for: {domain}")
+        parts = domain.split('.')
+        while len(parts) > 2:
+            parts.pop(0)
+            candidate = '.'.join(parts)
+            if candidate in manifest:
+                resolved = candidate
+                logger.info(f"Cookie {domain}: résolu via parent '{resolved}'")
+                break
+        else:
+            raise HTTPException(status_code=404, detail=f"No cookie stored for: {domain}")
 
-    cid = manifest[domain].get("cid")
+    cid = manifest[resolved].get("cid")
 
     # Try IPFS decrypt (primary — encrypted, private)
     if cid:
@@ -89,9 +102,9 @@ async def get_cookie(
             return PlainTextResponse(content.decode("utf-8", errors="replace"))
 
     # Fallback: disk plaintext (backward compat — still present after upload)
-    disk = user_dir / f".{domain}.cookie"
+    disk = user_dir / f".{resolved}.cookie"
     if disk.exists():
-        logger.info(f"Cookie {domain}: IPFS decrypt unavailable, serving disk fallback")
+        logger.info(f"Cookie {resolved}: IPFS decrypt unavailable, serving disk fallback")
         return PlainTextResponse(disk.read_text())
 
     raise HTTPException(
@@ -115,15 +128,26 @@ async def delete_cookie(
     user_dir = _user_dir(auth_npub)
     manifest = load_manifest(user_dir)
 
+    # Résolution parent-domain (cohérence avec GET)
+    resolved = domain
     if domain not in manifest:
-        raise HTTPException(status_code=404, detail=f"No cookie for: {domain}")
+        parts = domain.split('.')
+        while len(parts) > 2:
+            parts.pop(0)
+            candidate = '.'.join(parts)
+            if candidate in manifest:
+                resolved = candidate
+                break
+        else:
+            raise HTTPException(status_code=404, detail=f"No cookie for: {domain}")
 
-    cid = manifest[domain].get("cid")
-    del manifest[domain]
+    cid = manifest[resolved].get("cid")
+    del manifest[resolved]
     save_manifest(user_dir, manifest)
+    asyncio.create_task(publish_manifest_to_nostr(user_dir, manifest))
 
-    # Remove disk file
-    disk = user_dir / f".{domain}.cookie"
+    # Remove disk file (utiliser resolved, pas domain)
+    disk = user_dir / f".{resolved}.cookie"
     if disk.exists():
         disk.unlink()
 
@@ -139,7 +163,7 @@ async def delete_cookie(
         except Exception:
             pass
 
-    return {"success": True, "domain": domain, "cid_unpinned": cid}
+    return {"success": True, "domain": resolved, "requested": domain, "cid_unpinned": cid}
 
 
 # ──────────────────────────────────────────────────────────────────────────────

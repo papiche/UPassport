@@ -1,4 +1,4 @@
-"""Cookie encrypted storage — encrypt with natools.py seal + IPFS + NOSTR kind 31903."""
+"""Cookie encrypted storage — encrypt with natools.py seal + IPFS + NOSTR kind 31903 (Cookie Vault)."""
 
 import os
 import json
@@ -123,39 +123,24 @@ async def decrypt_from_ipfs(cid: str, user_dir: Path) -> Optional[bytes]:
         return plain.read_bytes() if plain.exists() else None
 
 
-async def publish_to_nostr(user_dir: Path, domain: str, cid: str, private: bool = False):
-    """Publish NOSTR kind 31903 event for cookie CID to local relay (non-fatal)."""
+async def publish_manifest_to_nostr(user_dir: Path, manifest: dict):
+    """Publie le manifest cookie complet en NOSTR kind 31903 (Cookie Vault, d=cookies).
+
+    Le contenu est le manifest entier {domain: {cid, uploaded_at, size}} : seules les
+    références CID sont publiées, jamais le contenu des cookies (qui reste dans IPFS chiffré).
+    Kind 31903 est dédié aux cookies dans le registre UPlanet NIP-101.
+    Un seul event remplaçable par utilisateur couvre tous ses domaines.
+    """
     nostr_key = user_dir / ".secret.nostr"
     if not nostr_key.exists():
-        logger.debug(f"No .secret.nostr for {user_dir.name} — skipping NOSTR publish")
+        logger.debug(f"No .secret.nostr for {user_dir.name} — skip cookie manifest publish")
         return
-
-    uploaded_at_str = datetime.now(timezone.utc).isoformat()
-
-    if private:
-        # TODO: NIP-44 self-encrypt content (domain + cid hidden from relay)
-        # For now: publish with only cid, domain hidden
-        content = json.dumps({"cid": cid, "private": True})
-        tags = json.dumps([
-            ["d", f"cookie:{domain}"],
-            ["t", "cookie"],
-            ["encrypted", "true"],
-        ])
-    else:
-        content = json.dumps({
-            "cid": cid,
-            "domain": domain,
-            "uploaded_at": uploaded_at_str,
-            "type": "cookie",
-        })
-        tags = json.dumps([
-            ["d", f"cookie:{domain}"],
-            ["t", "cookie"],
-            ["t", "netscape_cookies"],
-            ["domain", domain],
-            ["uploaded_at", uploaded_at_str],
-        ])
-
+    content = json.dumps(manifest, ensure_ascii=False)
+    tags = json.dumps([
+        ["d", "cookies"],
+        ["t", "cookies"],
+        ["t", "uplanet"],
+    ])
     try:
         proc = await asyncio.create_subprocess_exec(
             ASTRO_PYTHON, str(NOSTR_SEND),
@@ -168,12 +153,13 @@ async def publish_to_nostr(user_dir: Path, domain: str, cid: str, private: bool 
             stderr=asyncio.subprocess.PIPE,
         )
         await asyncio.wait_for(proc.communicate(), timeout=15)
+        logger.info(f"Cookie manifest → NOSTR kind 31903 d=cookies ({len(manifest)} domaines)")
     except Exception as e:
-        logger.warning(f"NOSTR kind 31903 publish for cookie:{domain} failed: {e}")
+        logger.warning(f"NOSTR kind 31903 cookie manifest publish failed: {e}")
 
 
 async def store_cookie_encrypted(user_dir: Path, domain: str, content: bytes, private: bool = False) -> Optional[str]:
-    """Full pipeline: encrypt → IPFS pin → manifest update → NOSTR kind 31903.
+    """Full pipeline: encrypt → IPFS pin → manifest update → NOSTR kind 31903 (d=cookies).
 
     Returns CID on success, None if encryption/IPFS unavailable (non-fatal).
     Disk file (plain Netscape) is written by the caller before this function.
@@ -198,7 +184,7 @@ async def store_cookie_encrypted(user_dir: Path, domain: str, content: bytes, pr
     save_manifest(user_dir, manifest)
     logger.info(f"Cookie {domain} encrypted → IPFS {cid[:20]}… manifest updated")
 
-    # NOSTR publish is fire-and-forget
-    asyncio.create_task(publish_to_nostr(user_dir, domain, cid, private=private))
+    # NOSTR publish est fire-and-forget — publie le manifest entier (kind 31903 d=cookies)
+    asyncio.create_task(publish_manifest_to_nostr(user_dir, manifest))
 
     return cid

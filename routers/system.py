@@ -92,8 +92,20 @@ async def audio_route(): return RedirectResponse(url="/mp3?html=1", status_code=
 async def get_astro(request: Request):
     return render_page(request, "astro_base.html")
 
-@router.get("/cookie", response_class=HTMLResponse, summary="Cookie Guide", description="Serve cookie export guide template.")
-async def get_cookie_guide(request: Request):
+@router.get("/cookie", summary="Cookie Manager — HTML ou JSON selon Accept")
+async def get_cookie_or_list(
+    request: Request,
+    npub: Optional[str] = None,
+    html: Optional[int] = None,
+):
+    """Négociation de contenu :
+    - Accept: application/json (ou requête programmatique) → délègue au router cookie (liste JSON)
+    - Sinon → page HTML du Cookie Manager
+    """
+    accept = request.headers.get("Accept", "")
+    if "application/json" in accept:
+        from routers.cookie import list_cookies
+        return await list_cookies(request, npub=npub, html=html)
     return render_page(request, "cookie.html")
 
 @router.get("/terms", response_class=HTMLResponse, summary="Terms of Service", description="Serve Terms of Service template.")

@@ -9,10 +9,10 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="alternate icon" href="/static/favicon.ico">
     
-    <!-- Nostr integration (same as astro_base.html) -->
+    <!-- Stack NOSTR standardisé (nacl → nostr.bundle → common.js → uplanet-header) -->
+    <script src="/earth/nacl-fast.min.js"></script>
     <script src="/earth/nostr.bundle.js"></script>
-    <!-- Common.js for NOSTR functions -->
-    <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
+    <script src="/earth/common.js"></script>
     
     <!-- i18n Library -->
     <script src="/static/js/simpl-i18n.js"></script>
@@ -431,10 +431,24 @@
                     <div class="upload-icon">☁️</div>
                     <h3 style="color: var(--terminal-green); margin-bottom: 10px;"><span data-i18n="upload_drop">Drop your</span> <code>cookies.txt</code> <span data-i18n="upload_here">here</span></h3>
                     <p style="color: var(--text-color);" data-i18n="upload_or_click">or click to select</p>
-                    <p style="color: var(--terminal-cyan); font-size: 0.9rem; margin-top: 10px;" data-i18n="upload_format">Format: Netscape HTTP Cookie File</p>
+                    <p style="color: var(--terminal-cyan); font-size: 0.9rem; margin-top: 10px;" data-i18n="upload_format">Format: Netscape HTTP Cookie File (un seul domaine par fichier)</p>
                     <input type="file" id="cookie-file" accept=".txt" style="display: none;" onchange="handleCookieUpload(event)">
                 </div>
                 <div id="upload-status"></div>
+            </div>
+
+            <!-- Cookie Vault — liste des cookies stockés -->
+            <div class="section" id="cookie-vault-section">
+                <h2 style="color:var(--terminal-cyan)">🔐 COOKIES STOCKÉS <small style="font-size:.7em;color:#555">(NOSTR kind 31903 · IPFS chiffré)</small></h2>
+                <div id="cookie-vault-loading" style="text-align:center;padding:20px;color:var(--terminal-cyan)">⏳ Chargement du vault…</div>
+                <div id="cookie-vault-empty" style="display:none;text-align:center;padding:20px;color:#555">
+                    Aucun cookie stocké. Uploadez votre premier cookie ci-dessus.
+                </div>
+                <div id="cookie-vault-table" style="display:none;overflow-x:auto"></div>
+                <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+                    <button class="button" style="font-size:.85rem;padding:8px 16px" onclick="loadCookieVault()">↺ Rafraîchir</button>
+                    <span id="cookie-vault-status" style="font-size:.85rem;color:#888"></span>
+                </div>
             </div>
         </div>
 
@@ -649,114 +663,97 @@
             console.log(`🔗 IPFS Gateway: ${window.IPFS_GATEWAY}`);
         }
 
-        // Connect to NOSTR (using common.js functions)
+        // Résoudre le pubkey depuis toutes les sources disponibles
+        function _resolveCurrentPubkey() {
+            return window.userPubkey
+                || (window.NostrState && window.NostrState.userPubkey)
+                || null;
+        }
+
+        // Encoder pubkey → npub
+        function _encodePubkey(pubkey) {
+            const NostrLib = window.NostrTools || window.Nostr;
+            if (NostrLib && NostrLib.nip19 && NostrLib.nip19.npubEncode) {
+                try { return NostrLib.nip19.npubEncode(pubkey); } catch(e) {}
+            }
+            return pubkey;
+        }
+
+        // Connecter + mettre à jour l'UI après succès
+        async function _onConnected(pubkey) {
+            window.userPubkey = pubkey;
+            const npub = _encodePubkey(pubkey);
+            window.userNpub = npub;
+
+            // NIP-42 si disponible
+            if (typeof window.ensureRelayConnection === 'function') {
+                await window.ensureRelayConnection({ silent: true, forceAuth: true, maxWaitSeconds: 10 }).catch(() => null);
+            }
+
+            const npubShort = npub.substring(0, 12) + '...' + npub.substring(npub.length - 4);
+            const status = document.getElementById('auth-status');
+            if (status) status.innerHTML = `<div class="alert alert-success">✅ ${i18n.t('auth_connected')} ${npubShort}</div>`;
+
+            const btn = document.getElementById('connect-btn');
+            if (btn) { btn.textContent = '✅ CONNECTED'; btn.style.borderColor = 'var(--terminal-green)'; btn.style.color = 'var(--terminal-green)'; }
+
+            document.getElementById('upload-section').style.display = 'block';
+            document.getElementById('auth-section').style.display = 'none';
+            loadCookieVault();
+            i18n.applyTranslations();
+
+            const navStatus = document.getElementById('nav-status');
+            if (navStatus) navStatus.innerHTML = `<span class="status-connected">● ${npubShort}</span>`;
+
+            await fetchUserProfileAndUpdateUDriveLink();
+        }
+
+        // Attendre qu'un pubkey apparaisse (poll 300ms, timeout 90s)
+        // S'utilise après ouverture du modal uplanet-header
+        function _waitForPubkey(timeoutMs) {
+            return new Promise((resolve, reject) => {
+                const pubkey = _resolveCurrentPubkey();
+                if (pubkey) { resolve(pubkey); return; }
+                const deadline = Date.now() + (timeoutMs || 90000);
+                const iv = setInterval(() => {
+                    const pk = _resolveCurrentPubkey();
+                    if (pk) { clearInterval(iv); resolve(pk); return; }
+                    if (Date.now() >= deadline) { clearInterval(iv); reject(new Error('Connexion timeout — réessayez.')); }
+                }, 300);
+            });
+        }
+
+        // Connect to NOSTR — système standardisé uplanet-header.js
         async function connectToNOSTR() {
             const btn = document.getElementById('connect-btn');
             const status = document.getElementById('auth-status');
-            
             btn.disabled = true;
             status.innerHTML = `<div class="alert alert-info">⏳ ${i18n.t('auth_connecting')}</div>`;
 
             try {
-                // Use common.js connectNostr function (preferred method)
-                if (typeof connectNostr === 'function') {
-                    console.log('📌 Using common.js connectNostr...');
-                    const pubkey = await connectNostr(true); // Force NIP-42 auth
-                    
-                    if (!pubkey) {
-                        throw new Error("No public key returned from connectNostr");
-                    }
-                    
-                    // Get npub from common.js or encode it
-                    let npub = window.userNpub;
-                    if (!npub && typeof NostrTools !== 'undefined' && NostrTools.nip19) {
-                        npub = NostrTools.nip19.npubEncode(pubkey);
-                    } else if (!npub) {
-                        npub = pubkey;
-                    }
-                    
-                    // Store npub globally for later use (e.g., handleCookieUpload)
-                    window.userNpub = npub;
-                    
-                    // Connect to relay using common.js
-                    if (typeof connectToRelay === 'function') {
-                        await connectToRelay(true); // Force NIP-42 auth
-                    }
-                    
-                    // Update UI
-                    const npubShort = npub.substring(0, 12) + '...' + npub.substring(npub.length - 4);
-                    status.innerHTML = `
-                        <div class="alert alert-success">
-                            ✅ ${i18n.t('auth_connected')} ${npubShort}
-                        </div>
-                    `;
-                    
-                    btn.textContent = '✅ CONNECTED';
-                    btn.style.borderColor = 'var(--terminal-green)';
-                    btn.style.color = 'var(--terminal-green)';
-
-                    document.getElementById('upload-section').style.display = 'block';
-                    document.getElementById('auth-section').style.display = 'none';
-                    
-                    // Re-apply translations to the now-visible upload section
-                    i18n.applyTranslations();
-                    
-                    // Update nav status
-                    const navStatus = document.getElementById('nav-status');
-                    if (navStatus) {
-                        navStatus.innerHTML = `<span class="status-connected">● ${npubShort}</span>`;
-                    }
-
-                    // Fetch user profile to get uDRIVE link
-                    await fetchUserProfileAndUpdateUDriveLink();
-                    
-                } else {
-                    // Fallback to direct extension access (if common.js not loaded)
-                    console.warn('⚠️ common.js not loaded, using direct extension access');
-                    
-                    if (typeof window.nostr === 'undefined' || typeof window.nostr.getPublicKey !== 'function') {
-                        throw new Error(i18n.t('auth_error_extension'));
-                    }
-
-                    const pubkey = await window.nostr.getPublicKey();
-                    console.log('✅ Public key:', pubkey.substring(0, 8) + '...');
-
-                    // Encode to npub
-                    let npub = pubkey;
-                    if (typeof NostrTools !== 'undefined' && NostrTools.nip19) {
-                        npub = NostrTools.nip19.npubEncode(pubkey);
-                    }
-                    
-                    // Store npub globally for later use (e.g., handleCookieUpload)
-                    window.userNpub = npub;
-
-                    // Update UI
-                    const npubShort = npub.substring(0, 12) + '...' + npub.substring(npub.length - 4);
-                    status.innerHTML = `
-                        <div class="alert alert-success">
-                            ✅ ${i18n.t('auth_connected')} ${npubShort}
-                        </div>
-                    `;
-                    
-                    btn.textContent = '✅ CONNECTED';
-                    btn.style.borderColor = 'var(--terminal-green)';
-                    btn.style.color = 'var(--terminal-green)';
-
-                    document.getElementById('upload-section').style.display = 'block';
-                    document.getElementById('auth-section').style.display = 'none';
-                    
-                    // Re-apply translations to the now-visible upload section
-                    i18n.applyTranslations();
-                    
-                    // Update nav status
-                    const navStatus = document.getElementById('nav-status');
-                    if (navStatus) {
-                        navStatus.innerHTML = `<span class="status-connected">● ${npubShort}</span>`;
-                    }
-
-                    // Fetch user profile to get uDRIVE link
-                    await fetchUserProfileAndUpdateUDriveLink();
+                // 1. Déjà connecté via uplanet-header (session active)
+                let pubkey = _resolveCurrentPubkey();
+                if (pubkey) {
+                    await _onConnected(pubkey);
+                    return;
                 }
+
+                // 2. Extension NIP-07 disponible → connexion directe
+                if (window.nostr && typeof window.nostr.getPublicKey === 'function') {
+                    pubkey = await window.nostr.getPublicKey();
+                    if (pubkey) { await _onConnected(pubkey); return; }
+                }
+
+                // 3. Aucune extension → ouvrir le modal standardisé (G1v1 / nsec / extension)
+                if (typeof window.uphOpenLogin === 'function') {
+                    status.innerHTML = `<div class="alert alert-info">🔑 Complétez la connexion dans le bandeau UPlanet…</div>`;
+                    window.uphOpenLogin();
+                    pubkey = await _waitForPubkey(90000);
+                    await _onConnected(pubkey);
+                    return;
+                }
+
+                throw new Error(i18n.t('auth_error_extension') || 'Extension NOSTR introuvable — installez Alby ou nos2x, ou connectez-vous via le bandeau UPlanet.');
 
             } catch (error) {
                 console.error('Connection error:', error);
@@ -818,6 +815,27 @@
                         }
                     }
                     
+                    // Fallback : si common.js n'a pas trouvé le vault, interroger /api/myGPS
+                    if (!ipnsVault) {
+                        const npubForGps = window.userNpub || window.userPubkey;
+                        if (npubForGps) {
+                            try {
+                                const gpsResp = await fetch(
+                                    `${USPOT_API_BASE}/api/myGPS?npub=${encodeURIComponent(npubForGps)}`
+                                );
+                                if (gpsResp.ok) {
+                                    const gpsData = await gpsResp.json();
+                                    if (gpsData.nostrns) {
+                                        ipnsVault = gpsData.nostrns.replace(/^\/ipns\//, '');
+                                        console.log('✅ ipnsVault via /api/myGPS:', ipnsVault);
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('myGPS fallback failed:', e);
+                            }
+                        }
+                    }
+
                     // Update uDRIVE link in navigation
                     updateUDriveLink();
                 } else {
@@ -967,8 +985,9 @@
                     </div>
                 `;
 
-                // Reset file input
+                // Reset file input et rafraîchir le vault
                 event.target.value = '';
+                await loadCookieVault();
 
             } catch (error) {
                 console.error('Upload error:', error);
@@ -988,6 +1007,133 @@
             } else {
                 // Not connected yet, scroll to auth section
                 document.getElementById('auth-section').scrollIntoView({behavior: 'smooth'});
+            }
+        }
+
+        // ========================================
+        // COOKIE VAULT — visualiser & éditer
+        // ========================================
+        async function loadCookieVault() {
+            const npub = window.userNpub || window.userPubkey;
+            if (!npub) return;
+
+            const loading = document.getElementById('cookie-vault-loading');
+            const empty   = document.getElementById('cookie-vault-empty');
+            const table   = document.getElementById('cookie-vault-table');
+            const status  = document.getElementById('cookie-vault-status');
+
+            loading.style.display = 'block';
+            empty.style.display   = 'none';
+            table.style.display   = 'none';
+            status.textContent    = '';
+
+            try {
+                const resp = await fetch(`${USPOT_API_BASE}/cookie?npub=${encodeURIComponent(npub)}`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+                const cookies = data.cookies || [];
+
+                loading.style.display = 'none';
+                if (cookies.length === 0) { empty.style.display = 'block'; return; }
+
+                table.style.display = 'block';
+                table.innerHTML = _renderVaultTable(cookies);
+                status.textContent = `${cookies.length} domaine(s) · kind 31903`;
+            } catch (e) {
+                loading.textContent = `⚠️ Erreur : ${e.message}`;
+            }
+        }
+
+        function _renderVaultTable(cookies) {
+            const rows = cookies.map(c => {
+                const age = c.age_days ?? '?';
+                const ageColor = age === '?' ? '#888' : age < 14 ? '#2ecc71' : age < 30 ? '#f39c12' : '#e74c3c';
+                const cidShort = c.cid ? c.cid.substring(0, 14) + '…' : '—';
+                const date = c.uploaded_at ? c.uploaded_at.substring(0, 10) : '?';
+                const safeDomain = c.domain.replace(/[^a-zA-Z0-9._-]/g, '_');
+                return `<tr id="vrow-${safeDomain}">
+                    <td style="color:#0ff;font-weight:700;padding:8px 10px">${c.domain}</td>
+                    <td style="color:#888;padding:8px 10px">${date}</td>
+                    <td style="color:${ageColor};font-weight:700;padding:8px 10px">${age}j</td>
+                    <td style="color:#555;font-size:.75em;font-family:monospace;padding:8px 10px">${cidShort}</td>
+                    <td style="padding:8px 10px;text-align:right;white-space:nowrap">
+                        <label style="cursor:pointer;background:#1a6b3c;color:#fff;padding:5px 10px;
+                            border-radius:4px;font-size:.8em;margin-right:6px;display:inline-block">
+                            ✏️ Remplacer
+                            <input type="file" accept=".txt" style="display:none"
+                                onchange="replaceCookieDomain(event,'${c.domain}')">
+                        </label>
+                        <button onclick="deleteCookieDomain('${c.domain}')"
+                            style="background:#7c1c1c;color:#fff;border:none;padding:5px 10px;
+                            border-radius:4px;cursor:pointer;font-size:.8em">
+                            🗑️ Supprimer
+                        </button>
+                    </td>
+                </tr>`;
+            }).join('');
+
+            return `<table style="width:100%;border-collapse:collapse;font-size:.9em">
+                <thead>
+                    <tr style="background:rgba(0,255,0,.15)">
+                        <th style="padding:8px 10px;text-align:left;color:#0f0">Domaine</th>
+                        <th style="padding:8px 10px;text-align:left;color:#0f0">Uploadé</th>
+                        <th style="padding:8px 10px;text-align:left;color:#0f0">Âge</th>
+                        <th style="padding:8px 10px;text-align:left;color:#0f0">CID IPFS</th>
+                        <th style="padding:8px 10px;text-align:right;color:#0f0">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+        }
+
+        async function deleteCookieDomain(domain) {
+            if (!confirm(`Supprimer le cookie pour « ${domain} » ?`)) return;
+            const npub = window.userNpub || window.userPubkey;
+            const status = document.getElementById('cookie-vault-status');
+            status.textContent = `⏳ Suppression ${domain}…`;
+            try {
+                const resp = await fetch(
+                    `${USPOT_API_BASE}/cookie/${encodeURIComponent(domain)}?npub=${encodeURIComponent(npub)}`,
+                    { method: 'DELETE' }
+                );
+                if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.detail || resp.status); }
+                const safeDomain = domain.replace(/[^a-zA-Z0-9._-]/g, '_');
+                document.getElementById(`vrow-${safeDomain}`)?.remove();
+                const tbody = document.querySelector('#cookie-vault-table table tbody');
+                if (tbody && tbody.children.length === 0) {
+                    document.getElementById('cookie-vault-table').style.display = 'none';
+                    document.getElementById('cookie-vault-empty').style.display = 'block';
+                }
+                status.textContent = `✅ ${domain} supprimé`;
+            } catch (e) {
+                status.textContent = `⚠️ Erreur : ${e.message}`;
+            }
+        }
+
+        async function replaceCookieDomain(event, domain) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const npub = window.userNpub || window.userPubkey;
+            const status = document.getElementById('cookie-vault-status');
+            const uploadStatus = document.getElementById('upload-status');
+            status.textContent = `⏳ Remplacement ${domain}…`;
+            uploadStatus.innerHTML = `<div class="alert alert-info">⏳ Remplacement du cookie pour ${domain}…</div>`;
+            uploadStatus.style.display = 'block';
+            try {
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('npub', npub);
+                const resp = await fetch(`${USPOT_API_BASE}/api/fileupload`, { method: 'POST', body: fd });
+                const result = await resp.json();
+                if (!resp.ok) throw new Error(result.detail || resp.status);
+                uploadStatus.innerHTML = `<div class="alert alert-success">✅ Cookie ${result.description || domain} remplacé !</div>`;
+                status.textContent = '';
+                await loadCookieVault();
+            } catch (e) {
+                uploadStatus.innerHTML = `<div class="alert alert-warning">⚠️ Erreur : ${e.message}</div>`;
+                status.textContent = '';
             }
         }
 
@@ -1028,6 +1174,8 @@
             }, false);
         }
     </script>
+<!-- Bandeau de connexion NOSTR unifié (modal G1v1 / nsec / extension) -->
+<script src="/earth/uplanet-header.js"></script>
 <!-- 📄 Source: UPassport/templates/cookie.html -->
 </body>
 </html>
