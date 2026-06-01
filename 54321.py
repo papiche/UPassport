@@ -10,7 +10,7 @@ from core.logging import setup_logging
 from core.exceptions import setup_exception_handlers
 from core.middleware import RateLimitMiddleware
 
-from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, mailjet, skills
+from routers import system, nostr, media_library, media_upload, finance, cloud, analytics, ipfs, identity, crowdfunding, geo, permits, robohash, feedback, qr, cookie, mailjet, skills, nostr_sign
 
 # Setup logging
 setup_logging()
@@ -28,6 +28,11 @@ earth_path = settings.ZEN_PATH / "workspace" / "UPlanet" / "earth"
 if os.path.exists(earth_path):
     # html=True : /earth/ → /earth/index.html (et /earth/foo/ → /earth/foo/index.html)
     app.mount("/earth", StaticFiles(directory=earth_path, html=True), name="earth")
+
+apk_path = settings.ZEN_PATH / "workspace" / "cabine-33" / "build" / "android"
+if os.path.exists(apk_path):
+    # /apk/atom4love.apk — APK ATOM4LOVE buildé par create_apk.sh via 20h12.process.sh
+    app.mount("/apk", StaticFiles(directory=apk_path), name="apk")
 
 # Add Rate Limiting Middleware
 app.add_middleware(RateLimitMiddleware)
@@ -66,6 +71,7 @@ app.include_router(qr.router)
 app.include_router(cookie.router)
 app.include_router(mailjet.router)
 app.include_router(skills.router)
+app.include_router(nostr_sign.router)
 
 if __name__ == "__main__":
     import uvicorn
