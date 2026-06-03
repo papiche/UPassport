@@ -1,0 +1,14 @@
+{% extends "mailjet_base.html" %}
+
+{% block title %}Erreur — UPlanet{% endblock %}
+{% block page_title %}ERREUR{% endblock %}
+{% block nostr_bar %}{% endblock %}
+
+{% block content %}
+<p style="color:#e74c3c;">⚠️ {{ message }}</p>
+<p>
+  Contactez <a href="mailto:{{ captain }}" style="color:#00f5ff;">{{ captain }}</a>
+  pour obtenir un nouveau lien.
+</p>
+<p><a href="/mailjet" style="color:rgba(0,245,255,0.6);">← Retour</a></p>
+{% endblock %}

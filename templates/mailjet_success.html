@@ -1,0 +1,60 @@
+{% extends "mailjet_base.html" %}
+
+{% block title %}Préférences enregistrées — UPlanet{% endblock %}
+{% block page_title %}PRÉFÉRENCES ENREGISTRÉES{% endblock %}
+{% block nostr_bar %}{% endblock %}
+
+{% block content %}
+{% if vibe_capture %}
+<div class="ok">
+  <h2>✨ Résonance enregistrée</h2>
+  <p style="font-size:0.87rem;margin-bottom:10px;">
+    Merci. Votre réponse contribue à affiner votre profil Oracle.
+  </p>
+  <p style="margin:0;font-size:0.85rem;">
+    <a href="/mailjet?email={{ email }}&token={{ token }}" style="color:#86efac;">
+      ⚙️ Voir et modifier mes préférences →
+    </a>
+  </p>
+</div>
+{% else %}
+<div class="ok">
+  <h2>✅ Préférences mises à jour</h2>
+  <p style="font-size:0.87rem;margin-bottom:10px;">
+    Paramètres enregistrés pour <code>{{ email }}</code>.
+  </p>
+
+  {% if channels %}
+  <p style="font-size:0.85rem;margin-bottom:8px;">
+    📭 Canaux désactivés : <strong>{{ channels | join(', ') }}</strong>
+  </p>
+  {% endif %}
+
+  {% if kin_prefs %}
+  <p style="font-size:0.82rem;color:rgba(255,255,255,0.6);margin-bottom:8px;">
+    🌀 Oracle KIN :
+    quotidien={{ '✅' if kin_prefs.daily else '🔕' }}
+    · hebdo={{ '✅' if kin_prefs.weekly else '🔕' }}
+    · portée=<strong>{{ kin_prefs.scope }}</strong>
+    · {{ kin_prefs.types | length }} type(s) actif(s)
+  </p>
+  {% endif %}
+
+  <p style="margin:12px 0 0;font-size:0.85rem;">
+    {% if npub %}
+    <a href="https://ipfs.copylaradio.com/ipns/copylaradio.com/nostr_profile_viewer.html?npub={{ npub }}"
+       style="color:#86efac;">👤 Consulter mon MULTIPASS →</a><br><br>
+    {% endif %}
+    <a href="https://opencollective.com/monnaie-libre" style="color:#00ff88;">
+      Rejoindre la coopérative →
+    </a>
+  </p>
+</div>
+
+<p style="margin-top:18px;font-size:0.82rem;text-align:center;">
+  <a href="/mailjet?email={{ email }}&token={{ token }}" style="color:rgba(0,245,255,0.6);">
+    ← Modifier à nouveau mes préférences
+  </a>
+</p>
+{% endif %}
+{% endblock %}

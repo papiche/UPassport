@@ -1,0 +1,112 @@
+{% extends "mailjet_base.html" %}
+
+{% block title %}Préférences notifications — UPlanet{% endblock %}
+
+{% block nostr_bar %}
+<div id="nostr-bar">
+  <span>🛰️ UPlanet</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<p>Gérez vos préférences de notification UPlanet.</p>
+
+<!-- Bloc roaming (masqué par défaut) -->
+<div id="roaming-block" class="alert alert-warn" style="display:none;">
+  <strong>⚠️ Roaming détecté</strong><br>
+  Votre MULTIPASS est géré par la station <strong id="roaming-station"></strong>.
+  Gérez vos préférences depuis cette station ou consultez votre profil :<br>
+  <a id="roaming-viewer" href="#" style="color:#e8d44d;">👤 Voir mon MULTIPASS →</a>
+</div>
+
+<!-- Option 1 : NOSTR NIP-42 -->
+<div class="box">
+  <h3>🔑 MULTIPASS NOSTR</h3>
+  <p style="color:rgba(255,255,255,0.55);font-size:0.85rem;margin-bottom:16px;">
+    Prouvez votre identité via votre clé NOSTR (NIP-42).<br>
+    La station vérifie que vous êtes bien le propriétaire de votre MULTIPASS.
+  </p>
+  <button id="btn-nostr" class="btn-main" onclick="handleConnect()">⚡ Connexion NOSTR</button>
+  <div id="nip42-err" class="alert alert-err" style="display:none;margin-top:12px;"></div>
+</div>
+
+<div class="or-sep">─── OU ───</div>
+
+<!-- Option 2 : Email + Token -->
+<div class="box">
+  <h3>📧 Lien email (token)</h3>
+  <p style="color:rgba(255,255,255,0.55);font-size:0.85rem;margin-bottom:14px;">
+    Collez le token reçu dans votre email UPlanet.
+  </p>
+  <form method="get" action="/mailjet">
+    <input type="email" name="email" placeholder="votre@email.com" required>
+    <input type="text"  name="token" placeholder="token — 16 caractères hex" required
+           pattern="[0-9a-f]{16}" title="16 caractères hexadécimaux">
+    <button type="submit" class="btn-main"
+            style="background:rgba(0,255,136,0.12);color:#00ff88;border-color:rgba(0,255,136,0.3);">
+      Accéder à mes préférences →
+    </button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var _challenge = null, _relay = null;
+
+async function _fetchChallenge() {
+  try {
+    var r = await fetch('/mailjet/challenge');
+    var d = await r.json();
+    _challenge = d.challenge; _relay = d.relay;
+  } catch(e) { console.warn('challenge fetch:', e); }
+}
+
+async function handleConnect() {
+  var btn = document.getElementById('btn-nostr');
+  var err = document.getElementById('nip42-err');
+  if (err) err.style.display = 'none';
+  if (!_challenge) await _fetchChallenge();
+  if (!_challenge) {
+    if (err) { err.textContent = 'Impossible de récupérer le challenge NIP-42.'; err.style.display = ''; }
+    return;
+  }
+  btn.textContent = '⏳ Signature…'; btn.disabled = true;
+  try {
+    if (!window.nostr) throw new Error('Aucune extension NOSTR (Alby, nos2x, Flamingo…)');
+    var unsigned = {
+      kind: 22242,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [['relay', _relay || 'wss://relay.copylaradio.com'], ['challenge', _challenge]],
+      content: 'Identification de passeport UPlanet',
+    };
+    var signed = await window.nostr.signEvent(unsigned);
+    var res = await fetch('/mailjet/auth', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({event: signed}),
+    });
+    var data = await res.json();
+    if (data.redirect) { window.location = data.redirect; return; }
+    if (data.status === 'roaming') {
+      document.getElementById('roaming-block').style.display = '';
+      document.getElementById('roaming-station').textContent = data.station || '(station inconnue)';
+      document.getElementById('roaming-viewer').href = data.viewer || '#';
+      btn.textContent = '⚡ Connexion NOSTR'; btn.disabled = false; return;
+    }
+    if (data.status === 'unknown') { window.location = data.viewer; return; }
+    if (err) { err.textContent = data.message || 'Erreur NIP-42.'; err.style.display = ''; }
+  } catch(e) {
+    if (err) { err.textContent = e.message; err.style.display = ''; }
+  }
+  btn.textContent = '⚡ Connexion NOSTR'; btn.disabled = false;
+}
+
+window.addEventListener('DOMContentLoaded', function() {
+  _fetchChallenge();
+  if (!window.nostr) {
+    var btn = document.getElementById('btn-nostr');
+    if (btn) { btn.textContent = '⚠️ Extension NOSTR non détectée'; btn.disabled = true; }
+  }
+});
+</script>
+{% endblock %}

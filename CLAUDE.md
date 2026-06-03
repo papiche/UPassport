@@ -75,6 +75,33 @@ templates/        ← Jinja2 HTML templates
 - `GET  /api/skill/session` — Lit `~/.zen/tmp/$IPFSNODEID/install_session.json` (écrit par `install.sh`). Retourne le JSON de session : mode, profile, score, tier, cpu_model, ram_gb, vram_gb, log_cid. Fallback : dernier fichier `~/.zen/log/install_session_*.log`
 - `GET  /api/skill/media/{skill}` — Interroge strfry (Kind 30504, `#t=[skill_norm]`, limit=20). Retourne les CIDs IPFS des preuves partagées dans la constellation. Dédoublonnage par CID. Utilisé par `install_craft.html` pour afficher les médias existants
 
+### mailjet.py — Préférences notifications + Opt-out
+- `GET  /mailjet` — Page préférences (auth NIP-42 ou email+token)
+- `POST /mailjet` — Sauvegarde préférences → `~/.zen/game/nostr/EMAIL/.mailjet`
+- `GET  /mailjet/challenge` — Challenge NIP-42 (TTL 5 min, usage unique)
+- `POST /mailjet/auth` — Vérification Schnorr BIP-340, détection roaming, redirection
+
+**Format `.mailjet` JSON** (géré par UPassport, lu par `tools/kin_prefs.sh`) :
+```json
+{
+  "email_channel": false, "nostr_channel": false,
+  "channels": [],
+  "kin": {
+    "daily": true, "weekly": true,
+    "scope": "relay",
+    "types": ["quartet","occult","analog","tone","guide","antipode"]
+  }
+}
+```
+`scope` : `"n1"` (follows directs) | `"n2"` (follows + amisOfAmis.txt) | `"relay"` (tous)
+
+**Templates** (Jinja2, dans `templates/`) :
+- `mailjet_base.html` — Base partagée (CSS + blocs)
+- `mailjet_landing.html` — Authentification NIP-42 ou token
+- `mailjet_prefs.html` — Page préférences complète avec section KIN
+- `mailjet_success.html` — Confirmation sauvegarde
+- `mailjet_error.html` — Page d'erreur
+
 ### Autres routers
 - `analytics.py` — Statistiques d'usage
 - `ipfs.py` — Opérations IPFS directes

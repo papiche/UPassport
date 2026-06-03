@@ -1,0 +1,131 @@
+{% extends "mailjet_base.html" %}
+
+{% block title %}Personnaliser mon expérience — UPlanet{% endblock %}
+{% block page_title %}PERSONNALISER MON EXPÉRIENCE{% endblock %}
+{% block nostr_bar %}{% endblock %}
+
+{% block extra_styles %}
+.q-intro { color: rgba(255,255,255,0.6); font-size: 0.88rem; line-height: 1.75;
+  margin-bottom: 28px; }
+.q-block { margin-bottom: 28px; border-bottom: 1px solid rgba(0,245,255,0.07);
+  padding-bottom: 24px; }
+.q-block:last-of-type { border-bottom: none; }
+.q-text { color: #e0f0ff; font-size: 0.95rem; line-height: 1.5; margin-bottom: 14px;
+  font-weight: 500; }
+.q-options { display: flex; flex-direction: column; gap: 8px; }
+.q-opt { display: flex; align-items: flex-start; gap: 12px; padding: 11px 14px;
+  border: 1px solid rgba(0,245,255,0.1); border-radius: 4px;
+  cursor: pointer; transition: border-color .18s, background .18s; }
+.q-opt:hover { border-color: rgba(0,245,255,0.3); background: rgba(0,245,255,0.04); }
+.q-opt input[type=radio] { accent-color: #00f5ff; flex-shrink: 0; margin-top: 3px; }
+.q-opt input[type=radio]:checked + label { color: #e0f0ff; }
+.q-opt label { cursor: pointer; color: rgba(255,255,255,0.65); font-size: 0.87rem;
+  line-height: 1.5; }
+.q-opt.selected { border-color: rgba(0,245,255,0.35); background: rgba(0,245,255,0.06); }
+.q-progress { display: flex; gap: 4px; margin-bottom: 24px; }
+.q-dot { width: 28px; height: 4px; border-radius: 2px; background: rgba(0,245,255,0.12);
+  transition: background .3s; }
+.q-dot.done { background: rgba(0,245,255,0.5); }
+.q-dot.active { background: #00f5ff; }
+.btn-next { background: rgba(0,245,255,0.12); color: #00f5ff;
+  border: 1px solid rgba(0,245,255,0.3); padding: 11px 28px;
+  border-radius: 6px; font-family: 'Courier New', monospace; font-size: 0.85rem;
+  cursor: pointer; letter-spacing: 1px; transition: background .2s; }
+.btn-next:hover { background: rgba(0,245,255,0.22); }
+.btn-submit { background: rgba(0,255,136,0.12); color: #00ff88;
+  border: 1px solid rgba(0,255,136,0.3); padding: 12px 32px;
+  border-radius: 6px; font-family: 'Courier New', monospace; font-size: 0.88rem;
+  cursor: pointer; letter-spacing: 1px; margin-top: 8px; }
+.btn-submit:hover { background: rgba(0,255,136,0.22); }
+{% endblock %}
+
+{% block content %}
+<p class="q-intro">
+  Pour vous proposer une expérience personnalisée, nous avons quelques questions sur la façon
+  dont vous percevez le monde. Il n'y a pas de bonnes ou de mauvaises réponses —
+  choisissez ce qui vous correspond le mieux, spontanément.
+</p>
+
+<form method="post" action="/mailjet/questionnaire" id="qform">
+  <input type="hidden" name="email" value="{{ email }}">
+  <input type="hidden" name="token" value="{{ token }}">
+
+  <!-- Barre de progression -->
+  <div class="q-progress" id="progress">
+    {% for i in range(questions|length) %}
+    <div class="q-dot {% if loop.index0 == 0 %}active{% endif %}" id="dot{{ loop.index0 }}"></div>
+    {% endfor %}
+  </div>
+
+  <!-- Questions (une seule visible à la fois) -->
+  {% for q in questions %}
+  <div class="q-block" id="qblock{{ loop.index0 }}"
+       style="{{ 'display:none' if loop.index0 > 0 else '' }}">
+    <div class="q-text">{{ q.text }}</div>
+    <div class="q-options">
+      {% for opt in q.options %}
+      <div class="q-opt" onclick="selectOpt(this)">
+        <input type="radio" name="{{ q.id }}" value="{{ opt.value }}"
+               id="{{ q.id }}_{{ opt.value }}" required>
+        <label for="{{ q.id }}_{{ opt.value }}">{{ opt.label }}</label>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- Navigation -->
+  <div id="nav-next" style="margin-top:4px">
+    <button type="button" class="btn-next" onclick="nextQ()">Continuer →</button>
+  </div>
+  <div id="nav-submit" style="display:none;margin-top:4px">
+    <button type="submit" class="btn-submit">✓ Confirmer mes réponses</button>
+  </div>
+</form>
+
+<p style="color:rgba(255,255,255,0.2);font-size:0.75rem;margin-top:24px;text-align:center;">
+  Ces informations restent sur votre station UPlanet et ne sont jamais partagées.
+  Vous pourrez les modifier à tout moment depuis ce lien.
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var total = {{ questions|length }};
+var current = 0;
+
+function selectOpt(el) {
+  var block = el.closest('.q-block');
+  block.querySelectorAll('.q-opt').forEach(function(o) { o.classList.remove('selected'); });
+  el.classList.add('selected');
+  el.querySelector('input').checked = true;
+}
+
+function nextQ() {
+  var block = document.getElementById('qblock' + current);
+  var checked = block.querySelector('input[type=radio]:checked');
+  if (!checked) {
+    block.style.boxShadow = '0 0 0 1px rgba(231,76,60,0.5)';
+    setTimeout(function(){ block.style.boxShadow = ''; }, 1200);
+    return;
+  }
+  document.getElementById('dot' + current).classList.remove('active');
+  document.getElementById('dot' + current).classList.add('done');
+  block.style.display = 'none';
+  current++;
+  if (current >= total) {
+    document.getElementById('nav-next').style.display = 'none';
+    document.getElementById('nav-submit').style.display = '';
+    return;
+  }
+  var next = document.getElementById('qblock' + current);
+  next.style.display = '';
+  document.getElementById('dot' + current).classList.add('active');
+}
+
+// Permettre de valider avec Entrée
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && current < total) { nextQ(); }
+});
+</script>
+{% endblock %}

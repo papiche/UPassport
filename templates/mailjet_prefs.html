@@ -1,0 +1,204 @@
+{% extends "mailjet_base.html" %}
+
+{% block title %}Mes préférences de notification — UPlanet{% endblock %}
+{% block page_title %}PRÉFÉRENCES NOTIFICATIONS{% endblock %}
+
+{% block content %}
+<p>Notifications envoyées à <code>{{ email }}</code> par votre station UPlanet.</p>
+
+{% if vibe_langage %}
+<div style="background:rgba(167,139,250,0.07);border:1px solid rgba(167,139,250,0.2);
+     border-radius:4px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+  <div>
+    <div style="color:#a78bfa;font-family:'Courier New',monospace;font-size:0.7rem;letter-spacing:2px;margin-bottom:3px">// PROFIL DE RÉSONANCE</div>
+    <div style="color:#e0e7ff;font-size:0.88rem">
+      {{ vibe_icon }} <strong>{{ vibe_label }}</strong>
+    </div>
+  </div>
+  <a href="/mailjet/questionnaire?email={{ email }}&token={{ token }}"
+     style="color:rgba(167,139,250,0.7);font-size:0.75rem;text-decoration:none;white-space:nowrap;
+            border:1px solid rgba(167,139,250,0.2);border-radius:4px;padding:4px 10px">
+    Refaire ↻
+  </a>
+</div>
+{% else %}
+<div style="background:rgba(0,245,255,0.04);border:1px solid rgba(0,245,255,0.12);
+     border-radius:4px;padding:12px 16px;margin-bottom:18px">
+  <div style="color:#00f5ff;font-family:'Courier New',monospace;font-size:0.7rem;letter-spacing:2px;margin-bottom:6px">// PERSONNALISATION ORACLE</div>
+  <p style="color:rgba(255,255,255,0.55);font-size:0.83rem;margin:0 0 10px;">
+    Répondez à quelques questions pour que votre Oracle KIN s'adapte à votre façon de voir le monde.
+  </p>
+  <a href="/mailjet/questionnaire?email={{ email }}&token={{ token }}"
+     style="display:inline-block;background:rgba(0,245,255,0.1);color:#00f5ff;
+            border:1px solid rgba(0,245,255,0.25);border-radius:4px;padding:8px 18px;
+            font-family:'Courier New',monospace;font-size:0.8rem;text-decoration:none">
+    Personnaliser mon Oracle →
+  </a>
+</div>
+{% endif %}
+
+<!-- Identité NOSTR si connecté -->
+{% if saved_npub %}
+<div class="nostr-block">
+  <div class="ntitle">// IDENTITÉ NOSTR</div>
+  <p style="margin:0 0 8px;font-size:0.82rem;color:rgba(255,255,255,0.55);">
+    Clé publique : <code id="nostr-npub-code">{{ saved_npub[:16] }}…</code>
+  </p>
+  <a id="nostr-profile-link"
+     href="https://ipfs.copylaradio.com/ipns/copylaradio.com/nostr_profile_viewer.html?npub={{ saved_npub }}">
+    👤 Consulter mon MULTIPASS
+  </a>
+</div>
+{% endif %}
+
+<hr class="sep">
+
+<form method="post" action="/mailjet">
+  <input type="hidden" name="email" value="{{ email }}">
+  <input type="hidden" name="token" value="{{ token }}">
+  <input type="hidden" name="npub"  value="{{ saved_npub }}" id="npub-hidden">
+
+  {# ── Canaux globaux ── #}
+  <p style="color:rgba(255,255,255,0.5);font-size:0.82rem;margin-bottom:6px;">
+    Cochez les canaux à <strong style="color:#e74c3c;">désactiver</strong>&nbsp;:
+  </p>
+  <div class="channel-grid">
+    <div class="channel-card" onclick="this.querySelector('input').click()">
+      <input type="checkbox" name="channels" value="email" id="ce"
+             {% if email_channel_off %}checked{% endif %}>
+      <label for="ce">
+        <span class="ctitle">📧 Email</span>
+        <span class="cdesc">Tous les emails de la station UPlanet (MULTIPASS, économie, KIN…)</span>
+      </label>
+    </div>
+    <div class="channel-card" onclick="this.querySelector('input').click()">
+      <input type="checkbox" name="channels" value="nostr" id="cn"
+             {% if nostr_channel_off %}checked{% endif %}>
+      <label for="cn">
+        <span class="ctitle">💬 NOSTR DMs</span>
+        <span class="cdesc">Messages directs depuis les relays coopératifs UPlanet</span>
+      </label>
+    </div>
+  </div>
+
+  <hr class="sep">
+
+  {# ── Oracle KIN ATOM4LOVE ── #}
+  <div class="kin-section">
+    <h3>🌀 ORACLE KIN — ATOM4LOVE</h3>
+    <p>
+      Ces newsletters utilisent le calendrier Tzolkin (260 cycles mayas) pour vous mettre en
+      relation avec des membres du réseau dont le profil de naissance se complète avec le vôtre.
+    </p>
+
+    {# Activer / désactiver les deux types d'envoi #}
+    <div class="kin-label">Activer / désactiver</div>
+    <div class="kin-toggle-row">
+      <div class="kin-toggle" onclick="this.querySelector('input').click()">
+        <input type="checkbox" name="kin_off_daily" id="kin_od"
+               {% if kin_daily_off %}checked{% endif %}>
+        <label for="kin_od">🔕 Oracle quotidien</label>
+      </div>
+      <div class="kin-toggle" onclick="this.querySelector('input').click()">
+        <input type="checkbox" name="kin_off_weekly" id="kin_ow"
+               {% if kin_weekly_off %}checked{% endif %}>
+        <label for="kin_ow">🔕 Correspondances hebdo</label>
+      </div>
+    </div>
+
+    {# Portée du matching #}
+    <div class="kin-label" style="margin-top:16px;">Portée des correspondances</div>
+    <div class="kin-scope">
+      <div class="scope-opt" onclick="this.querySelector('input').click()">
+        <input type="radio" name="kin_scope" value="n1" id="ks_n1"
+               {% if kin_scope == 'n1' %}checked{% endif %}>
+        <label for="ks_n1">
+          <span class="scope-title">🔵 Mon réseau (N1)</span>
+          <span class="scope-desc">Personnes que je suis sur NOSTR uniquement</span>
+        </label>
+      </div>
+      <div class="scope-opt" onclick="this.querySelector('input').click()">
+        <input type="radio" name="kin_scope" value="n2" id="ks_n2"
+               {% if kin_scope == 'n2' %}checked{% endif %}>
+        <label for="ks_n2">
+          <span class="scope-title">🟢 Réseau étendu (N2)</span>
+          <span class="scope-desc">Mes follows + leurs follows (amis d'amis)</span>
+        </label>
+      </div>
+      <div class="scope-opt" onclick="this.querySelector('input').click()">
+        <input type="radio" name="kin_scope" value="relay" id="ks_relay"
+               {% if kin_scope == 'relay' %}checked{% endif %}>
+        <label for="ks_relay">
+          <span class="scope-title">🌐 Tous les membres</span>
+          <span class="scope-desc">Tous les profils Tzolkin sur le relay UPlanet</span>
+        </label>
+      </div>
+    </div>
+
+    {# Types de correspondances #}
+    <div class="kin-label" style="margin-top:16px;">Types de correspondances à recevoir</div>
+    <div class="kin-types">
+      {% for type_key in kin_all_types %}
+      {% set ico, name, desc = kin_type_labels[type_key] %}
+      <div class="type-card" onclick="this.querySelector('input').click()">
+        <input type="checkbox" name="kin_types" value="{{ type_key }}" id="kt_{{ type_key }}"
+               {% if type_key in kin_active_types %}checked{% endif %}>
+        <label for="kt_{{ type_key }}">
+          <span class="type-name">{{ ico }} {{ name }}</span>
+          <span class="type-desc">{{ desc }}</span>
+        </label>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="unsub-all">
+      <p>Pour ne plus recevoir aucune newsletter KIN, désactivez les deux toggles ci-dessus.
+         Pour tout arrêter (y compris emails MULTIPASS), cochez le canal Email en haut.</p>
+    </div>
+  </div>
+
+  <hr class="sep">
+
+  <div class="warn">
+    <p>⚠️ La désactivation du canal Email arrête <em>tous</em> les emails de la station.
+       Réversible via <a href="mailto:{{ captain }}" style="color:#e88;">{{ captain }}</a>.</p>
+  </div>
+
+  <button type="submit">💾 Enregistrer mes préférences</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var _npub = '';
+function _setNpub(npub) {
+  _npub = npub;
+  document.getElementById('npub-hidden').value = npub;
+  document.getElementById('conn-badge').textContent = '🟢';
+  document.getElementById('btn-connect').style.display = 'none';
+  var nb = document.getElementById('user-name-badge');
+  nb.textContent = npub.slice(0,12) + '…' + npub.slice(-4);
+  nb.style.display = '';
+}
+async function handleConnect() {
+  var btn = document.getElementById('btn-connect');
+  btn.textContent = '⏳…'; btn.disabled = true;
+  try {
+    if (window.nostr) {
+      var hex = await window.nostr.getPublicKey();
+      var npub = (window.NostrTools && window.NostrTools.nip19)
+        ? window.NostrTools.nip19.npubEncode(hex) : 'npub1' + hex.slice(0,20) + '…';
+      _setNpub(npub);
+    } else { alert('Aucune extension NOSTR (Alby, nos2x, Flamingo…)'); }
+  } catch(e) { console.warn('NOSTR connect:', e); }
+  finally { btn.textContent = '⚡ Se connecter'; btn.disabled = false; }
+}
+window.addEventListener('DOMContentLoaded', function() {
+  {% if saved_npub %}
+  var blk = document.getElementById('nostr-block');
+  if (blk) blk.style.display = '';
+  {% endif %}
+  if (!window.nostr) document.getElementById('btn-connect').style.display = 'none';
+});
+</script>
+{% endblock %}
