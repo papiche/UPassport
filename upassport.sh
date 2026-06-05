@@ -276,8 +276,8 @@ if [[ $PUBKEY =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
         # Check if not TODATE made account - but only if not trying to delete
         if [[ "$IMAGE" != "0000" ]]; then
             if [[ -f "${HOME}/.zen/game/nostr/${EMAIL}/TODATE" ]]; then
-                BIRTHDAY=$(cat ${HOME}/.zen/game/nostr/${EMAIL}/TODATE)
-                if [[ $BIRTHDAY != $TODATE ]]; then
+                ZDAY=$(cat ${HOME}/.zen/game/nostr/${EMAIL}/TODATE)
+                if [[ $ZDAY != $TODATE ]]; then
                     cat ${MY_PATH}/templates/message.html \
                     | sed -e "s~_TITLE_~$(date -u) <br> ${EMAIL}~g" \
                         -e "s~_MESSAGE_~EXISTING MULTIPASS~g" \
