@@ -380,7 +380,8 @@ def _read_optout(email: str) -> dict:
 
 
 def _write_prefs(email: str, channels: list[str], npub: str = "",
-                 kin_prefs: dict | None = None) -> None:
+                 kin_prefs: dict | None = None,
+                 flux_prefs: dict | None = None) -> None:
     p = _mailjet_path(email)
     p.parent.mkdir(parents=True, exist_ok=True)
     # Préserver les champs existants (ex: timestamp, autres prefs futures)
@@ -401,10 +402,12 @@ def _write_prefs(email: str, channels: list[str], npub: str = "",
     if npub:
         data["npub"] = npub
     if kin_prefs is not None:
-        data["kin"] = kin_prefs
+        data["kin"] = {**current.get("kin", {}), **kin_prefs}
+    if flux_prefs is not None:
+        data["flux"] = flux_prefs
     p.write_text(json.dumps(data, indent=2))
-    logger.info("Mailjet prefs %s → channels=%s kin=%s npub=%s",
-                email, channels, kin_prefs, npub or "-")
+    logger.info("Mailjet prefs %s → channels=%s kin=%s flux=%s npub=%s",
+                email, channels, kin_prefs, flux_prefs, npub or "-")
 
 
 # Alias rétrocompatibilité (appelé nulle part en externe mais gardé pour clarté)
@@ -602,23 +605,28 @@ async def get_mailjet(
         "symbolique":  "Symbolique — Oracle Tzolkin et ses 5 pouvoirs",
         "cosmique":    "Cosmique — résonance planétaire et gardiennage",
     }
+    _flux = current.get("flux", {})
     return templates.TemplateResponse("mailjet_prefs.html", {
-        "request":           request,
-        "email":             email,
-        "token":             expected,
-        "saved_npub":        current.get("npub", ""),
-        "email_channel_off": current.get("email_channel", False),
-        "nostr_channel_off": current.get("nostr_channel", False),
-        "kin_daily_off":     not kin.get("daily",  True),
-        "kin_weekly_off":    not kin.get("weekly", True),
-        "kin_scope":         kin.get("scope", "relay"),
-        "kin_active_types":  set(kin.get("types", _KIN_ALL_TYPES)),
-        "kin_all_types":     _KIN_ALL_TYPES,
-        "kin_type_labels":   _KIN_TYPE_LABELS,
-        "captain":           captain,
-        "vibe_langage":      _langage,
-        "vibe_icon":         _vibe_icons.get(_langage, ""),
-        "vibe_label":        _vibe_labels.get(_langage, ""),
+        "request":              request,
+        "email":                email,
+        "token":                expected,
+        "saved_npub":           current.get("npub", ""),
+        "email_channel_off":    current.get("email_channel", False),
+        "nostr_channel_off":    current.get("nostr_channel", False),
+        "kin_daily_off":        not kin.get("daily",  True),
+        "kin_weekly_off":       not kin.get("weekly", True),
+        "kin_scope":            kin.get("scope", "relay"),
+        "kin_active_types":     set(kin.get("types", _KIN_ALL_TYPES)),
+        "kin_all_types":        _KIN_ALL_TYPES,
+        "kin_type_labels":      _KIN_TYPE_LABELS,
+        "captain":              captain,
+        "vibe_langage":         _langage,
+        "vibe_icon":            _vibe_icons.get(_langage, ""),
+        "vibe_label":           _vibe_labels.get(_langage, ""),
+        "flux_zine_off":        not _flux.get("zine",       True),
+        "flux_usociety_off":    not _flux.get("usociety",   True),
+        "flux_alerts_off":      not _flux.get("alerts",     True),
+        "flux_milestones_off":  not _flux.get("milestones", True),
     })
 
 
@@ -629,10 +637,14 @@ async def post_mailjet(
     token: Optional[str] = Form(None),
     channels: list[str] = Form(default=[]),
     npub: Optional[str] = Form(default=None),
-    kin_off_daily:  Optional[str] = Form(default=None),
-    kin_off_weekly: Optional[str] = Form(default=None),
-    kin_scope:      Optional[str] = Form(default="relay"),
-    kin_types:      list[str]     = Form(default=list(_KIN_ALL_TYPES)),
+    kin_off_daily:       Optional[str] = Form(default=None),
+    kin_off_weekly:      Optional[str] = Form(default=None),
+    kin_scope:           Optional[str] = Form(default="relay"),
+    kin_types:           list[str]     = Form(default=list(_KIN_ALL_TYPES)),
+    flux_off_zine:       Optional[str] = Form(default=None),
+    flux_off_usociety:   Optional[str] = Form(default=None),
+    flux_off_alerts:     Optional[str] = Form(default=None),
+    flux_off_milestones: Optional[str] = Form(default=None),
 ):
     captain = settings.CAPTAINEMAIL or "support@qo-op.com"
 
@@ -663,8 +675,17 @@ async def post_mailjet(
         "types":  [t for t in kin_types if t in _KIN_ALL_TYPES],
     }
 
-    _write_prefs(email, channels, npub or "", kin_prefs)
-    logger.info("Mailjet prefs saved for %s — channels=%s kin=%s", email, channels, kin_prefs)
+    # Construire les prefs flux (cochée = désactivé → False)
+    flux_prefs = {
+        "zine":       flux_off_zine       is None,
+        "usociety":   flux_off_usociety   is None,
+        "alerts":     flux_off_alerts     is None,
+        "milestones": flux_off_milestones is None,
+    }
+
+    _write_prefs(email, channels, npub or "", kin_prefs, flux_prefs)
+    logger.info("Mailjet prefs saved for %s — channels=%s kin=%s flux=%s",
+                email, channels, kin_prefs, flux_prefs)
 
     return templates.TemplateResponse("mailjet_success.html", {
         "request":   request,

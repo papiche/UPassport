@@ -159,6 +159,50 @@
 
   <hr class="sep">
 
+  {# ── Autres flux de notifications ── #}
+  <div class="kin-section">
+    <h3>📬 Autres notifications</h3>
+    <p>
+      Cochez les flux à <strong style="color:#e74c3c;">désactiver</strong> — indépendamment des newsletters KIN.
+    </p>
+    <div class="kin-types">
+      <div class="type-card" onclick="this.querySelector('input').click()">
+        <input type="checkbox" name="flux_off_zine" id="fx_zine"
+               {% if flux_zine_off %}checked{% endif %}>
+        <label for="fx_zine">
+          <span class="type-name">📖 Zines d'onboarding</span>
+          <span class="type-desc">Guide J1-J6 envoyé pendant la période d'essai MULTIPASS (7 jours)</span>
+        </label>
+      </div>
+      <div class="type-card" onclick="this.querySelector('input').click()">
+        <input type="checkbox" name="flux_off_usociety" id="fx_usociety"
+               {% if flux_usociety_off %}checked{% endif %}>
+        <label for="fx_usociety">
+          <span class="type-name">🌿 Coopérative (U.SOCIETY)</span>
+          <span class="type-desc">Rappels de renouvellement, expiration et bienvenue coopérative</span>
+        </label>
+      </div>
+      <div class="type-card" onclick="this.querySelector('input').click()">
+        <input type="checkbox" name="flux_off_alerts" id="fx_alerts"
+               {% if flux_alerts_off %}checked{% endif %}>
+        <label for="fx_alerts">
+          <span class="type-name">⚠️ Alertes de solde</span>
+          <span class="type-desc">Solde insuffisant ZEN Card, erreurs de paiement, solde faible MULTIPASS</span>
+        </label>
+      </div>
+      <div class="type-card" onclick="this.querySelector('input').click()">
+        <input type="checkbox" name="flux_off_milestones" id="fx_milestones"
+               {% if flux_milestones_off %}checked{% endif %}>
+        <label for="fx_milestones">
+          <span class="type-name">🎯 Événements MULTIPASS</span>
+          <span class="type-desc">Bienvenue, anniversaire, confirmations de redevance hebdomadaire</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <hr class="sep">
+
   <div class="warn">
     <p>⚠️ La désactivation du canal Email arrête <em>tous</em> les emails de la station.
        Réversible via <a href="mailto:{{ captain }}" style="color:#e88;">{{ captain }}</a>.</p>
