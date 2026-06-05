@@ -868,7 +868,15 @@ async def process_vocals_message(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+        except asyncio.TimeoutError:
+            try:
+                process.kill() # <-- TUE LE PROCESSUS BASH ENFANT
+            except ProcessLookupError:
+                pass
+            raise HTTPException(status_code=504, detail="timeout")
         
         if process.returncode == 0:
             try:

@@ -164,7 +164,14 @@ async def generate_balance_html_page(identifier: str, balance_data: Dict[str, An
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE
                     )
-                    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                    try:
+                        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                    except asyncio.TimeoutError:
+                        try:
+                            process.kill() # <-- TUE LE PROCESSUS BASH ENFANT
+                        except ProcessLookupError:
+                            pass
+                            raise HTTPException(status_code=504, detail="timeout")
                     if process.returncode == 0:
                         last_line = stdout.decode().strip().split('\n')[-1]
                         import re
