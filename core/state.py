@@ -123,6 +123,7 @@ async def lifespan(app: FastAPI):
         if not script_path.exists():
             logging.warning("⚠️  Ustats.sh introuvable — cache désactivé")
             return
+        consecutive_failures = 0
         while True:
             try:
                 rc, last_line = await _run_script(script_path)
@@ -134,9 +135,20 @@ async def lifespan(app: FastAPI):
                         data = _json.loads(last_line)
                     app_state.ustats_cache = data
                     app_state.ustats_cache_time = _time.time()
+                    consecutive_failures = 0
                     logging.info("✅ Cache Ustats.sh rafraîchi")
+                else:
+                    consecutive_failures += 1
+                    logging.warning(f"⚠️  Ustats.sh rc={rc} (échec {consecutive_failures}/3)")
+                    if consecutive_failures >= 3:
+                        app_state.ustats_cache = None
+                        logging.error("❌ Cache Ustats.sh invalidé après 3 échecs consécutifs")
             except Exception as e:
-                logging.warning(f"⚠️  Rafraîchissement Ustats.sh échoué : {e}")
+                consecutive_failures += 1
+                logging.warning(f"⚠️  Rafraîchissement Ustats.sh échoué : {e} (échec {consecutive_failures}/3)")
+                if consecutive_failures >= 3:
+                    app_state.ustats_cache = None
+                    logging.error("❌ Cache Ustats.sh invalidé après 3 échecs consécutifs")
             await asyncio.sleep(app_state.USTATS_CACHE_TTL)
 
     asyncio.create_task(_refresh_ustats_loop())

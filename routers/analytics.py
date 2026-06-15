@@ -152,6 +152,10 @@ async def get_webhook(request: Request):
                 logger.warning(f"⚠️ NOSTR send failed: {stderr.decode()}")
                 
         except asyncio.TimeoutError:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
             logger.warning("⚠️ NOSTR send timeout")
         except Exception as e:
             logger.warning(f"⚠️ NOSTR send error: {e}")

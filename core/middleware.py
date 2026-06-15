@@ -65,13 +65,15 @@ class RateLimiter:
 rate_limiter = RateLimiter()
 
 def get_client_ip(request: Request) -> str:
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    real_ip = request.headers.get("X-Real-IP")
-    if real_ip:
-        return real_ip.strip()
-    return request.client.host if request.client else "unknown"
+    client_host = request.client.host if request.client else None
+    if client_host and is_trusted_ip(client_host):
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
+        real_ip = request.headers.get("X-Real-IP")
+        if real_ip:
+            return real_ip.strip()
+    return client_host or "unknown"
 
 def check_rate_limit(request: Request) -> Dict[str, Any]:
     client_ip = get_client_ip(request)

@@ -73,6 +73,10 @@ async def run_crowdfunding_command(args: List[str], timeout: int = 30) -> Dict[s
             "returncode": process.returncode
         }
     except asyncio.TimeoutError:
+        try:
+            process.kill()
+        except ProcessLookupError:
+            pass
         return {"success": False, "error": "Command timed out"}
     except Exception as e:
         return {"success": False, "error": str(e)}

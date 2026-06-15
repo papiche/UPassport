@@ -261,6 +261,10 @@ async def _maybe_send_roaming_dm(
             f"✈️ Roaming DM échec (code {proc.returncode}): {stderr.decode()[:200]}"
         )
     except asyncio.TimeoutError:
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
         logger.warning(f"✈️ Roaming DM timeout pour {user_email}")
     except Exception as e:
         logger.warning(f"✈️ Roaming DM erreur: {e}")
@@ -309,6 +313,10 @@ async def _send_roaming_media_event_dm(
             f"✈️ Roaming {channel} DM échec (code {proc.returncode}): {stderr.decode()[:200]}"
         )
     except asyncio.TimeoutError:
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
         logger.warning(f"✈️ Roaming {channel} DM timeout")
     except Exception as e:
         logger.warning(f"✈️ Roaming {channel} DM erreur: {e}")
@@ -628,7 +636,14 @@ async def process_webcam_video(
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=90)
+                try:
+                    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=90)
+                except asyncio.TimeoutError:
+                    try:
+                        process.kill()
+                    except ProcessLookupError:
+                        pass
+                    raise
 
                 if process.returncode == 0:
                     try:
@@ -1243,8 +1258,15 @@ async def upload_file_to_ipfs(
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                desc_stdout, desc_stderr = await asyncio.wait_for(desc_process.communicate(), timeout=60)
-                
+                try:
+                    desc_stdout, desc_stderr = await asyncio.wait_for(desc_process.communicate(), timeout=60)
+                except asyncio.TimeoutError:
+                    try:
+                        desc_process.kill()
+                    except ProcessLookupError:
+                        pass
+                    raise
+
                 if desc_process.returncode == 0:
                     try:
                         desc_json = safe_json_load(desc_stdout.decode())
@@ -1368,7 +1390,13 @@ async def upload_file_to_ipfs(
                                     stdout=asyncio.subprocess.PIPE,
                                     stderr=asyncio.subprocess.PIPE
                                 )
-                                await asyncio.wait_for(process.communicate(), timeout=30)
+                                try:
+                                    await asyncio.wait_for(process.communicate(), timeout=30)
+                                except asyncio.TimeoutError:
+                                    try:
+                                        process.kill()
+                                    except ProcessLookupError:
+                                        pass
                     except Exception:
                         pass
                 
@@ -1537,7 +1565,14 @@ async def upload_from_drive(request: Request, payload: UploadFromDriveRequest):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
+        except asyncio.TimeoutError:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+            raise HTTPException(status_code=504, detail="IPFS download timeout")
 
         if process.returncode != 0:
             error_message = stderr.decode().strip()

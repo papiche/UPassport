@@ -813,6 +813,10 @@ async def oc_webhook(request: Request):
             })
 
     except asyncio.TimeoutError:
+        try:
+            process.kill()
+        except ProcessLookupError:
+            pass
         raise HTTPException(status_code=504, detail="timeout")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -996,26 +1000,33 @@ async def check_society_route(request: Request, html: Optional[str] = None, nost
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120)
-        
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120)
+        except asyncio.TimeoutError:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+            raise HTTPException(status_code=504, detail="Transaction history retrieval timeout")
+
         if process.returncode != 0:
             raise ValueError(f"Error in G1society.sh: {stderr.decode()}")
-        
+
         from utils.helpers import safe_json_load
         try:
             society_data = safe_json_load(stdout.decode().strip())
         except ValueError as e:
             raise ValueError(f"Invalid JSON from G1society.sh: {e}")
-        
+
         if "error" in society_data:
             raise HTTPException(status_code=500, detail=society_data['error'])
-        
+
         if html is not None:
             g1pub = society_data.get("g1pub", "N/A")
             return generate_society_html_page(request, g1pub, society_data)
-        
+
         return society_data
-        
+
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except subprocess.TimeoutExpired:
@@ -1040,26 +1051,33 @@ async def check_revenue_route(request: Request, html: Optional[str] = None, year
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
-        
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
+        except asyncio.TimeoutError:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+            raise HTTPException(status_code=504, detail="Revenue history retrieval timeout")
+
         if process.returncode != 0:
             raise ValueError(f"Error in G1revenue.sh: {stderr.decode()}")
-        
+
         from utils.helpers import safe_json_load
         try:
             revenue_data = safe_json_load(stdout.decode().strip())
         except ValueError as e:
             raise ValueError(f"Invalid JSON from G1revenue.sh: {e}")
-        
+
         if "error" in revenue_data:
             raise HTTPException(status_code=500, detail=revenue_data['error'])
-        
+
         if html is not None:
             g1pub = revenue_data.get("g1pub", "N/A")
             return generate_revenue_html_page(request, g1pub, revenue_data)
-        
+
         return revenue_data
-        
+
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except subprocess.TimeoutExpired:
@@ -1085,8 +1103,15 @@ async def check_zencard_route(request: Request, email: str, html: Optional[str] 
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
-        
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
+        except asyncio.TimeoutError:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+            raise HTTPException(status_code=504, detail="ZEN Card history retrieval timeout")
+
         from utils.helpers import safe_json_load
         try:
             zencard_data = safe_json_load(stdout.decode().strip())
@@ -1128,8 +1153,15 @@ async def check_impots_route(request: Request, html: Optional[str] = None):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
-        
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
+        except asyncio.TimeoutError:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+            raise HTTPException(status_code=504, detail="Tax provisions retrieval timeout")
+
         if process.returncode != 0:
             raise ValueError(f"Error in G1impots.sh: return code {process.returncode}")
         

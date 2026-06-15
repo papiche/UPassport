@@ -120,7 +120,14 @@ async def _send_mailjet_fallback(title: str, body_html: str, repo: str) -> bool:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+        try:
+            _, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+            raise
         Path(tmp_path).unlink(missing_ok=True)
 
         if proc.returncode == 0:
