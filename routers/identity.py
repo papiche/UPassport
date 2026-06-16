@@ -47,6 +47,7 @@ class G1NostrForm(BaseModel):
     birth_weight: str = ""
     conception_datetime: str = ""
     conception_place: str = ""
+    polarity: str = "0"  # 0=homme, 1=femme — encodé dans saltRaw côté client
 
     @field_validator('salt', 'pepper', mode='before')
     @classmethod
