@@ -2,6 +2,7 @@ import os
 import re
 import json
 import time
+import asyncio
 import hashlib
 import logging
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ class G1NostrForm(BaseModel):
     salt: str = ""
     pepper: str = ""
     format: str = "html"
+    pass_code: str = ""
     birth_datetime: str = ""
     birth_place: str = ""
     birth_weight: str = ""
@@ -58,11 +60,23 @@ class G1NostrForm(BaseModel):
 
 from fastapi import Depends
 
+# Double-soumission : un seul appel /g1nostr actif par email
+_g1nostr_in_progress: set[str] = set()
+
 @router.post("/g1nostr")
 async def scan_qr(
     request: Request,
     form_data: G1NostrForm = Depends(G1NostrForm.as_form)
 ):
+    """
+    Endpoint to execute the g1.sh script and return the generated file.
+    Supports both regular users and swarm subscription aliases.
+
+    Cas 1 — Nouveau email  : crée le MULTIPASS, retourne JSON ou HTML.
+    Cas 2 — Email existant, format=json, sans pass_code  : retourne 409 (need_pass).
+    Cas 3 — Email existant, format=json, pass_code fourni : vérifie PASS et retourne JSON.
+    Cas 4 — Email existant, format=html  : comportement inchangé (retourne HTML).
+    """
     email = form_data.email
     lang = form_data.lang
     lat = form_data.lat
@@ -70,107 +84,166 @@ async def scan_qr(
     salt = form_data.salt
     pepper = form_data.pepper
     format = form_data.format
+    pass_code = (form_data.pass_code or "").strip()
     birth_datetime      = form_data.birth_datetime or ""
     birth_place         = form_data.birth_place or ""
     birth_weight        = form_data.birth_weight or ""
     conception_datetime = form_data.conception_datetime or ""
     conception_place    = form_data.conception_place or ""
-    """
-    Endpoint to execute the g1.sh script and return the generated file.
-    Supports both regular users and swarm subscription aliases.
-    """
-    
-    # ARCHITECTURE MULTIPASS v1→v2 :
-    # • salt/pepper fournis → créent la ZEN Card (VISA/astronaute) via make_NOSTRCARD.sh → VISA.new.sh
-    #   Pas de limite SSSS : ces clés ne vont PAS dans le DISCO du MULTIPASS
-    # • MULTIPASS DISCO → toujours aléatoire (généré dans make_NOSTRCARD.sh)
-    # • Si salt/pepper vides → on génère des valeurs aléatoires de 24 chars pour la ZEN Card aussi
-    _DISCO_RAND = 24   # longueur auto-générée si non fournis
 
-    # Generate random salt and pepper if not provided or empty
-    if not salt or salt.strip() == "":
-        salt = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
-        logger.info(f"Generated random ZEN Card salt for {email}: {salt[:10]}...")
+    # ── Détection email existant ──────────────────────────────────────────────
+    nostr_dir    = settings.GAME_PATH / "nostr" / email
+    email_exists = nostr_dir.exists() and (nostr_dir / "G1PUBNOSTR").exists()
 
-    if not pepper or pepper.strip() == "":
-        pepper = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
-        logger.info(f"Generated random ZEN Card pepper for {email}: {pepper[:10]}...")
+    # ── Cas 2 & 3 : email existant + format JSON ──────────────────────────────
+    if email_exists and format == "json":
+        multipass_json = nostr_dir / ".multipass.json"
+        pass_file      = settings.GAME_PATH / "players" / email / ".pass"
 
-    # Aucune limite de taille : salt/pepper vont vers la ZEN Card (VISA), pas le DISCO SSSS
-    logger.info(f"ZEN Card credentials: salt={len(salt)} chars, pepper={len(pepper)} chars")
-    
-    script_path = "./g1.sh" # Make sure g1.sh is in the same directory or adjust path
-    return_code, last_line = await run_script(
-        script_path, email, lang, lat, lon, salt, pepper,
-        birth_datetime, birth_place, birth_weight, conception_datetime, conception_place
-    )
+        if not pass_code:
+            # Cas 2 — demander le PASS
+            logger.info(f"MULTIPASS exists for {email}, requesting PASS")
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": "MULTIPASS_EXISTS",
+                    "need_pass": True,
+                    "message": "Ce MULTIPASS existe déjà. Saisissez le code PASS reçu par email lors de la création."
+                }
+            )
 
-    if return_code == 0:
-        returned_file_path = last_line.strip()
-        logger.info(f"Returning file: {returned_file_path}")
+        # Cas 3 — vérifier le PASS
+        if not pass_file.exists():
+            logger.warning(f"PASS file missing for {email}: {pass_file}")
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "error": "PASS_UNAVAILABLE",
+                    "message": "Code PASS non disponible sur ce nœud. Contactez le support."
+                }
+            )
 
-        # JSON format: return MULTIPASS data for app onboarding
-        if format == "json":
-            multipass_json = settings.GAME_PATH / "nostr" / email / ".multipass.json"
-            logger.info(f"Checking for JSON sidecar at: {multipass_json}")
-            
-            # Retry logic for file existence (in case of FS latency)
-            import asyncio
-            for i in range(5):
-                if os.path.exists(multipass_json):
+        stored_pass = pass_file.read_text().strip()
+        if pass_code != stored_pass:
+            logger.warning(f"Wrong PASS attempt for {email}")
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "error": "INVALID_PASS",
+                    "message": "Code PASS incorrect."
+                }
+            )
+
+        # PASS correct — regénérer .multipass.json si absent puis retourner
+        if not multipass_json.exists():
+            logger.info(f"Regenerating .multipass.json for {email} via g1.sh")
+            _salt = salt or ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(24))
+            _pep  = pepper or ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(24))
+            await run_script("./g1.sh", email, lang, lat, lon, _salt, _pep,
+                             birth_datetime, birth_place, birth_weight,
+                             conception_datetime, conception_place)
+            for _ in range(6):
+                if multipass_json.exists():
                     break
-                logger.warning(f"JSON sidecar not found, retrying ({i+1}/5)...")
                 await asyncio.sleep(0.5)
-                
-            if os.path.exists(multipass_json):
-                try:
-                    with open(multipass_json, 'r') as f:
-                        data = json.load(f)
-                    
-                    data["is_origin"] = is_origin_mode()
-                    data["oc_urls"] = get_oc_tier_urls()
-                    data["uplanet_home"] = await get_uplanet_home_url()
-                    data["uplanetname_g1"] = settings.UPLANETNAME_G1
-                    
-                    # Mark as consumed (one-time retrieval ideally)
-                    consumed_marker = str(multipass_json) + ".consumed"
-                    try:
-                        from datetime import datetime
-                        with open(consumed_marker, 'w') as f:
-                            f.write(datetime.now().isoformat())
-                        os.remove(multipass_json)
-                        logger.info(f"MULTIPASS JSON for {email} consumed and deleted.")
-                    except Exception as e:
-                        logger.error(f"Error marking MULTIPASS as consumed: {e}")
 
-                    return JSONResponse(data)
-                except Exception as e:
-                    logger.error(f"Error reading JSON sidecar: {e}")
-                    raise HTTPException(status_code=500, detail=f"Error reading JSON sidecar: {str(e)}")
-            else:
-                # Check if it was already consumed
-                consumed_marker = str(multipass_json) + ".consumed"
-                if os.path.exists(consumed_marker):
-                    logger.warning(f"MULTIPASS JSON for {email} was already consumed.")
-                    raise HTTPException(status_code=403, detail="MULTIPASS data already retrieved. Use SSSS recovery if needed.")
-                
-                # Check if directory exists to give better error
-                parent_dir = multipass_json.parent
-                dir_exists = os.path.exists(parent_dir)
-                logger.error(f"JSON sidecar not found at {multipass_json}. Parent dir exists: {dir_exists}")
-                if dir_exists:
-                    try:
-                        logger.error(f"Contents of {parent_dir}: {os.listdir(parent_dir)}")
-                    except Exception as e:
-                        logger.error(f"Could not list directory contents: {e}")
-                
-                raise HTTPException(status_code=500, detail=f"MULTIPASS created but JSON sidecar not found at {multipass_json}")
+        if not multipass_json.exists():
+            return JSONResponse(
+                status_code=500,
+                content={"error": "MULTIPASS_JSON_MISSING",
+                         "message": "Reconstruction du JSON échouée. Contactez le support."}
+            )
 
-        return FileResponse(returned_file_path)
-    else:
-        error_message = f"Une erreur s'est produite lors de l'exécution du script. Veuillez consulter les logs. Script output: {last_line}"
+        try:
+            with open(multipass_json, 'r') as f:
+                data = json.load(f)
+            data["is_origin"]      = is_origin_mode()
+            data["oc_urls"]        = get_oc_tier_urls()
+            data["uplanet_home"]   = await get_uplanet_home_url()
+            data["uplanetname_g1"] = settings.UPLANETNAME_G1
+            logger.info(f"MULTIPASS recovery via PASS OK for {email}")
+            return JSONResponse(data)
+        except Exception as e:
+            logger.error(f"Error reading .multipass.json for {email}: {e}")
+            raise HTTPException(status_code=500, detail=f"Erreur lecture JSON : {e}")
+
+    # ── Anti double-soumission (création uniquement) ──────────────────────────
+    if email in _g1nostr_in_progress:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "CREATION_IN_PROGRESS",
+                "message": "Création déjà en cours pour cet email. Veuillez patienter."
+            }
+        )
+    _g1nostr_in_progress.add(email)
+
+    try:
+        # ARCHITECTURE MULTIPASS v1→v2 :
+        # • salt/pepper → ZEN Card (VISA) via make_NOSTRCARD.sh → VISA.new.sh
+        # • MULTIPASS DISCO → toujours aléatoire (généré dans make_NOSTRCARD.sh)
+        _DISCO_RAND = 24
+
+        if not salt or salt.strip() == "":
+            salt = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
+            logger.info(f"Generated random ZEN Card salt for {email}: {salt[:10]}...")
+
+        if not pepper or pepper.strip() == "":
+            pepper = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
+            logger.info(f"Generated random ZEN Card pepper for {email}: {pepper[:10]}...")
+
+        logger.info(f"ZEN Card credentials: salt={len(salt)} chars, pepper={len(pepper)} chars")
+
+        return_code, last_line = await run_script(
+            "./g1.sh", email, lang, lat, lon, salt, pepper,
+            birth_datetime, birth_place, birth_weight, conception_datetime, conception_place
+        )
+
+    finally:
+        _g1nostr_in_progress.discard(email)
+
+    if return_code != 0:
+        error_message = f"Erreur script g1.sh : {last_line}"
         logger.error(error_message)
         raise HTTPException(status_code=500, detail=error_message)
+
+    returned_file_path = last_line.strip()
+    logger.info(f"Returning file: {returned_file_path}")
+
+    # ── Format JSON : retourner le sidecar .multipass.json ───────────────────
+    if format == "json":
+        multipass_json = settings.GAME_PATH / "nostr" / email / ".multipass.json"
+        logger.info(f"Checking for JSON sidecar at: {multipass_json}")
+
+        for i in range(5):
+            if multipass_json.exists():
+                break
+            logger.warning(f"JSON sidecar not found, retrying ({i+1}/5)...")
+            await asyncio.sleep(0.5)
+
+        if not multipass_json.exists():
+            parent_dir = multipass_json.parent
+            logger.error(f"JSON sidecar not found at {multipass_json}. Dir exists: {parent_dir.exists()}")
+            raise HTTPException(status_code=500,
+                                detail=f"MULTIPASS créé mais JSON introuvable à {multipass_json}")
+
+        try:
+            with open(multipass_json, 'r') as f:
+                data = json.load(f)
+
+            data["is_origin"]      = is_origin_mode()
+            data["oc_urls"]        = get_oc_tier_urls()
+            data["uplanet_home"]   = await get_uplanet_home_url()
+            data["uplanetname_g1"] = settings.UPLANETNAME_G1
+
+            # Conserver .multipass.json pour récupération future via PASS
+            logger.info(f"MULTIPASS JSON for {email} delivered (conservé pour récupération PASS)")
+            return JSONResponse(data)
+        except Exception as e:
+            logger.error(f"Error reading JSON sidecar: {e}")
+            raise HTTPException(status_code=500, detail=f"Erreur lecture JSON sidecar : {e}")
+
+    return FileResponse(returned_file_path)
 
 @as_form
 class UPassportForm(BaseModel):
