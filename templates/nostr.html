@@ -8,6 +8,7 @@
     <script src="/earth/jquery-3.6.3.min.js"></script>
     <script src="/earth/nostr.bundle.js"></script>
     <script src="/earth/common.js"></script>
+    <script src="/earth/BRO_chat.js"></script>
     <script src="/earth/bootstrap.bundle.min.js"></script>
     <link rel="stylesheet" href="/earth/bootstrap.min.css"/>
     <link rel="stylesheet" href="/earth/leaflet.css"/>
@@ -1720,6 +1721,13 @@
         .main-content.tube-mode .nav-arrow { display: none !important; }
         .main-content.tube-mode .tube-panel { margin: 0 10px; }
 
+        /* BRO DM mode */
+        #bro-chat-container { display: none; width: 100%; height: 100%; flex: 1; overflow: hidden; padding: 8px; }
+        .main-content.bro-mode .chat-wrapper { display: none !important; }
+        .main-content.bro-mode .tube-panel { display: none !important; }
+        .main-content.bro-mode .nav-arrow { display: none !important; }
+        .main-content.bro-mode #bro-chat-container { display: flex !important; flex-direction: column; flex: 1; }
+
         /* When Tube is active, input can be toggled; floating button to expand input */
         .tube-input-toggle {
             position: fixed;
@@ -2834,6 +2842,7 @@
         </span>
         <button class="svc-tab" data-svc="tube">📺 TUBE</button>
         <button class="svc-tab" data-svc="mutes" title="Mute list (NIP-51)">🔇 Mutes</button>
+        <button class="svc-tab" data-svc="bro" title="DM kind 4 avec le NODE de votre home station">🤖 BRO</button>
         <button class="svc-btn add-btn" id="btnAddVideo" title="Ajouter une vidéo">➕</button>
             </div>
 
@@ -2851,6 +2860,9 @@
             </div>
             <div class="flux-tag-cloud" id="fluxTagCloud" style="display:none;"></div>
         </div>
+
+        <!-- BRO DM PANEL (kind 4 NIP-44 avec le NODE de la home station) -->
+        <div id="bro-chat-container"></div>
 
         <!-- TUBE PANEL (same space as chat-wrapper when Tube tab is active) -->
         <div class="tube-panel" id="tubePanel">
@@ -3256,7 +3268,7 @@
             $('#nFeedFilterWrap').toggle(!!showNFeedFilter);
             if (showNFeedFilter) $('#nFeedFilterSelect').val(nFeedFilter);
             $('#tubePanel').removeClass('active');
-            $('.main-content').removeClass('tube-mode').show().addClass('flux-mode');
+            $('.main-content').removeClass('tube-mode bro-mode').show().addClass('flux-mode');
             $('body').removeClass('tube-mode');
             $('#inputSection').removeClass('tube-input-visible');
             $('#tubeInputToggle').addClass('collapsed');
@@ -3277,7 +3289,7 @@
                     $('#fluxTagCloud').hide();
                     $('#nFeedFilterWrap').show();
                     $('#nFeedFilterSelect').val(nFeedFilter);
-                    $('.main-content').addClass('tube-mode').show();
+                    $('.main-content').removeClass('bro-mode').addClass('tube-mode').show();
                     $('#tubePanel').addClass('active');
                     $('.input-section').hide().removeClass('tube-input-visible');
                     $('body').addClass('tube-mode');
@@ -3288,7 +3300,7 @@
                     $('#nFeedFilterWrap').show();
                     $('#nFeedFilterSelect').val(nFeedFilter);
                     $('#tubePanel').removeClass('active');
-                    $('.main-content').removeClass('tube-mode').show().addClass('flux-mode');
+                    $('.main-content').removeClass('tube-mode bro-mode').show().addClass('flux-mode');
                     $('body').removeClass('tube-mode');
                     $('#inputSection').removeClass('tube-input-visible');
                     $('#tubeInputToggle').addClass('collapsed');
@@ -3300,7 +3312,7 @@
                     $('#nFeedFilterWrap').show();
                     $('#nFeedFilterSelect').val(nFeedFilter);
                     $('#tubePanel').removeClass('active');
-                    $('.main-content').removeClass('tube-mode').show().addClass('flux-mode');
+                    $('.main-content').removeClass('tube-mode bro-mode').show().addClass('flux-mode');
                     $('body').removeClass('tube-mode');
                     $('#inputSection').removeClass('tube-input-visible');
                     $('#tubeInputToggle').addClass('collapsed');
@@ -3311,12 +3323,22 @@
                     $('#fluxTagCloud').hide();
                     $('#nFeedFilterWrap').hide();
                     $('#tubePanel').removeClass('active');
-                    $('.main-content').removeClass('tube-mode').show().addClass('flux-mode');
+                    $('.main-content').removeClass('tube-mode bro-mode').show().addClass('flux-mode');
                     $('body').removeClass('tube-mode');
                     $('#inputSection').removeClass('tube-input-visible');
                     $('#tubeInputToggle').addClass('collapsed');
                     $('.input-section').show();
                     fetchMuteListView();
+                } else if (svc === 'bro') {
+                    $('#fluxTagCloud').hide();
+                    $('#nFeedFilterWrap').hide();
+                    $('#tubePanel').removeClass('active');
+                    $('.main-content').removeClass('tube-mode flux-mode').show().addClass('bro-mode');
+                    $('body').removeClass('tube-mode');
+                    $('#inputSection').removeClass('tube-input-visible');
+                    $('#tubeInputToggle').addClass('collapsed');
+                    $('.input-section').hide();
+                    initBroChat();
                 } else {
                     // Flux: tag cloud below list, no N/Blog filter bar
                     switchToFluxLikeView(true, false);
@@ -4786,6 +4808,21 @@
             }
         }
 
+        var _broInitDone = false;
+
+        function initBroChat() {
+            if (typeof BroChatWidget === 'undefined') return;
+            if (_broInitDone) return;
+            _broInitDone = true;
+            BroChatWidget.open({
+                containerId: 'bro-chat-container',
+                pubkeyHex:   publicKey || undefined,
+                source:      window._broSource      || 'local',
+                homeStation: window._broHomeStation || '',
+                homeNodeHex: window._broHomeNodeHex || '',
+            });
+        }
+
         async function connectWallet() {
             log('Connecting with NIP-42...');
             try {
@@ -4814,9 +4851,17 @@
                 // Verify NIP-42 authentication
                 await verifyAndShowAuth();
                 
-                // Fetch user services (uDRIVE, UMAP)
+                // Fetch user services (uDRIVE, UMAP, home station)
                 await fetchUserServices();
-                
+
+                // Si l'onglet BRO est actif, réinitialiser avec les données home station
+                if (typeof BroChatWidget !== 'undefined' &&
+                    $('.svc-tab[data-svc="bro"]').hasClass('active')) {
+                    BroChatWidget.close();
+                    _broInitDone = false;
+                    initBroChat();
+                }
+
                 // Finally fetch messages
                 await fetchMessages();
                 
@@ -4990,6 +5035,11 @@
                         // Store for later use
                         window.userUmapKey = umapKey;
                         window.userGpsData = gpsData;
+
+                        // Données home station pour BRO DM (kind 4 NIP-44)
+                        window._broSource      = gpsData.source             || 'local';
+                        window._broHomeStation = gpsData.home_station_url   || '';
+                        window._broHomeNodeHex = gpsData.home_node_hex      || '';
                     } else {
                         log('🗺️ [GPS] No coordinates in response');
                         console.log('[GPS] Response missing data:', { success: gpsData.success, hasCoords: !!gpsData.coordinates });
@@ -5931,7 +5981,7 @@
             }
             msgIndex = 0;
             const scrollToTop = (lastRenderedService !== currentService);
-            $('.main-content').addClass('flux-mode');
+            $('.main-content').removeClass('bro-mode').addClass('flux-mode');
             renderFluxFeed(scrollToTop);
             lastRenderedService = currentService;
             updateFluxTagCloud();
