@@ -1044,6 +1044,115 @@ def transform_youtube_metadata_to_structured(flat_metadata: Dict[str, Any]) -> D
     
     return structured
 
+# ── Chiffrement de fichiers (UENC format) ────────────────────────────────────
+
+_UENC_MAGIC = b"UENC"
+_UENC_VERSION = 0x01
+_UENC_TYPE_AES256GCM = 0x01
+_UENC_MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
+
+def _encrypt_aes256gcm(data: bytes, key_hex: str) -> tuple[bytes, str]:
+    """Chiffre `data` avec AES-256-GCM. Retourne (payload_uenc, iv_hex)."""
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    key = bytes.fromhex(key_hex)
+    if len(key) != 32:
+        raise ValueError("La clef doit faire 32 octets (64 hex chars)")
+    iv = os.urandom(12)
+    aesgcm = AESGCM(key)
+    ciphertext = aesgcm.encrypt(iv, data, None)  # ciphertext + 16 bytes tag
+    payload = _UENC_MAGIC + bytes([_UENC_VERSION, _UENC_TYPE_AES256GCM]) + iv + ciphertext
+    return payload, iv.hex()
+
+
+@router.post("/api/fileupload/encrypted")
+async def upload_encrypted_file_to_ipfs(
+    request: Request,
+    file: UploadFile = File(...),
+    encryption_key: str = Form(...),
+    encryption_type: str = Form("aes256gcm"),
+    npub: Optional[str] = Form(None),
+):
+    """Upload d'un fichier chiffré sur IPFS.
+
+    Le client fournit une clef AES-256 (64 hex chars = 32 bytes).
+    Le serveur chiffre le fichier avec AES-256-GCM, l'upload sur IPFS,
+    et retourne le CID du fichier chiffré.
+
+    Format UENC : MAGIC(4) + VERSION(1) + ENC_TYPE(1) + IV(12) + CIPHERTEXT+TAG
+    """
+    if not file:
+        raise HTTPException(status_code=400, detail="Aucun fichier fourni.")
+
+    # Valider la clef
+    if encryption_type != "aes256gcm":
+        raise HTTPException(status_code=400, detail=f"Type de chiffrement non supporté: {encryption_type}. Utilisez 'aes256gcm'.")
+    try:
+        key_bytes = bytes.fromhex(encryption_key)
+        if len(key_bytes) != 32:
+            raise ValueError("La clef doit faire exactement 32 octets (64 hex chars)")
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=400, detail=f"encryption_key invalide: {e}")
+
+    # Lire et valider la taille
+    file_content = await file.read()
+    if len(file_content) > _UENC_MAX_FILE_SIZE:
+        size_mb = len(file_content) // 1048576
+        raise HTTPException(status_code=413, detail=f"Fichier trop grand ({size_mb} MB, max 20 MB)")
+    if not file_content:
+        raise HTTPException(status_code=400, detail="Fichier vide.")
+
+    try:
+        encrypted_payload, iv_hex = _encrypt_aes256gcm(file_content, encryption_key)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur de chiffrement: {e}")
+
+    # Upload sur IPFS via API locale
+    try:
+        import aiohttp as _aiohttp
+        original_filename = sanitize_filename_python(file.filename or "file")
+        enc_filename = f"enc_{os.urandom(4).hex()}_{original_filename}"
+        form_data = _aiohttp.FormData()
+        form_data.add_field(
+            "file", encrypted_payload,
+            filename=enc_filename,
+            content_type="application/octet-stream",
+        )
+        ipfs_api = "http://127.0.0.1:5001"
+        timeout = _aiohttp.ClientTimeout(total=30)
+        async with _aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(f"{ipfs_api}/api/v0/add", data=form_data) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    raise HTTPException(status_code=502, detail=f"Erreur IPFS: {body[:200]}")
+                result = await resp.json()
+                cid = result["Hash"]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Upload IPFS échoué: {e}")
+
+    logger.info(
+        f"[encrypted-upload] {original_filename} → CID={cid[:16]}… "
+        f"enc={encryption_type} iv={iv_hex[:8]}… "
+        f"size={len(file_content)}→{len(encrypted_payload)} "
+        f"npub={npub[:16] if npub else 'anon'}…"
+    )
+
+    response = JSONResponse(content={
+        "success": True,
+        "cid": cid,
+        "encryption_type": encryption_type,
+        "iv_hex": iv_hex,
+        "original_filename": original_filename,
+        "original_size": len(file_content),
+        "encrypted_size": len(encrypted_payload),
+    }, status_code=200)
+    response.headers["X-Encryption-Type"] = encryption_type
+    response.headers["X-Encrypted-CID"] = cid
+    response.headers["X-Encryption-IV"] = iv_hex
+    return response
+
+
 @router.post("/api/fileupload", response_model=UploadResponse)
 @router.post("/api/upload", response_model=UploadResponse)
 async def upload_file_to_ipfs(
