@@ -61,6 +61,45 @@ class G1NostrForm(BaseModel):
 
 from fastapi import Depends
 
+
+async def _derive_npub_from_credentials(salt: str, pepper: str) -> Optional[str]:
+    """Dérive le npub NOSTR depuis stretchedSalt/stretchedPepper via keygen.
+    Identique à keygen -t nostr : scrypt(pepper, salt) → ed25519."""
+    keygen = settings.TOOLS_PATH / "keygen"
+    if not keygen.exists():
+        return None
+    cred_file = Path(f"/dev/shm/.npub_{secrets.token_hex(8)}")
+    try:
+        cred_file.write_text(f"{salt}\n{pepper}\n")
+        cred_file.chmod(0o600)
+        proc = await asyncio.create_subprocess_exec(
+            str(keygen), "-t", "nostr", "-i", str(cred_file),
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10.0)
+        return stdout.decode().strip() or None
+    except Exception as e:
+        logger.warning(f"[npub_derive] {e}")
+        return None
+    finally:
+        cred_file.unlink(missing_ok=True)
+
+
+def _find_email_by_npub(npub: str) -> Optional[str]:
+    """Scan ~/.zen/game/nostr/*/.secret.nostr → email existant pour ce npub."""
+    pattern = f"NPUB={npub}"
+    try:
+        for secret in (settings.GAME_PATH / "nostr").glob("*/.secret.nostr"):
+            try:
+                if pattern in secret.read_text():
+                    return secret.parent.name
+            except OSError:
+                continue
+    except Exception as e:
+        logger.warning(f"[npub_scan] {e}")
+    return None
+
+
 # Double-soumission : un seul appel /g1nostr actif par email
 _g1nostr_in_progress: set[str] = set()
 
@@ -96,10 +135,51 @@ async def scan_qr(
     nostr_dir    = settings.GAME_PATH / "nostr" / email
     email_exists = nostr_dir.exists() and (nostr_dir / "G1PUBNOSTR").exists()
 
+    # ── Pré-vérification identité (salt/pepper fournis) ──────────────────────
+    # Dérive le npub localement avant toute création pour détecter les conflits.
+    derived_npub: Optional[str] = None
+    if salt and pepper and format == "json":
+        derived_npub = await _derive_npub_from_credentials(salt, pepper)
+
+    # ── Cas : email différent, même npub → IDENTITY_CONFLICT ─────────────────
+    if derived_npub and not email_exists:
+        conflict_email = _find_email_by_npub(derived_npub)
+        if conflict_email and conflict_email != email:
+            logger.warning(f"IDENTITY_CONFLICT: npub {derived_npub[:20]}… already owned by {conflict_email}")
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": "IDENTITY_CONFLICT",
+                    "message": "Ces données biométriques sont déjà associées à une autre identité."
+                }
+            )
+
     # ── Cas 2 & 3 : email existant + format JSON ──────────────────────────────
     if email_exists and format == "json":
         multipass_json = nostr_dir / ".multipass.json"
         pass_file      = settings.GAME_PATH / "players" / email / ".pass"
+
+        # Récupération silencieuse : même email + même npub dérivé → pas de PASS requis
+        if derived_npub and not pass_code:
+            secret_nostr = nostr_dir / ".secret.nostr"
+            if secret_nostr.exists():
+                try:
+                    stored_npub = next(
+                        (p.split("=", 1)[1] for p in secret_nostr.read_text().split(";")
+                         if p.strip().startswith("NPUB=")), None
+                    )
+                    if stored_npub and stored_npub.strip() == derived_npub:
+                        if multipass_json.exists():
+                            with open(multipass_json) as f:
+                                data = json.load(f)
+                            data["is_origin"]      = is_origin_mode()
+                            data["oc_urls"]        = get_oc_tier_urls()
+                            data["uplanet_home"]   = await get_uplanet_home_url()
+                            data["uplanetname_g1"] = settings.UPLANETNAME_G1
+                            logger.info(f"Silent recovery for {email} (npub match)")
+                            return JSONResponse(data)
+                except Exception as e:
+                    logger.warning(f"Silent recovery check failed for {email}: {e}")
 
         if not pass_code:
             # Cas 2 — demander le PASS
@@ -179,72 +259,78 @@ async def scan_qr(
         )
     _g1nostr_in_progress.add(email)
 
-    try:
-        # ARCHITECTURE MULTIPASS v1→v2 :
-        # • salt/pepper → ZEN Card (VISA) via make_NOSTRCARD.sh → VISA.new.sh
-        # • MULTIPASS DISCO → toujours aléatoire (généré dans make_NOSTRCARD.sh)
-        _DISCO_RAND = 24
+    _DISCO_RAND = 24
+    if not salt or salt.strip() == "":
+        salt = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
+        logger.info(f"Generated random ZEN Card salt for {email}")
+    if not pepper or pepper.strip() == "":
+        pepper = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
+        logger.info(f"Generated random ZEN Card pepper for {email}")
 
-        if not salt or salt.strip() == "":
-            salt = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
-            logger.info(f"Generated random ZEN Card salt for {email}: {salt[:10]}...")
+    logger.info(f"ZEN Card credentials: salt={len(salt)} chars, pepper={len(pepper)} chars")
 
-        if not pepper or pepper.strip() == "":
-            pepper = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(_DISCO_RAND))
-            logger.info(f"Generated random ZEN Card pepper for {email}: {pepper[:10]}...")
+    multipass_json = settings.GAME_PATH / "nostr" / email / ".multipass.json"
 
-        logger.info(f"ZEN Card credentials: salt={len(salt)} chars, pepper={len(pepper)} chars")
-
-        return_code, last_line = await run_script(
-            "./g1.sh", email, lang, lat, lon, salt, pepper,
-            birth_datetime, birth_place, birth_weight, conception_datetime, conception_place
-        )
-
-    finally:
-        _g1nostr_in_progress.discard(email)
-
-    if return_code != 0:
-        error_message = f"Erreur script g1.sh : {last_line}"
-        logger.error(error_message)
-        raise HTTPException(status_code=500, detail=error_message)
-
-    returned_file_path = last_line.strip()
-    logger.info(f"Returning file: {returned_file_path}")
-
-    # ── Format JSON : retourner le sidecar .multipass.json ───────────────────
     if format == "json":
-        multipass_json = settings.GAME_PATH / "nostr" / email / ".multipass.json"
-        logger.info(f"Checking for JSON sidecar at: {multipass_json}")
+        # ── Retour anticipé : lance g1.sh en arrière-plan, poll .multipass.json ──
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "bash", "./g1.sh",
+                email, lang, lat, lon, salt, pepper,
+                birth_datetime, birth_place, birth_weight,
+                conception_datetime, conception_place,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            # Nettoyage zombie sans bloquer
+            asyncio.ensure_future(proc.wait())
+        except Exception as e:
+            _g1nostr_in_progress.discard(email)
+            logger.error(f"Failed to launch g1.sh for {email}: {e}")
+            raise HTTPException(status_code=500, detail=f"Erreur lancement g1.sh : {e}")
 
-        for i in range(5):
+        # Poll jusqu'à 40 s (80 × 0.5 s) — .multipass.json apparaît vers 10–15 s
+        for i in range(80):
             if multipass_json.exists():
                 break
-            logger.warning(f"JSON sidecar not found, retrying ({i+1}/5)...")
             await asyncio.sleep(0.5)
 
+        _g1nostr_in_progress.discard(email)
+
         if not multipass_json.exists():
-            parent_dir = multipass_json.parent
-            logger.error(f"JSON sidecar not found at {multipass_json}. Dir exists: {parent_dir.exists()}")
+            logger.error(f"JSON sidecar not found after 40s for {email}")
             raise HTTPException(status_code=500,
-                                detail=f"MULTIPASS créé mais JSON introuvable à {multipass_json}")
-
+                                detail="MULTIPASS non initialisé après 40 s. Contactez le support.")
         try:
-            with open(multipass_json, 'r') as f:
+            with open(multipass_json) as f:
                 data = json.load(f)
-
             data["is_origin"]      = is_origin_mode()
             data["oc_urls"]        = get_oc_tier_urls()
             data["uplanet_home"]   = await get_uplanet_home_url()
             data["uplanetname_g1"] = settings.UPLANETNAME_G1
-
-            # Conserver .multipass.json pour récupération future via PASS
-            logger.info(f"MULTIPASS JSON for {email} delivered (conservé pour récupération PASS)")
+            # Indiquer si la publication IPFS/DID est encore en cours
+            if proc.returncode is None:
+                data["status"] = "creating"
+            logger.info(f"Early return for {email} (status={data.get('status','done')})")
             return JSONResponse(data)
         except Exception as e:
-            logger.error(f"Error reading JSON sidecar: {e}")
-            raise HTTPException(status_code=500, detail=f"Erreur lecture JSON sidecar : {e}")
+            logger.error(f"Error reading JSON sidecar for {email}: {e}")
+            raise HTTPException(status_code=500, detail=f"Erreur lecture JSON : {e}")
 
-    return FileResponse(returned_file_path)
+    # ── Format HTML : attendre la fin complète du script ─────────────────────
+    try:
+        return_code, last_line = await run_script(
+            "./g1.sh", email, lang, lat, lon, salt, pepper,
+            birth_datetime, birth_place, birth_weight, conception_datetime, conception_place
+        )
+    finally:
+        _g1nostr_in_progress.discard(email)
+
+    if return_code != 0:
+        logger.error(f"Erreur script g1.sh : {last_line}")
+        raise HTTPException(status_code=500, detail=f"Erreur script g1.sh : {last_line}")
+
+    return FileResponse(last_line.strip())
 
 @as_form
 class UPassportForm(BaseModel):

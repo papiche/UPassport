@@ -379,9 +379,20 @@ def _read_optout(email: str) -> dict:
         return {}
 
 
+_FLUX_CHANNEL_DEFAULTS: dict[str, dict] = {
+    "alerts":     {"email": True,  "nostr": False},
+    "milestones": {"email": True,  "nostr": False},
+    "usociety":   {"email": True,  "nostr": False},
+    "zine":       {"email": True,  "nostr": False},
+    "kin_daily":  {"email": True,  "nostr": False},
+    "kin_weekly": {"email": True,  "nostr": False},
+}
+
+
 def _write_prefs(email: str, channels: list[str], npub: str = "",
                  kin_prefs: dict | None = None,
-                 flux_prefs: dict | None = None) -> None:
+                 flux_prefs: dict | None = None,
+                 flux_channels: dict | None = None) -> None:
     p = _mailjet_path(email)
     p.parent.mkdir(parents=True, exist_ok=True)
     # Préserver les champs existants (ex: timestamp, autres prefs futures)
@@ -405,9 +416,12 @@ def _write_prefs(email: str, channels: list[str], npub: str = "",
         data["kin"] = {**current.get("kin", {}), **kin_prefs}
     if flux_prefs is not None:
         data["flux"] = flux_prefs
+    if flux_channels is not None:
+        data["flux_channels"] = flux_channels
     p.write_text(json.dumps(data, indent=2))
-    logger.info("Mailjet prefs %s → channels=%s kin=%s flux=%s npub=%s",
-                email, channels, kin_prefs, flux_prefs, npub or "-")
+    logger.info("Mailjet prefs %s → channels=%s kin=%s flux=%s flux_channels=%s npub=%s",
+                email, channels, kin_prefs, flux_prefs,
+                {k: v for k, v in (flux_channels or {}).items()}, npub or "-")
 
 
 # Alias rétrocompatibilité (appelé nulle part en externe mais gardé pour clarté)
@@ -606,6 +620,12 @@ async def get_mailjet(
         "cosmique":    "Cosmique — résonance planétaire et gardiennage",
     }
     _flux = current.get("flux", {})
+    # flux_channels : canal email/nostr par catégorie (avec defaults si absent)
+    _fc_saved = current.get("flux_channels", {})
+    _fc: dict[str, dict] = {}
+    for _fk, _fd in _FLUX_CHANNEL_DEFAULTS.items():
+        _fc[_fk] = {**_fd, **_fc_saved.get(_fk, {})}
+
     return templates.TemplateResponse("mailjet_prefs.html", {
         "request":              request,
         "email":                email,
@@ -627,6 +647,8 @@ async def get_mailjet(
         "flux_usociety_off":    not _flux.get("usociety",   True),
         "flux_alerts_off":      not _flux.get("alerts",     True),
         "flux_milestones_off":  not _flux.get("milestones", True),
+        # Canaux par catégorie (email ON/OFF, nostr ON/OFF)
+        "fc": _fc,
     })
 
 
@@ -645,6 +667,19 @@ async def post_mailjet(
     flux_off_usociety:   Optional[str] = Form(default=None),
     flux_off_alerts:     Optional[str] = Form(default=None),
     flux_off_milestones: Optional[str] = Form(default=None),
+    # Canaux par catégorie : présent = actif (checkbox checked = canal ON)
+    ch_email_alerts:     Optional[str] = Form(default=None),
+    ch_nostr_alerts:     Optional[str] = Form(default=None),
+    ch_email_milestones: Optional[str] = Form(default=None),
+    ch_nostr_milestones: Optional[str] = Form(default=None),
+    ch_email_usociety:   Optional[str] = Form(default=None),
+    ch_nostr_usociety:   Optional[str] = Form(default=None),
+    ch_email_zine:       Optional[str] = Form(default=None),
+    ch_nostr_zine:       Optional[str] = Form(default=None),
+    ch_email_kin_daily:  Optional[str] = Form(default=None),
+    ch_nostr_kin_daily:  Optional[str] = Form(default=None),
+    ch_email_kin_weekly: Optional[str] = Form(default=None),
+    ch_nostr_kin_weekly: Optional[str] = Form(default=None),
 ):
     captain = settings.CAPTAINEMAIL or "support@qo-op.com"
 
@@ -683,9 +718,25 @@ async def post_mailjet(
         "milestones": flux_off_milestones is None,
     }
 
-    _write_prefs(email, channels, npub or "", kin_prefs, flux_prefs)
-    logger.info("Mailjet prefs saved for %s — channels=%s kin=%s flux=%s",
-                email, channels, kin_prefs, flux_prefs)
+    # Canaux par catégorie : checkbox présente = canal actif (logique directe)
+    flux_channels = {
+        "alerts":     {"email": ch_email_alerts     is not None,
+                       "nostr": ch_nostr_alerts     is not None},
+        "milestones": {"email": ch_email_milestones is not None,
+                       "nostr": ch_nostr_milestones is not None},
+        "usociety":   {"email": ch_email_usociety   is not None,
+                       "nostr": ch_nostr_usociety   is not None},
+        "zine":       {"email": ch_email_zine       is not None,
+                       "nostr": ch_nostr_zine       is not None},
+        "kin_daily":  {"email": ch_email_kin_daily  is not None,
+                       "nostr": ch_nostr_kin_daily  is not None},
+        "kin_weekly": {"email": ch_email_kin_weekly is not None,
+                       "nostr": ch_nostr_kin_weekly is not None},
+    }
+
+    _write_prefs(email, channels, npub or "", kin_prefs, flux_prefs, flux_channels)
+    logger.info("Mailjet prefs saved for %s — channels=%s kin=%s flux=%s flux_channels=%s",
+                email, channels, kin_prefs, flux_prefs, flux_channels)
 
     return templates.TemplateResponse("mailjet_success.html", {
         "request":   request,

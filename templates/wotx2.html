@@ -234,11 +234,17 @@ function poolList(filters) {
   if (!p) return Promise.resolve([]);
   return new Promise(res => {
     const evs = [];
-    const s = p.subscribeMany([RELAY], filters, {
-      onevent: e => evs.push(e),
-      oneose: () => { s.close(); res(evs); }
-    });
-    setTimeout(() => { try { s.close(); } catch(_){} res(evs); }, 7000);
+    let resolved = false;
+    const done = () => {
+      if (resolved) return;
+      resolved = true;
+      try { s.unsub(); } catch(_) {}
+      res(evs);
+    };
+    const s = p.sub([RELAY], filters);
+    s.on('event', e => evs.push(e));
+    s.on('eose', done);
+    setTimeout(done, 7000);
   });
 }
 
