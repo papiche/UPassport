@@ -2,6 +2,7 @@ import os
 import re
 import json
 import time
+import base64
 import asyncio
 import hashlib
 import logging
@@ -48,6 +49,8 @@ class G1NostrForm(BaseModel):
     conception_datetime: str = ""
     conception_place: str = ""
     polarity: str = "0"  # 0=homme, 1=femme — encodé dans saltRaw côté client
+    pre_stretched: bool = True  # True = salt/pepper déjà PBKDF2-étirés (atomic.html, Zelkova)
+                                # False = chaînes brutes → serveur applique PBKDF2 (Cabine-33)
 
     @field_validator('salt', 'pepper', mode='before')
     @classmethod
@@ -60,6 +63,23 @@ class G1NostrForm(BaseModel):
         return v
 
 from fastapi import Depends
+
+
+async def _stretch_credentials(salt: str, pepper: str) -> tuple[str, str]:
+    """PBKDF2-HMAC-SHA256 (600k iter, domain-salt 'uplanet-a4l-v1') sur salt et pepper bruts.
+    Identique à la Phase 1 de atomic.html côté client.  Exécuté dans un thread executor
+    pour ne pas bloquer la boucle asyncio (~0.5 s sur serveur moderne).
+    """
+    domain = b"uplanet-a4l-v1"
+    loop = asyncio.get_event_loop()
+    salt_bytes, pepper_bytes = await asyncio.gather(
+        loop.run_in_executor(None, hashlib.pbkdf2_hmac, "sha256", salt.encode(), domain, 600000),
+        loop.run_in_executor(None, hashlib.pbkdf2_hmac, "sha256", pepper.encode(), domain, 600000),
+    )
+    return (
+        base64.urlsafe_b64encode(salt_bytes).rstrip(b"=").decode(),
+        base64.urlsafe_b64encode(pepper_bytes).rstrip(b"=").decode(),
+    )
 
 
 async def _derive_npub_from_credentials(salt: str, pepper: str) -> Optional[str]:
@@ -123,6 +143,9 @@ async def scan_qr(
     lon = form_data.lon
     salt = form_data.salt
     pepper = form_data.pepper
+    # ── Pre-stretching serveur : Cabine-33 et clients légers sans PBKDF2 natif ─
+    if not form_data.pre_stretched and salt and pepper:
+        salt, pepper = await _stretch_credentials(salt, pepper)
     format = form_data.format
     pass_code = (form_data.pass_code or "").strip()
     birth_datetime      = form_data.birth_datetime or ""
