@@ -14,6 +14,12 @@
     {% else %}
     <script src="{{ myIPFS }}/ipns/copylaradio.com/common.js"></script>
     {% endif %}
+    <!-- UPlanet Header (bandeau connexion NOSTR + modal MULTIPASS) -->
+    {% if use_local_js %}
+    <script src="/earth/uplanet-header.js"></script>
+    {% else %}
+    <script src="{{ myIPFS }}/ipns/copylaradio.com/uplanet-header.js"></script>
+    {% endif %}
     <!-- NOSTR Tube functions -->
     {% if use_local_js %}
     <script src="/earth/youtube.enhancements.js"></script>
