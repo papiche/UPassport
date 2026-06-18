@@ -15,7 +15,7 @@ router = APIRouter()
 async def get_webhook(request: Request):
     """Receive analytics data and send as NOSTR message to CAPTAINEMAIL
     
-    This endpoint receives analytics data and sends it as a NOSTR event (kind 10000)
+    This endpoint receives analytics data and sends it as a NOSTR event (kind 10600)
     to the captain email using nostr_send_note.py instead of mailjet.sh.
     """
     try:
@@ -97,7 +97,7 @@ async def get_webhook(request: Request):
         
         message_content = "\n".join(message_lines)
         
-        # Build tags for NOSTR event (kind 10000 - Analytics)
+        # Build tags for NOSTR event (kind 10600 - Analytics)
         tags = [
             ["t", "analytics"],
             ["t", data.get("type", "unknown")]
@@ -130,7 +130,7 @@ async def get_webhook(request: Request):
             nostr_script,
             "--keyfile", str(captain_keyfile),
             "--content", message_content,
-            "--kind", "10000",  # Analytics event kind
+            "--kind", "10600",  # Analytics event kind
             "--tags", tags_json,
             "--relays", nostr_relay,
             "--json"  # JSON output mode
