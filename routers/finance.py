@@ -449,6 +449,43 @@ async def check_balance_route(g1pub: str, html: Optional[str] = None):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
+@router.get("/check_g1history")
+async def check_g1history_route(g1pub: str, limit: int = 100):
+    """Historique des transactions G1 d'un portefeuille MULTIPASS.
+    Accepte un g1pub SS58/Base58 ou un email (résolution locale puis swarm).
+    Retourne {"history": [...], "g1pub": "...", "total": N}
+    """
+    try:
+        if '@' in g1pub:
+            email = g1pub
+            if not is_safe_email(email):
+                raise HTTPException(status_code=400, detail="Format d'email invalide")
+            resolved = None
+            nostr_path = get_safe_user_path("nostr", email, "G1PUBNOSTR")
+            if nostr_path and os.path.exists(nostr_path):
+                try:
+                    with open(nostr_path, 'r') as f:
+                        resolved = f.read().strip()
+                except Exception:
+                    pass
+            if not resolved:
+                resolved = await _resolve_g1pubnostr_from_swarm(email)
+            if not resolved:
+                raise HTTPException(status_code=404, detail="g1pub introuvable pour cet email")
+            g1pub = resolved
+
+        if not is_safe_g1pub(g1pub):
+            raise HTTPException(status_code=400, detail="Format g1pub invalide")
+
+        data = await get_g1_history_native(g1pub, limit)
+        history = data.get("history", [])
+        return {"history": history, "g1pub": g1pub, "total": len(history)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
+
 @router.get("/check_balances")
 async def check_balances_route(g1pubs: str):
     """

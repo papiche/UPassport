@@ -356,7 +356,7 @@ def _parse_history(raw: dict, g1pub: str) -> dict:
     for node in received_nodes:
         history.append({
             "Date": node.get("timestamp", ""),
-            "Amounts Ğ1": (node.get("amount") or 0) / 100,
+            "Amounts Ğ1": int(node.get("amount") or 0) / 100,
             "Issuers/Recipients": node.get("fromId", ""),
             "Reference": (node.get("comment") or {}).get("remark", "") or "",
             "blockNumber": node.get("blockNumber", 0),
@@ -365,7 +365,7 @@ def _parse_history(raw: dict, g1pub: str) -> dict:
     for node in sent_nodes:
         history.append({
             "Date": node.get("timestamp", ""),
-            "Amounts Ğ1": -((node.get("amount") or 0) / 100),
+            "Amounts Ğ1": -(int(node.get("amount") or 0) / 100),
             "Issuers/Recipients": node.get("toId", ""),
             "Reference": (node.get("comment") or {}).get("remark", "") or "",
             "blockNumber": node.get("blockNumber", 0),
