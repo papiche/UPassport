@@ -41,6 +41,9 @@ templates = Jinja2Templates(directory="templates")
 # Cache balance : TTL 30 s, max 2000 entrées
 app_state.balance_cache = TTLCache(maxsize=2000, ttl=30)
 
+# Cache vérification OC : TTL 1h, max 500 entrées
+_oc_member_cache: "TTLCache" = TTLCache(maxsize=500, ttl=3600)
+
 # --- Coinflip server-authoritative state ---
 import base64
 import hmac
@@ -640,6 +643,17 @@ async def _get_coop_config(key: str) -> str:
         logger.debug(f"cooperative_config.sh indisponible ou timeout pour {key}: {e}")
     return ""
 
+def _classify_societaire(tier_slug: str) -> str:
+    """Détermine le statut sociétaire depuis le slug de tier OC."""
+    ts = tier_slug.lower() if tier_slug else ""
+    if any(k in ts for k in ["gpu", "module-gpu", "constellation", "love-box-deluxe", "love-box-gpu"]):
+        return "constellation"
+    if any(k in ts for k in ["128-go", "extension-128", "satellite", "love-box-le-claude", "love-box", "lovebox"]):
+        return "satellite"
+    if ts:
+        return "membre"
+    return "inconnu"
+
 async def _get_oc_token():
     """Retourne l'OCAPIKEY : .env local → DID NOSTR coopératif → settings."""
     oc_env = _get_oc_env()
@@ -1071,6 +1085,226 @@ async def check_society_route(request: Request, html: Optional[str] = None, nost
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal server error")
 
+# ─────────────────────────────────────────────────────────────────────────────
+# CHECK_OC_MEMBER  —  Vérifie l'inscription OpenCollective d'un email
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get("/check_oc_member")
+async def check_oc_member(email: str):
+    """Vérifie si un email est inscrit sur OpenCollective.
+
+    Stratégie :
+      1. Cache local slug_email_map.json + tx.json  (rapide, sans réseau)
+      2. Requête live OC GraphQL                    (si non trouvé localement)
+    Retourne : {is_member, tier_slug, sociétaire_status, name, ...}
+    """
+    email_lc = email.lower().strip()
+    if not is_safe_email(email_lc):
+        raise HTTPException(status_code=400, detail="Email invalide")
+
+    cache_key = f"oc_member_{email_lc}"
+    if cache_key in _oc_member_cache:
+        return JSONResponse(_oc_member_cache[cache_key])
+
+    from core.config import settings
+
+    # ── 1. Cache local : slug_email_map.json ─────────────────────────────────
+    slug_found = None
+    map_file = settings.ZEN_PATH / "workspace" / "OC2UPlanet" / "data" / "slug_email_map.json"
+    if map_file.exists():
+        try:
+            slug_map = json.loads(map_file.read_text())
+            for s, em in slug_map.items():
+                if em.lower() == email_lc:
+                    slug_found = s
+                    break
+        except Exception:
+            pass
+
+    # ── 2. Tier depuis tx.json ────────────────────────────────────────────────
+    tier_slug, tier_name, amount, member_name, last_tx = "", "", 0.0, "", ""
+    tx_file = settings.ZEN_PATH / "workspace" / "OC2UPlanet" / "data" / "tx.json"
+    if slug_found and tx_file.exists():
+        try:
+            nodes = json.loads(tx_file.read_text()) \
+                .get("data", {}).get("account", {}) \
+                .get("transactions", {}).get("nodes", [])
+            for node in nodes:
+                fa = node.get("fromAccount", {})
+                if fa.get("slug") == slug_found or \
+                        email_lc in [e.lower() for e in fa.get("emails", [])]:
+                    member_name  = fa.get("name", "")
+                    amount       = node.get("amount", {}).get("value", 0)
+                    tier         = (node.get("order") or {}).get("tier") or {}
+                    tier_slug    = tier.get("slug", "")
+                    tier_name    = tier.get("name", "")
+                    last_tx      = node.get("createdAt", "")
+                    break
+        except Exception:
+            pass
+
+    if slug_found:
+        result = {
+            "is_member": True, "email": email_lc, "slug": slug_found,
+            "name": member_name, "tier_slug": tier_slug, "tier_name": tier_name,
+            "societaire_status": _classify_societaire(tier_slug),
+            "amount": amount, "last_contribution": last_tx, "source": "cache_local"
+        }
+        _oc_member_cache[cache_key] = result
+        return JSONResponse(result)
+
+    # ── 3. Requête live OC GraphQL ────────────────────────────────────────────
+    oc_token = await _get_oc_token()
+    if not oc_token:
+        return JSONResponse({"is_member": False, "email": email_lc,
+                             "message": "Données OC non disponibles sur cette station"})
+
+    oc_env  = _get_oc_env()
+    oc_api  = _get_oc_api_url()
+    oc_slug = oc_env.get("OCSLUG", "") or getattr(settings, "OCSLUG", "") \
+              or await _get_coop_config("OCSLUG")
+    if not oc_slug:
+        return JSONResponse({"is_member": False, "email": email_lc,
+                             "message": "OCSLUG non configuré sur cette station"})
+
+    query = {
+        "query": """query($slug: String) {
+            account(slug: $slug) {
+                members(role: BACKER, limit: 200) {
+                    nodes { account { name slug emails } }
+                }
+                transactions(limit: 100, type: CREDIT) {
+                    nodes {
+                        fromAccount { name slug emails }
+                        amount { value }
+                        order { tier { slug name } }
+                        createdAt
+                    }
+                }
+            }
+        }""",
+        "variables": {"slug": oc_slug}
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                oc_api, json=query,
+                headers={"Content-Type": "application/json", "Personal-Token": oc_token}
+            )
+            if resp.status_code == 200:
+                account = resp.json().get("data", {}).get("account", {})
+                # Chercher dans la liste des membres
+                found_acc = None
+                for node in account.get("members", {}).get("nodes", []):
+                    acc = node.get("account", {})
+                    if email_lc in [e.lower() for e in acc.get("emails", [])]:
+                        found_acc = acc; break
+                if not found_acc:
+                    result = {"is_member": False, "email": email_lc,
+                              "message": "Non inscrit sur OpenCollective"}
+                    _oc_member_cache[cache_key] = result
+                    return JSONResponse(result)
+                # Trouver le tier dans les transactions
+                for node in account.get("transactions", {}).get("nodes", []):
+                    fa = node.get("fromAccount", {})
+                    if email_lc in [e.lower() for e in fa.get("emails", [])]:
+                        member_name  = fa.get("name", "")
+                        tier         = (node.get("order") or {}).get("tier") or {}
+                        tier_slug    = tier.get("slug", "")
+                        tier_name    = tier.get("name", "")
+                        amount       = node.get("amount", {}).get("value", 0)
+                        last_tx      = node.get("createdAt", "")
+                        break
+                result = {
+                    "is_member": True, "email": email_lc,
+                    "slug": found_acc.get("slug", ""),
+                    "name": member_name or found_acc.get("name", ""),
+                    "tier_slug": tier_slug, "tier_name": tier_name,
+                    "societaire_status": _classify_societaire(tier_slug),
+                    "amount": amount, "last_contribution": last_tx, "source": "live_oc"
+                }
+                _oc_member_cache[cache_key] = result
+                return JSONResponse(result)
+    except Exception as e:
+        logger.warning(f"[check_oc_member] OC GraphQL KO: {e}")
+
+    return JSONResponse({"is_member": False, "email": email_lc,
+                         "message": "Erreur lors de la vérification OpenCollective"})
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONSTELLATION_REGISTER  —  Diffuse un kind 30078 sur les relais pairs
+# ─────────────────────────────────────────────────────────────────────────────
+@router.post("/constellation_register")
+async def constellation_register(request: Request):
+    """Publie un événement NOSTR signé (kind 30078) sur les relais constellation pairs.
+
+    Corps JSON : {"event": {id, pubkey, kind, created_at, tags, content, sig}}
+    Découverte des pairs : ~/.zen/tmp/*/12345.json → champ myRELAY
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="JSON invalide")
+
+    event = body.get("event")
+    if not event or not isinstance(event, dict):
+        raise HTTPException(status_code=400, detail="Champ 'event' manquant")
+
+    required_fields = {"id", "pubkey", "created_at", "kind", "tags", "content", "sig"}
+    if not required_fields.issubset(event.keys()):
+        raise HTTPException(status_code=400, detail="Événement NOSTR incomplet")
+    if event.get("kind") != 30078:
+        raise HTTPException(status_code=400, detail="Seuls les kind 30078 sont acceptés")
+
+    # ── Découvrir les relais pairs depuis les fichiers station JSON ───────────
+    from core.config import settings
+    import glob, websockets
+
+    peer_relays: set = set()
+    for fpath in glob.glob(str(settings.ZEN_PATH / "tmp" / "*" / "12345.json")):
+        try:
+            data = json.loads(Path(fpath).read_text())
+            relay = data.get("myRELAY") or data.get("relay") or data.get("RELAY", "")
+            if relay and relay.startswith("wss://") \
+                    and "127.0.0.1" not in relay and "localhost" not in relay:
+                peer_relays.add(relay)
+        except Exception:
+            pass
+
+    if not peer_relays:
+        return JSONResponse({"published_count": 0, "total_peers": 0,
+                             "message": "Aucun pair constellation découvert"})
+
+    msg = json.dumps(["EVENT", event])
+
+    async def _publish_one(relay_url: str) -> bool:
+        try:
+            async with websockets.connect(
+                relay_url, open_timeout=5, close_timeout=3,
+                extra_headers={"User-Agent": "UPassport/1.0"}
+            ) as ws:
+                await asyncio.wait_for(ws.send(msg), timeout=5)
+                try:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=5)
+                    r = json.loads(raw)
+                    return r[0] == "OK" and r[2] is True
+                except Exception:
+                    return True  # Envoyé sans confirmation — considéré OK
+        except Exception as e:
+            logger.debug(f"[constellation_register] {relay_url} KO: {e}")
+            return False
+
+    peers_list = list(peer_relays)[:8]  # Limiter à 8 pairs pour éviter la saturation
+    results = await asyncio.gather(*[_publish_one(r) for r in peers_list], return_exceptions=True)
+    published = sum(1 for r in results if r is True)
+
+    logger.info(f"[constellation_register] kind=30078 id={event.get('id','')[:8]}… "
+                f"→ {published}/{len(peers_list)} pairs")
+    return JSONResponse({
+        "published_count": published,
+        "total_peers": len(peers_list),
+        "relays": peers_list
+    })
+
 @router.get("/check_revenue")
 async def check_revenue_route(request: Request, html: Optional[str] = None, year: Optional[str] = None):
     """Check revenue history from ZENCOIN transactions (Chiffre d'Affaires)"""
@@ -1157,12 +1391,30 @@ async def check_zencard_route(request: Request, email: str, html: Optional[str] 
         
         if "error" in zencard_data:
             error_msg = zencard_data.get('error', 'Unknown error')
-            status_code = 404 if "not found" in error_msg.lower() or "not configured" in error_msg.lower() else 500
-            raise HTTPException(status_code=status_code, detail=error_msg)
-        
+            # ZenCard introuvable = utilisateur constellation (home station différente)
+            # → retourner 200 avec données vides plutôt qu'un 404 bloquant
+            if "not found" in error_msg.lower():
+                constellation_data = {
+                    "zencard_email": email,
+                    "zencard_g1pub": "",
+                    "transfers": [],
+                    "total_received_zen": 0,
+                    "total_received_g1": 0,
+                    "total_transfers": 0,
+                    "valid_transfers": 0,
+                    "valid_balance_zen": 0,
+                    "valid_balance_g1": 0,
+                    "constellation": True,
+                    "filter_period": "ZenCard introuvable sur cette station"
+                }
+                if html is not None:
+                    return generate_zencard_html_page(request, email, constellation_data)
+                return constellation_data
+            raise HTTPException(status_code=500, detail=error_msg)
+
         if html is not None:
             return generate_zencard_html_page(request, email, zencard_data)
-        
+
         return zencard_data
         
     except HTTPException:
