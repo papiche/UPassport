@@ -46,6 +46,8 @@ class G1NostrForm(BaseModel):
     birth_datetime: str = ""
     birth_place: str = ""
     birth_weight: str = ""
+    birth_height: str = ""         # taille naissance (cm) — incluse dans saltRaw
+    current_height: str = ""       # taille adulte (cm) — incluse dans saltRaw
     conception_datetime: str = ""
     conception_place: str = ""
     polarity: str = "0"  # 0=homme, 1=femme — encodé dans saltRaw côté client
