@@ -52,7 +52,11 @@
 
 {% block scripts %}
 <script>
-var _challenge = null, _relay = null;
+// ── Auto-login via UPH si pubkey déjà en session ──────────────────────────────
+// Dès que UPH a un email connu (depuis le Kind 0), on déclenche le flow NIP-42
+// automatiquement sans que l'utilisateur ait à cliquer.
+
+var _challenge = null, _relay = null, _autoTriggered = false;
 
 async function _fetchChallenge() {
   try {
@@ -62,8 +66,7 @@ async function _fetchChallenge() {
   } catch(e) { console.warn('challenge fetch:', e); }
 }
 
-async function handleConnect() {
-  var btn = document.getElementById('btn-nostr');
+async function _doNip42Auth() {
   var err = document.getElementById('nip42-err');
   if (err) err.style.display = 'none';
   if (!_challenge) await _fetchChallenge();
@@ -71,7 +74,6 @@ async function handleConnect() {
     if (err) { err.textContent = 'Impossible de récupérer le challenge NIP-42.'; err.style.display = ''; }
     return;
   }
-  btn.textContent = '⏳ Signature…'; btn.disabled = true;
   try {
     if (!window.nostr) throw new Error('Aucune extension NOSTR (Alby, nos2x, Flamingo…)');
     var unsigned = {
@@ -91,21 +93,60 @@ async function handleConnect() {
       document.getElementById('roaming-block').style.display = '';
       document.getElementById('roaming-station').textContent = data.station || '(station inconnue)';
       document.getElementById('roaming-viewer').href = data.viewer || '#';
-      btn.textContent = '⚡ Connexion NOSTR'; btn.disabled = false; return;
+      return;
     }
     if (data.status === 'unknown') { window.location = data.viewer; return; }
     if (err) { err.textContent = data.message || 'Erreur NIP-42.'; err.style.display = ''; }
   } catch(e) {
     if (err) { err.textContent = e.message; err.style.display = ''; }
   }
-  btn.textContent = '⚡ Connexion NOSTR'; btn.disabled = false;
 }
+
+// Bouton manuel → ouvre le modal UPH puis déclenche NIP-42
+function handleConnect() {
+  var btn = document.getElementById('btn-nostr');
+  btn.textContent = '⏳ Signature…'; btn.disabled = true;
+  _doNip42Auth().finally(function() {
+    btn.textContent = '⚡ Connexion NOSTR'; btn.disabled = false;
+  });
+}
+
+// Écouter UPH : si pubkey déjà disponible → auto-déclencher
+document.addEventListener('nostr:connected', function(e) {
+  if (_autoTriggered) return;
+  // Attendre que UPH ait chargé le profil Kind 0 et extrait l'email
+  var _wait = 0;
+  var _poll = setInterval(function() {
+    _wait += 300;
+    if (window._uphEmail || _wait > 6000) {
+      clearInterval(_poll);
+      if (window._uphEmail && !_autoTriggered) {
+        _autoTriggered = true;
+        var btn = document.getElementById('btn-nostr');
+        if (btn) { btn.textContent = '⏳ Identifié — connexion…'; btn.disabled = true; }
+        _doNip42Auth();
+      }
+    }
+  }, 300);
+});
 
 window.addEventListener('DOMContentLoaded', function() {
   _fetchChallenge();
-  if (!window.nostr) {
-    var btn = document.getElementById('btn-nostr');
-    if (btn) { btn.textContent = '⚠️ Extension NOSTR non détectée'; btn.disabled = true; }
+  // Si UPH déjà connecté (sessionStorage) → poll immédiat
+  var _ns = window.NostrState || {};
+  if (_ns.isNostrConnected && _ns.userPubkey && !_autoTriggered) {
+    // UPH restauré depuis session — attendre l'email
+    var _t = 0;
+    var _p = setInterval(function() {
+      _t += 300;
+      if (window._uphEmail || _t > 6000) {
+        clearInterval(_p);
+        if (window._uphEmail && !_autoTriggered) {
+          _autoTriggered = true;
+          _doNip42Auth();
+        }
+      }
+    }, 300);
   }
 });
 </script>

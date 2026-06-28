@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}Préférences notifications — UPlanet{% endblock %}</title>
 <script src="https://ipfs.copylaradio.com/ipns/copylaradio.com/nostr.bundle.js"></script>
+<script src="/earth/uplanet-header.js" defer></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #050a12; color: #e0f0ff;
@@ -20,18 +21,6 @@ p { color: rgba(255,255,255,0.65); font-size: 0.9rem; line-height: 1.75; margin-
 code { color: #00f5ff; background: rgba(0,245,255,0.08); padding: 1px 6px;
        border-radius: 3px; font-family: 'Courier New', monospace; font-size: 0.85em; }
 .sep { border: none; border-top: 1px solid rgba(0,245,255,0.1); margin: 22px 0; }
-
-/* Barre NOSTR en haut */
-#nostr-bar { position: fixed; top: 12px; right: 14px; z-index: 9000;
-  display: flex; align-items: center; gap: 8px;
-  background: rgba(0,0,0,0.6); backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.12); border-radius: 20px;
-  padding: 5px 14px; font-size: 12px; color: rgba(255,255,255,0.9); }
-#user-name-badge { display: none; color: #86efac; font-weight: 600; }
-#btn-connect { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22);
-  color: rgba(255,255,255,0.88); padding: 3px 10px; border-radius: 12px;
-  cursor: pointer; font-size: 11px; font-weight: 500; transition: background .2s; }
-#btn-connect:hover { background: rgba(255,255,255,0.2); }
 
 /* Bloc NOSTR connecté */
 .nostr-block { background: rgba(86,239,172,0.05); border: 1px solid rgba(86,239,172,0.18);
@@ -134,13 +123,7 @@ footer { text-align: center; margin-top: 32px; font-family: 'Courier New', monos
 </head>
 <body>
 
-{% block nostr_bar %}
-<div id="nostr-bar">
-  <span id="conn-badge">🔴</span>
-  <span id="user-name-badge"></span>
-  <button id="btn-connect" onclick="handleConnect()">⚡ Se connecter</button>
-</div>
-{% endblock %}
+{% block nostr_bar %}{% endblock %}
 
 <div class="wrap">
   <h1>ASTRO<span style="color:#00ff88;">PORT</span>.ONE</h1>

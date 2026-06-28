@@ -2,16 +2,22 @@
 
 {% block title %}Préférences enregistrées — UPlanet{% endblock %}
 {% block page_title %}PRÉFÉRENCES ENREGISTRÉES{% endblock %}
-{% block nostr_bar %}{% endblock %}
 
 {% block content %}
 {% if vibe_capture %}
 <div class="ok">
   <h2>✨ Résonance enregistrée</h2>
   <p style="font-size:0.87rem;margin-bottom:10px;">
-    Merci. Votre réponse contribue à affiner votre profil Oracle.
+    Votre réponse contribue à affiner votre profil Oracle.
+    Elle reste sur votre station, confidentielle.
   </p>
-  <p style="margin:0;font-size:0.85rem;">
+
+  <!-- Bloc vérification identité NIP-42 (rempli par JS) -->
+  <div id="id-check" style="margin:12px 0;padding:10px 13px;border-radius:5px;font-size:0.83rem;
+       background:rgba(0,245,255,0.04);border:1px solid rgba(0,245,255,0.1);display:none">
+  </div>
+
+  <p style="margin:10px 0 0;font-size:0.85rem;">
     <a href="/mailjet?email={{ email }}&token={{ token }}" style="color:#86efac;">
       ⚙️ Voir et modifier mes préférences →
     </a>
@@ -56,5 +62,69 @@
     ← Modifier à nouveau mes préférences
   </a>
 </p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if vibe_capture %}
+<script>
+// Vérification NIP-42 : la clef publique connectée correspond-elle à cet email ?
+var _expectedEmail = {{ email | tojson }};
+var _checked = false;
+
+function _showIdCheck(ok, msg, sub) {
+  var el = document.getElementById('id-check');
+  if (!el) return;
+  el.style.display = '';
+  el.style.borderColor = ok ? 'rgba(134,239,172,0.3)' : 'rgba(251,146,60,0.3)';
+  el.style.background  = ok ? 'rgba(134,239,172,0.05)' : 'rgba(251,146,60,0.05)';
+  el.innerHTML = (ok ? '✅ ' : '⚠️ ') + '<strong>' + msg + '</strong>'
+    + (sub ? '<br><span style="color:rgba(255,255,255,0.45);font-size:0.78rem">' + sub + '</span>' : '');
+}
+
+function _tryCheck() {
+  if (_checked) return;
+  var uphEmail = window._uphEmail || '';
+  var ns = window.NostrState || {};
+  if (!ns.isNostrConnected) return;  // pas encore connecté
+
+  _checked = true;
+  if (!uphEmail) {
+    _showIdCheck(false, 'Identité non vérifiable',
+      'Profil NOSTR sans email — connectez-vous via <a href="/mailjet?email=' + encodeURIComponent(_expectedEmail) + '&token={{ token }}" style="color:#fb923c">vos préférences</a>.');
+    return;
+  }
+  if (uphEmail.toLowerCase() === _expectedEmail.toLowerCase()) {
+    _showIdCheck(true, 'Identité confirmée',
+      'Clef NIP-42 vérifiée pour ' + uphEmail);
+  } else {
+    _showIdCheck(false, 'Incohérence détectée',
+      'Email attendu : <code>' + _expectedEmail + '</code> — clef connectée : <code>' + uphEmail + '</code>.<br>'
+      + 'Si ce n\'est pas vous, ignorez cette réponse.');
+  }
+}
+
+// Écouter la connexion UPH
+document.addEventListener('nostr:connected', function() {
+  // Attendre que UPH charge le profil Kind 0 et extraie l'email
+  var _w = 0;
+  var _p = setInterval(function() {
+    _w += 300;
+    if (window._uphEmail || _w > 8000) { clearInterval(_p); _tryCheck(); }
+  }, 300);
+});
+
+// UPH déjà connecté depuis sessionStorage
+window.addEventListener('DOMContentLoaded', function() {
+  var _ns = window.NostrState || {};
+  if (_ns.isNostrConnected && _ns.userPubkey) {
+    var _w = 0;
+    var _p = setInterval(function() {
+      _w += 300;
+      if (window._uphEmail || _w > 8000) { clearInterval(_p); _tryCheck(); }
+    }, 300);
+  }
+});
+</script>
 {% endif %}
 {% endblock %}

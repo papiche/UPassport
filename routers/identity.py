@@ -6,6 +6,7 @@ import base64
 import asyncio
 import hashlib
 import logging
+import tempfile
 logger = logging.getLogger(__name__)
 import secrets
 import string
@@ -555,3 +556,67 @@ async def nip96_discovery(request: Request):
             "tmdb_metadata": True
         }
     }
+
+
+# ── Alerte capitaine : tentatives PASS échouées ───────────────────────────────
+
+class PassAlertBody(BaseModel):
+    email: str
+    attempts: int
+
+
+async def _notify_pass_alert(email: str, attempts: int, ip: str) -> None:
+    captain = settings.CAPTAINEMAIL
+    mailjet_sh = settings.TOOLS_PATH / "mailjet.sh"
+    if not (captain and mailjet_sh.exists()):
+        logger.warning("PASS alert: mailjet.sh introuvable ou CAPTAINEMAIL non défini")
+        return
+    body = (
+        "<h2>⚠️ Tentatives PASS échouées — MULTIPASS bloqué</h2>"
+        f"<p><b>Email :</b> {email}</p>"
+        f"<p><b>Tentatives :</b> {attempts}</p>"
+        f"<p><b>IP :</b> {ip}</p>"
+        f"<p><b>Station :</b> {settings.uSPOT}</p>"
+        "<p>Le code PASS a été invalidé. L'utilisateur devra contacter la station pour réinitialisation.</p>"
+    )
+    tmp_msg = tempfile.NamedTemporaryFile(suffix=".html", mode="w", delete=False, encoding="utf-8")
+    try:
+        tmp_msg.write(body)
+        tmp_msg.close()
+        proc = await asyncio.create_subprocess_exec(
+            str(mailjet_sh), "--expire", "0s", captain, tmp_msg.name,
+            f"⚠️ PASS bloqué {attempts}× — {email} — {settings.uSPOT}",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await asyncio.wait_for(proc.wait(), timeout=30)
+    except Exception as exc:
+        logger.warning("Mailjet PASS alert failed: %s", exc)
+    finally:
+        try:
+            os.unlink(tmp_msg.name)
+        except OSError:
+            pass
+
+
+@router.post("/g1nostr/alert")
+async def pass_attempts_alert(request: Request, data: PassAlertBody) -> JSONResponse:
+    """Invalide le PASS et notifie le capitaine après 3 échecs consécutifs."""
+    email = data.email.strip().lower()
+
+    # Supprimer le fichier .pass pour bloquer toute nouvelle tentative
+    pass_file = settings.GAME_PATH / "players" / email / ".pass"
+    invalidated = False
+    if pass_file.exists():
+        try:
+            pass_file.unlink()
+            invalidated = True
+            logger.warning("PASS invalidé pour %s après %d tentatives depuis %s",
+                           email, data.attempts, request.client.host if request.client else "?")
+        except OSError as exc:
+            logger.error("Impossible d'invalider .pass pour %s : %s", email, exc)
+
+    ip = request.client.host if request.client else "inconnu"
+    await _notify_pass_alert(email, data.attempts, ip)
+
+    return JSONResponse({"status": "alerted", "invalidated": invalidated})

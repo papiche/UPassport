@@ -2,7 +2,11 @@
 
 {% block title %}Personnaliser mon expérience — UPlanet{% endblock %}
 {% block page_title %}PERSONNALISER MON EXPÉRIENCE{% endblock %}
-{% block nostr_bar %}{% endblock %}
+{% block nostr_bar %}
+<div id="uph-id-status" style="display:none;position:fixed;top:60px;right:14px;z-index:8999;
+     background:rgba(0,0,0,0.75);backdrop-filter:blur(10px);border-radius:10px;
+     border:1px solid rgba(134,239,172,0.25);padding:5px 12px;font-size:11px;color:#86efac"></div>
+{% endblock %}
 
 {% block extra_styles %}
 .q-intro { color: rgba(255,255,255,0.6); font-size: 0.88rem; line-height: 1.75;
@@ -93,6 +97,45 @@
 <script>
 var total = {{ questions|length }};
 var current = 0;
+var _expectedEmail = {{ email | tojson }};
+
+// UPH : afficher badge identité et vérifier cohérence email
+function _checkUphIdentity() {
+  var uphEmail = window._uphEmail || '';
+  var ns = window.NostrState || {};
+  var badge = document.getElementById('uph-id-status');
+  if (!badge || !ns.isNostrConnected) return;
+  if (!uphEmail) return;
+  badge.style.display = '';
+  if (uphEmail.toLowerCase() === _expectedEmail.toLowerCase()) {
+    badge.textContent = '✅ ' + uphEmail;
+    badge.style.borderColor = 'rgba(134,239,172,0.35)';
+  } else {
+    badge.innerHTML = '⚠️ Connecté en tant que <strong>' + uphEmail + '</strong><br>'
+      + '<span style="color:rgba(255,200,100,0.8)">Email du lien : ' + _expectedEmail + '</span>';
+    badge.style.borderColor = 'rgba(251,146,60,0.35)';
+    badge.style.color = '#fb923c';
+  }
+}
+
+document.addEventListener('nostr:connected', function() {
+  var _w = 0;
+  var _p = setInterval(function() {
+    _w += 300;
+    if (window._uphEmail || _w > 8000) { clearInterval(_p); _checkUphIdentity(); }
+  }, 300);
+});
+
+window.addEventListener('DOMContentLoaded', function() {
+  var _ns = window.NostrState || {};
+  if (_ns.isNostrConnected && _ns.userPubkey) {
+    var _w = 0;
+    var _p = setInterval(function() {
+      _w += 300;
+      if (window._uphEmail || _w > 6000) { clearInterval(_p); _checkUphIdentity(); }
+    }, 300);
+  }
+});
 
 function selectOpt(el) {
   var block = el.closest('.q-block');
