@@ -603,8 +603,7 @@ async def admin_captain_info():
     if node_hex:
         for json_file in (Path.home() / ".zen" / "tmp").glob("*/12345.json"):
             try:
-                import json as _json
-                data = _json.loads(json_file.read_text())
+                data = json.loads(json_file.read_text())
                 if data.get("NODEHEX") == node_hex:
                     captain_hex = data.get("captainHEX", "") or node_hex
                     break
@@ -693,6 +692,8 @@ async def admin_constellation_delete(request: Request):
     if "relay.copylaradio.com" not in relay_list:
         relay_list = relay_list + " wss://relay.copylaradio.com"
 
+    relay_args = relay_list.split()  # split "wss://a wss://b" → ["wss://a", "wss://b"]
+
     results: list = []
     if intercom.exists() and node_hexes:
         for node_hex in node_hexes:
@@ -703,16 +704,20 @@ async def admin_constellation_delete(request: Request):
                     "--to", node_hex,
                     "--channel", "nostr_delete",
                     "--payload", dm_payload,
-                    "--relays", relay_list,
+                    "--relays", *relay_args,
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                await asyncio.wait_for(
+                stdout, stderr = await asyncio.wait_for(
                     proc.communicate(input=(node_nsec + "\n").encode()),
                     timeout=15.0
                 )
-                results.append({"node": node_hex[:12] + "...", "ok": proc.returncode == 0})
+                ok = proc.returncode == 0
+                entry: dict = {"node": node_hex[:12] + "...", "ok": ok}
+                if not ok and stderr:
+                    entry["error"] = stderr.decode(errors="replace").strip()[:120]
+                results.append(entry)
             except Exception as e:
                 results.append({"node": node_hex[:12] + "...", "ok": False, "error": str(e)[:80]})
     elif not intercom.exists():
