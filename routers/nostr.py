@@ -1,13 +1,39 @@
 import logging
+import os
 logger = logging.getLogger(__name__)
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from utils.helpers import render_page
 
 router = APIRouter()
+
+
+def _get_uplanetname() -> str:
+    """Lit UPLANETNAME depuis ~/.ipfs/swarm.key (dernière ligne)."""
+    swarm_key_path = os.path.expanduser("~/.ipfs/swarm.key")
+    try:
+        if os.path.exists(swarm_key_path):
+            with open(swarm_key_path, 'r') as f:
+                lines = f.readlines()
+                if lines:
+                    return lines[-1].strip()
+    except Exception:
+        pass
+    return "0000000000000000000000000000000000000000000000000000000000000000"
+
+
+def _validate_uplanetname(submitted: str) -> bool:
+    """Valide le UPLANETNAME soumis contre la swarm.key locale."""
+    if not submitted or len(submitted) != 64:
+        return False
+    try:
+        int(submitted, 16)
+    except ValueError:
+        return False
+    return submitted.lower() == _get_uplanetname().lower()
 
 @router.get("/nostr", summary="NOSTR Page", description="Route NOSTR avec support de différents types de templates.")
 async def get_nostr(request: Request, type: str = "default"):
@@ -432,3 +458,269 @@ async def test_nostr_auth(npub: str = Form(...)):
 async def test_nostr_auth_get(npub: str):
     """Test NOSTR authentication for a given npub (GET version for browser testing)"""
     return await test_nostr_auth(npub)
+
+
+# ─── Admin NOSTR — protégé par UPLANETNAME ────────────────────────────────────
+
+@router.get("/api/nostr/admin/events")
+async def admin_get_nostr_events(
+    uplanetname: str,
+    kind: Optional[str] = None,
+    author: Optional[str] = None,
+    tag_d: Optional[str] = None,
+    tag_p: Optional[str] = None,
+    tag_t: Optional[str] = None,
+    tag_g: Optional[str] = None,
+    since: Optional[int] = None,
+    until: Optional[int] = None,
+    limit: int = 100
+):
+    """Interroge les événements NOSTR du relay local (strfry) — auth UPLANETNAME requise."""
+    if not _validate_uplanetname(uplanetname):
+        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+
+    from core.config import settings
+    script = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "nostr_get_events.sh"
+    if not script.exists():
+        raise HTTPException(status_code=500, detail="nostr_get_events.sh introuvable")
+
+    cmd = [str(script), "--limit", str(min(limit, 500)), "--output", "json"]
+    if kind:
+        cmd += ["--kind", kind]
+    if author:
+        cmd += ["--author", author]
+    if tag_d:
+        cmd += ["--tag-d", tag_d]
+    if tag_p:
+        cmd += ["--tag-p", tag_p]
+    if tag_t:
+        cmd += ["--tag-t", tag_t]
+    if tag_g:
+        cmd += ["--tag-g", tag_g]
+    if since:
+        cmd += ["--since", str(since)]
+    if until:
+        cmd += ["--until", str(until)]
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(script.parent)
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=20.0)
+        raw = stdout.decode('utf-8', errors='ignore')
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Timeout lors de la requête strfry")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    events = []
+    for line in raw.strip().split('\n'):
+        if not line.strip():
+            continue
+        try:
+            events.append(json.loads(line))
+        except Exception:
+            pass
+
+    return JSONResponse({"events": events, "count": len(events)})
+
+
+@router.post("/api/nostr/admin/delete")
+async def admin_delete_nostr_events(request: Request):
+    """Supprime des événements NOSTR par IDs via strfry delete — auth UPLANETNAME requise."""
+    body = await request.json()
+    uplanetname = body.get("uplanetname", "")
+    ids: list = body.get("ids", [])
+
+    if not _validate_uplanetname(uplanetname):
+        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+    if not ids or not isinstance(ids, list):
+        raise HTTPException(status_code=400, detail="Liste d'IDs requise")
+
+    # Valider que chaque ID est bien un hex de 64 chars
+    clean_ids = []
+    for ev_id in ids:
+        ev_id = str(ev_id).strip()
+        if len(ev_id) == 64:
+            try:
+                int(ev_id, 16)
+                clean_ids.append(ev_id)
+            except ValueError:
+                pass
+    if not clean_ids:
+        raise HTTPException(status_code=400, detail="Aucun ID valide fourni")
+
+    strfry_dir = Path.home() / ".zen" / "strfry"
+    strfry_bin = strfry_dir / "strfry"
+    if not strfry_bin.exists():
+        raise HTTPException(status_code=500, detail="strfry introuvable")
+
+    ids_json = json.dumps({"ids": clean_ids})
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            str(strfry_bin), "delete", f"--filter={ids_json}",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(strfry_dir)
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=20.0)
+        ok = proc.returncode == 0
+        out = stdout.decode('utf-8', errors='ignore') + stderr.decode('utf-8', errors='ignore')
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Timeout lors de la suppression")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if not ok:
+        raise HTTPException(status_code=500, detail=f"Erreur strfry delete: {out[:300]}")
+
+    logger.info(f"Admin NOSTR: {len(clean_ids)} événement(s) supprimé(s)")
+    return JSONResponse({"deleted": len(clean_ids), "ids": clean_ids})
+
+
+@router.get("/api/nostr/admin/captain_info")
+async def admin_captain_info():
+    """Retourne les pubkeys NOSTR publiques du node et du capitaine — sans auth (info publique)."""
+    node_hex = ""
+    captain_hex = ""
+
+    secret_file = Path.home() / ".zen" / "game" / "secret.nostr"
+    if secret_file.exists():
+        try:
+            content = secret_file.read_text()
+            for part in content.replace(";", "\n").splitlines():
+                part = part.strip()
+                if part.startswith("HEX="):
+                    node_hex = part[4:].strip()
+                    break
+        except Exception:
+            pass
+
+    if node_hex:
+        for json_file in (Path.home() / ".zen" / "tmp").glob("*/12345.json"):
+            try:
+                import json as _json
+                data = _json.loads(json_file.read_text())
+                if data.get("NODEHEX") == node_hex:
+                    captain_hex = data.get("captainHEX", "") or node_hex
+                    break
+            except Exception:
+                pass
+
+    return JSONResponse({"node_hex": node_hex, "captain_hex": captain_hex or node_hex})
+
+
+@router.post("/api/nostr/admin/constellation_delete")
+async def admin_constellation_delete(request: Request):
+    """Supprime par auteur en local (strfry) + relaie aux NODEs constellation via DM BRO nostr_delete."""
+    body = await request.json()
+    uplanetname = body.get("uplanetname", "")
+    author = body.get("author", "")
+    kind = body.get("kind", None)
+
+    if not _validate_uplanetname(uplanetname):
+        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+    if not author or len(author) != 64:
+        raise HTTPException(status_code=400, detail="author (pubkey hex 64 chars) requis")
+    try:
+        int(author, 16)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="author hex invalide")
+
+    # 1. Suppression locale strfry
+    strfry_dir = Path.home() / ".zen" / "strfry"
+    strfry_bin = strfry_dir / "strfry"
+    local_ok = False
+    if strfry_bin.exists():
+        filter_obj: dict = {"authors": [author]}
+        if kind is not None:
+            try:
+                filter_obj["kinds"] = [int(kind)]
+            except (ValueError, TypeError):
+                pass
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                str(strfry_bin), "delete", f"--filter={json.dumps(filter_obj)}",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                cwd=str(strfry_dir)
+            )
+            await asyncio.wait_for(proc.communicate(), timeout=20.0)
+            local_ok = proc.returncode == 0
+        except Exception as e:
+            logger.error(f"strfry local delete error: {e}")
+
+    # 2. Lire NODE_NSEC depuis ~/.zen/game/secret.nostr
+    node_nsec = ""
+    secret_nostr = Path.home() / ".zen" / "game" / "secret.nostr"
+    if secret_nostr.exists():
+        for segment in secret_nostr.read_text().split(";"):
+            segment = segment.strip()
+            if segment.startswith("NSEC="):
+                node_nsec = segment[5:].strip().strip("'\"")
+                break
+
+    if not node_nsec:
+        return JSONResponse({
+            "local_deleted": local_ok,
+            "constellation_nodes": [],
+            "warning": "NODE_NSEC absent — suppression constellation ignorée"
+        })
+
+    # 3. Trouver les NODEHEX constellation via ~/.zen/tmp/swarm/*/HEX
+    # (chaque nœud publie son HEX dans /ipns/{IPFSNODEID}/HEX, mis en cache localement)
+    swarm_dir = Path.home() / ".zen" / "tmp" / "swarm"
+    node_hexes: list = []
+    if swarm_dir.exists():
+        for hex_file in swarm_dir.glob("*/HEX"):
+            try:
+                nodehex = hex_file.read_text().strip()
+                if nodehex and len(nodehex) == 64:
+                    int(nodehex, 16)
+                    node_hexes.append(nodehex)
+            except Exception:
+                pass
+
+    # 4. Envoyer DM BRO channel "nostr_delete" à chaque NODE constellation
+    intercom = Path.home() / ".zen" / "Astroport.ONE" / "tools" / "nostr_node_intercom.py"
+    dm_payload = json.dumps({"author": author, "kind": str(kind) if kind else ""})
+
+    from core.config import settings
+    relay_list = settings.myRELAY or "wss://relay.copylaradio.com"
+    if "relay.copylaradio.com" not in relay_list:
+        relay_list = relay_list + " wss://relay.copylaradio.com"
+
+    results: list = []
+    if intercom.exists() and node_hexes:
+        for node_hex in node_hexes:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "python3", str(intercom), "send",
+                    "--nsec-stdin",
+                    "--to", node_hex,
+                    "--channel", "nostr_delete",
+                    "--payload", dm_payload,
+                    "--relays", relay_list,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await asyncio.wait_for(
+                    proc.communicate(input=(node_nsec + "\n").encode()),
+                    timeout=15.0
+                )
+                results.append({"node": node_hex[:12] + "...", "ok": proc.returncode == 0})
+            except Exception as e:
+                results.append({"node": node_hex[:12] + "...", "ok": False, "error": str(e)[:80]})
+    elif not intercom.exists():
+        logger.warning("nostr_node_intercom.py introuvable — relay constellation ignoré")
+
+    logger.info(f"Admin constellation delete: author={author[:12]}..., {len(results)}/{len(node_hexes)} NODEs notifiés")
+    return JSONResponse({
+        "local_deleted": local_ok,
+        "constellation_nodes": results,
+        "nodes_notified": len([r for r in results if r.get("ok")])
+    })
