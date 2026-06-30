@@ -618,24 +618,33 @@ async def admin_constellation_delete(request: Request):
     """Supprime par auteur en local (strfry) + relaie aux NODEs constellation via DM BRO nostr_delete."""
     body = await request.json()
     uplanetname = body.get("uplanetname", "")
-    author = body.get("author", "")
     kind = body.get("kind", None)
+
+    # Accepte "authors" (liste) ou "author" (singulier, rétrocompat)
+    authors_raw = body.get("authors", None)
+    if authors_raw is None:
+        single = body.get("author", "")
+        authors_raw = [single] if single else []
+    if isinstance(authors_raw, str):
+        authors_raw = [authors_raw]
+    authors_list = [a for a in authors_raw if isinstance(a, str) and len(a) == 64]
+    for a in authors_list:
+        try:
+            int(a, 16)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"author hex invalide : {a[:12]}…")
 
     if not _validate_uplanetname(uplanetname):
         raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
-    if not author or len(author) != 64:
-        raise HTTPException(status_code=400, detail="author (pubkey hex 64 chars) requis")
-    try:
-        int(author, 16)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="author hex invalide")
+    if not authors_list:
+        raise HTTPException(status_code=400, detail="authors (liste de pubkeys hex 64 chars) requis")
 
-    # 1. Suppression locale strfry
+    # 1. Suppression locale strfry (tous les auteurs en un seul appel)
     strfry_dir = Path.home() / ".zen" / "strfry"
     strfry_bin = strfry_dir / "strfry"
     local_ok = False
     if strfry_bin.exists():
-        filter_obj: dict = {"authors": [author]}
+        filter_obj: dict = {"authors": authors_list}
         if kind is not None:
             try:
                 filter_obj["kinds"] = [int(kind)]
@@ -685,7 +694,7 @@ async def admin_constellation_delete(request: Request):
 
     # 4. Envoyer DM BRO channel "nostr_delete" à chaque NODE constellation
     intercom = Path.home() / ".zen" / "Astroport.ONE" / "tools" / "nostr_node_intercom.py"
-    dm_payload = json.dumps({"author": author, "kind": str(kind) if kind else ""})
+    dm_payload = json.dumps({"authors": ",".join(authors_list), "kind": str(kind) if kind else ""})
 
     from core.config import settings
     relay_list = settings.myRELAY or "wss://relay.copylaradio.com"
@@ -723,7 +732,7 @@ async def admin_constellation_delete(request: Request):
     elif not intercom.exists():
         logger.warning("nostr_node_intercom.py introuvable — relay constellation ignoré")
 
-    logger.info(f"Admin constellation delete: author={author[:12]}..., {len(results)}/{len(node_hexes)} NODEs notifiés")
+    logger.info(f"Admin constellation delete: authors={[a[:12] for a in authors_list]}, {len(results)}/{len(node_hexes)} NODEs notifiés")
     return JSONResponse({
         "local_deleted": local_ok,
         "constellation_nodes": results,
