@@ -34,6 +34,11 @@ if os.path.exists(apk_path):
     # /apk/atom4love.apk — APK ATOM4LOVE buildé par create_apk.sh via 20h12.process.sh
     app.mount("/apk", StaticFiles(directory=apk_path), name="apk")
 
+zelkova_apk_path = settings.ZEN_PATH / "workspace" / "zelkova"
+if os.path.exists(zelkova_apk_path):
+    # /zelkova-apk/zelkova.apk — APK Ẑelkova téléchargé par 20h12.process.sh
+    app.mount("/zelkova-apk", StaticFiles(directory=zelkova_apk_path), name="zelkova_apk")
+
 # Add Rate Limiting Middleware
 app.add_middleware(RateLimitMiddleware)
 
