@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import secrets
+import sys
 import time
 from pathlib import Path
 from typing import Optional
@@ -22,6 +23,11 @@ templates = Jinja2Templates(directory="templates")
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# ─── BRO Omni-Channel : scrapers cookie + surveillance (bro_watch_core.py) ───
+_IA_PATH = Path.home() / ".zen" / "Astroport.ONE" / "IA"
+sys.path.insert(0, str(_IA_PATH))
+import bro_watch_core  # noqa: E402
 
 # ─── Challenges NIP-42 (mémoire locale, TTL 5 min) ────────────────────────────
 _challenges: dict[str, float] = {}  # challenge_hex → expiry_timestamp
@@ -379,6 +385,77 @@ def _read_optout(email: str) -> dict:
         return {}
 
 
+# ─── Scrapers BRO (cookie → DOMAIN.sh, "smart contracts") ────────────────────
+
+def _find_scraper_script(domain: str) -> Optional[Path]:
+    """Même convention de recherche que NOSTRCARD.refresh.sh :
+    IA/scrapers/*/DOMAIN.sh puis IA/DOMAIN.sh (legacy)."""
+    scrapers_dir = _IA_PATH / "scrapers"
+    if scrapers_dir.is_dir():
+        for sub in scrapers_dir.iterdir():
+            candidate = sub / f"{domain}.sh"
+            if candidate.is_file():
+                return candidate
+    legacy = _IA_PATH / f"{domain}.sh"
+    return legacy if legacy.is_file() else None
+
+
+def _cookie_domains(email: str) -> list[str]:
+    user_dir = settings.GAME_PATH / "nostr" / email
+    if not user_dir.is_dir():
+        return []
+    return sorted(
+        f.name[1:-len(".cookie")]
+        for f in user_dir.glob(".*.cookie")
+    )
+
+
+def _scraper_log_tail(email: str, domain: str, lines: int = 100) -> str:
+    """Log en clair sur disque en priorité (le plus récent), sinon dernier
+    log chiffré republié sur IPFS (manifest cookie, log_cid)."""
+    log_path = Path.home() / ".zen" / "tmp" / f"{domain}_sync_{email}.log"
+    if log_path.is_file():
+        try:
+            content = log_path.read_text(encoding="utf-8", errors="replace")
+            return "\n".join(content.splitlines()[-lines:])
+        except Exception:
+            pass
+    decrypted = bro_watch_core.get_log(email, domain)
+    if decrypted:
+        return "\n".join(decrypted.splitlines()[-lines:]) + "\n\n(déchiffré depuis IPFS)"
+    return ""
+
+
+def _scraper_last_run(email: str, domain: str) -> str:
+    """Dernière date (YYYYMMDD) où le scraper a tourné (fichier .done)."""
+    tmp_dir = Path.home() / ".zen" / "tmp"
+    matches = sorted(tmp_dir.glob(f"{domain}_sync_{email}_*.done"), reverse=True)
+    if not matches:
+        return ""
+    return matches[0].stem.rsplit("_", 1)[-1]
+
+
+def _list_scrapers_status(email: str) -> list[dict]:
+    """Un item par cookie déposé — 'available' indique si un scraper
+    (smart contract) existe pour ce domaine."""
+    result = []
+    for domain in _cookie_domains(email):
+        script = _find_scraper_script(domain)
+        if domain == "youtube.com" and script is not None:
+            # Pré-crée l'entrée "channel_watch" (liste vide) pour que le
+            # bloc "chaînes suivies" apparaisse dans l'UI même avant toute
+            # configuration — cohérent avec ensure_watch_entry côté scraper.
+            bro_watch_core.ensure_watch_entry(email, domain, "channel_watch", watched_channels=[])
+        result.append({
+            "domain":        domain,
+            "available":     script is not None,
+            "enabled":       bro_watch_core.is_scraper_enabled(email, domain),
+            "last_run":      _scraper_last_run(email, domain),
+            "watch_entries": bro_watch_core.load_watch_list(email, domain),
+        })
+    return result
+
+
 _FLUX_CHANNEL_DEFAULTS: dict[str, dict] = {
     "alerts":     {"email": True,  "nostr": False},
     "milestones": {"email": True,  "nostr": False},
@@ -649,6 +726,8 @@ async def get_mailjet(
         "flux_milestones_off":  not _flux.get("milestones", True),
         # Canaux par catégorie (email ON/OFF, nostr ON/OFF)
         "fc": _fc,
+        # Scrapers BRO (cookies déposés + smart contracts disponibles)
+        "scrapers": _list_scrapers_status(email),
     })
 
 
@@ -746,3 +825,102 @@ async def post_mailjet(
         "channels":  channels,
         "kin_prefs": kin_prefs,
     })
+
+
+# ─── Scrapers BRO — activer/désactiver, paramètres, logs ─────────────────────
+
+def _require_token(request: Request, email: str, token: str, captain: str):
+    """Retourne une TemplateResponse d'erreur si le token est invalide, None sinon."""
+    if _token_for(email) != token:
+        return templates.TemplateResponse(
+            "mailjet_error.html",
+            {"request": request, "message": "Token invalide.", "captain": captain},
+            status_code=403,
+        )
+    return None
+
+
+@router.post("/mailjet/scraper-toggle")
+async def post_scraper_toggle(
+    request: Request,
+    email: str = Form(...),
+    token: str = Form(...),
+    domain: str = Form(...),
+    enabled: str = Form(...),
+):
+    captain = settings.CAPTAINEMAIL or "support@qo-op.com"
+    err = _require_token(request, email, token, captain)
+    if err:
+        return err
+
+    bro_watch_core.set_scraper_enabled(email, domain, enabled == "1")
+    logger.info("Scraper %s %s pour %s", domain, "activé" if enabled == "1" else "désactivé", email)
+
+    return RedirectResponse(f"/mailjet?email={email}&token={token}", status_code=303)
+
+
+@router.post("/mailjet/scraper-config")
+async def post_scraper_config(
+    request: Request,
+    email: str = Form(...),
+    token: str = Form(...),
+    domain: str = Form(...),
+    channel: str = Form(...),
+    keywords: str = Form(default=""),
+    learn_from: str = Form(default=""),
+):
+    captain = settings.CAPTAINEMAIL or "support@qo-op.com"
+    err = _require_token(request, email, token, captain)
+    if err:
+        return err
+
+    fields = {
+        "keywords": [k.strip() for k in keywords.split(",") if k.strip()],
+        "learn_from": learn_from.strip().lstrip("@"),
+    }
+    bro_watch_core.update_watch_entry(email, domain, channel, **fields)
+    logger.info("Config bro_watch %s — %s/%s : %s", email, domain, channel, fields)
+
+    return RedirectResponse(f"/mailjet?email={email}&token={token}", status_code=303)
+
+
+@router.post("/mailjet/scraper-channels")
+async def post_scraper_channels(
+    request: Request,
+    email: str = Form(...),
+    token: str = Form(...),
+    channels: str = Form(default=""),
+):
+    """Chaînes YouTube (ou équivalent) à surveiller — liste stockée dans le
+    sous-canal 'channel_watch' du manifest cookie, donc sauvegardée
+    automatiquement en NOSTR comme le reste du manifest (voir
+    bro_watch_core._publish_manifest_to_nostr)."""
+    captain = settings.CAPTAINEMAIL or "support@qo-op.com"
+    err = _require_token(request, email, token, captain)
+    if err:
+        return err
+
+    urls = [u.strip() for u in channels.splitlines() if u.strip() and not u.strip().startswith("#")]
+    bro_watch_core.update_watch_entry(email, "youtube.com", "channel_watch", watched_channels=urls)
+    logger.info("Chaînes YouTube suivies mises à jour pour %s : %d chaîne(s)", email, len(urls))
+
+    return RedirectResponse(f"/mailjet?email={email}&token={token}", status_code=303)
+
+
+@router.get("/mailjet/scraper-log", response_class=HTMLResponse)
+async def get_scraper_log(
+    request: Request,
+    email: str = Query(...),
+    token: str = Query(...),
+    domain: str = Query(...),
+):
+    if _token_for(email) != token:
+        return HTMLResponse("Token invalide.", status_code=403)
+
+    log_text = _scraper_log_tail(email, domain) or "(aucun log pour l'instant — le scraper n'a pas encore tourné)"
+    safe_text = (log_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+    return HTMLResponse(
+        f"<pre style='background:#0a0f14;color:#9fdfae;padding:16px;white-space:pre-wrap;"
+        f"word-break:break-word;font-size:0.78rem;font-family:monospace;border-radius:6px;'>"
+        f"{safe_text}</pre>"
+    )

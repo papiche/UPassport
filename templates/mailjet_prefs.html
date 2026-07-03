@@ -136,6 +136,41 @@
   padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.05);
 }
 .ch-toggle:last-child { border-bottom:none; }
+
+/* ── Scrapers BRO (cookies / smart contracts) ── */
+.scraper-card {
+  border:1px solid rgba(96,165,250,0.15); border-radius:6px;
+  padding:14px 16px; margin-bottom:10px; background:rgba(96,165,250,0.03);
+}
+.scraper-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.scraper-domain { font-family:'Courier New',monospace; font-size:0.85rem; color:#e0e7ff; font-weight:600; }
+.scraper-tag {
+  font-family:'Courier New',monospace; font-size:0.58rem; letter-spacing:1.5px;
+  padding:2px 7px; border-radius:3px; margin-left:8px; vertical-align:middle;
+}
+.tag-on   { color:#00ff88; border:1px solid rgba(0,255,136,0.4); background:rgba(0,255,136,0.08); }
+.tag-off  { color:rgba(255,255,255,0.35); border:1px solid rgba(255,255,255,0.15); }
+.tag-none { color:#fbbf24; border:1px solid rgba(251,191,36,0.35); }
+.scraper-toggle-btn {
+  font-size:0.72rem; padding:5px 12px; border-radius:4px; cursor:pointer;
+  background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.14); color:#e0e7ff;
+}
+.scraper-toggle-btn:hover { background:rgba(255,255,255,0.1); }
+.scraper-meta { font-size:0.72rem; color:rgba(255,255,255,0.35); margin-top:8px; }
+.scraper-watch-form { margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.05); }
+.scraper-watch-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.scraper-channel { font-size:0.75rem; color:rgba(255,255,255,0.5); flex-shrink:0; min-width:110px; }
+.scraper-note { font-size:0.72rem; color:rgba(255,255,255,0.35); font-style:italic; }
+.scraper-input {
+  flex:1; min-width:140px; font-size:0.75rem; padding:5px 9px; border-radius:4px;
+  background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.12); color:#e0e7ff;
+}
+.scraper-input-small { flex:0 1 160px; }
+.scraper-save-btn {
+  font-size:0.85rem; padding:5px 10px; border-radius:4px; cursor:pointer;
+  background:rgba(0,255,136,0.1); border:1px solid rgba(0,255,136,0.3); color:#00ff88;
+}
+.scraper-learned { font-size:0.68rem; color:rgba(167,139,250,0.65); margin-top:5px; }
 </style>
 {% endblock %}
 
@@ -468,6 +503,101 @@
 
   <button type="submit" style="margin-top:22px;width:100%;">💾 Enregistrer mes préférences</button>
 </form>
+
+{# ════════════════════════════════════════════
+   BRO OMNI-CHANNEL — Scrapers cookie (smart contracts)
+   ════════════════════════════════════════════ #}
+{% if scrapers %}
+<div class="sec-head" style="margin-top:32px;">
+  <h3 style="color:#60a5fa;">🤖 ASSISTANT BRO — SOURCES SURVEILLÉES</h3>
+</div>
+<p style="color:rgba(255,255,255,0.38);font-size:0.78rem;margin-bottom:14px;">
+  Un cookie déposé (<a href="/cookie" style="color:#93c5fd;">gérer mes cookies</a>) active un service
+  d'analyse quotidien de votre compte, qui vous signale les fils à traiter.
+</p>
+
+{% for s in scrapers %}
+<div class="scraper-card">
+  <div class="scraper-head">
+    <div>
+      <span class="scraper-domain">🍪 {{ s.domain }}</span>
+      {% if s.available %}
+        <span class="scraper-tag {{ 'tag-on' if s.enabled else 'tag-off' }}">
+          {{ 'ACTIF' if s.enabled else 'DÉSACTIVÉ' }}
+        </span>
+      {% else %}
+        <span class="scraper-tag tag-none">AUCUN SERVICE DISPONIBLE</span>
+      {% endif %}
+    </div>
+    {% if s.available %}
+    <form method="post" action="/mailjet/scraper-toggle" style="margin:0;">
+      <input type="hidden" name="email" value="{{ email }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      <input type="hidden" name="domain" value="{{ s.domain }}">
+      <input type="hidden" name="enabled" value="{{ '0' if s.enabled else '1' }}">
+      <button type="submit" class="scraper-toggle-btn">
+        {{ '⏸ Désactiver' if s.enabled else '▶ Activer' }}
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if s.available %}
+    <div class="scraper-meta">
+      Dernière exécution : {{ s.last_run if s.last_run else 'jamais encore' }}
+      · <a href="/mailjet/scraper-log?email={{ email }}&token={{ token }}&domain={{ s.domain }}"
+           target="_blank" style="color:#93c5fd;">voir les logs</a>
+    </div>
+
+    {% for w in s.watch_entries %}
+    {% if w.channel == "channel_watch" %}
+    <form method="post" action="/mailjet/scraper-channels" class="scraper-watch-form">
+      <input type="hidden" name="email" value="{{ email }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      <div class="scraper-watch-row" style="align-items:flex-start;">
+        <span class="scraper-channel">📺 chaînes suivies</span>
+        <textarea name="channels" rows="3" class="scraper-input" style="resize:vertical;"
+                  placeholder="une URL de chaîne par ligne&#10;https://www.youtube.com/@exemple">{{ w.watched_channels | join('\n') }}</textarea>
+        <button type="submit" class="scraper-save-btn">💾</button>
+      </div>
+      <div class="scraper-note" style="display:block;margin-top:4px;">
+        Nouvelle vidéo copiée chaque jour ; les jours sans nouveauté, une ancienne vidéo pas encore archivée est récupérée.
+      </div>
+    </form>
+    {% else %}
+    <form method="post" action="/mailjet/scraper-config" class="scraper-watch-form">
+      <input type="hidden" name="email" value="{{ email }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      <input type="hidden" name="domain" value="{{ s.domain }}">
+      <input type="hidden" name="channel" value="{{ w.channel }}">
+      <div class="scraper-watch-row">
+        <span class="scraper-channel">📡 {{ w.channel }}</span>
+        {% if w.always_alert %}
+          <span class="scraper-note">toute mention déclenche une suggestion</span>
+        {% else %}
+          <input type="text" name="keywords" placeholder="mots-clés (séparés par virgule)"
+                 value="{{ w.keywords | join(', ') }}" class="scraper-input">
+          <input type="text" name="learn_from" placeholder="ou : apprendre depuis @compte"
+                 value="{{ w.learn_from or '' }}" class="scraper-input scraper-input-small">
+          <button type="submit" class="scraper-save-btn">💾</button>
+        {% endif %}
+      </div>
+      {% if w.learned_keywords %}
+        <div class="scraper-learned">appris : {{ w.learned_keywords | join(', ') }}</div>
+      {% endif %}
+    </form>
+    {% endif %}
+    {% endfor %}
+  {% else %}
+    <div class="scraper-meta">
+      Aucun service BRO n'existe encore pour ce domaine — contactez
+      <a href="mailto:{{ captain }}" style="color:#e88;">{{ captain }}</a> pour en demander un.
+    </div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}
