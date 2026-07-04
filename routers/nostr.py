@@ -1,3 +1,5 @@
+import asyncio
+import json
 import logging
 import os
 logger = logging.getLogger(__name__)
@@ -6,9 +8,39 @@ from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from core.config import settings
+from services.nostr import require_nostr_auth
+from utils.crypto import npub_to_hex
 from utils.helpers import render_page
 
 router = APIRouter()
+
+
+def _get_node_and_captain_hex() -> tuple:
+    """Résout (node_hex, captain_hex) — même logique que admin_captain_info."""
+    node_hex = ""
+    captain_hex = ""
+    secret_file = Path.home() / ".zen" / "game" / "secret.nostr"
+    if secret_file.exists():
+        try:
+            content = secret_file.read_text()
+            for part in content.replace(";", "\n").splitlines():
+                part = part.strip()
+                if part.startswith("HEX="):
+                    node_hex = part[4:].strip()
+                    break
+        except Exception:
+            pass
+    if node_hex:
+        for json_file in (Path.home() / ".zen" / "tmp").glob("*/12345.json"):
+            try:
+                data = json.loads(json_file.read_text())
+                if data.get("NODEHEX") == node_hex:
+                    captain_hex = data.get("captainHEX", "") or node_hex
+                    break
+            except Exception:
+                pass
+    return node_hex, (captain_hex or node_hex)
 
 
 def _get_uplanetname() -> str:
@@ -585,32 +617,95 @@ async def admin_delete_nostr_events(request: Request):
 @router.get("/api/nostr/admin/captain_info")
 async def admin_captain_info():
     """Retourne les pubkeys NOSTR publiques du node et du capitaine — sans auth (info publique)."""
-    node_hex = ""
-    captain_hex = ""
+    node_hex, captain_hex = _get_node_and_captain_hex()
+    return JSONResponse({"node_hex": node_hex, "captain_hex": captain_hex})
 
-    secret_file = Path.home() / ".zen" / "game" / "secret.nostr"
-    if secret_file.exists():
+
+@router.post("/api/nostr/dm/delete_node_messages")
+async def delete_node_messages(request: Request):
+    """Supprime des self-DM envoyés par NODE et destinés à l'appelant — réservé
+    au capitaine (seul destinataire légitime du canal NODE dans atomic_chat.html).
+
+    Auth NIP-42 (kind 22242 déjà publié sur le relais) ou NIP-98 via
+    require_nostr_auth — jamais l'UPLANETNAME globale de /api/nostr/admin/delete,
+    qui autoriserait la suppression de N'IMPORTE QUEL event du relay. Scope
+    strictement limité : seuls les IDs qui correspondent réellement à un event
+    kind 4, pubkey==NODE_HEX, #p==l'appelant authentifié sont supprimés — un ID
+    arbitraire fourni par le client ne suffit jamais à lui seul.
+    """
+    body = await request.json()
+    ids = [str(i).strip() for i in body.get("ids", []) if str(i).strip()]
+    if not ids:
+        raise HTTPException(status_code=400, detail="Liste d'IDs requise")
+
+    auth_npub = await require_nostr_auth(request, body.get("npub"), force_check=False)
+    hex_pubkey = npub_to_hex(auth_npub) if auth_npub.startswith("npub") else auth_npub
+
+    node_hex, captain_hex = _get_node_and_captain_hex()
+    if not node_hex:
+        raise HTTPException(status_code=500, detail="NODE_HEX introuvable sur cette station")
+    if not captain_hex or hex_pubkey.lower() != captain_hex.lower():
+        raise HTTPException(status_code=403, detail="Réservé au capitaine de la station")
+
+    # Scope : ne récupère QUE les self-DM de NODE vers CET appelant, puis ne
+    # garde que les IDs demandés qui y figurent réellement (jamais de confiance
+    # aveugle dans la liste d'IDs fournie par le client).
+    script = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "nostr_get_events.sh"
+    if not script.exists():
+        raise HTTPException(status_code=500, detail="nostr_get_events.sh introuvable")
+
+    cmd = [str(script), "--kind", "4", "--author", node_hex, "--tag-p", hex_pubkey,
+           "--limit", "500", "--output", "json"]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            cwd=str(script.parent),
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=20.0)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Timeout lors de la requête strfry")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    node_event_ids = set()
+    for line in stdout.decode("utf-8", errors="ignore").strip().splitlines():
+        if not line.strip():
+            continue
         try:
-            content = secret_file.read_text()
-            for part in content.replace(";", "\n").splitlines():
-                part = part.strip()
-                if part.startswith("HEX="):
-                    node_hex = part[4:].strip()
-                    break
+            node_event_ids.add(json.loads(line)["id"])
         except Exception:
             pass
 
-    if node_hex:
-        for json_file in (Path.home() / ".zen" / "tmp").glob("*/12345.json"):
-            try:
-                data = json.loads(json_file.read_text())
-                if data.get("NODEHEX") == node_hex:
-                    captain_hex = data.get("captainHEX", "") or node_hex
-                    break
-            except Exception:
-                pass
+    valid_ids = [i for i in ids if i in node_event_ids]
+    if not valid_ids:
+        raise HTTPException(status_code=400,
+                             detail="Aucun ID valide (doit être un message de NODE qui vous est destiné)")
 
-    return JSONResponse({"node_hex": node_hex, "captain_hex": captain_hex or node_hex})
+    strfry_dir = Path.home() / ".zen" / "strfry"
+    strfry_bin = strfry_dir / "strfry"
+    if not strfry_bin.exists():
+        raise HTTPException(status_code=500, detail="strfry introuvable")
+
+    ids_json = json.dumps({"ids": valid_ids})
+    try:
+        proc2 = await asyncio.create_subprocess_exec(
+            str(strfry_bin), "delete", f"--filter={ids_json}",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            cwd=str(strfry_dir),
+        )
+        stdout2, stderr2 = await asyncio.wait_for(proc2.communicate(), timeout=20.0)
+        ok = proc2.returncode == 0
+        out = stdout2.decode("utf-8", errors="ignore") + stderr2.decode("utf-8", errors="ignore")
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Timeout lors de la suppression")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if not ok:
+        raise HTTPException(status_code=500, detail=f"Erreur strfry delete: {out[:300]}")
+
+    logger.info(f"NODE DM delete: {len(valid_ids)} événement(s) supprimé(s) pour capitaine {hex_pubkey[:16]}…")
+    return JSONResponse({"deleted": len(valid_ids), "ids": valid_ids})
 
 
 @router.post("/api/nostr/admin/constellation_delete")

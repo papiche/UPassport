@@ -1897,19 +1897,18 @@ def _validate_image_file(filename: str, file_content: bytes) -> tuple:
         return False, f"Magic bytes don't match extension '{ext}'. Potentially malicious file."
     return True, None
 
-async def _upload_image_to_ipfs(filepath: str) -> tuple:
+async def _upload_image_to_ipfs(data: bytes, filename: str = "file") -> tuple:
+    """Upload bytes directement vers IPFS (sans passer par le disque)."""
     try:
         import aiohttp
         ipfs_api_url = "http://127.0.0.1:5001"
-        with open(filepath, 'rb') as f:
-            file_content = f.read()
-        data = aiohttp.FormData()
-        data.add_field('file', file_content,
-                       filename=os.path.basename(filepath),
-                       content_type='application/octet-stream')
+        form_data = aiohttp.FormData()
+        form_data.add_field('file', data,
+                            filename=filename,
+                            content_type='application/octet-stream')
         timeout = aiohttp.ClientTimeout(total=30)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(f'{ipfs_api_url}/api/v0/add', data=data) as response:
+            async with session.post(f'{ipfs_api_url}/api/v0/add', data=form_data) as response:
                 if response.status == 200:
                     result = await response.json()
                     cid = result['Hash']
@@ -1965,15 +1964,21 @@ async def upload_image(
     prefix = (npub[:16] if npub and len(npub) >= 16 else npub) if npub else file_hash[:16]
     new_filename = f"{prefix}_{image_type}_{timestamp}.{ext}"
 
-    uploads_dir = Path("uploads")
-    uploads_dir.mkdir(exist_ok=True)
-    filepath = uploads_dir / new_filename
+    # Upload depuis la mémoire — aucun fichier local créé si IPFS répond
+    cid, ipfs_url = await _upload_image_to_ipfs(content, new_filename)
 
-    async with aiofiles.open(str(filepath), 'wb') as f:
-        await f.write(content)
-
-    local_url = f"/uploads/{new_filename}"
-    cid, ipfs_url = await _upload_image_to_ipfs(str(filepath))
+    local_url = None
+    if not cid:
+        # Fallback local seulement si IPFS est indisponible
+        uploads_dir = Path("uploads")
+        uploads_dir.mkdir(exist_ok=True)
+        filepath = uploads_dir / new_filename
+        async with aiofiles.open(str(filepath), 'wb') as f:
+            await f.write(content)
+        local_url = f"/uploads/{new_filename}"
+        logger.warning(f"[upload/image] IPFS indisponible — fallback local: {local_url}")
+    else:
+        logger.info(f"[upload/image] IPFS OK cid={cid[:16]}… ({len(content)} bytes, pas de fichier local)")
 
     return JSONResponse(content={
         'success': True,
@@ -2057,18 +2062,20 @@ async def blossom_upload(request: Request):
     timestamp = int(datetime.now().timestamp())
     new_filename = f"{prefix}_blossom_{timestamp}.{ext}"
 
-    uploads_dir = Path("uploads")
-    uploads_dir.mkdir(exist_ok=True)
-    filepath = uploads_dir / new_filename
+    # ── 6. Upload depuis la mémoire — pas de fichier local si IPFS répond ─
+    cid, ipfs_url = await _upload_image_to_ipfs(content, new_filename)
 
-    async with aiofiles.open(str(filepath), 'wb') as f_out:
-        await f_out.write(content)
-
-    logger.info(f"[Blossom] Saved {len(content)} bytes → {filepath}")
-
-    # ── 6. Uploader sur IPFS ──────────────────────────────────────────────
-    cid, ipfs_url = await _upload_image_to_ipfs(str(filepath))
-    final_url = ipfs_url or f"/uploads/{new_filename}"
+    if not cid:
+        uploads_dir = Path("uploads")
+        uploads_dir.mkdir(exist_ok=True)
+        filepath = uploads_dir / new_filename
+        async with aiofiles.open(str(filepath), 'wb') as f_out:
+            await f_out.write(content)
+        final_url = f"/uploads/{new_filename}"
+        logger.warning(f"[Blossom] IPFS indisponible — fallback local: {final_url}")
+    else:
+        final_url = ipfs_url
+        logger.info(f"[Blossom] IPFS OK cid={cid[:16]}… ({len(content)} bytes, pas de fichier local)")
 
     # ── 7. Réponse format Blossom ─────────────────────────────────────────
     return JSONResponse(content={

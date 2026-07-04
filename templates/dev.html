@@ -403,16 +403,32 @@ alert(ok ? <span class="s">'✅ 1 ẐEN envoyé'</span> : <span class="s">'⚠ R
     <div id="pub-result"></div>
 </div>
 
-<div class="s-title" style="margin-top:16px">Événements NOSTR publiés ici</div>
-<div class="card">
-    <ul>
-        <li><span class="pill p-teal">Kind 0</span> Profil utilisateur (metadata)</li>
-        <li><span class="pill p-teal">Kind 1</span> Note texte (posts, commentaires)</li>
-        <li><span class="pill p-amber">Kind 7</span> Réaction / paiement ẐEN (<code>content: "+N"</code>)</li>
-        <li><span class="pill p-violet">Kind 30078</span> Profil ATOM4LOVE (empreinte vibratoire)</li>
-        <li><span class="pill p-violet">Kind 30001</span> Bookmark NOSTR</li>
-        <li><span class="pill p-green">Kind 30023</span> Article long (NIP-23)</li>
-    </ul>
+<div class="s-title" style="margin-top:16px">Kinds NOSTR — NIP-101 UPlanet</div>
+<p style="font-size:.75rem;color:rgba(203,213,225,.45);margin-bottom:10px">Filtres <code>writePolicy</code> strfry actifs sur ce relay. Niveaux d'accès : <span class="pill p-green">uplanet</span> MULTIPASS local · <span class="pill p-teal">player</span> constellation · <span class="pill p-amber">amis</span> amisOfAmis · <span class="pill p-violet">tous</span> public</p>
+
+<div style="overflow-x:auto">
+<table class="btable">
+<tr><th>Kind</th><th>Nom</th><th>Rôle</th><th>Accès</th></tr>
+<tr><td><code>0</code></td><td>Profil</td><td class="desc">Metadata utilisateur (nom, avatar, about) — NIP-01</td><td><span class="pill p-violet">tous</span></td></tr>
+<tr><td><code>1</code></td><td>Note</td><td class="desc">Note texte. Tags <code>#BRO</code> → queue IA · <code>#rec</code> → mémoire · <code>#secret</code> → chiffré · <code>#plantnet</code> → botanique</td><td><span class="pill p-amber">amis</span></td></tr>
+<tr><td><code>4</code></td><td>DM</td><td class="desc">Messages chiffrés NIP-04/NIP-44. Si destinataire = NODE HEX → queue locale</td><td><span class="pill p-violet">tous</span></td></tr>
+<tr><td><code>7</code></td><td>Réaction / ẐEN</td><td class="desc"><code>content: "+N"</code> → paiement N ẐEN automatique via G1. Vote ASSETS possible</td><td><span class="pill p-teal">player</span></td></tr>
+<tr><td><code>21</code></td><td>Vidéo</td><td class="desc">Vidéo standard (NIP-71). Durées : ≤30s=Short · ≤300s=Medium · >300s=Long. Tags IPFS : <code>imeta</code>, <code>thumbnail_ipfs</code>, <code>gifanim_ipfs</code></td><td><span class="pill p-amber">amis</span></td></tr>
+<tr><td><code>22</code></td><td>Vidéo longue</td><td class="desc">Vidéo longue durée (NIP-71). Durées : ≤600s=Medium · ≤1800s=Long · >1800s=Extended. Types : <code>live_stream</code>, <code>educational</code>, <code>presentation</code></td><td><span class="pill p-amber">amis</span></td></tr>
+<tr><td><code>1984</code></td><td>Signalement</td><td class="desc"><code>report-type=friction</code> → queue Kind 30506 via ASTROBOT N1Mediation</td><td><span class="pill p-teal">player</span></td></tr>
+<tr><td><code>9735</code></td><td>Zap receipt</td><td class="desc">Preuve de paiement Lightning (NIP-57)</td><td><span class="pill p-violet">tous</span></td></tr>
+<tr><td><code>22242</code></td><td>Auth NIP-42</td><td class="desc">Authentification relay twin-key (NIP-42). Utilisé par UPassport NIP-98</td><td><span class="pill p-violet">tous</span></td></tr>
+<tr><td><code>30023</code></td><td>Article</td><td class="desc">Article long format (NIP-23). Adressable par <code>d-tag</code></td><td><span class="pill p-amber">amis</span></td></tr>
+<tr><td><code>30078</code></td><td>ATOM4LOVE</td><td class="desc">Empreinte vibratoire KIN / app-specific data. Contient phase φ, KIN Dreamspell</td><td><span class="pill p-teal">player</span></td></tr>
+<tr><td><code>30303</code></td><td>Custom</td><td class="desc">Événement paramétré générique UPlanet</td><td><span class="pill p-teal">player</span></td></tr>
+<tr><td><code>30500</code></td><td>Oracle/Permit</td><td class="desc">Définitions de permis (système Oracle). Publié par G1HEX station</td><td><span class="pill p-green">uplanet</span></td></tr>
+<tr><td><code>30503</code></td><td>Credential WoTx²</td><td class="desc">Verifiable Credential W3C auto-signé après validation. Publié par <code>emit_skill.sh</code>. Tags : <code>["l", "PERMIT_ID", "permit_type"]</code>, <code>["t", "wotx2"]</code></td><td><span class="pill p-teal">player</span></td></tr>
+<tr><td><code>30504</code></td><td>Formation WoTx²</td><td class="desc">Ressource pédagogique liée à un permis (vidéo/doc/lien). Tag <code>#t=[skill]</code> indexé dans Qdrant "knowledge" via <code>/api/skill/media/{skill}</code></td><td><span class="pill p-teal">player</span></td></tr>
+<tr><td><code>30506</code></td><td>Médiation WoTx²</td><td class="desc">Dossier de médiation. Seulement <code>t=friction</code>, pubkeys autorisées uniquement</td><td><span class="pill p-green">uplanet</span></td></tr>
+<tr><td><code>30508</code></td><td>Match vibratoire</td><td class="desc">Résultat match ATOM4LOVE (k ≥ 0.85 entre deux porteurs). Produit par cabine-33</td><td><span class="pill p-teal">player</span></td></tr>
+<tr><td><code>30800</code></td><td>Config/DID</td><td class="desc"><code>d=cooperative-config</code> (G1HEX exclusif) · <code>d=did</code> document identité MULTIPASS</td><td><span class="pill p-teal">player</span></td></tr>
+<tr><td><code>30904</code></td><td>Crowdfunding</td><td class="desc">Campagnes de financement ẐEN. Valide structure, enregistre clés Bien</td><td><span class="pill p-teal">player</span></td></tr>
+</table>
 </div>
 </div>
 </div>
@@ -557,8 +573,8 @@ var _btnConnect = document.getElementById('btn-connect');
 function _relayFromLocation() {
     var h = window.location.hostname;
     var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    /* si servi depuis la passerelle IPFS, pointer vers l'API u.* */
-    if (h.indexOf('ipfs.') === 0) h = h.replace('ipfs.', 'u.');
+    if (h.indexOf('ipfs.') === 0) h = h.replace('ipfs.', 'relay.');
+    else if (h.indexOf('u.') === 0) h = h.replace('u.', 'relay.');
     return proto + '//' + h + ':7777';
 }
 
@@ -603,7 +619,15 @@ function _setStatus(state, msg) {
 
 function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-var _KIND_NAMES = {0:'Profil',1:'Note',3:'Contacts',4:'DM',5:'Delete',6:'Repost',7:'Réaction',10600:'Traces',30078:'ATOM4LOVE',30001:'Bookmark',30023:'Article'};
+var _KIND_NAMES = {
+    0:'Profil', 1:'Note', 3:'Contacts', 4:'DM', 5:'Delete', 6:'Repost',
+    7:'Réaction/ẐEN', 21:'Vidéo', 22:'Vidéo longue', 1984:'Signalement',
+    9735:'Zap', 10600:'Traces', 22242:'Auth NIP-42',
+    30001:'Bookmark', 30023:'Article', 30078:'ATOM4LOVE',
+    30303:'Custom', 30500:'Oracle/Permit', 30503:'Credential WoTx²',
+    30504:'Formation WoTx²', 30506:'Médiation WoTx²', 30508:'Match vibratoire',
+    30800:'DID/Config', 30904:'Crowdfunding'
+};
 
 function _displayEvent(ev) {
     if (_filterKind !== null && ev.kind !== _filterKind) return;
