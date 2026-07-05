@@ -432,39 +432,6 @@
             max-height: 500px;
         }
 
-        .accordion-content.bio-active {
-            max-height: 900px;
-        }
-
-        .bio-section label {
-            display: block;
-            margin-top: 10px;
-            margin-bottom: 4px;
-            font-size: 13px;
-            color: #bbb;
-        }
-
-        .bio-section input[type="datetime-local"],
-        .bio-section input[type="text"],
-        .bio-section input[type="number"] {
-            width: 100%;
-            padding: 8px 10px;
-            background: #383838;
-            border: 1px solid #555;
-            border-radius: 5px;
-            color: #e0e0e0;
-            font-size: 14px;
-            box-sizing: border-box;
-        }
-
-        .bio-section h3 {
-            background: linear-gradient(to right, #ff9a9e, #fad0c4);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-size: 1em;
-            margin: 14px 0 6px 0;
-        }
-
         .credentials-info {
             padding: 15px 20px;
             background-color: #2a2a2a;
@@ -714,31 +681,25 @@
         
         <input type="hidden" id="salt" name="salt" value="">
         <input type="hidden" id="pepper" name="pepper" value="">
-        <input type="hidden" id="birth_datetime" name="birth_datetime" value="">
-        <input type="hidden" id="birth_place" name="birth_place" value="">
-        <input type="hidden" id="birth_weight" name="birth_weight" value="">
-        <input type="hidden" id="conception_datetime" name="conception_datetime" value="">
-        <input type="hidden" id="conception_place" name="conception_place" value="">
 
-        <div class="credentials-accordion" style="margin-top:15px;margin-bottom:10px">
-            <button type="button" class="accordion-toggle" id="bio-toggle">
-                [🔴|⚪|🔵|🟡|🟢] <span style="font-size:14px;font-weight:normal;opacity:.7"> 🌀 Kin Maya</span>
-                <span class="toggle-icon">▼</span>
-            </button>
-            <div class="accordion-content" id="bio-content">
-                <div class="credentials-info">
-                    <p> — Empreinte Natale — Le <strong>Kin Maya</strong> est calculée à partir de votre date de naissance dans le calendrier Tzolkin (cycle de 260 jours). Il associe un <em>Sceau Solaire</em> et une <em>Tonalité Galactique</em> — deux archétypes méso-américains qui enrichissent votre MULTIPASS d'une dimension temporelle universelle, partagée avec votre constellation UPlanet.</p>
-                    <p style="margin-bottom:8px"><a href="/earth/kin.html" target="_blank" style="color:#86efac;text-decoration:none">🌀 Découvrir le système Kin Maya et ses bénéfices →</a></p>
-                    <div class="bio-section">
-                        <label for="vis_birth_datetime">📅 Date de naissance</label>
-                        <input type="datetime-local" id="vis_birth_datetime">
-                        <label for="vis_birth_place">📍 Lieu de naissance <span style="font-weight:normal;opacity:.6">(ville ou GPS)</span></label>
-                        <input type="text" id="vis_birth_place" placeholder="Paris, France ou 48.85, 2.35" maxlength="100">
-                        <label for="vis_birth_weight">⚖️ Poids de naissance <span style="font-weight:normal;opacity:.6">(kg, optionnel)</span></label>
-                        <input type="number" id="vis_birth_weight" placeholder="3.5" step="0.1" min="0" max="10">
-                    </div>
-                    <div id="kin-preview" style="display:none;margin-top:12px;padding:10px 12px;background:rgba(134,239,172,.07);border:1px solid rgba(134,239,172,.2);border-radius:8px;font-size:13px;color:#86efac;line-height:1.8"></div>
-                </div>
+        <div style="margin-top:15px;margin-bottom:15px;padding:16px 18px;background:rgba(45,90,27,.08);border:1px solid rgba(200,168,60,.35);border-radius:10px;text-align:center;">
+            <div style="font-size:1.05em;font-weight:bold;color:#c8a83c;margin-bottom:6px;">🌿 Made In Zion</div>
+            <p style="margin:0 0 12px;color:#b3d4c4;font-size:.87rem;line-height:1.55;">
+                <strong style="color:#e0f2e9;">Made In Zion</strong> est le chantier-école coopératif qui contractualise l'usage du Libre — habitat autonome, énergie low-tech, Monnaie Libre Ğ1, réseau NOSTR/IPFS. Imprimez et signez votre ZINE pour rejoindre la constellation.
+            </p>
+            <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;">
+                <a href="/earth/miz.html" target="_blank"
+                   style="color:#00C968;background:rgba(0,201,104,.1);border:1px solid rgba(0,201,104,.35);font-size:.82rem;font-weight:700;text-decoration:none;padding:6px 14px;border-radius:6px;">
+                    🔑 Made In Zion
+                </a>
+                <a href="/earth/ZINE.MIZ.html" target="_blank"
+                   style="color:#2d5a1b;background:#c8a83c;font-size:.82rem;font-weight:700;text-decoration:none;padding:6px 14px;border-radius:6px;">
+                    🌿 ZINE Made In Zion
+                </a>
+                <a href="/earth/ZINE.html" target="_blank"
+                   style="color:#e0e0e0;background:rgba(106,13,173,.55);border:1px solid rgba(106,13,173,.5);font-size:.82rem;font-weight:700;text-decoration:none;padding:6px 14px;border-radius:6px;">
+                    🛰 ZINE Astroport
+                </a>
             </div>
         </div>
 
@@ -827,45 +788,6 @@
                 }
             } catch(e) {}
 
-            // Accordéon Kin Maya
-            const bioToggle  = document.getElementById('bio-toggle');
-            const bioContent = document.getElementById('bio-content');
-            if (bioToggle && bioContent) {
-                bioToggle.addEventListener('click', function() {
-                    bioToggle.classList.toggle('active');
-                    bioContent.classList.toggle('bio-active');
-                });
-            }
-
-            // Calculateur Kin Maya inline (prévisualisation avant soumission)
-            const _KIN_GLYPHS = ['Imix','Ik','Akbal','Kan','Chicchan','Cimi','Manik','Lamat','Muluc','Oc','Chuen','Eb','Ben','Ix','Men','Cib','Caban','Etznab','Cauac','Ahau'];
-            const _KIN_TONES  = ['Magnétique','Lunaire','Électrique','Auto-existante','Harmonique','Rythmique','Résonnante','Galactique','Solaire','Planétaire','Spectrale','Cristal','Cosmique'];
-            const _KIN_COLORS = ['🔴 Rouge','⚪ Blanc','🔵 Bleu','🟡 Jaune','🟢 Vert'];
-            const _SUMA = {30:2,35:7,40:12,45:17,50:22,3:27,8:32,13:37,18:42,23:47,28:52,32:57,38:62,42:67,48:72,1:76,6:82,11:87,16:92,21:97,26:102,31:107,36:112,41:117,46:122,51:127,4:132,9:137,14:142,19:147,24:152,29:157,34:162,39:167,44:172,49:177,2:182,7:187,12:192,17:197,22:202,27:207,37:217,47:227,0:232,5:237,10:242,15:247,20:252,25:257};
-            const _MESES = [0,31,59,90,120,151,181,212,243,13,44,74];
-            function _calcKin(dateStr) {
-                const d = new Date(dateStr);
-                if (isNaN(d)) return null;
-                const y = d.getFullYear(), mo = d.getMonth()+1, day = d.getDate();
-                const sumaAnio = _SUMA[y % 52] || 0;
-                let kin = day + _MESES[mo-1] + sumaAnio;
-                if (kin > 260) kin -= 260;
-                return {kin, glyph:_KIN_GLYPHS[(kin-1)%20], tone:_KIN_TONES[(kin-1)%13], color:_KIN_COLORS[Math.floor((kin-1)/13)%5]};
-            }
-            const visBirthDt = document.getElementById('vis_birth_datetime');
-            const kinPreview = document.getElementById('kin-preview');
-            if (visBirthDt && kinPreview) {
-                visBirthDt.addEventListener('change', function() {
-                    const k = _calcKin(visBirthDt.value);
-                    if (k) {
-                        kinPreview.style.display = '';
-                        kinPreview.innerHTML = '🌀 Kin <strong>' + k.kin + '</strong> — ' + k.color + ' <strong>' + k.glyph + '</strong>, Tonalité <strong>' + k.tone + '</strong>';
-                    } else {
-                        kinPreview.style.display = 'none';
-                    }
-                });
-            }
-
             const form = document.getElementById('nostr-form');
             const errorMessageDiv = document.getElementById('error-message');
             const geoErrorDiv = document.getElementById('geo-error');
@@ -937,8 +859,17 @@
                 mapLink.href = `/earth/map_render.html?southWestLat=${roundedLat.toFixed(2)}&southWestLon=${roundedLon.toFixed(2)}&deg=0.01`;
             }
 
-            // Initialize map with default coordinates
-            initializeMap(0, 0);
+            // Lire zlat/zlon depuis l'URL (ex: /g1?zlat=45.18&zlon=5.73)
+            const _initParams = new URLSearchParams(window.location.search);
+            const _initLat = parseFloat(_initParams.get('zlat'));
+            const _initLon = parseFloat(_initParams.get('zlon'));
+            if (!isNaN(_initLat) && !isNaN(_initLon)) {
+                initializeMap(_initLat, _initLon);
+                updateCoordinates(_initLat, _initLon);
+            } else {
+                initializeMap(0, 0);
+                getCurrentLocation();
+            }
 
             // Handle manual coordinate input
             updateMapButton.addEventListener('click', function() {
@@ -1008,9 +939,6 @@
                 }
             }
 
-            // Auto-get location on page load
-            getCurrentLocation();
-
             // Credentials (inputs cachés — génération côté serveur si vides)
             const saltInput = document.getElementById('salt');
             const pepperInput = document.getElementById('pepper');
@@ -1046,14 +974,6 @@
 
             form.addEventListener('submit', function(event) {
                 event.preventDefault();
-
-                // Sync champs bio visibles → champs cachés du formulaire
-                const _g = id => document.getElementById(id);
-                const _v = id => (_g(id) ? _g(id).value : '');
-                _g('birth_datetime').value = _v('vis_birth_datetime');
-                _g('birth_place').value    = _v('vis_birth_place');
-                _g('birth_weight').value   = _v('vis_birth_weight');
-                // conception_datetime et conception_place : capturés par une autre app, resteront vides
 
                 // Reset UI
                 errorMessageDiv.style.display = 'none';

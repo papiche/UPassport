@@ -1468,46 +1468,49 @@ async def upload_file_to_ipfs(
                 file_mime = mime_type or json_output.get('mimeType', '')
                 
                 if not file_mime.startswith('video/') and not file_mime.startswith('audio/') and user_pubkey_hex:
-                    try:
-                        user_dir = get_authenticated_user_directory(npub)
-                        secret_file = user_dir / ".secret.nostr"
-                        
-                        if secret_file.exists():
-                            publish_script = settings.TOOLS_PATH / "publish_nostr_file.sh"
-                            
-                            if os.path.exists(publish_script):
-                                file_type_display = file_type.capitalize()
-                                event_description = f"{file_type_display}: {response_fileName}"
-                                if description:
-                                    event_description = f"{description}"
-                                
-                                if is_reupload:
-                                    original_author = provenance_info.get('original_author', '')[:16]
-                                    event_description = f"📤 Re-upload: {event_description} (Original: {original_author}...)"
-                                
-                                publish_cmd = [
-                                    "bash", publish_script,
-                                    "--auto", temp_file_path,
-                                    "--nsec", str(secret_file),
-                                    "--title", _safe_arg(response_fileName),
-                                    "--description", _safe_arg(event_description),
-                                    "--json"
-                                ]
-                                
-                                process = await asyncio.create_subprocess_exec(
-                                    *publish_cmd,
-                                    stdout=asyncio.subprocess.PIPE,
-                                    stderr=asyncio.subprocess.PIPE
-                                )
-                                try:
-                                    await asyncio.wait_for(process.communicate(), timeout=30)
-                                except asyncio.TimeoutError:
+                    if is_reupload:
+                        # Conformité UPlanet_FILE_CONTRACT §3.4 : pas de nouvel événement NOSTR
+                        # pour un fichier déjà publié (même SHA256). La chaîne de provenance
+                        # est mise à jour dans info.json par upload2ipfs.sh.
+                        original_author = provenance_info.get('original_author', '')[:16]
+                        logger.info(f"Re-upload détecté — publication NOSTR ignorée (auteur original: {original_author}...)")
+                    else:
+                        try:
+                            user_dir = get_authenticated_user_directory(npub)
+                            secret_file = user_dir / ".secret.nostr"
+
+                            if secret_file.exists():
+                                publish_script = settings.TOOLS_PATH / "publish_nostr_file.sh"
+
+                                if os.path.exists(publish_script):
+                                    file_type_display = file_type.capitalize()
+                                    event_description = f"{file_type_display}: {response_fileName}"
+                                    if description:
+                                        event_description = f"{description}"
+
+                                    publish_cmd = [
+                                        "bash", publish_script,
+                                        "--auto", temp_file_path,
+                                        "--nsec", str(secret_file),
+                                        "--title", _safe_arg(response_fileName),
+                                        "--description", _safe_arg(event_description),
+                                        "--json"
+                                    ]
+
+                                    process = await asyncio.create_subprocess_exec(
+                                        *publish_cmd,
+                                        stdout=asyncio.subprocess.PIPE,
+                                        stderr=asyncio.subprocess.PIPE
+                                    )
                                     try:
-                                        process.kill()
-                                    except ProcessLookupError:
-                                        pass
-                    except Exception:
-                        pass
+                                        await asyncio.wait_for(process.communicate(), timeout=30)
+                                    except asyncio.TimeoutError:
+                                        try:
+                                            process.kill()
+                                        except ProcessLookupError:
+                                            pass
+                        except Exception:
+                            pass
                 
                 if os.path.exists(temp_file_path):
                     os.remove(temp_file_path)

@@ -4,9 +4,13 @@ Auth NIP-42 (Schnorr BIP-340 pur Python) + détection roaming MULTIPASS.
 Écrit ~/.zen/game/nostr/$email/.mailjet (JSON) comme marqueur.
 Vérifié par Astroport.ONE/tools/mailjet.sh avant tout envoi.
 """
+import asyncio
+import base64
 import hashlib
 import json
 import logging
+import os
+import re
 import secrets
 import sys
 import time
@@ -107,6 +111,134 @@ def _verify_nostr_event(ev: dict) -> bool:
         )
     except Exception:
         return False
+
+
+# ─── NIP-04 self-encryption (mailjet prefs → NOSTR) ──────────────────────────
+
+_NOSTR_SEND = settings.ZEN_PATH / "Astroport.ONE" / "tools" / "nostr_send_note.py"
+_ASTRO_VENV = settings.ZEN_PATH / "Astroport.ONE" / ".venv" / "bin" / "python3"
+
+
+def _parse_secret_nostr(user_dir: Path) -> Optional[bytes]:
+    """Retourne la clé privée (32 bytes) depuis .secret.nostr, ou None."""
+    f = user_dir / ".secret.nostr"
+    if not f.exists():
+        return None
+    try:
+        content = f.read_text().strip()
+        m = re.search(r"NSEC=([^;]+)", content)
+        if not m:
+            return None
+        import bech32
+        hrp, data = bech32.bech32_decode(m.group(1).strip())
+        if hrp != "nsec" or data is None:
+            return None
+        return bytes(bech32.convertbits(data, 5, 8, False))
+    except Exception:
+        return None
+
+
+def _nip04_encrypt_to_self(plaintext: str, privkey_bytes: bytes) -> Optional[str]:
+    """NIP-04 auto-chiffrement : chiffre pour soi-même (ECDH privkey×pubkey, AES-256-CBC)."""
+    try:
+        from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+        from cryptography.hazmat.primitives.padding import PKCS7
+        from cryptography.hazmat.backends import default_backend
+
+        priv_int = int.from_bytes(privkey_bytes, "big")
+        pub_point = _pt_mul(_G, priv_int)
+        if pub_point is None:
+            return None
+        # ECDH to self: priv * pubkey_point = priv * (priv * G)
+        shared_point = _pt_mul(pub_point, priv_int)
+        if shared_point is None:
+            return None
+        aes_key = shared_point[0].to_bytes(32, "big")
+        iv = os.urandom(16)
+        padder = PKCS7(128).padder()
+        padded = padder.update(plaintext.encode()) + padder.finalize()
+        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv), backend=default_backend())
+        enc = cipher.encryptor()
+        ciphertext = enc.update(padded) + enc.finalize()
+        return base64.b64encode(ciphertext).decode() + "?iv=" + base64.b64encode(iv).decode()
+    except Exception as e:
+        logger.warning("NIP-04 self-encrypt failed: %s", e)
+        return None
+
+
+def _nip04_decrypt_to_self(encrypted: str, privkey_bytes: bytes) -> Optional[str]:
+    """Déchiffre un contenu NIP-04 auto-chiffré (symétrique de _nip04_encrypt_to_self)."""
+    try:
+        from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+        from cryptography.hazmat.primitives.padding import PKCS7
+        from cryptography.hazmat.backends import default_backend
+
+        ct_b64, iv_part = encrypted.split("?iv=", 1)
+        ciphertext = base64.b64decode(ct_b64)
+        iv = base64.b64decode(iv_part)
+        priv_int = int.from_bytes(privkey_bytes, "big")
+        pub_point = _pt_mul(_G, priv_int)
+        if pub_point is None:
+            return None
+        shared_point = _pt_mul(pub_point, priv_int)
+        if shared_point is None:
+            return None
+        aes_key = shared_point[0].to_bytes(32, "big")
+        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv), backend=default_backend())
+        dec = cipher.decryptor()
+        padded = dec.update(ciphertext) + dec.finalize()
+        unpadder = PKCS7(128).unpadder()
+        return (unpadder.update(padded) + unpadder.finalize()).decode()
+    except Exception as e:
+        logger.debug("NIP-04 self-decrypt failed: %s", e)
+        return None
+
+
+async def _publish_mailjet_prefs_nostr(user_dir: Path, prefs: dict) -> Optional[dict]:
+    """Chiffre et publie les prefs mailjet comme kind 30078 d=mailjet-prefs sur le relay local."""
+    privkey = _parse_secret_nostr(user_dir)
+    nostr_key = user_dir / ".secret.nostr"
+    if privkey is None or not nostr_key.exists():
+        logger.debug("No .secret.nostr in %s — skip NOSTR mailjet publish", user_dir.name)
+        return None
+    if not _NOSTR_SEND.exists():
+        logger.warning("nostr_send_note.py not found at %s", _NOSTR_SEND)
+        return None
+
+    encrypted = _nip04_encrypt_to_self(json.dumps(prefs, ensure_ascii=False), privkey)
+    if not encrypted:
+        return None
+
+    tags = json.dumps([
+        ["d", "mailjet-prefs"],
+        ["t", "mailjet"],
+        ["t", "uplanet"],
+        ["encrypted", "nip04"],
+    ])
+    py_bin = str(_ASTRO_VENV) if _ASTRO_VENV.exists() else sys.executable
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            py_bin, str(_NOSTR_SEND),
+            "--keyfile", str(nostr_key),
+            "--content", encrypted,
+            "--tags", tags,
+            "--kind", "30078",
+            "--relays", "ws://127.0.0.1:7777",
+            "--json",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+        try:
+            result = json.loads(out.decode())
+            logger.info("Mailjet prefs → NOSTR kind 30078 d=mailjet-prefs (event_id=%s)", result.get("event_id"))
+            return result
+        except Exception:
+            logger.warning("nostr_send_note output (mailjet): %s", out.decode()[:200])
+            return None
+    except Exception as e:
+        logger.warning("Publish mailjet prefs to NOSTR failed: %s", e)
+        return None
 
 
 # ─── Helpers métier ───────────────────────────────────────────────────────────
@@ -401,13 +533,17 @@ def _find_scraper_script(domain: str) -> Optional[Path]:
 
 
 def _cookie_domains(email: str) -> list[str]:
+    """Domaines surveillés — source primaire : manifest kind 31903 (Cookie Vault).
+    Fallback : fichiers .*.cookie sur disque (domaines non encore dans le manifest)."""
+    manifest_domains = set(bro_watch_core._all_accounts(email))
     user_dir = settings.GAME_PATH / "nostr" / email
-    if not user_dir.is_dir():
-        return []
-    return sorted(
-        f.name[1:-len(".cookie")]
-        for f in user_dir.glob(".*.cookie")
-    )
+    cookie_domains: set[str] = set()
+    if user_dir.is_dir():
+        cookie_domains = {
+            f.name[1:-len(".cookie")]
+            for f in user_dir.glob(".*.cookie")
+        }
+    return sorted(manifest_domains | cookie_domains)
 
 
 def _scraper_log_tail(email: str, domain: str, lines: int = 100) -> str:
@@ -435,24 +571,53 @@ def _scraper_last_run(email: str, domain: str) -> str:
     return matches[0].stem.rsplit("_", 1)[-1]
 
 
+def _has_raw_cookie(email: str, domain: str) -> bool:
+    """Vrai si le fichier cookie brut existe sur disque pour ce domaine."""
+    return (settings.GAME_PATH / "nostr" / email / f".{domain}.cookie").is_file()
+
+
 def _list_scrapers_status(email: str) -> list[dict]:
-    """Un item par cookie déposé — 'available' indique si un scraper
-    (smart contract) existe pour ce domaine."""
+    """Items pour l'UI scrapers BRO.
+
+    - Domaines utilisateur (cookie déposé ou entrée manifest) : has_cookie=True
+    - Scrapers station sans cookie utilisateur              : has_cookie=False
+    Chaque item : domain, has_cookie, available, enabled, last_run, watch_entries,
+                  icon, description.
+    """
     result = []
-    for domain in _cookie_domains(email):
+    user_domains = set(_cookie_domains(email))
+    station_map = {s["domain"]: s for s in bro_watch_core.list_station_scrapers()}
+
+    for domain in sorted(user_domains):
         script = _find_scraper_script(domain)
         if domain == "youtube.com" and script is not None:
-            # Pré-crée l'entrée "channel_watch" (liste vide) pour que le
-            # bloc "chaînes suivies" apparaisse dans l'UI même avant toute
-            # configuration — cohérent avec ensure_watch_entry côté scraper.
             bro_watch_core.ensure_watch_entry(email, domain, "channel_watch", watched_channels=[])
+        info = station_map.get(domain, {})
         result.append({
             "domain":        domain,
+            "has_cookie":    _has_raw_cookie(email, domain),
             "available":     script is not None,
             "enabled":       bro_watch_core.is_scraper_enabled(email, domain),
             "last_run":      _scraper_last_run(email, domain),
             "watch_entries": bro_watch_core.load_watch_list(email, domain),
+            "icon":          info.get("icon", "🍪"),
+            "description":   info.get("description", ""),
         })
+
+    # Scrapers station pas encore utilisés par cet utilisateur
+    for domain, info in sorted(station_map.items()):
+        if domain not in user_domains:
+            result.append({
+                "domain":        domain,
+                "has_cookie":    False,
+                "available":     True,
+                "enabled":       False,
+                "last_run":      "",
+                "watch_entries": [],
+                "icon":          info.get("icon", "🍪"),
+                "description":   info.get("description", ""),
+            })
+
     return result
 
 
@@ -463,6 +628,9 @@ _FLUX_CHANNEL_DEFAULTS: dict[str, dict] = {
     "zine":       {"email": True,  "nostr": False},
     "kin_daily":  {"email": True,  "nostr": False},
     "kin_weekly": {"email": True,  "nostr": False},
+    # Journal réseau N² — U.SOCIETY/Capitaine uniquement ; nostr=True = publication
+    # kind 30023 active, email=True = notification email à chaque Monthly/Yearly
+    "n2_journal": {"email": True,  "nostr": True},
 }
 
 
@@ -703,6 +871,12 @@ async def get_mailjet(
     for _fk, _fd in _FLUX_CHANNEL_DEFAULTS.items():
         _fc[_fk] = {**_fd, **_fc_saved.get(_fk, {})}
 
+    # Mise à jour silencieuse du catalogue scrapers dans le manifest kind 31903
+    try:
+        bro_watch_core.update_bro_capabilities(email)
+    except Exception:
+        pass
+
     return templates.TemplateResponse("mailjet_prefs.html", {
         "request":              request,
         "email":                email,
@@ -757,8 +931,10 @@ async def post_mailjet(
     ch_nostr_zine:       Optional[str] = Form(default=None),
     ch_email_kin_daily:  Optional[str] = Form(default=None),
     ch_nostr_kin_daily:  Optional[str] = Form(default=None),
-    ch_email_kin_weekly: Optional[str] = Form(default=None),
-    ch_nostr_kin_weekly: Optional[str] = Form(default=None),
+    ch_email_kin_weekly:  Optional[str] = Form(default=None),
+    ch_nostr_kin_weekly:  Optional[str] = Form(default=None),
+    ch_email_n2_journal:  Optional[str] = Form(default=None),
+    ch_nostr_n2_journal:  Optional[str] = Form(default=None),
 ):
     captain = settings.CAPTAINEMAIL or "support@qo-op.com"
 
@@ -811,11 +987,18 @@ async def post_mailjet(
                        "nostr": ch_nostr_kin_daily  is not None},
         "kin_weekly": {"email": ch_email_kin_weekly is not None,
                        "nostr": ch_nostr_kin_weekly is not None},
+        "n2_journal": {"email": ch_email_n2_journal is not None,
+                       "nostr": ch_nostr_n2_journal is not None},
     }
 
     _write_prefs(email, channels, npub or "", kin_prefs, flux_prefs, flux_channels)
     logger.info("Mailjet prefs saved for %s — channels=%s kin=%s flux=%s flux_channels=%s",
                 email, channels, kin_prefs, flux_prefs, flux_channels)
+
+    # Synchroniser vers NOSTR en arrière-plan (kind 30078 d=mailjet-prefs, NIP-04)
+    user_dir_post = settings.GAME_PATH / "nostr" / email
+    saved_prefs = json.loads((_mailjet_path(email)).read_text()) if _mailjet_path(email).exists() else {}
+    asyncio.create_task(_publish_mailjet_prefs_nostr(user_dir_post, saved_prefs))
 
     return templates.TemplateResponse("mailjet_success.html", {
         "request":   request,
@@ -905,6 +1088,113 @@ async def post_scraper_channels(
     logger.info("Chaînes YouTube suivies mises à jour pour %s : %d chaîne(s)", email, len(urls))
 
     return RedirectResponse(f"/mailjet?email={email}&token={token}", status_code=303)
+
+
+@router.get("/mailjet/nostr-events")
+async def get_mailjet_nostr_events(
+    email: str = Query(...),
+    token: str = Query(...),
+):
+    """Retourne les événements NOSTR liés à la config mailjet de l'utilisateur.
+
+    Sources :
+    - .mailjet  : config locale (préférences, canaux, kin, vibe)
+    - kind 31903 d=cookies : manifest BRO/cookie vault (strfry local)
+    - kind 30078 : données app-specific (strfry local)
+    """
+    if _token_for(email) != token:
+        return JSONResponse({"error": "Token invalide."}, status_code=403)
+
+    user_dir = settings.GAME_PATH / "nostr" / email
+
+    # ── Config locale .mailjet ──────────────────────────────────────────────
+    mailjet_local: dict = {}
+    mailjet_path = user_dir / ".mailjet"
+    if mailjet_path.exists():
+        try:
+            mailjet_local = json.loads(mailjet_path.read_text())
+        except Exception:
+            pass
+
+    # ── Pubkey HEX de l'utilisateur ────────────────────────────────────────
+    hex_pubkey = ""
+    hex_file = user_dir / "HEX"
+    if hex_file.exists():
+        hex_pubkey = hex_file.read_text().strip()
+    if not hex_pubkey:
+        npub = mailjet_local.get("npub", "")
+        if npub:
+            try:
+                from utils.crypto import npub_to_hex
+                hex_pubkey = npub_to_hex(npub)
+            except Exception:
+                pass
+
+    # ── Événements strfry local (kind 31903 + 30078) ───────────────────────
+    nostr_events: list = []
+    strfry_dir = settings.ZEN_PATH / "strfry"
+    strfry_bin = strfry_dir / "strfry"
+    if hex_pubkey and strfry_bin.exists():
+        for filt in [
+            {"authors": [hex_pubkey], "kinds": [31903]},
+            {"authors": [hex_pubkey], "kinds": [30078]},
+        ]:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    str(strfry_bin), "scan", json.dumps(filt),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL,
+                    cwd=str(strfry_dir),
+                )
+                out, _ = await asyncio.wait_for(proc.communicate(), timeout=6)
+                for line in out.decode().splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        ev = json.loads(line)
+                        try:
+                            ev["_content_json"] = json.loads(ev.get("content", ""))
+                        except Exception:
+                            pass
+                        nostr_events.append(ev)
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.debug("strfry scan kind %s: %s", filt["kinds"], e)
+
+    nostr_events.sort(key=lambda e: e.get("created_at", 0), reverse=True)
+
+    # ── Décrypter les events NIP-04 auto-chiffrés ─────────────────────────────
+    privkey = _parse_secret_nostr(user_dir)
+    for ev in nostr_events:
+        content = ev.get("content", "")
+        if "?iv=" in content and privkey:
+            decrypted = _nip04_decrypt_to_self(content, privkey)
+            if decrypted:
+                try:
+                    ev["_content_json"] = json.loads(decrypted)
+                except Exception:
+                    ev["_content_decrypted"] = decrypted
+
+    # ── Publier si aucun kind 30078 d=mailjet-prefs n'existe encore ──────────
+    published_new = None
+    has_mailjet_prefs = any(
+        any(t[:2] == ["d", "mailjet-prefs"] for t in ev.get("tags", []))
+        for ev in nostr_events
+        if ev.get("kind") == 30078
+    )
+    if not has_mailjet_prefs and mailjet_local:
+        published_new = await _publish_mailjet_prefs_nostr(user_dir, mailjet_local)
+
+    return JSONResponse({
+        "email":              email,
+        "hex_pubkey":         hex_pubkey,
+        "mailjet_local":      mailjet_local,
+        "nostr_events":       nostr_events,
+        "event_count":        len(nostr_events),
+        "published_new_event": published_new,
+    })
 
 
 @router.get("/mailjet/scraper-log", response_class=HTMLResponse)

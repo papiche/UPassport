@@ -2664,13 +2664,25 @@
                                     </button>
                                     {% endif %}
                                     {% if video.author_id %}
-                                    <button class="btn btn-sm btn-outline-danger delete-video-btn" 
-                                            onclick="deleteVideo(this)" 
-                                            data-event-id="{{ video.message_id }}" 
-                                            data-author-id="{{ video.author_id }}" 
-                                            data-title="{{ video.title }}" 
-                                            data-kind="{{ video.event_kind or 21 }}" 
-                                            title="Supprimer ma vidéo" 
+                                    <button class="btn btn-sm btn-outline-primary edit-video-btn"
+                                            onclick="editVideo(this)"
+                                            data-event-id="{{ video.message_id }}"
+                                            data-author-id="{{ video.author_id }}"
+                                            data-title="{{ video.title }}"
+                                            data-content="{{ video.content|e }}"
+                                            data-kind="{{ video.event_kind or 21 }}"
+                                            title="Modifier ma vidéo"
+                                            data-bs-toggle="tooltip"
+                                            style="display: none;">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger delete-video-btn"
+                                            onclick="deleteVideo(this)"
+                                            data-event-id="{{ video.message_id }}"
+                                            data-author-id="{{ video.author_id }}"
+                                            data-title="{{ video.title }}"
+                                            data-kind="{{ video.event_kind or 21 }}"
+                                            title="Supprimer ma vidéo"
                                             data-bs-toggle="tooltip"
                                             style="display: none;">
                                         <i class="bi bi-trash"></i>
@@ -5593,14 +5605,17 @@
                         userPubkey = pubkey;
                         localStorage.setItem('nostr_pubkey', pubkey);
                         console.log('[YOUTUBE] ✅ User pubkey retrieved:', pubkey.substring(0, 12) + '...');
-                        
+
+                        // Afficher immédiatement les boutons delete/edit sans attendre NIP-42
+                        showDeleteButtonsForUserVideos(pubkey);
+
                         // Update UI
                         updateConnectionBadgeYoutube(pubkey, 'connected');
                         updateStep(2, 'in-progress', 'Checking NIP-42 authentication...');
-                        
+
                         // Check NIP-42 authentication
                         await checkNIP42Authentication();
-                        
+
                         // Show action buttons (webcam, playlists)
                         showActionButtons();
                     }
@@ -7209,9 +7224,8 @@
          */
         function showDeleteButtonsForUserVideos(userPubkey) {
             if (!userPubkey) return;
-            
-            const deleteButtons = document.querySelectorAll('.delete-video-btn');
-            deleteButtons.forEach(button => {
+
+            document.querySelectorAll('.delete-video-btn, .edit-video-btn').forEach(button => {
                 const authorId = button.getAttribute('data-author-id');
                 if (authorId && authorId === userPubkey) {
                     button.style.display = 'inline-block';
@@ -7232,14 +7246,190 @@
             });
         }
         
-        // Show delete buttons when userPubkey becomes available
+        // Show delete/edit buttons when userPubkey becomes available
         if (typeof userPubkey !== 'undefined' && userPubkey) {
             // Wait a bit for DOM to be ready
             setTimeout(() => {
                 showDeleteButtonsForUserVideos(userPubkey);
             }, 1000);
         }
+
+        /* ─────────────────────────────────────────────────────────────
+           Edit video — ouvre un modal, republier avec les modifications
+           ───────────────────────────────────────────────────────────── */
+        function editVideo(button) {
+            const eventId = button.getAttribute('data-event-id');
+            const authorId = button.getAttribute('data-author-id');
+            const title = button.getAttribute('data-title') || '';
+            const content = button.getAttribute('data-content') || '';
+            const kind = button.getAttribute('data-kind') || '21';
+
+            if (!userPubkey || userPubkey !== authorId) {
+                alert('❌ Vous ne pouvez modifier que vos propres vidéos');
+                return;
+            }
+
+            document.getElementById('edit-event-id').value = eventId;
+            document.getElementById('edit-author-id').value = authorId;
+            document.getElementById('edit-kind').value = kind;
+            document.getElementById('edit-title').value = title;
+            document.getElementById('edit-description').value = content;
+            const statusEl = document.getElementById('edit-status');
+            statusEl.style.display = 'none';
+            statusEl.textContent = '';
+            const saveBtn = document.getElementById('edit-save-btn');
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Enregistrer';
+
+            new bootstrap.Modal(document.getElementById('editVideoModal')).show();
+        }
+
+        async function saveVideoEdit() {
+            const eventId = document.getElementById('edit-event-id').value;
+            const authorId = document.getElementById('edit-author-id').value;
+            const newTitle = document.getElementById('edit-title').value.trim();
+            const newContent = document.getElementById('edit-description').value.trim();
+            const kind = parseInt(document.getElementById('edit-kind').value) || 21;
+            const statusEl = document.getElementById('edit-status');
+            const saveBtn = document.getElementById('edit-save-btn');
+
+            if (!newTitle) {
+                statusEl.className = 'alert alert-warning py-2 small mt-2';
+                statusEl.textContent = '⚠️ Le titre ne peut pas être vide';
+                statusEl.style.display = 'block';
+                return;
+            }
+
+            if (!window.nostr || typeof window.nostr.signEvent !== 'function') {
+                statusEl.className = 'alert alert-danger py-2 small mt-2';
+                statusEl.textContent = '❌ Extension NOSTR (NIP-07) requise pour signer';
+                statusEl.style.display = 'block';
+                return;
+            }
+
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Enregistrement…';
+            statusEl.className = 'alert alert-info py-2 small mt-2';
+
+            try {
+                // 1. Récupérer l'event original pour préserver les tags (url, m, dim, etc.)
+                statusEl.textContent = '🔄 Récupération de la vidéo originale…';
+                statusEl.style.display = 'block';
+
+                const relay = window.nostrRelay;
+                const originalEvent = await new Promise((resolve, reject) => {
+                    if (!relay) { reject(new Error('Non connecté au relay')); return; }
+                    const sub = relay.sub([{ ids: [eventId], limit: 1 }]);
+                    const timeout = setTimeout(() => {
+                        sub.unsub();
+                        reject(new Error('Event introuvable sur le relay (timeout)'));
+                    }, 6000);
+                    sub.on('event', (ev) => {
+                        clearTimeout(timeout);
+                        sub.unsub();
+                        resolve(ev);
+                    });
+                    sub.on('eose', () => {
+                        clearTimeout(timeout);
+                        sub.unsub();
+                        reject(new Error('Event non trouvé sur ce relay'));
+                    });
+                });
+
+                // 2. Construire le nouvel event en préservant tous les tags, titre mis à jour
+                statusEl.textContent = '🔄 Publication de la version modifiée…';
+                const newTags = originalEvent.tags.map(tag =>
+                    tag[0] === 'title' ? ['title', newTitle] : tag
+                );
+                if (!newTags.find(t => t[0] === 'title')) newTags.push(['title', newTitle]);
+
+                const signedNew = await window.nostr.signEvent({
+                    kind: kind,
+                    content: newContent,
+                    tags: newTags,
+                    created_at: Math.floor(Date.now() / 1000)
+                });
+
+                await new Promise((resolve, reject) => {
+                    const pub = relay.publish(signedNew);
+                    const timeout = setTimeout(() => reject(new Error('Timeout publication')), 8000);
+                    pub.on('ok', () => { clearTimeout(timeout); resolve(); });
+                    pub.on('failed', (reason) => { clearTimeout(timeout); reject(new Error(reason || 'Relay rejected')); });
+                });
+
+                // 3. Supprimer l'ancien event (NIP-09 kind 5)
+                statusEl.textContent = '🔄 Suppression de l\'ancienne version…';
+                const signedDel = await window.nostr.signEvent({
+                    kind: 5,
+                    content: `Updated: ${newTitle}`,
+                    tags: [['e', eventId], ['k', kind.toString()]],
+                    created_at: Math.floor(Date.now() / 1000)
+                });
+                relay.publish(signedDel);
+
+                // 4. Mettre à jour l'UI
+                statusEl.className = 'alert alert-success py-2 small mt-2';
+                statusEl.textContent = '✅ Vidéo modifiée avec succès !';
+
+                setTimeout(() => {
+                    // Mettre à jour la carte dans le DOM
+                    document.querySelectorAll(`.video [data-event-id="${eventId}"]`).forEach(el => {
+                        const card = el.closest('.video');
+                        if (!card) return;
+                        const titleEl = card.querySelector('.video-title');
+                        const descEl = card.querySelector('.video-description');
+                        if (titleEl) titleEl.textContent = newTitle;
+                        if (descEl) descEl.textContent = newContent;
+                        card.querySelectorAll('[data-title]').forEach(b => b.setAttribute('data-title', newTitle));
+                        card.querySelectorAll('[data-content]').forEach(b => b.setAttribute('data-content', newContent));
+                    });
+                    bootstrap.Modal.getInstance(document.getElementById('editVideoModal'))?.hide();
+                }, 1200);
+
+            } catch (error) {
+                console.error('[YOUTUBE] ❌ Error editing video:', error);
+                statusEl.className = 'alert alert-danger py-2 small mt-2';
+                statusEl.textContent = `❌ Erreur : ${error.message}`;
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Enregistrer';
+            }
+        }
     </script>
+
+<!-- Modal édition vidéo -->
+<div class="modal fade" id="editVideoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background:#212121;color:#fff;border:1px solid #3f3f3f;">
+            <div class="modal-header" style="border-bottom:1px solid #3f3f3f;">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Modifier la vidéo</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-event-id">
+                <input type="hidden" id="edit-author-id">
+                <input type="hidden" id="edit-kind">
+                <div class="mb-3">
+                    <label class="form-label small text-secondary">Titre</label>
+                    <input type="text" class="form-control" id="edit-title"
+                           style="background:#0f0f0f;color:#fff;border-color:#3f3f3f;">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-secondary">Description</label>
+                    <textarea class="form-control" id="edit-description" rows="4"
+                              style="background:#0f0f0f;color:#fff;border-color:#3f3f3f;resize:vertical;"></textarea>
+                </div>
+                <div id="edit-status" style="display:none;"></div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #3f3f3f;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="saveVideoEdit()" id="edit-save-btn">
+                    <i class="bi bi-check-lg me-1"></i>Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 📄 Source: UPassport/templates/youtube.html -->
 
 <script src="/earth/feedback.js"></script>

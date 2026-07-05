@@ -39,7 +39,14 @@ async def list_cookies(
 
     now = datetime.now(timezone.utc)
     cookies = []
+    seen_domains: set = set()
+
+    # 1. Cookies dans le manifest IPFS chiffré (source primaire)
     for domain, info in manifest.items():
+        if domain.startswith("_"):
+            # Clés internes (ex: _bro_commands) — ignorer
+            continue
+        seen_domains.add(domain)
         uploaded_at = info.get("uploaded_at", "")
         age_days: Optional[int] = None
         if uploaded_at:
@@ -54,6 +61,20 @@ async def list_cookies(
             "age_days":    age_days,
             "size":        info.get("size", 0),
             "cid":         info.get("cid"),
+        })
+
+    # 2. Fichiers .*.cookie sur disque pas encore dans le manifest IPFS
+    for f in sorted(user_dir.glob(".*.cookie")):
+        domain = f.name[1:-len(".cookie")]  # ".mastodon.social.cookie" → "mastodon.social"
+        if domain.startswith("_") or domain in seen_domains:
+            continue
+        stat = f.stat()
+        cookies.append({
+            "domain":      domain,
+            "uploaded_at": "",
+            "age_days":    None,
+            "size":        stat.st_size,
+            "cid":         None,
         })
 
     if html:
@@ -185,21 +206,24 @@ def _html_page(npub: str, cookies: list) -> HTMLResponse:
                      else "#f39c12" if (age or 0) < 30
                      else "#e74c3c")
         cid_short = (c["cid"][:12] + "…") if c.get("cid") else "—"
-        date_str  = c["uploaded_at"][:10] if c.get("uploaded_at") else "?"
+        date_str  = c["uploaded_at"][:10] if c.get("uploaded_at") else "—"
         domain    = c["domain"]
+        storage   = '🔐 IPFS' if c.get("cid") else '💾 local'
+        s_color   = "#2ecc71" if c.get("cid") else "#f39c12"
         rows += (
             f'<tr>'
             f'<td style="color:#0ff">{domain}</td>'
             f'<td>{date_str}</td>'
             f'<td style="color:{age_color};font-weight:700">{age_str}</td>'
             f'<td style="font-size:.75em;font-family:monospace;color:#888">{cid_short}</td>'
+            f'<td style="font-size:.75em;color:{s_color}">{storage}</td>'
             f'<td><button onclick="del(\'{domain}\')" '
             f'style="background:#e74c3c;color:#fff;border:none;padding:3px 8px;'
             f'border-radius:4px;cursor:pointer;font-size:.85em">🗑️</button></td>'
             f'</tr>'
         )
     if not rows:
-        rows = '<tr><td colspan=5 style="color:#555;text-align:center;padding:20px">Aucun cookie stocké</td></tr>'
+        rows = '<tr><td colspan=6 style="color:#555;text-align:center;padding:20px">Aucun cookie stocké</td></tr>'
 
     npub_qs = f"?npub={npub}" if npub else ""
 
@@ -218,7 +242,7 @@ def _html_page(npub: str, cookies: list) -> HTMLResponse:
 </style></head><body>
 <h2>🍪 Cookies chiffrés — IPFS + NOSTR DID</h2>
 <table>
-  <thead><tr><th>Domaine</th><th>Uploadé</th><th>Âge</th><th>CID IPFS</th><th></th></tr></thead>
+  <thead><tr><th>Domaine</th><th>Uploadé</th><th>Âge</th><th>CID IPFS</th><th>Stockage</th><th></th></tr></thead>
   <tbody id="tb">{rows}</tbody>
 </table>
 <a class="upload-link" href="/cookie.html">+ Uploader un cookie</a>

@@ -4,7 +4,6 @@
 {% block page_title %}PRÉFÉRENCES NOTIFICATIONS{% endblock %}
 
 {% block extra_styles %}
-<style>
 /* ── Toggle switch (unchecked=ON vert, checked=OFF gris) ── */
 .switch { position:relative; display:inline-block; width:58px; height:28px; flex-shrink:0; }
 .switch input { opacity:0; width:0; height:0; }
@@ -171,7 +170,6 @@
   background:rgba(0,255,136,0.1); border:1px solid rgba(0,255,136,0.3); color:#00ff88;
 }
 .scraper-learned { font-size:0.68rem; color:rgba(167,139,250,0.65); margin-top:5px; }
-</style>
 {% endblock %}
 
 {% block content %}
@@ -347,11 +345,36 @@
     </div>
   </div>
 
+  <div class="toggle-row">
+    <div class="toggle-info">
+      <span class="toggle-name">📰 Journal N² Réseau</span>
+      <span class="toggle-desc">Synthèse IA de l'activité de votre réseau N² (Daily → Yearly) — réservé U.SOCIETY / Capitaine</span>
+    </div>
+    <div class="ch-pair">
+      <div class="ch-item">
+        <span class="ch-lbl">📧 EMAIL</span>
+        <label class="switch ch">
+          <input type="checkbox" name="ch_email_n2_journal" value="1"
+                 {% if fc.n2_journal.email %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="ch-item">
+        <span class="ch-lbl">💬 NOSTR</span>
+        <label class="switch ch">
+          <input type="checkbox" name="ch_nostr_n2_journal" value="1"
+                 {% if fc.n2_journal.nostr %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
   {# ── Hidden champs rétrocompat (non affichés, valeurs preservées) ── #}
   <input type="hidden" name="flux_off_alerts"     {% if not fc.alerts.email and not fc.alerts.nostr %}value="off"{% endif %}>
   <input type="hidden" name="flux_off_milestones" {% if not fc.milestones.email and not fc.milestones.nostr %}value="off"{% endif %}>
   <input type="hidden" name="flux_off_usociety"   {% if not fc.usociety.email and not fc.usociety.nostr %}value="off"{% endif %}>
-  <input type="hidden" name="flux_off_zine"       {% if not fc.zine.email and not fc.zine.nostr %}value="off"{% endif %}
+  <input type="hidden" name="flux_off_zine"       {% if not fc.zine.email and not fc.zine.nostr %}value="off"{% endif %}>
 
   {# ════════════════════════════════════════════
      3 · ORACLE KIN — ATOM4LOVE
@@ -507,26 +530,31 @@
 {# ════════════════════════════════════════════
    BRO OMNI-CHANNEL — Scrapers cookie (smart contracts)
    ════════════════════════════════════════════ #}
-{% if scrapers %}
+{% set scrapers_active  = scrapers | selectattr("has_cookie") | list %}
+{% set scrapers_dispo   = scrapers | rejectattr("has_cookie") | list %}
+
+{# ── Sources surveillées (cookie déposé) ─────────────────────────────── #}
+{% if scrapers_active %}
 <div class="sec-head" style="margin-top:32px;">
   <h3 style="color:#60a5fa;">🤖 ASSISTANT BRO — SOURCES SURVEILLÉES</h3>
+  <span class="sec-badge">{{ scrapers_active | length }} cookie(s)</span>
 </div>
 <p style="color:rgba(255,255,255,0.38);font-size:0.78rem;margin-bottom:14px;">
-  Un cookie déposé (<a href="/cookie" style="color:#93c5fd;">gérer mes cookies</a>) active un service
-  d'analyse quotidien de votre compte, qui vous signale les fils à traiter.
+  Chaque cookie déposé active une surveillance quotidienne de votre compte sur la plateforme.
+  (<a href="/cookie" style="color:#93c5fd;">gérer mes cookies</a>)
 </p>
 
-{% for s in scrapers %}
+{% for s in scrapers_active %}
 <div class="scraper-card">
   <div class="scraper-head">
     <div>
-      <span class="scraper-domain">🍪 {{ s.domain }}</span>
+      <span class="scraper-domain">{{ s.icon }} {{ s.domain }}</span>
       {% if s.available %}
         <span class="scraper-tag {{ 'tag-on' if s.enabled else 'tag-off' }}">
           {{ 'ACTIF' if s.enabled else 'DÉSACTIVÉ' }}
         </span>
       {% else %}
-        <span class="scraper-tag tag-none">AUCUN SERVICE DISPONIBLE</span>
+        <span class="scraper-tag tag-none">AUCUN SERVICE</span>
       {% endif %}
     </div>
     {% if s.available %}
@@ -542,11 +570,17 @@
     {% endif %}
   </div>
 
+  {% if s.description %}
+  <div class="scraper-meta" style="margin-top:5px;font-style:italic;color:rgba(255,255,255,0.28);">
+    {{ s.description }}
+  </div>
+  {% endif %}
+
   {% if s.available %}
     <div class="scraper-meta">
       Dernière exécution : {{ s.last_run if s.last_run else 'jamais encore' }}
       · <a href="/mailjet/scraper-log?email={{ email }}&token={{ token }}&domain={{ s.domain }}"
-           target="_blank" style="color:#93c5fd;">voir les logs</a>
+           target="_blank" style="color:#93c5fd;">logs</a>
     </div>
 
     {% for w in s.watch_entries %}
@@ -590,13 +624,56 @@
     {% endfor %}
   {% else %}
     <div class="scraper-meta">
-      Aucun service BRO n'existe encore pour ce domaine — contactez
-      <a href="mailto:{{ captain }}" style="color:#e88;">{{ captain }}</a> pour en demander un.
+      Aucun service BRO sur cette station pour ce domaine — contactez
+      <a href="mailto:{{ captain }}" style="color:#e88;">{{ captain }}</a>.
     </div>
   {% endif %}
 </div>
 {% endfor %}
 {% endif %}
+
+{# ── Services disponibles (scraper dispo, pas encore de cookie) ──────── #}
+{% if scrapers_dispo %}
+<div class="sec-head" style="margin-top:28px;">
+  <h3 style="color:#a78bfa;">⚡ SERVICES DISPONIBLES SUR CETTE STATION</h3>
+  <span class="sec-badge">{{ scrapers_dispo | length }} service(s)</span>
+</div>
+<p style="color:rgba(255,255,255,0.38);font-size:0.78rem;margin-bottom:14px;">
+  Déposez un cookie de session pour activer la surveillance automatique de votre compte.
+  (<a href="/cookie" style="color:#93c5fd;">gérer mes cookies</a>)
+</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;">
+{% for s in scrapers_dispo %}
+<div style="border:1px solid rgba(167,139,250,0.15);border-radius:6px;padding:12px 14px;
+            background:rgba(167,139,250,0.03);display:flex;flex-direction:column;gap:6px;">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span style="font-size:1.3rem;line-height:1">{{ s.icon }}</span>
+    <span style="font-family:'Courier New',monospace;font-size:0.82rem;color:#e0e7ff;font-weight:600;">{{ s.domain }}</span>
+    <span class="scraper-tag" style="color:#a78bfa;border:1px solid rgba(167,139,250,0.35);background:rgba(167,139,250,0.08);margin-left:auto;">DISPO</span>
+  </div>
+  {% if s.description %}
+  <div style="font-size:0.72rem;color:rgba(255,255,255,0.35);line-height:1.45;">{{ s.description }}</div>
+  {% endif %}
+  <a href="/cookie?domain={{ s.domain }}&email={{ email }}&token={{ token }}"
+     style="display:block;text-align:center;margin-top:2px;padding:5px 10px;
+            background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.25);
+            border-radius:4px;font-size:0.75rem;color:#a78bfa;text-decoration:none;
+            font-family:'Courier New',monospace;">
+    🍪 Déposer un cookie
+  </a>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<div style="margin-top:2rem;padding:.75rem 1rem;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:8px;font-size:.8rem;color:#94a3b8;">
+  🔐 <a href="/mailjet/nostr-events?email={{ email }}&token={{ token }}"
+       target="_blank"
+       style="color:#93c5fd;text-decoration:none;">
+    Voir les événements NOSTR liés à cette config
+  </a>
+  <span style="margin-left:.5rem;opacity:.6;">(kind 30078 d=mailjet-prefs, kind 31903)</span>
+</div>
 
 {% endblock %}
 
