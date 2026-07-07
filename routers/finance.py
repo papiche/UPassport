@@ -29,6 +29,7 @@ from utils.security import (
 )
 from services.nostr import verify_nostr_auth
 from utils.crypto import npub_to_hex
+from utils.observability import log_node_event, log_user_event
 from models.schemas import (
     CoinflipStartRequest, CoinflipStartResponse,
     CoinflipFlipRequest, CoinflipFlipResponse,
@@ -251,6 +252,58 @@ async def generate_balance_html_page(identifier: str, balance_data: Dict[str, An
 
 @router.post("/zen_send", deprecated=True)
 async def zen_send(request: Request):
+    """Wrapper d'observabilité additif autour de _zen_send_impl : capture
+    succès/échec/latence NODE + BRO (par email, résolu en lecture seule à
+    partir du npub du formulaire — Starlette met le form en cache, un second
+    appel à request.form() ne relit ni ne rejoue rien côté requête) sur tous
+    les chemins de sortie, y compris les exceptions."""
+    _obs_start = time.time()
+    _obs_success = False
+    _obs_status = 500
+    _obs_extra: dict = {}
+    _obs_email: Optional[str] = None
+    try:
+        result = await _zen_send_impl(request)
+        _obs_status = getattr(result, "status_code", 200)
+        try:
+            if isinstance(result, JSONResponse):
+                body = json.loads(bytes(result.body))
+                if isinstance(body, dict):
+                    _obs_success = bool(body.get("ok"))
+                    if not _obs_success and body.get("error"):
+                        _obs_extra["error"] = body["error"]
+        except Exception:
+            pass
+        return result
+    except HTTPException as exc:
+        _obs_status = exc.status_code
+        _obs_extra["error"] = "HTTPException"
+        raise
+    except Exception:
+        _obs_extra["error"] = "unhandled_exception"
+        raise
+    finally:
+        try:
+            form_data = await request.form()
+            npub = form_data.get("npub")
+            if npub:
+                is_hex = len(npub) == 64 and all(c in '0123456789abcdefABCDEF' for c in npub)
+                hex_pub = npub.lower() if is_hex else npub_to_hex(npub)
+                if hex_pub:
+                    user_dir = find_user_directory_by_hex(hex_pub)
+                    if user_dir and "@" in user_dir.name:
+                        _obs_email = user_dir.name
+        except Exception:
+            pass
+        latency_ms = (time.time() - _obs_start) * 1000
+        _obs_extra["status"] = _obs_status
+        log_node_event("zen_send", _obs_success, category="finance",
+                        latency_ms=latency_ms, extra=_obs_extra)
+        log_user_event(_obs_email, "zen_send", "zen_send", _obs_success,
+                        latency_ms=latency_ms, extra=dict(_obs_extra))
+
+
+async def _zen_send_impl(request: Request):
     """Send ZEN using the sender's ZEN card. Nostr authentication (NIP-42) is mandatory.
 
     DEPRECATED — use Kind 7 NOSTR reaction (+N content) instead.
@@ -667,6 +720,50 @@ async def _get_oc_token():
 
 @router.post("/oc_webhook")
 async def oc_webhook(request: Request):
+    """Wrapper d'observabilité additif autour de _oc_webhook_impl (émission ẐEN
+    déclenchée par une contribution OpenCollective) : capture succès/échec/
+    latence NODE + BRO (par email, extrait a posteriori du corps de la réponse
+    ou du détail de l'exception — sans dupliquer la logique de résolution
+    email/tier de l'implémentation) sur tous les chemins de sortie."""
+    _obs_start = time.time()
+    _obs_success = False
+    _obs_status = 500
+    _obs_extra: dict = {}
+    _obs_email: Optional[str] = None
+    try:
+        result = await _oc_webhook_impl(request)
+        _obs_status = getattr(result, "status_code", 200)
+        _obs_success = _obs_status < 400
+        try:
+            if isinstance(result, JSONResponse):
+                body = json.loads(bytes(result.body))
+                if isinstance(body, dict):
+                    _obs_email = body.get("email")
+                    _obs_extra["status_field"] = body.get("status")
+                    if body.get("type"):
+                        _obs_extra["emission_type"] = body["type"]
+        except Exception:
+            pass
+        return result
+    except HTTPException as exc:
+        _obs_status = exc.status_code
+        detail = exc.detail if isinstance(exc.detail, dict) else {}
+        _obs_email = detail.get("email")
+        _obs_extra["error"] = detail.get("status", "HTTPException")
+        raise
+    except Exception:
+        _obs_extra["error"] = "unhandled_exception"
+        raise
+    finally:
+        latency_ms = (time.time() - _obs_start) * 1000
+        _obs_extra["status"] = _obs_status
+        log_node_event("oc_webhook", _obs_success, category="finance",
+                        latency_ms=latency_ms, extra=_obs_extra)
+        log_user_event(_obs_email, "oc_webhook", "oc_webhook", _obs_success,
+                        latency_ms=latency_ms, extra=dict(_obs_extra))
+
+
+async def _oc_webhook_impl(request: Request):
     """OpenCollective webhook endpoint for COLLECTIVE_TRANSACTION_CREATED events."""
     try:
         payload = await request.json()

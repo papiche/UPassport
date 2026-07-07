@@ -12,6 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.config import settings
 from core.logging import request_id_var
+from utils.observability import log_node_event
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +141,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                         request.method, request.url.path,
                         e.detail.get("client_ip", "?"), elapsed,
                     )
+                    # Observabilité NODE : visibilité station-wide sur les 4xx/5xx,
+                    # additive, sans effet sur la réponse HTTP (échoue toujours
+                    # silencieusement). Ring buffer partagé avec bro_log_event()/
+                    # nip101_log_event() — on ne journalise QUE les erreurs ici pour
+                    # ne pas noyer le digest sous le trafic 2xx normal.
+                    log_node_event(
+                        f"{request.method} {request.url.path}", False,
+                        category="http_error", latency_ms=elapsed,
+                        extra={"status": 429, "ip": e.detail.get("client_ip", "?")},
+                    )
                     response = JSONResponse(status_code=429, content=e.detail)
                     response.headers["X-RateLimit-Limit"] = str(settings.RATE_LIMIT_REQUESTS)
                     response.headers["X-RateLimit-Remaining"] = "0"
@@ -168,6 +179,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 status, request.method, request.url.path,
                 rate_info["client_ip"], elapsed,
             )
+            if status >= 400:
+                # Idem : uniquement les erreurs, pour préserver le signal du
+                # digest NODE partagé (ring buffer 200 lignes).
+                log_node_event(
+                    f"{request.method} {request.url.path}", False,
+                    category="http_error", latency_ms=elapsed,
+                    extra={"status": status, "ip": rate_info["client_ip"]},
+                )
             return response
 
         finally:

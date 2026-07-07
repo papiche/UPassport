@@ -21,6 +21,7 @@ from core.config import settings
 from utils.helpers import run_script, get_myipfs_gateway, is_origin_mode, get_oc_tier_urls, get_uplanet_home_url
 from utils.security import is_multipass_user
 from utils.crypto import npub_to_hex, hex_to_npub
+from utils.observability import log_node_event, log_user_event
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -130,6 +131,48 @@ _g1nostr_in_progress: set[str] = set()
 async def scan_qr(
     request: Request,
     form_data: G1NostrForm = Depends(G1NostrForm.as_form)
+):
+    """Wrapper d'observabilité additif autour de _scan_qr_impl (MULTIPASS
+    création/récupération) : capture succès/échec/latence NODE + BRO (par
+    email) sur TOUS les chemins de sortie de l'implémentation — y compris les
+    exceptions — sans toucher à la logique métier existante (nombreux
+    early-return, cf. cas 1-4 documentés ci-dessous)."""
+    _obs_start = time.time()
+    _obs_email = form_data.email
+    _obs_success = False
+    _obs_status = 500
+    _obs_extra: dict = {}
+    try:
+        result = await _scan_qr_impl(request, form_data)
+        _obs_status = getattr(result, "status_code", 200)
+        _obs_success = _obs_status < 400
+        try:
+            if isinstance(result, JSONResponse):
+                body = json.loads(bytes(result.body))
+                if isinstance(body, dict) and body.get("error"):
+                    _obs_extra["error"] = body["error"]
+        except Exception:
+            pass
+        return result
+    except HTTPException as exc:
+        _obs_status = exc.status_code
+        _obs_extra["error"] = "HTTPException"
+        raise
+    except Exception:
+        _obs_extra["error"] = "unhandled_exception"
+        raise
+    finally:
+        latency_ms = (time.time() - _obs_start) * 1000
+        _obs_extra["status"] = _obs_status
+        log_node_event("g1nostr", _obs_success, category="multipass",
+                        latency_ms=latency_ms, extra=_obs_extra)
+        log_user_event(_obs_email, "multipass", "g1nostr", _obs_success,
+                        latency_ms=latency_ms, extra=dict(_obs_extra))
+
+
+async def _scan_qr_impl(
+    request: Request,
+    form_data: G1NostrForm
 ):
     """
     Endpoint to execute the g1.sh script and return the generated file.
@@ -618,5 +661,12 @@ async def pass_attempts_alert(request: Request, data: PassAlertBody) -> JSONResp
 
     ip = request.client.host if request.client else "inconnu"
     await _notify_pass_alert(email, data.attempts, ip)
+
+    # Observabilité additive : tentatives PASS échouées répétées = signal fort
+    # pour BRO/capitaine (bruteforce potentiel ou utilisateur bloqué légitime).
+    log_node_event("pass_alert", invalidated, category="multipass_security",
+                    extra={"attempts": data.attempts, "ip": ip})
+    log_user_event(email, "multipass", "pass_alert", invalidated,
+                   extra={"attempts": data.attempts})
 
     return JSONResponse({"status": "alerted", "invalidated": invalidated})

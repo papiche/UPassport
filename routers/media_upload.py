@@ -34,6 +34,7 @@ from utils.security import (
 )
 from services.nostr import verify_nostr_auth, require_nostr_auth
 from utils.crypto import npub_to_hex, hex_to_npub
+from utils.observability import log_node_event, log_user_event
 from services.nostr import fetch_video_event_from_nostr, parse_video_metadata
 from models.schemas import UploadResponse, UploadFromDriveResponse
 from services.cookie_store import store_cookie_encrypted
@@ -1160,6 +1161,55 @@ async def upload_file_to_ipfs(
     file: UploadFile = File(...),
     npub: Optional[str] = Form(None),
     youtube_metadata: Optional[UploadFile] = File(None)
+):
+    """Wrapper d'observabilité additif autour de _upload_file_to_ipfs_impl :
+    capture succès/échec/latence NODE + BRO (par email, extrait a posteriori
+    du target_directory renvoyé — évite de dupliquer la résolution
+    d'authentification/répertoire de l'implémentation) sur tous les chemins de
+    sortie de cette fonction volumineuse (nombreux early-return/branches selon
+    le type de fichier — cookie, image, vidéo, audio…), y compris exceptions."""
+    _obs_start = time.time()
+    _obs_success = False
+    _obs_status = 500
+    _obs_extra: dict = {}
+    _obs_email: Optional[str] = None
+    try:
+        result = await _upload_file_to_ipfs_impl(request, file, npub, youtube_metadata)
+        if isinstance(result, UploadResponse):
+            _obs_success = bool(result.success)
+            if result.file_type:
+                _obs_extra["file_type"] = result.file_type
+            try:
+                if result.target_directory and "@" in result.target_directory:
+                    # .../game/nostr/<email>/APP/uDRIVE → extrait <email>
+                    parts = Path(result.target_directory).parts
+                    _obs_email = next((p for p in parts if "@" in p), None)
+            except Exception:
+                pass
+        else:
+            _obs_success = True
+        return result
+    except HTTPException as exc:
+        _obs_status = exc.status_code
+        _obs_extra["error"] = "HTTPException"
+        raise
+    except Exception:
+        _obs_extra["error"] = "unhandled_exception"
+        raise
+    finally:
+        latency_ms = (time.time() - _obs_start) * 1000
+        _obs_extra["status"] = _obs_status if not _obs_success else 200
+        log_node_event("media_upload", _obs_success, category="media",
+                        latency_ms=latency_ms, extra=_obs_extra)
+        log_user_event(_obs_email, "media_upload", "upload", _obs_success,
+                        latency_ms=latency_ms, extra=dict(_obs_extra))
+
+
+async def _upload_file_to_ipfs_impl(
+    request: Request,
+    file: UploadFile,
+    npub: Optional[str],
+    youtube_metadata: Optional[UploadFile],
 ):
     """Upload file to IPFS with NIP-42 or NIP-98 authentication."""
     npub = await require_nostr_auth(request, npub, force_check=True)
