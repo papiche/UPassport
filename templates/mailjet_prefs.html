@@ -170,6 +170,31 @@
   background:rgba(0,255,136,0.1); border:1px solid rgba(0,255,136,0.3); color:#00ff88;
 }
 .scraper-learned { font-size:0.68rem; color:rgba(167,139,250,0.65); margin-top:5px; }
+
+/* ── Mémoire BRO/MUSE (état + réinitialisation self-service) ── */
+.mem-card {
+  border:1px solid rgba(167,139,250,0.15); border-radius:6px;
+  padding:14px 16px; margin-bottom:10px; background:rgba(167,139,250,0.03);
+}
+.mem-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.mem-title { font-family:'Courier New',monospace; font-size:0.85rem; color:#e0e7ff; font-weight:600; }
+.mem-stats { font-size:0.72rem; color:rgba(255,255,255,0.4); margin-top:6px; line-height:1.5; }
+.mem-stats b { color:rgba(255,255,255,0.7); font-weight:600; }
+.mem-reset-btn {
+  font-size:0.72rem; padding:5px 12px; border-radius:4px; cursor:pointer;
+  background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.3); color:#f87171;
+}
+.mem-reset-btn:hover { background:rgba(220,38,38,0.16); }
+.mem-regen-banner {
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  border:1px solid rgba(96,165,250,0.3); border-radius:6px; padding:12px 14px; margin-bottom:14px;
+  background:rgba(96,165,250,0.06); font-size:0.78rem; color:rgba(255,255,255,0.6);
+}
+.btn-regen-lg {
+  font-size:0.78rem; padding:7px 16px; border-radius:5px; cursor:pointer; white-space:nowrap;
+  background:rgba(96,165,250,0.15); border:1px solid rgba(96,165,250,0.4); color:#93c5fd; font-weight:600;
+}
+.btn-regen-lg:hover { background:rgba(96,165,250,0.28); }
 {% endblock %}
 
 {% block content %}
@@ -665,6 +690,143 @@
 {% endfor %}
 </div>
 {% endif %}
+
+{# ════════════════════════════════════════════
+   MÉMOIRE BRO/MUSE — état + réinitialisation self-service
+   ════════════════════════════════════════════ #}
+<div class="sec-head" id="memoire" style="margin-top:32px;">
+  <h3 style="color:#a78bfa;">🧠 MÉMOIRE BRO/MUSE</h3>
+  <span class="sec-badge">
+    {{ memory_status.qdrant.total_points if memory_status.qdrant.available else '?' }} point(s) Qdrant
+  </span>
+</div>
+<p style="color:rgba(255,255,255,0.38);font-size:0.78rem;margin-bottom:14px;">
+  Chaque réinitialisation efface les fichiers ET les vecteurs Qdrant correspondants — irréversible.
+  Tes notes d'identité (Core / Style / Règles / Objectifs) ne sont jamais touchées.
+</p>
+
+{% if memory_status.can_regenerate_from_mastodon %}
+<div class="mem-regen-banner">
+  <span>🐘 Un cookie Mastodon est déposé — BRO peut relire tes propres posts publics et réapprendre ton profil LifeOS immédiatement.</span>
+  <form method="post" action="/mailjet/memory-regenerate" style="margin:0;">
+    <input type="hidden" name="email" value="{{ email }}">
+    <input type="hidden" name="token" value="{{ token }}">
+    <button type="submit" class="btn-regen-lg">🔄 Régénérer depuis Mastodon</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="mem-card">
+  <div class="mem-head">
+    <span class="mem-title">💬 Conversations</span>
+    <form method="post" action="/mailjet/memory-reset" style="margin:0;"
+          onsubmit="return confirm('Effacer tout l\'historique de conversation (slots 0 à 12) ?');">
+      <input type="hidden" name="email" value="{{ email }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      <input type="hidden" name="scope" value="conversations">
+      <button type="submit" class="mem-reset-btn">🗑 Réinitialiser</button>
+    </form>
+  </div>
+  <div class="mem-stats">
+    <b>{{ memory_status.conversations.message_count }}</b> message(s) ·
+    <b>{{ memory_status.conversations.slots_present | length }}</b> slot(s) actif(s) ·
+    {{ (memory_status.conversations.size_bytes / 1024) | round(1) }} Ko ·
+    {{ memory_status.conversations.qdrant_points }} point(s) Qdrant
+  </div>
+</div>
+
+<div class="mem-card">
+  <div class="mem-head">
+    <span class="mem-title">🤖 Mémoire BRO (self-DM #rec)</span>
+    <form method="post" action="/mailjet/memory-reset" style="margin:0;"
+          onsubmit="return confirm('Effacer la mémoire BRO (#rec) ?');">
+      <input type="hidden" name="email" value="{{ email }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      <input type="hidden" name="scope" value="bro_memory">
+      <button type="submit" class="mem-reset-btn">🗑 Réinitialiser</button>
+    </form>
+  </div>
+  <div class="mem-stats">
+    <b>{{ memory_status.bro_memory.message_count }}</b> souvenir(s) ·
+    {{ (memory_status.bro_memory.size_bytes / 1024) | round(1) }} Ko ·
+    {{ memory_status.bro_memory.qdrant_points }} point(s) Qdrant
+  </div>
+</div>
+
+<div class="mem-card">
+  <div class="mem-head">
+    <span class="mem-title">🎭 Persona (traits de style appris)</span>
+    <form method="post" action="/mailjet/memory-reset" style="margin:0;"
+          onsubmit="return confirm('Effacer les traits de persona appris ?');">
+      <input type="hidden" name="email" value="{{ email }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      <input type="hidden" name="scope" value="persona">
+      <button type="submit" class="mem-reset-btn">🗑 Réinitialiser</button>
+    </form>
+  </div>
+  <div class="mem-stats">
+    <b>{{ memory_status.persona.message_count }}</b> trait(s) ·
+    {{ (memory_status.persona.size_bytes / 1024) | round(1) }} Ko ·
+    {{ memory_status.persona.qdrant_points }} point(s) Qdrant
+  </div>
+</div>
+
+<div class="mem-card">
+  <div class="mem-head">
+    <span class="mem-title">💕 MUSE / LOVE</span>
+    <form method="post" action="/mailjet/memory-reset" style="margin:0;"
+          onsubmit="return confirm('Effacer les souvenirs, dialogues et matchs LOVE/MUSE ? (ton profil déclaré #love_profile est conservé)');">
+      <input type="hidden" name="email" value="{{ email }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      <input type="hidden" name="scope" value="love">
+      <button type="submit" class="mem-reset-btn">🗑 Réinitialiser</button>
+    </form>
+  </div>
+  <div class="mem-stats">
+    <b>{{ memory_status.love.memories_count }}</b> souvenir(s) ·
+    <b>{{ memory_status.love.dialog_count }}</b> échange(s) récents ·
+    <b>{{ memory_status.love.matches_count }}</b> historique(s) de match ·
+    profil {{ 'déclaré' if memory_status.love.has_profile else 'non renseigné' }} ·
+    {{ memory_status.love.qdrant_points }} point(s) Qdrant
+  </div>
+</div>
+
+<div class="mem-card">
+  <div class="mem-head">
+    <span class="mem-title">🧾 Préférences apprises (identity)</span>
+    <form method="post" action="/mailjet/memory-reset" style="margin:0;"
+          onsubmit="return confirm(&quot;Effacer les préférences apprises automatiquement (Core/Style/Règles/Objectifs restent intacts) ?&quot;);">
+      <input type="hidden" name="email" value="{{ email }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      <input type="hidden" name="scope" value="identity_learned">
+      <button type="submit" class="mem-reset-btn">🗑 Réinitialiser</button>
+    </form>
+  </div>
+  <div class="mem-stats">
+    <b>{{ memory_status.identity.preferences_lines }}</b> préférence(s) retenue(s) ·
+    <b>{{ memory_status.identity.preferences_history_entries }}</b> entrée(s) d'historique
+  </div>
+</div>
+
+{% if memory_status.cookies.count > 0 %}
+<div class="mem-stats" style="margin-top:6px;">
+  🍪 Cookies liés : {{ memory_status.cookies.domains | join(', ') }}
+  (<a href="/cookie?email={{ email }}&token={{ token }}" style="color:#93c5fd;">gérer</a>)
+</div>
+{% endif %}
+
+<div class="mem-card" style="border-color:rgba(220,38,38,0.25);background:rgba(220,38,38,0.03);margin-top:14px;">
+  <div class="mem-head">
+    <span class="mem-title" style="color:#f87171;">⚠️ Tout réinitialiser</span>
+    <form method="post" action="/mailjet/memory-reset" style="margin:0;"
+          onsubmit="return confirm('Effacer TOUTE la mémoire BRO/MUSE (conversations, mémoire BRO, persona, LOVE, préférences apprises) ? Cette action est irréversible.');">
+      <input type="hidden" name="email" value="{{ email }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      <input type="hidden" name="scope" value="all">
+      <button type="submit" class="mem-reset-btn">🗑 Tout effacer</button>
+    </form>
+  </div>
+</div>
 
 <div style="margin-top:2rem;padding:.75rem 1rem;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:8px;font-size:.8rem;color:#94a3b8;">
   🔐 <a href="/mailjet/nostr-events?email={{ email }}&token={{ token }}"

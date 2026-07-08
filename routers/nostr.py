@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from core.config import settings
 from services.nostr import require_nostr_auth
-from utils.crypto import npub_to_hex
+from utils.crypto import npub_to_hex, hex_to_npub
 from utils.helpers import render_page
 
 router = APIRouter()
@@ -619,6 +619,97 @@ async def admin_captain_info():
     """Retourne les pubkeys NOSTR publiques du node et du capitaine — sans auth (info publique)."""
     node_hex, captain_hex = _get_node_and_captain_hex()
     return JSONResponse({"node_hex": node_hex, "captain_hex": captain_hex})
+
+
+# ─── Admin NOSTR — état des mémoires MULTIPASS (BRO mémoire) ─────────────────
+
+def _multipass_accounts() -> list:
+    """Liste {email, hex, npub} de tous les MULTIPASS de la station — même
+    pattern de scan que routers/identity.py::_find_email_by_npub, mais énuméré
+    au lieu de cibler un seul compte."""
+    from services.memory_status import list_multipass_emails
+    accounts = []
+    for email in list_multipass_emails():
+        hex_pubkey = ""
+        hex_file = settings.GAME_PATH / "nostr" / email / "HEX"
+        if hex_file.exists():
+            try:
+                hex_pubkey = hex_file.read_text().strip()
+            except Exception:
+                pass
+        accounts.append({
+            "email": email,
+            "hex": hex_pubkey,
+            "npub": hex_to_npub(hex_pubkey) if hex_pubkey else "",
+        })
+    return accounts
+
+
+@router.get("/api/nostr/admin/multipass_list")
+async def admin_multipass_list(uplanetname: str):
+    """Liste tous les comptes MULTIPASS de la station (email + hex + npub) —
+    point de départ de la vue admin 'BRO mémoire' (aucune liste de ce type
+    n'existait auparavant, cf. nostr_admin.html)."""
+    if not _validate_uplanetname(uplanetname):
+        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+    accounts = _multipass_accounts()
+    return JSONResponse({"accounts": accounts, "count": len(accounts)})
+
+
+@router.get("/api/nostr/admin/memory_status")
+async def admin_memory_status(uplanetname: str, email: str):
+    """État des mémoires (fichiers + Qdrant) d'un MULTIPASS donné — vue admin.
+    Les cookies liés au compte (kind 31903) se lisent côté client via
+    GET /api/nostr/admin/events?kind=31903&author=<hex> (déjà existant),
+    pas dupliqués ici."""
+    if not _validate_uplanetname(uplanetname):
+        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+    from services.memory_status import get_memory_status
+    status = await asyncio.to_thread(get_memory_status, email)
+    return JSONResponse(status)
+
+
+@router.post("/api/nostr/admin/memory_reset")
+async def admin_memory_reset(request: Request):
+    """Réinitialise un périmètre de mémoire d'un MULTIPASS — action du capitaine
+    depuis la vue admin 'BRO mémoire'. Body JSON : {uplanetname, email, scope}."""
+    body = await request.json()
+    uplanetname = body.get("uplanetname", "")
+    email = body.get("email", "")
+    scope = body.get("scope", "")
+
+    if not _validate_uplanetname(uplanetname):
+        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+    if not email:
+        raise HTTPException(status_code=400, detail="email requis")
+
+    from services.memory_status import reset_memory, RESET_SCOPES
+    if scope not in RESET_SCOPES:
+        raise HTTPException(status_code=400, detail=f"scope invalide (attendu: {', '.join(RESET_SCOPES)})")
+
+    report = await asyncio.to_thread(reset_memory, email, scope)
+    logger.info(f"Admin memory_reset: {email} scope={scope} — {len(report['deleted'])} élément(s) supprimé(s)")
+    return JSONResponse(report)
+
+
+@router.post("/api/nostr/admin/memory_regenerate")
+async def admin_memory_regenerate(request: Request):
+    """Régénère le profil LifeOS d'un MULTIPASS depuis ses propres posts
+    Mastodon (si un cookie mastodon.social est déposé) — action du capitaine
+    depuis la vue admin 'BRO mémoire'. Body JSON : {uplanetname, email}."""
+    body = await request.json()
+    uplanetname = body.get("uplanetname", "")
+    email = body.get("email", "")
+
+    if not _validate_uplanetname(uplanetname):
+        raise HTTPException(status_code=403, detail="UPLANETNAME invalide")
+    if not email:
+        raise HTTPException(status_code=400, detail="email requis")
+
+    from services.memory_status import regenerate_lifeos_from_mastodon
+    result = await asyncio.to_thread(regenerate_lifeos_from_mastodon, email)
+    logger.info(f"Admin memory_regenerate (Mastodon): {email} → {result}")
+    return JSONResponse(result)
 
 
 @router.post("/api/nostr/dm/delete_node_messages")

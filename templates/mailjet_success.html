@@ -25,10 +25,14 @@
 </div>
 {% else %}
 <div class="ok">
+  {% if custom_message %}
+  <h2>✅ {{ custom_message }}</h2>
+  {% else %}
   <h2>✅ Préférences mises à jour</h2>
   <p style="font-size:0.87rem;margin-bottom:10px;">
     Paramètres enregistrés pour <code>{{ email }}</code>.
   </p>
+  {% endif %}
 
   {% if channels %}
   <p style="font-size:0.85rem;margin-bottom:8px;">

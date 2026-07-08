@@ -27,6 +27,9 @@ BIRTH_PLACE="$8"
 BIRTH_WEIGHT="$9"
 CONCEPTION_DATETIME="${10}"
 CONCEPTION_PLACE="${11}"
+BIRTH_LAT="${12}"
+BIRTH_LON="${13}"
+POLARITY="${14}"
 
 if [[ "$#" -lt 4 ]]; then
     echo "Usage: $0 <email> <lang> <lat> <lon> [salt] [pepper]"
@@ -136,7 +139,8 @@ EOFJSON
     if [[ ! -s ${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html ]]; then
         ### CREATING NOSTR CARD with SALT PEPPER
         ${HOME}/.zen/Astroport.ONE/tools/make_NOSTRCARD.sh "${EMAIL}" "$LANG" "${LAT}" "${LON}" "${SALT}" "${PEPPER}" \
-            "${BIRTH_DATETIME}" "${BIRTH_PLACE}" "${BIRTH_WEIGHT}" "${CONCEPTION_DATETIME}" "${CONCEPTION_PLACE}"
+            "${BIRTH_DATETIME}" "${BIRTH_PLACE}" "${BIRTH_WEIGHT}" "${CONCEPTION_DATETIME}" "${CONCEPTION_PLACE}" \
+            "${BIRTH_LAT}" "${BIRTH_LON}" "${POLARITY}"
         echo "${HOME}/.zen/game/nostr/${EMAIL}/.nostr.zine.html"
         exit 0
     else

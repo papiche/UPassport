@@ -22,6 +22,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from core.config import settings
+from services.memory_status import get_memory_status, reset_memory, RESET_SCOPES, regenerate_lifeos_from_mastodon
 
 templates = Jinja2Templates(directory="templates")
 
@@ -902,6 +903,8 @@ async def get_mailjet(
         "fc": _fc,
         # Scrapers BRO (cookies déposés + smart contracts disponibles)
         "scrapers": _list_scrapers_status(email),
+        # État des mémoires (fichiers + Qdrant) — self-service, cf. services/memory_status.py
+        "memory_status": await asyncio.to_thread(get_memory_status, email),
     })
 
 
@@ -1088,6 +1091,70 @@ async def post_scraper_channels(
     logger.info("Chaînes YouTube suivies mises à jour pour %s : %d chaîne(s)", email, len(urls))
 
     return RedirectResponse(f"/mailjet?email={email}&token={token}", status_code=303)
+
+
+# ─── Mémoire BRO/MUSE — état + réinitialisation self-service ────────────────
+
+@router.post("/mailjet/memory-reset")
+async def post_memory_reset(
+    request: Request,
+    email: str = Form(...),
+    token: str = Form(...),
+    scope: str = Form(...),
+):
+    """Réinitialisation self-service d'un périmètre de mémoire (conversations,
+    mémoire BRO, persona, LOVE/MUSE, ou préférences apprises) — chacun contrôle
+    ses propres états mémoires, cf. services/memory_status.py::reset_memory."""
+    captain = settings.CAPTAINEMAIL or "support@qo-op.com"
+    err = _require_token(request, email, token, captain)
+    if err:
+        return err
+    if scope not in RESET_SCOPES:
+        return templates.TemplateResponse(
+            "mailjet_error.html",
+            {"request": request, "message": "Périmètre de réinitialisation invalide.", "captain": captain},
+            status_code=400,
+        )
+
+    report = await asyncio.to_thread(reset_memory, email, scope)
+    logger.info("Mémoire %s réinitialisée pour %s (%d élément(s))", scope, email, len(report["deleted"]))
+
+    return RedirectResponse(f"/mailjet?email={email}&token={token}#memoire", status_code=303)
+
+
+@router.post("/mailjet/memory-regenerate")
+async def post_memory_regenerate(
+    request: Request,
+    email: str = Form(...),
+    token: str = Form(...),
+):
+    """Régénère le profil LifeOS depuis les propres posts Mastodon — proposé
+    uniquement si un cookie mastodon.social est déjà déposé (voir bandeau
+    'Régénérer depuis Mastodon' de mailjet_prefs.html). Appel bloquant côté
+    Playwright (~15-30s) — page de résultat dédiée plutôt qu'un redirect
+    silencieux, pour ne pas laisser l'utilisateur sans nouvelle."""
+    captain = settings.CAPTAINEMAIL or "support@qo-op.com"
+    err = _require_token(request, email, token, captain)
+    if err:
+        return err
+
+    result = await asyncio.to_thread(regenerate_lifeos_from_mastodon, email)
+    logger.info("Régénération LifeOS depuis Mastodon pour %s → %s", email, result)
+
+    if not result.get("ok"):
+        return templates.TemplateResponse(
+            "mailjet_error.html",
+            {"request": request, "message": result.get("error", "Régénération échouée."), "captain": captain},
+            status_code=502,
+        )
+
+    found = result.get("own_posts_found", 0)
+    return templates.TemplateResponse("mailjet_success.html", {
+        "request": request, "email": email, "token": token,
+        "npub": "", "channels": [], "kin_prefs": None,
+        "vibe_capture": False,
+        "custom_message": f"🐘 Profil LifeOS régénéré depuis {found} post(s) Mastodon récent(s).",
+    })
 
 
 @router.get("/mailjet/nostr-events")

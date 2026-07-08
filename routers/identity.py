@@ -47,6 +47,8 @@ class G1NostrForm(BaseModel):
     pass_code: str = ""
     birth_datetime: str = ""
     birth_place: str = ""
+    birth_lat: str = ""             # latitude de naissance — requise pour la phase Phi²
+    birth_lon: str = ""             # longitude de naissance — requise pour la phase Phi²
     birth_weight: str = ""
     birth_height: str = ""         # taille naissance (cm) — incluse dans saltRaw
     current_height: str = ""       # taille adulte (cm) — incluse dans saltRaw
@@ -196,9 +198,50 @@ async def _scan_qr_impl(
     pass_code = (form_data.pass_code or "").strip()
     birth_datetime      = form_data.birth_datetime or ""
     birth_place         = form_data.birth_place or ""
+    birth_lat           = form_data.birth_lat or ""
+    birth_lon           = form_data.birth_lon or ""
     birth_weight        = form_data.birth_weight or ""
     conception_datetime = form_data.conception_datetime or ""
     conception_place    = form_data.conception_place or ""
+    polarity            = form_data.polarity or "0"
+
+    # ── Convention +a4l : compléter (jamais dupliquer) le MULTIPASS existant ──
+    # "base+a4l@domain.tld" → active ATOM4LOVE (clé LOVE dédiée .secret.love,
+    # résonance Phi², event kind 30078) pour le compte déjà existant
+    # "base@domain.tld", sans jamais créer de second MULTIPASS.
+    _A4L_SUFFIX = "+a4l"
+    _local, _at, _domain = email.partition("@")
+    if _at and _local.endswith(_A4L_SUFFIX):
+        base_email = f"{_local[: -len(_A4L_SUFFIX)]}@{_domain}"
+        base_dir = settings.GAME_PATH / "nostr" / base_email
+        if not (base_dir / ".secret.nostr").exists() or not (base_dir / "G1PUBNOSTR").exists():
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "error": "PRIMARY_ACCOUNT_NOT_FOUND",
+                    "message": "Créez d'abord votre MULTIPASS avant d'activer ATOM4LOVE."
+                }
+            )
+        return_code, last_line = await run_script(
+            str(settings.TOOLS_PATH / "atom4love_activate.sh"),
+            base_email, birth_datetime, birth_place, birth_lat, birth_lon,
+            birth_weight, conception_datetime, conception_place, polarity,
+        )
+        try:
+            data = json.loads(last_line.strip())
+        except (json.JSONDecodeError, AttributeError):
+            data = {}
+        if return_code != 0 or not data.get("activated"):
+            logger.warning(f"ATOM4LOVE activation failed for {base_email}: {last_line}")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": data.get("error", "ACTIVATION_FAILED"),
+                    "message": "Échec de l'activation ATOM4LOVE."
+                }
+            )
+        logger.info(f"ATOM4LOVE activated for {base_email}")
+        return JSONResponse(data)
 
     # ── Détection email existant ──────────────────────────────────────────────
     nostr_dir    = settings.GAME_PATH / "nostr" / email
@@ -291,7 +334,8 @@ async def _scan_qr_impl(
             _pep  = pepper or ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(24))
             await run_script("./g1.sh", email, lang, lat, lon, _salt, _pep,
                              birth_datetime, birth_place, birth_weight,
-                             conception_datetime, conception_place)
+                             conception_datetime, conception_place,
+                             birth_lat, birth_lon, polarity)
             for _ in range(6):
                 if multipass_json.exists():
                     break
@@ -348,6 +392,7 @@ async def _scan_qr_impl(
                 email, lang, lat, lon, salt, pepper,
                 birth_datetime, birth_place, birth_weight,
                 conception_datetime, conception_place,
+                birth_lat, birth_lon, polarity,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
@@ -390,7 +435,8 @@ async def _scan_qr_impl(
     try:
         return_code, last_line = await run_script(
             "./g1.sh", email, lang, lat, lon, salt, pepper,
-            birth_datetime, birth_place, birth_weight, conception_datetime, conception_place
+            birth_datetime, birth_place, birth_weight, conception_datetime, conception_place,
+            birth_lat, birth_lon, polarity
         )
     finally:
         _g1nostr_in_progress.discard(email)
